@@ -69,6 +69,8 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	enterPolicyView: () => void;
 	openMapWorkspace: () => Promise<void>;
 	handleRefresh: () => void;
+	refreshReferenceLabels: () => void;
+	referenceLookupStatus: { state: 'loading' | 'ready' | 'needs-refresh'; label: string };
 	revertLoading: boolean;
 	editHistoryCount: number;
 	revertLastEdit: () => Promise<void>;
@@ -117,8 +119,11 @@ export type ScheduleReviewWorkspaceBodyContext = {
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	setLeftTab: (value: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
 	violations: unknown[];
+	hardCount: number;
+	softCount: number;
 	summary: { unassignedCount?: number } | null;
 	roomRequestSummary: { counts?: { pending?: number } } | null;
+	openPublishDialog: () => void;
 	leftRailContentContext: LeftRailContentContext;
 	centerWorkspaceContext: CenterWorkspaceContext;
 	rightPanelContext: RightPanelContext;

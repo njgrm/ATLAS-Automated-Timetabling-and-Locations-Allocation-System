@@ -1,0 +1,28 @@
+{
+  "name": "generated-placement",
+  "invokingIdentity": "phase-0-placement-1785255512404",
+  "firstFocus": {
+    "identity": "Cancel",
+    "insideDialog": true
+  },
+  "tabSequence": [
+    {
+      "identity": "Close",
+      "insideDialog": true
+    },
+    {
+      "identity": "Select room",
+      "insideDialog": true
+    },
+    {
+      "identity": "Cancel",
+      "insideDialog": true
+    },
+    {
+      "identity": "Close",
+      "insideDialog": true
+    }
+  ],
+  "restoredIdentity": "phase-0-placement-1785255512404",
+  "restoredToInvoker": true
+}

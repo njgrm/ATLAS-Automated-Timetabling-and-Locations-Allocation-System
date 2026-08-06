@@ -106,6 +106,24 @@ function getEnrollProFacultyExternalId(user) {
 function normalizedIdentity(value) {
     return (value ?? '').trim().toLowerCase();
 }
+function toSafeIdentifierSlug(value) {
+    const normalized = String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return normalized || 'unknown';
+}
+function resolveEnrollProAccountEmail(user) {
+    const upstreamEmail = user.email?.trim().toLowerCase() ?? '';
+    if (upstreamEmail && isValidEmail(upstreamEmail)) {
+        return upstreamEmail;
+    }
+    const stableKey = user.employeeId?.trim()
+        || user.accountName?.trim()
+        || String(user.id);
+    return `enrollpro-${toSafeIdentifierSlug(stableKey)}@atlas.local`;
+}
 export function selectExactEnrollProFacultyMatch(rows, identity) {
     const uniqueRows = [...new Map(rows
             .filter((row) => Number.isInteger(row.teacherId) && row.teacherId > 0 && row.isActive !== false)
@@ -238,7 +256,7 @@ async function findLinkedFacultyMirror(params) {
 async function provisionFromEnrollPro(params) {
     const role = mapEnrollProRole(params.enrollProUser.role);
     const hash = await bcrypt.hash(params.password, 12);
-    const email = params.enrollProUser.email.trim().toLowerCase();
+    const email = resolveEnrollProAccountEmail(params.enrollProUser);
     const employeeId = params.enrollProUser.employeeId;
     const accountName = params.enrollProUser.accountName;
     const linkedMirror = await findLinkedFacultyMirror({

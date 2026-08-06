@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapPinned, MousePointer2, Pencil } from 'lucide-react';
 
-import { CampusMapEditor } from '@/components/CampusMapEditor';
-import { BuildingPanel } from '@/components/BuildingPanel';
 import { CampusMapOverview } from '@/components/campus-map/CampusMapOverview';
 import atlasApi from '@/lib/api';
 import type { Building, Room } from '@/types';
@@ -16,6 +14,8 @@ type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 const DEFAULT_SCHOOL_ID = 1;
 
 const MAX_HISTORY = 30;
+const CampusMapEditor = lazy(() => import('@/components/CampusMapEditor').then((module) => ({ default: module.CampusMapEditor })));
+const BuildingPanel = lazy(() => import('@/components/BuildingPanel').then((module) => ({ default: module.BuildingPanel })));
 
 export default function MapEditor() {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -205,6 +205,7 @@ export default function MapEditor() {
 						setSearchParams(next2);
 					}} />
 				</div>
+				<Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500">Loading map editor…</div>}>
 				<CampusMapEditor
 					schoolId={DEFAULT_SCHOOL_ID}
 					buildings={buildings}
@@ -219,10 +220,12 @@ export default function MapEditor() {
 					onUndo={handleUndo}
 					onRedo={handleRedo}
 				/>
+				</Suspense>
 			</div>
 
 			{/* Side panel — always visible */}
 			<div className="w-88 shrink-0 border-l border-slate-200 bg-white overflow-y-auto scrollbar-thin shadow-soft">
+				<Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading room editor…</div>}>
 				{selectedBuilding ? (
 					<BuildingPanel
 						building={selectedBuilding}
@@ -246,6 +249,7 @@ export default function MapEditor() {
 						</div>
 					</div>
 				)}
+				</Suspense>
 			</div>
 		</div>
 	);

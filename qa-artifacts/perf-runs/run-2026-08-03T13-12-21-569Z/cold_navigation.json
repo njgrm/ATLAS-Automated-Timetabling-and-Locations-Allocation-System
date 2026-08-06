@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 1159.4622,
+  "metrics": {
+    "navigation": {
+      "duration": 191.29999999701977,
+      "domInteractive": 25.69999998807907,
+      "responseEnd": 20
+    },
+    "jsTransferBytes": 6393114,
+    "jsDecodedBytes": 6351714,
+    "jsFileCount": 138,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 6,
+        "baseDuration": 5.699999988079071,
+        "timestamp": 1785762744553
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.7000000029802322,
+        "baseDuration": 2.7000000029802322,
+        "timestamp": 1785762744575
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 2.7000000029802322,
+        "timestamp": 1785762744576
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 2.2999999970197678,
+        "baseDuration": 2.2999999970197678,
+        "timestamp": 1785762744622
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 2.2999999970197678,
+        "timestamp": 1785762744635
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 14.100000008940697,
+        "baseDuration": 12.999999985098839,
+        "timestamp": 1785762744699
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 32.70000000298023,
+        "baseDuration": 29.299999997019768,
+        "timestamp": 1785762744778
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 29.299999997019768,
+        "timestamp": 1785762744782
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.7999999821186066,
+        "baseDuration": 27.799999937415123,
+        "timestamp": 1785762744836
+      }
+    ]
+  }
+}

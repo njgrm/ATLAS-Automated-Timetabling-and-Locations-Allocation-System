@@ -447,6 +447,100 @@ export default function Subjects() {
 			programScopes: coverageSubject.programScopes ?? [],
 		};
 	}, [coverageSubject, teacherCoverage]);
+	const openSubjectEditor = useCallback((subject: Subject) => {
+		setModalSubject({
+			id: subject.id,
+			code: subject.code,
+			outputLabel: subject.outputLabel ?? subject.displayCode ?? '',
+			name: subject.name,
+			ownerDepartment: subject.ownerDepartment ?? '',
+			allowedOwnerDepartments: [...(subject.allowedOwnerDepartments ?? [])],
+			qualificationPriority: subject.qualificationPriority ?? 'DEPARTMENT_FIRST',
+			rotationFamily: subject.rotationFamily ?? '',
+			minMinutesPerWeek: subject.minMinutesPerWeek,
+			preferredRoomType: subject.preferredRoomType,
+			gradeLevels: [...subject.gradeLevels],
+			isActive: subject.isActive,
+			isSeedable: subject.isSeedable,
+			isSystemManaged: subject.isSystemManaged ?? false,
+			interSectionEnabled: subject.interSectionEnabled ?? false,
+			interSectionGradeLevels: [...(subject.interSectionGradeLevels ?? [])],
+			modularGroupId: subject.modularGroupId ?? '',
+			modularOrder: subject.modularOrder ?? null,
+			programScopes: [...(subject.programScopes ?? ['REGULAR'])],
+			allowedSpecializations: [...(subject.allowedSpecializations ?? [])],
+			requiredFeatures: [...(subject.requiredFeatures ?? [])],
+		});
+		setModalSubjectMeta(subject);
+		setModalMode('edit');
+	}, []);
+	const openSubjectCoverage = useCallback((subject: Subject) => {
+		setCoverageSubject(subject);
+		fetchTeacherCoverage(subject.id);
+	}, [fetchTeacherCoverage]);
+	const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
+		const duration = timeMode === 'minutes'
+			? `${subject.minMinutesPerWeek} min`
+			: `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
+		const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
+			? 'Standard classroom'
+			: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
+		const grades = subject.gradeLevels.length > 0
+			? [...subject.gradeLevels].sort((a, b) => a - b).map((grade) => gradeLabel(grade)).join(', ')
+			: 'No grades';
+		const programScopes = subject.programScopes ?? [];
+		const programCopy = programScopes.length === 0 ? 'All programs' : programScopes.length === 1 ? programScopes[0] : `${programScopes.length} programs`;
+		const coverage = teacherCoverage[subject.id]?.assigned?.length ?? 0;
+		const needsCoverage = assignedSubjectIds !== null && subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id);
+
+		return (
+			<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="subject-mobile-card">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0">
+						<div className="flex flex-wrap items-center gap-2">
+							<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">{subject.code}</Badge>
+							<Badge className={subject.isActive ? 'h-6 rounded-full border-0 bg-emerald-50 text-xs font-bold text-emerald-700' : 'h-6 rounded-full border-0 bg-amber-50 text-xs font-bold text-amber-700'}>
+								{subject.isActive ? 'Schedulable' : 'Archived'}
+							</Badge>
+							{needsCoverage && <Badge className="h-6 rounded-full border-0 bg-amber-100 text-xs font-bold text-amber-800">Needs teacher</Badge>}
+						</div>
+						<h3 className="mt-2 truncate text-base font-bold text-foreground">{subject.name}</h3>
+						<p className="mt-0.5 text-xs font-medium text-muted-foreground">{subject.ownerDepartment || 'General'} · {programCopy}</p>
+					</div>
+				</div>
+
+				<div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+						<p className="font-bold uppercase tracking-widest text-muted-foreground">Weekly time</p>
+						<p className="mt-1 text-sm font-bold text-foreground">{duration}</p>
+					</div>
+					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+						<p className="font-bold uppercase tracking-widest text-muted-foreground">Room need</p>
+						<p className="mt-1 truncate text-sm font-bold text-foreground">{roomNeedLabel}</p>
+					</div>
+					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+						<p className="font-bold uppercase tracking-widest text-muted-foreground">Grades</p>
+						<p className="mt-1 truncate text-sm font-bold text-foreground">{grades}</p>
+					</div>
+					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+						<p className="font-bold uppercase tracking-widest text-muted-foreground">Coverage</p>
+						<p className={needsCoverage ? 'mt-1 text-sm font-bold text-amber-700' : 'mt-1 text-sm font-bold text-emerald-700'}>
+							{needsCoverage ? 'Needs teacher' : `${coverage} teacher${coverage === 1 ? '' : 's'}`}
+						</p>
+					</div>
+				</div>
+
+				<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
+					<Button type="button" size="sm" className="h-11 flex-1 font-bold" onClick={() => openSubjectCoverage(subject)}>
+						Review coverage
+					</Button>
+					<Button type="button" size="sm" variant="outline" className="h-11 flex-1 font-bold" onClick={() => openSubjectEditor(subject)}>
+						Edit subject
+					</Button>
+				</div>
+			</div>
+		);
+	};
 
 	return (
 		<AdminWorkspaceFrame
@@ -634,7 +728,22 @@ export default function Subjects() {
 					</div>
 				) : undefined}
 			>
-						<table className="w-full text-sm">
+						<div className="space-y-3 p-3 md:hidden">
+							{loading ? (
+								Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)
+							) : paged.length === 0 ? (
+								<div className="flex min-h-80 items-center justify-center px-4 py-12 text-center">
+									<AdminStatePanel
+										icon={<BookOpen className="size-8" />}
+										title={subjects.length === 0 ? 'No subjects found.' : 'No matches found.'}
+										description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'}
+									/>
+								</div>
+							) : (
+								paged.map((subject) => <SubjectMobileCard key={subject.id} subject={subject} />)
+							)}
+						</div>
+						<table className="hidden w-full text-sm md:table">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
 									<th className="px-4 py-3 text-left">
@@ -683,39 +792,10 @@ export default function Subjects() {
 											key={s.id}
 											subject={s}
 											timeMode={timeMode}
-											onEdit={() => {
-												setModalSubject({
-													id: s.id,
-													code: s.code,
-													outputLabel: s.outputLabel ?? s.displayCode ?? '',
-													name: s.name,
-													ownerDepartment: s.ownerDepartment ?? '',
-													allowedOwnerDepartments: [...(s.allowedOwnerDepartments ?? [])],
-													qualificationPriority: s.qualificationPriority ?? 'DEPARTMENT_FIRST',
-													rotationFamily: s.rotationFamily ?? '',
-													minMinutesPerWeek: s.minMinutesPerWeek,
-													preferredRoomType: s.preferredRoomType,
-													gradeLevels: [...s.gradeLevels],
-													isActive: s.isActive,
-													isSeedable: s.isSeedable,
-													isSystemManaged: s.isSystemManaged ?? false,
-													interSectionEnabled: s.interSectionEnabled ?? false,
-													interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
-													modularGroupId: s.modularGroupId ?? '',
-													modularOrder: s.modularOrder ?? null,
-													programScopes: [...(s.programScopes ?? ['REGULAR'])],
-													allowedSpecializations: [...(s.allowedSpecializations ?? [])],
-													requiredFeatures: [...(s.requiredFeatures ?? [])],
-												});
-												setModalSubjectMeta(s);
-												setModalMode('edit');
-											}}
+											onEdit={openSubjectEditor}
 											onDelete={(target) => setDeleteTarget(target)}
 											onArchive={(target) => setArchiveTarget(target)}
-											onShowCoverage={(target) => {
-												setCoverageSubject(target);
-												fetchTeacherCoverage(target.id);
-											}}
+											onShowCoverage={openSubjectCoverage}
 										onReactivate={handleReactivateSubject}
 										/>
 									))

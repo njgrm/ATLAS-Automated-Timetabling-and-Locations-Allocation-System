@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowRightLeft, CalendarClock, Check, Clock, ClipboardCh
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
+import type { RolloverStatus } from '@/lib/settings';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -15,10 +16,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dro
 import { QuickPlaceSummaryModal } from '@/components/timetable/QuickPlaceSummaryModal';
 import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
+import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import { DEFAULT_SCHOOL_ID } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
+import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -64,6 +67,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const [syncResult, setSyncResult] = useState<any | null>(null);
 	const [showPostSyncOffer, setShowPostSyncOffer] = useState(false);
 	const [moreOpen, setMoreOpen] = useState(false);
+	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 
 	const {
 		isPreGenerationWorkspace,
@@ -198,15 +202,22 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const runOptions = runs ?? [];
 	const visibleViolations = violations ?? [];
 	const unassignedCount = summary?.unassignedCount ?? 0;
-	const openLeftTask = (tab: 'violations' | 'unassigned' | 'requests') => {
+	const generationBlockedByDrift = rolloverStatus?.drift.status === 'atlas-stale' || rolloverStatus?.drift.status === 'mapping-conflict';
+	const expandLeftPanelForTask = () => {
 		leftPanelRef.current?.expand();
+		if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+			leftPanelRef.current?.resize(72);
+		}
+	};
+	const openLeftTask = (tab: 'violations' | 'unassigned' | 'requests') => {
+		expandLeftPanelForTask();
 		setLeftTab(tab);
 		setPresentationMode('workflow');
 	};
 	const openDraftPlannerTask = async () => {
 		await handleStartNewPreGenerationDraft();
 		setLeftTab('unassigned');
-		leftPanelRef.current?.expand();
+		expandLeftPanelForTask();
 		setPresentationMode('workflow');
 	};
 	const taskModes: TimetableTaskMode[] = [
@@ -272,7 +283,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const foolproofHelp = isPreGenerationWorkspace
 		? 'Draft mode: choose a draft queue item, then tap or click a grid slot. Review draft placement opens before anything is saved. Switch: select one placed draft session, then another occupied slot.'
 		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class to open Review occupied-slot swap. Draft: use Plan before generating for draft anchors.';
-	const statusLegend = 'Can place = empty slot. Can swap = occupied slot. Blocked = fix first. Warning = review only.';
 	const sourceContext = context.schoolYearContext;
 	const sourceLabel = !sourceContext
 		? 'Checking source'
@@ -300,13 +310,31 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	return (
 		<Profiler id="Header" onRender={onProfilerRender}>
 			<div className="shrink-0 border-b border-border bg-background">
-			<div className="flex items-center gap-2 overflow-x-auto px-4 pt-2 pb-1.5 xl:flex-wrap [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
+			<div className="flex items-center gap-2 overflow-x-auto px-4 pt-2 pb-1.5 [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
 				<Badge
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
 					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
 				>
 					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : `Generated Run #${activeGeneratedRunId ?? '-'}`}
 				</Badge>
+
+				{showSourceTruthNotice && (
+					<Badge
+						variant="outline"
+						data-testid="timetable-source-truth"
+						className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 truncate px-2 text-xs font-semibold', sourceTone)}
+					>
+						<Info className="size-3.5 shrink-0" aria-hidden="true" />
+						<span className="truncate">
+							{sourceLabel}
+							{schoolYearId ? ` · School year #${schoolYearId}` : ''}
+							{visibleRunId ? ` · Run #${visibleRunId}` : ''}
+						</span>
+						<span className="sr-only" data-testid="timetable-run-source-note">
+							{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+						</span>
+					</Badge>
+				)}
 
 				<div data-tutorial="run-selector" className="shrink-0">
 					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runOptions.length === 0 || centerView === 'pre-generation'}>
@@ -384,7 +412,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						className="h-8 shrink-0 gap-1.5 border border-primary/30"
 						onClick={() => void openPreGenerationWorkspace(false).then(() => {
 							setLeftTab('unassigned');
-							leftPanelRef.current?.expand();
+							expandLeftPanelForTask();
 							setPresentationMode('workflow');
 						})}
 					>
@@ -421,14 +449,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="default"
 								size="sm"
 								className="h-8 gap-1.5"
-								disabled={generating || loading || !schoolYearId}
+								disabled={generating || loading || !schoolYearId || generationBlockedByDrift}
 								onClick={handleTriggerGenerate}
 							>
 								{generating ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
 								{generating ? 'Generating…' : 'Generate'}
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>Trigger a new schedule generation run</TooltipContent>
+						<TooltipContent>
+							{generationBlockedByDrift
+								? (rolloverStatus?.drift.message ?? 'Sync the active school year before generating.')
+								: 'Trigger a new schedule generation run'}
+						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 
@@ -635,11 +667,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				)}
 			</div>
 
-			{showSourceTruthNotice && (
+			<div className="px-4 pb-1.5">
+				<RolloverGuidanceCard compact onStatus={setRolloverStatus} onApplied={() => handleRefresh()} />
+			</div>
+
+			{false && showSourceTruthNotice && (
 				<div
-					data-testid="timetable-source-truth"
+					data-testid="timetable-source-truth-detail"
 					className={cn(
-						'mx-4 mb-1 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-xs shadow-sm',
+						'mx-2 mb-1 flex flex-nowrap items-center justify-between gap-2 rounded-lg border px-2 py-1 text-xs shadow-sm sm:mx-4 sm:flex-wrap sm:px-3 sm:py-1.5',
 						sourceTone,
 					)}
 				>
@@ -651,7 +687,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							{visibleRunId ? ` · Run #${visibleRunId}` : ''}
 						</p>
 					</div>
-					<p className="min-w-0 text-current/80 sm:truncate" data-testid="timetable-run-source-note">
+					<p className="sr-only" data-testid="timetable-run-source-note">
 						{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
 					</p>
 				</div>
@@ -659,10 +695,10 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 
 			<div
 				data-testid="timetable-task-guide"
-				className="relative mx-4 mb-1 rounded-lg border border-border bg-muted/20 px-2 py-1 shadow-sm xl:px-3 [@media(max-height:500px)]:mb-0 [@media(max-height:500px)]:py-1"
+				className="relative mx-2 mb-1 rounded-lg border border-border bg-muted/20 px-2 py-0.5 shadow-sm sm:mx-4 xl:px-3 [@media(max-height:500px)]:mb-0 [@media(max-height:500px)]:py-0"
 			>
-				<div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-					<div className="hidden min-w-0 items-center gap-2 sm:flex sm:w-64 sm:flex-none">
+				<div className="flex min-w-0 items-center justify-between gap-1.5">
+					<div className="sr-only">
 						<div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-background text-primary shadow-sm ring-1 ring-border">
 							<ActiveTaskIcon className="size-4" aria-hidden="true" />
 						</div>
@@ -675,7 +711,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<div
 						role="group"
 						aria-label="Timetable task modes"
-						className="flex min-w-0 gap-1 overflow-x-auto pb-0.5 sm:flex-1"
+						className="flex min-w-0 gap-1 overflow-x-auto pb-0.5 sm:flex-1 [@media(max-height:500px)]:pb-0"
 					>
 						{taskModes.map((task) => {
 							const Icon = task.icon;
@@ -717,7 +753,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				<div
 					id="timetable-foolproof-help"
 					data-testid="timetable-foolproof-help"
-					className="mt-1 flex min-w-0 flex-col gap-1 rounded-md bg-background/70 px-2 py-1 text-xs leading-snug text-muted-foreground sm:flex-row sm:items-center sm:justify-between [@media(max-height:500px)]:py-0.5"
+					className="sr-only"
 				>
 					<p className="min-w-0 truncate">
 						<span className="font-semibold text-foreground">No precision dragging required.</span>{' '}
@@ -726,13 +762,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						<span className="sr-only">{foolproofHelp}</span>
 					</p>
 					<div className="flex shrink-0 items-center gap-2">
-						<p
-							className="hidden font-medium text-foreground lg:block"
-							data-testid="timetable-status-legend"
-						>
-							{statusLegend}
-						</p>
-						<span className="sr-only">{statusLegend}</span>
+						<TimetableStatusLegend />
 						{editHistoryCount > 0 && !isPreGenerationWorkspace && (
 						<Button
 							type="button"
@@ -755,37 +785,37 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 
 			{showInputStateBanner && (
 				<div className={cn(
-					'mx-4 mb-2 flex flex-col gap-3 rounded-xl border px-3 py-2.5 shadow-sm lg:flex-row lg:items-center lg:justify-between',
+					'mx-2 mb-1 flex h-8 flex-nowrap items-center justify-between gap-2 overflow-hidden rounded-lg border px-2 py-0 text-xs shadow-sm sm:mx-4 [@media(max-height:500px)]:hidden',
 					inputState?.status === 'STALE'
 						? 'border-amber-200 bg-amber-50 text-amber-950'
 						: 'border-sky-200 bg-sky-50 text-sky-950',
 				)}>
-					<div className="flex min-w-0 items-start gap-3">
+					<div className="flex min-w-0 items-center gap-2">
 						<div className={cn(
-							'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
+							'flex size-6 shrink-0 items-center justify-center rounded-md',
 							inputState?.status === 'STALE' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700',
 						)}>
 							{inputState?.status === 'STALE' ? <AlertTriangle className="size-4" /> : <ShieldAlert className="size-4" />}
 						</div>
-						<div className="min-w-0 space-y-1">
-							<div className="flex flex-wrap items-center gap-2">
-								<p className="text-sm font-bold">{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</p>
+						<div className="min-w-0">
+							<div className="flex min-w-0 items-center gap-2">
+								<p className="shrink-0 text-xs font-bold">{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</p>
 								{inputState?.status === 'STALE' && changedDomainLabels.slice(0, 3).map((label) => (
 									<Badge key={label} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-xs font-bold text-amber-800">
 										{label}
 									</Badge>
 								))}
 							</div>
-							<p className="text-xs font-medium leading-relaxed text-current/80">
+							<p className="hidden truncate text-xs font-medium leading-relaxed text-current/80 lg:block">
 								{inputState?.message ?? 'ATLAS could not check this run against the latest setup data.'}
 							</p>
 						</div>
 					</div>
 
-					<div className="flex flex-wrap items-center gap-2 lg:justify-end">
+					<div className="flex shrink-0 items-center gap-1.5 lg:justify-end">
 						<Button variant="outline" size="sm" className="h-8 gap-1.5 bg-background/80" onClick={() => setShowImpactPreview(true)}>
 							<SearchCheck className="size-3.5" />
-							Preview Impact
+							<span className="hidden sm:inline">Preview Impact</span>
 						</Button>
 						<Button
 							variant="outline"
@@ -795,7 +825,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							disabled={loading || syncing}
 						>
 							{syncing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-							Sync with Setup
+							<span className="hidden sm:inline">Sync with Setup</span>
 						</Button>
 						<TooltipProvider>
 							<Tooltip>
@@ -809,7 +839,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 											onClick={() => context.enterManualEditView('CHANGE_FACULTY')}
 										>
 											<Wrench className="size-3.5" />
-											Manually Repair
+											<span className="hidden sm:inline">Manually Repair</span>
 										</Button>
 									</span>
 								</TooltipTrigger>
@@ -818,7 +848,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						</TooltipProvider>
 						<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={generating || loading || !schoolYearId} onClick={handleTriggerGenerate}>
 							<RotateCw className="size-3.5" />
-							Regenerate Draft
+							<span className="hidden sm:inline">Regenerate Draft</span>
 						</Button>
 					</div>
 				</div>

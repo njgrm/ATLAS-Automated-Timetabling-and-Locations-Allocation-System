@@ -1,0 +1,69 @@
+{
+  "status": "PASS",
+  "durationMs": 104.31980000000112,
+  "commits": [
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0,
+      "baseDuration": 17.19999998807907,
+      "timestamp": 1785743701541
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.29999999701976776,
+      "baseDuration": 17.49999998509884,
+      "timestamp": 1785743701542
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 17.49999998509884,
+      "timestamp": 1785743701542
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 18.700000002980232,
+      "baseDuration": 18.400000005960464,
+      "timestamp": 1785743701590
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 18.400000005960464,
+      "timestamp": 1785743701593
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.19999998807907104,
+      "baseDuration": 18.400000005960464,
+      "timestamp": 1785743701608
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1.0999999940395355,
+      "baseDuration": 19.400000005960464,
+      "timestamp": 1785743701609
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1,
+      "baseDuration": 18.900000005960464,
+      "timestamp": 1785743701611
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 18.900000005960464,
+      "timestamp": 1785743701611
+    }
+  ]
+}

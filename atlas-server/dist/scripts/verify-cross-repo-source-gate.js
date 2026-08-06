@@ -93,7 +93,7 @@ async function loginForToken(baseApiUrl, email, password) {
     const response = await fetch(`${baseApiUrl.replace(/\/$/, '')}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ accountName: email, password }),
     });
     if (!response.ok) {
         throw new Error(`EnrollPro login failed with ${response.status} ${response.statusText}.`);

@@ -227,7 +227,8 @@ export function TutorialOverlay({ steps, userRole, onComplete, active }: Tutoria
 
 /* ─── Tutorial hook for persisted state ─── */
 
-export function useTutorial(storageKey: string) {
+export function useTutorial(storageKey: string, options: { autoStart?: boolean } = {}) {
+	const { autoStart = true } = options;
 	const [active, setActive] = useState(false);
 	const [hasCompleted, setHasCompleted] = useState(() => {
 		try { return localStorage.getItem(storageKey) === 'true'; }
@@ -244,12 +245,12 @@ export function useTutorial(storageKey: string) {
 
 	// Auto-start on first visit
 	useEffect(() => {
-		if (!hasCompleted) {
+		if (autoStart && !hasCompleted) {
 			// Small delay so the page finishes rendering and targets are available
 			const t = setTimeout(() => setActive(true), 800);
 			return () => clearTimeout(t);
 		}
-	}, [hasCompleted]);
+	}, [autoStart, hasCompleted]);
 
 	const contextValue = useMemo(() => ({ active, start, complete, hasCompleted }), [active, start, complete, hasCompleted]);
 	return contextValue;

@@ -3,6 +3,7 @@ import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
 const CONTEXT_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 const EVIDENCE_FRESHNESS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const EVIDENCE_TYPE_WEIGHT = {
+    'school-year-mirror': 120,
     'section-mirror': 100,
     'section-snapshot': 90,
     'faculty-snapshot': 75,
@@ -62,8 +63,69 @@ function rankRuntimeYears(evidence) {
 export function pickBestRuntimeYear(evidence) {
     return rankRuntimeYears(evidence)[0]?.representative ?? null;
 }
+function buildActiveYearDrift(input) {
+    if (input.mappingConflict) {
+        return {
+            status: 'mapping-conflict',
+            message: 'EnrollPro active-year mapping conflicts with existing ATLAS school-year data. Review migration before syncing.',
+            recommendedAction: 'REVIEW_MAPPING_CONFLICT',
+            atlasSchoolYearId: input.selectedYearId,
+            enrollProSchoolYearId: input.upstreamYearId,
+            enrollProSchoolYearLabel: input.upstreamYearLabel,
+            mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+        };
+    }
+    if (!input.upstreamYearId) {
+        return {
+            status: input.verifyUpstream ? 'enrollpro-unreachable' : 'aligned',
+            message: input.verifyUpstream
+                ? 'EnrollPro active school year could not be verified. ATLAS is using saved setup data for now.'
+                : 'ATLAS is using saved setup data. Verify EnrollPro when preparing a new school year.',
+            recommendedAction: input.verifyUpstream ? 'RETRY_ENROLLPRO' : 'NONE',
+            atlasSchoolYearId: input.selectedYearId,
+            enrollProSchoolYearId: null,
+            enrollProSchoolYearLabel: null,
+            mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+        };
+    }
+    if (input.selectedYearId !== input.upstreamYearId) {
+        return {
+            status: 'atlas-stale',
+            message: `EnrollPro is now on ${input.upstreamYearLabel ?? `school year #${input.upstreamYearId}`}. Sync the new school year before creating a timetable.`,
+            recommendedAction: 'RUN_ROLLOVER_SYNC',
+            atlasSchoolYearId: input.selectedYearId,
+            enrollProSchoolYearId: input.upstreamYearId,
+            enrollProSchoolYearLabel: input.upstreamYearLabel,
+            mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+        };
+    }
+    return {
+        status: 'aligned',
+        message: `ATLAS is aligned with ${input.upstreamYearLabel ?? `school year #${input.upstreamYearId}`}.`,
+        recommendedAction: 'NONE',
+        atlasSchoolYearId: input.selectedYearId,
+        enrollProSchoolYearId: input.upstreamYearId,
+        enrollProSchoolYearLabel: input.upstreamYearLabel,
+        mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+    };
+}
 export async function resolveRuntimeContext(schoolId, authToken, options) {
-    const [policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
+    const [schoolYearMirror, policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
+        prisma.enrollProSchoolYearMirror.findFirst({
+            where: { schoolId, isActive: true },
+            orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+            select: {
+                enrollProSchoolYearId: true,
+                yearLabel: true,
+                lastVerifiedAt: true,
+                lastSyncedAt: true,
+                isActive: true,
+                facultyCount: true,
+                sectionCount: true,
+                syncStatus: true,
+                lastFailureSummary: true,
+            },
+        }),
         prisma.schedulingPolicy.findFirst({
             where: { schoolId },
             orderBy: [{ updatedAt: 'desc' }],
@@ -91,6 +153,14 @@ export async function resolveRuntimeContext(schoolId, authToken, options) {
         }),
     ]);
     const evidence = [];
+    if (schoolYearMirror) {
+        evidence.push({
+            yearId: schoolYearMirror.enrollProSchoolYearId,
+            timestamp: schoolYearMirror.lastSyncedAt ?? schoolYearMirror.lastVerifiedAt ?? new Date(0),
+            type: 'school-year-mirror',
+            source: 'atlas.enrollpro_school_year_mirror',
+        });
+    }
     if (policy) {
         evidence.push({
             yearId: policy.schoolYearId,
@@ -141,12 +211,22 @@ export async function resolveRuntimeContext(schoolId, authToken, options) {
     let upstreamReachable = false;
     let upstreamVerified = false;
     let upstreamMatched = null;
+    let upstreamActiveSchoolYearId = schoolYearMirror?.enrollProSchoolYearId ?? null;
+    let upstreamActiveSchoolYearLabel = schoolYearMirror?.yearLabel ?? null;
+    let mappingConflict = false;
     const verifyUpstream = options?.verifyUpstream !== false;
     if (verifyUpstream) {
         try {
             const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
             if (upstreamYear) {
                 upstreamReachable = true;
+                upstreamActiveSchoolYearId = upstreamYear.id;
+                upstreamActiveSchoolYearLabel = upstreamYear.yearLabel;
+                if (schoolYearMirror
+                    && schoolYearMirror.enrollProSchoolYearId === upstreamYear.id
+                    && schoolYearMirror.yearLabel !== upstreamYear.yearLabel) {
+                    mappingConflict = true;
+                }
                 const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
                 if (upstreamRank && selectedRank) {
                     const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
@@ -169,6 +249,18 @@ export async function resolveRuntimeContext(schoolId, authToken, options) {
         }
     }
     const stale = Date.now() - selected.timestamp.getTime() > CONTEXT_STALE_THRESHOLD_MS;
+    if (!activeSchoolYearLabel && schoolYearMirror?.enrollProSchoolYearId === selected.yearId) {
+        activeSchoolYearLabel = schoolYearMirror.yearLabel;
+    }
+    const activeYearDrift = buildActiveYearDrift({
+        selectedYearId: selected.yearId,
+        upstreamYearId: upstreamActiveSchoolYearId,
+        upstreamYearLabel: upstreamActiveSchoolYearLabel,
+        upstreamReachable,
+        mappingConflict,
+        mirrorSyncedAt: schoolYearMirror?.lastSyncedAt ?? null,
+        verifyUpstream,
+    });
     return {
         schoolId,
         activeSchoolYearId: selected.yearId,
@@ -188,6 +280,22 @@ export async function resolveRuntimeContext(schoolId, authToken, options) {
             reachable: upstreamReachable,
             verified: upstreamVerified,
             matched: upstreamMatched,
+            activeSchoolYearId: upstreamActiveSchoolYearId,
+            activeSchoolYearLabel: upstreamActiveSchoolYearLabel,
+        },
+        activeYearDrift,
+        rollover: {
+            mirror: schoolYearMirror ? {
+                enrollProSchoolYearId: schoolYearMirror.enrollProSchoolYearId,
+                yearLabel: schoolYearMirror.yearLabel,
+                isActive: schoolYearMirror.isActive,
+                lastVerifiedAt: schoolYearMirror.lastVerifiedAt?.toISOString() ?? null,
+                lastSyncedAt: schoolYearMirror.lastSyncedAt?.toISOString() ?? null,
+                facultyCount: schoolYearMirror.facultyCount,
+                sectionCount: schoolYearMirror.sectionCount,
+                syncStatus: schoolYearMirror.syncStatus,
+                lastFailureSummary: schoolYearMirror.lastFailureSummary,
+            } : null,
         },
     };
 }

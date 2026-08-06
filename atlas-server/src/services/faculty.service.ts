@@ -40,6 +40,8 @@ export interface FacultySyncOptions {
 mode?: FacultySyncMode;
 pruneSectionAssignments?: boolean;
 invalidateRuns?: boolean;
+seedAssignments?: boolean;
+syncAdvisoryAssignments?: boolean;
 }
 
 export interface FacultySyncResult {
@@ -705,10 +707,14 @@ prisma.facultyMirror.count({ where: { schoolId, isStale: true } }),
 ]);
 
 // Auto-seed qualified assignments for faculty whose dept matches a subject's allowedSpecializations
-const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
+const seededAssignments = options.seedAssignments === false
+? { created: 0, skipped: 0 }
+: await seedQualifiedAssignments(schoolId, schoolYearId);
 
 // Persist HG ownership records for all active class advisers
+if (options.syncAdvisoryAssignments !== false) {
 await syncAdvisoryHgAssignments(schoolId, schoolYearId);
+}
 
 return {
 synced: true,

@@ -2,6 +2,8 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { openTimetableAdvanced } from './timetable-layout-helpers';
+
 const credentials = {
 	identifier: process.env.PLAYWRIGHT_ADMIN_EMAIL ?? '1000001',
 	password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? 'AdminSY2026!',
@@ -69,9 +71,7 @@ function criticalIssues(issues: ReleaseIssue[]) {
 }
 
 async function openTimetable(page: Page) {
-	await page.goto('/timetable', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-	await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 45_000 });
-	await expect(page.getByTestId('timetable-task-guide')).toBeVisible({ timeout: 10_000 });
+	await openTimetableAdvanced(page);
 }
 
 async function blockDestructiveTimetableWrites(page: Page) {

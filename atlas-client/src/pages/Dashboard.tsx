@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	BookOpen,
@@ -18,8 +19,10 @@ import {
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import { useDashboardData, type LifecyclePhase } from '@/hooks/useDashboardData';
-import { CampusReadinessCard } from '@/components/dashboard/CampusReadinessCard';
+import { useDashboardData, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
+import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+
+const CampusReadinessCard = lazy(() => import('@/components/dashboard/CampusReadinessCard').then((module) => ({ default: module.CampusReadinessCard })));
 
 // Tone vocabulary — only `brand` is school-token-driven; the others are reserved
 // for semantic meaning (info/students/warning) and must stay independent of the
@@ -92,8 +95,8 @@ const SOURCE_BADGE_COPY: Record<string, string> = {
 const SOURCE_BADGE_CLASS: Record<string, string> = {
 	verified_live: 'border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50',
 	checking_source: 'border-0 bg-sky-50 text-sky-700 hover:bg-sky-50',
-	using_saved_data: 'border-0 bg-sky-50 text-sky-700 hover:bg-sky-50',
-	no_saved_data: 'border-0 bg-slate-100 text-slate-600 hover:bg-slate-100',
+	using_saved_data: 'border-0 bg-amber-50 text-amber-700 hover:bg-amber-50',
+	no_saved_data: 'border-0 bg-red-50 text-red-700 hover:bg-red-50',
 	partial_degraded: 'border-0 bg-amber-100 text-amber-700 hover:bg-amber-100',
 };
 
@@ -104,6 +107,85 @@ type NextStep = {
 	href: string;
 	warn?: string;
 };
+
+type SourceDecisionTone = 'success' | 'info' | 'warning' | 'danger';
+
+type SourceDecision = {
+	label: string;
+	title: string;
+	sentence: string;
+	helper: string;
+	tone: SourceDecisionTone;
+};
+
+const SOURCE_DECISION_COPY: Record<DashboardReadinessSourceState, SourceDecision> = {
+	verified_live: {
+		label: 'Verified live',
+		title: 'Source connection is ready',
+		sentence: 'Source verified: continue setup normally.',
+		helper: 'EnrollPro has been checked for this school year, so repair steps can be treated as current.',
+		tone: 'success',
+	},
+	checking_source: {
+		label: 'Checking source',
+		title: 'Source connection is being checked',
+		sentence: 'Checking source: review visible setup data now; wait for the check to finish before final sync.',
+		helper: 'The checklist stays available so you can inspect obvious issues while the connection settles.',
+		tone: 'info',
+	},
+	using_saved_data: {
+		label: 'Using saved data',
+		title: 'Source connection is unavailable',
+		sentence: 'Source unavailable: review saved data now; wait for EnrollPro before final sync.',
+		helper: 'Saved ATLAS data is useful for repair work, but it is not a replacement for live EnrollPro verification.',
+		tone: 'warning',
+	},
+	no_saved_data: {
+		label: 'No saved data',
+		title: 'No source data is available',
+		sentence: 'No saved data: reconnect EnrollPro before repairing setup.',
+		helper: 'ATLAS does not have enough safe local data to guide setup repair for this school year.',
+		tone: 'danger',
+	},
+	partial_degraded: {
+		label: 'Partial data',
+		title: 'Some source checks are unavailable',
+		sentence: 'Source partly unavailable: fix visible setup items now; wait for EnrollPro before final sync.',
+		helper: 'Use the repair links for clear local issues, then verify again before generation or publishing.',
+		tone: 'warning',
+	},
+};
+
+const SOURCE_DECISION_STYLE: Record<SourceDecisionTone, { panel: string; icon: string; badge: string }> = {
+	success: {
+		panel: 'border-emerald-200 bg-emerald-50/80',
+		icon: 'bg-emerald-600 text-white',
+		badge: 'border-emerald-200 bg-white text-emerald-700',
+	},
+	info: {
+		panel: 'border-sky-200 bg-sky-50/80',
+		icon: 'bg-sky-600 text-white',
+		badge: 'border-sky-200 bg-white text-sky-700',
+	},
+	warning: {
+		panel: 'border-amber-200 bg-amber-50/90',
+		icon: 'bg-amber-500 text-white',
+		badge: 'border-amber-200 bg-white text-amber-700',
+	},
+	danger: {
+		panel: 'border-red-200 bg-red-50/90',
+		icon: 'bg-red-600 text-white',
+		badge: 'border-red-200 bg-white text-red-700',
+	},
+};
+
+const SOURCE_REPAIR_LINKS = [
+	{ href: '/sections', label: 'Sections' },
+	{ href: '/subjects', label: 'Subjects' },
+	{ href: '/teachers', label: 'Teachers' },
+	{ href: '/teaching-load', label: 'Teaching Load' },
+	{ href: '/map', label: 'Rooms' },
+] as const;
 
 function pickNextStep(args: {
 	phase: LifecyclePhase;
@@ -228,6 +310,7 @@ function pickNextStep(args: {
 }
 
 export default function Dashboard() {
+	const [showAllSetupSteps, setShowAllSetupSteps] = useState(false);
 	const {
 		loading,
 		buildings,
@@ -339,24 +422,50 @@ export default function Dashboard() {
 			href: '/map',
 			hint: buildingSetupStatus.subMessage,
 		},
+		{
+			label: 'Timetable generated and reviewed',
+			done: latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0,
+			href: '/timetable',
+			hint: latestRunStatus === 'FAILED'
+				? 'The latest generation run failed'
+				: latestRunStatus === 'IN_PROGRESS'
+					? 'Generation is still running'
+					: violationCount && violationCount > 0
+						? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}`
+						: undefined,
+		},
+		{
+			label: 'Ready to publish',
+			done: lifecyclePhase === 'PUBLISHED' || (latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0),
+			href: '/schedules',
+			hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing',
+		},
 	];
 
 	const doneCount = checklist.filter((c) => c.done).length;
 	const currentIdx = LIFECYCLE_STEPS.findIndex((s) => s.key === lifecyclePhase);
 	const phaseNumber = currentIdx + 1;
+	const sourceDecision = SOURCE_DECISION_COPY[readinessSourceState];
+	const sourceDecisionStyle = SOURCE_DECISION_STYLE[sourceDecision.tone];
+	const SourceDecisionIcon = sourceDecision.tone === 'success'
+		? CheckCircle2
+		: sourceDecision.tone === 'info'
+			? RefreshCw
+			: AlertTriangle;
 
 	return (
-		<div className='h-[calc(100svh-3.5rem)] overflow-auto scrollbar-thin'>
-			<div className='max-w-7xl mx-auto px-6 lg:px-8 py-8 space-y-8 animate-fade-in'>
+		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
+			<div className='flex-1 min-h-0 overflow-auto scrollbar-thin'>
+				<div className='max-w-7xl mx-auto flex flex-col gap-4 px-4 py-4 lg:px-8 lg:py-8 animate-fade-in [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:py-2'>
 				{/* Header */}
-				<div className='flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4'>
+				<div className='flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:items-center'>
 					<div>
-						<h1 className='text-3xl font-bold text-slate-900'>Scheduling Dashboard</h1>
-						<p className='text-slate-500 mt-1.5'>
+						<h1 className='text-2xl font-bold text-slate-900 lg:text-3xl [@media(max-height:500px)]:text-lg'>Scheduling Dashboard</h1>
+						<p className='mt-1 text-sm text-slate-500 lg:mt-1.5 [@media(max-height:500px)]:hidden'>
 							Build, review, and publish the school timetable.
 						</p>
 					</div>
-					<div className='flex flex-wrap items-center gap-2'>
+					<div className='flex flex-wrap items-center gap-1.5 [@media(max-height:500px)]:justify-end'>
 						<Badge className={`${SOURCE_BADGE_CLASS[readinessSourceState]} font-semibold gap-1.5 px-3 py-1.5 rounded-full`}>
 							{readinessSourceState === 'partial_degraded' ? (
 								<AlertTriangle className='w-3.5 h-3.5' />
@@ -369,20 +478,20 @@ export default function Dashboard() {
 							type='button'
 							variant='outline'
 							size='sm'
-							className='h-9 rounded-xl bg-white gap-2'
+							className='h-8 rounded-xl bg-white gap-2 px-2.5 text-xs'
 							onClick={refreshDashboard}
 							disabled={loading}
 							aria-label='Check dashboard readiness for updates'
 						>
 							<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-							Check for updates
+							<span className='hidden sm:inline'>Check for updates</span>
 						</Button>
-						<Badge className='border-0 bg-primary/10 text-primary hover:bg-primary/10 font-semibold gap-1.5 px-3 py-1.5 rounded-full'>
+						<Badge className='hidden border-0 bg-primary/10 text-primary hover:bg-primary/10 font-semibold gap-1.5 px-3 py-1.5 rounded-full sm:inline-flex [@media(max-height:500px)]:hidden'>
 							<Sparkles className='w-3.5 h-3.5' />
 							{PHASE_LABEL[lifecyclePhase]}
 						</Badge>
 						<Link to='/timetable'>
-							<Button className='gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
+							<Button className='h-8 gap-2 bg-primary px-2.5 text-xs font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90 sm:px-3'>
 								<CalendarRange className='w-4 h-4' />
 								Open Timetable
 							</Button>
@@ -390,8 +499,58 @@ export default function Dashboard() {
 					</div>
 				</div>
 
+				<RolloverGuidanceCard />
+
+				<section
+					data-testid='dashboard-source-health-panel'
+					data-source-decision={readinessSourceState}
+					className={`order-2 rounded-2xl border px-4 py-3 shadow-sm ${sourceDecisionStyle.panel}`}
+					aria-labelledby='dashboard-source-health-title'
+				>
+					<div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+						<div className='flex min-w-0 items-start gap-3'>
+							<div className={`mt-0.5 rounded-xl p-2.5 ${sourceDecisionStyle.icon}`}>
+								<SourceDecisionIcon className={`h-5 w-5 ${readinessSourceState === 'checking_source' ? 'animate-spin' : ''}`} />
+							</div>
+							<div className='min-w-0'>
+								<div className='flex flex-wrap items-center gap-2'>
+									<h2 id='dashboard-source-health-title' className='text-sm font-bold text-slate-900'>
+										Source connection
+									</h2>
+									<Badge variant='outline' className={`h-6 text-[11px] font-bold ${sourceDecisionStyle.badge}`}>
+										{sourceDecision.label}
+									</Badge>
+								</div>
+								<p data-testid='dashboard-source-decision' className='mt-1 text-sm font-bold text-slate-900'>
+									{sourceDecision.sentence}
+								</p>
+								<p className='mt-1 max-w-3xl text-xs leading-relaxed text-slate-600'>
+									{sourceDecision.helper}
+								</p>
+								<p className='sr-only' aria-live='polite'>
+									{sourceDecision.label}. {sourceDecision.sentence} {sourceDecision.helper}
+								</p>
+							</div>
+						</div>
+						<div className='flex shrink-0 flex-wrap items-center gap-2' aria-label='Setup repair links'>
+							{SOURCE_REPAIR_LINKS.map((link) => (
+								<Link key={link.href} to={link.href} data-source-repair-link={link.label.toLowerCase().replace(/\s+/g, '-')}>
+									<Button
+										type='button'
+										variant='outline'
+										size='sm'
+										className='h-9 rounded-xl bg-white/90 px-3 text-xs font-semibold'
+									>
+										{link.label}
+									</Button>
+								</Link>
+							))}
+						</div>
+					</div>
+				</section>
+
 				{/* Stat tiles */}
-				<div className='grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6'>
+				<div className='order-3 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6'>
 					{stats.map((stat) => {
 						const tone = TONE[stat.tone];
 						return (
@@ -407,7 +566,7 @@ export default function Dashboard() {
 										<div className='flex items-start justify-between gap-4'>
 											<div className='min-w-0'>
 												<p className='text-sm font-medium text-slate-500'>{stat.label}</p>
-												<p className='text-3xl font-bold text-slate-900 mt-2 tabular-nums'>
+												<p className='mt-2 whitespace-nowrap text-xl font-bold tracking-tight tabular-nums text-slate-900 sm:text-3xl'>
 													{stat.value}
 												</p>
 											</div>
@@ -445,7 +604,7 @@ export default function Dashboard() {
 				</div>
 
 				{/* Inline workflow status cards */}
-				<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+				<div className='order-4 grid grid-cols-1 gap-4 md:grid-cols-2'>
 					<Card className='border-0 shadow-soft rounded-2xl bg-white p-0'>
 						<CardContent className='p-5'>
 							<div className='flex items-center justify-between'>
@@ -517,9 +676,9 @@ export default function Dashboard() {
 				</div>
 
 				{/* Next step + setup checklist */}
-				<div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-					<Card className='lg:col-span-2 border-0 shadow-soft-xl rounded-2xl bg-white overflow-hidden p-0'>
-						<CardHeader className='border-b border-slate-100 px-6 py-4 bg-primary/5'>
+				<div className='order-1 grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]'>
+					<Card className='order-2 border-0 shadow-soft-xl rounded-2xl bg-white overflow-hidden p-0 md:order-1'>
+						<CardHeader className='border-b border-slate-100 bg-primary/5 px-4 py-3 sm:px-6 sm:py-4'>
 							<div className='flex items-center justify-between'>
 								<div>
 									<CardTitle className='text-lg flex items-center gap-2 text-slate-900'>
@@ -536,7 +695,7 @@ export default function Dashboard() {
 								) : null}
 							</div>
 						</CardHeader>
-						<CardContent className='p-6'>
+						<CardContent className='p-4 sm:p-6'>
 							<h2 className='text-xl font-bold text-slate-900'>{next.title}</h2>
 							<p className='text-slate-500 mt-2 leading-relaxed'>{next.body}</p>
 							<p className='mt-2 text-sm font-medium text-slate-600'>{readinessSourceMessage}</p>
@@ -551,18 +710,25 @@ export default function Dashboard() {
 						</CardContent>
 					</Card>
 
-					<Card className='border-0 shadow-soft-xl rounded-2xl bg-white p-0 overflow-hidden'>
-						<CardHeader className='border-b border-slate-100 px-6 py-4'>
-							<div className='flex items-center justify-between'>
+					<Card data-testid='dashboard-readiness-hub' className='order-1 border-0 shadow-soft-xl rounded-2xl bg-white p-0 overflow-hidden md:order-2'>
+						<CardHeader className='border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4'>
+							<div className='flex items-start justify-between gap-3'>
 								<div>
 									<CardTitle className='text-lg text-slate-900'>Setup readiness</CardTitle>
 									<CardDescription>
 										{doneCount} of {checklist.length} ready
 									</CardDescription>
 								</div>
-								<Badge className='border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'>
-									{doneCount}/{checklist.length}
-								</Badge>
+								<div className='flex shrink-0 flex-col items-end gap-1.5'>
+									<Badge className='border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'>
+										{doneCount}/{checklist.length}
+									</Badge>
+									<Badge
+										className={`${SOURCE_BADGE_CLASS[readinessSourceState]} max-w-32 justify-center truncate text-[10px] font-bold`}
+									>
+										{SOURCE_BADGE_COPY[readinessSourceState]}
+									</Badge>
+								</div>
 							</div>
 						</CardHeader>
 						<CardContent className='p-2'>
@@ -572,10 +738,10 @@ export default function Dashboard() {
 									return checklist.map((item, idx) => {
 										const isNextTask = idx === firstUncompletedIdx;
 										return (
-											<li key={item.label}>
+											<li key={item.label} className={!showAllSetupSteps && idx >= 3 ? 'hidden sm:block' : undefined}>
 												<Link
 													to={item.href}
-													className={`flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-slate-50/80 transition-colors ${
+													className={`flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50/80 sm:px-4 sm:py-3 ${
 														isNextTask ? 'ring-2 ring-amber-300 bg-amber-50/20' : ''
 													}`}
 												>
@@ -610,6 +776,28 @@ export default function Dashboard() {
 									});
 								})()}
 							</ul>
+							{checklist.length > 3 && (
+								<div className='border-t border-slate-100 px-4 py-2 sm:hidden'>
+									<Button
+										type='button'
+										variant='ghost'
+										size='sm'
+										className='h-9 w-full justify-center rounded-xl text-xs font-bold'
+										onClick={() => setShowAllSetupSteps((value) => !value)}
+										aria-expanded={showAllSetupSteps}
+									>
+										{showAllSetupSteps ? 'Show fewer setup steps' : 'View all setup steps'}
+									</Button>
+								</div>
+							)}
+							<div className='border-t border-slate-100 px-4 py-2'>
+								<Badge
+									data-source-state={readinessSourceState}
+									className={`${SOURCE_BADGE_CLASS[readinessSourceState]} max-w-full truncate text-[10px] font-bold`}
+								>
+									Source: {SOURCE_BADGE_COPY[readinessSourceState]}
+								</Badge>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
@@ -617,7 +805,7 @@ export default function Dashboard() {
 				{/* Lifecycle banner — token-driven gradient so HNHS maroon, EnrollPro custom
 				    brand, or default emerald all render as the school's own banner. */}
 				<Card
-					className='border-0 shadow-soft-xl rounded-2xl overflow-hidden p-0 text-primary-foreground'
+					className='order-5 border-0 shadow-soft-xl rounded-2xl overflow-hidden p-0 text-primary-foreground'
 					style={{
 						background:
 							'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.92) 55%, hsl(var(--primary) / 0.78) 100%)',
@@ -681,14 +869,27 @@ export default function Dashboard() {
 					</CardContent>
 				</Card>
 
-				<CampusReadinessCard
-					loading={loading}
-					buildings={buildings}
-					campusImageUrl={campusImageUrl}
-					teachingRoomCount={teachingRoomCount}
-					totalRoomCount={totalRoomCount}
-					setupStatus={buildingSetupStatus}
-				/>
+				<div className='order-6'>
+				<Suspense
+					fallback={(
+						<Card className='overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl'>
+							<CardContent className='p-5 text-sm font-medium text-slate-500'>
+								Loading campus room details after the dashboard is ready…
+							</CardContent>
+						</Card>
+					)}
+				>
+					<CampusReadinessCard
+						loading={loading}
+						buildings={buildings}
+						campusImageUrl={campusImageUrl}
+						teachingRoomCount={teachingRoomCount}
+						totalRoomCount={totalRoomCount}
+						setupStatus={buildingSetupStatus}
+					/>
+				</Suspense>
+				</div>
+				</div>
 			</div>
 		</div>
 	);

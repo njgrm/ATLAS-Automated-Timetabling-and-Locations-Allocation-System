@@ -182,7 +182,7 @@ export function SectionGridMode({
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-muted/5">
-			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
+			<div className="shrink-0 border-b border-border/40 bg-background/50 p-3 space-y-3 backdrop-blur-sm lg:p-4">
 				{isReadOnlyMode && writeBlockedReason && (
 					<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900">
 						<div className="flex items-start gap-3">
@@ -239,7 +239,7 @@ export function SectionGridMode({
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-auto p-6 space-y-2 no-scrollbar">
+			<div className="flex-1 overflow-auto p-3 space-y-2 no-scrollbar lg:p-4">
 				{Object.keys(sectionsBySubject).length === 0 ? (
 					<div className="flex flex-col items-center justify-center p-12 text-center bg-background border border-dashed border-border/60 rounded-2xl">
 						<BookOpen className="size-10 text-muted-foreground/40 mb-4" />
@@ -258,6 +258,8 @@ export function SectionGridMode({
 					return (
 						<div 
 							key={row.section.id}
+							data-section-id={row.section.id}
+							data-testid="teaching-load-section-row"
 							className={cn(
 								"rounded-xl border transition-all duration-200 overflow-hidden",
 								isExpanded ? "bg-background border-primary/30 shadow-md ring-1 ring-primary/5" : "bg-background border-border/40 hover:border-primary/20 hover:shadow-sm",
@@ -322,7 +324,13 @@ export function SectionGridMode({
 												.sort((a, b) => a.lastName.localeCompare(b.lastName));
 
 											return (
-												<div key={subject.id} className="space-y-3 p-4 rounded-xl border border-border/40 bg-background/50">
+												<div
+													key={subject.id}
+													data-section-id={row.section.id}
+													data-subject-id={subject.id}
+													data-testid="teaching-load-section-subject-row"
+													className="space-y-3 p-4 rounded-xl border border-border/40 bg-background/50"
+												>
 													<div className="flex items-center justify-between gap-3">
 														<div className="flex items-center gap-3 min-w-0">
 															<Badge variant="outline" className="h-6 px-2 text-xs font-semibold uppercase border-primary/20 bg-primary/5 text-primary shrink-0">
@@ -353,6 +361,7 @@ export function SectionGridMode({
 																		size="sm" 
 																		className="h-9 gap-2 font-semibold uppercase tracking-widest text-xs border-primary/30 hover:border-primary hover:bg-primary/5 shadow-sm"
 																		disabled={saving || isReadOnlyMode}
+																		data-testid="teaching-load-owner-picker-trigger"
 																	>
 																		{isStaffed ? 'Change owner' : 'Set owner'}
 																		<ChevronDown className="size-4 opacity-50" />
@@ -375,6 +384,8 @@ export function SectionGridMode({
 																					<Button
 																						variant="ghost"
 																						disabled={isCurrentOwner}
+																						data-faculty-id={f.id}
+																						data-testid="teaching-load-owner-option"
 																						onClick={() => handleAssign(subject.id, row.section.id, f.id, owner?.facultyId)}
 																						className={cn(
 																							"w-full flex items-center justify-between p-3 h-auto hover:bg-primary/5 transition-all text-left border-b border-border/10 last:border-0",

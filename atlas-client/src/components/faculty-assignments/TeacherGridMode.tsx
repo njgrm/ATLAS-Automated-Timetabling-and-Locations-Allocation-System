@@ -173,7 +173,7 @@ export function TeacherGridMode({
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-muted/5">
 			{/* Familiar Discovery Controls */}
-			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
+			<div className="shrink-0 border-b border-border/40 bg-background/50 p-3 space-y-3 backdrop-blur-sm lg:p-4">
 				{isReadOnlyMode && writeBlockedReason && (
 					<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900">
 						<div className="flex items-start gap-3">
@@ -186,7 +186,7 @@ export function TeacherGridMode({
 						<p className="text-xs font-semibold text-amber-800">{workspaceStateNextAction}</p>
 					</div>
 				)}
-				<div className="flex flex-wrap items-center gap-3">
+				<div className="flex flex-wrap items-center gap-2">
 					<div className="relative flex-1 min-w-50 max-w-sm">
 						<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input 
@@ -196,21 +196,6 @@ export function TeacherGridMode({
 							className="pl-10 h-10 bg-background shadow-sm border-border/60"
 						/>
 					</div>
-					
-					<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-						<SelectTrigger className="w-45 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-							<div className="flex items-center gap-2">
-								<LayoutGrid className="size-3.5 opacity-50" />
-								<SelectValue placeholder="Department" />
-							</div>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Departments</SelectItem>
-							{departmentOptions.map(dept => (
-								<SelectItem key={dept} value={dept} className="text-xs font-bold uppercase tracking-tight">{dept}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
 
 					<Select value={filterStatus} onValueChange={onFilterStatusChange}>
 						<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
@@ -226,22 +211,62 @@ export function TeacherGridMode({
 						</SelectContent>
 					</Select>
 
-					<Select value={loadFilter} onValueChange={onLoadFilterChange}>
-						<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-							<div className="flex items-center gap-2">
-								<Star className="size-3.5 opacity-50" />
-								<SelectValue placeholder="Load" />
-							</div>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Loads</SelectItem>
-							<SelectItem value="overloaded" className="text-xs font-bold uppercase tracking-tight text-amber-700">Overload ({">"}30h)</SelectItem>
-							<SelectItem value="optimal" className="text-xs font-bold uppercase tracking-tight text-emerald-700">Optimal (25-30h)</SelectItem>
-							<SelectItem value="underloaded" className="text-xs font-bold uppercase tracking-tight text-sky-700">Underload ({"<"}25h)</SelectItem>
-						</SelectContent>
-					</Select>
+					<Button
+						type="button"
+						variant={showFilters ? 'secondary' : 'outline'}
+						size="sm"
+						className="h-10 shrink-0 gap-2 font-bold"
+						onClick={onToggleFilters}
+						aria-expanded={showFilters}
+					>
+						<Filter className="size-4" />
+						More filters
+					</Button>
+				</div>
 
-					<div className="flex flex-wrap items-center gap-4 border-l border-border/40 pl-4 h-10">
+				{showFilters && (
+					<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm">
+						<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
+							<SelectTrigger className="w-45 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+								<div className="flex items-center gap-2">
+									<LayoutGrid className="size-3.5 opacity-50" />
+									<SelectValue placeholder="Department" />
+								</div>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Departments</SelectItem>
+								{departmentOptions.map(dept => (
+									<SelectItem key={dept} value={dept} className="text-xs font-bold uppercase tracking-tight">{dept}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+
+						<Select value={loadFilter} onValueChange={onLoadFilterChange}>
+							<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+								<div className="flex items-center gap-2">
+									<Star className="size-3.5 opacity-50" />
+									<SelectValue placeholder="Load" />
+								</div>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Loads</SelectItem>
+								<SelectItem value="overloaded" className="text-xs font-bold uppercase tracking-tight text-amber-700">Overload ({">"}30h)</SelectItem>
+								<SelectItem value="optimal" className="text-xs font-bold uppercase tracking-tight text-emerald-700">Optimal (25-30h)</SelectItem>
+								<SelectItem value="underloaded" className="text-xs font-bold uppercase tracking-tight text-sky-700">Underload ({"<"}25h)</SelectItem>
+							</SelectContent>
+						</Select>
+
+						<Select value={sortOrder} onValueChange={onSortOrderChange}>
+							<SelectTrigger className="w-44 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+								<SelectValue placeholder="Sort teachers" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="load-desc" className="text-xs font-bold uppercase tracking-tight">Highest load</SelectItem>
+								<SelectItem value="load-asc" className="text-xs font-bold uppercase tracking-tight">Lowest load</SelectItem>
+							</SelectContent>
+						</Select>
+
+						<div className="flex flex-wrap items-center gap-4 border-l border-border/40 pl-4 h-10">
 						<div className="flex items-center gap-2">
 							<Switch 
 								id="show-outside-dept" 
@@ -264,10 +289,11 @@ export function TeacherGridMode({
 							</Label>
 						</div>
 					</div>
-				</div>
+					</div>
+				)}
 			</div>
 
-			<div className="flex-1 overflow-auto p-6 space-y-4 no-scrollbar">
+			<div className="flex-1 overflow-auto p-3 space-y-3 no-scrollbar lg:p-4">
 				{faculty.length === 0 ? (
 					<div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background p-10 text-center">
 						<Users className="mb-4 size-10 text-muted-foreground/40" />

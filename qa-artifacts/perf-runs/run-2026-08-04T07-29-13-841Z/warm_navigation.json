@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "durationMs": 1300.6007,
+  "metrics": {
+    "navigation": {
+      "duration": 277,
+      "domInteractive": 29.30000001192093,
+      "responseEnd": 19.80000001192093
+    },
+    "jsTransferBytes": 6812958,
+    "jsDecodedBytes": 6769458,
+    "jsFileCount": 145,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 5.9000000059604645,
+        "baseDuration": 5.699999988079071,
+        "timestamp": 1785828560579
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 3.0999999940395355,
+        "baseDuration": 3,
+        "timestamp": 1785828560606
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 3,
+        "timestamp": 1785828560619
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 29.80000001192093,
+        "baseDuration": 25.39999994635582,
+        "timestamp": 1785828560764
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 62.50000002980232,
+        "baseDuration": 56.40000003576279,
+        "timestamp": 1785828560943
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 56.40000003576279,
+        "timestamp": 1785828560985
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.199999988079071,
+        "baseDuration": 53.90000003576279,
+        "timestamp": 1785828561078
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.30000001192092896,
+        "baseDuration": 53.60000002384186,
+        "timestamp": 1785828561094
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.0999999940395355,
+        "baseDuration": 55.5,
+        "timestamp": 1785828561096
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.1999999582767487,
+        "baseDuration": 54.39999997615814,
+        "timestamp": 1785828561101
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 54.39999997615814,
+        "timestamp": 1785828561102
+      }
+    ]
+  }
+}

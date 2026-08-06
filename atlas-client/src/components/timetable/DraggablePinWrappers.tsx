@@ -4,7 +4,7 @@
  * These replace native HTML5 draggable usage so all drag events route
  * through the global DndContext in ScheduleReviewWorkspace.
  */
-import type { KeyboardEventHandler, MouseEventHandler, ReactNode } from 'react';
+import { useEffect, useState, type KeyboardEventHandler, type MouseEventHandler, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 import type { DraftPlacement, DraftQueueItem, UnassignedItem } from '@/types';
@@ -116,14 +116,24 @@ export function DraggableUnassignedPin({
 	children: ReactNode;
 	className?: string;
 }) {
+	const [coarsePointer, setCoarsePointer] = useState(false);
+	useEffect(() => {
+		const query = window.matchMedia('(pointer: coarse)');
+		const update = () => setCoarsePointer(query.matches);
+		update();
+		query.addEventListener('change', update);
+		return () => query.removeEventListener('change', update);
+	}, []);
+
 	const id = `unassigned-pin-${itemKey}`;
+	const dragDisabled = disabled || coarsePointer;
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id,
-		disabled,
+		disabled: dragDisabled,
 		data: { type: 'unassigned', item },
 	});
-	const dragAttributes = disabled ? {} : attributes;
-	const dragListeners = disabled ? {} : listeners;
+	const dragAttributes = dragDisabled ? {} : attributes;
+	const dragListeners = dragDisabled ? {} : listeners;
 
 	return (
 		<div
@@ -134,7 +144,7 @@ export function DraggableUnassignedPin({
 			aria-label={`Unassigned session ${itemKey}`}
 			className={className}
 			style={{
-				touchAction: 'none',
+				touchAction: 'pan-y',
 				opacity: isDragging ? 0.45 : 1,
 			}}
 		>

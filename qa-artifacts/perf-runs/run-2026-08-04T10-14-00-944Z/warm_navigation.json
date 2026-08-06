@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 3856.017599999999,
+  "metrics": {
+    "navigation": {
+      "duration": 712.2999999821186,
+      "domInteractive": 66.09999999403954,
+      "responseEnd": 40.400000005960464
+    },
+    "jsTransferBytes": 6842614,
+    "jsDecodedBytes": 6799114,
+    "jsFileCount": 145,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 26.599999994039536,
+        "baseDuration": 23.400000005960464,
+        "timestamp": 1785838460869
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 12.300000011920929,
+        "baseDuration": 12.300000011920929,
+        "timestamp": 1785838460933
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 12.300000011920929,
+        "timestamp": 1785838460974
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 9.5,
+        "baseDuration": 9.400000005960464,
+        "timestamp": 1785838461224
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 9.400000005960464,
+        "timestamp": 1785838461283
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 72.80000004172325,
+        "baseDuration": 59.700000047683716,
+        "timestamp": 1785838461546
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 140.69999998807907,
+        "baseDuration": 125.80000004172325,
+        "timestamp": 1785838461892
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 125.80000004172325,
+        "timestamp": 1785838461977
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 6.5,
+        "baseDuration": 122.60000005364418,
+        "timestamp": 1785838462176
+      }
+    ]
+  }
+}

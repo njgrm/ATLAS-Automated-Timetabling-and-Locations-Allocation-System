@@ -1,0 +1,123 @@
+
+> atlas@1.0.0 dev
+> concurrently -n server,client -c blue,green "npm --prefix atlas-server run dev" "npm --prefix atlas-client run dev"
+
+[client] 
+[client] > atlas-client@0.1.0 dev
+[client] > vite --host --port 5174
+[client] 
+[server] 
+[server] > atlas-server@0.1.0 dev
+[server] > tsx watch src/server.ts
+[server] 
+[client] [2m2:50:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[client] 
+[client]   [32m[1mVITE[22m v8.0.3[39m  [2mready in [0m[1m430[22m[2m[0m ms[22m
+[client] 
+[client]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+[client]   [32m➜[39m  [1mNetwork[22m: [36mhttp://100.88.55.125:[1m5174[22m/[39m
+[client]   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.254.164:[1m5174[22m/[39m
+[server] [prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[client] [2m3:56:34 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/modals/TimetablePlacementDialogs.tsx[22m
+[client] [2m3:57:02 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/modals/TimetablePlacementDialogs.tsx[22m
+[client] [2m3:57:13 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TeacherDepartureRecoverySheet.tsx[22m
+[client] [2m3:57:36 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/PublishedRevisionDialog.tsx[22m
+[client] [2m10:18:06 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:18:06 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:20:13 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:20:13 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:22:17 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:22:17 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:24:15 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:24:35 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:43:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m10:43:26 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/modals/TimetablePlacementDialogs.tsx[22m
+[client] [2m10:45:34 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:45:54 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:47:40 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:48:00 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:50:06 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:50:26 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:51:38 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:51:58 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:54:38 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:54:58 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:56:10 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:56:44 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:57:04 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:00:37 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:00:57 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:02:09 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:02:43 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:03:03 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:41:39 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:41:59 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:43:10 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:43:46 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m11:44:06 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[server] npm --prefix atlas-server run dev exited with code 1073807364

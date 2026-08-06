@@ -57,6 +57,16 @@ async function openTimetable(page: Page) {
 	await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 45_000 });
 }
 
+async function openPlanDraft(page: Page) {
+	const secondaryAction = page.getByTestId('timetable-simple-secondary-action');
+	if (await secondaryAction.isVisible().catch(() => false)) {
+		await secondaryAction.click();
+		return;
+	}
+	await page.getByRole('button', { name: /^More$/i }).click();
+	await page.getByRole('button', { name: /Plan before generating/i }).click();
+}
+
 test.describe.serial('Timetable Phase 2 draft placement recovery gates', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.context().clearCookies();
@@ -69,14 +79,14 @@ test.describe.serial('Timetable Phase 2 draft placement recovery gates', () => {
 		await openTimetable(page);
 
 		const start = Date.now();
-		await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
+		await openPlanDraft(page);
 		await expect(page.getByText(/Pre-Generation Draft/i).first()).toBeVisible({ timeout: 10_000 });
-		await expect(page.getByText(/Unassigned Sessions/i)).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByTestId('pregen-plotting-tray')).toBeVisible({ timeout: 10_000 });
 		await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 10_000 });
 		const openedInMs = Date.now() - start;
 		expect(openedInMs, `Draft workspace should become actionable in under 3 seconds after the primary action, observed ${openedInMs}ms.`).toBeLessThan(3_000);
 
-		const queueItems = page.locator('#panel-unassigned [role="button"]');
+		const queueItems = page.getByTestId('pregen-plotting-visible-list').getByRole('button');
 		await expect(queueItems.first()).toBeVisible({ timeout: 10_000 });
 		expect(await queueItems.count(), 'Draft queue must expose selectable sessions.').toBeGreaterThan(0);
 
@@ -92,10 +102,10 @@ test.describe.serial('Timetable Phase 2 draft placement recovery gates', () => {
 		const blockedWrites = await blockDestructiveTimetableWrites(page);
 		await openTimetable(page);
 
-		await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
-		await expect(page.getByText(/Unassigned Sessions/i)).toBeVisible({ timeout: 10_000 });
+		await openPlanDraft(page);
+		await expect(page.getByTestId('pregen-plotting-tray')).toBeVisible({ timeout: 10_000 });
 
-		const queueItem = page.locator('#panel-unassigned [role="button"]').first();
+		const queueItem = page.getByTestId('pregen-plotting-visible-list').getByRole('button', { name: /Place in draft|Choose room first|Fix Teaching Load owner/i }).first();
 		await expect(queueItem).toBeVisible({ timeout: 10_000 });
 		await queueItem.click();
 
@@ -116,7 +126,13 @@ test.describe.serial('Timetable Phase 2 draft placement recovery gates', () => {
 		await expect(placementDialog.getByText(/Teaching Load owner/i).first()).toBeVisible();
 		await expect(placementDialog.getByText(/Suggested room/i).first()).toBeVisible();
 		await expect(placementDialog.getByText(/Choose teacher|Choose room|Assign teacher and room/i)).toHaveCount(0);
-		await expect(placementDialog.getByRole('button', { name: /Save placement/i })).toBeVisible();
+		const saveButton = placementDialog.getByRole('button', { name: /Save placement/i });
+		await expect(saveButton).toBeVisible();
+		const saveReason = placementDialog.getByTestId('draft-placement-save-reason');
+		await expect(saveReason).toBeVisible();
+		if (await saveButton.isDisabled()) {
+			await expect(saveReason).toContainText(/Waiting|Fix|Choose|repair|another slot|unavailable|outside .* scheduling window/i);
+		}
 		expect(blockedWrites, 'Opening and previewing the placement flow must not attempt a live commit.').toEqual([]);
 
 		await attachReport(testInfo, 'draft-placement-confirmation', {

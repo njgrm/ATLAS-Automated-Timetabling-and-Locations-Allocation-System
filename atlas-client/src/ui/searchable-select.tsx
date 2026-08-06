@@ -83,7 +83,11 @@ export function SearchableSelect({
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className={cn('p-0', className)} onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
+			<PopoverContent
+				className={cn('max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0', className)}
+				collisionPadding={8}
+				onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
+			>
 				{/* Search input */}
 				<div className="flex items-center border-b px-2">
 					<Search className="mr-1 size-3 shrink-0 opacity-50" />
@@ -96,7 +100,7 @@ export function SearchableSelect({
 					/>
 				</div>
 				{/* List */}
-				<div className="max-h-60 overflow-y-auto p-1">
+				<div className="max-h-[min(15rem,calc(var(--radix-popover-content-available-height)-2.25rem))] overflow-y-auto p-1">
 					{filtered.length === 0 && (
 						<p className="py-4 text-center text-xs text-muted-foreground">No results.</p>
 					)}

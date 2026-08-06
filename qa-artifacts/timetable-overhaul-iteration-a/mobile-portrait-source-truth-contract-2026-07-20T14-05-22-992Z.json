@@ -1,0 +1,67 @@
+{
+  "runtime": {
+    "schoolId": 1,
+    "activeSchoolYearId": 39,
+    "activeSchoolYearLabel": null,
+    "source": "atlas-persisted",
+    "stale": true,
+    "resolvedAt": "2026-07-20T14:05:15.439Z",
+    "evidence": [
+      {
+        "type": "generation-run",
+        "schoolYearId": 39,
+        "timestamp": "2026-07-13T11:42:30.775Z",
+        "source": "atlas.generation_run"
+      },
+      {
+        "type": "section-mirror",
+        "schoolYearId": 39,
+        "timestamp": "2026-07-13T08:20:44.026Z",
+        "source": "atlas.section_mirror"
+      },
+      {
+        "type": "section-snapshot",
+        "schoolYearId": 39,
+        "timestamp": "2026-07-13T08:20:44.026Z",
+        "source": "atlas.section_snapshot:enrollpro"
+      },
+      {
+        "type": "scheduling-policy",
+        "schoolYearId": 39,
+        "timestamp": "2026-07-13T08:20:43.951Z",
+        "source": "atlas.scheduling_policy"
+      },
+      {
+        "type": "faculty-snapshot",
+        "schoolYearId": 55,
+        "timestamp": "2026-05-27T18:07:44.618Z",
+        "source": "atlas.faculty_snapshot:enrollpro"
+      }
+    ],
+    "upstream": {
+      "reachable": false,
+      "verified": false,
+      "matched": null
+    }
+  },
+  "newestRun": {
+    "id": 225,
+    "schoolId": 1,
+    "schoolYearId": 39,
+    "status": "FAILED",
+    "runType": "FULL",
+    "triggeredBy": 1,
+    "startedAt": "2026-07-13T11:42:30.776Z",
+    "finishedAt": "2026-07-13T11:43:25.761Z",
+    "durationMs": 54985,
+    "error": "[coverage-repair] \nInvalid `tx.subjectSectionOwnership.createMany()` invocation in\nD:\\ATLAS\\atlas-server\\src\\services\\faculty-assignment.service.ts:2046:44\n\n  2043 }\n  2044 \n  2045 if (uncoveredSectionIds.length > 0) {\n→ 2046   await tx.subjectSectionOwnership.createMany(\nUnique constraint failed on the fields: (`school_id`,`subject_id`,`section_id`)",
+    "version": 1,
+    "createdAt": "2026-07-13T11:42:30.775Z",
+    "updatedAt": "2026-07-13T11:43:25.763Z"
+  },
+  "latestCompletedDraftRunId": 223,
+  "assignedEntries": 560,
+  "unassignedItems": 365,
+  "unassignedWithFaculty": 365,
+  "unassignedWithHomeRoom": 0
+}

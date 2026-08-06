@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
@@ -14,10 +14,9 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { BuildingView, type RoomSectionMetadata } from '@/components/BuildingView';
-import { ROOM_TYPE_LABELS } from '@/components/BuildingView';
+import { type RoomSectionMetadata } from '@/components/BuildingView';
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
-import { CampusMapCanvasPreview } from '@/components/campus-map/CampusMapCanvasPreview';
+import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 import type { BuildingSetupStatus } from '@/hooks/useDashboardData';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
@@ -32,6 +31,9 @@ import { Skeleton } from '@/ui/skeleton';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+
+const CampusMapCanvasPreview = lazy(() => import('@/components/campus-map/CampusMapCanvasPreview').then((module) => ({ default: module.CampusMapCanvasPreview })));
+const BuildingView = lazy(() => import('@/components/BuildingView').then((module) => ({ default: module.BuildingView })));
 
 export type CampusReadinessCardProps = {
 	loading: boolean;
@@ -331,6 +333,7 @@ export function CampusReadinessCard({
 			</div>
 
 			<CardContent className="p-0">
+				<Suspense fallback={<div className="flex min-h-40 items-center justify-center text-sm text-slate-500">Loading room view…</div>}>
 				{loading ? (
 					<div className="grid gap-5 p-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
 						<Skeleton className="h-128 rounded-2xl" />
@@ -455,7 +458,7 @@ export function CampusReadinessCard({
 									<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 pt-4 border-t">
 										<Button asChild className="h-10 justify-between rounded-xl bg-primary font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90">
 											<Link to="/map">
-												Review campus map
+												Open map
 												<ArrowRight className="size-4" />
 											</Link>
 										</Button>
@@ -619,6 +622,7 @@ export function CampusReadinessCard({
 						</div>
 					</div>
 				)}
+				</Suspense>
 			</CardContent>
 			<RoomScheduleOverlay
 				open={selectedRoom !== null}

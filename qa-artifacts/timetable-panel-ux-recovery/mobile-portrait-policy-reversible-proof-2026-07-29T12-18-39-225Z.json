@@ -1,0 +1,15 @@
+{
+  "fixture": {
+    "schoolId": 1,
+    "schoolYearId": 39,
+    "schoolYearLabel": null,
+    "source": "atlas-persisted",
+    "stale": false,
+    "upstreamReachable": false,
+    "activeRunId": 223,
+    "activeRunStatus": "COMPLETED",
+    "queueCount": 365
+  },
+  "reverted": true,
+  "blockedWrites": []
+}

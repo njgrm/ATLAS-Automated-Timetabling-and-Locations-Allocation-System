@@ -1,0 +1,33 @@
+{
+  "path": "/teaching-load",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "headerHeight": 48,
+  "headerBottom": 110,
+  "contentTop": 117,
+  "contentHeight": 651,
+  "scrollHeight": 768,
+  "clientHeight": 768,
+  "scrollWidth": 1366,
+  "clientWidth": 1366,
+  "sourceState": "cached",
+  "sourceText": "Using saved data",
+  "sourceSummaryText": "Source truth: Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.",
+  "visibleButtonCount": 12,
+  "visibleButtons": [
+    "ATLAS HINIGARAN NATIONAL HIGH SCHOOL\nSCHEDULING PORTAL\nS.Y. 2026-2027\n• ACTIVE",
+    "O\nofficer\nAdmin",
+    "Toggle Sidebar",
+    "Accessibility options",
+    "TEACHER",
+    "SECTIONS",
+    "More Teaching Load tools",
+    "PREVIEW AUTO-FILL",
+    "12 over cap",
+    "More Teaching Load fixes",
+    "ALL STATUS",
+    "More filters"
+  ]
+}

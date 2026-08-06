@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 1079.8258,
+  "metrics": {
+    "navigation": {
+      "duration": 105.29999999888241,
+      "domInteractive": 13.5,
+      "responseEnd": 7.099999999627471
+    },
+    "jsTransferBytes": 2620547,
+    "jsDecodedBytes": 5751062,
+    "jsFileCount": 135,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 8.600000001490116,
+        "baseDuration": 7.900000002235174,
+        "timestamp": 1785326190241
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.5,
+        "baseDuration": 2.5,
+        "timestamp": 1785326190267
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 2.5,
+        "timestamp": 1785326190270
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.800000000745058,
+        "baseDuration": 1.700000001117587,
+        "timestamp": 1785326190315
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 1.700000001117587,
+        "timestamp": 1785326190332
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 18,
+        "baseDuration": 16.89999999664724,
+        "timestamp": 1785326190401
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 38.30000000074506,
+        "baseDuration": 34.40000000409782,
+        "timestamp": 1785326190484
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 34.40000000409782,
+        "timestamp": 1785326190487
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.5,
+        "baseDuration": 32.40000000409782,
+        "timestamp": 1785326190528
+      }
+    ]
+  }
+}

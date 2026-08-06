@@ -18,6 +18,7 @@ import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
 import { compareCurrentInputsForRun, computeGenerationInputSnapshot, } from './generation-input-snapshot.service.js';
+import { assertActiveSchoolYearForGeneration } from './school-year-drift-guard.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -408,6 +409,7 @@ export function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) 
 }
 // ─── Trigger ───
 export async function triggerGenerationRun(schoolId, schoolYearId, actorId, options) {
+    await assertActiveSchoolYearForGeneration(schoolId, schoolYearId, options?.authToken);
     const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
     if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
         throw err(409, 'OPEN_ROOM_REQUESTS_BLOCK_GENERATION', `Generation is blocked until all submitted faculty requests are decided. ${gateStatus.openCount} request(s) remain pending.`, {

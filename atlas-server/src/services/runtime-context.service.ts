@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
 
 type RuntimeContextEvidenceType =
+	| 'school-year-mirror'
 	| 'scheduling-policy'
 	| 'section-mirror'
 	| 'section-snapshot'
@@ -9,6 +10,8 @@ type RuntimeContextEvidenceType =
 	| 'generation-run';
 
 type RuntimeContextSource = 'atlas-persisted' | 'enrollpro-verified';
+type RuntimeDriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
+type RuntimeDriftAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO';
 
 export type RuntimeContextEvidence = {
 	type: RuntimeContextEvidenceType;
@@ -36,6 +39,30 @@ export type RuntimeContextResult = {
 		reachable: boolean;
 		verified: boolean;
 		matched: boolean | null;
+		activeSchoolYearId: number | null;
+		activeSchoolYearLabel: string | null;
+	};
+	activeYearDrift: {
+		status: RuntimeDriftStatus;
+		message: string;
+		recommendedAction: RuntimeDriftAction;
+		atlasSchoolYearId: number | null;
+		enrollProSchoolYearId: number | null;
+		enrollProSchoolYearLabel: string | null;
+		mirrorSyncedAt: string | null;
+	};
+	rollover: {
+		mirror: {
+			enrollProSchoolYearId: number;
+			yearLabel: string;
+			isActive: boolean;
+			lastVerifiedAt: string | null;
+			lastSyncedAt: string | null;
+			facultyCount: number;
+			sectionCount: number;
+			syncStatus: string;
+			lastFailureSummary: string | null;
+		} | null;
 	};
 };
 
@@ -46,6 +73,7 @@ type ResolveRuntimeContextOptions = {
 const CONTEXT_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 const EVIDENCE_FRESHNESS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const EVIDENCE_TYPE_WEIGHT: Record<RuntimeContextEvidenceType, number> = {
+	'school-year-mirror': 120,
 	'section-mirror': 100,
 	'section-snapshot': 90,
 	'faculty-snapshot': 75,
@@ -120,12 +148,85 @@ export function pickBestRuntimeYear(evidence: RuntimeYearEvidence[]): RuntimeYea
 	return rankRuntimeYears(evidence)[0]?.representative ?? null;
 }
 
+function buildActiveYearDrift(input: {
+	selectedYearId: number | null;
+	upstreamYearId: number | null;
+	upstreamYearLabel: string | null;
+	upstreamReachable: boolean;
+	mappingConflict: boolean;
+	mirrorSyncedAt?: Date | null;
+	verifyUpstream: boolean;
+}) {
+	if (input.mappingConflict) {
+		return {
+			status: 'mapping-conflict' as const,
+			message: 'EnrollPro active-year mapping conflicts with existing ATLAS school-year data. Review migration before syncing.',
+			recommendedAction: 'REVIEW_MAPPING_CONFLICT' as const,
+			atlasSchoolYearId: input.selectedYearId,
+			enrollProSchoolYearId: input.upstreamYearId,
+			enrollProSchoolYearLabel: input.upstreamYearLabel,
+			mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+		};
+	}
+
+	if (!input.upstreamYearId) {
+		return {
+			status: input.verifyUpstream ? 'enrollpro-unreachable' as const : 'aligned' as const,
+			message: input.verifyUpstream
+				? 'EnrollPro active school year could not be verified. ATLAS is using saved setup data for now.'
+				: 'ATLAS is using saved setup data. Verify EnrollPro when preparing a new school year.',
+			recommendedAction: input.verifyUpstream ? 'RETRY_ENROLLPRO' as const : 'NONE' as const,
+			atlasSchoolYearId: input.selectedYearId,
+			enrollProSchoolYearId: null,
+			enrollProSchoolYearLabel: null,
+			mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+		};
+	}
+
+	if (input.selectedYearId !== input.upstreamYearId) {
+		return {
+			status: 'atlas-stale' as const,
+			message: `EnrollPro is now on ${input.upstreamYearLabel ?? `school year #${input.upstreamYearId}`}. Sync the new school year before creating a timetable.`,
+			recommendedAction: 'RUN_ROLLOVER_SYNC' as const,
+			atlasSchoolYearId: input.selectedYearId,
+			enrollProSchoolYearId: input.upstreamYearId,
+			enrollProSchoolYearLabel: input.upstreamYearLabel,
+			mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+		};
+	}
+
+	return {
+		status: 'aligned' as const,
+		message: `ATLAS is aligned with ${input.upstreamYearLabel ?? `school year #${input.upstreamYearId}`}.`,
+		recommendedAction: 'NONE' as const,
+		atlasSchoolYearId: input.selectedYearId,
+		enrollProSchoolYearId: input.upstreamYearId,
+		enrollProSchoolYearLabel: input.upstreamYearLabel,
+		mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+	};
+}
+
 export async function resolveRuntimeContext(
 	schoolId: number,
 	authToken?: string,
 	options?: ResolveRuntimeContextOptions,
 ): Promise<RuntimeContextResult | null> {
-	const [policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
+	const [schoolYearMirror, policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
+		prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId, isActive: true },
+			orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+			select: {
+				enrollProSchoolYearId: true,
+				yearLabel: true,
+				lastVerifiedAt: true,
+				lastSyncedAt: true,
+				isActive: true,
+				facultyCount: true,
+				sectionCount: true,
+				syncStatus: true,
+				lastFailureSummary: true,
+			},
+		}),
 		prisma.schedulingPolicy.findFirst({
 			where: { schoolId },
 			orderBy: [{ updatedAt: 'desc' }],
@@ -154,6 +255,14 @@ export async function resolveRuntimeContext(
 	]);
 
 	const evidence: RuntimeYearEvidence[] = [];
+	if (schoolYearMirror) {
+		evidence.push({
+			yearId: schoolYearMirror.enrollProSchoolYearId,
+			timestamp: schoolYearMirror.lastSyncedAt ?? schoolYearMirror.lastVerifiedAt ?? new Date(0),
+			type: 'school-year-mirror',
+			source: 'atlas.enrollpro_school_year_mirror',
+		});
+	}
 	if (policy) {
 		evidence.push({
 			yearId: policy.schoolYearId,
@@ -205,6 +314,9 @@ export async function resolveRuntimeContext(
 	let upstreamReachable = false;
 	let upstreamVerified = false;
 	let upstreamMatched: boolean | null = null;
+	let upstreamActiveSchoolYearId: number | null = schoolYearMirror?.enrollProSchoolYearId ?? null;
+	let upstreamActiveSchoolYearLabel: string | null = schoolYearMirror?.yearLabel ?? null;
+	let mappingConflict = false;
 
 	const verifyUpstream = options?.verifyUpstream !== false;
 	if (verifyUpstream) {
@@ -212,6 +324,15 @@ export async function resolveRuntimeContext(
 			const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
 			if (upstreamYear) {
 				upstreamReachable = true;
+				upstreamActiveSchoolYearId = upstreamYear.id;
+				upstreamActiveSchoolYearLabel = upstreamYear.yearLabel;
+				if (
+					schoolYearMirror
+					&& schoolYearMirror.enrollProSchoolYearId === upstreamYear.id
+					&& schoolYearMirror.yearLabel !== upstreamYear.yearLabel
+				) {
+					mappingConflict = true;
+				}
 
 				const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
 				if (upstreamRank && selectedRank) {
@@ -236,6 +357,18 @@ export async function resolveRuntimeContext(
 	}
 
 	const stale = Date.now() - selected.timestamp.getTime() > CONTEXT_STALE_THRESHOLD_MS;
+	if (!activeSchoolYearLabel && schoolYearMirror?.enrollProSchoolYearId === selected.yearId) {
+		activeSchoolYearLabel = schoolYearMirror.yearLabel;
+	}
+	const activeYearDrift = buildActiveYearDrift({
+		selectedYearId: selected.yearId,
+		upstreamYearId: upstreamActiveSchoolYearId,
+		upstreamYearLabel: upstreamActiveSchoolYearLabel,
+		upstreamReachable,
+		mappingConflict,
+		mirrorSyncedAt: schoolYearMirror?.lastSyncedAt ?? null,
+		verifyUpstream,
+	});
 
 	return {
 		schoolId,
@@ -256,6 +389,22 @@ export async function resolveRuntimeContext(
 			reachable: upstreamReachable,
 			verified: upstreamVerified,
 			matched: upstreamMatched,
+			activeSchoolYearId: upstreamActiveSchoolYearId,
+			activeSchoolYearLabel: upstreamActiveSchoolYearLabel,
+		},
+		activeYearDrift,
+		rollover: {
+			mirror: schoolYearMirror ? {
+				enrollProSchoolYearId: schoolYearMirror.enrollProSchoolYearId,
+				yearLabel: schoolYearMirror.yearLabel,
+				isActive: schoolYearMirror.isActive,
+				lastVerifiedAt: schoolYearMirror.lastVerifiedAt?.toISOString() ?? null,
+				lastSyncedAt: schoolYearMirror.lastSyncedAt?.toISOString() ?? null,
+				facultyCount: schoolYearMirror.facultyCount,
+				sectionCount: schoolYearMirror.sectionCount,
+				syncStatus: schoolYearMirror.syncStatus,
+				lastFailureSummary: schoolYearMirror.lastFailureSummary,
+			} : null,
 		},
 	};
 }

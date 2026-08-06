@@ -1,0 +1,142 @@
+{
+  "status": "PASS",
+  "durationMs": 3477.320100000001,
+  "metrics": {
+    "navigation": {
+      "duration": 354.3999999985099,
+      "domInteractive": 35.399999998509884,
+      "responseEnd": 27.600000001490116
+    },
+    "jsTransferBytes": 7671436,
+    "jsDecodedBytes": 7627036,
+    "jsFileCount": 148,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 11.700000010430813,
+        "baseDuration": 10.799999997019768,
+        "timestamp": 1785725512729
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 6.100000001490116,
+        "baseDuration": 6.200000002980232,
+        "timestamp": 1785725512766
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 6.200000002980232,
+        "timestamp": 1785725512768
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 4.600000001490116,
+        "baseDuration": 4.600000001490116,
+        "timestamp": 1785725512877
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 1.1999999955296516,
+        "baseDuration": 5.600000001490116,
+        "timestamp": 1785725512909
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.10000000149011612,
+        "baseDuration": 5.600000001490116,
+        "timestamp": 1785725512910
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 42.899999998509884,
+        "baseDuration": 36.49999998509884,
+        "timestamp": 1785725513045
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 113.60000000149012,
+        "baseDuration": 104.10000000149012,
+        "timestamp": 1785725513279
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 104.10000000149012,
+        "timestamp": 1785725513289
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 2.899999998509884,
+        "baseDuration": 99.09999999403954,
+        "timestamp": 1785725513414
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.29999999701976776,
+        "baseDuration": 99.09999998658895,
+        "timestamp": 1785725513422
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.2999999970197678,
+        "baseDuration": 101.09999998658895,
+        "timestamp": 1785725513425
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 3.0999999940395355,
+        "baseDuration": 100.09999998658895,
+        "timestamp": 1785725513429
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.10000000149011612,
+        "baseDuration": 100.09999998658895,
+        "timestamp": 1785725513430
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.3000000044703484,
+        "baseDuration": 100.49999999254942,
+        "timestamp": 1785725513470
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.8999999985098839,
+        "baseDuration": 101.19999998807907,
+        "timestamp": 1785725513473
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.3999999985098839,
+        "baseDuration": 100.69999998807907,
+        "timestamp": 1785725513475
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.10000000149011612,
+        "baseDuration": 100.69999998807907,
+        "timestamp": 1785725513476
+      }
+    ]
+  }
+}

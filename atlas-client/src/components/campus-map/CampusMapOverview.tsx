@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
@@ -14,10 +14,10 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { BuildingView, type RoomSectionMetadata } from '@/components/BuildingView';
-import { ROOM_TYPE_LABELS } from '@/components/BuildingView';
+import { type RoomSectionMetadata } from '@/components/BuildingView';
+import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
-import { CampusMapCanvasPreview } from '@/components/campus-map/CampusMapCanvasPreview';
+import { RoomReadinessList } from '@/components/campus-map/RoomReadinessList';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -30,6 +30,9 @@ import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+
+const CampusMapCanvasPreview = lazy(() => import('@/components/campus-map/CampusMapCanvasPreview').then((module) => ({ default: module.CampusMapCanvasPreview })));
+const BuildingView = lazy(() => import('@/components/BuildingView').then((module) => ({ default: module.BuildingView })));
 
 export type CampusMapOverviewProps = {
 	buildings: Building[];
@@ -110,6 +113,7 @@ function getUtilizationColor(pct: number): string {
 
 export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
 	const [activeView, setActiveView] = useState<'map' | 'building'>('map');
+	const [showExplorer, setShowExplorer] = useState(false);
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const [focusedRoomId, setFocusedRoomId] = useState<number | null>(null);
 	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -295,26 +299,62 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		if (focusedRoomId === null || !selectedBuilding) return null;
 		return (selectedBuilding.rooms ?? []).find((r) => r.id === focusedRoomId) ?? null;
 	}, [focusedRoomId, selectedBuilding]);
+	const sourceState = buildings.length > 0 ? 'verified-live' : 'no-saved-data';
+	const sourceCopy = buildings.length > 0 ? 'Rooms loaded' : 'No saved room data';
+	const nextAction = attentionCount > 0 ? 'Fix rooms first' : 'Open map editor';
 
 	return (
 		<div className="h-[calc(100svh-3.5rem)] overflow-auto bg-primary/5 scrollbar-thin">
-			<div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-7 lg:px-8">
-				<header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between shrink-0">
-					<div>
-						<p className="text-xs font-bold uppercase text-primary">Scheduling Portal</p>
-						<h1 className="mt-1 text-3xl font-bold text-slate-900">Campus and rooms</h1>
-						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
-							Review buildings, teaching rooms, and room readiness before generation.
+			<div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 lg:px-5">
+				<header className="flex shrink-0 flex-col gap-2 rounded-2xl border border-primary/10 bg-white px-3 py-2.5 shadow-soft lg:flex-row lg:items-center lg:justify-between">
+					<div className="min-w-0">
+						<div className="flex flex-wrap items-center gap-2">
+							<h1 className="text-xl font-bold text-slate-900">Campus and rooms</h1>
+							<Badge
+								data-source-state={sourceState}
+								variant="outline"
+								className={buildings.length > 0 ? 'h-7 rounded-full border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700' : 'h-7 rounded-full border-amber-200 bg-amber-50 text-xs font-bold text-amber-700'}
+							>
+								{sourceCopy}
+							</Badge>
+							<Badge variant="outline" className={attentionCount > 0 ? 'h-7 rounded-full border-amber-200 bg-amber-50 text-xs font-bold text-amber-700' : 'h-7 rounded-full border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700'}>
+								{nextAction}
+							</Badge>
+						</div>
+						<p className="mt-1 truncate text-xs font-medium text-slate-500">
+							Check room readiness first. Open the map only when you need room details.
 						</p>
 					</div>
-					<Button asChild className="h-11 rounded-xl bg-primary font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90">
-						<Link to="/map?mode=editor">
-							<Pencil className="size-4" />
-							Edit campus map
-						</Link>
-					</Button>
+					<div className="flex shrink-0 flex-wrap items-center gap-2">
+						<Button type="button" variant="outline" size="sm" className="h-9 gap-2 font-bold" onClick={() => setShowExplorer((value) => !value)}>
+							<MapPinned className="size-4" />
+							{showExplorer ? 'Hide map' : 'Open map'}
+						</Button>
+						<Button asChild size="sm" className="h-9 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90">
+							<Link to="/map?mode=editor">
+								<Pencil className="size-4" />
+								Edit rooms
+							</Link>
+						</Button>
+					</div>
 				</header>
 
+				<RoomReadinessList buildings={buildings} roomOccupancy={scheduleReport ? roomScheduleIndicators.occupancy : undefined} />
+
+				{!showExplorer ? (
+					<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft">
+						<CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+							<div className="min-w-0">
+								<p className="text-sm font-bold text-slate-900">Map is available when needed</p>
+								<p className="mt-1 text-xs leading-relaxed text-slate-500">Most scheduling setup starts with readiness above. Open the map when you need to inspect a building or room.</p>
+							</div>
+							<Button type="button" variant="outline" className="h-10 shrink-0 gap-2 font-bold" onClick={() => setShowExplorer(true)}>
+								<MapPinned className="size-4" />
+								Show campus explorer
+							</Button>
+						</CardContent>
+					</Card>
+				) : (
 				<section className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,0.5fr)]">
 					{/* Campus Map & Rooms Card */}
 					<Card className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
@@ -347,6 +387,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 						</div>
 
 						<div className="bg-stone-50 p-4 lg:p-5 flex flex-col justify-center min-h-[560px]">
+							<Suspense fallback={<div className="flex min-h-[520px] items-center justify-center text-sm text-slate-500">Loading the campus view…</div>}>
 							{activeView === 'map' ? (
 								<CampusMapCanvasPreview
 									buildings={buildings}
@@ -396,9 +437,10 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 							) : (
 								<div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
 									<Building2 className="size-12 opacity-35 animate-pulse" />
-									<p className="mt-2 text-sm">Select a building on the map to begin.</p>
+								<p className="mt-2 text-sm">Select a building on the map to begin.</p>
 								</div>
 							)}
+							</Suspense>
 						</div>
 					</Card>
 
@@ -622,6 +664,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 						) : null}
 					</div>
 				</section>
+				)}
 			</div>
 			
 			<RoomScheduleOverlay

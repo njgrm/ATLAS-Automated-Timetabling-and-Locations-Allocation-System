@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 1187.4430000000002,
+  "metrics": {
+    "navigation": {
+      "duration": 101.5,
+      "domInteractive": 17,
+      "responseEnd": 7.599999999627471
+    },
+    "jsTransferBytes": 2620547,
+    "jsDecodedBytes": 5751062,
+    "jsFileCount": 135,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 6.199999999254942,
+        "baseDuration": 5.799999998882413,
+        "timestamp": 1785326139216
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.599999999627471,
+        "baseDuration": 2.5,
+        "timestamp": 1785326139226
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 2.5,
+        "timestamp": 1785326139227
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.900000000372529,
+        "baseDuration": 1.800000000745058,
+        "timestamp": 1785326139274
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 1.800000000745058,
+        "timestamp": 1785326139287
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 19.09999999962747,
+        "baseDuration": 17.299999998882413,
+        "timestamp": 1785326139354
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 9.599999999627471,
+        "baseDuration": 7.1999999936670065,
+        "timestamp": 1785326139387
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 7.1999999936670065,
+        "timestamp": 1785326139389
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.7999999988824129,
+        "baseDuration": 6.59999999217689,
+        "timestamp": 1785326139425
+      }
+    ]
+  }
+}

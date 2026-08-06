@@ -1,0 +1,13 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "pointer_drag",
+      "status": "FAIL"
+    },
+    {
+      "scenario": "commit_containment",
+      "status": "FAIL"
+    }
+  ]
+}

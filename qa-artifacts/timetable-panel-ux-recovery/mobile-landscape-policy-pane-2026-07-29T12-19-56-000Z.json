@@ -1,0 +1,16 @@
+{
+  "panelMetrics": {
+    "panel": {
+      "clientWidth": 842,
+      "scrollWidth": 842,
+      "clientHeight": 32,
+      "scrollHeight": 142
+    },
+    "offenders": []
+  },
+  "shot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\mobile-landscape-policy-pane.png",
+  "viewport": {
+    "width": 844,
+    "height": 390
+  }
+}

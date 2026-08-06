@@ -1,0 +1,59 @@
+{
+  "simpleShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\mobile-landscape-simple-initial.png",
+  "advancedShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\mobile-landscape-advanced-initial.png",
+  "resizedShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\mobile-landscape-advanced-left-minimum.png",
+  "rightMinShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\mobile-landscape-advanced-right-minimum.png",
+  "resizeResult": "dragged",
+  "rightResizeResult": "dragged",
+  "leftInitial": {
+    "panel": {
+      "clientWidth": 404,
+      "scrollWidth": 404,
+      "clientHeight": 12,
+      "scrollHeight": 107
+    },
+    "offenders": []
+  },
+  "centerInitial": {
+    "panel": {
+      "clientWidth": 437,
+      "scrollWidth": 437,
+      "clientHeight": 12,
+      "scrollHeight": 12
+    },
+    "offenders": []
+  },
+  "leftAfterResize": {
+    "panel": {
+      "clientWidth": 286,
+      "scrollWidth": 286,
+      "clientHeight": 12,
+      "scrollHeight": 107
+    },
+    "offenders": []
+  },
+  "rightInitial": {
+    "panel": {
+      "clientWidth": 0,
+      "scrollWidth": 0,
+      "clientHeight": 0,
+      "scrollHeight": 0
+    },
+    "offenders": [],
+    "collapsed": true
+  },
+  "rightAfterResize": {
+    "panel": {
+      "clientWidth": 0,
+      "scrollWidth": 0,
+      "clientHeight": 0,
+      "scrollHeight": 0
+    },
+    "offenders": [],
+    "collapsed": true
+  },
+  "viewport": {
+    "width": 844,
+    "height": 390
+  }
+}

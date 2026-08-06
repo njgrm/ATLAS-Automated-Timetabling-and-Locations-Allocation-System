@@ -875,6 +875,7 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		maxConsecutiveTeachingMinutesBeforeBreak: data.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: data.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: data.maxTeachingMinutesPerDay,
+		teacherMoveEnabled: data.teacherMoveEnabled,
 		earliestStartTime: data.earliestStartTime,
 		latestEndTime: data.latestEndTime,
 		enforceConsecutiveBreakAsHard: data.enforceConsecutiveBreakAsHard,

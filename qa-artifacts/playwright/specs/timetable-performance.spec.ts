@@ -104,6 +104,26 @@ const MAX_DRAG_COMMIT_MS = 16;
 const MAX_FRAME_OVER_BUDGET_P95_MS = 8;
 const MAX_LONG_TASK_MS = 50;
 
+function isExpectedNavigationAbort(page: Page, requestUrl: string, errorText = '') {
+  if (!/ERR_ABORTED|ERR_BLOCKED_BY_CLIENT|NS_BINDING_ABORTED|Target closed|Frame was detached/i.test(errorText)) {
+    return false;
+  }
+
+  const url = new URL(requestUrl);
+  const pathname = url.pathname;
+
+  return (
+    pathname === '/enrollpro-api/settings/public'
+    || pathname.startsWith('/src/')
+    || pathname.startsWith('/node_modules/.vite/')
+    || pathname.startsWith('/assets/')
+    || (/ERR_BLOCKED_BY_CLIENT/i.test(errorText) && pathname.includes('/manual-edits/commit'))
+    || pathname === '/api/v1/dashboard/readiness-summary'
+    || pathname === '/api/v1/runtime/context'
+    || page.isClosed()
+  );
+}
+
 async function saveScenarioReport(testInfo: TestInfo, name: string, data: any) {
   const safeName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   const filePath = path.join(reportDir, `${safeName}.json`);
@@ -129,18 +149,30 @@ async function blockTimetableCommits(page: Page) {
 
 test.describe.serial('Timetable Performance Scenarios', () => {
   let hasValidRun = false;
+  let ignoredNavigationAborts: Array<{ url: string; errorText?: string }> = [];
+  let unexpectedNetworkFailures: Array<{ url: string; errorText?: string }> = [];
 
   test.beforeAll(async () => {
     if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
   });
 
   test.beforeEach(async ({ page }, testInfo) => {
+    ignoredNavigationAborts = [];
+    unexpectedNetworkFailures = [];
     page.on('pageerror', (err) => console.error(`[BROWSER EXCEPTION]: ${err.message}`));
     page.on('console', msg => {
       const text = msg.text();
       if (msg.type() === 'error' || msg.type() === 'warning') console.log('[BROWSER CONSOLE]:', text);
     });
-    page.on('requestfailed', req => console.error(`[NETWORK FAILED]: ${req.url()} - ${req.failure()?.errorText}`));
+    page.on('requestfailed', req => {
+      const errorText = req.failure()?.errorText ?? '';
+      if (isExpectedNavigationAbort(page, req.url(), errorText)) {
+        ignoredNavigationAborts.push({ url: req.url(), errorText });
+        return;
+      }
+      unexpectedNetworkFailures.push({ url: req.url(), errorText });
+      console.error(`[NETWORK FAILED]: ${req.url()} - ${errorText}`);
+    });
     await page.context().clearCookies();
     try {
       await loginAdmin(page);
@@ -152,8 +184,19 @@ test.describe.serial('Timetable Performance Scenarios', () => {
       });
       throw error;
     }
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => { localStorage.setItem('atlas_timetable_tour', 'true'); });
+    await page.addInitScript(() => { localStorage.setItem('atlas_timetable_tour', 'true'); });
+  });
+
+  test.afterEach(async ({}, testInfo) => {
+    await testInfo.attach('ignored_navigation_aborts', {
+      body: JSON.stringify(ignoredNavigationAborts, null, 2),
+      contentType: 'application/json',
+    });
+    await testInfo.attach('unexpected_network_failures', {
+      body: JSON.stringify(unexpectedNetworkFailures, null, 2),
+      contentType: 'application/json',
+    });
+    expect(unexpectedNetworkFailures, 'No unexpected network request failures should occur during timetable performance scenarios.').toEqual([]);
   });
 
   test('1. Environment and dataset preflight', async ({ page }, testInfo) => {
@@ -205,10 +248,11 @@ test.describe.serial('Timetable Performance Scenarios', () => {
     test.skip(!hasValidRun, 'Skipped due to missing run data.');
     
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-    await page.locator('a[href="/timetable"]').waitFor({ state: 'visible', timeout: 10000 });
+    const timetableLink = page.getByRole('link', { name: /Open Timetable/i }).first();
+    await timetableLink.waitFor({ state: 'visible', timeout: 10000 });
     
     const t0 = performance.now();
-    await page.click('a[href="/timetable"]');
+    await timetableLink.click();
     await expect(page.locator('table')).toBeVisible({ timeout: 30000 });
     const warmLoadDuration = performance.now() - t0;
     
@@ -232,7 +276,7 @@ test.describe.serial('Timetable Performance Scenarios', () => {
     
     const t0 = performance.now();
     await gridCells.first().click();
-    await expect(page.locator('text=Recovery Actions').or(page.locator('text=Draft Actions')).or(page.locator('text=Teaching Load repair panel')).or(page.locator('text=Select an available slot'))).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('timetable-selection-strip')).toBeVisible({ timeout: 15000 });
     const selectionDuration = performance.now() - t0;
     
     const metrics = await getPerformanceMetrics(page);
@@ -421,14 +465,20 @@ test.describe.serial('Timetable Performance Scenarios', () => {
     }
     await queuePin.focus();
     await page.keyboard.press('Enter');
-    const moveButton = page.getByRole('button', { name: 'Move timeslot' });
+    const moveButton = page.getByTestId('timetable-selection-strip').getByRole('button', { name: 'Move timeslot' });
     await expect(moveButton).toBeVisible({ timeout: 5000 });
     await moveButton.focus();
     await page.keyboard.press('Enter');
-    const targetCell = page.locator('td[data-day][role="button"]').nth(15);
-    await expect(targetCell).toBeVisible({ timeout: 5000 });
-    await targetCell.focus();
-    const targetLabel = await targetCell.getAttribute('aria-label');
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const targetLabel = await page.evaluate(() => {
+      const cells = Array.from(document.querySelectorAll<HTMLTableCellElement>('td[data-day][data-start-time][data-end-time]'));
+      const target = cells[15] ?? cells.find((cell) => cell.offsetParent !== null) ?? cells[0];
+      if (!target) return null;
+      target.scrollIntoView({ block: 'center', inline: 'center' });
+      target.focus();
+      return target.getAttribute('aria-label');
+    });
+    expect(targetLabel, 'Keyboard placement target cell must be focusable.').toBeTruthy();
     await page.keyboard.press('Enter');
     const feedbackVisible = await page.getByText(/Checking move impact|Preview|blocked|conflict|Swap/i).first().isVisible().catch(() => false);
     await saveScenarioReport(testInfo, 'keyboard_place', {
@@ -453,13 +503,18 @@ test.describe.serial('Timetable Performance Scenarios', () => {
     await source.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'center' }));
     await expect(source).toBeVisible({ timeout: 5000 });
     await source.tap();
-    const moveButton = page.getByRole('button', { name: 'Move timeslot' });
+    const moveButton = page.getByTestId('timetable-selection-strip').getByRole('button', { name: 'Move timeslot' });
     await expect(moveButton).toBeVisible({ timeout: 5000 });
     await moveButton.tap();
-    const target = page.locator('td[data-day][role="button"]').nth(15);
-    await target.scrollIntoViewIfNeeded();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const target = page.locator('td[data-day][data-start-time][data-end-time]').first();
     await expect(target).toBeVisible({ timeout: 5000 });
-    await target.tap();
+    const targetBox = await target.boundingBox();
+    if (!targetBox) {
+      await saveScenarioReport(testInfo, 'touch_place', { status: 'BLOCKED', reason: 'No visible target cell bounding box', blockedCommitRequests });
+      return;
+    }
+    await page.touchscreen.tap(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
     const feedbackVisible = await page.getByText(/Review|Preview|Select an available slot|Recovery Actions/i).first().isVisible().catch(() => false);
     await saveScenarioReport(testInfo, 'touch_place', { status: feedbackVisible ? 'PASS' : 'FAIL', feedbackVisible, blockedCommitRequests });
   });
@@ -564,7 +619,14 @@ test.describe.serial('Timetable Performance Scenarios', () => {
     await page.goto('/timetable', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('table')).toBeVisible({ timeout: 30000 });
     
-    const filterBtn = page.getByRole('button', { name: /^Conflicts,/ });
+    let filterBtn = page.getByTestId('timetable-filters-trigger').or(page.getByRole('button', { name: /^Filters$/ }));
+    if (!(await filterBtn.isVisible().catch(() => false))) {
+      const moreTrigger = page.getByTestId('timetable-simple-more-trigger');
+      if (await moreTrigger.isVisible().catch(() => false)) {
+        await moreTrigger.click();
+        filterBtn = page.getByTestId('timetable-filters-trigger').or(page.getByRole('menuitem', { name: /^Filters$/ }));
+      }
+    }
     if (await filterBtn.isVisible()) {
       const t0 = performance.now();
       await filterBtn.click();

@@ -1,0 +1,64 @@
+{
+  "evidenceType": "Browser proxy",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "before": {
+    "schoolId": 1,
+    "schoolYearId": 39,
+    "schoolYearLabel": null,
+    "source": "atlas-persisted",
+    "stale": true,
+    "upstreamReachable": false,
+    "activeRunId": 223,
+    "activeRunStatus": "COMPLETED",
+    "queueCount": 365
+  },
+  "after": {
+    "schoolId": 1,
+    "schoolYearId": 39,
+    "schoolYearLabel": null,
+    "source": "atlas-persisted",
+    "stale": true,
+    "upstreamReachable": false,
+    "activeRunId": 223,
+    "activeRunStatus": "COMPLETED",
+    "queueCount": 365
+  },
+  "placement": {
+    "status": "opened",
+    "dialog": {
+      "_frame": {
+        "_type": "Frame",
+        "_guid": "frame@bb4dc20f1826f602341faf5e9f9ea86a"
+      },
+      "_selector": "internal:testid=[data-testid=\"generated-placement-review-dialog\"s]"
+    },
+    "invokingIdentity": "phase-0-placement-1785259369389"
+  },
+  "placementFocus": {
+    "invokingIdentity": "phase-0-placement-1785259369389",
+    "firstDialogFocus": "Cancel",
+    "tabSequence": [
+      "Close",
+      "Select room",
+      "Cancel"
+    ],
+    "restoredIdentity": "phase-0-placement-1785259369389",
+    "restoredToInvoker": true
+  },
+  "swapFocus": {
+    "invokingIdentity": "phase-0-swap-1785259371529",
+    "firstDialogFocus": "Cancel",
+    "tabSequence": [
+      "Close",
+      "Cancel",
+      "Close"
+    ],
+    "restoredIdentity": "phase-0-swap-1785259371529",
+    "restoredToInvoker": true
+  },
+  "blockedWrites": [],
+  "focusRestorationCurrentlyPassing": true
+}

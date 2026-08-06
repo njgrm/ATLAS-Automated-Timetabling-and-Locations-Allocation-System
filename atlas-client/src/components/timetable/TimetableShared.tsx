@@ -136,7 +136,7 @@ export function ViolationGroup({
 		>
 			<AccordionItem value={String(code)} className="border-0">
 				<AccordionTrigger className="px-2 py-1.5 hover:no-underline">
-					<div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+					<div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
 						<Badge
 							variant="outline"
 							className={`h-4.5 px-1.5 text-xs ${isHard ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
@@ -149,7 +149,7 @@ export function ViolationGroup({
 				</AccordionTrigger>
 				<AccordionContent className="border-t border-border pb-0">
 					<div>
-						<p className="border-b border-border/70 px-3 py-2 text-xs font-bold text-muted-foreground">
+						<p className="min-w-0 break-words border-b border-border/70 px-3 py-2 text-xs font-bold leading-snug text-muted-foreground">
 							{groupSummary}
 						</p>
 						{visibleViolations.map((v, i) => {
@@ -157,7 +157,7 @@ export function ViolationGroup({
 							const formattedMessage = formatConstraintMessage ? formatConstraintMessage(v.message, v) : v.message;
 							const action = renderAction?.(v) ?? null;
 							return (
-								<div key={i} className={`flex items-center gap-0.5 ${
+								<div key={i} className={`flex min-w-0 flex-wrap items-stretch gap-1 ${
 									isSelected
 										? 'bg-primary/10 text-foreground'
 										: 'text-muted-foreground hover:bg-muted/50'
@@ -171,12 +171,12 @@ export function ViolationGroup({
 														variant="ghost"
 														size="sm"
 														onClick={() => onSelect(v)}
-														className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
+														className="h-auto min-h-9 min-w-0 flex-[1_1_13rem] justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
 													>
-														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{formattedMessage}</span>
+														<span className="min-w-0 whitespace-normal break-words text-left underline decoration-dashed decoration-muted-foreground/50 underline-offset-2 line-clamp-2">{formattedMessage}</span>
 													</Button>
 												</TooltipTrigger>
-												<TooltipContent className="max-w-70 text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+												<TooltipContent className="max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal break-words text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
 													<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
 													{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
 														<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
@@ -208,9 +208,9 @@ export function ViolationGroup({
 											variant="ghost"
 											size="sm"
 											onClick={() => onSelect(v)}
-											className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
+											className="h-auto min-h-9 min-w-0 flex-[1_1_13rem] justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
 										>
-											<span className="line-clamp-2">{formattedMessage}</span>
+											<span className="min-w-0 whitespace-normal break-words text-left line-clamp-2">{formattedMessage}</span>
 										</Button>
 									)}
 									{onExplain && (
@@ -222,12 +222,12 @@ export function ViolationGroup({
 												e.stopPropagation();
 												onExplain(v);
 											}}
-											className="h-auto self-stretch rounded-none px-2 py-1.5 text-xs font-semibold text-primary hover:bg-transparent hover:underline"
+											className="h-auto shrink-0 self-stretch rounded-md px-2 py-1.5 text-xs font-semibold text-primary hover:bg-transparent hover:underline"
 										>
 											Explain
 										</Button>
 									)}
-									{action}
+									{action ? <div className="min-w-0 shrink-0 overflow-hidden">{action}</div> : null}
 								</div>
 							);
 						})}

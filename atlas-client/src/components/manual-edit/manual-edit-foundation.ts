@@ -52,7 +52,7 @@ export interface ManualEditPanelProps {
 	subjectMap: Map<number, Subject>;
 	draftEntries: ScheduledEntry[];
 	onPreview: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
-	onCommit: (proposal: ManualEditProposal, allowSoftOverride: boolean) => Promise<void>;
+	onCommit: (proposal: ManualEditProposal, allowSoftOverride: boolean) => Promise<boolean>;
 	previewLoading: boolean;
 	commitLoading: boolean;
 	initialAction?: ManualEditActionType | null;

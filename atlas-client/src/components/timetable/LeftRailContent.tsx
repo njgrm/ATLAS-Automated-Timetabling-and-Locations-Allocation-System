@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
-import { GeneratedUnassignedPanel, GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
+import { GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
+import { GeneratedUnassignedPanel } from '@/components/timetable/GeneratedUnassignedPanel';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
@@ -75,6 +76,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 		preGenKbSource,
 		setPreGenKbSource,
 		setKbSelectedSource,
+		leftPanelRef,
 		rightPanelRef,
 		selectedEntry,
 		setSelectedEntry,
@@ -295,7 +297,11 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 													const nextSelected = !selected;
 													setPreGenKbSource(nextSelected ? source : null);
 													setKbSelectedSource(nextSelected ? source : null);
-													if (nextSelected) { setSelectedEntry(null); rightPanelRef.current?.expand(); }
+													if (nextSelected) {
+														setSelectedEntry(null);
+														rightPanelRef.current?.expand();
+														if (!isDesktop) leftPanelRef.current?.collapse();
+													}
 												};
 												if (!isDesktop) {
 													return (

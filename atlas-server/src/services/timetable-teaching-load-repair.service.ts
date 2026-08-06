@@ -463,9 +463,11 @@ async function validateExpectedFacultyVersions(
 	schoolId: number,
 	facultyIds: number[],
 	expectedFacultyVersions: Record<string, number> | undefined,
+	options: { targetFacultyIds?: Set<number> } = {},
 	client: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<Map<number, number>> {
 	const uniqueFacultyIds = [...new Set(facultyIds)];
+	const targetFacultyIds = options.targetFacultyIds ?? new Set<number>(uniqueFacultyIds);
 	const rows = uniqueFacultyIds.length === 0
 		? []
 		: await client.facultyMirror.findMany({
@@ -475,8 +477,12 @@ async function validateExpectedFacultyVersions(
 	const byId = new Map(rows.map((row) => [row.id, row]));
 	for (const facultyId of uniqueFacultyIds) {
 		const row = byId.get(facultyId);
-		if (!row) throw err(404, 'FACULTY_NOT_FOUND', `Faculty #${facultyId} was not found in this school.`);
-		if (!row.isActiveForScheduling) throw err(409, 'FACULTY_INACTIVE', 'The selected teacher is no longer active for scheduling.');
+		if (!row) {
+			throw err(404, 'FACULTY_NOT_FOUND', `Faculty #${facultyId} was not found in this school.`);
+		}
+		if (targetFacultyIds.has(facultyId) && !row.isActiveForScheduling) {
+			throw err(409, 'FACULTY_INACTIVE', 'The replacement teacher is no longer active for scheduling. Choose another active teacher.');
+		}
 		const expected = expectedFacultyVersions?.[String(facultyId)];
 		if (typeof expected === 'number' && expected !== row.version) {
 			throw err(409, 'FACULTY_VERSION_CONFLICT', 'Teaching Load changed while this panel was open. Reload the timetable and try again.');
@@ -545,12 +551,13 @@ async function prepareRepair(
 	const unassignedByKey = new Map(refData.unassignedItems.map((item) => [buildUnassignedKey(item), item]));
 	const subjectIds = [...new Set(changes.map((change) => change.subjectId))];
 	const facultyIds = changes.flatMap((change) => [change.fromFacultyId, change.toFacultyId]).filter((id): id is number => id != null);
+	const targetFacultyIds = new Set(changes.map((change) => change.toFacultyId).filter((id): id is number => id != null));
 	const [subjects, facultyVersions] = await Promise.all([
 		prisma.subject.findMany({
 			where: { schoolId, id: { in: subjectIds } },
 			select: { id: true, code: true },
 		}),
-		validateExpectedFacultyVersions(schoolId, facultyIds, request.expectedFacultyVersions),
+		validateExpectedFacultyVersions(schoolId, facultyIds, request.expectedFacultyVersions, { targetFacultyIds }),
 	]);
 	const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
 
@@ -1024,7 +1031,8 @@ export async function applyTeachingLoadRepair(
 		const affectedFacultyIds = prepared.changes
 			.flatMap((change) => [change.fromFacultyId, change.toFacultyId])
 			.filter((facultyId): facultyId is number => facultyId != null);
-		await validateExpectedFacultyVersions(schoolId, affectedFacultyIds, request.expectedFacultyVersions, tx);
+		const targetFacultyIds = new Set(prepared.changes.map((change) => change.toFacultyId));
+		await validateExpectedFacultyVersions(schoolId, affectedFacultyIds, request.expectedFacultyVersions, { targetFacultyIds }, tx);
 
 		await applyCanonicalOwnership(tx, schoolId, schoolYearId, actorId, prepared.changes);
 		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);

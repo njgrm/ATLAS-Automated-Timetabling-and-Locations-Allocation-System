@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 2618.0181000000002,
+  "metrics": {
+    "navigation": {
+      "duration": 418.40000000596046,
+      "domInteractive": 38.19999998807907,
+      "responseEnd": 28
+    },
+    "jsTransferBytes": 6501757,
+    "jsDecodedBytes": 6460357,
+    "jsFileCount": 138,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 11.5,
+        "baseDuration": 10.700000017881393,
+        "timestamp": 1785838635383
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 5.4000000059604645,
+        "baseDuration": 5.5,
+        "timestamp": 1785838635425
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 5.5,
+        "timestamp": 1785838635443
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 3.5,
+        "baseDuration": 3.5,
+        "timestamp": 1785838635556
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 3.5,
+        "timestamp": 1785838635584
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 33.20000001788139,
+        "baseDuration": 28.899999976158142,
+        "timestamp": 1785838635719
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 74.7999999821186,
+        "baseDuration": 67.40000006556511,
+        "timestamp": 1785838635893
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 67.40000006556511,
+        "timestamp": 1785838635911
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.0999999940395355,
+        "baseDuration": 63.30000004172325,
+        "timestamp": 1785838635976
+      }
+    ]
+  }
+}

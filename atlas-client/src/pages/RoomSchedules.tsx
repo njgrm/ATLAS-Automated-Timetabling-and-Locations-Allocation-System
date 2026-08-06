@@ -376,28 +376,31 @@ export default function RoomSchedules() {
 		: activeSelectorCount === 0
 			? `No ${selectedModeCopy.label.toLowerCase()} are available yet.`
 			: `${activeSelectorCount} ${selectedModeCopy.label.toLowerCase()} available.`;
+	const scheduleSourceState = roomsLoading ? 'checking-source' : state.status === 'ok' ? 'verified-live' : 'saved-data';
 
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
-			<div className="shrink-0 px-6 pt-5 lg:px-8">
-				<header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-					<div>
-						<p className="text-xs font-bold uppercase tracking-wide text-primary">Review and publish</p>
-						<h1 className="mt-1 text-3xl font-bold text-slate-900">Schedules</h1>
-						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+			<div className="shrink-0 px-3 pt-2 lg:px-5">
+				<header className="flex flex-col gap-1.5 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
+						<div className="flex flex-wrap items-center gap-2">
+							<h1 className="text-lg font-bold text-slate-900 sm:text-xl">Schedules</h1>
+							<Badge variant="outline" className="h-6 rounded-full border-primary/15 bg-primary/5 text-[0.65rem] font-bold text-primary">Review and publish</Badge>
+						</div>
+						<p className="mt-0.5 hidden max-w-2xl truncate text-xs font-medium text-slate-500 md:block">
 							Browse the latest room, teacher, and section schedules.
 						</p>
 					</div>
-					<div className="rounded-2xl border border-primary/10 bg-white px-4 py-3 shadow-soft">
-						<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+					<div className="rounded-lg border border-primary/10 bg-primary/5 px-2.5 py-1.5" data-source-state={scheduleSourceState}>
+						<div className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-slate-500">
 							<CalendarDays className="size-4 text-primary" />
 							Source
 						</div>
-						<p className="mt-1 text-sm font-semibold text-slate-900">{sourceSummary}</p>
+						<p className="mt-0.5 max-w-sm truncate text-xs font-bold text-slate-900">{sourceSummary}</p>
 					</div>
 				</header>
 
-				<div className="mt-4 grid gap-3 md:grid-cols-3">
+				<div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
 					{(['rooms', 'teachers', 'sections'] as ViewMode[]).map((mode) => {
 						const copy = MODE_COPY[mode];
 						const Icon = copy.icon;
@@ -410,12 +413,11 @@ export default function RoomSchedules() {
 									setViewMode(mode);
 									if (mode !== 'rooms' || presentationMode === 'occupancy') setPresentationMode('schedule');
 								}}
-								className={`h-auto justify-start gap-3 rounded-2xl px-4 py-3 text-left shadow-soft ${viewMode === mode ? '' : 'border-primary/10 bg-white text-slate-700 hover:border-primary/30'}`}
+								className={`h-8 shrink-0 justify-start gap-2 rounded-lg px-2.5 text-left shadow-sm ${viewMode === mode ? '' : 'border-primary/10 bg-white text-slate-700 hover:border-primary/30'}`}
 							>
-								<Icon className="size-5 shrink-0" />
+								<Icon className="size-4 shrink-0" />
 								<span className="min-w-0">
-									<span className="block text-sm font-bold">{copy.label}</span>
-									<span className="block truncate text-xs opacity-80">{copy.description}</span>
+									<span className="block text-xs font-bold">{copy.label}</span>
 								</span>
 							</Button>
 						);
@@ -423,8 +425,8 @@ export default function RoomSchedules() {
 				</div>
 			</div>
 			{/* ── Toolbar row ── */}
-			<div className="shrink-0 px-6 pt-4 pb-2 flex items-center gap-3 flex-wrap lg:px-8">
-				<div className="flex items-center gap-2 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-sm">
+			<div className="shrink-0 px-3 pt-1.5 pb-1.5 flex items-center gap-2 flex-wrap lg:px-5">
+				<div className="hidden items-center gap-2 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-sm md:flex">
 					<SelectedModeIcon className="size-4 text-primary" />
 					<div>
 						<p className="text-xs font-semibold text-slate-900">Browsing {selectedModeCopy.label.toLowerCase()}</p>
@@ -433,7 +435,7 @@ export default function RoomSchedules() {
 				</div>
 
 				{/* Entity selector (rooms / teachers / sections) */}
-				<div className="min-w-72 flex-1 max-w-xl">
+				<div className="min-w-0 flex-1 md:max-w-xl" data-testid="schedule-browser-selector">
 					{roomsLoading ? (
 						<Skeleton className="h-10 w-full rounded-xl" />
 					) : (
@@ -442,10 +444,10 @@ export default function RoomSchedules() {
 							onValueChange={setSelectedEntityId}
 							groups={activeSelector.groups}
 							placeholder={activeSelector.placeholder}
-							triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"
+							triggerClassName="h-9 text-sm w-full rounded-xl bg-white shadow-sm"
 						/>
 					)}
-					<p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+					<p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
 						<Info className="size-3 text-primary" />
 						{selectorStatus}
 					</p>
@@ -567,7 +569,7 @@ export default function RoomSchedules() {
 			</div>
 
 			{/* ── Main content ── */}
-			<div className="flex-1 min-h-0 overflow-auto px-6 pb-4 pt-2 lg:px-8">
+			<div className="flex-1 min-h-0 overflow-auto px-4 pb-4 pt-2 lg:px-5">
 				{state.status === 'idle' && (
 					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-white p-8 text-center text-muted-foreground shadow-soft">
 						<div className="max-w-md">

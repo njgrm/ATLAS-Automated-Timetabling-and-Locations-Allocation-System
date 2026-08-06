@@ -1,0 +1,4 @@
+{
+  "simpleText": "Using saved ATLAS data\n213 warnings\nAdvanced\nMore\n\nNEXT STEP\n\nPlace unresolved\n\nStart placing",
+  "advancedText": "NEXT TASK\n\nReview schedule\n\nReview schedule\nPlace unassigned\n99+ to place\nSwitch sessions\nDraft planner\nReview room requests\n\nNo precision dragging required. Check the generated timetable and publish when clean.\nPlace: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class to open Review occupied-slot swap. Draft: use Plan before generating for draft anchors.\n\nCan place = empty slot. Can swap = occupied slot. Blocked = fix first. Warning = review only."
+}

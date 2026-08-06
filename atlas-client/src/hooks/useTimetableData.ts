@@ -316,6 +316,7 @@ export type TimetableDataState = {
 		decisionFilter: 'ALL' | RoomPreferenceDecisionStatus,
 	) => Promise<void>;
 	fetchReferenceData: (syId: number) => Promise<void>;
+	refreshReferenceLabels: () => void;
 	openMapWorkspace: () => Promise<void>;
 	openBuildingWorkspace: (buildingId: number) => Promise<void>;
 	openRoomGridWorkspace: (roomId: number) => void;
@@ -329,6 +330,7 @@ export type TimetableDataState = {
 	roomLabelShort: (roomId: number) => string;
 	isStaleRoom: (roomId: number) => boolean;
 	pivotLabel: (id: number) => string;
+	referenceLookupStatus: { state: 'loading' | 'ready' | 'needs-refresh'; label: string };
 };
 
 function useStablePrimitiveArray<T>(arr: T[]): T[] {
@@ -1398,14 +1400,20 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		void loadAll({ preserveRun: true, force: true });
 	}, [loadAll]);
 
+	const refreshReferenceLabels = useCallback(() => {
+		if (!schoolYearId) return;
+		void fetchReferenceData(schoolYearId, { forceRefresh: true });
+	}, [fetchReferenceData, schoolYearId]);
+
 	const subjectLabel = useCallback((id: number) => {
 		const s = subjectMap.get(id);
-		return s ? (s.displayCode ?? s.code) : `Unknown Subject (#${id})`;
+		if (s) return s.displayCode ?? s.code;
+		return subjectMap.size === 0 ? 'Loading subject name...' : 'Subject name missing';
 	}, [subjectMap]);
 
 	const facultyLabel = useCallback((id: number) => {
 		const f = facultyMap.get(id);
-		if (!f) return `Unknown Faculty (#${id})`;
+		if (!f) return facultyMap.size === 0 ? 'Loading teacher name...' : 'Teacher name missing';
 		const adviserSuffix = f.advisedSectionName ? ` · Adviser ${f.advisedSectionName}` : '';
 		return `${f.lastName}, ${f.firstName}${adviserSuffix}`;
 	}, [facultyMap]);
@@ -1419,7 +1427,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const sectionLabel = useCallback((id: number) => {
 		const s = sectionMap.get(id);
-		if (!s) return `Unknown Section (#${id})`;
+		if (!s) return sectionMap.size === 0 ? 'Loading section name...' : 'Section name missing';
 		const programLabel = s.programType && s.programType !== 'REGULAR'
 			? ` · ${getProgramBadgeLabel(s.programType, s.programCode)}`
 			: '';
@@ -1428,17 +1436,32 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const roomLabel = useCallback((roomId: number) => {
 		const ri = roomMap.get(roomId);
-		if (!ri) return `Unknown Room (#${roomId})`;
+		if (!ri) return roomMap.size === 0 ? 'Loading room name...' : 'Room name missing';
 		const bldg = ri.buildingShortCode || ri.buildingName;
 		return `${ri.name} · ${bldg} (Floor ${ri.floor})`;
 	}, [roomMap]);
 
 	const roomLabelShort = useCallback((roomId: number) => {
 		const ri = roomMap.get(roomId);
-		if (!ri) return `Unknown Room (#${roomId})`;
+		if (!ri) return roomMap.size === 0 ? 'Loading room name...' : 'Room name missing';
 		const bldg = ri.buildingShortCode || ri.buildingName;
 		return `${ri.name} · ${bldg}`;
 	}, [roomMap]);
+
+	const referenceLookupStatus = useMemo(() => {
+		if (subjectMap.size === 0 || sectionMap.size === 0 || facultyMap.size === 0 || roomMap.size === 0) {
+			return { state: 'loading' as const, label: 'Loading names' };
+		}
+		const hasMissingReference = activeGridEntriesBase.some((entry) => (
+			!subjectMap.has(entry.subjectId)
+			|| !sectionMap.has(entry.sectionId)
+			|| (entry.facultyId != null && !facultyMap.has(entry.facultyId))
+			|| !roomMap.has(entry.roomId)
+		));
+		return hasMissingReference
+			? { state: 'needs-refresh' as const, label: 'Some names need refresh' }
+			: { state: 'ready' as const, label: 'Names loaded' };
+	}, [activeGridEntriesBase, facultyMap, roomMap, sectionMap, subjectMap]);
 
 	const isStaleRoom = useCallback((roomId: number): boolean => !roomMap.has(roomId), [roomMap]);
 
@@ -1488,6 +1511,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		fetchDraftBoardSummary,
 		loadRoomRequestSummary,
 		fetchReferenceData,
+		refreshReferenceLabels,
 		openMapWorkspace,
 		openBuildingWorkspace,
 		openRoomGridWorkspace,
@@ -1502,5 +1526,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		isStaleRoom,
 		pivotLabel,
 		schoolYearContext,
+		referenceLookupStatus,
 	};
 }

@@ -1,0 +1,33 @@
+{
+  "links": [
+    {
+      "href": "/sections",
+      "text": "Sections loaded for school year"
+    },
+    {
+      "href": "/subjects",
+      "text": "Subjects added"
+    },
+    {
+      "href": "/teachers",
+      "text": "Teachers synced from EnrollPro"
+    },
+    {
+      "href": "/teaching-load",
+      "text": "Every subject has a teacher1 unassigned"
+    },
+    {
+      "href": "/map",
+      "text": "Buildings and rooms ready"
+    },
+    {
+      "href": "/timetable",
+      "text": "Timetable generated and reviewedThe latest generation run failed"
+    },
+    {
+      "href": "/schedules",
+      "text": "Ready to publishReview the timetable before publishing"
+    }
+  ],
+  "source": "Source: Using saved data"
+}

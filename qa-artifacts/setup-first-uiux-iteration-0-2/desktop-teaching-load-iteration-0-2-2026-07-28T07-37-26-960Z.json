@@ -1,0 +1,29 @@
+{
+  "path": "/teaching-load",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "headerHeight": 147,
+  "headerBottom": 211,
+  "contentTop": 220,
+  "contentHeight": 548,
+  "scrollHeight": 768,
+  "clientHeight": 768,
+  "scrollWidth": 1366,
+  "clientWidth": 1366,
+  "sourceState": "none",
+  "sourceText": "Read-only",
+  "sourceSummaryText": "Source truth: Viewing a saved snapshot. Edits need source verification first.",
+  "visibleButtonCount": 8,
+  "visibleButtons": [
+    "ATLAS High School\nSCHEDULING PORTAL\nWorking from saved data",
+    "O\nofficer\nAdmin",
+    "Toggle Sidebar",
+    "Accessibility options",
+    "BY TEACHER",
+    "SECTION ALLOCATION",
+    "STAFFING AUDIT",
+    "RETRY SOURCE"
+  ]
+}

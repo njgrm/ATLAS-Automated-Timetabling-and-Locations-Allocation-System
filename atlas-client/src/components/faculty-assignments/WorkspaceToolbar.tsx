@@ -139,43 +139,52 @@ export function WorkspaceToolbar({
 	}, [activeDraftCount, autoFillEnabled, autoFillLoading, dataSource, isOnline, isWorkspaceWritable, onAutoFillClick, onRetrySource, onSave, saving]);
 
 	const showReviewBadge = useMemo(() => {
-		if (reviewDismissed) return false;
 		if (!splitBrainIncident) return false;
-		if (splitBrainIncident.quarantine.required) return false;
-		if (splitBrainIncident.counters.truthRowsToUpdate > 0) return false;
-		if ((splitBrainIncident.counters.integrityMissingOwnershipPairs ?? 0) > 0) return false;
-		if ((splitBrainIncident.counters.integrityOwnershipWithoutScopePairs ?? 0) > 0) return false;
+		if (splitBrainIncident.quarantine.required) return true;
+		if (splitBrainIncident.counters.truthRowsToUpdate > 0) return true;
+		if ((splitBrainIncident.counters.integrityMissingOwnershipPairs ?? 0) > 0) return true;
+		if ((splitBrainIncident.counters.integrityOwnershipWithoutScopePairs ?? 0) > 0) return true;
+		if (reviewDismissed) return false;
 		return splitBrainIncident.quarantine.severity === 'WARNING';
 	}, [splitBrainIncident, reviewDismissed]);
 
 	return (
-		<div className="rounded-2xl border border-border/40 bg-background px-5 py-3 shadow-md space-y-3">
-			<div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-				<div className="min-w-60 space-y-1">
-					<div className="flex flex-wrap items-center gap-3">
-						<h1 className="text-xl font-semibold tracking-tight text-foreground">Teaching Load</h1>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge variant="outline" className="h-5 cursor-help rounded-full border-primary/15 bg-primary/5 px-2 text-xs font-semibold text-primary shadow-none">
-									{workspaceStateLabel}
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
-								<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
-								<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
-							</TooltipContent>
-						</Tooltip>
-					</div>
-					<p className="text-sm font-medium text-muted-foreground">Assign subjects and sections to teachers before generation.</p>
+		<div className="rounded-xl border border-border/40 bg-background px-2.5 py-1.5 shadow-sm" data-testid="teaching-load-command-header">
+			{/* Compact workflow guide: keep Teaching Load to one decision row; disclose stats and repair tools through More. */}
+			<div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
+				<div className="flex min-w-0 shrink-0 items-center gap-2">
+					<h1 className="text-base font-bold tracking-tight text-foreground sm:text-lg">Teaching Load</h1>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge variant="outline" className="h-7 cursor-help rounded-full border-primary/15 bg-primary/5 px-2 text-xs font-semibold text-primary shadow-none">
+								{workspaceStateLabel}
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
+							<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
+							<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
+						</TooltipContent>
+					</Tooltip>
 				</div>
 
-				<div className="flex flex-wrap items-center gap-6">
+				<p
+					data-testid="teaching-load-source-truth-summary"
+					className="hidden max-w-sm shrink truncate text-xs font-medium text-muted-foreground xl:block"
+				>
+					Source truth: {statusConfig.description}
+				</p>
+
+				<div className="ml-auto flex shrink-0 items-center gap-2">
 				{/* Runtime Status */}
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-muted/20 border border-border/40 cursor-help shrink-0 hover:bg-muted/30 transition-all">
+						<div
+							className="flex h-8 items-center gap-2 rounded-lg border border-border/40 bg-muted/20 px-2.5 transition-all hover:bg-muted/30"
+							data-source-state={dataSource}
+							aria-label={`${statusConfig.label}. ${statusConfig.description}`}
+						>
 							<div className={`size-1.5 rounded-full ${statusConfig.color}`} />
-							<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/80 leading-none">{statusConfig.label}</span>
+							<span className="text-xs font-bold uppercase tracking-tight text-muted-foreground/80 leading-none">{statusConfig.label}</span>
 						</div>
 					</TooltipTrigger>
 					<TooltipContent side="bottom" className="max-w-62.5 p-2.5 text-xs font-semibold">
@@ -190,10 +199,10 @@ export function WorkspaceToolbar({
 								variant="ghost"
 								size="sm"
 								onClick={onViewStaffingNeedsClick}
-								className="h-8 px-3 gap-2 bg-amber-50 border border-amber-100 text-amber-700 hover:bg-amber-100 transition-all"
+								className="h-8 gap-2 border border-amber-100 bg-amber-50 px-2.5 text-amber-700 transition-all hover:bg-amber-100"
 							>
 								<Info className="size-4" />
-								<span className="text-xs font-semibold uppercase tracking-tight">Review Needed</span>
+								<span className="text-xs font-bold uppercase tracking-tight">Review</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="bottom" className="max-w-50 text-xs font-bold">
@@ -205,57 +214,13 @@ export function WorkspaceToolbar({
 					</Tooltip>
 				)}
 
-				<div className="h-6 w-px bg-border/40 hidden xl:inline" />
-
-				{/* Coverage Stats */}
-				<div className="flex items-center gap-5">
-					<div className="flex items-center gap-4">
-						<div className="flex flex-col">
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="cursor-help text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">{hasCoverageUniverse ? 'Staffed coverage' : coverageStateLabel}</span>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
-									{coverageStateDescription}
-								</TooltipContent>
-							</Tooltip>
-							<div className="flex items-baseline gap-1">
-								<span className="text-sm font-semibold tracking-tight leading-none text-primary">{assignedPairs}</span>
-								<span className="text-xs font-bold text-muted-foreground/40">/ {totalPairs}</span>
-								<Badge variant="outline" className={`ml-2 h-4 px-1.5 text-xs font-semibold border-none shadow-none ${completenessPercent === 100 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
-									{completenessPercent}%
-								</Badge>
-							</div>
-						</div>
-						{syntheticPlaceholderPairs > 0 && (
-							<div className="h-8 w-px bg-border/20" />
-						)}
-						{syntheticPlaceholderPairs > 0 && (
-							<div className="flex flex-col">
-								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">Teacher X</span>
-								<span className="text-sm font-semibold tabular-nums leading-none text-violet-600">{syntheticPlaceholderPairs}</span>
-							</div>
-						)}
-						<div className="h-8 w-px bg-border/20" />
-						<div className="flex flex-col">
-							<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">Unassigned</span>
-							<span className={`text-sm font-semibold tabular-nums leading-none ${unassignedPairs > 0 ? 'text-amber-600' : 'text-emerald-600/60'}`}>
-								{unassignedPairs}
-							</span>
-						</div>
-					</div>
-				</div>
-
-				<div className="h-6 w-px bg-border/40 hidden xl:inline" />
-
 				{/* Workspace View Mode */}
 				<div className="flex items-center gap-3">
-					<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 hidden sm:inline">Work mode</span>
 					<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-7">
 						<TabsList className="h-7 p-0.5 bg-muted/40 border border-border/40">
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<TabsTrigger value="teacher" className="h-6 text-xs font-semibold uppercase px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">By teacher</TabsTrigger>
+									<TabsTrigger value="teacher" className="h-6 px-2 text-xs font-semibold uppercase data-[state=active]:bg-background data-[state=active]:shadow-sm sm:px-3">Teacher</TabsTrigger>
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
 									Inspect and adjust one teacher at a time.
@@ -263,7 +228,7 @@ export function WorkspaceToolbar({
 							</Tooltip>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<TabsTrigger value="allocation" className="h-6 text-xs font-semibold uppercase px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">Section allocation</TabsTrigger>
+									<TabsTrigger value="allocation" className="h-6 px-2 text-xs font-semibold uppercase data-[state=active]:bg-background data-[state=active]:shadow-sm sm:px-3">Sections</TabsTrigger>
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
 									Fill section coverage gaps by subject.
@@ -272,84 +237,44 @@ export function WorkspaceToolbar({
 						</TabsList>
 					</Tabs>
 				</div>
-				</div>
-			</div>
-
-			{/* Step Wizard Workflow */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-border/35 pt-3.5">
-				{/* Step 1 */}
-				<button 
-					type="button"
-					onClick={onViewStaffingNeedsClick}
-					disabled={staffingNeedsLoading}
-					className="group flex items-center gap-3 text-left hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer bg-muted/20 hover:bg-muted/40 p-2 rounded-xl border border-border/30"
-				>
-					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-						1
-					</div>
-					<div className="min-w-0">
-						<p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-all leading-none">Step 1</p>
-						<p className="text-xs font-semibold text-foreground truncate mt-1">Check Staffing Needs</p>
-					</div>
-				</button>
-				
-				{/* Step 2 */}
-				<button 
-					type="button"
-					onClick={onAutoFillClick}
-					disabled={autoFillLoading || !autoFillEnabled}
-					className="group flex items-center gap-3 text-left hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer bg-muted/20 hover:bg-muted/40 p-2 rounded-xl border border-border/30"
-				>
-					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-						2
-					</div>
-					<div className="min-w-0">
-						<p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-all leading-none">Step 2</p>
-						<p className="text-xs font-semibold text-foreground truncate mt-1">Auto-Fill Base Load</p>
-					</div>
-				</button>
-
-				{/* Step 3 */}
-				<div className="flex items-center gap-3 text-left bg-emerald-50/20 p-2 rounded-xl border border-emerald-200/30">
-					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 border border-emerald-200 text-xs font-bold text-emerald-700">
-						3
-					</div>
-					<div className="min-w-0">
-						<p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 leading-none">Step 3</p>
-						<p className="text-xs font-semibold text-foreground truncate mt-1">Manual Fine-Tuning</p>
-					</div>
-				</div>
-			</div>
-
-			<div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/30 pt-3">
-				<p className="text-xs font-medium text-muted-foreground">
-					<span className="font-semibold text-foreground">Next:</span> {workspaceStateNextAction}
-				</p>
-				<div className="flex items-center gap-3">
-				{showReconcileAction && (
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onClick={onReconcileClick}
-						disabled={reconcileLoading || !reconcileEnabled}
-						className="h-8 text-xs font-semibold gap-2 px-3 uppercase tracking-widest border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
-					>
-						<Layers className="size-4" />
-						{reconcileLoading ? 'Reconciling...' : 'Reconcile Saved Coverage'}
-					</Button>
-				)}
 
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="outline" size="icon-sm" className="h-8 w-8 shadow-sm">
+								<Button variant="outline" size="icon-sm" className="h-8 w-8 shadow-sm" aria-label="More Teaching Load tools">
 									<Settings2 className="size-4" />
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end" className="w-64 p-2">
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing Mode</DropdownMenuLabel>
+								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Coverage snapshot</DropdownMenuLabel>
+								<div className="grid gap-1 px-2 py-1 text-xs">
+									<p className="font-semibold text-foreground">{hasCoverageUniverse ? 'Staffed coverage' : coverageStateLabel}</p>
+									<p className="text-muted-foreground">{coverageStateDescription}</p>
+									<div className="mt-1 flex flex-wrap gap-1.5">
+										<Badge variant="outline" className={cn('h-6', completenessPercent === 100 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700')}>{completenessPercent}% staffed</Badge>
+										<Badge variant="outline" className="h-6">{assignedPairs}/{totalPairs} pairs</Badge>
+										{syntheticPlaceholderPairs > 0 && <Badge variant="outline" className="h-6 border-violet-200 bg-violet-50 text-violet-700">{syntheticPlaceholderPairs} Teacher X</Badge>}
+										<Badge variant="outline" className={cn('h-6', unassignedPairs > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>{unassignedPairs} unassigned</Badge>
+									</div>
+								</div>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem onSelect={onViewStaffingNeedsClick} disabled={staffingNeedsLoading} className="gap-2 font-semibold">
+									<ChartColumn className="size-4" />
+									Open staffing audit
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={onToggleJumpList} className="gap-2 font-semibold">
+									<Users className="size-4" />
+									{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
+								</DropdownMenuItem>
+								{showReconcileAction && (
+									<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
+										<Layers className="size-4" />
+										{reconcileLoading ? 'Reconciling...' : 'Reconcile saved coverage'}
+									</DropdownMenuItem>
+								)}
+								<DropdownMenuSeparator />
+								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
 								<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
 									{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
 										<DropdownMenuRadioItem key={mode} value={mode} className="flex flex-col items-start gap-0.5 py-2 cursor-pointer">
@@ -358,9 +283,7 @@ export function WorkspaceToolbar({
 										</DropdownMenuRadioItem>
 									))}
 								</DropdownMenuRadioGroup>
-								
 								<DropdownMenuSeparator />
-								
 								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Maintenance</DropdownMenuLabel>
 								<DropdownMenuItem 
 									onSelect={onGlobalResetClick} 
@@ -376,19 +299,8 @@ export function WorkspaceToolbar({
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="text-xs font-bold">Workspace settings</TooltipContent>
+					<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
 				</Tooltip>
-
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					onClick={onViewStaffingNeedsClick}
-					className="h-8 text-xs font-semibold border-transparent bg-transparent text-primary hover:bg-primary/5 shadow-none gap-2 px-3 uppercase tracking-widest transition-all"
-				>
-					<ChartColumn className="size-4" />
-					Staffing audit
-				</Button>
 
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -398,7 +310,7 @@ export function WorkspaceToolbar({
 							size="sm"
 							onClick={primaryAction.onClick}
 							disabled={primaryAction.disabled}
-							className="h-8 text-xs font-semibold gap-2 px-4 uppercase tracking-widest shadow-sm border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-all"
+							className="h-8 gap-2 border border-primary/20 bg-primary/5 px-3 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-4"
 						>
 							{activeDraftCount > 0 ? <Activity className="size-4" /> : <Zap className="size-4" />}
 							{primaryAction.label}
@@ -411,6 +323,12 @@ export function WorkspaceToolbar({
 
 				</div>
 			</div>
+			<p className="sr-only">
+				<span className="font-semibold text-foreground">Next:</span> {workspaceStateNextAction}
+			</p>
+			<p className="sr-only" aria-live="polite">
+				{statusConfig.label}. {statusConfig.description}
+			</p>
 		</div>
 	);
 }

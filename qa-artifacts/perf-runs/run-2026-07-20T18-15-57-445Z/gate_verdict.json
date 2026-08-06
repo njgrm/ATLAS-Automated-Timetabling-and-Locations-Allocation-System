@@ -1,0 +1,18 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "pointer_drag",
+      "status": "FAIL"
+    },
+    {
+      "scenario": "filter_changes",
+      "status": "BLOCKED",
+      "reason": "Filter button not found"
+    },
+    {
+      "scenario": "commit_containment",
+      "status": "FAIL"
+    }
+  ]
+}

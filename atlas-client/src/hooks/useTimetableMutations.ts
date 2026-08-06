@@ -263,7 +263,7 @@ export type TimetableMutationState = {
 	apiBase: string | null;
 	fetchEditHistory: () => Promise<void>;
 	previewEdit: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
-	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<void>;
+	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<boolean>;
 	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	previewTeachingLoadRepair: (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal) => Promise<TeachingLoadRepairPreviewResult | null>;
@@ -845,14 +845,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [apiBase, runVersion, setPreviewLoading, setPreviewResult]);
 
-	const commitEdit = useCallback(async (proposal: ManualEditProposal, _allowSoftOverride = false) => {
-		if (!apiBase) return;
+	const commitEdit = useCallback(async (proposal: ManualEditProposal, allowSoftOverride = false): Promise<boolean> => {
+		if (!apiBase) return false;
 		setCommitLoading(true);
 		try {
 			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/commit`, {
 				proposal,
 				expectedVersion: runVersion,
-				allowSoftOverride: true,
+				allowSoftOverride,
 			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
@@ -865,10 +865,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				if (data.warnings.length > 0) toast.warning(`Edit applied with ${data.warnings.length} soft warning(s).`);
 				else toast.success('Edit applied successfully.');
 			}
+			return true;
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Commit failed.');
 			if (msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) toast.error('Version conflict - someone else edited this run. Please refresh.');
 			else toast.error(msg);
+			return false;
 		} finally {
 			setCommitLoading(false);
 			setPreviewResult(null);
@@ -1275,14 +1277,19 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			);
 			const preview = scopePreviewToCandidate(previewRaw, { day, startTime, endTime });
 			setPreGenPreview(preview);
+			setConfirmRawPreview(previewRaw);
+			setConfirmPreview(preview);
 			if (!preview.allowed) {
-				setPreGenPreviewError('This placement has hard conflicts. Resolve conflicts or use a different slot.');
+				const blockedMessage = 'This placement has hard conflicts. Resolve conflicts or use a different slot.';
+				setPreGenPreviewError(blockedMessage);
+				setConfirmPreviewError(blockedMessage);
 				return;
 			}
 			toast.info('Placement review opened. Confirm the owner, room source, slot, and conflict check before saving.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			setPreGenPreviewError(message ?? 'Unable to preview this placement. Try another slot or repair the source data first.');
+			setConfirmPreviewError(message ?? 'Unable to preview this placement. Try another slot or repair the source data first.');
 		} finally {
 			setPreGenPreviewLoading(false);
 		}
@@ -1488,7 +1495,18 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			}
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-			toast.error(message ?? 'Unable to complete swap.');
+			const readableMessage = message ?? 'ATLAS could not save the switch. It is safe to retry after checking the connection.';
+			setSwapPreview((current) => ({
+				sourcePreview: current?.sourcePreview ?? null,
+				displacedPreview: current?.displacedPreview ?? null,
+				loading: false,
+				error: readableMessage,
+			}));
+			setInlineActionStatus({
+				tone: 'error',
+				message: readableMessage,
+			});
+			toast.error(readableMessage);
 		} finally {
 			setSwapSaving(false);
 		}

@@ -1,0 +1,171 @@
+{
+  "viewport": "844x390",
+  "results": [
+    {
+      "id": "T01",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 540,
+      "observed": "Setup readiness visible in 514ms; first repair: Sections\n\n…\n\nEnrollment unavailable\n\nGeneration needs the current school-year sections before it can build classes.\n\nCheck sections; Setup readiness\n0 of 7 ready\n0/7\nChecking source\n\nSections loaded for school year\n\nEnrollment unavailable\n\nSubjects added\n\nTeachers synced from EnrollPro\n\nEvery subject has a teacher\n\nBuildings and rooms ready\n\nNo teaching buildings set up yet\n\nTimetable generated and reviewed\n\nReady to publish\n\nRev"
+    },
+    {
+      "id": "T02",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 655,
+      "observed": "Sections workspace visible in 647ms; search=Search sections..."
+    },
+    {
+      "id": "T03",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 990,
+      "observed": "Subjects attention filter disclosed in 855ms; search=Search name or code..."
+    },
+    {
+      "id": "T04",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 1825,
+      "observed": "Teachers visible in 1136ms; Teaching Load route visible; repair links=25"
+    },
+    {
+      "id": "T05",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 863,
+      "observed": "Room readiness list visible in 850ms before map interpretation: Room readiness\n\nFix the items marked for attention before generating.\n\n98 Ready\n5 Unavailable\n\nLearning Commons\n\nAdmin and Learning Commons · 80 seats\n\nUnavailable\n\nGuidance Office\n\nAdmin and Learning Commons · 8 seats\n\nUnavailable\n\nPrincipal Office\n\nAdmin and"
+    },
+    {
+      "id": "T06",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 1325,
+      "observed": "Simple timetable and next-step action visible in 1291ms: Start placing"
+    },
+    {
+      "id": "T07",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 1674,
+      "observed": "Unresolved workflow opened: Place unresolved sessions\n\nChoose one session from the queue, then choose a green slot on the grid. ATLAS shows a review before saving.\n\nSTEP 1\n\nChoose a session\n\nSTEP 2\n\nChoose a green grid slot\n\n99+ unresolved\n213 warnings\nG7\nUnknown Section (#317)\n-\nUnknown"
+    },
+    {
+      "id": "T08",
+      "viewport": "844x390",
+      "result": "Independent",
+      "timeMs": 1377,
+      "observed": "Placement review opened and cancelled safely: Review generated placement\n\nUnknown Subject (#1) - Unknown Section (#317) - MONDAY 6:00 AM-6:45 AM. The teacher is locked from Teaching Load; only the room and slot are reviewed here.\n\nWHAT CHANGES\n\nThis unresolved session is placed into the selected timetable slot.\n\nTEACHING LOAD OWNER\n\nFaculty #24007\n\nTARGET SLOT\n\nMO"
+    },
+    {
+      "id": "T09",
+      "viewport": "844x390",
+      "result": "Proxy limitation",
+      "timeMs": 11734,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  getByTestId('timetable-status-legend')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-status-legend')\u001b[22m\n\u001b[2m    13 × locator resolved to <p data-testid=\"timetable-status-legend\" class=\"hidden font-medium text-foreground lg:block\">Can place = empty slot. Can swap = occupied slot.…</p>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n"
+    },
+    {
+      "id": "T10",
+      "viewport": "844x390",
+      "result": "Proxy limitation",
+      "timeMs": 21674,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('timetable-simple-header')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-simple-header')\u001b[22m\n"
+    },
+    {
+      "id": "T11",
+      "viewport": "844x390",
+      "result": "Proxy limitation",
+      "timeMs": 21694,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('timetable-simple-header')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-simple-header')\u001b[22m\n"
+    },
+    {
+      "id": "T12",
+      "viewport": "844x390",
+      "result": "Proxy limitation",
+      "timeMs": 21672,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('timetable-simple-header')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-simple-header')\u001b[22m\n"
+    }
+  ],
+  "blockedWrites": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()"
+  ],
+  "pageErrors": [],
+  "apiFailures": [],
+  "overflow": {
+    "scrollHeight": 390,
+    "clientHeight": 390,
+    "scrollWidth": 844,
+    "clientWidth": 844
+  },
+  "accessibility": {
+    "undersized": [
+      {
+        "name": "Assigned:560/925",
+        "width": 136,
+        "height": 23
+      },
+      {
+        "name": "Hard:0",
+        "width": 64,
+        "height": 23
+      },
+      {
+        "name": "Duration:55.0s",
+        "width": 114,
+        "height": 23
+      }
+    ],
+    "disclosure": [
+      {
+        "name": "Latest Run",
+        "expanded": "false",
+        "controls": "radix-_r_2_"
+      },
+      {
+        "name": "More tools",
+        "expanded": "false",
+        "controls": null
+      },
+      {
+        "name": "Section",
+        "expanded": "false",
+        "controls": "radix-_r_i_"
+      },
+      {
+        "name": "Unknown Section (#302)",
+        "expanded": "false",
+        "controls": "radix-_r_j_"
+      },
+      {
+        "name": "Filters",
+        "expanded": "false",
+        "controls": "radix-_r_k_"
+      }
+    ],
+    "activeElement": "<button class=\"group/button inline-flex shrink-0 items-center justify-center border border-transparent bg-clip-padding whitespace-nowrap transition-all outline-none select-none focus-visible:border-ri"
+  },
+  "dialogFocus": [
+    {
+      "task": "T08",
+      "beforeTab": "Select room",
+      "afterTab": "Cancel",
+      "afterEscape": "Open navigation menuTimetableOnlinePlacement review opened. Pick a room, then ch"
+    }
+  ],
+  "focusOrder": {
+    "activeLabel": "Expand left panel",
+    "activeRole": "BUTTON"
+  },
+  "screenshotPath": "D:\\ATLAS\\qa-artifacts\\older-user-session-validation-codex\\mobile-landscape-final.png",
+  "evidenceType": "Browser proxy"
+}

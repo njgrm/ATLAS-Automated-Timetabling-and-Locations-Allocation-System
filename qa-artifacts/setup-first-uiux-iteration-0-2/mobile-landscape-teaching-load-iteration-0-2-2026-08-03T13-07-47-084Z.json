@@ -1,0 +1,28 @@
+{
+  "path": "/teaching-load",
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "headerHeight": 48,
+  "headerBottom": 110,
+  "contentTop": 117,
+  "contentHeight": 273,
+  "scrollHeight": 390,
+  "clientHeight": 390,
+  "scrollWidth": 844,
+  "clientWidth": 844,
+  "sourceState": "none",
+  "sourceText": "Read-only",
+  "sourceSummaryText": "Source truth: Viewing a saved snapshot. Edits need source verification first.",
+  "visibleButtonCount": 7,
+  "visibleButtons": [
+    "Open navigation menu",
+    "TEACHER",
+    "SECTIONS",
+    "More Teaching Load tools",
+    "RETRY SOURCE",
+    "Review teachers",
+    "More Teaching Load fixes"
+  ]
+}

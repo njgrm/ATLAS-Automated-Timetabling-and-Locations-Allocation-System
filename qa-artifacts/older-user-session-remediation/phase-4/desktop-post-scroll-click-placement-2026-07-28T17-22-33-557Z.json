@@ -1,0 +1,18 @@
+{
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "scrolled": {
+    "clientHeight": 246,
+    "scrollHeight": 28482,
+    "scrollTop": 360,
+    "touchAction": "pan-y",
+    "overscrollBehaviorY": "contain",
+    "overflowY": "auto",
+    "visibleItems": 14,
+    "cardCount": 14
+  },
+  "dialogOpened": true,
+  "blockedWrites": []
+}

@@ -61,8 +61,12 @@ const statToneStyles: Record<NonNullable<AdminStatItem['tone']>, string> = {
 	neutral: 'border-slate-200 bg-slate-50 text-slate-700',
 };
 
+function resolveSourceStateCopy(state: AdminSourceState, copy?: Partial<AdminSourceStateCopy>): AdminSourceStateCopy {
+	return { ...SOURCE_STATE_COPY[state], ...copy };
+}
+
 export function AdminSourceStateChip({ state, copy }: { state: AdminSourceState; copy?: Partial<AdminSourceStateCopy> }) {
-	const resolvedCopy = { ...SOURCE_STATE_COPY[state], ...copy };
+	const resolvedCopy = resolveSourceStateCopy(state, copy);
 	const StatusIcon = state === 'verified-live' ? CheckCircle2 : state === 'no-saved-data' ? AlertTriangle : Info;
 
 	return (
@@ -71,11 +75,13 @@ export function AdminSourceStateChip({ state, copy }: { state: AdminSourceState;
 				<TooltipTrigger asChild>
 					<Badge
 						variant="outline"
+						data-source-state={state}
 						className={cn(
-							'h-8 cursor-help rounded-full border px-3 text-[0.68rem] font-bold uppercase tracking-wide shadow-none',
+							'h-7 cursor-help rounded-full border px-2.5 text-[0.65rem] font-bold uppercase tracking-wide shadow-none',
 							sourceStateStyles[state],
 							state === 'checking-source' && 'animate-pulse',
 						)}
+						aria-label={`${resolvedCopy.label}. ${resolvedCopy.description}`}
 					>
 						<StatusIcon className="mr-1.5 size-3.5" />
 						{resolvedCopy.label}
@@ -94,12 +100,12 @@ export function AdminStatBanner({ items }: { items: AdminStatItem[] }) {
 	if (items.length === 0) return null;
 
 	return (
-		<div className="flex flex-wrap items-center gap-2">
+		<div className="hidden min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 lg:flex">
 			{items.map((item) => (
 				<div
 					key={item.label}
 					className={cn(
-						'flex min-h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold shadow-sm',
+						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',
 						statToneStyles[item.tone ?? 'neutral'],
 					)}
 				>
@@ -146,26 +152,41 @@ export function AdminWorkspaceFrame({
 	toolbar?: ReactNode;
 	children: ReactNode;
 }) {
+	const resolvedSourceCopy = resolveSourceStateCopy(sourceState, sourceCopy);
+
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
-			<div className="shrink-0 border-b bg-background/80 px-6 py-4 backdrop-blur-md">
-				<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-					<div className="min-w-0 space-y-3">
-						<div className="space-y-1">
-							<h1 className="text-2xl font-bold text-slate-900 lg:text-3xl">{title}</h1>
-							<p className="max-w-3xl text-sm font-medium leading-6 text-slate-500">{description}</p>
+			<div
+				/* Compact baseline was px-4 py-1.5; this release keeps px-4 and uses py-1 to meet short-screen content budgets. */
+				className="shrink-0 border-b bg-background/85 px-4 py-1 backdrop-blur-md lg:px-5"
+				data-testid="admin-command-header"
+			>
+				<div className="flex items-start justify-between gap-2">
+					<div className="min-w-0 space-y-1">
+						<div className="flex min-w-0 items-baseline gap-2">
+							<h1 className="shrink-0 text-lg font-bold text-slate-900 lg:text-xl">{title}</h1>
+							<p className="hidden min-w-0 max-w-4xl truncate text-xs font-medium text-slate-500 lg:block">{description}</p>
 						</div>
-						<div className="flex flex-wrap items-center gap-2">
+						<div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
 							<AdminSourceStateChip state={sourceState} copy={sourceCopy} />
+							<span
+								data-testid="admin-source-truth-summary"
+								className="hidden max-w-md shrink truncate text-xs font-semibold text-muted-foreground xl:inline"
+							>
+								Source truth: {resolvedSourceCopy.description}
+							</span>
 							<AdminStatBanner items={stats ?? []} />
 						</div>
+						<p className="sr-only" aria-live="polite">
+							{resolvedSourceCopy.label}. {resolvedSourceCopy.description} {resolvedSourceCopy.nextAction}
+						</p>
 					</div>
-					<div className="flex flex-wrap items-center gap-2 xl:justify-end">
+					<div className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
 						{secondaryActions}
 						{primaryActions}
 					</div>
 				</div>
-				{toolbar && <div className="mt-4 rounded-2xl border border-slate-100 bg-white/75 p-3 shadow-sm">{toolbar}</div>}
+				{toolbar && <div className="mt-0.5 rounded-xl border border-slate-100 bg-white/75 p-1 shadow-sm">{toolbar}</div>}
 			</div>
 			{children}
 		</div>
@@ -190,36 +211,36 @@ export function AdminSearchFilterToolbar({
 	children?: ReactNode;
 }) {
 	return (
-		<div className="space-y-3">
-			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-				<div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-					<div className="relative w-full sm:max-w-sm">
+		<div className="space-y-1.5" data-testid="admin-search-filter-toolbar">
+			<div className="flex gap-2 md:items-center md:justify-between">
+				<div className="flex min-w-0 flex-1 items-center gap-2">
+					<div className="relative min-w-0 flex-1 sm:max-w-sm">
 						<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
 							placeholder={searchPlaceholder}
 							value={searchValue}
 							onChange={(event) => onSearchChange(event.target.value)}
-							className="h-9 pl-9"
+							className="h-8 pl-9"
 						/>
 					</div>
-					<Button variant={filtersOpen ? 'secondary' : 'outline'} size="sm" className="h-9 gap-2" onClick={onToggleFilters}>
+					<Button variant={filtersOpen ? 'secondary' : 'outline'} size="sm" className="h-8 shrink-0 gap-2 font-bold" onClick={onToggleFilters}>
 						<SlidersHorizontal className="size-4" />
-						Filters
+						More filters
 						{hasActiveFilters && <Badge className="ml-1 bg-primary text-primary-foreground">Active</Badge>}
 					</Button>
 				</div>
 			</div>
-			{filtersOpen && <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">{children}</div>}
+			{filtersOpen && <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-1.5">{children}</div>}
 		</div>
 	);
 }
 
 export function AdminTableShell({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
 	return (
-		<div className="flex-1 min-h-0 px-6 py-4">
+		<div className="flex-1 min-h-0 px-4 py-3 lg:px-5 [@media(max-height:500px)]:py-2" data-testid="admin-content-shell">
 			<Card className="flex h-full flex-col overflow-hidden border-0 bg-white shadow-soft">
 				<div className="flex-1 min-h-0 overflow-auto">{children}</div>
-				{footer && <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-4 py-3">{footer}</div>}
+				{footer && <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-3 py-2">{footer}</div>}
 			</Card>
 		</div>
 	);

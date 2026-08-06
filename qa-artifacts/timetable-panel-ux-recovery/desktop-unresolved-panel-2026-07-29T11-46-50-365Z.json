@@ -1,0 +1,51 @@
+{
+  "before": {
+    "top": 0,
+    "height": 240,
+    "scrollHeight": 43090
+  },
+  "after": {
+    "top": 180,
+    "height": 240,
+    "scrollHeight": 43090
+  },
+  "actionLabels": [
+    "G7Unknown Section (#317)Unknown Subject (#1) · Session 1",
+    "Review room source",
+    "Details",
+    "G7Unknown Section (#317)Unknown Subject (#1) · Session 2",
+    "Review room source",
+    "Details",
+    "G7Unknown Section (#317)Unknown Subject (#1) · Session 3",
+    "Review room source",
+    "Details",
+    "G7Unknown Section (#317)Unknown Subject (#1) · Session 4",
+    "Review room source",
+    "Details",
+    "G7Unknown Section (#317)Unknown Subject (#1) · Session 5",
+    "Review room source",
+    "Details",
+    "G8Unknown Section (#302)Unknown Subject (#1) · Session 1",
+    "Review room source",
+    "Details",
+    "G8Unknown Section (#302)Unknown Subject (#1) · Session 2",
+    "Review room source",
+    "Details",
+    "G8Unknown Section (#302)Unknown Subject (#1) · Session 3",
+    "Review room source",
+    "Details",
+    "G8Unknown Section (#302)Unknown Subject (#1) · Session 4",
+    "Review room source",
+    "Details",
+    "G8Unknown Section (#302)Unknown Subject (#1) · Session 5",
+    "Review room source",
+    "Details",
+    "G9Unknown Section (#309)Unknown Subject (#1) · Session 1",
+    "Review room source",
+    "Details"
+  ],
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  }
+}

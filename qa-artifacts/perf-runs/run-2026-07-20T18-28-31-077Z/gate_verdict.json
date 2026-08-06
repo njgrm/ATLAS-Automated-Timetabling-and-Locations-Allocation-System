@@ -1,0 +1,17 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "pointer_drag",
+      "status": "FAIL"
+    },
+    {
+      "scenario": "keyboard_place",
+      "status": "FAIL"
+    },
+    {
+      "scenario": "commit_containment",
+      "status": "FAIL"
+    }
+  ]
+}

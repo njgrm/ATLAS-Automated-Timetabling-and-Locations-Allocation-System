@@ -1,166 +1,18 @@
-import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { HTMLAttributes, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, TdHTMLAttributes, TouchEvent } from 'react';
-import {
-	AlertCircle,
-	AlertTriangle,
-	Flag,
-	GripVertical,
-	Plus,
-} from 'lucide-react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import type { ReactNode, TdHTMLAttributes } from 'react';
+import { AlertCircle, AlertTriangle, Flag, GripVertical, Plus } from 'lucide-react';
+import { useDroppable } from '@dnd-kit/core';
 
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { cn, formatTime } from '@/lib/utils';
-import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode, ViolationSeverity } from '@/types';
+import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode } from '@/types';
+import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-
-const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
-const DAY_SHORT: Record<string, string> = {
-	MONDAY: 'Mon',
-	TUESDAY: 'Tue',
-	WEDNESDAY: 'Wed',
-	THURSDAY: 'Thu',
-	FRIDAY: 'Fri',
-};
-
-const EMPTY_ARRAY: ScheduledEntry[] = [];
-
-function entrySeverity(entryId: string, violationIndex: Map<string, Violation[]>): ViolationSeverity | null {
-	const entries = violationIndex.get(entryId) ?? [];
-	if (entries.some((violation) => violation.severity === 'HARD')) return 'HARD';
-	if (entries.some((violation) => violation.severity === 'SOFT')) return 'SOFT';
-	return null;
-}
-
-interface DraggableEntryProps extends HTMLAttributes<HTMLDivElement> {
-	entryId: string;
-	entryData:
-		| { type: 'entry'; entry: ScheduledEntry }
-		| { type: 'draftPlacement'; entry: ScheduledEntry; placementId: number };
-}
-
-const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(function DraggableEntry(
-	{ entryId, entryData, children, style, onClick, onKeyDown, ...rest },
-	forwardedRef,
-) {
-	const { attributes, listeners, setNodeRef, isDragging: draggingThis, transform } = useDraggable({
-		id: entryId,
-		data: entryData,
-	});
-
-	const didDragRef = useRef(false);
-	const touchActivatedRef = useRef(false);
-	const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-	const touchActivationTimerRef = useRef<number | null>(null);
-	const clearTouchActivationTimer = useCallback(() => {
-		if (touchActivationTimerRef.current != null) {
-			window.clearTimeout(touchActivationTimerRef.current);
-			touchActivationTimerRef.current = null;
-		}
-	}, []);
-	useEffect(() => {
-		if (draggingThis) {
-			didDragRef.current = true;
-			clearTouchActivationTimer();
-		}
-	}, [clearTouchActivationTimer, draggingThis]);
-	useEffect(() => clearTouchActivationTimer, [clearTouchActivationTimer]);
-
-	const handleNodeRef = useCallback((node: HTMLDivElement | null) => {
-		setNodeRef(node);
-		if (typeof forwardedRef === 'function') {
-			forwardedRef(node);
-		} else if (forwardedRef) {
-			forwardedRef.current = node;
-		}
-	}, [forwardedRef, setNodeRef]);
-
-	const handleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-		if (touchActivatedRef.current) {
-			touchActivatedRef.current = false;
-			return;
-		}
-		if (didDragRef.current) {
-			didDragRef.current = false;
-			return;
-		}
-		onClick?.(event);
-	}, [onClick]);
-	const handleTouchEnd = useCallback((event: TouchEvent<HTMLDivElement>) => {
-		if (didDragRef.current) {
-			return;
-		}
-		touchActivatedRef.current = true;
-		onClick?.(event as unknown as MouseEvent<HTMLDivElement>);
-	}, [onClick]);
-	const handlePointerDownCapture = useCallback((event: PointerEvent<HTMLDivElement>) => {
-		if (event.pointerType === 'touch') {
-			touchStartRef.current = { x: event.clientX, y: event.clientY };
-			clearTouchActivationTimer();
-			const activationEvent = event as unknown as MouseEvent<HTMLDivElement>;
-			touchActivationTimerRef.current = window.setTimeout(() => {
-				touchActivationTimerRef.current = null;
-				if (didDragRef.current) return;
-				touchActivatedRef.current = true;
-				onClick?.(activationEvent);
-			}, 80);
-		}
-	}, [clearTouchActivationTimer, onClick]);
-	const handlePointerMoveCapture = useCallback((event: PointerEvent<HTMLDivElement>) => {
-		if (event.pointerType !== 'touch') return;
-		const start = touchStartRef.current;
-		if (!start) return;
-		const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-		if (moved > 6) clearTouchActivationTimer();
-	}, [clearTouchActivationTimer]);
-	const handlePointerUpCapture = useCallback((event: PointerEvent<HTMLDivElement>) => {
-		if (event.pointerType !== 'touch') return;
-		const start = touchStartRef.current;
-		touchStartRef.current = null;
-		if (!start) return;
-		const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-		if (moved > 6) return;
-		touchActivatedRef.current = true;
-		didDragRef.current = false;
-		onClick?.(event as unknown as MouseEvent<HTMLDivElement>);
-	}, [clearTouchActivationTimer, onClick]);
-	const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-		onKeyDown?.(event);
-		if (!event.defaultPrevented) {
-			listeners?.onKeyDown?.(event as never);
-		}
-	}, [listeners, onKeyDown]);
-
-	return (
-		<div
-			ref={handleNodeRef}
-			{...rest}
-			{...attributes}
-			{...listeners}
-			onPointerDownCapture={handlePointerDownCapture}
-			onPointerMoveCapture={handlePointerMoveCapture}
-			onPointerUpCapture={handlePointerUpCapture}
-			onClick={handleClick}
-			onTouchEnd={handleTouchEnd}
-			onKeyDown={handleKeyDown}
-			tabIndex={0}
-			style={{
-				...style,
-				transform: CSS.Translate.toString(transform),
-				zIndex: draggingThis ? 50 : undefined,
-				opacity: draggingThis ? 0 : 1,
-				touchAction: 'none',
-				willChange: draggingThis ? 'transform' : undefined,
-			}}
-			data-dnd-source-type={entryData.type}
-			data-dnd-entry-id={entryId}
-		>
-			{children}
-		</div>
-	);
-});
+import { EMPTY_SCHEDULED_ENTRIES, getEntrySeverity, TIMETABLE_DAY_SHORT, TIMETABLE_DAYS } from '@/components/timetable/TimetableGrid.constants';
+import { TimetableCellOverflowSheet } from '@/components/timetable/TimetableCellOverflowSheet';
+import { DraggableEntry } from '@/components/timetable/TimetableDraggableEntry';
+import { SandboxEntryBadge, TeacherDepartureEntryBadge } from '@/components/timetable/TimetableGridEntryBadges';
 
 const ConflictBadgeWithTooltip = memo(function ConflictBadgeWithTooltip({
 	info,
@@ -257,6 +109,7 @@ interface GridCellProps {
 	hasKbSource: boolean;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
+	teacherDepartureEntryIds?: Set<string>;
 	localSandboxChangedEntryIds?: Set<string>;
 	localSandboxConflictEntryIds?: Set<string>;
 	selectedEntry: ScheduledEntry | null;
@@ -273,11 +126,14 @@ interface GridCellProps {
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
 	onKbPlace: (day: string, startTime: string, endTime: string) => void;
+	onKbPlaceStart?: () => void;
 	getCellConflict: ((cellId: string) => CellConflictInfo | null) | null;
 	fullPreviewInfo: CellConflictInfo | null;
 	onNavToFaculty: (id: number) => void;
 	onNavToSection: (id: number) => void;
 	onNavToRoom: (id: number) => void;
+	onReassignTeacher?: (entry: ScheduledEntry) => void;
+	simpleMode?: boolean;
 }
 
 type ActiveDragCellState = {
@@ -289,6 +145,7 @@ type ActiveDragCellState = {
 const inactiveDragCellState = { isOver: false, info: null } as const;
 let activeDragCellState: ActiveDragCellState | null = null;
 const dragCellListeners = new Set<() => void>();
+const POINTER_ACTIVE_CELL_VISUAL_DELAY_MS = 40;
 
 function publishActiveDragCell(cellId: string | null, info: CellConflictInfo | null) {
 	if (cellId === null) {
@@ -335,6 +192,7 @@ const GridCell = memo(function GridCell({
 	hasKbSource,
 	violationIndex,
 	highlightedEntryIds,
+	teacherDepartureEntryIds,
 	localSandboxChangedEntryIds,
 	localSandboxConflictEntryIds,
 	selectedEntry,
@@ -351,15 +209,20 @@ const GridCell = memo(function GridCell({
 	pivotLabel,
 	roomLabelShort,
 	onKbPlace,
+	onKbPlaceStart,
 	getCellConflict,
 	fullPreviewInfo,
 	onNavToFaculty,
 	onNavToSection,
 	onNavToRoom,
+	onReassignTeacher,
+	simpleMode = false,
 }: GridCellProps) {
 	const { isOver, info } = useGridCellDragState(cellId);
 	const [isKbHovered, setIsKbHovered] = useState(false);
 	const [kbConflictInfo, setKbConflictInfo] = useState<CellConflictInfo | null>(null);
+	const [overflowOpen, setOverflowOpen] = useState(false);
+	const touchPlacementConfirmedRef = useRef(false);
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
 		const win = window as Window & {
@@ -383,6 +246,7 @@ const GridCell = memo(function GridCell({
 				data-day={day}
 				data-start-time={startTime}
 				data-end-time={endTime}
+				data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
 				className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700"
 			>
 				{eventName ?? 'Special Event'}
@@ -409,6 +273,10 @@ const GridCell = memo(function GridCell({
 				: previewStatus === 'place'
 					? 'Can place'
 					: null;
+	const visibleEntries = cellEntries.slice(0, 2);
+	const hiddenEntries = cellEntries.slice(2);
+	const hiddenAffectedCount = hiddenEntries.filter((entry) => teacherDepartureEntryIds?.has(entry.entryId)).length;
+	const overflowEntryIds = hiddenEntries.map((entry) => entry.entryId).join(' ');
 
 	let dropClass = '';
 	if (isActive) {
@@ -438,9 +306,14 @@ const GridCell = memo(function GridCell({
 			data-day={day}
 			data-start-time={startTime}
 			data-end-time={endTime}
+			data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
 			role={hasKbSource ? 'button' : undefined}
 			tabIndex={hasKbSource ? 0 : undefined}
-			aria-label={hasKbSource ? `Move selected session to ${DAY_SHORT[day] ?? day} ${formatTime(startTime)}` : undefined}
+			aria-label={
+				hasKbSource
+					? `Move selected session to ${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`
+					: `Timetable slot ${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`
+			}
 			className={cn(
 				'px-1 py-1 align-top border-l border-border/30 transition-all duration-75',
 				dropClass
@@ -470,9 +343,24 @@ const GridCell = memo(function GridCell({
 				}
 			}}
 			onClick={() => {
+				if (touchPlacementConfirmedRef.current) {
+					touchPlacementConfirmedRef.current = false;
+					return;
+				}
 				if (hasKbSource) {
 					onKbPlace(day, startTime, endTime);
 				}
+			}}
+			onTouchStart={() => {
+				if (!hasKbSource) return;
+				onKbPlaceStart?.();
+			}}
+			onTouchEnd={(event) => {
+				if (!hasKbSource) return;
+				touchPlacementConfirmedRef.current = true;
+				event.preventDefault();
+				event.stopPropagation();
+				onKbPlace(day, startTime, endTime);
 			}}
 			onKeyDown={(event) => {
 				if (hasKbSource && (event.key === 'Enter' || event.key === ' ')) {
@@ -523,9 +411,10 @@ const GridCell = memo(function GridCell({
 				</div>
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">
-				{cellEntries.slice(0, 2).map((entry) => {
-					const severity = entrySeverity(entry.entryId, violationIndex);
+				{visibleEntries.map((entry) => {
+					const severity = getEntrySeverity(entry.entryId, violationIndex);
 					const isHighlighted = highlightedEntryIds.has(entry.entryId);
+					const isTeacherDepartureAffected = teacherDepartureEntryIds?.has(entry.entryId) ?? false;
 					const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
 					const isSandboxConflict = localSandboxConflictEntryIds?.has(entry.entryId) ?? false;
 					const isSelected = selectedEntry?.entryId === entry.entryId;
@@ -546,6 +435,7 @@ const GridCell = memo(function GridCell({
 					}
 
 					if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
+					if (isTeacherDepartureAffected) cellClass += ' ring-2 ring-violet-500 ring-offset-1';
 					if (isSandboxChanged) cellClass += ' ring-2 ring-emerald-400 ring-offset-1';
 					if (isSandboxConflict) cellClass += ' border-red-600 ring-2 ring-red-300 ring-offset-1';
 					if (isSelected) cellClass += ' ring-2 ring-foreground ring-offset-1';
@@ -556,7 +446,7 @@ const GridCell = memo(function GridCell({
 						: { type: 'entry' as const, entry };
 					const entrySubjectLabel = subjectLabel(entry.subjectId);
 					const entrySectionLabel = sectionLabel(entry.sectionId);
-					const entryDayLabel = DAY_SHORT[day] ?? day;
+					const entryDayLabel = TIMETABLE_DAY_SHORT[day] ?? day;
 					const entryTimeLabel = formatTime(startTime);
 
 					return (
@@ -589,25 +479,32 @@ const GridCell = memo(function GridCell({
 								}
 							}}
 							className={cn(
-								'min-h-10 w-full text-left rounded border px-2 py-1 text-xs leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none',
+								simpleMode
+									? 'min-h-11 w-full text-left rounded-lg border px-2.5 py-1.5 text-xs leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none'
+									: 'min-h-10 w-full text-left rounded border px-2 py-1 text-xs leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none',
 								cellClass
 							)}
 						>
 							<div className="font-semibold text-xs truncate flex items-center gap-1">
 								<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
-								{entrySubjectLabel}
-								{severity === 'HARD' && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
-								{severity === 'SOFT' && <AlertTriangle className="size-2.5 shrink-0 text-amber-600" />}
+								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
+								{severity === 'HARD' && (
+									<Badge variant="destructive" className="h-4 shrink-0 px-1 text-[0.65rem] leading-none">
+										Blocked
+									</Badge>
+								)}
+								{severity === 'SOFT' && (
+									<Badge variant="outline" className="h-4 shrink-0 border-amber-300 bg-amber-50 px-1 text-[0.65rem] leading-none text-amber-800">
+										Warning
+									</Badge>
+								)}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
 									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
 										{entry.cohortCode}
 									</span>
 								)}
-								{isSandboxChanged && (
-									<span className="rounded bg-emerald-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-700 shrink-0">
-										Sandbox
-									</span>
-								)}
+								{isSandboxChanged && <SandboxEntryBadge />}
+								{isTeacherDepartureAffected && <TeacherDepartureEntryBadge />}
 								{isSandboxConflict && <AlertCircle className="size-2.5 shrink-0 text-red-600 shrink-0" />}
 								{isFollowUp && (
 									<Flag className="size-2.5 text-amber-500 fill-amber-500 shrink-0" />
@@ -619,7 +516,7 @@ const GridCell = memo(function GridCell({
 								const sectionText = sectionLabel(entry.sectionId);
 								let detailsText = '';
 								if (viewMode === 'section') {
-									detailsText = `${teacherText} · ${roomText}`;
+									detailsText = showTeacherDetails ? `${teacherText} · ${roomText}` : roomText;
 								} else if (viewMode === 'faculty') {
 									detailsText = `${sectionText} · ${roomText}`;
 								} else if (viewMode === 'room') {
@@ -635,9 +532,49 @@ const GridCell = memo(function GridCell({
 					);
 				})}
 				{cellEntries.length > 2 && (
-					<div className="text-xs text-muted-foreground/70 px-1.5 leading-none">+{cellEntries.length - 2} more</div>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="h-7 min-h-7 w-full justify-start rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted"
+						onClick={(event) => {
+							event.stopPropagation();
+							setOverflowOpen(true);
+						}}
+						data-testid="timetable-cell-overflow-trigger"
+						data-overflow-entry-ids={overflowEntryIds}
+						aria-label={`Show ${cellEntries.length} sessions in ${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`}
+					>
+						Show {cellEntries.length - 2} more class{cellEntries.length - 2 === 1 ? '' : 'es'}
+						{hiddenAffectedCount > 0 ? (
+							<span
+								className="ml-auto rounded bg-violet-100 px-1 text-[0.65rem] font-semibold text-violet-700"
+								data-testid="teacher-departure-hidden-cell-badge"
+							>
+								{hiddenAffectedCount} need teacher
+							</span>
+						) : null}
+					</Button>
 				)}
 			</div>
+			{cellEntries.length > 2 ? (
+				<TimetableCellOverflowSheet
+					open={overflowOpen}
+					onOpenChange={setOverflowOpen}
+					entries={cellEntries}
+					day={day}
+					startTime={startTime}
+					endTime={endTime}
+					violationIndex={violationIndex}
+					teacherDepartureEntryIds={teacherDepartureEntryIds}
+					subjectLabel={subjectLabel}
+					sectionLabel={sectionLabel}
+					facultyLabel={facultyLabel}
+					roomLabelShort={roomLabelShort}
+					onEntryClick={onEntryClick}
+					onReassignTeacher={onReassignTeacher}
+				/>
+			) : null}
 		</td>
 	);
 });
@@ -647,6 +584,7 @@ interface TimetableGridProps {
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
+	teacherDepartureEntryIds?: Set<string>;
 	localSandboxChangedEntryIds?: Set<string>;
 	localSandboxConflictEntryIds?: Set<string>;
 	selectedEntry: ScheduledEntry | null;
@@ -664,11 +602,14 @@ interface TimetableGridProps {
 	roomLabelShort: (roomId: number) => string;
 	kbSelectedSource: GridDragSource;
 	onKbPlace: (day: string, startTime: string, endTime: string) => void;
+	onKbPlaceStart?: () => void;
 	getCellConflict: ((cellId: string) => CellConflictInfo | null) | null;
 	getLiveCellConflict: (source: any, cellId: string) => CellConflictInfo | null;
 	onNavToFaculty: (id: number) => void;
 	onNavToSection: (id: number) => void;
 	onNavToRoom: (id: number) => void;
+	onReassignTeacher?: (entry: ScheduledEntry) => void;
+	simpleMode?: boolean;
 }
 
 export type GridDragSource =
@@ -683,6 +624,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	timeSlots,
 	violationIndex,
 	highlightedEntryIds,
+	teacherDepartureEntryIds,
 	localSandboxChangedEntryIds,
 	localSandboxConflictEntryIds,
 	selectedEntry,
@@ -700,23 +642,159 @@ export const TimetableGrid = memo(function TimetableGrid({
 	roomLabelShort,
 	kbSelectedSource,
 	onKbPlace,
+	onKbPlaceStart,
 	getCellConflict,
 	getLiveCellConflict,
 	onNavToFaculty,
 	onNavToSection,
 	onNavToRoom,
+	onReassignTeacher,
+	simpleMode = false,
 }: TimetableGridProps) {
-	const [dragPreviewSource, setDragPreviewSource] = useState<GridDragSource>(null);
 	const pendingDragCellRef = useRef<{ cellId: string; source: any } | null>(null);
 	const dragCellTimerRef = useRef<number | null>(null);
+	const dragPreviewTimerRef = useRef<number | null>(null);
 	useEffect(() => {
+		if (!kbSelectedSource || !onKbPlaceStart || typeof window === 'undefined') return;
+		const announcePlacementTouch = () => onKbPlaceStart();
+		window.addEventListener('touchstart', announcePlacementTouch, { capture: true, passive: true });
+		return () => window.removeEventListener('touchstart', announcePlacementTouch, { capture: true });
+	}, [kbSelectedSource, onKbPlaceStart]);
+	useEffect(() => {
+		const cleanupPointerPreview = () => {
+			const labels = document.querySelectorAll('[data-pointer-preview-label="true"]');
+			labels.forEach((label) => label.remove());
+			const decoratedCells = document.querySelectorAll<HTMLElement>('[data-pointer-preview-status]');
+			decoratedCells.forEach((cell) => {
+				cell.removeAttribute('data-pointer-preview-status');
+				cell.classList.remove(
+					'ring-1',
+					'ring-dashed',
+					'ring-red-400/50',
+					'ring-amber-300/50',
+					'ring-emerald-300/50',
+					'bg-red-50/25',
+					'bg-amber-50/20',
+					'bg-emerald-50/10',
+				);
+			});
+		};
+		const decoratePointerPreview = (source: NonNullable<GridDragSource>) => {
+			cleanupPointerPreview();
+			let cancelled = false;
+			const cells = Array.from(
+				document.querySelectorAll<HTMLElement>('td[data-day][data-start-time][data-end-time]'),
+			);
+			let cursor = 0;
+
+			const decorateBatch = () => {
+				if (cancelled) return;
+				const end = Math.min(cursor + 14, cells.length);
+				for (; cursor < end; cursor += 1) {
+					const cell = cells[cursor];
+					const day = cell.dataset.day;
+					const startTime = cell.dataset.startTime;
+					const endTime = cell.dataset.endTime;
+					if (!day || !startTime || !endTime || cell.querySelector('[data-pointer-preview-label="true"]')) continue;
+
+					const cellId = `${day}-${startTime}-${endTime}`;
+					const info = getLiveCellConflict(source, cellId) ?? getCellConflict?.(cellId) ?? null;
+					const occupiedCount = cell.querySelectorAll('[data-timetable-entry="true"]').length;
+					const mode = occupiedCount > 0 ? 'swap' : 'place';
+					const status = info?.kind === 'hard'
+						? 'blocked'
+						: info?.kind === 'soft'
+							? 'warning'
+							: mode;
+					const labelText = status === 'blocked'
+						? 'Blocked'
+						: status === 'warning'
+							? 'Warning'
+							: mode === 'swap'
+								? 'Can swap'
+								: 'Can place';
+
+					cell.dataset.pointerPreviewStatus = status;
+					cell.classList.add('ring-1');
+					if (status === 'blocked') {
+						cell.classList.add('ring-red-400/50', 'bg-red-50/25');
+					} else if (status === 'warning' || mode === 'swap') {
+						cell.classList.add('ring-amber-300/50', 'bg-amber-50/20');
+					} else {
+						cell.classList.add('ring-dashed', 'ring-emerald-300/50', 'bg-emerald-50/10');
+					}
+
+					const label = document.createElement('div');
+					label.dataset.pointerPreviewLabel = 'true';
+					label.dataset.cellPreviewLabel = mode;
+					label.dataset.cellStatusLabel = status;
+					label.className = [
+						'pointer-events-none',
+						'mb-1',
+						'inline-flex',
+						'items-center',
+						'gap-1',
+						'rounded',
+						'px-1.5',
+						'py-0.5',
+						'text-xs',
+						'font-semibold',
+						'uppercase',
+						'tracking-wide',
+						status === 'blocked'
+							? 'bg-red-100 text-red-800'
+							: status === 'warning' || mode === 'swap'
+								? 'bg-amber-100 text-amber-800'
+								: 'bg-emerald-100 text-emerald-800',
+					].join(' ');
+					label.textContent = labelText;
+					cell.prepend(label);
+				}
+				if (cursor < cells.length) {
+					window.requestAnimationFrame(decorateBatch);
+				}
+			};
+
+			window.requestAnimationFrame(decorateBatch);
+			return () => {
+				cancelled = true;
+				cleanupPointerPreview();
+			};
+		};
+		let cancelPreviewDecorations: (() => void) | null = null;
+		const clearPreviewTimer = () => {
+			if (dragPreviewTimerRef.current !== null) {
+				window.clearTimeout(dragPreviewTimerRef.current);
+				dragPreviewTimerRef.current = null;
+			}
+		};
+		const clearPointerPreview = () => {
+			clearPreviewTimer();
+			cancelPreviewDecorations?.();
+			cancelPreviewDecorations = null;
+			cleanupPointerPreview();
+		};
 		const handlePreviewSource = (event: Event) => {
 			const detail = (event as CustomEvent<{ source?: GridDragSource }>).detail;
-			setDragPreviewSource(detail.source ?? null);
+			const nextSource = detail.source ?? null;
+			clearPointerPreview();
+			if (!nextSource) {
+				return;
+			}
+			// Grid-wide guidance is useful, but calculating every visible cell in the
+			// pointer activation frame creates a visible hitch on lower-end devices.
+			// Defer pointer-drag guidance slightly; click/keyboard guidance remains immediate.
+			dragPreviewTimerRef.current = window.setTimeout(() => {
+				dragPreviewTimerRef.current = null;
+				cancelPreviewDecorations = decoratePointerPreview(nextSource);
+			}, 120);
 		};
 		window.addEventListener('atlas:timetable-drag-source', handlePreviewSource);
-		return () => window.removeEventListener('atlas:timetable-drag-source', handlePreviewSource);
-	}, []);
+		return () => {
+			clearPointerPreview();
+			window.removeEventListener('atlas:timetable-drag-source', handlePreviewSource);
+		};
+	}, [getCellConflict, getLiveCellConflict]);
 	useEffect(() => {
 		const cancelPendingCellUpdate = () => {
 			if (dragCellTimerRef.current !== null) {
@@ -746,7 +824,10 @@ export const TimetableGrid = memo(function TimetableGrid({
 			// work enter dnd-kit's two-frame pointer activation window.
 			pendingDragCellRef.current = { cellId: detail.cellId, source: detail.source ?? null };
 			if (dragCellTimerRef.current === null) {
-				dragCellTimerRef.current = window.setTimeout(flushPendingCellUpdate, 0);
+				dragCellTimerRef.current = window.setTimeout(
+					flushPendingCellUpdate,
+					POINTER_ACTIVE_CELL_VISUAL_DELAY_MS,
+				);
 			}
 		};
 		const handleDragEnding = () => cancelPendingCellUpdate();
@@ -771,12 +852,12 @@ export const TimetableGrid = memo(function TimetableGrid({
 	}, [entries]);
 
 	const hasKbSource = kbSelectedSource !== null;
-	const activePreviewSource = dragPreviewSource ?? kbSelectedSource;
+	const activePreviewSource = kbSelectedSource;
 	const fullPreviewByCell = useMemo(() => {
 		if (!activePreviewSource) return null;
 		const index = new Map<string, CellConflictInfo | null>();
 		for (const slot of timeSlots) {
-			for (const day of DAYS) {
+			for (const day of TIMETABLE_DAYS) {
 				const cellId = `${day}-${slot.startTime}-${slot.endTime}`;
 				const info = getLiveCellConflict(activePreviewSource, cellId) ?? getCellConflict?.(cellId) ?? null;
 				index.set(cellId, info);
@@ -794,12 +875,12 @@ export const TimetableGrid = memo(function TimetableGrid({
 							<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
 								Time
 							</th>
-							{DAYS.map((day) => (
+							{TIMETABLE_DAYS.map((day) => (
 								<th
 									key={day}
 									className="w-[20%] px-2 py-2 text-center font-medium text-muted-foreground border-b border-border"
 								>
-									{DAY_SHORT[day]}
+									{TIMETABLE_DAY_SHORT[day]}
 								</th>
 							))}
 						</tr>
@@ -822,9 +903,9 @@ export const TimetableGrid = memo(function TimetableGrid({
 											</>
 										)}
 									</td>
-									{DAYS.map((day) => {
+									{TIMETABLE_DAYS.map((day) => {
 										const key = `${day}-${slot.startTime}-${slot.endTime}`;
-										const cellEntries = gridIndex.get(key) ?? EMPTY_ARRAY;
+										const cellEntries = gridIndex.get(key) ?? EMPTY_SCHEDULED_ENTRIES;
 
 										return (
 											<GridCell
@@ -839,6 +920,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 											hasKbSource={hasKbSource}
 												violationIndex={violationIndex}
 												highlightedEntryIds={highlightedEntryIds}
+												teacherDepartureEntryIds={teacherDepartureEntryIds}
 												localSandboxChangedEntryIds={localSandboxChangedEntryIds}
 												localSandboxConflictEntryIds={localSandboxConflictEntryIds}
 												selectedEntry={selectedEntry}
@@ -855,11 +937,14 @@ export const TimetableGrid = memo(function TimetableGrid({
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
 												onKbPlace={onKbPlace}
+												onKbPlaceStart={onKbPlaceStart}
 												getCellConflict={getCellConflict}
 												fullPreviewInfo={fullPreviewByCell?.get(key) ?? null}
 												onNavToFaculty={onNavToFaculty}
 												onNavToSection={onNavToSection}
 												onNavToRoom={onNavToRoom}
+												onReassignTeacher={onReassignTeacher}
+												simpleMode={simpleMode}
 											/>
 										);
 									})}

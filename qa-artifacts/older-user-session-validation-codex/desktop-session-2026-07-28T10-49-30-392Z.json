@@ -1,0 +1,178 @@
+{
+  "viewport": "1366x768",
+  "results": [
+    {
+      "id": "T01",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 711,
+      "observed": "Setup readiness visible in 676ms; first repair: Sections\n\n…\n\nEnrollment unavailable\n\nGeneration needs the current school-year sections before it can build classes.\n\nCheck sections; Setup readiness\n0 of 7 ready\n0/7\nChecking source\n\nSections loaded for school year\n\nEnrollment unavailable\n\nSubjects added\n\nTeachers synced from EnrollPro\n\nEvery subject has a teacher\n\nBuildings and rooms ready\n\nNo teaching buildings set up yet\n\nTimetable generated and reviewed\n\nReady to publish\n\nRev"
+    },
+    {
+      "id": "T02",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 679,
+      "observed": "Sections workspace visible in 668ms; search=Search sections..."
+    },
+    {
+      "id": "T03",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1030,
+      "observed": "Subjects attention filter disclosed in 840ms; search=Search name or code..."
+    },
+    {
+      "id": "T04",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 2062,
+      "observed": "Teachers visible in 1202ms; Teaching Load route visible; repair links=26"
+    },
+    {
+      "id": "T05",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 939,
+      "observed": "Room readiness list visible in 920ms before map interpretation: Room readiness\n\nFix the items marked for attention before generating.\n\n98 Ready\n5 Unavailable\n\nLearning Commons\n\nAdmin and Learning Commons · 80 seats\n\nUnavailable\n\nGuidance Office\n\nAdmin and Learning Commons · 8 seats\n\nUnavailable\n\nPrincipal Office\n\nAdmin and"
+    },
+    {
+      "id": "T06",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1606,
+      "observed": "Simple timetable and next-step action visible in 1579ms: Start placing"
+    },
+    {
+      "id": "T07",
+      "viewport": "1366x768",
+      "result": "Proxy limitation",
+      "timeMs": 13167,
+      "observed": "",
+      "reason": "locator.click: Timeout 12000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByTestId('timetable-task-place')\u001b[22m\n"
+    },
+    {
+      "id": "T08",
+      "viewport": "1366x768",
+      "result": "Proxy limitation",
+      "timeMs": 15022,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-virtualized-rail=\"Unassigned generated sessions\"]')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('[data-virtualized-rail=\"Unassigned generated sessions\"]')\u001b[22m\n"
+    },
+    {
+      "id": "T09",
+      "viewport": "1366x768",
+      "result": "Proxy limitation",
+      "timeMs": 13744,
+      "observed": "",
+      "reason": "locator.click: Timeout 12000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /^More$/i })\u001b[22m\n"
+    },
+    {
+      "id": "T10",
+      "viewport": "1366x768",
+      "result": "Proxy limitation",
+      "timeMs": 21578,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('timetable-simple-header')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-simple-header')\u001b[22m\n"
+    },
+    {
+      "id": "T11",
+      "viewport": "1366x768",
+      "result": "Proxy limitation",
+      "timeMs": 21617,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('timetable-simple-header')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-simple-header')\u001b[22m\n"
+    },
+    {
+      "id": "T12",
+      "viewport": "1366x768",
+      "result": "Proxy limitation",
+      "timeMs": 21684,
+      "observed": "",
+      "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('timetable-simple-header')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('timetable-simple-header')\u001b[22m\n"
+    }
+  ],
+  "blockedWrites": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()"
+  ],
+  "pageErrors": [],
+  "apiFailures": [],
+  "overflow": {
+    "scrollHeight": 768,
+    "clientHeight": 768,
+    "scrollWidth": 1366,
+    "clientWidth": 1366
+  },
+  "accessibility": {
+    "undersized": [
+      {
+        "name": "ATLAS",
+        "width": 40,
+        "height": 20
+      },
+      {
+        "name": "Assigned:560/925",
+        "width": 136,
+        "height": 23
+      },
+      {
+        "name": "Hard:0",
+        "width": 64,
+        "height": 23
+      },
+      {
+        "name": "Duration:55.0s",
+        "width": 114,
+        "height": 23
+      }
+    ],
+    "disclosure": [
+      {
+        "name": "OofficerAdmin",
+        "expanded": "false",
+        "controls": null
+      },
+      {
+        "name": "Latest Run",
+        "expanded": "false",
+        "controls": "radix-_r_k_"
+      },
+      {
+        "name": "More tools",
+        "expanded": "false",
+        "controls": null
+      },
+      {
+        "name": "Section",
+        "expanded": "false",
+        "controls": "radix-_r_14_"
+      },
+      {
+        "name": "Unknown Section (#302)",
+        "expanded": "false",
+        "controls": "radix-_r_15_"
+      },
+      {
+        "name": "Filters",
+        "expanded": "false",
+        "controls": "radix-_r_16_"
+      }
+    ],
+    "activeElement": "<button class=\"group/button inline-flex items-center justify-center border border-transparent bg-clip-padding whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-"
+  },
+  "dialogFocus": [],
+  "focusOrder": {
+    "activeLabel": "Collapse left panel",
+    "activeRole": "BUTTON"
+  },
+  "screenshotPath": "D:\\ATLAS\\qa-artifacts\\older-user-session-validation-codex\\desktop-final.png",
+  "evidenceType": "Browser proxy"
+}

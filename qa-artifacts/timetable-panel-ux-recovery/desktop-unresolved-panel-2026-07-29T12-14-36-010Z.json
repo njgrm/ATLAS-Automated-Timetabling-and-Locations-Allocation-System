@@ -1,0 +1,42 @@
+{
+  "before": {
+    "top": 0,
+    "height": 240,
+    "scrollHeight": 43090
+  },
+  "after": {
+    "top": 180,
+    "height": 240,
+    "scrollHeight": 43090
+  },
+  "actionLabels": [
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details",
+    "Review room source",
+    "Details"
+  ],
+  "filteredShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\desktop-unresolved-list-filtered.png",
+  "detailShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\desktop-unresolved-detail-state.png",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "path": "/sections",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "headerHeight": 157,
+  "headerBottom": 213,
+  "contentTop": 213,
+  "contentHeight": 631,
+  "scrollHeight": 844,
+  "clientHeight": 844,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "sourceState": "checking-source",
+  "sourceText": "Checking source",
+  "sourceSummaryText": "Source truth: ATLAS is verifying the roster source while the saved section list stays visible, so room edits are paused for now.",
+  "visibleButtonCount": 9,
+  "visibleButtons": [
+    "Open navigation menu",
+    "Rooms",
+    "Sync",
+    "Filters",
+    "Section",
+    "Grade",
+    "Enrolled",
+    "Capacity",
+    "Status"
+  ]
+}

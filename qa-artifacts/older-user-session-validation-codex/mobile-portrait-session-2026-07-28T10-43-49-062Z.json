@@ -1,0 +1,116 @@
+{
+  "viewport": "390x844",
+  "results": [
+    {
+      "id": "T01",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 725,
+      "observed": "Setup readiness visible in 712ms; first repair: Sections\n\n…\n\nEnrollment unavailable\n\nGeneration needs the current school-year sections before it can build classes.\n\nCheck sections; Setup readiness\n0 of 7 ready\n0/7\nChecking source\n\nSections loaded for school year\n\nEnrollment unavailable\n\nSubjects added\n\nTeachers synced from EnrollPro\n\nEvery subject has a teacher\n\nBuildings and rooms ready\n\nNo teaching buildings set up yet\n\nTimetable generated and reviewed\n\nReady to publish\n\nRev"
+    },
+    {
+      "id": "T02",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 560,
+      "observed": "Sections workspace visible in 552ms; search=Search sections..."
+    },
+    {
+      "id": "T03",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 929,
+      "observed": "Subjects attention filter disclosed in 775ms; search=Search name or code..."
+    },
+    {
+      "id": "T04",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1864,
+      "observed": "Teachers visible in 1167ms; Teaching Load route visible; repair links=25"
+    },
+    {
+      "id": "T05",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 876,
+      "observed": "Room readiness list visible in 821ms before map interpretation: Room readiness\n\nFix the items marked for attention before generating.\n\n98 Ready\n5 Unavailable\n\nLearning Commons\n\nAdmin and Learning Commons · 80 seats\n\nUnavailable\n\nGuidance Office\n\nAdmin and Learning Commons · 8 seats\n\nUnavailable\n\nPrincipal Office\n\nAdmin and"
+    },
+    {
+      "id": "T06",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1205,
+      "observed": "Simple timetable and next-step action visible in 1183ms: Start placing"
+    },
+    {
+      "id": "T07",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1592,
+      "observed": "Unresolved workflow opened: Place unresolved sessions\n\nChoose one session from the queue, then choose a green slot on the grid. ATLAS shows a review before saving.\n\nSTEP 1\n\nChoose a session\n\nSTEP 2\n\nChoose a green grid slot\n\n99+ unresolved\n213 warnings\nG7\nUnknown Section (#317)\n-\nUnknown"
+    },
+    {
+      "id": "T08",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1227,
+      "observed": "Placement review opened and cancelled safely: Review generated placement\n\nUnknown Subject (#1) - Unknown Section (#317) - MONDAY 6:00 AM-6:45 AM. The teacher is locked from Teaching Load; only the room and slot are reviewed here.\n\nWHAT CHANGES\n\nThis unresolved session is placed into the selected timetable slot.\n\nTEACHING LOAD OWNER\n\nFaculty #24007\n\nTARGET SLOT\n\nMO"
+    },
+    {
+      "id": "T09",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 13278,
+      "observed": "Plain-language status labels visible: none; legend="
+    },
+    {
+      "id": "T10",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1816,
+      "observed": "Modern swap review opened and cancelled safely: Review occupied-slot swap\n\nUnknown Subject (#5742) for Unknown Section (#302) will exchange times with Unknown Subject (#5742) for Unknown Section (#302).\n\nChecking options...\n\nCancel\nSwap sessions\nClose"
+    },
+    {
+      "id": "T11",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1860,
+      "observed": "Advanced then Simple reversible; advanced guide=NEXT TASK\n\nReview schedule\n\nReview schedule\nPlace unassigned\n99+ to place\nSwitch sessions\nDraft planner\nReview room requests\n\nNo precision dragging required. Check the generated ti"
+    },
+    {
+      "id": "T12",
+      "viewport": "390x844",
+      "result": "Independent",
+      "timeMs": 1438,
+      "observed": "Safe backtrack leaves 0 dialog(s) and 0 save/commit action(s) exposed."
+    }
+  ],
+  "blockedWrites": [],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "apiFailures": [],
+  "overflow": {
+    "scrollHeight": 844,
+    "clientHeight": 844,
+    "scrollWidth": 390,
+    "clientWidth": 390
+  },
+  "accessibility": {
+    "undersized": [],
+    "disclosure": [
+      {
+        "name": "More",
+        "expanded": "false",
+        "controls": null
+      },
+      {
+        "name": "Why?",
+        "expanded": "false",
+        "controls": "radix-_r_4_"
+      }
+    ],
+    "activeElement": "<body>\n    <div id=\"root\"><div class=\"group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar relative\" style=\"--sidebar-width: 16rem; --sidebar-width-icon: 3rem;\"><div class=\""
+  },
+  "evidenceType": "Browser proxy"
+}

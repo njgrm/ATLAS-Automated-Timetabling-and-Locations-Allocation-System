@@ -1,0 +1,37 @@
+{
+  "simpleShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\desktop-simple-initial.png",
+  "advancedShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\desktop-advanced-initial.png",
+  "resizedShot": "D:\\ATLAS\\qa-artifacts\\timetable-panel-ux-recovery\\desktop-advanced-left-minimum.png",
+  "resizeResult": "dragged",
+  "leftInitial": {
+    "panel": {
+      "clientWidth": 448,
+      "scrollWidth": 448,
+      "clientHeight": 497,
+      "scrollHeight": 497
+    },
+    "offenders": []
+  },
+  "centerInitial": {
+    "panel": {
+      "clientWidth": 813,
+      "scrollWidth": 813,
+      "clientHeight": 497,
+      "scrollHeight": 497
+    },
+    "offenders": []
+  },
+  "leftAfterResize": {
+    "panel": {
+      "clientWidth": 289,
+      "scrollWidth": 289,
+      "clientHeight": 497,
+      "scrollHeight": 497
+    },
+    "offenders": []
+  },
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  }
+}

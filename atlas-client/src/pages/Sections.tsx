@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
 	ArrowDown,
@@ -42,13 +43,14 @@ import {
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
 import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow';
-import { type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
+import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
 import { cn } from '@/lib/utils';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
+import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
@@ -623,6 +625,82 @@ export default function Sections() {
 		if (sortField !== field) return <ArrowUpDown className="size-3 text-muted-foreground/50" />;
 		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 	};
+	const SectionMobileCard = ({ section }: { section: SectionDetail }) => {
+		const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
+		const gKey = gradeKey(section.gradeLevelName);
+		const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
+		const fillTone = fill >= 95
+			? 'border-red-200 bg-red-50 text-red-700'
+			: fill >= 85
+			? 'border-amber-200 bg-amber-50 text-amber-700'
+			: 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+		return (
+			<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="section-mobile-card">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0">
+						<div className="flex flex-wrap items-center gap-2">
+							<Badge className={cn('h-6 rounded-full border-0 text-xs font-bold', GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground')}>
+								G{section.gradeLevelName.replace(/^Grade\s+/i, '')}
+							</Badge>
+							{section.isSpecialProgram && section.programCode && (
+								<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">
+									{section.programCode}
+								</Badge>
+							)}
+						</div>
+						<h3 className="mt-2 truncate text-base font-bold text-foreground">{section.name}</h3>
+						<p className="mt-0.5 text-xs font-medium text-muted-foreground">
+							{section.isSpecialProgram ? section.programName : 'Regular Program'}
+						</p>
+					</div>
+					<Badge variant="outline" className={cn('h-7 shrink-0 rounded-full px-2 text-xs font-bold', fillTone)}>
+						{fill}% full
+					</Badge>
+				</div>
+
+				<div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+						<p className="font-bold uppercase tracking-widest text-muted-foreground">Enrolled</p>
+						<p className="mt-1 text-sm font-bold text-foreground">{section.enrolledCount} / {section.maxCapacity}</p>
+					</div>
+					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+						<p className="font-bold uppercase tracking-widest text-muted-foreground">Home room</p>
+						<p className={cn('mt-1 truncate text-sm font-bold', selectedRoom ? 'text-emerald-700' : 'text-amber-700')}>
+							{selectedRoom ? selectedRoom.name : 'Needs room'}
+						</p>
+					</div>
+				</div>
+
+				<div className="mt-3 space-y-1.5">
+					<SectionRoomPicker
+						sectionId={section.id}
+						sectionName={section.name}
+						value={section.homeRoomId ?? null}
+						options={homeRoomOptions}
+						onSelect={(roomId) => handleHomeRoomChange(section, roomId)}
+						disabled={isReadOnlyMode}
+						isSaving={savingMirrorId === section.id}
+						schoolId={DEFAULT_SCHOOL_ID}
+						roomOccupancy={roomOccupancyMap}
+					/>
+					<p className={cn('flex items-center gap-1.5 text-xs font-semibold', selectedRoom ? 'text-emerald-700' : 'text-amber-700')}>
+						{selectedRoom ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
+						{selectedRoom ? `Ready in ${selectedRoom.buildingName}` : isReadOnlyMode ? 'Needs home room. Edits are paused.' : 'Choose a home room first.'}
+					</p>
+				</div>
+
+				<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
+					<Button type="button" size="sm" variant="outline" className="h-11 flex-1 font-bold" onClick={() => setDetailTarget(section)}>
+						View details
+					</Button>
+					<Button asChild size="sm" className="h-11 flex-1 font-bold">
+						<Link to={`/teaching-load?sectionId=${section.id}`}>Teaching Load</Link>
+					</Button>
+				</div>
+			</div>
+		);
+	};
 
 	const availableGrades = useMemo(() => {
 		if (state.status !== 'ok') return [];
@@ -872,29 +950,32 @@ export default function Sections() {
 			)}
 		>
 
+			<div className="shrink-0 px-4 pt-2 lg:px-5">
+				<RolloverGuidanceCard compact />
+			</div>
+
 			{/* Status Banners */}
 			{state.status === 'no-year' && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
+				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300 lg:mx-5">
 					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
 					<span className="flex-1 font-semibold">No active school year. {state.message}</span>
 				</div>
 			)}
 			{(state.status === 'unavailable' || syncError) && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300 lg:mx-5">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
 					<span className="flex-1 font-semibold text-amber-900">{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable.' : 'Enrollment service unavailable.')}</span>
 					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
 				</div>
 			)}
-			{state.status === 'ok' && (
+			{state.status === 'ok' && homeRoomEditStatus.tone !== 'ready' && (
 				<div className={cn(
-					"pointer-events-none shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm shadow-sm animate-in fade-in duration-300",
-					homeRoomEditStatus.tone === 'ready' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+					"pointer-events-none shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-sm animate-in fade-in duration-300 lg:mx-5",
 					homeRoomEditStatus.tone === 'queued' && 'border-sky-200 bg-sky-50 text-sky-900',
 					homeRoomEditStatus.tone === 'checking' && 'border-amber-200 bg-amber-50 text-amber-900',
 					homeRoomEditStatus.tone === 'blocked' && 'border-red-200 bg-red-50 text-red-900',
 				)}>
-					{homeRoomEditStatus.tone === 'ready' ? <CheckCircle2 className="size-4 shrink-0" /> : homeRoomEditStatus.tone === 'queued' ? <WifiOff className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
+					{homeRoomEditStatus.tone === 'queued' ? <WifiOff className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
 					<span className="flex-1 font-semibold">{homeRoomEditStatus.message}</span>
 				</div>
 			)}
@@ -913,7 +994,22 @@ export default function Sections() {
 					</div>
 				) : undefined}
 			>
-						<table className="w-full text-sm">
+						<div className="space-y-3 p-3 md:hidden">
+							{state.status === 'loading' ? (
+								Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)
+							) : paged.length === 0 ? (
+								<div className="flex min-h-80 items-center justify-center px-4 py-12 text-center">
+									<AdminStatePanel
+										icon={<Users className="size-8" />}
+										title={state.status === 'ok' ? 'No sections match your filters.' : 'Sections data unavailable.'}
+										description={state.status === 'ok' ? 'Clear a filter or search another section name to continue.' : 'Reconnect or sync sections before assigning home rooms.'}
+									/>
+								</div>
+							) : (
+								paged.map((section) => <SectionMobileCard key={section.id} section={section} />)
+							)}
+						</div>
+						<table className="hidden w-full text-sm md:table">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
 									<th className="px-4 py-3 text-left">

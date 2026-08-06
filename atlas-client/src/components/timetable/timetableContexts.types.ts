@@ -93,6 +93,7 @@ export type LeftRailContentContext = {
 	preGenKbSource: any;
 	setPreGenKbSource: Dispatch<SetStateAction<any>>;
 	setKbSelectedSource: Dispatch<SetStateAction<any>>;
+	leftPanelRef: { current: { collapse: () => void } | null };
 	rightPanelRef: { current: { expand: () => void } | null };
 	selectedEntry: ScheduledEntry | null;
 	setSelectedEntry: Dispatch<SetStateAction<ScheduledEntry | null>>;
@@ -103,6 +104,7 @@ export type LeftRailContentContext = {
 	DAY_SHORT: Record<string, string>;
 	formatFacultyInitials: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
+	roomMap: Map<number, { id: number; name: string; buildingName: string; buildingShortCode: string | null; isTeachingSpace: boolean; type?: string }>;
 	GRADE_BADGE: Record<number, string>;
 	GRADE_CARD_BG: Record<number, string>;
 	roomRequestSummary: RoomPreferenceSummaryResponse | null;
@@ -173,6 +175,8 @@ export type ScheduleReviewDialogsContext = {
 	softCount: number;
 	policy: { teacherMoveEnabled: boolean } | null;
 	handlePublishConfirm: () => void;
+	captureReviewFocusReturn: (fallbackSelector?: string) => void;
+	restoreReviewFocus: () => void;
 	showPreGenConfirm: boolean;
 	setShowPreGenConfirm: Dispatch<SetStateAction<boolean>>;
 	setPreGenConfirmCtx: Dispatch<SetStateAction<any>>;
@@ -242,7 +246,7 @@ export type ScheduleReviewDialogsContext = {
 	setSoftConfirmWarnings: Dispatch<SetStateAction<Violation[]>>;
 	setDragItem: Dispatch<SetStateAction<any>>;
 	pendingCommitProposal: ManualEditProposal | null;
-	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<void>;
+	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<boolean>;
 	showAssignmentPicker: boolean;
 	setShowAssignmentPicker: Dispatch<SetStateAction<boolean>>;
 	setAssignPickerTarget: Dispatch<SetStateAction<any>>;
@@ -251,6 +255,10 @@ export type ScheduleReviewDialogsContext = {
 	setAssignPickerFacultyId: Dispatch<SetStateAction<string>>;
 	assignPickerRoomId: string;
 	setAssignPickerRoomId: Dispatch<SetStateAction<string>>;
+	assignPickerPreview: PreviewResult | null;
+	assignPickerPreviewLoading: boolean;
+	assignPickerPreviewError: string | null;
+	assignPickerSaving: boolean;
 	confirmAssignmentPicker: () => Promise<void>;
 	showEditHistory: boolean;
 	setShowEditHistory: Dispatch<SetStateAction<boolean>>;

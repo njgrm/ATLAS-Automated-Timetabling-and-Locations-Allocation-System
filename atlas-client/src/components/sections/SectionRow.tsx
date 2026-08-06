@@ -156,10 +156,10 @@ export function SectionRow({
 						{selectedRoom ? <Home className="mt-0.5 size-3 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 size-3 shrink-0 text-amber-600" />}
 						<span>
 							{selectedRoom
-								? `${selectedRoom.buildingName} is the current home-room building.`
+								? `Ready: ${selectedRoom.buildingName}`
 								: isReadOnly
-								? 'Needs a home room. Edits are paused until the source is ready.'
-								: 'Needs a home room. Choose a room to make this section schedulable.'}
+								? 'Needs home room. Edits paused.'
+								: 'Needs home room. Choose a room.'}
 						</span>
 					</div>
 				</div>

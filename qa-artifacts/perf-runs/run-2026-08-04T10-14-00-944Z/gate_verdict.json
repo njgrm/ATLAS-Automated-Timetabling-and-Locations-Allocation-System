@@ -1,0 +1,10 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "filter_changes",
+      "status": "BLOCKED",
+      "reason": "Filter button not found"
+    }
+  ]
+}

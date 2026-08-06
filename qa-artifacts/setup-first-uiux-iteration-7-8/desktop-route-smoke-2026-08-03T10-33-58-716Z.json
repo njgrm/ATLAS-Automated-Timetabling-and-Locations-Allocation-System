@@ -1,0 +1,86 @@
+[
+  {
+    "route": "/",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  },
+  {
+    "route": "/sections",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  },
+  {
+    "route": "/subjects",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  },
+  {
+    "route": "/teachers",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  },
+  {
+    "route": "/teaching-load",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  },
+  {
+    "route": "/map",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  },
+  {
+    "route": "/timetable",
+    "overflow": {
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "scrollWidth": 1366,
+      "clientWidth": 1366
+    },
+    "consoleErrors": [],
+    "pageErrors": [],
+    "apiFailures": []
+  }
+]

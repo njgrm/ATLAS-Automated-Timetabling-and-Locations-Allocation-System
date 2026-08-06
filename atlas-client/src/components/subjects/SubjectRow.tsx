@@ -86,6 +86,12 @@ export function SubjectRow({
 	const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
 		? 'Standard classroom'
 		: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
+	const programScopes = subject.programScopes ?? [];
+	const programScopeSummary = programScopes.length === 0
+		? 'All programs'
+		: programScopes.length === 1
+		? programScopes[0]
+		: `${programScopes.length} programs`;
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -134,13 +140,23 @@ export function SubjectRow({
 									Schedulable
 								</Badge>
 							)}
-							<div className="flex flex-wrap gap-1">
-								{(subject.programScopes ?? []).map((scope) => (
-									<span key={scope} className={`text-[0.6rem] font-bold uppercase tracking-widest ${PROGRAM_SCOPE_BADGE[scope] || 'text-muted-foreground'}`}>
-										{scope}
-									</span>
-								))}
-							</div>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge
+										variant="outline"
+										className={`h-4 px-1.5 text-[0.55rem] font-black uppercase shadow-none ${
+											programScopes.length === 1
+												? PROGRAM_SCOPE_BADGE[programScopes[0]] || 'text-muted-foreground'
+												: 'border-slate-200 bg-slate-50 text-slate-600'
+										}`}
+									>
+										{programScopeSummary}
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent side="top" className="max-w-[220px] text-xs font-semibold">
+									{programScopes.length > 0 ? `Program scope: ${programScopes.join(', ')}` : 'Program scope: all programs'}
+								</TooltipContent>
+							</Tooltip>
 						</div>
 					</div>
 				</div>

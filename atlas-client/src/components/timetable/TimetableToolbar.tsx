@@ -50,7 +50,7 @@ export function TimetableToolbar({
 	children,
 }: TimetableToolbarProps) {
 	return (
-		<div className="flex items-center gap-2 overflow-x-auto px-4 pb-1.5 xl:flex-wrap" data-tutorial="grid-controls">
+		<div className="flex items-center gap-2 overflow-x-auto px-4 pb-1.5 xl:flex-wrap [@media(max-height:500px)]:hidden" data-tutorial="grid-controls">
 			<Select value={viewMode} onValueChange={onViewModeChange}>
 				<SelectTrigger className="h-7 w-32 shrink-0 text-xs">
 					<SelectValue placeholder="View by" />

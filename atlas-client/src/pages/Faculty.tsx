@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
+	ArrowRight,
 	BookOpenCheck,
 	Eye,
+	ListChecks,
 	Pencil,
 	Plus,
 	RefreshCw,
@@ -26,6 +28,7 @@ import {
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-workspace/AdminDataTable';
 import {
 	FacultyDepartmentCell,
+	getFacultyLoadPresentation,
 	FacultyIdentityCell,
 	FacultyLoadStateBadge,
 	FacultyMobileCard,
@@ -45,6 +48,7 @@ import {
 	STANDARD_WEEKLY_TEACHING_HOURS,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
+import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import {
 	getCachedFacultyAssignmentsSummary,
 	requestWithRetry,
@@ -85,6 +89,45 @@ type TeacherSummaryResponse = {
 	ownershipIndex?: SubjectSectionOwnershipIndexEntry[];
 	fetchedAt: string | null;
 };
+
+type TeacherAttentionFilter = 'all' | 'needs-load' | 'over-cap' | 'no-active-load' | 'placeholders';
+
+function getTeacherRepairIntent(teacher: FacultySummary) {
+	const loadHours = teacher.policyCreditedHours ?? 0;
+	if (teacher.isPlaceholder) {
+		return {
+			task: 'review-placeholders',
+			label: 'Review placeholder',
+			helper: 'Teacher X is temporary. Replace this with a real teacher when staffing is known.',
+		};
+	}
+	if (!teacher.isActiveForScheduling) {
+		return {
+			task: 'review',
+			label: 'View details',
+			helper: 'This teacher is excluded from scheduling. Review before assigning load.',
+		};
+	}
+	if ((teacher.subjectCount ?? 0) === 0) {
+		return {
+			task: 'missing-load',
+			label: 'Fix missing load',
+			helper: 'This active teacher has no Teaching Load yet.',
+		};
+	}
+	if (loadHours > teacher.maxHoursPerWeek) {
+		return {
+			task: 'over-cap',
+			label: 'Reduce overload',
+			helper: 'This teacher is over the weekly cap and needs repair before generation.',
+		};
+	}
+	return {
+		task: 'review',
+		label: 'Review load',
+		helper: getFacultyLoadPresentation(teacher).help,
+	};
+}
 
 export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -143,6 +186,7 @@ export default function Faculty() {
 	const [schedulingFilter, setSchedulingFilter] = useState<'all' | 'active' | 'excluded'>('all');
 	const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+	const [attentionFilter, setAttentionFilter] = useState<TeacherAttentionFilter>('all');
 
 	const fetchFaculty = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		const forceRefresh = options?.forceRefresh === true;
@@ -348,7 +392,7 @@ export default function Faculty() {
 
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
-		if (serverPagination) {
+		if (serverPagination && attentionFilter === 'all') {
 			return {
 				paged: faculty,
 				totalFiltered: serverPagination.total,
@@ -379,6 +423,10 @@ export default function Faculty() {
 		else if (assignmentFilter === 'unassigned') list = list.filter((f) => (f.subjectCount ?? 0) === 0);
 
 		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
+		if (attentionFilter === 'needs-load') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.subjectCount ?? 0) === 0);
+		if (attentionFilter === 'over-cap') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.policyCreditedHours ?? 0) > f.maxHoursPerWeek);
+		if (attentionFilter === 'no-active-load') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.sectionCount ?? 0) === 0);
+		if (attentionFilter === 'placeholders') list = list.filter((f) => f.isPlaceholder);
 
 		// Sort
 		const sorted = [...list].sort((left, right) => {
@@ -398,10 +446,10 @@ export default function Faculty() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [faculty, serverPagination, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, sortField, sortDir, page, pageSize]);
+	}, [faculty, serverPagination, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, attentionFilter, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, pageSize, sortField, sortDir]);
+	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, attentionFilter, pageSize, sortField, sortDir]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -410,7 +458,7 @@ export default function Faculty() {
 
 	const tablePage = serverPagination?.page ?? page;
 	const tablePageSize = serverPagination?.pageSize ?? pageSize;
-	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all';
+	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all' || attentionFilter !== 'all';
 
 	const teacherColumns = useMemo<AdminDataTableColumn<FacultySummary, SortField>[]>(() => [
 		{
@@ -472,6 +520,63 @@ export default function Faculty() {
 		if (teacherSourceState === 'saved-data') return timeSince ? `Using saved data - ${timeSince}` : 'Using saved data';
 		return 'No saved data';
 	}, [teacherSourceState, timeSince]);
+
+	const nextTeacherToFix = useMemo(() => {
+		const activeRoster = faculty.filter((teacher) => teacher.isActiveForScheduling);
+		return activeRoster.find((teacher) => !teacher.isPlaceholder && (teacher.subjectCount ?? 0) === 0)
+			?? activeRoster.find((teacher) => !teacher.isPlaceholder && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek)
+			?? faculty.find((teacher) => teacher.isPlaceholder)
+			?? activeRoster[0]
+			?? faculty[0]
+			?? null;
+	}, [faculty]);
+
+	const nextTeacherIntent = nextTeacherToFix ? getTeacherRepairIntent(nextTeacherToFix) : null;
+
+	const applyAttentionFilter = useCallback((filter: TeacherAttentionFilter) => {
+		setAttentionFilter(filter);
+		if (filter === 'needs-load') {
+			setSchedulingFilter('active');
+			setAssignmentFilter('unassigned');
+			setSortField('status');
+			setSortDir('asc');
+			return;
+		}
+		if (filter === 'over-cap') {
+			setSchedulingFilter('active');
+			setAssignmentFilter('all');
+			setSortField('status');
+			setSortDir('asc');
+			return;
+		}
+		if (filter === 'no-active-load') {
+			setSchedulingFilter('active');
+			setAssignmentFilter('all');
+			setSortField('subjects');
+			setSortDir('asc');
+			return;
+		}
+		if (filter === 'placeholders') {
+			setSchedulingFilter('all');
+			setAssignmentFilter('all');
+			setSortField('name');
+			setSortDir('asc');
+			return;
+		}
+		setSchedulingFilter('all');
+		setAssignmentFilter('all');
+		setDepartmentFilter('all');
+		setSortField('name');
+		setSortDir('asc');
+	}, []);
+
+	const attentionChips = [
+		{ id: 'needs-load' as const, label: 'Needs load', count: rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length },
+		{ id: 'over-cap' as const, label: 'Over cap', count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
+		{ id: 'no-active-load' as const, label: 'No active load', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
+		{ id: 'placeholders' as const, label: 'Review placeholders', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
+		{ id: 'all' as const, label: 'All teachers', count: rosterStats?.totalCount ?? faculty.length },
+	];
 
 	return (
 		<AdminWorkspaceFrame
@@ -561,7 +666,7 @@ export default function Faculty() {
 								variant="ghost"
 								size="sm"
 								className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
-								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
+								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); setAttentionFilter('all'); }}
 							>
 								Reset all
 							</Button>
@@ -570,9 +675,59 @@ export default function Faculty() {
 			)}
 		>
 
+			<div className="shrink-0 px-4 pt-2 lg:px-5">
+				<RolloverGuidanceCard compact />
+			</div>
+
+			<section
+				data-testid="teachers-next-action-strip"
+				className="shrink-0 mx-4 mt-2 rounded-xl border border-primary/10 bg-primary/[0.03] px-3 py-1.5 shadow-sm lg:mx-5"
+				aria-label="Teacher load repair guidance"
+			>
+				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
+						<p className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground">Next teacher to fix</p>
+						{nextTeacherToFix && nextTeacherIntent ? (
+							<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2">
+								<p className="truncate text-sm font-bold text-foreground">{nextTeacherToFix.lastName}, {nextTeacherToFix.firstName}</p>
+								<span className="hidden text-xs font-semibold text-muted-foreground md:inline [@media(max-height:500px)]:hidden">{nextTeacherIntent.helper}</span>
+							</div>
+						) : (
+							<p className="mt-0.5 text-sm font-semibold text-muted-foreground">Load data is still loading.</p>
+						)}
+					</div>
+					<div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
+						{nextTeacherToFix && nextTeacherIntent && (
+							<Button asChild size="sm" className="h-9 gap-2 font-bold" data-testid="teacher-repair-card">
+								<Link to={`/teaching-load?facultyId=${nextTeacherToFix.id}&task=${nextTeacherIntent.task}`}>
+									<ListChecks className="size-4" />
+									{nextTeacherIntent.label}
+									<ArrowRight className="size-4" />
+								</Link>
+							</Button>
+						)}
+						<div className="flex max-w-full shrink-0 flex-nowrap items-center gap-1.5 sm:max-w-[22rem] lg:max-w-full">
+							{attentionChips.map((chip) => (
+								<Button
+									key={chip.id}
+									type="button"
+									variant={attentionFilter === chip.id ? 'secondary' : 'outline'}
+									size="sm"
+									className="h-8 shrink-0 rounded-full px-3 text-xs font-bold"
+									onClick={() => applyAttentionFilter(chip.id)}
+								>
+									{chip.label}
+									<span className="ml-1 tabular-nums text-muted-foreground">{chip.count}</span>
+								</Button>
+							))}
+						</div>
+					</div>
+				</div>
+			</section>
+
 			{/* Status Banners */}
 			{syncError && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+				<div className="shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300 lg:mx-5">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
 					<span className="flex-1 font-semibold">{cacheNotice ?? 'ATLAS could not refresh the teacher roster. The last saved roster is still shown.'}</span>
 					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
@@ -582,23 +737,13 @@ export default function Faculty() {
 			)}
 
 			{cacheNotice && !syncError && (dataSource === 'cached' || dataSource === 'refreshing') && (
-				<div className={`shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm shadow-sm animate-in fade-in duration-300 ${
-					dataSource === 'refreshing'
-						? 'border border-blue-200 bg-blue-50 text-blue-900'
-						: 'border border-amber-200 bg-amber-50 text-amber-900'
-				}`}>
-					<AlertTriangle className={`size-4 shrink-0 ${dataSource === 'refreshing' ? 'text-blue-600' : 'text-amber-600'}`} />
-					<span className={`flex-1 font-semibold ${dataSource === 'refreshing' ? 'text-blue-900' : 'text-amber-900'}`}>
-						<span className="font-bold uppercase tracking-tight mr-1">
-							{dataSource === 'refreshing' ? 'Checking source.' : 'Using saved data.'}
-						</span>
-						{cacheNotice}
-					</span>
-				</div>
+				<p className="sr-only" aria-live="polite">
+					{dataSource === 'refreshing' ? 'Checking source.' : 'Using saved data.'} {cacheNotice}
+				</p>
 			)}
 
 			{error && !syncError && (
-				<div className="shrink-0 mx-6 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900 flex items-center justify-between shadow-sm">
+				<div className="shrink-0 mx-4 mt-2 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 shadow-sm lg:mx-5">
 					<div className="flex items-center gap-2">
 						<AlertTriangle className="size-4 shrink-0 text-red-600" />
 						<span className="font-semibold">{error}</span>
@@ -656,14 +801,18 @@ export default function Faculty() {
 				} : null}
 				rowActions={{
 					label: 'Teacher actions',
-					primary: (teacher) => (
-						<Button asChild size="sm" className="h-8 gap-2 px-3 text-xs font-bold">
-							<Link to={`/teaching-load?facultyId=${teacher.id}`}>
-								<BookOpenCheck className="size-3.5" />
-								Review teaching load
-							</Link>
-						</Button>
-					),
+					menuTestId: 'teacher-row-more-actions',
+					primary: (teacher) => {
+						const repairIntent = getTeacherRepairIntent(teacher);
+						return (
+							<Button asChild size="sm" className="h-8 gap-2 px-3 text-xs font-bold" data-testid="teacher-row-primary-action">
+								<Link to={`/teaching-load?facultyId=${teacher.id}&task=${repairIntent.task}`} aria-label={`${repairIntent.label} for ${teacher.lastName}, ${teacher.firstName}`}>
+									<BookOpenCheck className="size-3.5" />
+									{repairIntent.label}
+								</Link>
+							</Button>
+						);
+					},
 					secondary: (teacher) => {
 						const actions = [
 							{

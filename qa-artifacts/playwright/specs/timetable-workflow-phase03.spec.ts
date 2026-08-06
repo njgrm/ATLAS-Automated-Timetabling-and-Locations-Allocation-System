@@ -39,13 +39,23 @@ test.describe.serial('Timetable Phase 3 information architecture gates', () => {
 		await loginAdmin(page);
 	});
 
-	test('visible task guide exposes primary timetable jobs without opening More tools', async ({ page }, testInfo) => {
+	test('simple task prompt and advanced guide expose primary timetable jobs without crowding', async ({ page }, testInfo) => {
 		test.setTimeout(90_000);
 		await openTimetable(page);
 
+		await expect(page.getByTestId('timetable-task-guide')).toHaveCount(0);
+		const simplePrompt = page.getByTestId('timetable-simple-task-prompt');
+		await expect(simplePrompt).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByTestId('timetable-simple-primary-action')).toBeVisible();
+		const secondaryAction = page.getByTestId('timetable-simple-secondary-action');
+		if (await secondaryAction.isVisible().catch(() => false)) {
+			await expect(secondaryAction).toContainText(/Plan draft/i);
+		}
+
+		await page.getByTestId('timetable-layout-toggle').click();
 		const taskGuide = page.getByTestId('timetable-task-guide');
 		await expect(taskGuide).toBeVisible({ timeout: 10_000 });
-		await expect(taskGuide).toContainText(/What to do next/i);
+		await expect(taskGuide).toContainText(/Next task/i);
 
 		const taskNames = [
 			'Review schedule',
@@ -62,7 +72,7 @@ test.describe.serial('Timetable Phase 3 information architecture gates', () => {
 		await page.getByTestId('timetable-task-place').click();
 		const unassignedPanel = page.locator('#panel-unassigned');
 		await expect(unassignedPanel).toBeVisible({ timeout: 10_000 });
-		await expect(unassignedPanel).toContainText(/Unassigned|Needs attention|No unassigned/i);
+		await expect(unassignedPanel).toContainText(/unresolved|Needs room|Ready|Blocked/i);
 
 		const unassignedBox = await unassignedPanel.boundingBox();
 		expect(unassignedBox?.height ?? 0, 'Unassigned panel must keep enough local height to avoid starving the list.').toBeGreaterThan(170);
@@ -88,6 +98,7 @@ test.describe.serial('Timetable Phase 3 information architecture gates', () => {
 
 		await attachReport(testInfo, 'task-guide-modes', {
 			taskNames,
+			simplePromptVisible: true,
 			unassignedPanelHeight: unassignedBox?.height ?? null,
 			scrollMetrics,
 		});

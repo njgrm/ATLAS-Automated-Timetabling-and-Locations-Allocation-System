@@ -49,6 +49,7 @@ import {
 	SectionCard,
 	SOFT_CONSTRAINT_LABELS,
 } from '@/components/scheduling-policy/PolicyPanePrimitives';
+import { Badge } from '@/ui/badge';
 
 /* G��G��G�� Types G��G��G�� */
 
@@ -247,6 +248,7 @@ export default function SchedulingPolicyPane({
 }) {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
+	const [policyStatus, setPolicyStatus] = useState<'loading' | 'loaded' | 'saved' | 'unavailable'>('loading');
 	const [activeTab, setActiveTab] = useState<'policy' | 'shift-settings'>('policy');
 	const [persisted, setPersisted] = useState<LocalPolicy | null>(null);
 	const [local, setLocal] = useState<LocalPolicy | null>(null);
@@ -273,16 +275,19 @@ export default function SchedulingPolicyPane({
 	const fetchPolicy = useCallback(async () => {
 		if (!schoolYearId) return;
 		setLoading(true);
+		setPolicyStatus('loading');
 		try {
-			const [policyRes, windowsRes, summaryRes] = await Promise.all([
-				atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`),
-				atlasApi.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`),
+			const policyRes = await atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, { timeout: 8_000 });
+			const [windowsRes, summaryRes] = await Promise.all([
 				atlasApi
-					.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`)
+					.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, { timeout: 8_000 })
+					.catch(() => null),
+				atlasApi
+					.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`, { timeout: 8_000 })
 					.catch(() => null),
 			]);
 			const lp = policyToLocal(policyRes.data.policy);
-			const localWindows = toLocalGradeWindows(windowsRes.data.windows ?? []);
+			const localWindows = toLocalGradeWindows(windowsRes?.data.windows ?? []);
 			const summary = summaryRes?.data ?? null;
 			setPersisted(lp);
 			setLocal(lp);
@@ -292,7 +297,9 @@ export default function SchedulingPolicyPane({
 			setProgramContextNote(buildProgramContextNote(summary));
 			setEditIntent(null);
 			setReconciliationDialog(null);
+			setPolicyStatus('loaded');
 		} catch {
+			setPolicyStatus('unavailable');
 			toast.error('Failed to load scheduling policy and shift settings.');
 		} finally {
 			setLoading(false);
@@ -327,6 +334,7 @@ export default function SchedulingPolicyPane({
 		setReconciliationDialog(null);
 		setShowAddOverrideDialog(false);
 		setNewOverride(createInitialOverride());
+		setPolicyStatus('saved');
 		toast.success('Scheduling policy and shift settings saved.');
 		onPolicySaved?.();
 	}, [schoolId, schoolYearId, onPolicySaved]);
@@ -561,7 +569,7 @@ export default function SchedulingPolicyPane({
 			<ReconciliationDialog state={reconciliationDialog} onClose={() => setReconciliationDialog(null)} />
 
 			{/* G��G�� Toolbar (non-scrolling) G��G�� */}
-			<div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border bg-background/80 backdrop-blur-sm">
+			<div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border bg-background/80 backdrop-blur-sm">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -577,10 +585,30 @@ export default function SchedulingPolicyPane({
 				<div className="flex items-center gap-1 text-muted-foreground">
 					<ChevronRight className="size-3" />
 				</div>
-				<div className="flex items-center gap-1.5 text-sm font-medium">
+				<div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
 					<Shield className="size-3.5 text-primary" />
-					Scheduling Settings
+					<span className="truncate">Scheduling Settings</span>
 				</div>
+
+				<Badge
+					variant="outline"
+					className={`shrink-0 text-xs ${
+						policyStatus === 'unavailable'
+							? 'border-amber-200 bg-amber-50 text-amber-800'
+							: policyStatus === 'saved'
+								? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+								: 'border-sky-200 bg-sky-50 text-sky-800'
+					}`}
+					data-testid="policy-status-chip"
+				>
+					{policyStatus === 'loading'
+						? 'Policy loading'
+						: policyStatus === 'saved'
+							? 'Policy saved'
+							: policyStatus === 'unavailable'
+								? 'Policy unavailable — using defaults'
+								: 'Policy loaded'}
+				</Badge>
 
 				<Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'policy' | 'shift-settings')}>
 					<TabsList className="h-7">
@@ -621,7 +649,14 @@ export default function SchedulingPolicyPane({
 			) : (
 				/* Outer container does NOT scroll G�� each column card scrolls independently */
 				activeTab === 'policy' ? (
-					<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+					<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+
+					<div className="col-span-full rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900" data-testid="policy-impact-summary">
+						<p className="font-semibold">Policy impact</p>
+						<p className="mt-0.5 leading-relaxed">
+							Affects next generation after you save and generate again. Preview, placement, and swap checks use the current saved policy immediately.
+						</p>
+					</div>
 
 					{/* COL 0: Scheduling Mode */}
 					<SectionCard title="Scheduling Mode">

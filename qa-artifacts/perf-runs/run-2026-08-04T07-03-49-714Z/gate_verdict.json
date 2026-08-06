@@ -1,0 +1,13 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "keyboard_place",
+      "status": "FAIL"
+    },
+    {
+      "scenario": "touch_place",
+      "status": "FAIL"
+    }
+  ]
+}

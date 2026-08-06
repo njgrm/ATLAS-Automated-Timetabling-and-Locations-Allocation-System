@@ -1,0 +1,65 @@
+{
+  "status": "PASS",
+  "durationMs": 1979.3954999999996,
+  "metrics": {
+    "navigation": {
+      "duration": 313.6000000089407,
+      "domInteractive": 35.30000001192093,
+      "responseEnd": 26.80000001192093
+    },
+    "jsTransferBytes": 6382861,
+    "jsDecodedBytes": 6341461,
+    "jsFileCount": 138,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 13.399999991059303,
+        "baseDuration": 12.699999988079071,
+        "timestamp": 1785737653582
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 7.499999985098839,
+        "baseDuration": 7.499999985098839,
+        "timestamp": 1785737653611
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 7.499999985098839,
+        "timestamp": 1785737653613
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 44.1000000089407,
+        "baseDuration": 38.8999999910593,
+        "timestamp": 1785737653807
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 99.59999997913837,
+        "baseDuration": 90.50000004470348,
+        "timestamp": 1785737654038
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 90.50000004470348,
+        "timestamp": 1785737654047
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 3.6000000089406967,
+        "baseDuration": 87.20000003278255,
+        "timestamp": 1785737654194
+      }
+    ]
+  }
+}

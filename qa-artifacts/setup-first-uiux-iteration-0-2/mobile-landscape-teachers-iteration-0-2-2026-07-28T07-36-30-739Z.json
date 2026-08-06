@@ -1,0 +1,35 @@
+{
+  "path": "/teachers",
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "headerHeight": 149,
+  "headerBottom": 205,
+  "contentTop": 205,
+  "contentHeight": 185,
+  "scrollHeight": 390,
+  "clientHeight": 390,
+  "scrollWidth": 844,
+  "clientWidth": 844,
+  "sourceState": "saved-data",
+  "sourceText": "Using saved data",
+  "sourceSummaryText": "Source truth: ATLAS is showing the last safe teacher roster snapshot.",
+  "visibleButtonCount": 14,
+  "visibleButtons": [
+    "Open navigation menu",
+    "Create Placeholder",
+    "Refresh teacher roster",
+    "Filters",
+    "Teacher\nName, adviser role, and roster ID.",
+    "Department\nDepartment, specialization, and source state.",
+    "Load State\nReadiness against standard and cap.",
+    "Teacher actions",
+    "Teacher actions",
+    "25",
+    "First page",
+    "Previous page",
+    "Next page",
+    "Last page"
+  ]
+}

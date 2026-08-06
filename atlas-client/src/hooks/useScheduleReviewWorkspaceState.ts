@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 import {
@@ -84,6 +85,22 @@ import { useTimetableCollaboration } from '@/hooks/useTimetableCollaboration';
 import { useTimetableLookupHelpers } from '@/hooks/useTimetableLookupHelpers';
 import { useTimetableDragDrop } from '@/hooks/useTimetableDragDrop';
 import { useTimetableViewNavigation } from '@/hooks/useTimetableViewNavigation';
+
+function escapeCssAttributeValue(value: string): string {
+	return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function timetableCellFocusSelector(day: string, startTime: string, endTime: string): string {
+	return `td[data-day="${escapeCssAttributeValue(day)}"][data-start-time="${escapeCssAttributeValue(startTime)}"][data-end-time="${escapeCssAttributeValue(endTime)}"]`;
+}
+
+function timetableEntryFocusSelector(entryId: string): string {
+	return `[data-timetable-entry-id="${escapeCssAttributeValue(entryId)}"]`;
+}
+
+function isFocusableElement(element: HTMLElement): boolean {
+	return element.matches('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [role="button"], [role="link"], [role="menuitem"]');
+}
 
 export function useScheduleReviewWorkspaceState() {
 	/* -- Data state -- */
@@ -178,6 +195,39 @@ export function useScheduleReviewWorkspaceState() {
 	/* -- Manual edit / DnD state -- */
 	const [dragItem, setDragItem] = useState<DragSource>(null);
 	const dragActiveRef = useRef(false);
+	const reviewFocusReturnRef = useRef<HTMLElement | null>(null);
+
+	const captureReviewFocusReturn = useCallback((fallbackSelector?: string) => {
+		if (typeof document === 'undefined') return;
+		const taggedSource = document.querySelector<HTMLElement>('[data-phase-0-focus-id]');
+		const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+			? document.activeElement
+			: null;
+		const fallback = fallbackSelector ? document.querySelector<HTMLElement>(fallbackSelector) : null;
+		reviewFocusReturnRef.current = taggedSource ?? active ?? fallback ?? null;
+	}, []);
+
+	const restoreReviewFocus = useCallback(() => {
+		if (typeof window === 'undefined' || typeof document === 'undefined') return;
+		const target = reviewFocusReturnRef.current;
+		reviewFocusReturnRef.current = null;
+		window.setTimeout(() => {
+			if (!target || !document.contains(target)) return;
+			if (!isFocusableElement(target)) {
+				target.setAttribute('tabindex', '-1');
+				target.setAttribute('data-review-focus-temporary', 'true');
+				const cleanup = () => {
+					if (target.getAttribute('data-review-focus-temporary') === 'true') {
+						target.removeAttribute('tabindex');
+						target.removeAttribute('data-review-focus-temporary');
+					}
+					target.removeEventListener('blur', cleanup);
+				};
+				target.addEventListener('blur', cleanup, { once: true });
+			}
+			target.focus({ preventScroll: true });
+		}, 0);
+	}, []);
 	const [blockerModalData, setBlockerModalData] = useState<any[] | null>(null);
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 	const [softConfirmWarnings, setSoftConfirmWarnings] = useState<Violation[]>([]);
@@ -250,11 +300,15 @@ export function useScheduleReviewWorkspaceState() {
 	const [assignPickerTarget, setAssignPickerTarget] = useState<{ day: string; startTime: string; endTime: string; item: UnassignedItem } | null>(null);
 	const [assignPickerFacultyId, setAssignPickerFacultyId] = useState<string>('');
 	const [assignPickerRoomId, setAssignPickerRoomId] = useState<string>('');
+	const [assignPickerPreview, setAssignPickerPreview] = useState<PreviewResult | null>(null);
+	const [assignPickerPreviewLoading, setAssignPickerPreviewLoading] = useState(false);
+	const [assignPickerPreviewError, setAssignPickerPreviewError] = useState<string | null>(null);
+	const [assignPickerSaving, setAssignPickerSaving] = useState(false);
 	const [inlineActionStatus, setInlineActionStatus] = useState<{ tone: 'loading' | 'success' | 'warning' | 'error'; message: string } | null>(null);
 	const pivotTransitionLoading = false;
 
 	/* -- Tutorial + Explainability -- */
-	const tutorial = useTutorial('atlas_timetable_tour');
+	const tutorial = useTutorial('atlas_timetable_tour', { autoStart: false });
 	const [drawerViolation, setDrawerViolation] = useState<Violation | null>(null);
 	const [drawerUnassigned, setDrawerUnassigned] = useState<UnassignedItem | null>(null);
 	const showExplainDrawer = !!drawerViolation || !!drawerUnassigned;
@@ -374,6 +428,7 @@ export function useScheduleReviewWorkspaceState() {
 		fetchDraftBoardSummary,
 		loadRoomRequestSummary,
 		fetchReferenceData,
+		refreshReferenceLabels,
 		openMapWorkspace,
 		openBuildingWorkspace,
 		openRoomGridWorkspace,
@@ -388,6 +443,7 @@ export function useScheduleReviewWorkspaceState() {
 		isStaleRoom,
 		pivotLabel,
 		schoolYearContext,
+		referenceLookupStatus,
 	} = useTimetableData({
 		schoolYearId,
 		setSchoolYearId,
@@ -453,6 +509,14 @@ export function useScheduleReviewWorkspaceState() {
 		setPreGenKbSource,
 		setKbSelectedSource,
 	});
+
+	useEffect(() => {
+		if (!isPreGenerationWorkspace || !schoolYearId || roomMap.size > 0) return;
+		void fetchReferenceData(schoolYearId).catch((error) => {
+			const message = error instanceof Error ? error.message : 'Reference data could not be loaded.';
+			toast.error(`Room and owner references are still loading. ${message}`);
+		});
+	}, [fetchReferenceData, isPreGenerationWorkspace, roomMap.size, schoolYearId]);
 
 	const {
 		filteredRoomRequests,
@@ -605,13 +669,14 @@ export function useScheduleReviewWorkspaceState() {
 			&& selectedEntry
 			&& selectedEntry.entryId !== entry.entryId
 		) {
+			captureReviewFocusReturn(timetableEntryFocusSelector(entry.entryId));
 			openRegularSwapPrompt(selectedEntry, entry);
 			setSelectedEntry(null);
 			setSelectedViolation(null);
 			return;
 		}
 		handleEntrySelect(entry);
-	}, [centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation]);
+	}, [captureReviewFocusReturn, centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation]);
 
 	const handleCollaborativeTimetableEvent = useCallback(() => {
 		toast.info('Timetable updated by another scheduler. Refreshing data...', { id: 'collab-edit-alert' });
@@ -631,6 +696,27 @@ export function useScheduleReviewWorkspaceState() {
 	});
 
 	const openTacticalSandbox = useCallback(() => setTacticalSandboxOpen(true), [setTacticalSandboxOpen]);
+
+	const resolveGeneratedPlacementRoomId = useCallback((item: UnassignedItem, day: string, startTime: string, endTime: string): number | null => {
+		const itemRoomId = item.homeRoomId ?? null;
+		if (itemRoomId && roomMap.has(itemRoomId)) return itemRoomId;
+
+		const sectionRoomId = sectionMap.get(item.sectionId)?.homeRoomId ?? null;
+		if (sectionRoomId && roomMap.has(sectionRoomId)) return sectionRoomId;
+
+		const occupiedSlotRoomId = (draft?.entries ?? []).find((entry: ScheduledEntry) => (
+			entry.day === day
+			&& entry.startTime === startTime
+			&& entry.endTime === endTime
+			&& entry.roomId != null
+		))?.roomId ?? null;
+		if (occupiedSlotRoomId && roomMap.has(occupiedSlotRoomId)) return occupiedSlotRoomId;
+
+		const currentRoomViewId = viewMode === 'room' ? Number(entityFilter) : NaN;
+		if (Number.isFinite(currentRoomViewId) && roomMap.has(currentRoomViewId)) return currentRoomViewId;
+
+		return null;
+	}, [draft?.entries, entityFilter, roomMap, sectionMap, viewMode]);
 
 	const handleRunChange = useCallback(async (runId: string) => {
 		setSelectedRunId(runId);
@@ -669,13 +755,98 @@ export function useScheduleReviewWorkspaceState() {
 			toast.info('Teaching Load repair opened. Choose the correct owner there, then place the session.');
 			return;
 		}
-		if (!item.homeRoomId) {
-			setSelectedUnassignedForRepair(item);
-			setInlineActionStatus({
-				tone: 'error',
-				message: 'This session has no home room available. Fix section room setup or review generated suggestions before placing it.',
-			});
-			toast.error('No home room is available for this unassigned session.');
+		const defaultRoomId = resolveGeneratedPlacementRoomId(item, day, startTime, endTime);
+		captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
+		setSelectedEntry(null);
+		setSelectedViolation(null);
+		setSelectedUnassignedForRepair(null);
+		setAssignPickerTarget({ item, day, startTime, endTime });
+		setAssignPickerFacultyId(String(item.facultyId));
+		setAssignPickerRoomId(defaultRoomId ? String(defaultRoomId) : '');
+		setAssignPickerPreview(null);
+		setAssignPickerPreviewError(null);
+		setAssignPickerPreviewLoading(false);
+		setShowAssignmentPicker(true);
+		setInlineActionStatus({
+			tone: 'loading',
+			message: defaultRoomId
+				? 'Placement review opened. Check conflicts before saving.'
+				: 'Placement review opened. Pick a room, then check conflicts before saving.',
+		});
+		setDragItem(null);
+	}, [
+		openTacticalSandbox,
+		captureReviewFocusReturn,
+		resolveGeneratedPlacementRoomId,
+		setSelectedEntry,
+		setSelectedUnassignedForRepair,
+		setSelectedViolation,
+		toast,
+	]);
+
+	const runGeneratedPlacementPreview = useCallback(async (
+		target = assignPickerTarget,
+		roomIdValue = assignPickerRoomId,
+	): Promise<PreviewResult | null> => {
+		if (!target) return null;
+		const { day, startTime, endTime, item } = target;
+		const targetFacultyId = item.facultyId ?? Number(assignPickerFacultyId);
+		const targetRoomId = Number(roomIdValue);
+		if (!targetFacultyId || !targetRoomId) {
+			setAssignPickerPreview(null);
+			setAssignPickerPreviewError('Select a room source before previewing this placement.');
+			return null;
+		}
+
+		const proposal: ManualEditProposal = {
+			editType: 'PLACE_UNASSIGNED',
+			sectionId: item.sectionId,
+			subjectId: item.subjectId,
+			session: item.session,
+			entryKind: item.entryKind,
+			cohortCode: item.cohortCode,
+			targetDay: day,
+			targetStartTime: startTime,
+			targetEndTime: endTime,
+			targetFacultyId,
+			targetRoomId,
+		};
+
+		setAssignPickerPreviewLoading(true);
+		setAssignPickerPreviewError(null);
+		const preview = await previewEdit(proposal);
+		setAssignPickerPreviewLoading(false);
+		if (!preview) {
+			setAssignPickerPreview(null);
+			setAssignPickerPreviewError('Unable to preview this generated placement.');
+			return null;
+		}
+		const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
+		setAssignPickerPreview(scopedPreview);
+		setAssignPickerPreviewError(scopedPreview.allowed ? null : 'This placement is blocked. Pick another slot or room.');
+		return scopedPreview;
+	}, [assignPickerFacultyId, assignPickerRoomId, assignPickerTarget, previewEdit]);
+
+	useEffect(() => {
+		if (!showAssignmentPicker || !assignPickerTarget || !assignPickerRoomId) {
+			setAssignPickerPreview(null);
+			setAssignPickerPreviewError(null);
+			return;
+		}
+		const timer = setTimeout(() => {
+			void runGeneratedPlacementPreview(assignPickerTarget, assignPickerRoomId);
+		}, 350);
+		return () => clearTimeout(timer);
+	}, [assignPickerRoomId, assignPickerTarget, runGeneratedPlacementPreview, showAssignmentPicker]);
+
+	/** Confirm generated unassigned placement after room/slot review. */
+	const confirmAssignmentPicker = useCallback(async () => {
+		if (!assignPickerTarget) return;
+		const { day, startTime, endTime, item } = assignPickerTarget;
+		const targetFacultyId = item.facultyId ?? Number(assignPickerFacultyId);
+		const targetRoomId = Number(assignPickerRoomId);
+		if (!targetFacultyId || !targetRoomId) {
+			toast.error('Select a room source before saving this placement.');
 			return;
 		}
 
@@ -689,45 +860,59 @@ export function useScheduleReviewWorkspaceState() {
 			targetDay: day,
 			targetStartTime: startTime,
 			targetEndTime: endTime,
-			targetFacultyId: item.facultyId,
-			targetRoomId: item.homeRoomId,
+			targetFacultyId,
+			targetRoomId,
 		};
 
-		setDragItem({ type: 'unassigned', item });
-		setInlineActionStatus({ tone: 'loading', message: 'Checking placement with Teaching Load owner and home room...' });
-		const preview = await previewEdit(proposal);
-		if (!preview) {
-			setDragItem(null);
+		setAssignPickerSaving(true);
+		const scopedPreview = assignPickerPreview ?? await runGeneratedPlacementPreview(assignPickerTarget, assignPickerRoomId);
+		if (!scopedPreview) {
+			setAssignPickerSaving(false);
 			return;
 		}
-		const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
 		if (!scopedPreview.allowed) {
 			const firstHard = scopedPreview.humanConflicts.find((hc) => hc.severity === 'HARD');
 			setInlineActionStatus({ tone: 'error', message: firstHard?.humanTitle ?? 'Placement blocked by hard conflicts.' });
-			setDragItem(null);
+			setAssignPickerSaving(false);
 			return;
 		}
-		setInlineActionStatus({
-			tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'loading',
-			message: scopedPreview.softViolations.length > 0
-				? `Preview: ${scopedPreview.softViolations.length} soft warning(s). Placing session...`
-				: 'Placing session...',
-		});
-		await commitEdit(proposal, scopedPreview.softViolations.length > 0);
-		setInlineActionStatus({
-			tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
-			message: scopedPreview.softViolations.length > 0
-				? `Placement applied with ${scopedPreview.softViolations.length} soft warning(s).`
-				: 'Placement applied using the Teaching Load owner and home room.',
-		});
-		setDragItem(null);
+		try {
+			setInlineActionStatus({
+				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'loading',
+				message: scopedPreview.softViolations.length > 0
+					? `Preview: ${scopedPreview.softViolations.length} soft warning(s). Placing session...`
+					: 'Placing session...',
+			});
+			const committed = await commitEdit(proposal, scopedPreview.softViolations.length > 0);
+			if (!committed) {
+				setInlineActionStatus({ tone: 'error', message: 'Placement was not saved. Review the error message and try again.' });
+				return;
+			}
+			setInlineActionStatus({
+				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
+				message: scopedPreview.softViolations.length > 0
+					? `Placement applied with ${scopedPreview.softViolations.length} soft warning(s).`
+					: 'Placement applied using the Teaching Load owner and selected room.',
+			});
+			setShowAssignmentPicker(false);
+			setAssignPickerTarget(null);
+			setAssignPickerFacultyId('');
+			setAssignPickerRoomId('');
+			setAssignPickerPreview(null);
+			setAssignPickerPreviewError(null);
+			setKbSelectedSource(null);
+			setDragItem(null);
+		} finally {
+			setAssignPickerSaving(false);
+		}
 	}, [
+		assignPickerFacultyId,
+		assignPickerPreview,
+		assignPickerRoomId,
+		assignPickerTarget,
 		commitEdit,
-		openTacticalSandbox,
-		previewEdit,
-		setSelectedEntry,
-		setSelectedUnassignedForRepair,
-		setSelectedViolation,
+		runGeneratedPlacementPreview,
+		setKbSelectedSource,
 		toast,
 	]);
 
@@ -738,6 +923,7 @@ export function useScheduleReviewWorkspaceState() {
 			if (!activeDragItem) return;
 
 			if (activeDragItem.type === 'draftQueue' || activeDragItem.type === 'draftPlacement') {
+				captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
 				await stagePreGenDrop(activeDragItem, day, startTime, endTime);
 				setDragItem(null);
 				return;
@@ -750,6 +936,7 @@ export function useScheduleReviewWorkspaceState() {
 			if (activeDragItem.type === 'entry' && centerView === 'pre-generation') {
 				const placement = resolveDraftPlacementFromEntry(activeDragItem.entry, draftBoard?.placements ?? []);
 				if (placement) {
+					captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
 					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
 					setDragItem(null);
 					return;
@@ -766,6 +953,8 @@ export function useScheduleReviewWorkspaceState() {
 			));
 			const swapCandidate = findRegularSwapCandidate(entry, slotEntries);
 			if (swapCandidate) {
+				captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
+				setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
 				openRegularSwapPrompt(entry, swapCandidate);
 				setDragItem(null);
 				return;
@@ -796,7 +985,11 @@ export function useScheduleReviewWorkspaceState() {
 					? `Preview: ${scopedPreview.softViolations.length} soft warning(s). Applying move...`
 					: 'Applying move...',
 			});
-			await commitEdit(proposal, scopedPreview.softViolations.length > 0);
+			const committed = await commitEdit(proposal, scopedPreview.softViolations.length > 0);
+			if (!committed) {
+				setInlineActionStatus({ tone: 'error', message: 'Move was not saved. Review the error message and try again.' });
+				return;
+			}
 			setInlineActionStatus({
 				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
 				message: scopedPreview.softViolations.length > 0
@@ -804,7 +997,7 @@ export function useScheduleReviewWorkspaceState() {
 					: 'Move applied.',
 			});
 		},
-		[dragItem, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned],
+		[captureReviewFocusReturn, dragItem, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -817,6 +1010,7 @@ export function useScheduleReviewWorkspaceState() {
 
 			if (fakeItem.type === 'draftQueue' || fakeItem.type === 'draftPlacement') {
 				setPreGenKbSource(null);
+				captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
 				await stagePreGenDrop(fakeItem, day, startTime, endTime);
 				return;
 			}
@@ -825,6 +1019,7 @@ export function useScheduleReviewWorkspaceState() {
 				const placement = resolveDraftPlacementFromEntry(fakeItem.entry, draftBoard?.placements ?? []);
 				if (placement) {
 					setPreGenKbSource(null);
+					captureReviewFocusReturn(timetableCellFocusSelector(day, startTime, endTime));
 					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
 					return;
 				}
@@ -838,6 +1033,9 @@ export function useScheduleReviewWorkspaceState() {
 			}
 
 			if (fakeItem.type === 'entry') {
+				flushSync(() => {
+					setInlineActionStatus({ tone: 'loading', message: 'Reviewing selected slot before saving this move.' });
+				});
 				const slotEntries = (draft?.entries ?? []).filter((candidate: ScheduledEntry) => (
 					candidate.day === day
 					&& candidate.startTime === startTime
@@ -845,6 +1043,8 @@ export function useScheduleReviewWorkspaceState() {
 				));
 				const swapCandidate = findRegularSwapCandidate(fakeItem.entry, slotEntries);
 				if (swapCandidate) {
+					captureReviewFocusReturn(timetableEntryFocusSelector(swapCandidate.entryId));
+					setInlineActionStatus({ tone: 'warning', message: 'Review swap before saving. This occupied slot will exchange the two sessions.' });
 					openRegularSwapPrompt(fakeItem.entry, swapCandidate);
 					return;
 				}
@@ -875,7 +1075,11 @@ export function useScheduleReviewWorkspaceState() {
 					? `Preview: ${scopedPreview.softViolations.length} soft warning(s). Applying move...`
 					: 'Applying move...',
 			});
-			await commitEdit(proposal, scopedPreview.softViolations.length > 0);
+			const committed = await commitEdit(proposal, scopedPreview.softViolations.length > 0);
+			if (!committed) {
+				setInlineActionStatus({ tone: 'error', message: 'Move was not saved. Review the error message and try again.' });
+				return;
+			}
 			setInlineActionStatus({
 				tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
 				message: scopedPreview.softViolations.length > 0
@@ -883,56 +1087,8 @@ export function useScheduleReviewWorkspaceState() {
 					: 'Move applied.',
 			});
 		},
-		[kbSelectedSource, preGenKbSource, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned],
+		[captureReviewFocusReturn, kbSelectedSource, preGenKbSource, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned],
 	);
-
-	/** Confirm assignment picker and submit the unassigned placement */
-	const confirmAssignmentPicker = useCallback(async () => {
-		if (!assignPickerTarget) return;
-		const { day, startTime, endTime, item } = assignPickerTarget;
-		const targetFacultyId = Number(assignPickerFacultyId);
-		const targetRoomId = Number(assignPickerRoomId);
-		if (!targetFacultyId || !targetRoomId) {
-			toast.error('Please select both a faculty member and a room.');
-			return;
-		}
-		setShowAssignmentPicker(false);
-
-		const proposal: ManualEditProposal = {
-			editType: 'PLACE_UNASSIGNED',
-			sectionId: item.sectionId,
-			subjectId: item.subjectId,
-			session: item.session,
-			targetDay: day,
-			targetStartTime: startTime,
-			targetEndTime: endTime,
-			targetFacultyId,
-			targetRoomId,
-		};
-
-		const preview = await previewEdit(proposal);
-		if (!preview) { setDragItem(null); return; }
-		const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
-		if (!scopedPreview.allowed) {
-			const firstHard = scopedPreview.humanConflicts.find((hc) => hc.severity === 'HARD');
-			setInlineActionStatus({ tone: 'error', message: firstHard?.humanTitle ?? 'Placement blocked by hard conflicts.' });
-			setDragItem(null);
-			return;
-		}
-		setInlineActionStatus({
-			tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'loading',
-			message: scopedPreview.softViolations.length > 0
-				? `Preview: ${scopedPreview.softViolations.length} soft warning(s). Placing session...`
-				: 'Placing session...',
-		});
-		await commitEdit(proposal, scopedPreview.softViolations.length > 0);
-		setInlineActionStatus({
-			tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
-			message: scopedPreview.softViolations.length > 0
-				? `Placement applied with ${scopedPreview.softViolations.length} soft warning(s).`
-				: 'Placement applied.',
-		});
-	}, [assignPickerTarget, assignPickerFacultyId, assignPickerRoomId, previewEdit, commitEdit]);
 
 	/** Load edit history on mount / run change */
 	useEffect(() => {
@@ -1004,6 +1160,7 @@ export function useScheduleReviewWorkspaceState() {
 		setPinnedRailDropActive,
 		setPendingUnassignId,
 		setShowUnassignConfirm,
+		setInlineActionStatus,
 		setDragActive,
 	});
 
@@ -1016,16 +1173,21 @@ export function useScheduleReviewWorkspaceState() {
 	}, [selectedMapBuilding]);
 
 	const gridKbSelectedSource = kbSelectedSource ?? (centerView === 'pre-generation' ? preGenKbSource : null);
+	const handleKbPlaceStart = useCallback(() => {
+		flushSync(() => {
+			setInlineActionStatus({ tone: 'loading', message: 'Reviewing selected slot before saving this move.' });
+		});
+	}, []);
 
 	const rawWorkspaceContexts = (() => {
 		if ((loading && !draft) || error) {
 			return {};
 		}
-		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, severityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, selectedUnassignedForRepair, setSelectedUnassignedForRepair, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement, openTacticalSandbox });
-		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
+		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, severityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, leftPanelRef, rightPanelRef, selectedEntry, setSelectedEntry, selectedUnassignedForRepair, setSelectedUnassignedForRepair, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomMap, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement, openTacticalSandbox });
+		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, handleKbPlaceStart, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView, openTacticalSandbox });
-		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, collaborationConnected, presence, remoteSelections });
-		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, policy, handlePublishConfirm, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
+		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, refreshReferenceLabels, referenceLookupStatus, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, collaborationConnected, presence, remoteSelections });
+		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
 		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext };
 	})();
@@ -1110,6 +1272,7 @@ export function useScheduleReviewWorkspaceState() {
 		appealSubmitting,
 		pivotTransitionLoading,
 		inlineActionStatus,
+		setInlineActionStatus,
 		sensors,
 		handleGlobalDragStart,
 		handleGlobalDragMove,
@@ -1127,6 +1290,14 @@ export function useScheduleReviewWorkspaceState() {
 		summary,
 		roomRequestSummary,
 		dragItem,
+		selectedEntry,
+		facultyMap,
+		previewTeachingLoadRepair,
+		commitTeachingLoadRepair,
+		handleRefresh,
+		entryContextLabel,
+		roomLabelShort,
+		formatFacultyInitials,
 		subjectLabel,
 		sectionLabel,
 		showTopLoadingStrip,

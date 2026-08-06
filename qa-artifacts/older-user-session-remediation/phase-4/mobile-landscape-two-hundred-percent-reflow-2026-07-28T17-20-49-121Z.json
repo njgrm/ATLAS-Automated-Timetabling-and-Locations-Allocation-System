@@ -1,0 +1,50 @@
+{
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "metricsBeforeReview": {
+    "root": {
+      "scrollHeight": 390,
+      "clientHeight": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844
+    },
+    "drawer": {
+      "clientHeight": 224,
+      "scrollHeight": 224,
+      "bounds": {
+        "x": 460,
+        "y": 191,
+        "width": 384,
+        "height": 224,
+        "top": 191,
+        "right": 844,
+        "bottom": 415,
+        "left": 460
+      }
+    },
+    "queue": {
+      "clientHeight": 220,
+      "scrollHeight": 28482,
+      "scrollTop": 0,
+      "touchAction": "pan-y",
+      "overscrollBehaviorY": "contain",
+      "overflowY": "auto",
+      "visibleItems": 9,
+      "cardCount": 9
+    }
+  },
+  "metricsWithReview": {
+    "rootScrollHeight": 390,
+    "rootClientHeight": 390,
+    "rootScrollWidth": 844,
+    "rootClientWidth": 844,
+    "dialogTop": 27.196029663085938,
+    "dialogBottom": 367.2017059326172,
+    "sheetClientHeight": 265,
+    "sheetScrollHeight": 622,
+    "sheetOverflowY": "auto"
+  },
+  "blockedWrites": []
+}

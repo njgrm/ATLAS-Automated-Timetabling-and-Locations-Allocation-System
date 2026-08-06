@@ -1,0 +1,19 @@
+{
+  "evidenceType": "Browser proxy",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "scroll": {
+    "viewport": {
+      "clientHeight": 246,
+      "scrollHeight": 28482,
+      "scrollTop": 0
+    },
+    "programmaticScrollTop": 600,
+    "mouseWheelScrollTop": 240,
+    "touchGestureStatus": "not-required",
+    "note": "Desktop wheel gesture is available and measured; mobile touch remains a Phase 4 device/proxy gate."
+  },
+  "blockedWrites": []
+}

@@ -1,0 +1,28 @@
+{
+  "name": "generated-swap",
+  "invokingIdentity": "phase-0-swap-1785259442934",
+  "firstFocus": {
+    "identity": "Cancel",
+    "insideDialog": true
+  },
+  "tabSequence": [
+    {
+      "identity": "Close",
+      "insideDialog": true
+    },
+    {
+      "identity": "Cancel",
+      "insideDialog": true
+    },
+    {
+      "identity": "Close",
+      "insideDialog": true
+    },
+    {
+      "identity": "Cancel",
+      "insideDialog": true
+    }
+  ],
+  "restoredIdentity": "phase-0-swap-1785259442934",
+  "restoredToInvoker": true
+}

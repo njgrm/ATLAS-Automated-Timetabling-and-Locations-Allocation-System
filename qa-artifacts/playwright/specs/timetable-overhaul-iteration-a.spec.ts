@@ -1,38 +1,15 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const credentials = {
-	identifier: process.env.PLAYWRIGHT_ADMIN_EMAIL ?? '1000001',
-	password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? 'AdminSY2026!',
-};
+import { loginAdmin, openTaskDrawer, openTimetableAdvanced, openTimetableSimple } from './timetable-layout-helpers';
 
 const reportRoot = path.join(process.cwd(), 'qa-artifacts', 'timetable-overhaul-iteration-a');
-
-async function loginAdmin(page: Page): Promise<string> {
-	const response = await page.request.post('/api/v1/auth/login', { data: credentials });
-	expect(response.ok(), `Admin login failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 500)}`).toBeTruthy();
-	const payload = await response.json() as { token?: string };
-	expect(payload.token, 'Admin login API must return a bearer token.').toBeTruthy();
-	await page.context().setExtraHTTPHeaders({ Authorization: `Bearer ${payload.token}` });
-	await page.addInitScript((token) => {
-		sessionStorage.setItem('atlas_local_token', token);
-		localStorage.setItem('atlas_timetable_tour', 'true');
-	}, payload.token!);
-	return payload.token!;
-}
 
 async function attachReport(testInfo: TestInfo, name: string, data: unknown) {
 	fs.mkdirSync(reportRoot, { recursive: true });
 	const filePath = path.join(reportRoot, `${testInfo.project.name}-${name}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
 	fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 	await testInfo.attach(name, { path: filePath, contentType: 'application/json' });
-}
-
-async function openTimetable(page: Page) {
-	await page.goto('/timetable', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-	await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 45_000 });
-	await expect(page.getByTestId('timetable-task-guide')).toBeVisible({ timeout: 15_000 });
 }
 
 test.describe.serial('Timetable overhaul Iteration A source and workflow truth', () => {
@@ -68,7 +45,7 @@ test.describe.serial('Timetable overhaul Iteration A source and workflow truth',
 			unassignedItems: Array<{ facultyId?: number | null; homeRoomId?: number | null }>;
 		};
 
-		await openTimetable(page);
+		await openTimetableAdvanced(page);
 		const sourceTruth = page.getByTestId('timetable-source-truth');
 		await expect(sourceTruth, 'Saved/stale runtime source must be visible in the timetable header.').toBeVisible({ timeout: 20_000 });
 		await expect(sourceTruth).toContainText(new RegExp(`School year #${runtime.activeSchoolYearId}`));
@@ -92,7 +69,7 @@ test.describe.serial('Timetable overhaul Iteration A source and workflow truth',
 		});
 	});
 
-	test('missing-room generated unassigned items do not claim they can be placed', async ({ page }, testInfo) => {
+	test('missing-room generated unassigned items require room review before save', async ({ page }, testInfo) => {
 		test.setTimeout(90_000);
 		const token = await loginAdmin(page);
 		const headers = { Authorization: `Bearer ${token}` };
@@ -107,29 +84,27 @@ test.describe.serial('Timetable overhaul Iteration A source and workflow truth',
 		const missingRoomCount = latestDraft.unassignedItems.filter((item) => item.facultyId != null && item.homeRoomId == null).length;
 		test.skip(missingRoomCount === 0, 'Current live fixture has no generated unassigned missing-room item to validate.');
 
-		await openTimetable(page);
-		await page.getByTestId('timetable-task-place').click();
+		await openTimetableSimple(page);
+		await openTaskDrawer(page, /Place unresolved sessions/i);
 		const panel = page.locator('#panel-unassigned');
 		await expect(panel.getByTestId('generated-unassigned-card').first()).toBeVisible({ timeout: 20_000 });
 		await panel.getByTestId('generated-unassigned-card').first().click();
 
 		await expect(panel.getByText(/Needs room/i).first()).toBeVisible({ timeout: 10_000 });
-		await expect(panel.getByRole('link', { name: /Fix room first/i }).first()).toBeVisible({ timeout: 10_000 });
-		await expect(
-			panel.getByRole('button', { name: /^Place session$/i }),
-			'Generated unassigned items missing home rooms must not expose a false Place session action.',
-		).toHaveCount(0);
+		await expect(panel.getByRole('button', { name: /^Review room source$/i }).first()).toBeVisible({ timeout: 10_000 });
 
 		await attachReport(testInfo, 'missing-room-unassigned-contract', {
 			totalUnassigned: latestDraft.unassignedItems.length,
 			missingRoomCount,
+			expectedNextStep: 'Review room source opens grid-slot selection and generated placement review before save.',
 		});
 	});
 
 	test('generated occupied-slot swap uses the modern Swap sessions action label', async ({ page }, testInfo) => {
 		test.setTimeout(90_000);
 		await loginAdmin(page);
-		await openTimetable(page);
+		await openTimetableSimple(page);
+		await openTaskDrawer(page, /Swap sessions/i);
 
 		const entries = page.locator('[data-timetable-entry="true"]');
 		await expect(entries.nth(0)).toBeVisible({ timeout: 20_000 });

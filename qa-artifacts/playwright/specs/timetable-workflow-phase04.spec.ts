@@ -127,7 +127,7 @@ test.describe.serial('Timetable Phase 4 first-load performance gates', () => {
 		await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 15_000 });
 		const tableVisibleMs = performance.now() - startedAt;
 
-		await expect(page.getByTestId('timetable-task-place')).toBeVisible({ timeout: 15_000 });
+		await expect(page.getByTestId('timetable-simple-primary-action')).toBeVisible({ timeout: 15_000 });
 		await expect(page.getByTestId('timetable-filters-trigger')).toBeVisible({ timeout: 15_000 });
 		const firstActionVisibleMs = performance.now() - startedAt;
 

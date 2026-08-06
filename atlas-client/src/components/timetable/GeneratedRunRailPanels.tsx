@@ -16,7 +16,6 @@ import {
 	X,
 	Zap,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 import atlasApi from '@/lib/api';
 import {
@@ -416,7 +415,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									renderUnassignedReasonBadge={renderUnassignedReasonBadge}
 								/>
 							)}
-							className="flex-1 min-h-[220px] overflow-auto px-3 pb-3"
+							className="flex-1 min-h-[220px] touch-pan-y overscroll-contain overflow-auto px-3 pb-3"
 							ariaLabel="Unassigned generated sessions"
 							overscan={5}
 						/>
@@ -556,7 +555,7 @@ function UnassignedRailRow({
 	const itemStatus = !item.facultyId
 		? { label: 'Needs owner', className: 'border-amber-200 bg-amber-50 text-amber-800' }
 		: !item.homeRoomId
-			? { label: 'Needs room', className: 'border-sky-200 bg-sky-50 text-sky-800' }
+			? { label: 'Pick room', className: 'border-sky-200 bg-sky-50 text-sky-800' }
 		: cachedFix === null
 			? { label: 'Still blocked', className: 'border-red-200 bg-red-50 text-red-800' }
 			: cachedFix?.suggestions?.length
@@ -565,15 +564,9 @@ function UnassignedRailRow({
 	const openPlacementFlow = () => {
 		setSelectedEntry(null);
 		setSelectedViolation(null);
-		setSelectedUnassignedForRepair(item);
-		openTacticalSandbox();
-		toast.info('Teaching Load repair opened. Fix the owner there, then place the session.');
-	};
-	const explainMissingRoom = () => {
-		setSelectedEntry(null);
-		setSelectedViolation(null);
-		setSelectedUnassignedForRepair(item);
-		toast.error('This session needs a section home room before it can be placed. Open Sections and assign a home room first.');
+		setSelectedUnassignedForRepair(null);
+		setKbSelectedSource({ type: 'unassigned', item });
+		toast.info('Session selected. Click a highlighted grid slot to review the placement.');
 	};
 
 	return (
@@ -705,16 +698,13 @@ function UnassignedRailRow({
 									if (isRoomMissing) {
 										return (
 											<Button
-												asChild
 												variant="outline"
 												size="sm"
 												className="h-10 px-3 text-xs gap-1.5 border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
-												onClick={explainMissingRoom}
+												onClick={openPlacementFlow}
 											>
-												<Link to={`/sections?sectionId=${item.sectionId}`}>
-													<Wand2 className="size-3" />
-													Fix room first
-												</Link>
+												<Wand2 className="size-3" />
+												Place session
 											</Button>
 										);
 									}

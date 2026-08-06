@@ -104,7 +104,7 @@ type CenterWorkspaceProps = {
 	subjectMap: Map<number, any>;
 	draftEntries: any[];
 	previewEdit: (proposal: any) => Promise<any>;
-	commitEdit: (proposal: any, allowSoftOverride?: boolean) => Promise<void>;
+	commitEdit: (proposal: any, allowSoftOverride?: boolean) => Promise<boolean>;
 	previewTeachingLoadRepair: (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	previewLoading: boolean;
@@ -136,12 +136,15 @@ type CenterWorkspaceProps = {
 	setPreGenOnboarding: (value: boolean) => void;
 	gridEntries: any[];
 	highlightedEntryIds: Set<string>;
+	teacherDepartureEntryIds?: Set<string>;
+	onReassignTeacher?: (entry: any) => void;
 	handleEntryClick: (entry: any) => void;
 	entryContextLabel: (entry: any) => string;
 	formatFacultyInitials: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
 	kbSelectedSource: any;
 	handleKbPlace: (day: string, startTime: string, endTime: string) => Promise<void>;
+	handleKbPlaceStart?: () => void;
 	getCellConflict: any;
 	getLiveCellConflict: any;
 	navToFaculty: (id: number) => void;
@@ -160,6 +163,7 @@ type CenterWorkspaceProps = {
 	dayShort: Record<string, string>;
 	tacticalSandboxOpen: boolean;
 	setTacticalSandboxOpen: (v: boolean) => void;
+	simpleMode?: boolean;
 };
 
 export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorkspaceProps) {
@@ -213,12 +217,15 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		setPreGenOnboarding,
 		gridEntries,
 		highlightedEntryIds,
+		teacherDepartureEntryIds,
+		onReassignTeacher,
 		handleEntryClick,
 		entryContextLabel,
 		formatFacultyInitials,
 		roomLabelShort,
 		kbSelectedSource,
 		handleKbPlace,
+		handleKbPlaceStart,
 		getCellConflict,
 		getLiveCellConflict,
 		navToFaculty,
@@ -237,20 +244,25 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		dayShort,
 		tacticalSandboxOpen,
 		setTacticalSandboxOpen,
+		simpleMode = false,
 	} = props;
 
 	const [sandboxFacultyByEntryId, setSandboxFacultyByEntryId] = useState<Map<string, number>>(new Map());
 	const [autoOpenedSandboxEntryId, setAutoOpenedSandboxEntryId] = useState<string | null>(null);
 	const [suppressedSandboxEntryId, setSuppressedSandboxEntryId] = useState<string | null>(null);
-	const [isCompactViewport, setIsCompactViewport] = useState(() => (
-		typeof window !== 'undefined' ? window.innerWidth < 1024 : false
-	));
+	const [viewport, setViewport] = useState(() => {
+		const width = typeof window !== 'undefined' ? window.innerWidth : 1366;
+		return { width, isCompact: width < 1024 };
+	});
 	const selectedEntryId = selectedEntry?.entryId ?? null;
 	const selectedUnassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
 	const activeSandboxKey = selectedEntryId ?? selectedUnassignedKey;
 
 	useEffect(() => {
-		const syncViewport = () => setIsCompactViewport(window.innerWidth < 1024);
+		const syncViewport = () => setViewport({
+			width: window.innerWidth,
+			isCompact: window.innerWidth < 1024,
+		});
 		syncViewport();
 		window.addEventListener('resize', syncViewport);
 		return () => window.removeEventListener('resize', syncViewport);
@@ -306,6 +318,15 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 	const shouldMountTacticalSandbox = tacticalSandboxOpen
 		|| sandboxFacultyByEntryId.size > 0
 		|| (centerView === 'schedule' && selectedUnassigned !== null);
+	const compactLeftDefaultSize = Math.max(
+		48,
+		Math.min(72, Math.max(34, Math.ceil((280 / Math.max(viewport.width, 1)) * 100))),
+	);
+	const centerDefaultSize = simpleMode
+		? 100
+		: viewport.isCompact
+			? Math.max(28, 100 - compactLeftDefaultSize)
+			: 50;
 
 	const applySandboxFaculty = useCallback((entryIds: string[], facultyId: number) => {
 		setSandboxFacultyByEntryId((previous) => {
@@ -335,7 +356,15 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 	}, [draft?.summary]);
 
 	return (
-		<ResizablePanel id="center-panel" order={2} defaultSize={isCompactViewport ? 40 : 60} className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background" data-tutorial="center-grid">
+		<ResizablePanel
+			id="center-panel"
+			order={2}
+			defaultSize={centerDefaultSize}
+			minSize={simpleMode ? 0 : viewport.isCompact ? 28 : 36}
+			className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background"
+			data-tutorial="center-grid"
+			data-testid="timetable-center-panel"
+		>
 			<AnimatePresence mode="wait">
 				{centerView === 'policy' ? (
 					<motion.div
@@ -576,6 +605,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										timeSlots={timeSlots}
 										violationIndex={violationIndex}
 										highlightedEntryIds={highlightedEntryIds}
+										teacherDepartureEntryIds={teacherDepartureEntryIds}
 										localSandboxChangedEntryIds={localSandboxChangedEntryIds}
 										localSandboxConflictEntryIds={localSandboxConflictEntryIds}
 										selectedEntry={selectedEntry}
@@ -593,11 +623,14 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										roomLabelShort={roomLabelShort}
 										kbSelectedSource={kbSelectedSource}
 										onKbPlace={handleKbPlace}
+										onKbPlaceStart={handleKbPlaceStart}
 										getCellConflict={getCellConflict}
 										getLiveCellConflict={getLiveCellConflict}
 										onNavToFaculty={navToFaculty}
 										onNavToSection={navToSection}
 										onNavToRoom={navToRoom}
+										onReassignTeacher={onReassignTeacher}
+										simpleMode={simpleMode}
 									/>
 								</div>
 							) : (

@@ -1,0 +1,151 @@
+{
+  "viewport": "1366x768",
+  "results": [
+    {
+      "id": "T01",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 3524,
+      "observed": "Setup readiness visible in 3483ms; first repair: Sections\n\n…\n\nEnrollment unavailable\n\nGeneration needs the current school-year sections before it can build classes.\n\nCheck sections; Setup readiness\n0 of 7 ready\n0/7\n\nSections loaded for school year\n\nEnrollment unavailable\n\nSubjects added\n\nTeachers synced from EnrollPro\n\nEvery subject has a teacher\n\nBuildings and rooms ready\n\nNo teaching buildings set up yet\n\nTimetable generated and reviewed\n\nReady to publish\n\nReview the timetabl"
+    },
+    {
+      "id": "T02",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 812,
+      "observed": "Sections workspace visible in 804ms; search=Search sections..."
+    },
+    {
+      "id": "T03",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1509,
+      "observed": "Subjects attention filter disclosed in 932ms; search=Search name or code..."
+    },
+    {
+      "id": "T04",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 2017,
+      "observed": "Teachers visible in 1160ms; Teaching Load route visible; repair links=26"
+    },
+    {
+      "id": "T05",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 943,
+      "observed": "Room readiness list visible in 922ms before map interpretation: Room readiness\n\nFix the items marked for attention before generating.\n\n98 Ready\n5 Unavailable\n\nLearning Commons\n\nAdmin and Learning Commons · 80 seats\n\nUnavailable\n\nGuidance Office\n\nAdmin and Learning Commons · 8 seats\n\nUnavailable\n\nPrincipal Office\n\nAdmin and"
+    },
+    {
+      "id": "T06",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1397,
+      "observed": "Simple timetable and next-step action visible in 1369ms: Start placing"
+    },
+    {
+      "id": "T07",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 2197,
+      "observed": "Unresolved workflow opened; list 447px viewport / 1630px content; wheel scrollTop=335; programmatic scrollTop=600; Place unresolved sessions\n\nChoose one session from the queue, then choose a green slot on the grid. ATLAS shows a review before saving.\n\nSTEP 1\n\nChoose a session\n\nSTEP 2\n\nChoose a green grid slot\n\n99+ unresolved\n76 block"
+    },
+    {
+      "id": "T08",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1177,
+      "observed": "Placement review opened and cancelled safely: Review generated placement\n\nLoading subject name... - Loading section name... - MONDAY 6:00 AM-6:45 AM. The teacher is locked from Teaching Load; only the room and slot are reviewed here.\n\nGenerated placement review opened.\nWHAT CHANGES\n\nThis unresolved session is placed into the selected timetable slot.\n\nTEACHING LOAD"
+    },
+    {
+      "id": "T09",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 3284,
+      "observed": "Simple legend count=1; Advanced legend=Status key\n6 states\nCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.; placement labels=Blocked, Warning; cell status attributes=warning, blocked; occupied labels=20; task help=No precision dragging required. Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class to open Revi"
+    },
+    {
+      "id": "T10",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 2229,
+      "observed": "Modern swap review opened and cancelled safely: Review occupied-slot swap\n\nLoading subject name... for Loading section name... will exchange times with Loading subject name... for Loading section name....\n\nChecking occupied-slot swap options.\n\nChecking options...\n\nCancel\nSwap sessions\nClose"
+    },
+    {
+      "id": "T11",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1815,
+      "observed": "Advanced then Simple reversible; advanced guide=NEXT TASK\n\nReview schedule\n\nReview schedule\n76 blocked\nPlace unassigned\n99+ to place\nSwitch sessions\nDraft planner\nReview room requests\n\nNo precision dragging required. Place: open"
+    },
+    {
+      "id": "T12",
+      "viewport": "1366x768",
+      "result": "Independent",
+      "timeMs": 1419,
+      "observed": "Safe backtrack leaves 0 dialog(s) and 0 save/commit action(s) exposed."
+    }
+  ],
+  "blockedWrites": [],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "apiFailures": [],
+  "overflow": {
+    "scrollHeight": 768,
+    "clientHeight": 768,
+    "scrollWidth": 1366,
+    "clientWidth": 1366
+  },
+  "accessibility": {
+    "undersized": [
+      {
+        "name": "ATLAS",
+        "width": 40,
+        "height": 20
+      }
+    ],
+    "disclosure": [
+      {
+        "name": "OofficerAdmin",
+        "expanded": "false",
+        "controls": null
+      },
+      {
+        "name": "More",
+        "expanded": "false",
+        "controls": null
+      },
+      {
+        "name": "Open timetable status key",
+        "expanded": "false",
+        "controls": "radix-_r_m_"
+      },
+      {
+        "name": "Why?",
+        "expanded": "false",
+        "controls": "radix-_r_n_"
+      }
+    ],
+    "activeElement": "<button class=\"group/button inline-flex shrink-0 items-center justify-center border bg-clip-padding whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ri"
+  },
+  "dialogFocus": [
+    {
+      "task": "T08",
+      "beforeTab": "Cancel",
+      "afterTab": "Close",
+      "afterEscape": "Timetable slot Mon 6:00 AM"
+    },
+    {
+      "task": "T10",
+      "beforeTab": "Cancel",
+      "afterTab": "Close",
+      "afterEscape": "Select Loading subject name... for Loading section name..., Tue 7:30 AM"
+    }
+  ],
+  "focusOrder": {
+    "activeLabel": "More",
+    "activeRole": "BUTTON"
+  },
+  "screenshotPath": "D:\\ATLAS\\qa-artifacts\\older-user-session-validation-codex\\desktop-final.png",
+  "evidenceType": "Browser proxy"
+}

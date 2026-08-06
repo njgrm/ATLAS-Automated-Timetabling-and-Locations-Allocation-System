@@ -120,14 +120,15 @@ function RightPanelImpl(props: RightPanelProps) {
 				ref={rightPanelRef}
 				id="right-panel"
 				order={3}
-				minSize={12}
-				maxSize={isDesktop ? 30 : 82}
-				defaultSize={isDesktop ? 20 : 72}
+				minSize={hasDetailContent ? (isDesktop ? 22 : 64) : (isDesktop ? 3 : 0)}
+				maxSize={isDesktop ? 34 : 82}
+				defaultSize={hasDetailContent ? (isDesktop ? 22 : 72) : (isDesktop ? 22 : 0)}
 				collapsible
 				collapsedSize={isDesktop ? 3 : 0}
 				onCollapse={() => setIsRightCollapsed(true)}
 				onExpand={() => setIsRightCollapsed(false)}
 				className="flex flex-col min-h-0 bg-background overflow-hidden border-l border-border"
+				data-testid="timetable-right-panel"
 			>
 				{isRightCollapsed ? (
 					<div className="flex flex-col items-center gap-2 pt-2 w-full h-full">

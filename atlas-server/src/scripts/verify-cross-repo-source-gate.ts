@@ -155,7 +155,7 @@ async function loginForToken(baseApiUrl: string, email: string, password: string
 	const response = await fetch(`${baseApiUrl.replace(/\/$/, '')}/auth/login`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email, password }),
+		body: JSON.stringify({ accountName: email, password }),
 	});
 
 	if (!response.ok) {

@@ -67,9 +67,34 @@ export function PublishedRevisionDialog({
 	sectionLabel,
 	facultyLabel,
 }: PublishedRevisionDialogProps) {
+	const revisionFeedback = revisionSuccess
+		? {
+			tone: 'good' as const,
+			message: `Revision #${revisionSuccess.revisionId} is scheduled. The original published schedule remains preserved.`,
+		}
+		: error
+			? {
+				tone: 'bad' as const,
+				message: `${error}${actionHint ? ` ${actionHint}` : ' Check the date and reason, then try again.'}`,
+			}
+			: submitting
+				? { tone: 'neutral' as const, message: 'Creating the published timetable revision now.' }
+				: revisionChanges.length === 0
+					? { tone: 'bad' as const, message: 'Choose a replacement teacher before creating a published revision.' }
+					: !effectiveDate || !reason.trim()
+						? { tone: 'warn' as const, message: 'Add an effective date and a short reason before creating the revision.' }
+						: { tone: 'good' as const, message: 'Ready to create a revision. ATLAS will keep the old published schedule for earlier dates.' };
+	const feedbackToneClass = revisionFeedback.tone === 'good'
+		? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+		: revisionFeedback.tone === 'bad'
+			? 'border-red-200 bg-red-50 text-red-800'
+			: revisionFeedback.tone === 'warn'
+				? 'border-amber-200 bg-amber-50 text-amber-900'
+				: 'border-border bg-muted/30 text-muted-foreground';
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-3xl gap-0 p-0">
+			<DialogContent className="isolate max-w-3xl gap-0 bg-background p-0 text-foreground shadow-2xl" data-testid="published-revision-dialog">
 				<DialogHeader className="border-b border-border px-5 py-4">
 					<div className="flex flex-wrap items-center gap-2">
 						<Badge className="h-5 px-2 text-xs">Timetable revision</Badge>
@@ -97,6 +122,12 @@ export function PublishedRevisionDialog({
 							<ShieldCheck className="mt-0.5 size-4 shrink-0" />
 							<p>This creates a future-dated revision record. It does not overwrite the published run that families and teachers may already have viewed.</p>
 						</div>
+					</div>
+					<div className="rounded-lg border border-border bg-card p-3" data-testid="published-revision-summary">
+						<p className="text-sm font-semibold text-foreground">What changes after this date?</p>
+						<p className="mt-1 text-sm text-muted-foreground">
+							{revisionChanges.length} class{revisionChanges.length === 1 ? '' : 'es'} will use the selected replacement teacher from the effective date forward. Earlier schedule history stays unchanged.
+						</p>
 					</div>
 					<div className="grid gap-2">
 						<div>
@@ -144,7 +175,7 @@ export function PublishedRevisionDialog({
 					<div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
 						<div className="space-y-1.5">
 							<label htmlFor="published-revision-effective-date" className="text-sm font-medium text-foreground">Effective date</label>
-							<Input id="published-revision-effective-date" type="date" value={effectiveDate} onChange={(event) => onEffectiveDateChange(event.target.value)} aria-describedby="published-revision-effective-date-help" />
+							<Input id="published-revision-effective-date" data-testid="published-teacher-departure-effective-date" type="date" value={effectiveDate} onChange={(event) => onEffectiveDateChange(event.target.value)} aria-describedby="published-revision-effective-date-help" />
 							<p id="published-revision-effective-date-help" className="text-xs text-muted-foreground">Choose tomorrow or a later school day.</p>
 						</div>
 						<div className="space-y-1.5">
@@ -161,7 +192,10 @@ export function PublishedRevisionDialog({
 						</div>
 					) : null}
 				</div>
-				<DialogFooter className="border-t border-border px-5 py-4">
+				<DialogFooter className="flex-col items-stretch gap-2 border-t border-border px-5 py-4 sm:flex-row sm:items-center">
+					<p className={`min-w-0 flex-1 rounded-md border px-2.5 py-2 text-xs ${feedbackToneClass}`} role="status" aria-live="polite" data-testid="published-revision-feedback">
+						{revisionFeedback.message}
+					</p>
 					<Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Close</Button>
 					<Button type="button" onClick={onSubmit} disabled={submitting || revisionChanges.length === 0 || Boolean(revisionSuccess)} className="gap-2">
 						{submitting ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}

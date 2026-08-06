@@ -28,9 +28,34 @@ model School {
   classTemplates             ClassTemplate[]
   specializationAliases      SpecializationAlias[]
   sectionMirrors             SectionMirror[]
+  enrollProSchoolYearMirrors EnrollProSchoolYearMirror[]
   publishedScheduleRevisions PublishedScheduleRevision[]
 
   @@map("schools")
+}
+
+model EnrollProSchoolYearMirror {
+  id                       Int       @id @default(autoincrement())
+  schoolId                 Int       @map("school_id")
+  enrollProSchoolYearId    Int       @map("enrollpro_school_year_id")
+  yearLabel                String    @map("year_label") @db.VarChar(32)
+  isActive                 Boolean   @default(false) @map("is_active")
+  lastVerifiedAt           DateTime? @map("last_verified_at")
+  lastSyncedAt             DateTime? @map("last_synced_at")
+  sourceEndpoint           String    @default("/api/integration/v1/school-year") @map("source_endpoint") @db.VarChar(200)
+  facultyCount             Int       @default(0) @map("faculty_count")
+  sectionCount             Int       @default(0) @map("section_count")
+  syncStatus               String    @default("pending") @map("sync_status") @db.VarChar(32)
+  lastFailureSummary       String?   @map("last_failure_summary") @db.VarChar(500)
+  lastSyncMetadata         Json?     @map("last_sync_metadata")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, enrollProSchoolYearId], map: "uq_enrollpro_school_year_mirror")
+  @@index([schoolId, isActive], map: "idx_enrollpro_school_year_mirror_active")
+  @@map("enrollpro_school_year_mirrors")
 }
 
 model SectionMirror {

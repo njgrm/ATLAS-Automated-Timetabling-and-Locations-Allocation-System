@@ -2,6 +2,8 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { openTimetableAdvanced } from './timetable-layout-helpers';
+
 const credentials = {
 	identifier: process.env.PLAYWRIGHT_ADMIN_EMAIL ?? '1000001',
 	password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? 'AdminSY2026!',
@@ -53,8 +55,7 @@ async function blockDestructiveTimetableWrites(page: Page) {
 }
 
 async function openTimetable(page: Page) {
-	await page.goto('/timetable', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-	await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 45_000 });
+	await openTimetableAdvanced(page);
 }
 
 test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofing gates', () => {
@@ -72,7 +73,7 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await expect(taskGuide).toBeVisible({ timeout: 10_000 });
 		await expect(help).toBeVisible({ timeout: 10_000 });
 		await expect(help).toContainText(/No precision dragging required/i);
-		await expect(help).toContainText(/Can place = empty slot\. Can swap = occupied slot\. Blocked = fix first\. Warning = review only\./i);
+		await expect(help).toContainText(/Can place = empty slot\. Can swap = occupied slot to review\. Blocked = fix first\. Warning = review before saving\. Occupied = already scheduled\. Current = selected session location\./i);
 
 		const taskButtons = [
 			page.getByTestId('timetable-task-review'),
@@ -129,11 +130,17 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		const generatedList = page.locator('[data-virtualized-rail="Unassigned generated sessions"]');
 		await expect(generatedList).toBeVisible({ timeout: 15_000 });
 		await generatedList.locator('[role="listitem"] button').first().click();
-		await generatedList.getByRole('button', { name: /^(Place session|Fix teaching load)$/i }).first().click();
-		const assignmentDialog = page.getByRole('dialog').filter({ hasText: /Fix Teaching Load Owner/i });
+		await generatedList.getByRole('button', { name: /^(Place session|Review room source|Fix teaching load)$/i }).first().click();
+		await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 10_000 });
+		const targetCell = page.locator('td[data-day][data-start-time][data-end-time]').filter({
+			hasNot: page.locator('[data-timetable-entry="true"]'),
+		}).first().or(page.locator('td[data-day][data-start-time][data-end-time]').first());
+		await targetCell.click({ position: { x: 8, y: 8 } });
+		const assignmentDialog = page.getByTestId('generated-placement-review-dialog');
 		await expect(assignmentDialog).toBeVisible({ timeout: 15_000 });
-		await expect(assignmentDialog).toContainText(/Choose a timetable slot/i);
-		await expect(assignmentDialog).toContainText(/Select Teaching Load owner/i);
+		await expect(assignmentDialog).toContainText(/Review generated placement/i);
+		await expect(assignmentDialog).toContainText(/Teaching Load owner/i);
+		await expect(assignmentDialog).toContainText(/Room source/i);
 		await page.keyboard.press('Escape');
 
 		await openTimetable(page);
@@ -153,12 +160,12 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		const draftQueueItem = page.locator('#panel-unassigned [role="button"]').first();
 		await expect(draftQueueItem).toBeVisible({ timeout: 10_000 });
 		await draftQueueItem.click();
-		const targetCell = page
+		const draftTargetCell = page
 			.locator('td[role="button"][data-day][data-start-time][data-end-time]')
 			.filter({ hasNot: page.locator('[data-timetable-entry="true"]') })
 			.first();
-		await expect(targetCell).toBeVisible({ timeout: 10_000 });
-		await targetCell.focus();
+		await expect(draftTargetCell).toBeVisible({ timeout: 10_000 });
+		await draftTargetCell.focus();
 		await page.keyboard.press('Enter');
 		const draftDialog = page.getByRole('dialog').filter({ hasText: /Review draft placement/i });
 		await expect(draftDialog).toBeVisible({ timeout: 15_000 });

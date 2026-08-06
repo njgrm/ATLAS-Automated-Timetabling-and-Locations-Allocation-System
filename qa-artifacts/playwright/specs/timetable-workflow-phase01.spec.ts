@@ -63,8 +63,14 @@ async function openGeneratedUnassignedRail(page: Page) {
 		await railTab.click();
 		return 'tab';
 	}
-	await page.getByTestId('timetable-task-place').click();
-	return 'task';
+	const advancedTask = page.getByTestId('timetable-task-place');
+	if (await advancedTask.isVisible().catch(() => false)) {
+		await advancedTask.click();
+		return 'advanced-task';
+	}
+	await page.getByRole('button', { name: /^More$/i }).click();
+	await page.getByRole('button', { name: /Place unresolved sessions/i }).click();
+	return 'simple-task';
 }
 
 test.describe.serial('Timetable Phase 0/1 workflow recovery gates', () => {
@@ -79,7 +85,15 @@ test.describe.serial('Timetable Phase 0/1 workflow recovery gates', () => {
 		await openTimetable(page);
 
 		const openedVia = await openGeneratedUnassignedRail(page);
-		const list = page.locator('[data-virtualized-rail="Unassigned generated sessions"]');
+		const tray = page.getByTestId('simple-plotting-tray');
+		await expect(tray).toBeVisible({ timeout: 15_000 });
+		await expect(tray.getByTestId('simple-plotting-session-row').first()).toBeVisible({ timeout: 10_000 });
+
+		const findButton = page.getByTestId('simple-plotting-find-session');
+		await expect(findButton).toBeVisible({ timeout: 10_000 });
+		await findButton.click();
+
+		const list = page.getByTestId('simple-plotting-scroll');
 		await expect(list).toBeVisible({ timeout: 15_000 });
 
 		const viewport = page.viewportSize();
@@ -92,25 +106,34 @@ test.describe.serial('Timetable Phase 0/1 workflow recovery gates', () => {
 		expect(beforeScroll.clientHeight, `Generated unassigned list viewport must be usable, not a one-line ${beforeScroll.clientHeight}px rail.`).toBeGreaterThanOrEqual(minimumUsableHeight);
 		expect(beforeScroll.scrollHeight, 'Generated unassigned list should contain scrollable content for this live run.').toBeGreaterThan(beforeScroll.clientHeight);
 
-		await list.hover();
-		await page.mouse.wheel(0, Math.max(240, Math.floor(beforeScroll.clientHeight * 0.75)));
+		await list.focus();
+		await page.keyboard.press('PageDown');
 		await expect.poll(async () => list.evaluate((node) => node.scrollTop), {
-			message: 'Generated unassigned virtual list should scroll when wheeled.',
+			message: 'Generated unassigned Find-session list should scroll with keyboard focus.',
 			timeout: 5_000,
 		}).toBeGreaterThan(0);
+		await list.evaluate((node) => {
+			node.scrollTop = 0;
+		});
 
 		const visibleUnassignedRow = list.locator('[role="listitem"] button').first();
 		await expect(visibleUnassignedRow).toBeVisible({ timeout: 10_000 });
 		await visibleUnassignedRow.click();
-		const placementAction = list.getByRole('button', { name: /^(Place session|Fix teaching load)$/i }).first();
+		const placementAction = list.getByRole('button', { name: /^(Place session|Review room source|Fix teaching load)$/i }).first();
 		await expect(placementAction).toBeVisible({ timeout: 10_000 });
 		await placementAction.click();
 
-		const placementSheet = page.getByRole('dialog').filter({ hasText: /Fix Teaching Load Owner/i });
+		await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 10_000 });
+		const targetCell = page.locator('td[data-day][data-start-time][data-end-time]').filter({
+			hasNot: page.locator('[data-timetable-entry="true"]'),
+		}).first().or(page.locator('td[data-day][data-start-time][data-end-time]').first());
+		await targetCell.click({ position: { x: 8, y: 8 } });
+
+		const placementSheet = page.getByTestId('generated-placement-review-dialog');
 		await expect(placementSheet).toBeVisible({ timeout: 15_000 });
-		await expect(placementSheet).toContainText(/Step 1: select the Teaching Load owner/i);
-		await expect(placementSheet).toContainText(/Select Teaching Load owner/i);
-		await expect(placementSheet).toContainText(/Choose a timetable slot/i);
+		await expect(placementSheet).toContainText(/Review generated placement/i);
+		await expect(placementSheet).toContainText(/Teaching Load owner/i);
+		await expect(placementSheet).toContainText(/Room source/i);
 
 		await attachReport(testInfo, 'generated-unassigned-placement', {
 			beforeScroll,

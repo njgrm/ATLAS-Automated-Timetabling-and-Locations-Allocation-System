@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 1000.7527999999993,
+  "metrics": {
+    "navigation": {
+      "duration": 121.19999999925494,
+      "domInteractive": 20.300000000745058,
+      "responseEnd": 8.300000000745058
+    },
+    "jsTransferBytes": 2800951,
+    "jsDecodedBytes": 5929366,
+    "jsFileCount": 142,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 6,
+        "baseDuration": 5.400000000372529,
+        "timestamp": 1785326244001
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 3.400000000372529,
+        "baseDuration": 3.5,
+        "timestamp": 1785326244019
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 3.5,
+        "timestamp": 1785326244020
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.700000001117587,
+        "baseDuration": 1.700000001117587,
+        "timestamp": 1785326244068
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 1.700000001117587,
+        "timestamp": 1785326244081
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 14,
+        "baseDuration": 12.500000001862645,
+        "timestamp": 1785326244133
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 52.79999999888241,
+        "baseDuration": 47.90000000409782,
+        "timestamp": 1785326244232
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 47.90000000409782,
+        "timestamp": 1785326244235
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.8999999985098839,
+        "baseDuration": 46.19999999552965,
+        "timestamp": 1785326244287
+      }
+    ]
+  }
+}

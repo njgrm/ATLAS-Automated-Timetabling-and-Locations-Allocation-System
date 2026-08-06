@@ -42,6 +42,13 @@ export function LeftRail({
 	pendingRequestCount,
 	children,
 }: LeftRailProps) {
+	const expandPanelForTask = () => {
+		panelRef.current?.expand();
+		if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+			panelRef.current?.resize(72);
+		}
+	};
+
 	return (
 		<ViolationsSidebar panelRef={panelRef as any} onCollapseChange={onCollapseChange} isDesktop={isDesktop}>
 			{isCollapsed ? (
@@ -49,7 +56,7 @@ export function LeftRail({
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => panelRef.current?.expand()} aria-label="Expand left panel">
+								<Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={expandPanelForTask} aria-label="Expand left panel">
 									<PanelLeftOpen className="size-4" />
 								</Button>
 							</TooltipTrigger>
@@ -58,7 +65,7 @@ export function LeftRail({
 						<Separator />
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('violations'); }}>
+								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { expandPanelForTask(); setLeftTab('violations'); }}>
 									<ShieldAlert className="size-4 text-muted-foreground" />
 									{violationsCount > 0 && !isPreGenerationWorkspace && (
 										<span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-xs font-bold leading-none text-white">{violationsCount}</span>
@@ -69,7 +76,7 @@ export function LeftRail({
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('unassigned'); }}>
+								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { expandPanelForTask(); setLeftTab('unassigned'); }}>
 									<AlertTriangle className="size-4 text-muted-foreground" />
 									{unassignedCount > 0 && !isPreGenerationWorkspace && (
 										<span className="absolute -right-1 -top-1 rounded-full bg-amber-500 px-1 text-xs font-bold leading-none text-white">{unassignedCount}</span>
@@ -81,7 +88,7 @@ export function LeftRail({
 						{isPreGenerationWorkspace && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('pinned'); }}>
+									<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { expandPanelForTask(); setLeftTab('pinned'); }}>
 										<Lock className="size-4 text-muted-foreground" />
 									</Button>
 								</TooltipTrigger>
@@ -90,7 +97,7 @@ export function LeftRail({
 						)}
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('requests'); }}>
+								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { expandPanelForTask(); setLeftTab('requests'); }}>
 									<ClipboardList className="size-4 text-muted-foreground" />
 									{pendingRequestCount > 0 && (
 										<span className="absolute -right-1 -top-1 rounded-full bg-blue-600 px-1 text-xs font-bold leading-none text-white">{pendingRequestCount}</span>
@@ -119,7 +126,7 @@ export function LeftRail({
 								<PanelLeftClose className="size-4" />
 							</Button>
 						</div>
-						<div className="flex" role="tablist" aria-label="Needs attention panels">
+						<div className="grid min-w-0 grid-cols-3 overflow-hidden" role="tablist" aria-label="Needs attention panels">
 						<Button
 							id="tab-violations"
 							type="button"
@@ -130,14 +137,14 @@ export function LeftRail({
 							aria-controls="panel-violations"
 							hidden={isPreGenerationWorkspace}
 							onClick={() => setLeftTab('violations')}
-							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
+							className={`h-7 min-w-0 overflow-hidden rounded-none px-1 py-1 text-center xl:h-8 xl:px-2 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 								leftTab === 'violations'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
 							}`}
 						>
-							Violations
-							<span className="ml-1 text-xs opacity-70">{violationsCount}</span>
+							<span className="min-w-0 truncate">Violations</span>
+							<span className="ml-1 shrink-0 text-xs opacity-70">{violationsCount}</span>
 						</Button>
 						<Button
 							id="tab-unassigned"
@@ -148,15 +155,15 @@ export function LeftRail({
 							aria-selected={leftTab === 'unassigned'}
 							aria-controls="panel-unassigned"
 							onClick={() => setLeftTab('unassigned')}
-							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
+							className={`h-7 min-w-0 overflow-hidden rounded-none px-1 py-1 text-center xl:h-8 xl:px-2 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 								leftTab === 'unassigned'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
 							}`}
 						>
-							Unassigned
+							<span className="min-w-0 truncate">Unassigned</span>
 							{unassignedCount > 0 && !isPreGenerationWorkspace && (
-								<span className="ml-1 text-xs text-amber-600 font-semibold">{unassignedCount}</span>
+								<span className="ml-1 shrink-0 text-xs text-amber-600 font-semibold">{unassignedCount}</span>
 							)}
 						</Button>
 						{isPreGenerationWorkspace && (
@@ -169,14 +176,14 @@ export function LeftRail({
 								aria-selected={leftTab === 'pinned'}
 								aria-controls="panel-pinned"
 								onClick={() => setLeftTab('pinned')}
-							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
+							className={`h-7 min-w-0 overflow-hidden rounded-none px-1 py-1 text-center xl:h-8 xl:px-2 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 									leftTab === 'pinned'
 										? 'text-foreground border-b-2 border-primary'
 										: 'text-muted-foreground hover:text-foreground'
 								}`}
 							>
-								<Lock className="inline size-3 mr-0.5 -mt-px" />
-								Pinned
+								<Lock className="mr-0.5 size-3 shrink-0" />
+								<span className="min-w-0 truncate">Pinned</span>
 							</Button>
 						)}
 						<Button
@@ -188,16 +195,16 @@ export function LeftRail({
 							aria-selected={leftTab === 'requests'}
 							aria-controls="panel-requests"
 							onClick={() => setLeftTab('requests')}
-							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
+							className={`h-7 min-w-0 overflow-hidden rounded-none px-1 py-1 text-center xl:h-8 xl:px-2 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 								leftTab === 'requests'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
 							}`}
 						>
-							<ClipboardList className="inline size-3 mr-0.5 -mt-px" />
-							Requests
+							<ClipboardList className="mr-0.5 size-3 shrink-0" />
+							<span className="min-w-0 truncate">Requests</span>
 							{pendingRequestCount > 0 && (
-								<span className="ml-1 text-xs text-blue-700 font-semibold">{pendingRequestCount}</span>
+								<span className="ml-1 shrink-0 text-xs text-blue-700 font-semibold">{pendingRequestCount}</span>
 							)}
 						</Button>
 						</div>

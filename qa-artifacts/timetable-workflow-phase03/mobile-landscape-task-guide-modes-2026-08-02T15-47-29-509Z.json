@@ -1,0 +1,16 @@
+{
+  "taskNames": [
+    "Review schedule",
+    "Place unassigned",
+    "Switch sessions",
+    "Draft planner",
+    "Review room requests"
+  ],
+  "simplePromptVisible": true,
+  "unassignedPanelHeight": 220,
+  "scrollMetrics": {
+    "scrollHeight": 390,
+    "clientHeight": 390,
+    "overflow": "visible"
+  }
+}

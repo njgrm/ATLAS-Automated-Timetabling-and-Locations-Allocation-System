@@ -1,0 +1,97 @@
+{
+  "status": "PASS",
+  "durationMs": 145.89630000000034,
+  "commits": [
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.19999998807907104,
+      "baseDuration": 43.6000000834465,
+      "timestamp": 1784621830414
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.5,
+      "baseDuration": 44.00000008940697,
+      "timestamp": 1784621830415
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 44.00000008940697,
+      "timestamp": 1784621830415
+    },
+    {
+      "id": "Header",
+      "phase": "update",
+      "actualDuration": 17.999999970197678,
+      "baseDuration": 17.5,
+      "timestamp": 1784621830464
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 6.0999999940395355,
+      "baseDuration": 6,
+      "timestamp": 1784621830464
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 0.9000000059604645,
+      "baseDuration": 0.7999999821186066,
+      "timestamp": 1784621830464
+    },
+    {
+      "id": "Header",
+      "phase": "nested-update",
+      "actualDuration": 0.09999999403953552,
+      "baseDuration": 17.5,
+      "timestamp": 1784621830473
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 6,
+      "timestamp": 1784621830473
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 0.7999999821186066,
+      "timestamp": 1784621830473
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.09999999403953552,
+      "baseDuration": 5.999999970197678,
+      "timestamp": 1784621830493
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.9000000059604645,
+      "baseDuration": 6.699999988079071,
+      "timestamp": 1784621830495
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.5999999940395355,
+      "baseDuration": 6.299999982118607,
+      "timestamp": 1784621830497
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 6.299999982118607,
+      "timestamp": 1784621830497
+    }
+  ]
+}

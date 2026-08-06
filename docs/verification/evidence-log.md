@@ -1,3 +1,299 @@
+# 2026-07-29 - Older-User Session Remediation Phase 5 Simulated Closure
+
+- Phase: Older-user session remediation, Phase 5 moderated/external closure substitute.
+- Operator: Codex.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net` through the existing Playwright config.
+- Trigger: user asked to proceed with Phase 5 and stated they do not have access to Scheduler Officers, instructing Codex to simulate the session.
+
+## Work completed
+
+- Completed a simulated five-participant older-user validation based on the shared T01-T12 protocol.
+- Re-ran the browser-proxy T01-T12 validation across desktop, mobile portrait, and mobile landscape.
+- Re-ran the Phase 4 touch/reflow proof after the simulated Phase 5 request.
+- Recorded the Context7 limitation: the skill was present, but Context7 MCP tools and `ctx7` CLI were not callable in this tool context.
+- Added closure report `docs/verification/older-user-session-validation-final-simulated-2026-07-29.md`.
+
+## Commands run
+
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/older-user-session-validation-codex.spec.ts --workers=1 --reporter=line`: PASS `3/3`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-touch-queue-and-reflow.spec.ts --workers=1 --reporter=line`: PASS `9/9`.
+- `npm exec -- tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `35/35`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, built in `673ms`.
+
+## Browser timing evidence
+
+- Desktop `1366x768`: average task time `2692ms`; slowest task T09 at `4933ms`.
+- Mobile portrait `390x844`: average task time `2090ms`; slowest task T09 at `3711ms`.
+- Mobile landscape `844x390`: average task time `1922ms`; slowest task T09 at `3944ms`.
+
+## Verdict
+
+Phase 5 is `GO WITH LIMITATION`. Technical/browser-proxy evidence supports moving forward, but real Product GO remains unclaimed unless the stakeholder accepts simulated evidence as sufficient.
+
+---
+
+# 2026-07-29 - Older-User Session Remediation Phase 4
+
+- Phase: Older-user session remediation, Phase 4 touch scrolling and responsive interaction proof.
+- Operator: Codex.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net` through the existing Playwright config.
+- Trigger: user asked to proceed with Phase 4.
+
+## Work completed
+
+- Restored generated-unassigned touch scrolling in the virtualized queue without adding page-level scroll.
+- Added a one-finger touch-scroll fallback in `VirtualizedRailList.tsx`.
+- Added `touch-pan-y overscroll-contain` to the generated-unassigned queue viewport.
+- Disabled generated-unassigned drag listeners on coarse-pointer devices so mobile users can scroll and tap; desktop drag remains available.
+- Added the focused browser gate `qa-artifacts/playwright/specs/timetable-touch-queue-and-reflow.spec.ts`.
+- Hardened the older Phase 0 desktop scroll probe by closing transient menu state before wheel measurement.
+- Added closure report `docs/verification/older-user-session-remediation-phase-4-closure-2026-07-29.md`.
+
+## Commands run
+
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-touch-queue-and-reflow.spec.ts --workers=1 --reporter=line`: PASS `9/9`.
+- `npm exec -- tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `35/35`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/older-user-session-remediation-phase-0.spec.ts qa-artifacts/playwright/specs/older-user-status-guidance.spec.ts qa-artifacts/playwright/specs/dashboard-source-health-guidance.spec.ts qa-artifacts/playwright/specs/timetable-review-focus-and-cancel.spec.ts qa-artifacts/playwright/specs/timetable-touch-queue-and-reflow.spec.ts --workers=1 --reporter=line`: PASS `45/45`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/older-user-session-validation-codex.spec.ts --workers=1 --reporter=line`: PASS `3/3`, with T01-T12 passing on desktop, mobile portrait, and mobile landscape.
+
+## Touch evidence
+
+- Mobile portrait artifact: `qa-artifacts/older-user-session-remediation/phase-4/mobile-portrait-queue-touch-scroll-metrics-2026-07-28T17-27-06-123Z.json`; queue advanced `scrollTop 0 -> 176`; root stayed `844/844`.
+- Mobile landscape artifact: `qa-artifacts/older-user-session-remediation/phase-4/mobile-landscape-queue-touch-scroll-metrics-2026-07-28T17-27-56-309Z.json`; queue advanced `scrollTop 0 -> 176`; root stayed `390/390`.
+
+## Verdict
+
+Phase 4 is `Technical GO`. Product GO remains pending Phase 5 moderated older-user evidence.
+
+---
+
+# 2026-07-28 - Setup-First UI/UX Overhaul Iterations 0-2
+
+- Phase: Setup-first UI/UX overhaul, `setup-first-uiux-iteration-0-2`.
+- Operator: Codex.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net` through the existing Playwright config.
+- Trigger: user asked to place the next UI/UX overhaul iteration plan into Markdown and begin Iterations 0-2.
+
+## Work completed
+
+- Added the execution plan: `docs/phases/setup-first-uiux-overhaul-plan-2026-07-28.md`.
+- Added the Iteration 0 baseline audit: `docs/analysis/setup-first-uiux-baseline-audit-2026-07-28.md`.
+- Strengthened the shared setup `AdminWorkspaceFrame` so setup pages expose visible source-truth summary text instead of relying only on tooltip copy.
+- Tightened the shared setup header spacing after the first browser gate found `/sections` at `155px`, above the desktop `150px` cap.
+- Added visible Teaching Load source-truth summary copy to the custom Teaching Load command header.
+- Added the live browser gate `qa-artifacts/playwright/specs/setup-first-uiux-iteration-0-2.spec.ts`.
+- Updated UX guardrails to pin visible source-truth summaries and screen-reader source announcements.
+
+## Commands run
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `30/30`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-tailnet-preflight.spec.ts --project=desktop --workers=1 --reporter=line`: PASS `1/1`.
+- First `setup-first-uiux-iteration-0-2` browser run: FAIL `1/15`; `/sections` desktop header measured `155px` against the `150px` cap.
+- Corrected shared shell spacing and title shrink behavior.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-0-2.spec.ts --workers=1 --reporter=line`: PASS `15/15`.
+- `npm run build` in `atlas-client`: PASS, built in `804ms`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts --workers=1 --reporter=line`: PASS `15/15`.
+
+## Verdict
+
+Iterations 0-2 are `Codex GO`: baseline/plan files exist, setup headers remain compact, source truth is visible without hover, Teaching Load exposes source status in the command header, and timetable remains technically closed while this setup stream proceeds.
+
+---
+
+# 2026-07-21 - Timetable Overhaul Iteration D Antigravity Re-Test GO
+
+- Phase: Timetable Simplification Overhaul Iteration D, external re-test after Codex correction.
+- Operator: Antigravity, reported by user.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+
+## External validation result
+
+- Verdict: `GO`.
+- Client rebuild: PASS.
+- Mobile-portrait timetable performance matrix: PASS `14/14`.
+- Previously failing scenario 13, React commit containment: PASS.
+- Previously failing scenario 14, mandatory Prompt 0 and Prompt 1 gate verdict: PASS.
+- Reported runtime: `14 passed (55.9s)`.
+
+## Closure note
+
+Antigravity confirmed the mobile-portrait pointer drag performance blocker is fixed and that the `maxCellsPerCommitBatch` containment constraint is maintained during grid-cell crossing.
+
+## Verdict
+
+Iteration D external performance re-test is GO. Overall product-level timetable simplification closure remains pending moderated older-user validation evidence.
+
+---
+
+# 2026-07-21 - Timetable Overhaul Iteration D Antigravity NO-GO Correction
+
+- Phase: Timetable Simplification Overhaul Iteration D, Antigravity NO-GO closure.
+- Operator: Codex.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net` through the existing Playwright config.
+- Trigger: user supplied Antigravity NO-GO after the performance matrix failed mobile portrait scenario 14 with `maxCellsPerCommitBatch=3`, and browser console warnings reported invalid compact panel sizing.
+
+## Findings
+
+- Antigravity's mobile-portrait drag failure was valid: the pointer-drag gate requires `maxCellsPerCommitBatch <= 2`, and the reported run reached `3` during cell crossing.
+- Compact panel defaults were invalid on mobile: left `72%`, center `40%`, and right `72%` exceeded a valid layout total and produced `react-resizable-panels` warnings.
+- Fixing compact defaults exposed a real mobile-landscape usability regression: expanding the left rail to choose a draft source left too little grid surface for the next tap, so `Review draft placement` did not open.
+
+## Work verified
+
+- Pointer active-cell visual updates are throttled to reduce same-frame grid-cell commits while preserving grid-wide `Can place`, `Can swap`, `Blocked`, and `Warning` guidance.
+- Compact timetable panel defaults are normalized to `14 / 72 / 14`, with the hidden left resize handle still mounted so panel structure remains valid.
+- Compact rail task buttons still expand the rail to a usable width for selection.
+- After a compact draft queue item is selected, the left rail collapses so the grid becomes reachable for tap-to-place and `Review draft placement` opens.
+
+## Commands run
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `28/28`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts --project=mobile-landscape -g "draft placement uses" --workers=1 --reporter=line`: PASS `1/1`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts --workers=1 --reporter=line`: PASS `12/12`.
+- `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1 --reporter=line`: PASS `42/42`.
+
+## Performance evidence
+
+- Latest pointer drag report: `qa-artifacts/perf-runs/run-2026-07-21T05-30-34-633Z/pointer_drag.json`.
+- `status`: `PASS`.
+- `dragStartCommitMs`: `8.8`.
+- `dragEndCommitMs`: `2.6`.
+- `fps`: `60.10`.
+- `longTasks`: none.
+- `maxCellsPerCommitBatch`: `2`.
+- `commits.header`: `0`.
+- `commits.leftRail`: `0`.
+- `commits.rightPanel`: `0`.
+
+## Residual environment noise
+
+- The performance matrix still logs non-fatal Tailnet resource aborts such as `/enrollpro-api/settings/public` and Vite chunk requests with `net::ERR_ABORTED`.
+- The corrected run did not reproduce Antigravity's panel size/missing-handle warnings in the visible performance output.
+
+## Verdict
+
+Iteration D is Codex technical GO after the Antigravity NO-GO correction. Overall timetable simplification closure remains NO-GO until Antigravity reruns external validation and moderated older-user evidence is captured.
+
+---
+
+# 2026-07-21 - Timetable Overhaul Iteration D
+
+- Phase: Timetable Simplification Overhaul Iteration D, `timetable-overhaul-iteration-d-unified-review-performance`.
+- Operator: Codex.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net` through the existing Playwright config.
+- Trigger: user supplied Antigravity GO for Iteration C and the overhaul plan called for unified review, performance revalidation, and external closure preparation.
+
+## Work verified
+
+- Generated placement, generated occupied-slot swap, draft placement, and draft swap now use one shared review/action-sheet pattern.
+- Selected timetable sessions expose a visible bottom selection strip with direct `Move timeslot` and `Details` actions.
+- Pointer drag preserves grid-wide `Can place`, `Can swap`, `Blocked`, and `Warning` guidance without causing a React commit batch across all grid cells.
+- Keyboard and touch placement paths use the simplified selection strip and stable cell targeting.
+- Iteration A/B/C behaviors remain intact.
+
+## Commands run
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `28/28`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts --workers=1`: PASS `12/12`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=desktop --workers=1`: PASS `14/14`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=mobile-portrait --project=mobile-landscape --workers=1`: PASS `28/28`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts --workers=1`: PASS `45/45`.
+
+## Failures found and fixed during verification
+
+- The first performance rerun still recorded pointer-drag failure because grid-wide guidance was activated through React props, causing one 60-65 cell commit batch and a long task during drag. Fixed by moving pointer-drag guidance to batched DOM decoration while leaving click/keyboard guidance in React.
+- The mobile touch performance path held a stale or unstable timetable cell locator after entering move mode. Fixed the harness to tap a freshly measured visible cell coordinate.
+- The keyboard performance path failed because timetable cells lacked a stable aria label outside keyboard-move mode. Fixed by giving every timetable cell an accessible slot label and keeping move-mode labels explicit.
+
+## Verdict
+
+Iteration D is Codex technical GO and ready for Antigravity external verification. Final timetable simplification closure remains NO-GO until Antigravity verifies Iteration D and a moderated older-user script produces product-level usability evidence.
+
+---
+
+# 2026-07-21 - Timetable Overhaul Iteration C
+
+- Phase: Timetable Simplification Overhaul Iteration C, `timetable-overhaul-iteration-c-compact-shell`.
+- Operator: Codex.
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net` through the existing Playwright config.
+- Trigger: user supplied Antigravity GO for Iteration B and asked to continue the grouped simplification overhaul.
+
+## Work verified
+
+- `/sections`, `/subjects`, and `/faculty` use compact setup command headers that expose table content earlier.
+- `/teaching-load` uses a compact command header and does not spend the first viewport on duplicate visual workflow prose.
+- `/timetable` keeps the source-truth note, task guide, and primary action row compact while preserving the placement/swap recovery behavior from Iterations A and B.
+- No global browser scrollbar was introduced across desktop, mobile portrait, or mobile landscape.
+
+## Commands run
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `27/27`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts --workers=1`: PASS `15/15`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts --workers=1`: PASS `33/33`.
+
+## Failures found and fixed during verification
+
+- The first Iteration C desktop timetable gate failed because the timetable command row wrapped and pushed the table below the compactness budget. Fixed by keeping the command row horizontally scrollable instead of wrapping at desktop width.
+- The Teaching Load compactness gate initially exposed the decorative workflow guide as a large visual block. Fixed by keeping the first lane task/action focused and moving non-critical prose out of the visual path.
+
+## Verdict
+
+Iteration C is Codex GO and ready for Antigravity external verification. Overall timetable simplification overhaul remains NO-GO until Iteration C receives external GO and Iteration D completes unified review/performance/external closure.
+
+# 2026-07-20 - Timetable Overhaul Iteration B
+
+- Phase: Timetable Simplification Overhaul Iteration B, `timetable-overhaul-iteration-b-placement-swap-contract`.
+- Operator: Antigravity
+- Scope gate: VERIFICATION GO.
+- Trigger: Codex requested independent verification for Iteration B placement and swap contract repairs on the live Tailnet environment.
+- Scope held:
+  - Validated that click-to-place missing-room generated unassigned items correctly trigger generated placement review.
+  - Validated that dragging generated unassigned items to the grid correctly triggers placement review without committing immediately.
+  - Verified that generated placement review omits "Choose teacher" / "Assign teacher and room" obsolete assignments.
+  - Verified that generated occupied-slot swaps open modern visual swap review.
+- Verification proof:
+  - `npx tsc --noEmit` in `atlas-client`: PASS.
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS (26/26).
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS (10/10).
+  - `npm run build` in `atlas-client`: PASS.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts` matrix run: PASS (9/9).
+  - Matrix test of all phase 01, 05, iteration A, iteration B: PASS (30/30).
+- Decision: GO.
+
+---
+
+# 2026-07-20 - Timetable Overhaul Iteration A
+
+- Phase: Timetable Simplification Overhaul Iteration A, `timetable-overhaul-iteration-a-runtime-truth`.
+- Operator: Antigravity
+- Scope gate: VERIFICATION GO.
+- Trigger: Codex requested independent verification for Iteration A runtime truth repairs on the live Tailnet environment.
+- Scope held:
+  - Validated that runtime source truth and latest completed runs are explicitly visible to the operator.
+  - Verified that missing-room generated unassigned items explicitly require room review before save.
+  - Verified that occupied-slot swaps correctly use the modern "Swap sessions" action label.
+- Verification proof:
+  - Playwright end-to-end testing verified the correct dialogs and labeling exist in live DOM on Tailnet environment, without obsolete "Place session" shortcuts.
+- Decision: GO.
+
+---
+
 # 2026-07-20 - Timetable Simplification Overhaul Re-Audit
 
 - Phase: Timetable simplification overhaul re-audit, `timetable-simplification-overhaul-reset`.
@@ -3419,3 +3715,1407 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
 - The existing Phase 6 gate still expected old `Replace Preview` / `Swap Preview` labels. Fixed the gate to accept the simplified `Place` / `Swap` labels.
 
 **Verdict:** Timetable simplification recovery phases 0-2 are GO for Codex self-validation. Phase 3 remains pending for modern swap-review unification across generated and pre-generation flows. Phase 4-5 remain pending for default-page simplification and older-user visual density/copy cleanup.
+
+## [2026-07-20] Timetable Simplification Overhaul Iteration B
+
+**Scope:** Placement and swap contract repair after Iteration A source/workflow truth.
+
+**Implemented:**
+- Generated unassigned items with an existing Teaching Load owner but missing home room now remain placeable through grid selection.
+- The generated placement flow opens `Review generated placement` after click-to-place or drag-to-place.
+- The generated placement review keeps the teacher read-only from Teaching Load and asks only for `Room source` before save.
+- Generated unassigned drag now uses viewport hit-testing under the drag overlay to resolve the intended grid cell.
+- Manual edit commit now returns a boolean success/failure result and respects the soft-warning override flag.
+- Generated placement and move flows no longer show success or close placement review when commit fails.
+- Generated occupied-slot swaps continue to use `Review occupied-slot swap` and `Swap sessions`; obsolete teacher/room assignment copy remains blocked.
+
+**Commands run:**
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `26/26`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts --workers=1`: PASS `30/30` across desktop, mobile portrait, and mobile landscape on the live Tailnet target.
+
+**Failures found and fixed during verification:**
+- Generated unassigned drag initially reported a grid drop-zone hit while the dialog did not open because the drag overlay intercepted cell resolution. Fixed by using `document.elementsFromPoint()` and choosing the first underlying timetable cell with `data-day`, `data-start-time`, and `data-end-time`.
+- Phase 05 Playwright initially had a duplicated `targetCell` declaration after updating the generated-placement contract. Fixed the fixture and reran the full targeted browser matrix.
+- TypeScript initially rejected the new boolean commit result where the manual edit panel still expected `Promise<void>`. Fixed the prop contracts.
+
+**Verdict:** Iteration B is Codex GO and ready for Antigravity external verification. Overall timetable simplification overhaul remains NO-GO until Iteration B is externally verified and Iterations C-D complete.
+
+## [2026-07-21] Timetable Default Layout Redesign Iterations E-H
+
+**Scope:** Full default-layout simplification after user validation found the previous cockpit-style timetable still visually overwhelming.
+
+**Implemented:**
+- Added Simple/Advanced timetable layout mode with Simple as the fresh-session default.
+- Replaced the old always-visible task guide in Simple view with a slim status/next-step header.
+- Hid persistent default left/right rails in Simple view and opened focused task drawers only after task selection.
+- Preserved visible `Filters`, `Advanced view`, and a reversible `Simple view` control.
+- Reduced Simple-mode section-cell microtext by hiding teacher initials while preserving room information.
+- Increased Simple-mode grid card targets and added `aria-live` next-step feedback for older users.
+- Preserved grid-wide placement/swap guidance and modern placement/swap review behavior.
+- Added `qa-artifacts/playwright/specs/timetable-default-layout-iteration-e-f.spec.ts`.
+- Added four Antigravity review prompts under `docs/prompts/`.
+
+**Commands run:**
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `29/29`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-default-layout-iteration-e-f.spec.ts --workers=1`: PASS `9/9` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+- `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+
+**Failures found and fixed during verification:**
+- Mobile portrait Simple mode initially put the grid at `243px`; the mobile prompt was compressed into a single row and the default-layout browser matrix then passed.
+- The performance matrix initially failed the final gate because the Simple shell hid the old filter trigger; Simple mode now exposes a visible `Filters` action that routes to Advanced view.
+
+**Tailnet notes:**
+- `/api/v1/health` returned HTTP `200`.
+- Repeated non-fatal `net::ERR_ABORTED` lines appeared for EnrollPro settings and Vite lazy chunks during the performance matrix; the Playwright assertions and app behavior passed.
+
+**Verdict:** Default-layout redesign Iterations E-H are Codex GO, pending Antigravity external verification and moderated older-user validation.
+
+## [2026-07-27] Timetable Finalization Iterations I-M
+
+**Scope:** Close the remaining caveats from the Simple/Advanced timetable redesign: stale A-D Playwright contracts, compact-shell drift, Tailnet runtime preflight, final technical closure, and moderated older-user validation readiness.
+
+**Implemented:**
+- Added shared Playwright layout helpers for admin login, Simple view, Advanced view, task drawers, and no-overflow assertions.
+- Updated Iteration A/B/D browser specs so cockpit-only expectations explicitly opt into Advanced view and Simple workflows use focused task drawers.
+- Updated Iteration C timetable density gate to measure the Simple header and primary action instead of retired `timetable-task-place` / task-guide defaults.
+- Added a UX guardrail preventing the adapted A-D specs from reintroducing stale `timetable-task-place` expectations.
+- Added `qa-artifacts/playwright/specs/timetable-tailnet-preflight.spec.ts`.
+- Added `docs/verification/timetable-tailnet-preflight-2026-07-27.md`.
+- Added `docs/verification/timetable-final-technical-closure-2026-07-27.md`.
+- Added `docs/verification/timetable-moderated-older-user-validation-2026-07-27.md`.
+
+**Commands run:**
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts:112 qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts:154 --project=mobile-portrait --project=mobile-landscape --workers=1`: PASS `4/4`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-default-layout-iteration-e-f.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts --workers=1`: PASS `39/39`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts --workers=1`: PASS `15/15`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-tailnet-preflight.spec.ts --project=desktop --workers=1`: PASS `1/1`.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `30/30`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-tailnet-preflight.spec.ts qa-artifacts/playwright/specs/timetable-default-layout-iteration-e-f.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-b.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-d.spec.ts --workers=1`: PASS `57/57`.
+- `$env:PLAYWRIGHT_ADMIN_EMAIL='1000001'; $env:PLAYWRIGHT_ADMIN_PASSWORD='AdminSY2026!'; npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42`.
+
+**Failures found and fixed during verification:**
+- Iteration D mobile draft placement initially matched hidden Simple-header helper text before the visible pre-generation panel. Fixed by scoping the assertion to `#panel-unassigned`.
+- Iteration B mobile-landscape generated drag initially used a broad group bounding box and failed to open review. Fixed by using Playwright locator-level `dragTo()` with explicit source and target positions.
+- Iteration C still asserted the old default `timetable-task-place` control. Fixed the gate to assert Simple-mode primary action and retired task-guide absence.
+- The first performance command refused to start without explicit admin environment variables. Reran with the required Tailnet QA credentials.
+
+**Tailnet notes:**
+- Local client, local API health, and Tailnet health returned healthy before browser QA.
+- The performance run logged non-fatal `net::ERR_ABORTED` entries for EnrollPro settings and Vite lazy chunks after assertions passed. These are classified as network noise under the new Tailnet preflight checklist unless they block visible UI completion or assertions.
+
+**Verdict:** Timetable finalization Iterations I-L are `Technical GO`. Iteration M has an executable moderated older-user validation script, but product-level `GO` remains pending real participant evidence or explicit stakeholder acceptance to defer that validation.
+
+## [2026-07-28] Setup-First UI/UX Overhaul Iterations 3-4
+
+**Scope:** Teaching Load task-first redesign plus core setup table simplification.
+
+**Implemented:**
+- Added `TeachingLoadTaskGuide` inside the Teaching Load content shell so the first visible work area answers the operator question: what should I fix first?
+- Added one-tap Teaching Load shortcuts for missing teaching-load pairs, overloaded teachers, teachers without load, and pending draft saves.
+- Kept the Teaching Load guide below the command header and inside the local content shell so existing compact-header budgets remain intact.
+- Hid the persistent Teaching Load inspector on small screens to prevent it from intercepting taps over main controls.
+- Simplified Teaching Load default filters to search + status + `More filters`; department, load sorting, cross-department, and unmapped-specialization controls remain available after disclosure.
+- Added `admin-search-filter-toolbar` and changed setup filter disclosure copy to `More filters`.
+- Reduced Subject row program-scope noise from multiple tiny tokens to one summary badge with tooltip detail.
+- Shortened Section row home-room helper copy while preserving readiness meaning.
+- Added `qa-artifacts/playwright/specs/setup-first-uiux-iteration-3-4.spec.ts`.
+
+**Commands run:**
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `32/32`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-3-4.spec.ts --workers=1`: PASS `15/15` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-0-2.spec.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-c.spec.ts --workers=1`: PASS `30/30` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+
+**Failures found and fixed during verification:**
+- The first Iteration 3-4 browser run failed because the Teaching Load task guide measured `99px` on desktop/mobile landscape and `123px` on mobile portrait. Fixed by converting it into a single horizontally-scrollable strip with 32px controls.
+- The second Iteration 3-4 browser run failed on mobile portrait because the persistent right inspector intercepted taps over the `More filters` control. Fixed by hiding the persistent inspector below the large breakpoint.
+
+**Verdict:** Iterations 3-4 are Codex GO. The setup-first stream may proceed to Iterations 5-6: Campus/Rooms simplification and Dashboard readiness hub.
+
+## [2026-07-28] Setup-First UI/UX Overhaul Iterations 5-6
+
+**Scope:** Campus/Rooms readiness-first information architecture and Dashboard readiness hub.
+
+**Implemented:**
+- Added a `Room readiness` list before the campus map so operators can see what needs fixing without interpreting a canvas.
+- Added explicit `Ready`, `Needs capacity`, `Needs room type`, `Needs section`, and `Unavailable` labels with text and icons.
+- Lazy-loaded campus preview, building view, map editor, and building/room editor chunks behind accessible Suspense fallbacks.
+- Expanded Dashboard setup readiness to seven steps with direct repair links and a visible source-state badge.
+- Added `qa-artifacts/playwright/specs/setup-first-uiux-iteration-5-6.spec.ts`.
+
+**Commands run:**
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails`: PASS `32/32`.
+- `npm run test:timetable-conflict`: PASS `10/10`.
+- `npm run build`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-5-6.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+- Combined Iterations 0-4, 5-6, and timetable compactness regression: PASS `51/51` across desktop, mobile portrait, and mobile landscape on the live Tailnet.
+
+**Verification correction:**
+- The first new browser run exposed a stale expected route in the test (`/faculty`). The live application repair route is `/teachers`; the test contract was corrected and the rerun passed `6/6`.
+
+**Verdict:** Iterations 5-6 are Codex GO. The stream may proceed to Iterations 7-8; moderated older-user validation remains a product-readiness gate.
+
+## [2026-07-28] Setup-First UI/UX Overhaul Iterations 7-8
+
+**Scope:** Final route/mode closure, short-viewport shell safety, release regression, and Antigravity review packaging.
+
+**Implemented:**
+- Added `setup-first-uiux-iteration-7-8.spec.ts` for all operator routes, app-error detection, local overflow checks, and reversible timetable Simple/Advanced modes.
+- Fixed the Dashboard mobile-landscape loading-shell scrollbar by moving scrolling into a local `flex-1 min-h-0 overflow-auto` region.
+- Preserved the moderated older-user script and explicitly kept participant evidence separate from automated technical evidence.
+- Added the final closure report and Antigravity verification prompt.
+
+**Commands run:**
+- `npx tsc --noEmit`: PASS.
+- `npm run test:ux-guardrails`: PASS `32/32`.
+- `npm run test:timetable-conflict`: PASS `10/10`.
+- `npm run build`: PASS.
+- Tailnet preflight: PASS `1/1`.
+- Iteration 7-8 browser suite: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- Combined setup-first Iterations 0-7 plus timetable compactness regression: PASS `57/57` across desktop, mobile portrait, and mobile landscape.
+
+**Corrective finding:**
+- The first route-smoke run caught `/` overflowing while its Dashboard skeleton was still mounted on mobile landscape (`504px` document height versus `390px` viewport). The Dashboard shell was corrected and the final route-smoke rerun passed.
+
+**Verdict:** Iterations 7-8 are `Technical GO`. Product `GO` remains pending moderated older-user participant evidence or explicit stakeholder acceptance to defer that gate.
+
+---
+
+# 2026-07-28 - Setup-First UI/UX Overhaul Iterations 0-4 Antigravity Independent Verification
+
+- Phase: Setup-first UI/UX overhaul, Iterations 0-4 external verification.
+- Operator: Antigravity.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+
+## Verification Executed
+
+- Local build & guardrail gates:
+  - `npx tsc --noEmit` in `atlas-client`: PASS.
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `32/32`.
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run build` in `atlas-client`: PASS (built cleanly in `507ms`).
+- Live Tailnet Playwright gates:
+  - `timetable-tailnet-preflight.spec.ts`: PASS `1/1`.
+  - `setup-first-uiux-iteration-0-2.spec.ts`: PASS `15/15`.
+  - `setup-first-uiux-iteration-3-4.spec.ts`: PASS `15/15`.
+  - `timetable-overhaul-iteration-c.spec.ts`: PASS `15/15`.
+
+## Visual & Functional Observations
+
+- Header heights remain strictly within budget across viewports (Desktop: ~133-147px, Mobile Portrait: ~121-169px, Mobile Landscape: ~133-143px).
+- Content top positions start high (~189-242px) exposing primary tables and task guides in the first viewport.
+- Root no-scroll contract verified on all pages (`scrollHeight == clientHeight`, `scrollWidth == clientWidth`).
+- Source-truth badges (`data-source-state`) and text summaries ("Verified live", "Checking source", "Using saved data", "Read-only") are visible without hover across setup surfaces.
+- Teaching Load task-first guide operates as a compact inline strip without mobile tap overlay interception.
+- Subject program scope simplified into one summary badge with tooltip detail.
+- Section home-room helper copy simplified and readable.
+- Timetable Simple mode loads cleanly without regression.
+
+## Verdict
+
+`GO`. Codex's Iterations 0-4 are verified on the live Tailnet environment and ready to proceed to Iterations 5-6.
+
+---
+
+# 2026-07-28 - Setup-First UI/UX Overhaul Iterations 5-6 Antigravity Independent Verification
+
+- Phase: Setup-first UI/UX overhaul, Iterations 5-6 external verification.
+- Operator: Antigravity.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+
+## Verification Executed
+
+- Local build & guardrail gates:
+  - `npx tsc --noEmit` in `atlas-client`: PASS (0 errors).
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `32/32`.
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run build` in `atlas-client`: PASS (built cleanly in `649ms`).
+- Live Tailnet Playwright gates:
+  - `timetable-tailnet-preflight.spec.ts`: PASS `1/1`.
+  - `setup-first-uiux-iteration-5-6.spec.ts`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+  - Full regression suite (`setup-first-uiux-iteration-0-2.spec.ts`, `setup-first-uiux-iteration-3-4.spec.ts`, `timetable-overhaul-iteration-c.spec.ts`): PASS `45/45` across desktop, mobile portrait, and mobile landscape.
+
+## Visual & Functional Observations
+
+- **Campus & Rooms (`/map`):** `room-readiness-list` is mounted at `187px` top (desktop), placing room status information well within the initial viewport before the graphical `Campus Explorer` at `2357px`. Room statuses (`Ready`, `Needs capacity`, `Needs room type`, `Needs section`, `Unavailable`) display text-plus-icon status without hover.
+- **Dashboard (`/`):** `dashboard-readiness-hub` exposes the 7 setup domain repair links (`/sections`, `/subjects`, `/teachers`, `/teaching-load`, `/map`, `/timetable`, `/schedules`) and displays visible source truth status without hover ("Checking source").
+- **Layout & Overflow:** Root no-scroll architecture maintained (`scrollHeight == clientHeight`, `scrollWidth == clientWidth`). Zero horizontal or vertical page scrollbar leakage.
+
+## Verdict
+
+`GO`. Setup-First UI/UX Iterations 5-6 are independently verified on live Tailnet. Codex may proceed to Iterations 7-8.
+
+---
+
+# 2026-07-28 - Older-User Session Validation Antigravity Independent Audit
+
+- Phase: Setup-First UI/UX Overhaul & Timetable Simplification.
+- Operator: Antigravity.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Report artifact: `docs/verification/timetable-older-user-session-validation-ag-2026-07-28.md`.
+
+## Verification Executed
+
+- Local build & guardrail gates:
+  - `npx tsc --noEmit` in `atlas-client`: PASS (0 errors).
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `32/32`.
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run build` in `atlas-client`: PASS (built cleanly in `507ms`).
+- Live Tailnet Playwright gates:
+  - `timetable-tailnet-preflight.spec.ts`: PASS `1/1`.
+  - `setup-first-uiux-iteration-7-8.spec.ts`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+  - `audit-ouser.spec.ts` (T01–T12 execution): PASS `3/3` across desktop, mobile portrait, and mobile landscape.
+
+## Observations & Findings
+
+- All T01–T12 tasks passed technical pass conditions with zero global overflow, zero page errors, and zero API failures.
+- Next action identification on Timetable Simple view (`T06`) completed in ~2.4s (< 10s requirement).
+- Cockpit capabilities (blocker inspection, placement/swap review, grid conflict guidance, reversible mode switches, safe cancel paths) are 100% preserved.
+- Minor low-severity polish findings logged: `OUSER-001` (mobile filter trigger height) and `OUSER-002` (disclosure `aria-expanded` attributes).
+
+## Verdict
+
+`GO WITH FIXES (Technical evidence only)`. Technical verification is complete and GO. Human product gate remains open for final moderated user sessions.
+
+---
+
+# 2026-07-28 - Older-User Session Validation Codex Self-Audit
+
+- Phase: Setup-First UI/UX Overhaul & Timetable Simplification.
+- Operator: Codex browser-proxy self-audit.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Report artifact: `docs/verification/older-user-session-validation-codex-2026-07-28.md`.
+
+## Verification Executed
+
+- Local gates:
+  - `npx tsc --noEmit`: PASS.
+  - `npm run test:ux-guardrails`: PASS `32/32`.
+  - `npm run test:timetable-conflict`: PASS `10/10`.
+  - `npm run build`: PASS.
+- Live Tailnet gates:
+  - `timetable-tailnet-preflight.spec.ts`: PASS `3/3` across desktop, mobile portrait, and mobile landscape.
+  - `older-user-session-validation-codex.spec.ts`: PASS `3/3` viewport sessions, covering T01–T12 (`36/36` task executions) with generation writes intercepted and no commits observed.
+  - Corrected workflow harness checks: Phase 0/1 `2/2` desktop; Phase 5/6 `4/4` desktop.
+
+## Observations & Findings
+
+- All core readiness, placement-preview, visual-swap, cancellation, and mode-reversibility outcomes remained reachable.
+- No browser console errors, uncaught page errors, ATLAS API 5xx responses, or global page overflow were observed during the self-audit.
+- The generated unassigned rail contained `28,482px` of content in a `220–246px` viewport; desktop pointer scrolling and programmatic scroll both advanced. Mobile pointer-wheel scrolling is not a faithful touch proxy and requires human touch validation.
+- `OUSER-001`: the six-state status key is absent from Simple and hidden below `lg`; mobile users cannot persistently interpret the status vocabulary.
+- `OUSER-002`: live source uncertainty and repair urgency are shown together on Dashboard and need a single wait-versus-repair sentence.
+- `OUSER-003`: controlled placement/swap dialogs close safely, but browser-proxy focus did not clearly return to the invoking grid control.
+- Initial failures in Phase 0/1 and Phase 5/6 were stale harness assumptions about Advanced being the default; the harness now opts into Advanced explicitly or follows the current Simple path.
+
+## Verdict
+
+`GO WITH FIXES (technical proxy evidence only)`. Human participant evidence remains required before Product GO.
+
+---
+
+# 2026-07-28 - Older-User Session Validation Remediation Plan
+
+- Phase: Older-user session validation remediation planning.
+- Source audit: `docs/verification/older-user-session-validation-codex-2026-07-28.md`.
+- Plan artifact: `docs/phases/older-user-session-validation-remediation-plan-2026-07-28.md`.
+
+## Plan scope
+
+- Phase 0: baseline, reversible fixture, touch/focus probes, and test-contract hardening.
+- Phase 1: six-state status guidance in Simple and mobile views.
+- Phase 2: Dashboard source-health versus repair clarity.
+- Phase 3: controlled-dialog focus restoration.
+- Phase 4: touch scrolling and responsive interaction proof.
+- Phase 5: moderated older-user and Antigravity closure.
+
+## Decision
+
+The remediation stream is approved as a bounded follow-up to the Codex self-audit. It does not replace the canonical generator-readiness phase or change EnrollPro/ATLAS source ownership. Product GO remains gated on real participant evidence.
+
+---
+
+# 2026-07-29 - Older-User Session Remediation Phase 3
+
+- Phase: Older-user session validation remediation Phase 3.
+- Operator: Codex browser proxy.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Closure artifact: `docs/verification/older-user-session-remediation-phase-3-closure-2026-07-29.md`.
+
+## Implementation
+
+- Added explicit review-focus capture and restoration for generated placement, draft placement, keyboard placement, and occupied-slot swap invokers.
+- Added deterministic initial focus to generated placement, draft placement, draft swap, and generated occupied-slot swap review dialogs.
+- Added polite live-region status text for preview loading, ready, and error states.
+- Preserved Cancel/Escape as no-write exits and Save/Swap as the only commit paths.
+
+## Verification
+
+- Focused Phase 3 spec: PASS `9/9` across desktop, mobile portrait, and mobile landscape.
+- Phase 0–3 regression matrix: PASS `36/36` across desktop, mobile portrait, and mobile landscape.
+- Local gates: `tsc` PASS, UX guardrails `34/34` PASS, conflict tests `10/10` PASS, production build PASS.
+- Generation write guard: PASS; no placement/swap commit endpoint was called by focus/cancel tests.
+
+## Decision
+
+`GO for Phase 3`. OUSER-003 is technically closed. Product GO still requires Phase 4 touch-scroll proof and Phase 5 moderated older-user participant evidence.
+
+---
+
+# 2026-07-28 - Older-User Session Remediation Phase 0
+
+- Phase: Older-user session validation remediation Phase 0.
+- Operator: Codex browser proxy.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Closure artifact: `docs/verification/older-user-session-remediation-phase-0-closure-2026-07-28.md`.
+
+## Verification
+
+- Phase 0 fixture spec: PASS `9/9` across desktop, mobile portrait, and mobile landscape.
+- Existing T01–T12 Codex audit: PASS `3/3` viewport sessions (`36/36` task executions).
+- Read-only runtime fixture before/after: school year `39`, source `atlas-persisted`, stale `true`, upstream unreachable, completed reviewable run `223`, queue `365`; unchanged.
+- Generation write guard: PASS; no placement/swap commit endpoint was called.
+- Desktop wheel scroll: PASS. Mobile programmatic scroll: PASS as diagnostic; real touch gesture explicitly marked `unsupported-by-runner`.
+- Placement and swap focus traces captured. Focus restoration remains a Phase 3 finding, not a hidden pass.
+- Local gates: `tsc` PASS, UX guardrails `32/32` PASS, conflict tests `10/10` PASS on isolated rerun, production build PASS.
+
+## Decision
+
+`GO for Phase 0`. No product component or persisted data changes were made. OUSER-003 remains queued for Phase 3 and touch-device proof remains queued for Phase 4; moderated human evidence remains required for Product GO.
+
+---
+
+# 2026-07-28 - Older-User Session Remediation Phase 1
+
+- Phase: Older-user session validation remediation Phase 1.
+- Operator: Codex browser proxy.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Closure artifact: `docs/verification/older-user-session-remediation-phase-1-closure-2026-07-28.md`.
+
+## Implementation
+
+- Added a shared `TimetableStatusLegend` component with plain-language definitions for `Can place`, `Can swap`, `Blocked`, `Warning`, `Occupied`, and `Current`.
+- Added the status key to the Simple timetable task prompt and the Advanced task guide without adding a dense persistent panel.
+- Updated the older-user status and Phase 5 browser contracts from the old four-state summary to the new six-state contract.
+- Moved pointer-wide grid guidance off React drag-start state into a delayed, batched DOM decoration path to preserve the performance containment gate.
+- Fixed the timetable performance warm-navigation locator to target the explicit `Open Timetable` link.
+
+## Verification
+
+- Phase 1 status guidance spec: PASS `9/9` across desktop, mobile portrait, and mobile landscape.
+- Existing T01-T12 Codex audit: PASS `3/3` viewport sessions (`36/36` task executions).
+- Phase 5/6 timetable workflows: PASS `12/12`.
+- Timetable performance matrix: PASS `42/42`; artifact root `qa-artifacts/perf-runs/run-2026-07-28T14-05-58-893Z/`.
+- Local gates: `tsc` PASS, UX guardrails `32/32` PASS, conflict tests `10/10` PASS, production build PASS.
+
+## Decision
+
+`GO for Phase 1`. OUSER-001 is technically closed. Product GO still requires moderated older-user participant evidence in Phase 5.
+
+---
+
+# 2026-07-28 - Older-User Session Remediation Phase 2
+
+- Phase: Older-user session validation remediation Phase 2.
+- Operator: Codex browser proxy.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Closure artifact: `docs/verification/older-user-session-remediation-phase-2-closure-2026-07-28.md`.
+
+## Implementation
+
+- Added a separate Dashboard `Source connection` decision strip above the setup repair content.
+- Added explicit source-state decisions for verified, checking, saved/unavailable, partial-degraded, and no-saved-data states.
+- Kept direct repair links for `Sections`, `Subjects`, `Teachers`, `Teaching Load`, and `Rooms`.
+- Removed source-state meaning from the setup checklist header so source health no longer competes with the seven setup repair steps.
+- Lazy-loaded the lower Dashboard `CampusReadinessCard` after the focused gate exposed a `7374ms` desktop first-decision delay from eager campus imports.
+
+## Verification
+
+- Phase 2 dashboard source-health spec: PASS `9/9` across desktop, mobile portrait, and mobile landscape.
+- First unavailable-source decision after lazy-load: desktop `4.3s`, mobile portrait `3.2s`, mobile landscape `3.4s`.
+- Existing T01-T12 Codex audit + Tailnet preflight: PASS `6/6`.
+- Phase 1 status guidance regression: PASS `9/9`.
+- Local gates: `tsc` PASS, UX guardrails `33/33` PASS, conflict tests `10/10` PASS, production build PASS.
+- Runtime proof with Admin QA auth: login HTTP `200`, `/api/v1/health` HTTP `200`, `/api/v1/runtime/context?schoolId=1` HTTP `200` with `832` bytes and `source=atlas-persisted`, `stale=true`, `activeSchoolYearId=39`.
+
+## Decision
+
+`GO for Phase 2`. OUSER-002 is technically closed without changing source ownership, persistence, generation truth, or school-year selection. Product GO still requires moderated older-user participant evidence in Phase 5.
+
+---
+
+# 2026-07-29 - Timetable Panel UX Recovery
+
+- Phase: Timetable panel UX recovery iterations 0-5.
+- Operator: Codex browser proxy.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- External validation prompt: `docs/prompts/antigravity-timetable-panel-ux-recovery-validation-2026-07-29.md`.
+
+## Implementation
+
+- Added timetable-panel UX directives covering no-overlap behavior, viewport-aware resizable panel contracts, local scroll ownership, and search-first unresolved-session lists.
+- Replaced the generated unresolved rail with a compact search-first panel that supports status, grade, reason filtering, visible counts, keyboard-scrollable virtualization, action-first rows, and hidden diagnostics.
+- Added dynamic left/center/right panel defaults so advanced view opens at readable widths and resizes without text overlap or global horizontal overflow.
+- Added policy pane status and impact copy for `Policy loaded`, `Policy saved`, and `Policy unavailable — using defaults`.
+- Fixed policy loading so non-critical grade-window and section-summary failures do not leave the policy pane stuck in `Policy loading`.
+- Fixed `teacherMoveEnabled` persistence in `scheduling-policy.service`; validation had accepted the field but the update payload omitted it.
+- Updated generated violation rows to wrap/truncate long messages and keep `Explain`/repair controls from overlapping the text.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `35/35`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npm run build` in `atlas-server`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-panel-ux-recovery.spec.ts --workers=1`: PASS `12/12` across desktop, mobile portrait, and mobile landscape.
+- `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42` across desktop, mobile portrait, and mobile landscape.
+- Live reversible policy fixture verified after tests: school year `39`, `teacherMoveEnabled=true`, `earliestStartTime=06:00`, `latestEndTime=18:00`.
+
+## Notes
+
+- The final performance matrix did not emit the prior `react-resizable-panels` invalid-layout warnings after default-size cleanup.
+- Tailnet still emitted non-fatal `net::ERR_ABORTED` entries for EnrollPro branding/dashboard chunk requests during repeated navigation; the timetable, policy, placement, swap, and performance gates passed.
+
+## Decision
+
+`GO for Timetable Panel UX Recovery`. Independent AG review remains recommended using the generated validation prompt.
+
+---
+
+# 2026-07-29 - Timetable Panel UX Recovery Self-Validation
+
+- Prompt executed: `docs/prompts/antigravity-timetable-panel-ux-recovery-validation-2026-07-29.md`.
+- Operator: Codex browser proxy.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Context7 / Design Preflight
+
+- Read `.github/instructions/frontend.instructions.md`, `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, and `docs/context7-library-map.md`.
+- Read `.github/skills/atlas-shared-browser-qa/SKILL.md`.
+- Context7 resolved `/bvaughn/react-resizable-panels` and confirmed dynamic `minSize`, `maxSize`, `defaultSize`, `onResize`, and imperative `resize()` patterns for responsive panel constraints.
+- Context7 resolved `/websites/radix-ui_primitives` and confirmed Radix `ScrollArea` preserves native scrolling and keyboard behavior.
+
+## Findings During Validation
+
+- Initial self-validation found a real mobile portrait blocker: unresolved-session rows wrapped taller than the previous virtual height and overlapped the `Details` button hitbox.
+- Fix applied: generated unresolved-session virtual row height increased from `118` to `156` while preserving virtualization and local panel scrolling.
+- Validation spec was expanded to capture right-panel minimum-width screenshots and unresolved-session detail-state screenshots.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `35/35`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-panel-ux-recovery.spec.ts --project=mobile-portrait --workers=1`: PASS `4/4` after the mobile row-height fix.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-panel-ux-recovery.spec.ts --workers=1`: PASS `12/12` across desktop, mobile portrait, and mobile landscape.
+
+## Artifact Paths
+
+- Screenshot/artifact root: `qa-artifacts/timetable-panel-ux-recovery/`.
+- Desktop examples: `desktop-simple-initial.png`, `desktop-advanced-initial.png`, `desktop-advanced-left-minimum.png`, `desktop-advanced-right-minimum.png`, `desktop-policy-pane.png`, `desktop-unresolved-list-filtered.png`, `desktop-unresolved-detail-state.png`.
+- Mobile portrait examples: `mobile-portrait-simple-initial.png`, `mobile-portrait-advanced-initial.png`, `mobile-portrait-advanced-left-minimum.png`, `mobile-portrait-advanced-right-minimum.png`, `mobile-portrait-policy-pane.png`, `mobile-portrait-unresolved-list-filtered.png`, `mobile-portrait-unresolved-detail-state.png`.
+- Mobile landscape examples: `mobile-landscape-simple-initial.png`, `mobile-landscape-advanced-initial.png`, `mobile-landscape-advanced-left-minimum.png`, `mobile-landscape-advanced-right-minimum.png`, `mobile-landscape-policy-pane.png`, `mobile-landscape-unresolved-list-filtered.png`, `mobile-landscape-unresolved-detail-state.png`.
+
+## Policy Proof
+
+- Reversible policy save/revert proof passed in all three viewport projects.
+- Post-test live state confirmed: school year `39`, `teacherMoveEnabled=true`, `earliestStartTime=06:00`, `latestEndTime=18:00`.
+
+## Decision
+
+`GO`. No remaining blockers from the self-validation prompt.
+
+---
+
+# 2026-07-30 - Fool-Proof Timetable UX Simplification Pass
+
+- Prompt executed: `Fool-Proof Timetable UX Simplification Plan`.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implementation
+
+- Added `qa-artifacts/playwright/specs/timetable-foolproof-simplification.spec.ts` to enforce timetable simplification budgets before relying on subjective review.
+- Compressed the advanced timetable header so the grid remains inside the first useful viewport on desktop, mobile portrait, and mobile landscape.
+- Converted the full-width tutorial/help band into explicit, on-demand help; timetable tour no longer auto-opens over the working grid.
+- Reworked the Simple view task drawer into a plotting tray that shows actionable unresolved sessions first, keeps search/details behind disclosure, and preserves the legacy virtualized rail test contract.
+- Added automatic selected-session priming for the plotting tray so the grid immediately shows place/swap/block guidance for the current unresolved session.
+- Removed the non-essential placement toast that blocked bottom-tray taps on mobile landscape.
+- Added deferred inline drag-preview feedback after drop so users see that ATLAS is previewing the placement without adding work to the pointer-up frame.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `35/35`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-foolproof-simplification.spec.ts --workers=1`: PASS `9/9` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `18/18` across desktop, mobile portrait, and mobile landscape.
+- `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=desktop --workers=1`: PASS `14/14`.
+- `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=mobile-portrait --workers=1`: PASS `14/14`.
+- `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=mobile-landscape --workers=1`: PASS `14/14`.
+
+## Notes
+
+- A full combined performance matrix run initially saw Tailnet `502`/`net::ERR_ABORTED` noise and one load-sensitive mobile-landscape drag-start outlier. Isolated current-code runs passed all three profiles after the deferred drag-preview status fix.
+- The generated workflow remains backed by existing data truth; no backend API or generation ownership rules were changed.
+
+## Decision
+
+`GO for Fool-Proof Timetable UX Simplification Pass`. The timetable is materially simpler in default Simple view, but further simplification should focus on bringing the same plotting-tray model to pre-generation draft queues and reducing advanced-tool visual priority even further.
+
+---
+
+# 2026-07-30 - Timetable Readiness and UX Recovery Pass
+
+- Prompt executed: `Timetable Readiness and UX Recovery Plan`.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implementation
+
+- Fixed draft placement preview state so the visible `Review draft placement` dialog, the `Save placement` enabled state, and the user-facing save reason all derive from the same preview/save-state contract.
+- Added `draft-placement-save-reason` proof text so disabled draft saves always explain the exact blocker next to the action.
+- Preserved Teaching Load as the read-only teacher ownership source in draft placement; timetable placement no longer asks schedulers to choose a teacher.
+- Added room reference hydration for pre-generation mode before interactive placement so ready draft items do not appear blocked only because room labels/options have not loaded yet.
+- Converted pre-generation unresolved sessions into a Simple-view plotting tray with current item, next items, `Find`, `Skip`, compact action labels, and stable `pregen-*` test IDs.
+- Added Simple header `Plan draft` discoverability through `timetable-simple-secondary-action` on larger viewports and helper copy for mobile `More`.
+- Updated stale Playwright expectations for Simple-default layout and Advanced-only task guide behavior.
+- Increased mobile task drawer usable height and compressed redundant drawer chrome on short landscape viewports so Find-session lists remain scrollable and readable.
+- Updated the runtime source-of-truth map to clarify that draft placement keeps Teaching Load ownership read-only and only requires valid room resolution plus visible save-state guidance.
+
+## Live Reversible Draft Placement Proof
+
+- Captured live pre-generation board counts before fixture placement: `draft=0`, `lockedForRun=0`, `archived=0`, `unscheduled=1313`.
+- Created one temporary draft placement through the browser flow; live API/DB observed placement `id=7` and board count movement to `draft=1`, `unscheduled=1312`.
+- The public delete/undo route archived the placement rather than returning the board exactly to the original no-row state.
+- Because placement `id=7` was the Codex-created fixture, it was cleaned directly with strict guards by deleting linked `lockedSessionAction` rows and the placement row.
+- Post-cleanup live board returned to `draft=0`, `lockedForRun=0`, `archived=0`, `unscheduled=1313`, and `placement7=null`.
+- Follow-up recommendation: fix the backend/UI undo contract for pre-generation placements so browser-level reversible cleanup does not require direct fixture cleanup.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `35/35`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `1.03s`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts --workers=1`: PASS `9/9`.
+- Focused stale-regression fixes:
+  - `timetable-workflow-phase01.spec.ts --project=mobile-portrait --workers=1`: PASS `2/2`.
+  - `timetable-workflow-phase01.spec.ts --project=mobile-landscape --workers=1`: PASS `2/2`.
+- Full timetable readiness suite:
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-foolproof-simplification.spec.ts qa-artifacts/playwright/specs/timetable-panel-ux-recovery.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts qa-artifacts/playwright/specs/older-user-session-validation-codex.spec.ts --workers=1`: PASS `51/51` across desktop, mobile portrait, and mobile landscape.
+- Timetable performance matrix:
+  - `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42` across desktop, mobile portrait, and mobile landscape.
+
+## Notes
+
+- Repeated Tailnet/Vite asset and EnrollPro settings `net::ERR_ABORTED` messages were observed during performance navigation. They did not produce app-critical failures or failed gates.
+- Existing generated placement, generated drag placement, generated occupied-slot swap, draft placement preview, draft save-state reason, Simple-default discovery, Advanced opt-in guide, panel readability, policy save/revert, older-user task simulation, and drag performance containment all passed in the final suite.
+
+## Decision
+
+`GO for Timetable Readiness and UX Recovery Pass`, with one follow-up caveat: the pre-generation placement undo/delete route should be corrected so live reversible tests can clean up entirely through public browser/API flows.
+
+---
+
+# 2026-07-30 - Timetable Teacher Departure Recovery Pass
+
+- Prompt executed: `Timetable Teacher-Departure UX/UI Readiness Plan`.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implementation
+
+- Added a Simple-view `Teacher leaving / Reassign load` action inside the existing `More` menu.
+- Added a selected-class `Reassign teacher` action in the timetable selection strip.
+- Added a lazy-loaded `TeacherDepartureRecoverySheet` dedicated to mid-year teacher departure repair instead of expanding the dense Tactical Sandbox.
+- The sheet asks one first question, `Which teacher is leaving?`, lists affected generated entries and generated unresolved items by subject/section group, supports replacement teacher selection per group, and shows preview/save status beside the action.
+- Added grid highlighting for affected entries with `Needs new teacher` badges, driven by a static affected-entry ID set rather than pointer-frequency state.
+- Preserved published-run audit safety: the sheet explains that published schedules require effective-date revisions and does not directly rewrite published runs.
+- Updated timetable Teaching Load repair validation so inactive departing/source teachers are allowed while inactive replacement/target teachers remain blocked with readable scheduler copy.
+- Constrained the Simple-view `More` menu with an internal max-height scroll region after Tailnet mobile-landscape validation found the new action could render outside the viewport.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npx tsc --noEmit` in `atlas-server`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `36/36`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts`: PASS.
+- `npm run build` in `atlas-client`: PASS, final Vite build completed in `792ms`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-teacher-departure-live-reversible.spec.ts --project=desktop --workers=1`: PASS `1/1`.
+- Post-extraction file-size guard: `TimetableGrid.tsx=997` lines, `TeacherDepartureRecoverySheet.tsx=446` lines, `TimetableGridEntryBadges.tsx=18` lines.
+- Obsolete-copy grep: no `Assign teacher and room`, `placeholder="Choose teacher"`, or `placeholder="Choose room"` matches in timetable surfaces.
+
+## Notes
+
+- The first Tailnet browser run found a mobile-landscape `More` menu reachability failure because the dropdown content exceeded the viewport. The menu now uses internal scrolling and the same Playwright matrix passes.
+- A later browser retry failed only while the local Tailnet-backed ATLAS runtime was down and `/api/v1/health` returned `502`. After starting `npm run dev`, health returned `{"status":"ok","service":"atlas"}` and the same browser matrix passed.
+- The new recovery sheet is lazy-loaded as `TeacherDepartureRecoverySheet-*` so it does not add its UI code to the timetable first-action path.
+- Initial browser validation was read-only; the follow-up live reversible proof performed a real Teaching Load transfer and reverted it in the same test run.
+- Live reversible browser proof now commits a real generated-run teacher reassignment through the sheet, verifies affected entries moved to the replacement teacher, then reverses the Teaching Load/timetable fixture through the same repair API in cleanup.
+- Two test-harness issues were found and fixed before the live proof passed: unauthenticated fixture API requests used the wrong Playwright request context, and the first safe backend fixture was hidden behind compressed grid cell overflow rather than visible as a clickable card.
+
+## Decision
+
+`GO for Timetable Teacher Departure Recovery Pass` for discoverability, preview-readiness, affected-grid visibility, and source/target validation. Published effective-date revision implementation remains a separate follow-up if a full published-schedule transfer flow is required beyond the current non-rewrite guard.
+
+---
+
+# 2026-08-03 - Timetable Finalization: Grid Overflow and Teacher Reassignment
+
+- Prompt executed: `Timetable Finalization Plan: Grid Visibility, Teacher-Reassignment Readiness, and Full Function Proof`.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+- Final report: `docs/verification/timetable-finalization-readiness-2026-08-03.md`.
+
+## Implementation
+
+- Added a crowded-cell overflow trigger and sheet so hidden timetable sessions are actionable instead of represented only by passive `+N more` text.
+- Added hidden-session actions for `Select`, `Swap`, `Move`, `Reassign`, and `Details`.
+- Added teacher-departure affected badges for hidden crowded-cell sessions.
+- Added teacher-departure navigation controls: `Show affected only`, `Jump to first affected`, and per-group `Show on timetable`.
+- Added a plain teacher-departure affected summary for grid sessions, unresolved sessions, draft-linked sessions, and groups needing replacement.
+- Connected published teacher-departure recovery to the effective-date published revision review path instead of direct run rewrites.
+- Added screenshot evidence coverage for simple, advanced, crowded-cell overflow, teacher-departure, and published-revision states.
+- Extracted `TimetableDraggableEntry` to keep `TimetableGrid.tsx` below the 1000-line component-file ceiling.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `36/36`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, final Vite build completed in `529ms`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts --project=desktop --workers=1`: PASS `3/3`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-teacher-departure-live-reversible.spec.ts --project=desktop --workers=1`: PASS `1/1`, live save/revert cleanup completed.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts --project=desktop --workers=1`: PASS `1/1`.
+- `npx tsx atlas-server/src/__tests__/published-revision-contract.test.ts`: PASS `16/16`.
+- `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts`: PASS.
+- Combined workflow/finalization/teacher-departure regression suite: PASS `52 passed, 2 skipped`.
+- Full timetable performance matrix: PASS `42/42` across desktop, mobile portrait, and mobile landscape.
+- Screenshot evidence spec: PASS `1/1`.
+
+## Screenshot Artifacts
+
+- `qa-artifacts/timetable-finalization-2026-08-02/01-simple-default.png`.
+- `qa-artifacts/timetable-finalization-2026-08-02/02-advanced-view.png`.
+- `qa-artifacts/timetable-finalization-2026-08-02/03-crowded-cell-overflow.png`.
+- `qa-artifacts/timetable-finalization-2026-08-02/04-teacher-departure-sheet.png`.
+- `qa-artifacts/timetable-finalization-2026-08-02/05-published-revision-dialog.png`.
+
+## Notes
+
+- Tailnet/Vite dev testing still logs recurring non-fatal `net::ERR_ABORTED` events for EnrollPro public settings, dashboard readiness, runtime context, and Vite module fetches under rapid Playwright navigation.
+- The published-run live mutation path was proven through backend contract tests plus read-only browser UI proof, not a live published-record write, because published schedules are audit records.
+- Obsolete-copy scan found no `Assign teacher and room` or `Choose teacher` timetable modal language. Remaining `Choose room first` text is expected blocker guidance for missing-room sessions.
+
+## Decision
+
+`GO for Timetable Finalization: Grid Overflow and Teacher Reassignment`, with non-blocking follow-up to monitor Tailnet/dev network aborts separately from the product workflow gates.
+
+---
+
+# 2026-08-03 - Tailnet/Vite Dev Abort Hardening
+
+- Prompt executed: close the remaining Tailnet/Vite `net::ERR_ABORTED` caveat from timetable finalization.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implementation
+
+- Removed the timetable performance harness's unnecessary pre-scenario hard navigation to `/`, which was only being used to set `atlas_timetable_tour` and was aborting dashboard/AppShell/module requests when each scenario immediately navigated to `/timetable`.
+- Replaced that navigation with `page.addInitScript` so the tour flag is set before the first real route under test.
+- Added expected navigation/module abort classification for known dev-mode cancellations:
+  - `/enrollpro-api/settings/public`
+  - `/src/*`
+  - `/node_modules/.vite/*`
+  - `/assets/*`
+  - `/api/v1/dashboard/readiness-summary`
+  - `/api/v1/runtime/context`
+- Added strict unexpected-network-failure gating in `timetable-performance.spec.ts`; any non-whitelisted request failure now fails the scenario and is attached as `unexpected_network_failures`.
+- Kept expected navigation aborts attached as `ignored_navigation_aborts` evidence rather than noisy console output.
+- Stabilized desktop keyboard placement by focusing the current DOM cell after a two-frame settle instead of holding a stale locator through a grid rerender.
+
+## Verification
+
+- Tailnet health: `GET https://njgrm.buru-degree.ts.net/api/v1/health` returned `{"status":"ok","service":"atlas"}`.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `36/36`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `776ms`.
+- Focused desktop performance rerun: PASS `14/14`.
+- Strict full timetable performance rerun: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42` across desktop, mobile portrait, and mobile landscape.
+- The strict rerun produced no `NETWORK FAILED` output.
+
+## Decision
+
+`GO for Tailnet/Vite Dev Abort Hardening`. The previous caveat is closed for the timetable performance harness: expected dev/navigation aborts are recorded as evidence, unexpected request failures now fail the gate, and the full matrix passes.
+
+---
+
+# 2026-08-03 - Teacher Departure Progressive Disclosure Closure
+
+- Prompt executed: close the remaining timetable visual-readiness caveat where the teacher-departure recovery sheet still behaved like a dense all-at-once panel instead of a strict step flow.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implementation
+
+- Converted the teacher-departure recovery sheet into a stricter five-step flow:
+  - `Choose leaving teacher`
+  - `Review affected classes`
+  - `Choose replacement`
+  - `Preview changes`
+  - `Save`
+- Hid replacement controls until the replacement step.
+- Hid preview/save controls until the scheduler has completed the preceding steps.
+- Added a persistent plain-language save blocker beside the footer path before saving is allowed.
+- Kept the published-run path revision-only and restored a visible `Published run selected` cue across the step flow.
+- Fixed short mobile-landscape select popovers by constraining `SearchableSelect` content to Radix's available viewport height and making the option list scroll inside the popover.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `36/36`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `8.66s`.
+- Exact failing rerun: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts --project=mobile-landscape --workers=1`: PASS `1/1`.
+- Combined Tailnet browser suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts qa-artifacts/playwright/specs/timetable-visual-readiness.spec.ts --workers=1`: PASS `15/15` across desktop, mobile portrait, and mobile landscape.
+
+## Decision
+
+`GO for Teacher Departure Progressive Disclosure Closure`. The remaining visual-readiness caveat is closed: the recovery sheet now exposes one major decision at a time, published runs clearly route to effective-date revision review, and short landscape viewports can operate replacement teacher selects without off-screen popover failures.
+
+---
+
+# 2026-08-03 - Timetable Release Candidate and Setup Simplification Follow-up
+
+- Prompt executed: run one final timetable release-candidate audit, fix only concrete timetable failures, then move to Teaching Load and setup-page simplification.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Timetable RC Audit
+
+- Tailnet health returned `{"status":"ok","service":"atlas"}`.
+- No timetable product failures were found in the release-candidate pass.
+- Timetable changes were frozen after gates passed.
+
+## Timetable Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `36/36`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- Timetable live browser RC matrix:
+  - `timetable-tailnet-preflight.spec.ts`
+  - `timetable-foolproof-simplification.spec.ts`
+  - `timetable-panel-ux-recovery.spec.ts`
+  - `timetable-finalization-grid-overflow.spec.ts`
+  - `timetable-finalization-published-revision.spec.ts`
+  - `timetable-teacher-departure.spec.ts`
+  - `timetable-visual-readiness.spec.ts`
+  - `older-user-session-validation-codex.spec.ts`
+  - Result: PASS `51/51` across desktop, mobile portrait, and mobile landscape.
+- Timetable performance matrix: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42` across desktop, mobile portrait, and mobile landscape.
+
+## Setup/Teaching Load Fixes
+
+- Fixed a concrete Dashboard regression where the setup readiness hub no longer exposed source-state evidence expected by the setup-first browser gate.
+- Reordered the Dashboard visual priority so `Your next step` and `Setup readiness` appear before source diagnostics, stat tiles, lifecycle details, and lazy campus details.
+- Kept the detailed `Source connection` panel separate from setup repair steps while adding a small source-state footer inside the readiness hub for browser proof.
+- Compressed the Teaching Load command header by hiding long source prose below `xl` width and tightening header/task-guide spacing.
+
+## Setup/Teaching Load Verification
+
+- Initial setup-first browser matrix found Dashboard readiness source-state failure: FAIL `3` profile cases.
+- Focused rerun after Dashboard fix: `setup-first-uiux-iteration-5-6.spec.ts`: PASS `6/6`.
+- Full setup-first browser matrix after layout changes: PASS `42/42` across desktop, mobile portrait, and mobile landscape.
+- Final static/build gates after all setup fixes:
+  - `npx tsc --noEmit`: PASS.
+  - `npm run test:ux-guardrails`: PASS `36/36`.
+  - `npm run test:timetable-conflict`: PASS `10/10`.
+  - `npm run build`: PASS, Vite build completed in `710ms`.
+
+## Browser Layout Measurements
+
+- Dashboard readiness hub moved from below first useful viewport to first-screen visibility:
+  - Desktop: `top 787px -> 186px`.
+  - Mobile portrait: `top 1902px -> 655px`.
+  - Mobile landscape: `top 1419px -> 242px`.
+- Teaching Load mobile-landscape working area improved:
+  - Content height: `174px -> 236px`.
+  - Header height: `143px -> 85px`.
+- No global vertical or horizontal overflow was observed in the measured Dashboard and Teaching Load profiles.
+
+## Decision
+
+`GO for Timetable Release Candidate`. No timetable fixes were needed. `GO for the first Teaching Load/setup simplification follow-up`: the concrete Dashboard source-state failure is fixed, Dashboard is more task-first, and Teaching Load leaves materially more working space on short landscape viewports.
+
+---
+
+# 2026-08-03 - Cross-Page UX/UI Overhaul: Setup + Teaching Load Release Readiness
+
+- Prompt executed: implement the cross-page setup and Teaching Load UX/UI overhaul plan while preserving timetable release-candidate behavior.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implemented Changes
+
+- Added `qa-artifacts/playwright/specs/cross-page-ux-release-readiness.spec.ts` to gate Dashboard, Sections, Subjects, Teachers, Teaching Load, Campus/Rooms, Schedules, and Timetable across desktop, mobile portrait, and mobile landscape.
+- Simplified Teaching Load into a compact one-decision command bar with source chip, current state, view mode, primary action, and a More menu for coverage stats, reset, reconcile, staffing audit, jump list, and coverage mode.
+- Preserved critical Teaching Load split-brain/quarantine visibility by keeping the review chip visible for unresolved reconcile/integrity states.
+- Reduced the Teaching Load task guide to one compact fix-first row with secondary actions disclosed through More.
+- Added mobile-first setup cards for Sections and Subjects while preserving desktop tables.
+- Hid the redundant Sections ready-state home-room banner; queued/checking/blocked states remain visible.
+- Reordered and compacted Dashboard so setup readiness and the next action appear before stat/lifecycle/campus detail surfaces.
+- Shortened clipped Dashboard/Campus CTA text and reduced mobile stat typography to avoid count clipping.
+- Moved Campus/Rooms to a readiness-first layout with visible source state and the map/editor disclosed on demand.
+- Compressed Schedules/Publish so the selector appears earlier, especially in mobile landscape.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `36/36`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `550ms`.
+- Cross-page Tailnet UX readiness: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/cross-page-ux-release-readiness.spec.ts --workers=1 --reporter=line`: PASS `24/24`.
+- Setup-first Tailnet regression suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-0-2.spec.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-3-4.spec.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-5-6.spec.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-7-8.spec.ts --workers=1 --reporter=line`: PASS `42/42`.
+- Timetable release-candidate preservation suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-visual-readiness.spec.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1 --reporter=line`: PASS `57/57`.
+
+## Concrete Failures Found and Fixed
+
+- Dashboard desktop CTA label `Review campus map` clipped by a few pixels; changed visible CTA to `Open map`.
+- Dashboard mobile portrait stat `98/103` clipped in a two-column card; reduced mobile stat typography while preserving desktop scale.
+- Dashboard mobile landscape readiness block started below budget; compacted short-screen dashboard header controls.
+- Schedules mobile landscape selector started too low; compacted header, mode switch, selector, and spacing.
+- Sections desktop/mobile content started too low because a ready-state banner duplicated source truth; hidden ready-only banner while keeping non-ready states visible.
+- Campus regression spec expected the old default map position; updated it to verify the new readiness-first, map-on-demand decision.
+
+## Decision
+
+`GO for Setup + Teaching Load release-readiness iteration`. Cross-page no-scroll, source-truth visibility, first-useful-content, unknown-label, and no-overlap gates pass across the audited operator pages. Timetable remains `GO` after the preservation suite.
+
+---
+
+# 2026-08-03 - Teachers + Teaching Load Guided Workflow Simplification
+
+- Prompt executed: implement guided Teachers and Teaching Load repair workflows while preserving Teaching Load ownership truth and timetable release-candidate behavior.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implemented Changes
+
+- Added a Teachers `Next teacher to fix` strip with attention chips for `Needs load`, `Over cap`, `No active load`, `Review placeholders`, and `All teachers`.
+- Reduced Teachers row/card action density to one contextual primary action plus a More menu.
+- Added route intent support from Teachers into Teaching Load, including `task=missing-load`, `task=over-cap`, and `task=review-placeholders`.
+- Added a guided Teaching Load repair queue before the dense assignment grids, ordered around draft saves, missing loads, over-cap teachers, placeholders, conflicts, and final review.
+- Moved dense Teaching Load grids behind an explicit `Advanced grid` disclosure while keeping expert controls available.
+- Added a persistent local draft action bar with visible save, undo, discard, and disabled-save reason states.
+- Extracted Teaching Load repair queue, draft action bar, guided placeholder, and queue state hook so `TeachingLoad.tsx` stays below the 1000-line component limit.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `37/37`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `826ms`.
+- Teachers + Teaching Load guided workflow Tailnet suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teachers-teaching-load-guided-workflow.spec.ts --workers=1`: PASS `9/9`.
+- Cross-page Tailnet UX readiness + setup regression: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-3-4.spec.ts qa-artifacts/playwright/specs/cross-page-ux-release-readiness.spec.ts --workers=1`: PASS `39/39`.
+
+## Caveats
+
+- Browser coverage for this pass intentionally avoided irreversible Teaching Load writes. The workflow gates prove discovery, route context preservation, layout/no-overlap behavior, advanced-grid disclosure, and visible save/disabled-save reasons. A safe reversible Teaching Load write fixture remains a follow-up if we need live persistence proof.
+
+## Decision
+
+`GO for Teachers + Teaching Load guided workflow simplification`. Teachers now provides a clear next repair action, Teaching Load opens with a guided queue before dense controls, and cross-page UX/readiness gates remain passing.
+
+---
+
+# 2026-08-03 - Teaching Load Reversible Draft Save Fixture
+
+- Prompt executed: implement and run a safe reversible Teaching Load draft save/revert fixture.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implemented Changes
+
+- Added `qa-artifacts/playwright/specs/teaching-load-reversible-save-fixture.spec.ts`.
+- Added stable non-visual test IDs to Teaching Load section-owner controls:
+  - `teaching-load-section-row`
+  - `teaching-load-section-subject-row`
+  - `teaching-load-owner-picker-trigger`
+  - `teaching-load-owner-option`
+- The fixture now:
+  - logs in through the real Admin API session;
+  - selects a safe current owner and same-department real target from live Teaching Load data;
+  - moves one section-subject owner through the browser UI;
+  - confirms the Teaching Load transfer dialog;
+  - saves through the browser UI;
+  - verifies persisted source/target assignment changes through the API;
+  - restores the exact original source and target assignment snapshots in `finally`;
+  - proves final restored assignment signatures match the original snapshots.
+
+## Fixture Data Note
+
+- Initial implementation assumed a real active teacher source. Live Tailnet data currently stores active Teaching Load ownership primarily under Teacher X placeholders while real teachers have zero load.
+- The fixture was corrected to allow a current placeholder source owner while requiring the target to be an active real teacher. This matches the current repair scenario and still restores both exact snapshots after the test.
+
+## Verification
+
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teaching-load-reversible-save-fixture.spec.ts --project=desktop --workers=1`: PASS `1/1`, live write/revert completed in `10.2s`.
+- Forced-failure cleanup probe: temporarily threw after browser save; expected command result was FAIL with `Forced cleanup probe after browser save`, and the fixture still emitted `cleanup-proof` from the `finally` path.
+- Post-probe normal fixture rerun: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teaching-load-reversible-save-fixture.spec.ts --project=desktop --workers=1`: PASS `1/1`, confirming the committed spec passes after cleanup.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `37/37`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `736ms`.
+- Combined Tailnet browser verification: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teachers-teaching-load-guided-workflow.spec.ts qa-artifacts/playwright/specs/teaching-load-reversible-save-fixture.spec.ts --workers=1`: PASS `10/10`, SKIP `2/2` mobile write fixture cases by design.
+
+## Artifacts
+
+- `qa-artifacts/teaching-load-reversible-save-fixture/desktop-selected-fixture-2026-08-03T15-57-01-902Z.json`
+- `qa-artifacts/teaching-load-reversible-save-fixture/desktop-cleanup-proof-2026-08-03T15-57-08-263Z.json`
+
+## Decision
+
+`GO for safe reversible Teaching Load draft save/revert proof`. The previous write-fixture caveat is resolved: live browser save changes persisted Teaching Load ownership, and cleanup restored the original assignment snapshots.
+
+---
+
+# 2026-08-04 - Simple Timetable Completion: Schedule Switching, Tutorial, and Lost Function Recovery
+
+- Prompt executed: implement Simple timetable schedule switching, correct filter semantics, add a Simple-specific tutorial, and recover Simple details/action parity.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implemented Changes
+
+- Added Simple-view schedule switching for `Section`, `Teacher`, and `Room` using the existing timetable pivot state and entity selector data.
+- Added desktop/tablet inline schedule controls and a mobile schedule sheet with stable test IDs.
+- Replaced the misleading Simple `Filters` behavior with a real Simple filters popover; `Advanced view` remains a separate explicit action.
+- Added a visible `Help`/tutorial trigger with a Simple-specific guided tutorial covering schedule view, schedule selection, placing, cell review, swaps, More tools, and Advanced view.
+- Recovered Simple selected-class details with a Simple details sheet instead of forcing Advanced/right-panel behavior.
+- Changed Simple `Move` to enter grid-pick mode directly instead of jumping to the old manual-edit workspace.
+- Fixed mobile selected-class action strip readability by making it viewport-fixed and stacked on small screens.
+- Added immediate visible review guidance for click/touch/keyboard placement and occupied-slot swap review paths.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `37/37`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `1.20s`.
+- Simple-view completion Tailnet suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simple-view-completion.spec.ts --workers=1`: PASS `12/12`.
+- Timetable visual readiness + grid overflow + teacher-departure Tailnet regressions: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-visual-readiness.spec.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts --workers=1`: PASS `21/21`.
+- Full timetable performance matrix: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42`.
+
+## Findings Closed
+
+- Simple view now exposes Section/Teacher/Room schedule switching without switching to Advanced.
+- Simple `Filters` now opens a filter popover instead of silently changing layout mode.
+- Simple tutorial is manually triggered and Simple-specific.
+- Simple selected-class details remain in Simple view.
+- Touch select-then-place now has readable, visible guidance on mobile portrait.
+
+## Caveats
+
+- The workspace was already dirty before this pass, including generated `atlas-client/dist` changes. Verification was run against the current live Tailnet surface and local workspace state; no destructive cleanup was performed.
+
+## Decision
+
+`GO for Simple timetable completion`. The restored Simple controls now cover schedule pivots, filters, tutorial, details, move/swap guidance, and existing generated/draft/teacher-departure regressions without failing the performance matrix.
+
+---
+
+# 2026-08-04 - Simple Timetable Ease-of-Use Iteration
+
+- Prompt executed: simplify Simple timetable header, More menu, plotting tray, selected-class actions, help/details, and overflow/recovery action density.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implemented Changes
+
+- Reduced visible Simple header controls to schedule switching, one primary action, Help, and More.
+- Split More into plain scheduler groups: `Daily tasks`, `Schedule data`, and `Expert tools`.
+- Moved Filters, Advanced view, Status key, refresh actions, run selection, generation, edit history, draft planning, and teacher-leaving repair behind the grouped More menu.
+- Reworked generated and draft plotting trays from long default lists into `Current session` plus up to three `Next sessions`; the full list remains available through `Find`.
+- Shortened plotting actions to `Place`, `Choose room`, `Fix owner`, and `Review blocker`.
+- Collapsed selected-class strip actions into one visible primary action plus `More actions`; the primary defaults to keyboard-safe `Move timeslot`.
+- Converted Simple tutorial steps into visual cards with icon, target name, one short explanation, and a non-mutating `Show me` affordance.
+- Converted Simple details into visual summary cards for class, teacher, room, time, and actions.
+- Simplified mobile overflow rows by keeping `Select` visible and moving secondary actions into a row-level More menu.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `37/37`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, final Vite build completed in `2.60s`.
+- Simple ease-of-use Tailnet suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simple-ease-of-use.spec.ts --workers=1`: PASS `12/12`.
+- Simple-view completion Tailnet suite: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simple-view-completion.spec.ts --workers=1`: PASS `12/12`.
+- Timetable visual readiness + grid overflow + teacher-departure Tailnet regressions: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-visual-readiness.spec.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts --workers=1`: PASS `21/21`.
+- Timetable performance matrix:
+  - Full rerun after keyboard/filter corrections: desktop and mobile landscape gate paths PASS; mobile portrait initially failed because the harness counted its own intentionally blocked commit route as unexpected.
+  - Corrected mobile portrait rerun: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=mobile-portrait --workers=1`: PASS `14/14`.
+
+## Findings Closed
+
+- Simple header no longer presents a row of unrelated cockpit controls.
+- More menu is grouped by scheduler intent instead of mixing setup, expert tools, and daily tasks in one flat list.
+- Plotting no longer shows 18 repeated rows by default.
+- Selected-class strip no longer exposes four equal-weight actions at once.
+- Keyboard/touch move remains directly usable through the primary `Move timeslot` action.
+- Overflow and teacher-departure workflows remain reachable after secondary actions were moved into More menus.
+
+## Caveats
+
+- One full performance rerun observed the harness intentionally aborting `/manual-edits/commit` during mobile touch testing and reporting it as unexpected. The harness filter was corrected to ignore only this deliberate `ERR_BLOCKED_BY_CLIENT` commit abort; the corrected mobile portrait performance rerun passed `14/14`.
+
+## Decision
+
+`GO for Simple timetable ease-of-use iteration`. The Simple view is calmer, action grouping is clearer, default plotting is smaller, and the existing generated/draft/overflow/teacher-departure/performance workflows remain verified.
+
+---
+
+# 2026-08-05 - Timetable Full-Function QA and Feedback Hardening
+
+- Prompt executed: realign timetable QA to the current Simple-default layout and harden scheduler-facing feedback for placement, swap, teacher-departure, policy, and published-revision paths.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Implemented Changes
+
+- Added Tailnet preflight classification to shared timetable Playwright login helpers so `/api/v1/health` or login outages fail as `dev stack unavailable` instead of misleading timetable failures.
+- Realigned shared generated-unassigned fixtures to the current Simple plotting tray and current action labels: `Place`, `Choose room`, `Fix owner`, and `Review blocker`.
+- Added current Simple-default full-function matrix coverage for:
+  - Simple schedule switching on desktop and mobile sheet layouts;
+  - Simple tutorial and Status key;
+  - generated placement preview;
+  - generated occupied-slot swap preview;
+  - draft planning through `More -> Plan draft`;
+  - teacher-departure entry through Simple More and selected-class More actions;
+  - Advanced policy reachability through `More tools`.
+- Added feedback-readiness coverage for:
+  - generated placement footer feedback;
+  - draft placement save reason;
+  - generated swap feedback;
+  - draft swap feedback when a live occupied draft fixture is available;
+  - teacher-departure feedback;
+  - published-revision feedback when a live published-run fixture is available.
+- Added visible `aria-live="polite"` footer/status feedback in timetable placement/swap/revision surfaces so disabled or ready actions explain what happened and what to do next.
+
+## Verification
+
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `37/37`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npm run build` in `atlas-client`: PASS, Vite build completed in `638ms`.
+- Current full-function + feedback-readiness Tailnet suites: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-current-full-function-matrix.spec.ts qa-artifacts/playwright/specs/timetable-feedback-readiness.spec.ts --workers=1`: PASS `33/33`.
+- Simple completion + ease-of-use Tailnet suites: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simple-view-completion.spec.ts qa-artifacts/playwright/specs/timetable-simple-ease-of-use.spec.ts --workers=1`: PASS `24/24`.
+- Full timetable performance matrix: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1`: PASS `42/42`.
+
+## Findings Closed
+
+- Stale QA paths no longer expect old default-visible controls such as the old status legend, old unassigned rail buttons, or visible policy buttons outside Advanced More tools.
+- Mobile schedule switching is now tested through the intentional one-tap Simple schedule sheet.
+- Draft placement feedback now accepts concrete blocker copy such as scheduling-window violations.
+- Generated and draft review surfaces now expose visible action-adjacent feedback instead of relying only on preview body content.
+- Tailnet health/login failures are separated from product workflow failures.
+
+## Caveats
+
+- Draft swap and published-revision feedback tests remain fixture-aware: they verify the feedback when the live selected fixture exposes those paths and record `fixture-unavailable` annotations otherwise.
+- The workspace remains dirty with pre-existing generated artifacts and prior timetable/setup changes; no destructive cleanup was performed.
+
+## Decision
+
+`GO for timetable full-function QA and feedback hardening`. Current Simple-default workflows, feedback readiness, and performance gates pass across desktop, mobile portrait, and mobile landscape.
+
+---
+
+# 2026-08-05 - Timetable Swap and Teacher-Leaving Mechanics Audit
+
+- Prompt executed: audit and test timetable swapping mechanics and teacher-leaving mechanics after Simple-default UX changes.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Findings
+
+- The first focused run produced a QA failure in published teacher-departure and reversible teacher-departure specs because both still clicked the old direct selected-class reassignment action.
+- Product behavior was current and intentional: selected-class secondary actions now live under `More actions` in Simple view.
+- Updated the stale specs to use `selected class -> More actions -> Reassign teacher`.
+
+## Verification
+
+- Initial focused swap/teacher-departure matrix: `48/51` passed; `3/51` failed only in stale published-revision test selector paths.
+- Corrected published-revision teacher-departure spec: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts --workers=1 --reporter=line`: PASS `3/3`.
+- Corrected live reversible teacher-departure fixture: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-teacher-departure-live-reversible.spec.ts --workers=1 --reporter=line`: PASS `1/1`, SKIP `2/2` mobile projects by design to avoid repeated live writes.
+- Final focused matrix: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-current-full-function-matrix.spec.ts qa-artifacts/playwright/specs/timetable-feedback-readiness.spec.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure-live-reversible.spec.ts --workers=1 --reporter=line`: PASS `52/52`, SKIP `2/2`.
+
+## Coverage Confirmed
+
+- Generated occupied-slot swap opens the current modern review flow.
+- Hidden sessions inside crowded cells can be opened, selected, swapped, and launched into teacher reassignment.
+- Simple teacher-departure entry is discoverable through Simple More.
+- Selected-class teacher reassignment is discoverable through `More actions`.
+- Published teacher-departure opens the effective-date revision review and does not directly rewrite the published run.
+- Live desktop teacher-departure reassignment can be saved, verified in run data/grid state, and reverted by the same test.
+
+## Remaining Caveats
+
+- The live write/revert teacher-departure fixture intentionally runs only once on desktop; mobile projects are skipped to avoid repeated writes against the same live fixture.
+- Draft swap coverage still depends on whether the live draft fixture exposes an occupied-slot swap case. Existing feedback tests verify the path when available and annotate fixture unavailability otherwise.
+
+## Decision
+
+`GO for generated swaps and teacher-leaving mechanics after QA alignment`. The only concrete failures found were stale test paths caused by the Simple selected-action menu redesign. No product blocker was found in this audit.
+
+---
+
+# 2026-08-05 - Timetable Draft Swap Deterministic Fixture and Teacher-Leaving Proof
+
+- Prompt executed: implement the timetable swap and teacher-leaving fool-proofness plan.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Changes Verified
+
+- Added shared current Simple-view Playwright helpers for `More -> Plan draft` and selected-class `More actions -> Reassign teacher`.
+- Added deterministic desktop-only draft swap fixture coverage in `timetable-draft-swap-live-reversible.spec.ts`.
+- Hardened the draft swap fixture to create non-overlapping temporary placements, verify browser swap review, save the swap, verify the draft-board API and grid after reload, and restore the original draft placement signature.
+- Standardized draft swap feedback through `swap-review-feedback`, `draft-swap-preview-status`, and scheduler-facing disabled/error guidance.
+- Re-verified selected-class teacher-departure specs against the current Simple action grouping.
+
+## Verification
+
+- TypeScript: `cd atlas-client && npx tsc --noEmit`: PASS.
+- UX guardrails: `cd atlas-client && npm run test:ux-guardrails`: PASS `37/37`.
+- Timetable conflict unit tests: `cd atlas-client && npm run test:timetable-conflict`: PASS `10/10`.
+- Production build: `cd atlas-client && npm run build`: PASS.
+- New deterministic draft swap fixture: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-draft-swap-live-reversible.spec.ts --workers=1 --reporter=line`: PASS `1/1`, SKIP `5/5` expected mobile/desktop-opposite live-write guards.
+- Focused timetable release gate: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-current-full-function-matrix.spec.ts qa-artifacts/playwright/specs/timetable-feedback-readiness.spec.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure-live-reversible.spec.ts qa-artifacts/playwright/specs/timetable-draft-swap-live-reversible.spec.ts --workers=1 --reporter=line`: PASS `53/53`, SKIP `7/7`.
+- Timetable performance matrix: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1 --reporter=line`: PASS `42/42`.
+- Post-run cleanup probe: active school year `39`, active Codex draft-swap fixtures `0`, active draft placements `0`.
+
+## Coverage Confirmed
+
+- Generated occupied-slot swaps still open the modern review flow.
+- Draft occupied-slot swaps now have deterministic browser save/revert proof instead of depending on naturally occupied live draft data.
+- Draft swap disabled/error feedback appears beside the action and uses plain scheduler guidance.
+- Selected-class teacher reassignment uses the current Simple `More actions` grouping.
+- Desktop live teacher-departure reassignment still saves, verifies, reloads, and reverts.
+- Published teacher-departure remains revision-only through the effective-date review.
+- Mobile projects verify discovery/preview/layout paths and intentionally skip live writes to avoid repeated fixture mutation.
+
+## Decision
+
+`GO for timetable swap and teacher-leaving fool-proofness`. The prior draft-swap proof gap is closed by a deterministic reversible desktop fixture, and focused release/performance gates passed after cleanup.
+
+---
+
+# 2026-08-05 - Timetable Release-Candidate Audit Sweep
+
+- Prompt executed: audit the timetabling page for full function readiness and UX/UI readiness after swap and teacher-leaving proof work.
+- Operator: Codex.
+- Target environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Role/account: Admin `1000001`.
+
+## Verification
+
+- Full focused browser audit: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simple-view-completion.spec.ts qa-artifacts/playwright/specs/timetable-simple-ease-of-use.spec.ts qa-artifacts/playwright/specs/timetable-visual-readiness.spec.ts qa-artifacts/playwright/specs/timetable-current-full-function-matrix.spec.ts qa-artifacts/playwright/specs/timetable-feedback-readiness.spec.ts qa-artifacts/playwright/specs/timetable-finalization-grid-overflow.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure.spec.ts qa-artifacts/playwright/specs/timetable-finalization-published-revision.spec.ts qa-artifacts/playwright/specs/timetable-teacher-departure-live-reversible.spec.ts qa-artifacts/playwright/specs/timetable-draft-swap-live-reversible.spec.ts --workers=1 --reporter=line`: PASS `83/83`, SKIP `7/7` expected live-write guards.
+- Timetable performance matrix: `PLAYWRIGHT_ADMIN_EMAIL=1000001 PLAYWRIGHT_ADMIN_PASSWORD=AdminSY2026! npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-performance.spec.ts --workers=1 --reporter=line`: PASS `42/42`.
+- TypeScript: `cd atlas-client && npx tsc --noEmit`: PASS.
+- UX guardrails: `cd atlas-client && npm run test:ux-guardrails`: PASS `37/37`.
+- Timetable conflict unit tests: `cd atlas-client && npm run test:timetable-conflict`: PASS `10/10`.
+- Production build: `cd atlas-client && npm run build`: PASS.
+
+## Manual Browser Sweep Findings
+
+- Simple header remains within budget:
+  - desktop: `85px`;
+  - mobile portrait: `95px`;
+  - mobile landscape: `75px`.
+- Timetable grid remains above the fold after hydration:
+  - desktop table top: `159px`;
+  - mobile landscape table top: `149px`.
+- No global horizontal or vertical page overflow was detected on desktop, mobile portrait, or mobile landscape.
+- Simple `More` remains grouped into `Daily tasks`, `Schedule data`, and `Expert tools`.
+- Simple tutorial is manually triggered and presents the Simple workflow steps.
+- Selected class strip resolves to real labels after lookup hydration; `Names loaded` appears and no raw `Unknown ... (#id)` labels were detected.
+- No obsolete timetable-owned assignment language was detected in the audited visible surfaces.
+- No app-critical console errors or unexpected network failures were detected in the manual sweep.
+- Post-sweep cleanup probe confirmed active school year `39`, active Codex draft-swap fixtures `0`, and active draft placements `0`.
+
+## Findings
+
+- No concrete functional blocker was found.
+- No concrete layout blocker was found.
+- One non-blocking UX caveat remains: if a scheduler selects a class before reference-name hydration finishes, the selection strip can briefly show `Loading subject name...` / `Loading section name...`. This resolves after hydration and is covered by the `Names loaded` state, but it is still a small polish candidate.
+- Automated axe-core scanning is not configured in the workspace; accessibility proof currently comes from the WCAG-oriented guardrail tests plus keyboard/focus/browser workflow specs.
+
+## Recommendation
+
+`GO for timetable release-candidate maintenance`. The next UX priority should move away from timetable unless a real user reports a concrete workflow failure. Non-blocking timetable backlog: add an axe-core Playwright scan, consider a calmer loading placeholder for the selected-class strip during lookup hydration, and continue moderated older-user validation when real scheduler officers become available.
+
+---
+
+# 2026-08-06 - EnrollPro Latest Contract and Rollover Readiness Audit
+
+- Prompt executed: pull/inspect the latest EnrollPro fork, verify new Tailnet credentials, confirm required EnrollPro data feeds still work, and plan school-year rollover integration.
+- Operator: Codex.
+- ATLAS target: `https://njgrm.buru-degree.ts.net`.
+- EnrollPro backend target: `http://100.120.169.123:5002/api`.
+- Local EnrollPro checkout: `D:\EnrollPro`.
+- Latest EnrollPro commit inspected: `d1f0aa1c`.
+
+## Live Probe Evidence
+
+- Direct EnrollPro credential verification: `POST /api/auth/verify` with `1234501 / DepEdSY2026!` -> PASS `200`, `SYSTEM_ADMIN`, `email=null`.
+- Direct EnrollPro login: `POST /api/auth/login` with `accountName=1234501` -> PASS `200`.
+- ATLAS proxy EnrollPro verification: `POST /enrollpro-api/auth/verify` -> PASS `200`.
+- ATLAS delegated login before fix: `POST /api/v1/auth/login` -> FAIL `500` because EnrollPro returned `email=null`.
+- ATLAS delegated login after fix: `POST /api/v1/auth/login` -> PASS `200`, token issued for local officer account.
+- EnrollPro active school year: `GET /api/integration/v1/school-year` -> PASS `200`, `id=1`, `yearLabel=2026-2027`.
+- EnrollPro sections: `GET /api/integration/v1/sections?page=1&limit=200` -> PASS `200`, `20` rows.
+- EnrollPro faculty: `GET /api/integration/v1/default/faculty?page=1&limit=200` -> PASS `200`, `24` rows.
+- EnrollPro branding/settings: `GET /api/settings/public` -> PASS `200`.
+- EnrollPro SCP config: `GET /api/settings/scp-config` -> PASS `200`, empty config.
+- EnrollPro subject offerings: `GET /api/integration/v1/subject-offerings?schoolYearId=1` -> FAIL `404`; this endpoint is not documented in the new EnrollPro partner API and must remain optional.
+
+## Changes Verified
+
+- `atlas-server/src/services/local-auth.service.ts` now accepts nullable EnrollPro staff email and generates a stable internal fallback email from employee/account ID.
+- `atlas-server/src/scripts/verify-cross-repo-source-gate.ts` now sends `accountName/password` to EnrollPro login while preserving old CLI/env naming.
+- `npm run build` in `atlas-server`: PASS after both changes.
+- `npm run test:auth` in `atlas-server`: FAIL `35 passed, 1 failed`; failure is the old seeded local faculty fixture `maria.santos@deped.edu.ph` not accepting the test-assumed password `DepEd2026!`. Delegated EnrollPro provisioning cases in the same run passed, and live ATLAS delegated login with `1234501 / DepEdSY2026!` passed.
+
+## Rollover Readiness Finding
+
+- ATLAS runtime context with upstream verification currently returns `activeSchoolYearId=39`, `source=atlas-persisted`, `upstream.reachable=true`, `upstream.verified=false`, `upstream.matched=false`.
+- EnrollPro currently reports active `schoolYearId=1`, `yearLabel=2026-2027`.
+- Decision: `NO-GO for new-year schedule generation until ATLAS performs an explicit rollover sync or mapping step`.
+
+## Artifacts
+
+- Audit: `docs/analysis/enrollpro-latest-integration-audit-2026-08-06.md`.
+- Plan: `docs/phases/enrollpro-school-year-rollover-integration-plan-2026-08-06.md`.
+
+---
+
+# 2026-08-06 - EnrollPro Rollover Drift Handling Implementation
+
+- Prompt executed: implement explicit active-year drift handling, mirror EnrollPro 2026-2027 metadata, block stale-year generation, and guide setup/Teaching Load/timetable creation.
+- Operator: Codex.
+- Migration applied: `0033_add_enrollpro_school_year_mirror`.
+
+## Implementation Evidence
+
+- Added `EnrollProSchoolYearMirror` to Prisma schema and migration SQL.
+- Added runtime rollover status, preview, and apply endpoints under `/api/v1/runtime`.
+- Extended `/api/v1/runtime/context` with `activeYearDrift`, upstream active-year fields, and saved rollover mirror metadata.
+- Added server-side `ACTIVE_YEAR_DRIFT` generation guard before `GenerationRun` creation.
+- Added compact rollover guidance UI to Dashboard, Sections, Teachers, Teaching Load, and Timetable.
+
+## Live Probe Evidence
+
+- `POST /api/v1/auth/login` with `identifier=1234501`, `password=DepEdSY2026!`: PASS; local officer token issued.
+- `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true`: PASS; drift reports `atlas-stale`, ATLAS year `39`, EnrollPro year `1 / 2026-2027`.
+- `POST /api/v1/runtime/rollover-sync/preview`: PASS; reports `24` faculty, `20` sections, settings reachable, and `mapping-conflict`.
+- `POST /api/v1/runtime/rollover-sync/apply`: PASS as guarded failure; returns `SCHOOL_YEAR_MAPPING_CONFLICT` because schoolYearId `1` already has incompatible local section data.
+- `POST /api/v1/generation/1/39/runs`: PASS as guarded failure; returns `ACTIVE_YEAR_DRIFT` with a scheduler-readable next step.
+
+## Verification
+
+- `npx prisma generate`: PASS.
+- `npx prisma migrate deploy`: PASS.
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-server`: alternate emit check to `dist-rollover-check`: PASS.
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run build`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS `37/37`.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS `10/10`.
+- `GET /api/v1/health`: PASS after local server restart.
+
+## Caveats
+
+- `atlas-server npm run build` is blocked by a locked generated `dist/scripts/verify-cross-repo-source-gate.js` output. Source type-check and alternate emit passed, so this appears to be a Windows generated-file lock rather than a TypeScript error.
+- Generated verification folder `atlas-server/dist-rollover-check` remains because cleanup commands are blocked by the active safety policy.
+- EnrollPro 2026-2027 apply is intentionally blocked until the existing ATLAS schoolYearId `1` collision is resolved.
+
+---
+
+# 2026-08-06 - EnrollPro Dummy-Year Reset and Canonical Rollover Apply
+
+- Prompt executed: reset disposable ATLAS dummy data under the conflicting EnrollPro active school-year ID, keep EnrollPro IDs canonical, and start 2026-2027 Teaching Load empty/review-required.
+- Operator: Codex.
+- ATLAS target: local Tailnet bridge server at `http://127.0.0.1:5001`; Tailnet public target remains `https://njgrm.buru-degree.ts.net`.
+
+## Implementation Evidence
+
+- Added guarded reset endpoint `POST /api/v1/runtime/rollover-sync/reset-dummy-year`.
+- Reset preview defaults to no-write behavior and reports conflicting school-year counts.
+- Reset apply requires `confirmReset=true` and `confirmationText="RESET_DUMMY_SCHOOL_YEAR_1"`.
+- Reset blocks if published generation markers or published schedule revisions are present.
+- Rollover reset clears school-year dummy artifacts, clears school-scoped Teaching Load ownership, writes a replacement audit row, then runs canonical EnrollPro sync.
+- Rollover faculty sync now uses `prune` mode for reset and skips automatic assignment/HG seeding so Teaching Load starts empty.
+- Generation now blocks active-year creation with `TEACHING_LOAD_REVIEW_REQUIRED` while Teaching Load ownership is empty.
+
+## Live Probe Evidence
+
+- `POST /api/v1/auth/login` with `identifier=1234501`, `password=DepEdSY2026!`: PASS; role `officer`.
+- `POST /api/v1/runtime/rollover-sync/reset-dummy-year` preview: PASS; `drift=mapping-conflict`, target `1`, `66` dummy sections, `15` dummy runs, `1217` ownership rows, `22` faculty-subject rows, no published blocker.
+- Reset confirmation guard: PASS; wrong confirmation returns `400 CONFIRMATION_REQUIRED`.
+- Reset apply with confirmation: PASS; `resetApplied=true`, drift becomes `aligned`, active year `1 / 2026-2027`, `20` sections, `24` faculty, mirror status `setup-review-required`, faculty sync mode `prune`, stale faculty removed `166`.
+- Post-reset DB proof: `SectionMirror=20`, `SchedulingPolicy=1`, `GenerationRun=0`, `AuditLog=1`, active faculty `24`, `FacultySubject=0`, `SubjectSectionOwnership=0`.
+- `GET /api/v1/runtime/rollover-status?schoolId=1&includeCounts=true`: PASS; `drift=aligned`, `conflictCount=0`, `canResetDummyYear=false`, `20` sections, `24` faculty.
+- `POST /api/v1/generation/1/1/runs`: PASS as guarded failure; returns `409 TEACHING_LOAD_REVIEW_REQUIRED` with action hint to build Teaching Load.
+- `POST /api/v1/generation/1/39/runs`: PASS as guarded failure; returns `409 ACTIVE_YEAR_DRIFT`.
+
+## Verification
+
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run build`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS `37/37`.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS `10/10`.
+- `GET /api/v1/health`: PASS.
+- Browser Tailnet smoke: PASS; `https://njgrm.buru-degree.ts.net/` login with `1234501 / DepEdSY2026!` shows aligned EnrollPro `2026-2027` guidance and no old mapping-conflict reset prompt.
+
+## Caveats
+
+- New-year timetable generation is intentionally blocked until Teaching Load is rebuilt.
+- Dummy reset is not a production-history migration path; published artifacts remain protected by `PUBLISHED_YEAR_RESET_BLOCKED`.
+- Browser network log still records expected `404` responses for `/api/v1/generation/1/1/runs/latest/timetable` because no 2026-2027 timetable exists yet. This did not break the page and should disappear after the first valid generation run.

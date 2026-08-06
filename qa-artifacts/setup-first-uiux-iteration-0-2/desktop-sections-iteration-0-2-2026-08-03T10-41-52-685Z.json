@@ -1,0 +1,33 @@
+{
+  "path": "/sections",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "headerHeight": 139,
+  "headerBottom": 195,
+  "contentTop": 195,
+  "contentHeight": 573,
+  "scrollHeight": 768,
+  "clientHeight": 768,
+  "scrollWidth": 1366,
+  "clientWidth": 1366,
+  "sourceState": "checking-source",
+  "sourceText": "Checking source",
+  "sourceSummaryText": "Source truth: ATLAS is verifying the roster source while the saved section list stays visible, so room edits are paused for now.",
+  "visibleButtonCount": 12,
+  "visibleButtons": [
+    "ATLAS High School\nSCHEDULING PORTAL\nWorking from saved data",
+    "O\nofficer\nAdmin",
+    "Toggle Sidebar",
+    "Accessibility options",
+    "Browse room map",
+    "Sync sections",
+    "More filters",
+    "Section",
+    "Grade",
+    "Enrolled",
+    "Capacity",
+    "Status"
+  ]
+}

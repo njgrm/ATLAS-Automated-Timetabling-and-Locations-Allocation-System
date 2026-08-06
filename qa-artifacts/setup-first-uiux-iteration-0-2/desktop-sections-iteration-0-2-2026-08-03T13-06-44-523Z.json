@@ -1,0 +1,37 @@
+{
+  "path": "/sections",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "headerHeight": 121,
+  "headerBottom": 177,
+  "contentTop": 177,
+  "contentHeight": 591,
+  "scrollHeight": 768,
+  "clientHeight": 768,
+  "scrollWidth": 1366,
+  "clientWidth": 1366,
+  "sourceState": "saved-data",
+  "sourceText": "Using saved data",
+  "sourceSummaryText": "Source truth: ATLAS is showing the last safe section mirror because the live source is not fully verified. Home-room edits can be queued if saving fails.",
+  "visibleButtonCount": 51,
+  "visibleButtons": [
+    "ATLAS HINIGARAN NATIONAL HIGH SCHOOL\nSCHEDULING PORTAL\nS.Y. 2026-2027\n• ACTIVE",
+    "O\nofficer\nAdmin",
+    "Toggle Sidebar",
+    "Accessibility options",
+    "Sections help",
+    "Home rooms assigned help",
+    "Need rooms help",
+    "Browse room map",
+    "Sync sections",
+    "More filters",
+    "Section",
+    "Grade",
+    "Enrolled",
+    "Capacity",
+    "Status",
+    "7\nAguinaldo\nREGULAR PROGRAM"
+  ]
+}

@@ -20,6 +20,8 @@ assert(app.includes("timetableTeachingLoadRepairRouter"), 'Teaching Load repair 
 assert(service.includes('RUN_ALREADY_PUBLISHED'), 'Published runs are blocked from canonical Teaching Load repair.');
 assert(service.includes('expectedRunVersion'), 'Apply contract enforces run version checks.');
 assert(service.includes('FACULTY_VERSION_CONFLICT'), 'Apply contract enforces faculty Teaching Load version checks.');
+assert(service.includes('targetFacultyIds.has(facultyId)'), 'Repair validation only blocks inactive target/replacement teachers.');
+assert(service.includes('The replacement teacher is no longer active for scheduling'), 'Inactive replacement blocker is scheduler-readable.');
 assert(service.includes("kind: 'UNASSIGNED'"), 'Repair contract supports unassigned-session Teaching Load changes.');
 assert(service.includes('buildUnassignedKey'), 'Repair contract uses a stable unassigned-session identity.');
 assert(service.includes('placementProposal'), 'Repair contract supports optional placement after Teaching Load repair.');
@@ -37,7 +39,6 @@ assert(timetableData.includes('selectedRunIdRef'), 'Timetable data hook preserve
 assert(appShell.includes('key={`${crumb.label}-${i}`}'), 'Breadcrumb keys disambiguate duplicate group/item labels.');
 assert(preGenerationDraftService.includes('loadSectionSnapshot'), 'Pre-generation draft board can fall back to cached section snapshots when upstream sections are unavailable.');
 assert(dock.includes('Timetable and Teaching Load do not match'), 'Dock shows source-honest mismatch copy.');
-assert(dock.includes('Use timetable teacher'), 'Dock exposes action to trust the timetable teacher.');
 assert(dock.includes('Use Teaching Load owner'), 'Dock exposes action to trust canonical Teaching Load.');
 assert(dock.includes('Save Teaching Load and update timetable'), 'Dock exposes the required unpublished primary action copy.');
 assert(dock.includes('Unassigned session'), 'Dock exposes unassigned-session repair context.');

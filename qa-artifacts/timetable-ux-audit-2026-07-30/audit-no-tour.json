@@ -1,0 +1,795 @@
+[
+  {
+    "viewport": "desktop",
+    "mode": "simple",
+    "before": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 1366,
+        "sh": 768,
+        "iw": 1366,
+        "ih": 768
+      },
+      "simpleHeader": {
+        "x": 48,
+        "y": 58,
+        "w": 1318,
+        "h": 133,
+        "top": 58,
+        "bottom": 191
+      },
+      "taskPrompt": {
+        "x": 60,
+        "y": 114,
+        "w": 1294,
+        "h": 70,
+        "top": 114,
+        "bottom": 184
+      },
+      "taskDrawer": null,
+      "sourceTruth": null,
+      "taskGuide": null,
+      "leftPanel": null,
+      "rightPanel": null,
+      "centerPanel": {
+        "x": 48,
+        "y": 191,
+        "w": 1318,
+        "h": 577,
+        "top": 191,
+        "bottom": 768
+      },
+      "grid": {
+        "x": 64,
+        "y": 207,
+        "w": 1286,
+        "h": 738,
+        "top": 207,
+        "bottom": 945
+      },
+      "searchPanel": null,
+      "cards": [],
+      "buttons": [
+        "ATLAS High SchoolScheduling PortalWorking from saved data",
+        "OofficerAdmin",
+        "Toggle Sidebar",
+        "Accessibility options",
+        "Filters",
+        "Advanced viewAdvanced",
+        "More",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Why?",
+        "Start placing"
+      ],
+      "headings": [],
+      "body": {
+        "w": 1366,
+        "h": 768
+      }
+    },
+    "after": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 1366,
+        "sh": 768,
+        "iw": 1366,
+        "ih": 768
+      },
+      "simpleHeader": {
+        "x": 48,
+        "y": 58,
+        "w": 1318,
+        "h": 133,
+        "top": 58,
+        "bottom": 191
+      },
+      "taskPrompt": {
+        "x": 60,
+        "y": 114,
+        "w": 1294,
+        "h": 70,
+        "top": 114,
+        "bottom": 184
+      },
+      "taskDrawer": {
+        "x": 982,
+        "y": 191,
+        "w": 384,
+        "h": 577,
+        "top": 191,
+        "bottom": 768
+      },
+      "sourceTruth": null,
+      "taskGuide": null,
+      "leftPanel": null,
+      "rightPanel": null,
+      "centerPanel": {
+        "x": 48,
+        "y": 191,
+        "w": 934,
+        "h": 577,
+        "top": 191,
+        "bottom": 768
+      },
+      "grid": {
+        "x": 64,
+        "y": 207,
+        "w": 902,
+        "h": 738,
+        "top": 207,
+        "bottom": 945
+      },
+      "searchPanel": {
+        "x": 983,
+        "y": 349,
+        "w": 383,
+        "h": 199,
+        "top": 349,
+        "bottom": 548
+      },
+      "cards": [
+        {
+          "top": 557,
+          "bottom": 688,
+          "h": 131,
+          "w": 357,
+          "text": "G7Unknown Section (#317)Unknown Subject (#1) · Session 1Needs roomSPSTeacher OverloadedRev"
+        },
+        {
+          "top": 713,
+          "bottom": 844,
+          "h": 131,
+          "w": 357,
+          "text": "G7Unknown Section (#317)Unknown Subject (#1) · Session 2Needs roomSPSTeacher OverloadedRev"
+        }
+      ],
+      "buttons": [
+        "ATLAS High SchoolScheduling PortalWorking from saved data",
+        "OofficerAdmin",
+        "Toggle Sidebar",
+        "Accessibility options",
+        "Filters",
+        "Advanced viewAdvanced",
+        "More",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Why?",
+        "Start placing",
+        "Close task drawer",
+        "All",
+        "Needs room",
+        "Needs owner",
+        "Ready",
+        "Blocked",
+        "All grades",
+        "G7",
+        "G8",
+        "G9",
+        "G10",
+        "Any reason (365)",
+        "Teacher Overloaded (360)",
+        "Show diagnostics",
+        "Clear",
+        "Review room source",
+        "Details",
+        "Flag for follow-up"
+      ],
+      "headings": [
+        "Place unresolved sessions"
+      ],
+      "body": {
+        "w": 1366,
+        "h": 768
+      }
+    },
+    "consoleMessages": [],
+    "requestFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "mode": "advanced",
+    "initial": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 1366,
+        "sh": 768,
+        "iw": 1366,
+        "ih": 768
+      },
+      "simpleHeader": null,
+      "taskPrompt": null,
+      "taskDrawer": null,
+      "sourceTruth": {
+        "x": 64,
+        "y": 104,
+        "w": 1286,
+        "h": 30,
+        "top": 104,
+        "bottom": 134
+      },
+      "taskGuide": {
+        "x": 64,
+        "y": 138,
+        "w": 1286,
+        "h": 94,
+        "top": 138,
+        "bottom": 232
+      },
+      "leftPanel": {
+        "x": 48,
+        "y": 345,
+        "w": 369,
+        "h": 424,
+        "top": 345,
+        "bottom": 768
+      },
+      "rightPanel": {
+        "x": 1326,
+        "y": 345,
+        "w": 40,
+        "h": 424,
+        "top": 345,
+        "bottom": 768
+      },
+      "centerPanel": {
+        "x": 418,
+        "y": 345,
+        "w": 907,
+        "h": 424,
+        "top": 345,
+        "bottom": 768
+      },
+      "grid": {
+        "x": 434,
+        "y": 361,
+        "w": 875,
+        "h": 722,
+        "top": 361,
+        "bottom": 1083
+      },
+      "searchPanel": null,
+      "cards": [],
+      "buttons": [
+        "ATLAS High SchoolScheduling PortalWorking from saved data",
+        "OofficerAdmin",
+        "Toggle Sidebar",
+        "Accessibility options",
+        "Latest Run",
+        "Refresh scheduleRefresh schedule",
+        "Publish",
+        "Plan before generating",
+        "More tools",
+        "Assigned:560/925",
+        "Hard:0",
+        "Duration:55.0s",
+        "Review schedule",
+        "Place unassigned99+ to place",
+        "Switch sessions",
+        "Draft planner",
+        "Review room requests",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Undo last changeUndo",
+        "Preview Impact",
+        "Sync with Setup",
+        "Manually Repair",
+        "Regenerate Draft",
+        "Section",
+        "Unknown Section (#302)",
+        "Filters",
+        "Simple view",
+        "Collapse left panel",
+        "Violations213",
+        "Unassigned365"
+      ],
+      "headings": [],
+      "body": {
+        "w": 1366,
+        "h": 768
+      }
+    },
+    "consoleMessages": [],
+    "requestFailures": []
+  },
+  {
+    "viewport": "mobile-portrait",
+    "mode": "simple",
+    "before": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 390,
+        "sh": 844,
+        "iw": 390,
+        "ih": 844
+      },
+      "simpleHeader": {
+        "x": 0,
+        "y": 58,
+        "w": 390,
+        "h": 121,
+        "top": 58,
+        "bottom": 179
+      },
+      "taskPrompt": {
+        "x": 12,
+        "y": 114,
+        "w": 366,
+        "h": 58,
+        "top": 114,
+        "bottom": 172
+      },
+      "taskDrawer": null,
+      "sourceTruth": null,
+      "taskGuide": null,
+      "leftPanel": null,
+      "rightPanel": null,
+      "centerPanel": {
+        "x": 0,
+        "y": 179,
+        "w": 390,
+        "h": 665,
+        "top": 179,
+        "bottom": 844
+      },
+      "grid": {
+        "x": 16,
+        "y": 195,
+        "w": 640,
+        "h": 738,
+        "top": 195,
+        "bottom": 933
+      },
+      "searchPanel": null,
+      "cards": [],
+      "buttons": [
+        "Open navigation menu",
+        "Filters",
+        "Advanced viewAdvanced",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Start placing"
+      ],
+      "headings": [],
+      "body": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "after": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 390,
+        "sh": 844,
+        "iw": 390,
+        "ih": 844
+      },
+      "simpleHeader": {
+        "x": 0,
+        "y": 58,
+        "w": 390,
+        "h": 121,
+        "top": 58,
+        "bottom": 179
+      },
+      "taskPrompt": {
+        "x": 12,
+        "y": 114,
+        "w": 366,
+        "h": 58,
+        "top": 114,
+        "bottom": 172
+      },
+      "taskDrawer": {
+        "x": 8,
+        "y": 530,
+        "w": 374,
+        "h": 306,
+        "top": 530,
+        "bottom": 836
+      },
+      "sourceTruth": null,
+      "taskGuide": null,
+      "leftPanel": null,
+      "rightPanel": null,
+      "centerPanel": {
+        "x": 0,
+        "y": 179,
+        "w": 390,
+        "h": 665,
+        "top": 179,
+        "bottom": 844
+      },
+      "grid": {
+        "x": 16,
+        "y": 195,
+        "w": 640,
+        "h": 738,
+        "top": 195,
+        "bottom": 933
+      },
+      "searchPanel": {
+        "x": 9,
+        "y": 689,
+        "w": 372,
+        "h": 243,
+        "top": 689,
+        "bottom": 932
+      },
+      "cards": [],
+      "buttons": [
+        "Open navigation menu",
+        "Filters",
+        "Advanced viewAdvanced",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Start placing",
+        "Close task drawer",
+        "All",
+        "Needs room",
+        "Needs owner",
+        "Ready",
+        "Blocked",
+        "All grades",
+        "G7",
+        "G8",
+        "G9",
+        "G10",
+        "Any reason (365)",
+        "Teacher Overloaded (360)"
+      ],
+      "headings": [
+        "Place unresolved sessions"
+      ],
+      "body": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "consoleMessages": [],
+    "requestFailures": []
+  },
+  {
+    "viewport": "mobile-portrait",
+    "mode": "advanced",
+    "initial": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 390,
+        "sh": 844,
+        "iw": 390,
+        "ih": 844
+      },
+      "simpleHeader": null,
+      "taskPrompt": null,
+      "taskDrawer": null,
+      "sourceTruth": {
+        "x": 8,
+        "y": 116,
+        "w": 374,
+        "h": 26,
+        "top": 116,
+        "bottom": 142
+      },
+      "taskGuide": {
+        "x": 8,
+        "y": 146,
+        "w": 374,
+        "h": 123,
+        "top": 146,
+        "bottom": 269
+      },
+      "leftPanel": {
+        "x": 0,
+        "y": 525,
+        "w": 1,
+        "h": 320,
+        "top": 525,
+        "bottom": 844
+      },
+      "rightPanel": {
+        "x": 389,
+        "y": 525,
+        "w": 1,
+        "h": 320,
+        "top": 525,
+        "bottom": 844
+      },
+      "centerPanel": {
+        "x": 1,
+        "y": 525,
+        "w": 388,
+        "h": 320,
+        "top": 525,
+        "bottom": 844
+      },
+      "grid": {
+        "x": 17,
+        "y": 541,
+        "w": 640,
+        "h": 722,
+        "top": 541,
+        "bottom": 1263
+      },
+      "searchPanel": null,
+      "cards": [],
+      "buttons": [
+        "Open navigation menu",
+        "Latest Run",
+        "Refresh scheduleRefresh schedule",
+        "Review schedule",
+        "Place unassigned99+ to place",
+        "Switch sessions",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Preview Impact",
+        "Sync with Setup",
+        "Manually Repair",
+        "Regenerate Draft",
+        "Section",
+        "Unknown Section (#302)",
+        "Simple view",
+        "Expand left panel",
+        "213",
+        "365",
+        "Expand right panel",
+        "Open entry detail"
+      ],
+      "headings": [],
+      "body": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "consoleMessages": [],
+    "requestFailures": []
+  },
+  {
+    "viewport": "mobile-landscape",
+    "mode": "simple",
+    "before": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 844,
+        "sh": 390,
+        "iw": 844,
+        "ih": 390
+      },
+      "simpleHeader": {
+        "x": 0,
+        "y": 58,
+        "w": 844,
+        "h": 133,
+        "top": 58,
+        "bottom": 191
+      },
+      "taskPrompt": {
+        "x": 12,
+        "y": 114,
+        "w": 820,
+        "h": 70,
+        "top": 114,
+        "bottom": 184
+      },
+      "taskDrawer": null,
+      "sourceTruth": null,
+      "taskGuide": null,
+      "leftPanel": null,
+      "rightPanel": null,
+      "centerPanel": {
+        "x": 0,
+        "y": 191,
+        "w": 844,
+        "h": 199,
+        "top": 191,
+        "bottom": 390
+      },
+      "grid": {
+        "x": 16,
+        "y": 207,
+        "w": 812,
+        "h": 738,
+        "top": 207,
+        "bottom": 945
+      },
+      "searchPanel": null,
+      "cards": [],
+      "buttons": [
+        "Open navigation menu",
+        "Filters",
+        "Advanced viewAdvanced",
+        "More",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Why?",
+        "Start placing"
+      ],
+      "headings": [],
+      "body": {
+        "w": 844,
+        "h": 390
+      }
+    },
+    "after": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 844,
+        "sh": 390,
+        "iw": 844,
+        "ih": 390
+      },
+      "simpleHeader": {
+        "x": 0,
+        "y": 58,
+        "w": 844,
+        "h": 133,
+        "top": 58,
+        "bottom": 191
+      },
+      "taskPrompt": {
+        "x": 12,
+        "y": 114,
+        "w": 820,
+        "h": 70,
+        "top": 114,
+        "bottom": 184
+      },
+      "taskDrawer": {
+        "x": 460,
+        "y": 191,
+        "w": 384,
+        "h": 224,
+        "top": 191,
+        "bottom": 415
+      },
+      "sourceTruth": null,
+      "taskGuide": null,
+      "leftPanel": null,
+      "rightPanel": null,
+      "centerPanel": {
+        "x": 0,
+        "y": 191,
+        "w": 460,
+        "h": 199,
+        "top": 191,
+        "bottom": 390
+      },
+      "grid": {
+        "x": 16,
+        "y": 207,
+        "w": 640,
+        "h": 738,
+        "top": 207,
+        "bottom": 945
+      },
+      "searchPanel": {
+        "x": 461,
+        "y": 349,
+        "w": 383,
+        "h": 199,
+        "top": 349,
+        "bottom": 548
+      },
+      "cards": [],
+      "buttons": [
+        "Open navigation menu",
+        "Filters",
+        "Advanced viewAdvanced",
+        "More",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Why?",
+        "Start placing",
+        "Close task drawer"
+      ],
+      "headings": [
+        "Place unresolved sessions"
+      ],
+      "body": {
+        "w": 844,
+        "h": 390
+      }
+    },
+    "consoleMessages": [],
+    "requestFailures": []
+  },
+  {
+    "viewport": "mobile-landscape",
+    "mode": "advanced",
+    "initial": {
+      "overflow": {
+        "x": false,
+        "y": false,
+        "sw": 844,
+        "sh": 390,
+        "iw": 844,
+        "ih": 390
+      },
+      "simpleHeader": null,
+      "taskPrompt": null,
+      "taskDrawer": null,
+      "sourceTruth": {
+        "x": 16,
+        "y": 98,
+        "w": 812,
+        "h": 30,
+        "top": 98,
+        "bottom": 128
+      },
+      "taskGuide": {
+        "x": 16,
+        "y": 132,
+        "w": 812,
+        "h": 94,
+        "top": 132,
+        "bottom": 226
+      },
+      "leftPanel": {
+        "x": 0,
+        "y": 379,
+        "w": 1,
+        "h": 12,
+        "top": 379,
+        "bottom": 390
+      },
+      "rightPanel": {
+        "x": 843,
+        "y": 379,
+        "w": 1,
+        "h": 12,
+        "top": 379,
+        "bottom": 390
+      },
+      "centerPanel": {
+        "x": 1,
+        "y": 379,
+        "w": 842,
+        "h": 12,
+        "top": 379,
+        "bottom": 390
+      },
+      "grid": {
+        "x": 17,
+        "y": 395,
+        "w": 810,
+        "h": 722,
+        "top": 395,
+        "bottom": 1117
+      },
+      "searchPanel": null,
+      "cards": [],
+      "buttons": [
+        "Open navigation menu",
+        "Latest Run",
+        "Refresh scheduleRefresh schedule",
+        "Publish",
+        "Plan before generating",
+        "More tools",
+        "Review schedule",
+        "Place unassigned99+ to place",
+        "Switch sessions",
+        "Draft planner",
+        "Review room requests",
+        "Status key6 statesCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.",
+        "Undo last changeUndo",
+        "Preview Impact",
+        "Sync with Setup",
+        "Manually Repair",
+        "Regenerate Draft",
+        "Section",
+        "Unknown Section (#302)",
+        "Filters",
+        "Simple view",
+        "Expand left panel",
+        "Expand right panel"
+      ],
+      "headings": [],
+      "body": {
+        "w": 844,
+        "h": 390
+      }
+    },
+    "consoleMessages": [],
+    "requestFailures": []
+  }
+]

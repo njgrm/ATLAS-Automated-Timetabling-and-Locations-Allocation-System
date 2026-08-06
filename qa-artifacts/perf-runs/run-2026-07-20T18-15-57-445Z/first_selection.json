@@ -1,0 +1,118 @@
+{
+  "status": "PASS",
+  "durationMs": 194.3690999999999,
+  "commits": [
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.10000000894069672,
+      "baseDuration": 5.800000011920929,
+      "timestamp": 1784571371550
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.4000000059604645,
+      "baseDuration": 6.200000017881393,
+      "timestamp": 1784571371551
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 6.200000017881393,
+      "timestamp": 1784571371551
+    },
+    {
+      "id": "Header",
+      "phase": "update",
+      "actualDuration": 26.19999997317791,
+      "baseDuration": 25.899999991059303,
+      "timestamp": 1784571371652
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 20,
+      "baseDuration": 19.900000005960464,
+      "timestamp": 1784571371653
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 20.69999998807907,
+      "baseDuration": 20.399999991059303,
+      "timestamp": 1784571371653
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 5.4000000059604645,
+      "baseDuration": 4.799999952316284,
+      "timestamp": 1784571371653
+    },
+    {
+      "id": "Header",
+      "phase": "nested-update",
+      "actualDuration": 0.09999999403953552,
+      "baseDuration": 25.899999991059303,
+      "timestamp": 1784571371666
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 19.900000005960464,
+      "timestamp": 1784571371666
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 20.399999991059303,
+      "timestamp": 1784571371666
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 1.300000011920929,
+      "baseDuration": 4.5999999940395355,
+      "timestamp": 1784571371666
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 4.5999999940395355,
+      "timestamp": 1784571371667
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.20000000298023224,
+      "baseDuration": 20.5,
+      "timestamp": 1784571371686
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1.1000000089406967,
+      "baseDuration": 21.5,
+      "timestamp": 1784571371687
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.7000000178813934,
+      "baseDuration": 20.700000017881393,
+      "timestamp": 1784571371689
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 20.700000017881393,
+      "timestamp": 1784571371689
+    }
+  ]
+}

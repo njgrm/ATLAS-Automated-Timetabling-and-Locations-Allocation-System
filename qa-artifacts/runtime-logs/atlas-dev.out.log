@@ -1,0 +1,23 @@
+
+> atlas@1.0.0 dev
+> concurrently -n server,client -c blue,green "npm --prefix atlas-server run dev" "npm --prefix atlas-client run dev"
+
+[server] 
+[server] > atlas-server@0.1.0 dev
+[server] > tsx watch src/server.ts
+[server] 
+[client] 
+[client] > atlas-client@0.1.0 dev
+[client] > vite --host --port 5174
+[client] 
+[client] [2m4:17:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[client] 
+[client]   [32m[1mVITE[22m v8.0.3[39m  [2mready in [0m[1m418[22m[2m[0m ms[22m
+[client] 
+[client]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+[client]   [32m➜[39m  [1mNetwork[22m: [36mhttp://100.88.55.125:[1m5174[22m/[39m
+[client]   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.254.164:[1m5174[22m/[39m
+[server] [prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified

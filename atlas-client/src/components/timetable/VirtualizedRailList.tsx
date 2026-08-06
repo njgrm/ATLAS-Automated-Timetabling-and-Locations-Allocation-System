@@ -20,6 +20,7 @@ export function VirtualizedRailList<T>({
 	overscan = 4,
 }: VirtualizedRailListProps<T>) {
 	const viewportRef = useRef<HTMLDivElement | null>(null);
+	const touchScrollRef = useRef<{ startY: number; scrollTop: number } | null>(null);
 	const [scrollTop, setScrollTop] = useState(0);
 	const [viewportHeight, setViewportHeight] = useState(0);
 
@@ -83,10 +84,41 @@ export function VirtualizedRailList<T>({
 			className={className}
 			role="list"
 			aria-label={ariaLabel}
+			tabIndex={0}
 			data-virtualized-rail={ariaLabel}
 			onScroll={(event) => {
 				setScrollTop(event.currentTarget.scrollTop);
 				setViewportHeight(event.currentTarget.clientHeight);
+			}}
+			onTouchStart={(event) => {
+				if (event.touches.length !== 1) return;
+				touchScrollRef.current = {
+					startY: event.touches[0].clientY,
+					scrollTop: event.currentTarget.scrollTop,
+				};
+			}}
+			onTouchMove={(event) => {
+				const touchScroll = touchScrollRef.current;
+				if (!touchScroll || event.touches.length !== 1) return;
+				const deltaY = touchScroll.startY - event.touches[0].clientY;
+				if (Math.abs(deltaY) < 4) return;
+
+				const viewport = event.currentTarget;
+				const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+				const nextScrollTop = Math.min(maxScrollTop, Math.max(0, touchScroll.scrollTop + deltaY));
+				if (nextScrollTop !== viewport.scrollTop) {
+					viewport.scrollTop = nextScrollTop;
+					setScrollTop(nextScrollTop);
+					setViewportHeight(viewport.clientHeight);
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}}
+			onTouchEnd={() => {
+				touchScrollRef.current = null;
+			}}
+			onTouchCancel={() => {
+				touchScrollRef.current = null;
 			}}
 		>
 			<div className="relative" style={{ height: totalHeight }}>

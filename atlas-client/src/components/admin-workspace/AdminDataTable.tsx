@@ -39,6 +39,7 @@ export type AdminDataTableRowActions<TData> = {
 	primary: (row: TData) => ReactNode;
 	secondary?: (row: TData) => AdminDataTableMenuAction[];
 	destructive?: (row: TData) => AdminDataTableMenuAction[];
+	menuTestId?: string;
 };
 
 export type AdminDataTablePagination = {
@@ -93,17 +94,19 @@ function AdminDataTableActionMenu({
 	actions,
 	destructiveActions = [],
 	label,
+	testId,
 }: {
 	actions: AdminDataTableMenuAction[];
 	destructiveActions?: AdminDataTableMenuAction[];
 	label: string;
+	testId?: string;
 }) {
 	if (actions.length === 0 && destructiveActions.length === 0) return null;
 
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="ghost" size="icon-sm" aria-label={label}>
+				<Button variant="ghost" size="icon-sm" aria-label={label} data-testid={testId}>
 					<MoreHorizontal className="size-4" />
 				</Button>
 			</DropdownMenuTrigger>
@@ -253,10 +256,10 @@ export function AdminDataTable<TData, TSort extends string = string>({
 											{rowActions && (
 												<td className="px-4 py-3 text-right">
 													<div className="flex items-center justify-end gap-2">
-														{rowActions.primary(row)}
-														<AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} />
-													</div>
-												</td>
+								{rowActions.primary(row)}
+								<AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} testId={rowActions.menuTestId} />
+							</div>
+						</td>
 											)}
 										</tr>
 									);
@@ -270,7 +273,7 @@ export function AdminDataTable<TData, TSort extends string = string>({
 							const secondary = rowActions?.secondary?.(row) ?? [];
 							const destructive = rowActions?.destructive?.(row) ?? [];
 							const primaryAction = rowActions?.primary(row);
-							const secondaryActionMenu = rowActions ? <AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} /> : undefined;
+							const secondaryActionMenu = rowActions ? <AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} testId={rowActions.menuTestId} /> : undefined;
 
 							return renderMobileCard ? (
 								<div key={getRowKey(row)}>{renderMobileCard(row, { primaryAction, secondaryActionMenu })}</div>

@@ -1,0 +1,6 @@
+{
+  "activeSchoolYearId": 39,
+  "missingRoomCount": 365,
+  "dialogText": "Review generated placement\n\nFIL - Mabini · SPS - MONDAY 6:00 AM-6:45 AM. The teacher is locked from Teaching Load; only the room and slot are reviewed here.\n\nTeaching Load owner\n\nT. FIL\n\nTarget slot\n\nMONDAY 6:00 AM-6:45 AM\n\nRoom source\n\nSelect room\n\nUse the room that should host this class. This does not change the Teaching Load owner.\n\nConflict check\n\nBLOCKING:\n\n—\n\nWARNINGS:\n\n—\n\nBlocking means ATLAS found a hard conflict that must be fixed before save.\nWarnings are soft issues to review; they never rely on color alone.\nCancel\nSave placement\nClose",
+  "blockedWrites": []
+}

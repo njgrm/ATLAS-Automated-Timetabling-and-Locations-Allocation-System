@@ -121,7 +121,99 @@ export interface AtlasRuntimeContext {
 		reachable: boolean;
 		verified: boolean;
 		matched: boolean | null;
+		activeSchoolYearId: number | null;
+		activeSchoolYearLabel: string | null;
 	};
+	activeYearDrift?: {
+		status: 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
+		message: string;
+		recommendedAction: 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR';
+		atlasSchoolYearId: number | null;
+		enrollProSchoolYearId: number | null;
+		enrollProSchoolYearLabel: string | null;
+		mirrorSyncedAt: string | null;
+	};
+	rollover?: {
+		mirror: {
+			enrollProSchoolYearId: number;
+			yearLabel: string;
+			isActive: boolean;
+			lastVerifiedAt: string | null;
+			lastSyncedAt: string | null;
+			facultyCount: number;
+			sectionCount: number;
+			syncStatus: string;
+			lastFailureSummary: string | null;
+		} | null;
+	};
+}
+
+export interface RolloverStatus {
+	schoolId: number;
+	atlasSchoolYearId: number | null;
+	enrollProActiveYear: { id: number; yearLabel: string } | null;
+	drift: NonNullable<AtlasRuntimeContext['activeYearDrift']>;
+	mirror: NonNullable<AtlasRuntimeContext['rollover']>['mirror'];
+	counts?: {
+		facultyCount: number;
+		sectionCount: number;
+		settingsReachable: boolean;
+	};
+	conflicts: Array<{ code: string; message: string; details?: Record<string, unknown> }>;
+	canResetDummyYear: boolean;
+	resetTargetSchoolYearId: number | null;
+	conflictingRecordCounts: RolloverDummyYearRecordCounts | null;
+	teachingLoadResetRequired: boolean;
+	publishedResetBlocked: boolean;
+}
+
+export interface RolloverApplyResult extends RolloverStatus {
+	applied: boolean;
+	sync: {
+		faculty: unknown;
+		sections: unknown;
+		policyReady: boolean;
+	};
+}
+
+export interface RolloverDummyYearRecordCounts {
+	sectionMirrors: number;
+	facultyPreferences: number;
+	preferenceTimeSlots: number;
+	preferenceReviews: number;
+	facultyRoomPreferences: number;
+	roomRequestAppeals: number;
+	roomRequestAppealHistory: number;
+	schedulingPolicies: number;
+	generationRuns: number;
+	publishedGenerationRuns: number;
+	manualScheduleEdits: number;
+	followUpFlags: number;
+	publishedScheduleRevisions: number;
+	auditLogs: number;
+	lockedSessions: number;
+	lockedSessionActions: number;
+	gradeShiftWindows: number;
+	facultySnapshots: number;
+	sectionSnapshots: number;
+	instructionalCohorts: number;
+	teachingLoadFacultySubjects: number;
+	teachingLoadOwnerships: number;
+}
+
+export interface RolloverDummyYearResetResult extends RolloverStatus {
+	previewOnly: boolean;
+	resetApplied: boolean;
+	reset: {
+		targetSchoolYearId: number | null;
+		confirmationText: string;
+		canResetDummyYear: boolean;
+		publishedResetBlocked: boolean;
+		teachingLoadResetRequired: boolean;
+		counts: RolloverDummyYearRecordCounts;
+		blockers: Array<{ code: string; message: string; details?: Record<string, unknown> }>;
+	};
+	rolloverApply: RolloverApplyResult | null;
 }
 
 function relativeLuminance(hsl: string): number {
@@ -187,6 +279,35 @@ export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 export async function fetchAtlasRuntimeContext(schoolId = 1): Promise<AtlasRuntimeContext> {
 	const { data } = await atlasApi.get<AtlasRuntimeContext>('/runtime/context', {
 		params: { schoolId },
+	});
+	return data;
+}
+
+export async function fetchRolloverStatus(schoolId = 1, includeCounts = false): Promise<RolloverStatus> {
+	const { data } = await atlasApi.get<RolloverStatus>('/runtime/rollover-status', {
+		params: { schoolId, includeCounts },
+	});
+	return data;
+}
+
+export async function previewRolloverSync(schoolId = 1): Promise<RolloverStatus> {
+	const { data } = await atlasApi.post<RolloverStatus>('/runtime/rollover-sync/preview', { schoolId });
+	return data;
+}
+
+export async function applyRolloverSync(schoolId = 1): Promise<RolloverApplyResult> {
+	const { data } = await atlasApi.post<RolloverApplyResult>('/runtime/rollover-sync/apply', { schoolId });
+	return data;
+}
+
+export async function resetDummyRolloverYear(
+	schoolId = 1,
+	input?: { confirmReset?: boolean; confirmationText?: string },
+): Promise<RolloverDummyYearResetResult> {
+	const { data } = await atlasApi.post<RolloverDummyYearResetResult>('/runtime/rollover-sync/reset-dummy-year', {
+		schoolId,
+		confirmReset: input?.confirmReset ?? false,
+		confirmationText: input?.confirmationText,
 	});
 	return data;
 }

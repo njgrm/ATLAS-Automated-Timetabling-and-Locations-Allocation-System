@@ -1,0 +1,57 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "preflight",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "cold_navigation",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "warm_navigation",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "first_selection",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "repeated_selection",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "pointer_drag",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "keyboard_place",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "touch_place",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "preview_failure",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "commit_settled",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "filter_changes",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "accessibility",
+      "status": "MISSING"
+    },
+    {
+      "scenario": "commit_containment",
+      "status": "MISSING"
+    }
+  ]
+}

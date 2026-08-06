@@ -1,0 +1,30 @@
+{
+  "path": "/sections",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "headerHeight": 131,
+  "headerBottom": 187,
+  "contentTop": 187,
+  "contentHeight": 657,
+  "scrollHeight": 844,
+  "clientHeight": 844,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "sourceState": "saved-data",
+  "sourceText": "Using saved data",
+  "sourceSummaryText": "Source truth: ATLAS is showing the last safe section mirror because the live source is not fully verified. Home-room edits can be queued if saving fails.",
+  "visibleButtonCount": 9,
+  "visibleButtons": [
+    "Open navigation menu",
+    "Rooms",
+    "Sync",
+    "More filters",
+    "Choose home room",
+    "View details",
+    "Choose home room",
+    "View details",
+    "25"
+  ]
+}

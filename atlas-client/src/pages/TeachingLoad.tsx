@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
+import { cn } from '@/lib/utils';
 
 import atlasApi from '@/lib/api';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
@@ -22,8 +24,14 @@ import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMod
 import { WorkloadInspector } from '@/components/faculty-assignments/WorkloadInspector';
 import { SectionInspector } from '@/components/faculty-assignments/SectionInspector';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
+import { TeachingLoadTaskGuide } from '@/components/faculty-assignments/TeachingLoadTaskGuide';
+import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
+import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
+import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
+import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
+import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type { 
 	AutoFillSummaryResult, 
 	CoverageMode, 
@@ -50,8 +58,27 @@ const COVERAGE_MODE_CONFIG: Record<CoverageMode, { label: string; description: s
 	},
 };
 
+function formatTeachingLoadSaveError(error: any) {
+	const code = error?.response?.data?.code;
+	const message = error?.response?.data?.message;
+	if (code === 'VERSION_CONFLICT') {
+		return `${message ?? 'The Teaching Load changed in another session.'} ATLAS reloaded the latest saved data. Review your draft before saving again.`;
+	}
+	if (typeof message === 'string' && message.trim()) {
+		if (/over.*cap|cap/i.test(message)) {
+			return 'This teacher is already over the weekly cap. Choose another teacher or move one class first.';
+		}
+		if (/owner|ownership|already assigned/i.test(message)) {
+			return 'This section already has an owner for this subject. Review the current owner before saving.';
+		}
+		return message;
+	}
+	return 'ATLAS could not save Teaching Load. Check the highlighted repair reason, then try again.';
+}
+
 export default function TeachingLoad() {
 	const data = useTeachingLoadData();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const ui = useTeachingLoadUI({
 		faculty: data.faculty,
 		subjects: data.subjects,
@@ -69,6 +96,8 @@ export default function TeachingLoad() {
 	const [resetLoading, setResetLoading] = useState(false);
 	const [hasGeneratedRuns, setHasGeneratedRuns] = useState(false);
 	const [showSaveWarning, setShowSaveWarning] = useState(false);
+	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
+	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Use a repair action first.');
 
 	useEffect(() => {
 		if (data.activeSchoolYearId) {
@@ -173,6 +202,7 @@ export default function TeachingLoad() {
 		if (draftEntries.length === 0) return;
 
 		if (hasGeneratedRuns && !force) {
+			setDraftStatusMessage('Review the timetable sync warning before saving these Teaching Load changes.');
 			setShowSaveWarning(true);
 			return;
 		}
@@ -197,14 +227,21 @@ export default function TeachingLoad() {
 					? `Teaching load for ${data.selected.lastName} has been successfully updated.`
 					: `Saved ${draftEntries.length} teaching-load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`,
 			);
+			setDraftStatusMessage(
+				draftEntries.length === 1 && data.selected
+					? `Saved Teaching Load for ${data.selected.lastName}.`
+					: `Saved ${draftEntries.length} Teaching Load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`,
+			);
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
+			const readableError = formatTeachingLoadSaveError(error);
 			if (error?.response?.data?.code === 'VERSION_CONFLICT') {
 				await data.fetchData({ forceRefresh: true });
-				toast.error(`${error?.response?.data?.message ?? 'Failed to save teaching load.'} Latest saved data was reloaded; your local draft remains visible.`);
+				toast.error(readableError);
 			} else {
-				toast.error(error?.response?.data?.message ?? 'Failed to save teaching load.');
+				toast.error(readableError);
 			}
+			setDraftStatusMessage(readableError);
 		} finally {
 			data.setSaving(false);
 		}
@@ -225,6 +262,7 @@ export default function TeachingLoad() {
 			}
 			return { ...prev, [targetId]: current };
 		});
+		setDraftStatusMessage('Draft updated. Review the workload impact, then save when ready.');
 	}, [data]);
 
 	const handleSwapRequest = useCallback((subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => {
@@ -293,8 +331,11 @@ export default function TeachingLoad() {
 				};
 			});
 			toast.success('Ownership swapped in draft mode.');
+			setDraftStatusMessage('Ownership swap prepared in draft mode. Save the draft when the review looks correct.');
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to prepare swap.');
+			const readableError = formatTeachingLoadSaveError(err);
+			toast.error(readableError);
+			setDraftStatusMessage(readableError);
 		} finally {
 			ui.setSwapCandidate(null);
 		}
@@ -401,7 +442,16 @@ export default function TeachingLoad() {
 			delete next[data.selectedId!];
 			return next;
 		});
+		setDraftStatusMessage('Draft changes for the selected teacher were discarded.');
 		toast.info('Draft changes discarded.');
+	}, [data]);
+
+	const discardAllDrafts = useCallback(() => {
+		if (data.activeDraftCount === 0) return;
+		data.pushHistory();
+		data.setDraftAssignmentsByFaculty({});
+		setDraftStatusMessage('All Teaching Load draft changes were discarded.');
+		toast.info('All Teaching Load draft changes discarded.');
 	}, [data]);
 
 	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number) => {
@@ -437,66 +487,29 @@ export default function TeachingLoad() {
 		return { assigned: 0, realAssigned: 0, syntheticAssigned: 0, total: 0, unassigned: 0, rawUnassigned: 0 };
 	}, [data.coverageTotals]);
 
-	const sectionsBySubject = useMemo(() => {
-		const grouped: Record<number, ExternalSection[]> = {};
-		for (const sectionResult of data.sectionAssignedClassesIndex?.sections ?? []) {
-			const section = data.sectionMap.get(sectionResult.sectionId);
-			if (!section) continue;
-			const gradeMatch = ui.gradeLevelFilter === 'all' || section.displayOrder === Number(ui.gradeLevelFilter);
-			if (!gradeMatch) continue;
+	const overCapCount = useMemo(
+		() => data.faculty.filter((member) => member.isActiveForScheduling && (member.policyCreditedHours ?? 0) > member.maxHoursPerWeek).length,
+		[data.faculty],
+	);
 
-			const contractRows = [
-				...sectionResult.classes.map((entry) => ({
-					subjectId: entry.subjectId,
-					specializationCode: entry.specializationCode,
-					specializationLabel: entry.specializationLabel,
-					rotationFamily: entry.rotationFamily,
-					rotationTermRank: entry.rotationTermRank,
-					rotationTermLabel: entry.rotationTermLabel,
-					rotationTermGroupId: entry.rotationTermGroupId,
-					rotationTermCount: entry.rotationTermCount,
-					minMinutesPerWeek: entry.minMinutesPerWeek,
-				})),
-				...((sectionResult.unassignedExpectedClasses ?? []).map((entry) => ({
-					subjectId: entry.subjectId,
-					specializationCode: null,
-					specializationLabel: null,
-					rotationFamily: entry.rotationFamily,
-					rotationTermRank: entry.rotationTermRank,
-					rotationTermLabel: entry.rotationTermLabel,
-					rotationTermGroupId: entry.rotationTermGroupId,
-					rotationTermCount: entry.rotationTermCount,
-					minMinutesPerWeek: entry.minMinutesPerWeek,
-				}))),
-			];
+	const showUnassignedTeachingLoad = useCallback(() => {
+		ui.setViewMode('allocation');
+		ui.setSectionModeFilter('unassigned');
+	}, [ui]);
 
-			for (const contractRow of contractRows) {
-				if (!grouped[contractRow.subjectId]) grouped[contractRow.subjectId] = [];
-				grouped[contractRow.subjectId].push({
-					...section,
-					assignmentSpecializationCode: contractRow.specializationCode,
-					assignmentSpecializationLabel: contractRow.specializationLabel,
-					assignmentRotationFamily: contractRow.rotationFamily,
-					assignmentRotationTermRank: contractRow.rotationTermRank,
-					assignmentRotationTermLabel: contractRow.rotationTermLabel,
-					assignmentRotationTermGroupId: contractRow.rotationTermGroupId,
-					assignmentRotationTermCount: contractRow.rotationTermCount,
-					assignmentRawMinutesPerWeek: contractRow.minMinutesPerWeek,
-				});
-			}
-		}
-		return grouped;
-	}, [data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter]);
+	const showOverloadedTeachers = useCallback(() => {
+		ui.setViewMode('teacher');
+		ui.setLoadFilter('overloaded');
+		ui.setFilterStatus('all');
+		ui.setShowFilters(false);
+	}, [ui]);
 
-	const selectedSectionContract = useMemo<SectionAssignedClassesResult | null>(() => {
-		if (!ui.selectedSectionId) return null;
-		return data.sectionAssignedClassesIndex?.sections.find((section) => section.sectionId === ui.selectedSectionId) ?? null;
-	}, [data.sectionAssignedClassesIndex, ui.selectedSectionId]);
-
-	const departmentOptions = useMemo(() => {
-		const depts = new Set(data.faculty.map((f) => f.department).filter(Boolean) as string[]);
-		return Array.from(depts).sort();
-	}, [data.faculty]);
+	const showTeachersWithoutLoad = useCallback(() => {
+		ui.setViewMode('teacher');
+		ui.setFilterStatus('unassigned');
+		ui.setLoadFilter('all');
+		ui.setShowFilters(false);
+	}, [ui]);
 
 	const workspaceState = useMemo(() => {
 		if (!data.isOnline) {
@@ -564,6 +577,105 @@ export default function TeachingLoad() {
 		data.splitBrainReasonLabel,
 	]);
 
+	const {
+		activeRepairId,
+		routedRepairId,
+		skippedRepairIds,
+		repairQueueItems,
+		handleRepairPrimaryAction,
+		handleSelectRepairItem,
+		handleSkipRepairItem,
+	} = useTeachingLoadRepairQueue({
+		searchParams,
+		setSearchParams,
+		faculty: data.faculty,
+		effectiveAssignmentsByFaculty: data.effectiveAssignmentsByFaculty,
+		activeDraftCount: data.activeDraftCount,
+		isReadOnlyMode: data.isReadOnlyMode,
+		selectedId: data.selectedId,
+		coverageAssigned: coverageHeadline.assigned,
+		coverageTotal: coverageHeadline.total,
+		coverageUnassigned: coverageHeadline.unassigned,
+		writeBlockedReason: workspaceState.writeBlockedReason,
+		onSelectFaculty: data.setSelectedId,
+		onSave: () => {
+			void handleSave();
+		},
+		onShowUnassigned: showUnassignedTeachingLoad,
+		onShowTeachersWithoutLoad: showTeachersWithoutLoad,
+		onShowOverloaded: showOverloadedTeachers,
+		onShowPlaceholder: () => {
+			ui.setViewMode('teacher');
+			ui.setShowTemporaryRoles(true);
+			ui.setFilterStatus('all');
+			ui.setLoadFilter('all');
+		},
+		onOpenReview: () => ui.setViewMode('teacher'),
+		setAdvancedGridVisible,
+		setDraftStatusMessage,
+	});
+
+	const sectionsBySubject = useMemo(() => {
+		const grouped: Record<number, ExternalSection[]> = {};
+		for (const sectionResult of data.sectionAssignedClassesIndex?.sections ?? []) {
+			const section = data.sectionMap.get(sectionResult.sectionId);
+			if (!section) continue;
+			const gradeMatch = ui.gradeLevelFilter === 'all' || section.displayOrder === Number(ui.gradeLevelFilter);
+			if (!gradeMatch) continue;
+
+			const contractRows = [
+				...sectionResult.classes.map((entry) => ({
+					subjectId: entry.subjectId,
+					specializationCode: entry.specializationCode,
+					specializationLabel: entry.specializationLabel,
+					rotationFamily: entry.rotationFamily,
+					rotationTermRank: entry.rotationTermRank,
+					rotationTermLabel: entry.rotationTermLabel,
+					rotationTermGroupId: entry.rotationTermGroupId,
+					rotationTermCount: entry.rotationTermCount,
+					minMinutesPerWeek: entry.minMinutesPerWeek,
+				})),
+				...((sectionResult.unassignedExpectedClasses ?? []).map((entry) => ({
+					subjectId: entry.subjectId,
+					specializationCode: null,
+					specializationLabel: null,
+					rotationFamily: entry.rotationFamily,
+					rotationTermRank: entry.rotationTermRank,
+					rotationTermLabel: entry.rotationTermLabel,
+					rotationTermGroupId: entry.rotationTermGroupId,
+					rotationTermCount: entry.rotationTermCount,
+					minMinutesPerWeek: entry.minMinutesPerWeek,
+				}))),
+			];
+
+			for (const contractRow of contractRows) {
+				if (!grouped[contractRow.subjectId]) grouped[contractRow.subjectId] = [];
+				grouped[contractRow.subjectId].push({
+					...section,
+					assignmentSpecializationCode: contractRow.specializationCode,
+					assignmentSpecializationLabel: contractRow.specializationLabel,
+					assignmentRotationFamily: contractRow.rotationFamily,
+					assignmentRotationTermRank: contractRow.rotationTermRank,
+					assignmentRotationTermLabel: contractRow.rotationTermLabel,
+					assignmentRotationTermGroupId: contractRow.rotationTermGroupId,
+					assignmentRotationTermCount: contractRow.rotationTermCount,
+					assignmentRawMinutesPerWeek: contractRow.minMinutesPerWeek,
+				});
+			}
+		}
+		return grouped;
+	}, [data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter]);
+
+	const selectedSectionContract = useMemo<SectionAssignedClassesResult | null>(() => {
+		if (!ui.selectedSectionId) return null;
+		return data.sectionAssignedClassesIndex?.sections.find((section) => section.sectionId === ui.selectedSectionId) ?? null;
+	}, [data.sectionAssignedClassesIndex, ui.selectedSectionId]);
+
+	const departmentOptions = useMemo(() => {
+		const depts = new Set(data.faculty.map((f) => f.department).filter(Boolean) as string[]);
+		return Array.from(depts).sort();
+	}, [data.faculty]);
+
 	const coverageState = useMemo(() => {
 		if (data.loading && !data.coverageTotals) {
 			return {
@@ -620,7 +732,7 @@ export default function TeachingLoad() {
 	return (
 		<TooltipProvider delayDuration={200}>
 			<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-background overflow-hidden">
-				<div className="shrink-0 px-6 py-2 border-b border-border/40">
+				<div className="shrink-0 border-b border-border/40 px-3 py-1.5 lg:px-5">
 					<WorkspaceToolbar
 						realAssignedPairs={coverageHeadline.realAssigned}
 						syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
@@ -663,7 +775,7 @@ export default function TeachingLoad() {
 						onSave={handleSave}
 						onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					/>
-					<p className="mt-2 text-xs font-medium text-muted-foreground" aria-label="Teaching load workflow">
+					<p className="sr-only" aria-label="Teaching load workflow">
 						<span className="text-foreground">1. Choose a teacher or section</span>
 						<span aria-hidden="true" className="mx-2">→</span>
 						<span className="text-foreground">2. Review the load and coverage</span>
@@ -672,60 +784,43 @@ export default function TeachingLoad() {
 					</p>
 				</div>
 
-				{splitBrainNeedsAttention && data.splitBrainIncident && (
-					<div className="shrink-0 px-6 py-2 border-b border-border/30 bg-amber-50/60">
-						<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-amber-900 shadow-sm">
-							<div className="flex items-center gap-3">
-								<AlertTriangle className="size-4 text-amber-600" />
-								<div>
-									<span className="text-xs font-semibold uppercase tracking-widest text-amber-800">
-										{data.splitBrainQuarantineRequired ? 'Lock Active' : 'Review Required'}
-									</span>
-									<span className="text-sm font-semibold ml-2 text-amber-900">{data.splitBrainIncident.quarantine.message}</span>
-								</div>
-							</div>
-							<div className="flex items-center gap-2">
-								{splitBrainNeedsReconcile && (
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											void applySplitBrainReconcile();
-										}}
-										disabled={data.splitBrainApplyLoading || !data.canPersistAssignments}
-										className="h-8 shrink-0 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
-									>
-										{data.splitBrainApplyLoading ? 'Reconciling...' : 'Repair Saved Scope Drift'}
-									</Button>
-								)}
-								{!data.splitBrainQuarantineRequired && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button 
-												variant="ghost" 
-												size="icon-xs" 
-												onClick={() => ui.setReviewDismissed(true)} 
-												className="h-8 w-8 hover:bg-amber-200 text-amber-800"
-												aria-label="Dismiss review warning"
-											>
-												<X className="size-4" />
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent side="bottom" className="text-xs font-semibold">
-											Dismiss review warning
-										</TooltipContent>
-									</Tooltip>
-								)}
-							</div>
-						</div>
-					</div>
-				)}
-
-				<div className="flex-1 flex min-h-0">
+				<div className="flex-1 flex min-h-0" data-testid="teaching-load-content-shell">
 					{/* Main Grid Area */}
 					<div className="flex-1 flex flex-col min-w-0">
-						{ui.viewMode === 'teacher' ? (
+						<div className="shrink-0 px-3 pt-2 lg:px-5">
+							<RolloverGuidanceCard compact />
+						</div>
+
+						<TeachingLoadTaskGuide
+							unassignedPairs={coverageHeadline.unassigned}
+							overCapCount={overCapCount}
+							activeDraftCount={data.activeDraftCount}
+							totalPairs={coverageHeadline.total}
+							assignedPairs={coverageHeadline.assigned}
+							isReadOnly={data.isReadOnlyMode}
+							saving={data.saving}
+							onShowUnassigned={showUnassignedTeachingLoad}
+							onShowOverloaded={showOverloadedTeachers}
+							onShowUnloadedTeachers={showTeachersWithoutLoad}
+							onSaveDraft={() => void handleSave()}
+						/>
+
+						<TeachingLoadRepairQueue
+							items={repairQueueItems}
+							activeItemId={activeRepairId ?? routedRepairId}
+							skippedItemIds={skippedRepairIds}
+							isReadOnly={data.isReadOnlyMode}
+							canUndo={data.canUndo}
+							saving={data.saving}
+							advancedGridVisible={advancedGridVisible}
+							onPrimaryAction={handleRepairPrimaryAction}
+							onSelectItem={handleSelectRepairItem}
+							onSkipItem={handleSkipRepairItem}
+							onUndo={data.handleUndo}
+							onToggleAdvancedGrid={() => setAdvancedGridVisible((visible) => !visible)}
+						/>
+
+						{advancedGridVisible ? (ui.viewMode === 'teacher' ? (
 							<TeacherGridMode
 								loading={data.loading}
 								faculty={data.faculty}
@@ -811,11 +906,25 @@ export default function TeachingLoad() {
 								workspaceStateNextAction={workspaceState.nextAction}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
+						)) : (
+							<TeachingLoadGuidedModePlaceholder onOpenAdvancedGrid={() => setAdvancedGridVisible(true)} />
 						)}
+
+						<TeachingLoadDraftActionBar
+							activeDraftCount={data.activeDraftCount}
+							canUndo={data.canUndo}
+							isReadOnlyMode={data.isReadOnlyMode}
+							saving={data.saving}
+							statusMessage={draftStatusMessage}
+							writeBlockedReason={workspaceState.writeBlockedReason}
+							onUndo={data.handleUndo}
+							onDiscard={discardAllDrafts}
+							onSave={() => void handleSave()}
+						/>
 					</div>
 
 					{/* Persistent Inspector Area */}
-					<div className="w-80 shrink-0 border-l border-border/40 shadow-xl z-10 bg-background">
+					<div className={cn("hidden w-80 shrink-0 border-l border-border/40 bg-background shadow-xl lg:block", !advancedGridVisible && "lg:hidden")}>
 						{ui.viewMode === 'teacher' ? (
 							<WorkloadInspector
 								selected={data.selected}

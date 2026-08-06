@@ -4,6 +4,7 @@ import { DoorOpen, Minus, Plus, RotateCcw } from 'lucide-react';
 
 import type { Building, Room, RoomType } from '@/types';
 import { getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette';
+import { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -21,17 +22,7 @@ const ROOM_FILLS: Record<RoomType, { bg: string; text: string; accent: string }>
 	OTHER: { bg: '#f8fafc', text: '#475569', accent: '#cbd5e1' },
 };
 
-export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
-	CLASSROOM: 'Classroom',
-	LABORATORY: 'Lab',
-	COMPUTER_LAB: 'ICT Lab',
-	TLE_WORKSHOP: 'TLE',
-	LIBRARY: 'Library',
-	GYMNASIUM: 'Gym',
-	FACULTY_ROOM: 'Teacher',
-	OFFICE: 'Office',
-	OTHER: 'Other',
-};
+export { ROOM_TYPE_LABELS } from '@/lib/room-type-labels';
 
 /* ─── HTML badge colors (exported for consumers) ─── */
 export const ROOM_COLORS: Record<RoomType, { bg: string; border: string; text: string }> = {

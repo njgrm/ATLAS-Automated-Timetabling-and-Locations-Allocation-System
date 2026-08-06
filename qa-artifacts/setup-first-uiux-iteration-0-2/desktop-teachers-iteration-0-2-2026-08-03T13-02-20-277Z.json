@@ -1,0 +1,37 @@
+{
+  "path": "/teachers",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "headerHeight": 139,
+  "headerBottom": 195,
+  "contentTop": 195,
+  "contentHeight": 573,
+  "scrollHeight": 768,
+  "clientHeight": 768,
+  "scrollWidth": 1366,
+  "clientWidth": 1366,
+  "sourceState": "saved-data",
+  "sourceText": "Using saved data",
+  "sourceSummaryText": "Source truth: ATLAS is showing the last safe teacher roster snapshot.",
+  "visibleButtonCount": 29,
+  "visibleButtons": [
+    "ATLAS HINIGARAN NATIONAL HIGH SCHOOL\nSCHEDULING PORTAL\nS.Y. 2026-2027\n• ACTIVE",
+    "O\nofficer\nAdmin",
+    "Toggle Sidebar",
+    "Accessibility options",
+    "Active teachers help",
+    "With load help",
+    "Without load help",
+    "Approval review help",
+    "Over cap help",
+    "Last sync help",
+    "Create Placeholder",
+    "Refresh teacher roster",
+    "More filters",
+    "Teacher\nName, adviser role, and roster ID.",
+    "Department\nDepartment, specialization, and source state.",
+    "Load State\nReadiness against standard and cap."
+  ]
+}

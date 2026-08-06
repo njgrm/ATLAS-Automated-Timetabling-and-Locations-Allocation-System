@@ -125,7 +125,7 @@ type EnrollProVerifiedUser = {
 	id: number;
 	firstName: string;
 	lastName: string;
-	email: string;
+	email: string | null;
 	employeeId: string | null;
 	accountName: string | null;
 	role: EnrollProRole;
@@ -191,6 +191,27 @@ function getEnrollProFacultyExternalId(user: EnrollProVerifiedUser): number | nu
 
 function normalizedIdentity(value: string | null | undefined): string {
 	return (value ?? '').trim().toLowerCase();
+}
+
+function toSafeIdentifierSlug(value: string | number | null | undefined): string {
+	const normalized = String(value ?? '')
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+	return normalized || 'unknown';
+}
+
+function resolveEnrollProAccountEmail(user: EnrollProVerifiedUser): string {
+	const upstreamEmail = user.email?.trim().toLowerCase() ?? '';
+	if (upstreamEmail && isValidEmail(upstreamEmail)) {
+		return upstreamEmail;
+	}
+
+	const stableKey = user.employeeId?.trim()
+		|| user.accountName?.trim()
+		|| String(user.id);
+	return `enrollpro-${toSafeIdentifierSlug(stableKey)}@atlas.local`;
 }
 
 export function selectExactEnrollProFacultyMatch(
@@ -342,7 +363,7 @@ async function provisionFromEnrollPro(params: {
 }): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean; email: string; employeeId: string | null; accountName: string | null } }> {
 	const role = mapEnrollProRole(params.enrollProUser.role);
 	const hash = await bcrypt.hash(params.password, 12);
-	const email = params.enrollProUser.email.trim().toLowerCase();
+	const email = resolveEnrollProAccountEmail(params.enrollProUser);
 	const employeeId = params.enrollProUser.employeeId;
 	const accountName = params.enrollProUser.accountName;
 

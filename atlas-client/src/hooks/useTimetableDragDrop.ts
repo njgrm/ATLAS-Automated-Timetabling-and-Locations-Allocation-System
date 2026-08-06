@@ -38,6 +38,7 @@ type DragDropOptions = {
 	setPinnedRailDropActive: Dispatch<SetStateAction<boolean>>;
 	setPendingUnassignId: Dispatch<SetStateAction<number | null>>;
 	setShowUnassignConfirm: Dispatch<SetStateAction<boolean>>;
+	setInlineActionStatus: Dispatch<SetStateAction<{ tone: 'loading' | 'success' | 'warning' | 'error'; message: string } | null>>;
 	setDragActive: (active: boolean) => void;
 };
 
@@ -61,6 +62,7 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 		setPinnedRailDropActive,
 		setPendingUnassignId,
 		setShowUnassignConfirm,
+		setInlineActionStatus,
 		setDragActive,
 	} = options;
 	const dragItemRef = useRef<DragSource>(null);
@@ -78,15 +80,11 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 			window.dispatchEvent(new CustomEvent('atlas:timetable-drag-source', { detail: { source: null } }));
 		}, 120);
 	}, []);
-	useEffect(() => () => {
-		if (dragClearTimerRef.current != null) window.clearTimeout(dragClearTimerRef.current);
-	}, []);
-
-	const resolveCellFromTranslatedRect = useCallback((translated: { left: number; top: number; width: number; height: number } | null | undefined) => {
-		if (!translated || typeof document === 'undefined') return null;
-		const clientX = translated.left + translated.width / 2;
-		const clientY = translated.top + translated.height / 2;
-		const cell = document.elementFromPoint(clientX, clientY)?.closest<HTMLTableCellElement>('td[data-day][data-start-time][data-end-time]');
+	const resolveCellFromPoint = useCallback((clientX: number, clientY: number) => {
+		if (typeof document === 'undefined') return null;
+		const cell = document.elementsFromPoint(clientX, clientY)
+			.map((element) => element.closest<HTMLTableCellElement>('td[data-day][data-start-time][data-end-time]'))
+			.find((candidate): candidate is HTMLTableCellElement => Boolean(candidate));
 		if (!cell?.dataset.day || !cell.dataset.startTime || !cell.dataset.endTime) return null;
 		return {
 			cellId: `${cell.dataset.day}-${cell.dataset.startTime}-${cell.dataset.endTime}`,
@@ -96,11 +94,40 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 		};
 	}, []);
 
+	const resolveCellFromTranslatedRect = useCallback((translated: { left: number; top: number; width: number; height: number } | null | undefined) => {
+		if (!translated) return null;
+		return resolveCellFromPoint(translated.left + translated.width / 2, translated.top + translated.height / 2);
+	}, [resolveCellFromPoint]);
+
+	const publishTargetCell = useCallback((targetCell: { cellId: string; day: string; startTime: string; endTime: string } | null) => {
+		const cellId = targetCell?.cellId ?? null;
+		if (cellId === lastGridCellIdRef.current) return;
+		lastGridCellIdRef.current = cellId;
+		if (targetCell) {
+			lastOverCellRef.current = {
+				day: targetCell.day,
+				startTime: targetCell.startTime,
+				endTime: targetCell.endTime,
+			};
+		}
+		window.dispatchEvent(new CustomEvent('atlas:timetable-drag-cell', { detail: { cellId, source: dragItemRef.current } }));
+	}, []);
+
+	const handleWindowPointerMove = useCallback((event: PointerEvent) => {
+		publishTargetCell(resolveCellFromPoint(event.clientX, event.clientY));
+	}, [publishTargetCell, resolveCellFromPoint]);
+
+	useEffect(() => () => {
+		if (dragClearTimerRef.current != null) window.clearTimeout(dragClearTimerRef.current);
+		window.removeEventListener('pointermove', handleWindowPointerMove);
+	}, [handleWindowPointerMove]);
+
 	const handleGlobalDragStart = useCallback((event: DragStartEvent) => {
 		if (dragClearTimerRef.current != null) {
 			window.clearTimeout(dragClearTimerRef.current);
 			dragClearTimerRef.current = null;
 		}
+		window.addEventListener('pointermove', handleWindowPointerMove, { passive: true });
 		setDragActive(true);
 		lastUnassignActiveRef.current = false;
 		lastPinnedActiveRef.current = false;
@@ -126,7 +153,7 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 			window.dispatchEvent(new CustomEvent('atlas:timetable-drag-source', { detail: { source: null } }));
 			setDragActive(false);
 		}
-	}, [centerView, draftPlacements, setDragActive]);
+	}, [centerView, draftPlacements, handleWindowPointerMove, setDragActive]);
 
 	const handleGlobalDragOver = useCallback((event: DragOverEvent) => {
 		const key = event.over?.id ? String(event.over.id) : null;
@@ -149,19 +176,8 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 	}, [setPinnedRailDropActive, setUnassignDropActive]);
 
 	const handleGlobalDragMove = useCallback((event: DragMoveEvent) => {
-		const targetCell = resolveCellFromTranslatedRect(event.active.rect.current.translated);
-		const cellId = targetCell?.cellId ?? null;
-		if (cellId === lastGridCellIdRef.current) return;
-		lastGridCellIdRef.current = cellId;
-		if (targetCell) {
-			lastOverCellRef.current = {
-				day: targetCell.day,
-				startTime: targetCell.startTime,
-				endTime: targetCell.endTime,
-			};
-		}
-		window.dispatchEvent(new CustomEvent('atlas:timetable-drag-cell', { detail: { cellId, source: dragItemRef.current } }));
-	}, [resolveCellFromTranslatedRect]);
+		publishTargetCell(resolveCellFromTranslatedRect(event.active.rect.current.translated));
+	}, [publishTargetCell, resolveCellFromTranslatedRect]);
 
 	const focusPinnedPlacement = useCallback((placement: DraftPlacement, mode: 'details' | 'faculty' | 'section' | 'room' = 'details') => {
 		setCenterView('pre-generation');
@@ -178,6 +194,7 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 
 	const handleGlobalDragEnd = useCallback((event: DragEndEvent) => {
 		window.dispatchEvent(new CustomEvent('atlas:timetable-drag-ending'));
+		window.removeEventListener('pointermove', handleWindowPointerMove);
 		setDragActive(false);
 		const source = event.active.data.current as DragPayload | undefined;
 		const target = event.over?.data.current as DragPayload | undefined;
@@ -214,7 +231,13 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 				// dialogs and fetches. Keeping that work out of the pointer-up frame
 				// removes a perceptible hitch without changing the resulting action.
 				const activeSource = dragItemRef.current;
-				window.setTimeout(() => handleCellDrop(day, startTime, endTime, activeSource), 220);
+				window.setTimeout(() => {
+					setInlineActionStatus({
+						tone: 'loading',
+						message: 'Previewing placement. Review the result before saving.',
+					});
+					handleCellDrop(day, startTime, endTime, activeSource);
+				}, 220);
 			}
 		}
 		lastOverCellRef.current = null;
@@ -229,10 +252,11 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 			window.dispatchEvent(new CustomEvent('atlas:timetable-drag-source', { detail: { source: null } }));
 		}, 250);
 		window.setTimeout(clearDragVisualState, 240);
-	}, [clearDragVisualState, draftPlacements, focusPinnedPlacement, handleCellDrop, resolveCellFromTranslatedRect, setDragActive, setPendingUnassignId, setPinnedRailDropActive, setShowUnassignConfirm, setUnassignDropActive]);
+	}, [clearDragVisualState, draftPlacements, focusPinnedPlacement, handleCellDrop, handleWindowPointerMove, resolveCellFromTranslatedRect, setDragActive, setInlineActionStatus, setPendingUnassignId, setPinnedRailDropActive, setShowUnassignConfirm, setUnassignDropActive]);
 
 	const handleGlobalDragCancel = useCallback((_event: DragCancelEvent) => {
 		window.dispatchEvent(new CustomEvent('atlas:timetable-drag-ending'));
+		window.removeEventListener('pointermove', handleWindowPointerMove);
 		setDragActive(false);
 		setUnassignDropActive(false);
 		setPinnedRailDropActive(false);
@@ -241,7 +265,7 @@ export function useTimetableDragDrop(options: DragDropOptions) {
 		window.dispatchEvent(new CustomEvent('atlas:timetable-drag-cell', { detail: { cellId: null, source: null } }));
 		window.dispatchEvent(new CustomEvent('atlas:timetable-drag-source', { detail: { source: null } }));
 		clearDragVisualState();
-	}, [clearDragVisualState, setDragActive, setPinnedRailDropActive, setUnassignDropActive]);
+	}, [clearDragVisualState, handleWindowPointerMove, setDragActive, setPinnedRailDropActive, setUnassignDropActive]);
 
 	return { sensors, handleGlobalDragStart, handleGlobalDragMove, handleGlobalDragOver, handleGlobalDragEnd, handleGlobalDragCancel, focusPinnedPlacement };
 }

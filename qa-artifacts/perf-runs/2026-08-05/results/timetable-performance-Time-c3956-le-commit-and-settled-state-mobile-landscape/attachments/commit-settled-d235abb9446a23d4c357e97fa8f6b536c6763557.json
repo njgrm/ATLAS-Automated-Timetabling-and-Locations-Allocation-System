@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "sourceRunId": 121,
+  "fixtureRunId": 386,
+  "restored": true,
+  "versionAdvanced": true,
+  "commitVersion": 2,
+  "settledVersion": 3,
+  "cleanup": {
+    "attempted": true,
+    "ok": true,
+    "status": 200
+  }
+}
