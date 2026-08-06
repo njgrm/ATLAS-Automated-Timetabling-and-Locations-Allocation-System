@@ -48,6 +48,7 @@
     "test:preference-sse-bilateral": "tsx src/__tests__/preference-sse-bilateral.test.ts",
     "test:hybrid-scheduler": "tsx src/__tests__/hybrid-scheduler.test.ts",
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
+    "test:rollover-readiness": "tsx src/__tests__/enrollpro-rollover-readiness.test.ts",
     "test:timetable-quick-place": "tsx src/__tests__/timetable-quick-place.test.ts",
     "benchmark:hybrid": "tsx src/scripts/benchmark-hybrid.ts"
   },

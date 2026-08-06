@@ -79,6 +79,8 @@ export interface RoomScheduleOverlayProps {
 	subjectMap?: Map<number, string>;
 	facultyMap?: Map<number, string>;
 	sectionMap?: Map<number, { name: string; gradeLevel: number | null }>;
+	emptyTitle?: string;
+	emptyDescription?: string;
 }
 
 /* ─── Component ─── */
@@ -93,6 +95,8 @@ export function RoomScheduleOverlay({
 	subjectMap: parentSubjectMap,
 	facultyMap: parentFacultyMap,
 	sectionMap: parentSectionMap,
+	emptyTitle = 'No current-year timetable yet',
+	emptyDescription = 'Build Teaching Load before creating the first timetable.',
 }: RoomScheduleOverlayProps) {
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
@@ -264,8 +268,11 @@ export function RoomScheduleOverlay({
 									Loading the latest room schedule...
 								</div>
 							) : (
-								<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-									No latest schedule is available for this room yet.
+								<div className="flex h-full items-center justify-center p-6 text-center">
+									<div className="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+										<p className="text-sm font-bold">{emptyTitle}</p>
+										<p className="mt-2 text-sm leading-relaxed">{emptyDescription}</p>
+									</div>
 								</div>
 							)}
 						</div>

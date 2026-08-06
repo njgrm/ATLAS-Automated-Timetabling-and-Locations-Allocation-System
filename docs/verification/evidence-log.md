@@ -5118,4 +5118,67 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 
 - New-year timetable generation is intentionally blocked until Teaching Load is rebuilt.
 - Dummy reset is not a production-history migration path; published artifacts remain protected by `PUBLISHED_YEAR_RESET_BLOCKED`.
-- Browser network log still records expected `404` responses for `/api/v1/generation/1/1/runs/latest/timetable` because no 2026-2027 timetable exists yet. This did not break the page and should disappear after the first valid generation run.
+- Browser network log recorded expected `404` responses for `/api/v1/generation/1/1/runs/latest/timetable` because no 2026-2027 timetable existed yet. This caveat was addressed in the follow-up readiness proof by skipping the heavy timetable call until latest-run metadata confirms a current-year run exists.
+
+---
+
+# 2026-08-06 - EnrollPro New-Year Readiness Proof
+
+- Prompt executed: remove post-rollover latest-timetable 404 noise, add deterministic backend contract checks, and prove the 2026-2027 setup/readiness workflow in the live Tailnet browser.
+- Operator: Codex.
+- ATLAS target: `https://njgrm.buru-degree.ts.net`.
+
+## Implementation Evidence
+
+- Dashboard campus readiness and Campus/Rooms now query lightweight latest-run metadata before requesting `/runs/latest/timetable`.
+- `RoomScheduleOverlay` now shows `No 2026-2027 timetable yet` and `Build Teaching Load before creating the first timetable` instead of a generic missing-latest-run message.
+- Timetable Simple view now recommends `Build Teaching Load` and links to `/teaching-load` when the current year has no generated timetable.
+- Added backend contract test script `npm run test:rollover-readiness`, including a reversible setup-to-generation fixture.
+- Added Tailnet browser spec `qa-artifacts/playwright/specs/enrollpro-new-year-readiness.spec.ts`.
+- Added reference note `docs/reference/enrollpro-rollover-contract-2026-2027.md`.
+
+## Backend Contract Evidence
+
+- `npm run test:rollover-readiness`: PASS `23/23`.
+- Preview no-write proof: row-count snapshot unchanged before/after `previewRolloverSync`.
+- Active-year proof: EnrollPro `id=1`, label `2026-2027`.
+- Feed proof: `20` sections and `24` faculty from EnrollPro rollover feeds.
+- Mirror proof: ATLAS has `20` section mirrors, `24` active faculty candidates, `1` current-year scheduling policy baseline, `0` current-year generation runs, `0` FacultySubject rows, and `0` SubjectSectionOwnership rows.
+- Reset confirmation proof: wrong reset text returns `CONFIRMATION_REQUIRED`.
+- Stale-year generation proof: schoolYearId `39` returns `ACTIVE_YEAR_DRIFT`.
+- Current-year generation proof: schoolYearId `1` returns `TEACHING_LOAD_REVIEW_REQUIRED`.
+- Reversible setup-to-generation proof: Teaching Load automation created `257` normalized ownership rows, current-year generation run `390` completed with `790` entries, and cleanup restored `0` current-year generation runs, `0` FacultySubject rows, `0` SubjectSectionOwnership rows, and the original current-year audit log count.
+
+## Tailnet Browser Evidence
+
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/enrollpro-new-year-readiness.spec.ts --workers=1`: PASS `3/3`.
+- Desktop, mobile portrait, and mobile landscape all verified:
+  - Dashboard exposes aligned/current setup guidance.
+  - Sections API proof returns `20` current-year sections.
+  - Teachers API proof returns `24` active faculty candidates.
+  - Teaching Load route exposes review/build guidance.
+  - Timetable route does not silently treat prior-year schedules as the current 2026-2027 timetable.
+  - Dashboard and Campus widgets produce no `/api/v1/generation/1/1/runs/latest/timetable` 404 before a current-year run exists.
+
+## Route Probe Evidence
+
+- `GET /api/v1/health`: PASS `200`.
+- `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true`: PASS `200`.
+- `GET /api/v1/runtime/rollover-status?schoolId=1&includeCounts=true`: PASS `200`.
+- `GET /api/v1/generation/1/1/runs`: PASS `200`, current-year run list empty.
+- `GET /api/v1/generation/1/39/runs`: PASS `200`, prior-year/historical runs remain readable.
+- `POST /api/v1/generation/1/1/runs`: PASS as guarded failure `409 TEACHING_LOAD_REVIEW_REQUIRED`.
+- `POST /api/v1/generation/1/39/runs`: PASS as guarded failure `409 ACTIVE_YEAR_DRIFT`.
+
+## Verification
+
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-server`: `npm run test:rollover-readiness`: PASS `23/23`.
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run build`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS `37/37`.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS `10/10`.
+
+## Remaining Caveat
+
+- The setup-to-generation compatibility path is proven with a reversible fixture, but the controlled generation still produced `135` unassigned sessions. That is a schedule-readiness issue for the future Teaching Load/setup workflow, not an EnrollPro rollover compatibility blocker.

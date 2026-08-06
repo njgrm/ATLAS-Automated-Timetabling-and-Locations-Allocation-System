@@ -51,6 +51,7 @@ type SimpleTaskDefinition = {
 	icon: LucideIcon;
 	badge?: string;
 	disabled?: boolean;
+	href?: string;
 };
 
 type SimpleViewMode = ScheduleReviewWorkspaceHeaderContext['viewMode'];
@@ -122,8 +123,9 @@ function sourceLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 }
 
 function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
+	const yearLabel = context.schoolYearContext?.activeSchoolYearLabel;
 	if (context.isPreGenerationWorkspace) return 'Planning draft';
-	if (!context.draft) return 'No run loaded';
+	if (!context.draft) return yearLabel ? `No ${yearLabel} timetable yet` : 'No current-year timetable yet';
 	if (context.hardCount > 0) return `${context.hardCount} blocker${context.hardCount === 1 ? '' : 's'}`;
 	if (context.softCount > 0) return `${context.softCount} warning${context.softCount === 1 ? '' : 's'}`;
 	return 'Ready to publish';
@@ -405,6 +407,8 @@ function SimpleTutorialControl() {
 function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): SimpleTaskDefinition[] {
 	return useMemo(() => {
 		const unassignedCount = context.summary?.unassignedCount ?? 0;
+		const noCurrentTimetable = !context.draft && !context.isPreGenerationWorkspace && context.runs.length === 0;
+		const yearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? 'current school year';
 		return [
 			{
 				id: 'place-unresolved',
@@ -433,12 +437,15 @@ function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): SimpleTa
 			},
 			{
 				id: 'plan-draft',
-				label: context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan draft',
-				primaryLabel: context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan before generating',
-				helper: 'Open the pre-generation draft queue and place sessions before generating a new run.',
-				icon: CalendarClock,
+				label: noCurrentTimetable ? 'Build Teaching Load' : context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan draft',
+				primaryLabel: noCurrentTimetable ? 'Open Teaching Load' : context.isPreGenerationWorkspace ? 'Continue draft' : 'Plan before generating',
+				helper: noCurrentTimetable
+					? `No ${yearLabel} timetable yet. Build Teaching Load before creating the first timetable.`
+					: 'Open the pre-generation draft queue and place sessions before generating a new run.',
+				icon: noCurrentTimetable ? GraduationCap : CalendarClock,
 				badge: taskCount(context.draftPlacementCount, 'draft'),
 				disabled: context.newDraftLoading || !context.schoolYearId,
+				href: noCurrentTimetable ? '/teaching-load' : undefined,
 			},
 			{
 				id: 'publish',
@@ -449,12 +456,13 @@ function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): SimpleTa
 				disabled: !context.draft || context.hardCount > 0 || context.isPreGenerationWorkspace,
 			},
 		];
-	}, [context.draft, context.draftPlacementCount, context.hardCount, context.isPreGenerationWorkspace, context.newDraftLoading, context.schoolYearId, context.softCount, context.summary?.unassignedCount]);
+	}, [context.draft, context.draftPlacementCount, context.hardCount, context.isPreGenerationWorkspace, context.newDraftLoading, context.runs.length, context.schoolYearContext?.activeSchoolYearLabel, context.schoolYearId, context.softCount, context.summary?.unassignedCount]);
 }
 
 function chooseRecommendedTask(tasks: SimpleTaskDefinition[], context: ScheduleReviewWorkspaceHeaderContext) {
 	const unassignedCount = context.summary?.unassignedCount ?? 0;
 	if (context.isPreGenerationWorkspace) return tasks.find((task) => task.id === 'plan-draft') ?? tasks[0];
+	if (!context.draft && context.runs.length === 0) return tasks.find((task) => task.id === 'plan-draft') ?? tasks[0];
 	if (unassignedCount > 0) return tasks.find((task) => task.id === 'place-unresolved') ?? tasks[0];
 	if (context.hardCount > 0 || context.softCount > 0) return tasks.find((task) => task.id === 'review-issues') ?? tasks[0];
 	if (context.requestPendingCount > 0) return tasks.find((task) => task.id === 'review-issues') ?? tasks[0];
@@ -475,6 +483,7 @@ function TimetableSimpleHeaderImpl({
 	const tasks = useSimpleTasks(context);
 	const recommendedTask = chooseRecommendedTask(tasks, context);
 	const visibleRunId = context.draft?.runId ?? context.activeGeneratedRunId;
+	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
 	const readiness = readinessLabel(context);
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
@@ -579,7 +588,7 @@ function TimetableSimpleHeaderImpl({
 				>
 					<Info className="size-3.5 shrink-0" aria-hidden="true" />
 					<span className="truncate">{source}</span>
-					{context.schoolYearId ? <span className="hidden sm:inline">· SY #{context.schoolYearId}</span> : null}
+					{visibleYearLabel ? <span className="hidden sm:inline">· {visibleYearLabel}</span> : null}
 					{visibleRunId ? <span className="hidden sm:inline">· Run #{visibleRunId}</span> : null}
 				</Badge>
 
@@ -802,17 +811,32 @@ function TimetableSimpleHeaderImpl({
 				</div>
 
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-					<Button
-						type="button"
-						size="sm"
-						className="h-7 min-w-28 gap-1.5 px-3 text-xs sm:h-8 sm:min-w-32 sm:text-sm"
-						disabled={activeTaskDefinition.disabled}
-						onClick={() => void startTask(activeTaskDefinition.id)}
-						data-testid="timetable-simple-primary-action"
-					>
-						{activeTaskDefinition.primaryLabel}
-						<ChevronDown className="size-3.5" aria-hidden="true" />
-					</Button>
+					{activeTaskDefinition.href ? (
+						<Button
+							asChild
+							size="sm"
+							className="h-7 min-w-28 gap-1.5 px-3 text-xs sm:h-8 sm:min-w-32 sm:text-sm"
+							disabled={activeTaskDefinition.disabled}
+							data-testid="timetable-simple-primary-action"
+						>
+							<Link to={activeTaskDefinition.href}>
+								{activeTaskDefinition.primaryLabel}
+								<ChevronDown className="size-3.5" aria-hidden="true" />
+							</Link>
+						</Button>
+					) : (
+						<Button
+							type="button"
+							size="sm"
+							className="h-7 min-w-28 gap-1.5 px-3 text-xs sm:h-8 sm:min-w-32 sm:text-sm"
+							disabled={activeTaskDefinition.disabled}
+							onClick={() => void startTask(activeTaskDefinition.id)}
+							data-testid="timetable-simple-primary-action"
+						>
+							{activeTaskDefinition.primaryLabel}
+							<ChevronDown className="size-3.5" aria-hidden="true" />
+						</Button>
+					)}
 				</div>
 			</div>
 		</header>

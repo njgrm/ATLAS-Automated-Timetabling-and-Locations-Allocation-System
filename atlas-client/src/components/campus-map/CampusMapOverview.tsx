@@ -23,7 +23,7 @@ import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
-import type { Building, DraftReport, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
+import type { Building, DraftReport, GenerationRun, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -43,6 +43,10 @@ type SectionScheduleInfo = {
 	name: string;
 	gradeLevel: number | null;
 	programCode?: string | null;
+};
+
+type LatestRunMetadataResponse = {
+	run: Pick<GenerationRun, 'id' | 'status' | 'schoolYearId'> | null;
 };
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -123,6 +127,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 
 	const [scheduleLoading, setScheduleLoading] = useState(true);
 	const [scheduleReport, setScheduleReport] = useState<DraftReport | null>(null);
+	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionScheduleInfo>>(new Map());
@@ -161,16 +166,35 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		(async () => {
 			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, preferCache: true, backgroundRefresh: true });
 			const activeSchoolYearId = context.activeSchoolYearId;
+			if (!cancelled) setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
 			if (!activeSchoolYearId) {
 				if (!cancelled) setScheduleLoading(false);
 				return;
 			}
 
+			const reportRequest = async (): Promise<{ data: DraftReport | null }> => {
+				const latestRunRes = await withFallback<LatestRunMetadataResponse>(
+					() => atlasApi.get<LatestRunMetadataResponse>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest`),
+					{ run: null },
+					3000,
+				);
+
+				if (!latestRunRes.data.run) {
+					return { data: null };
+				}
+
+				return withFallback(
+					() => atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest/timetable`),
+					null as DraftReport | null,
+					6000,
+				);
+			};
+
 			const [subjectsRes, facultyRes, sectionsRes, reportRes] = await Promise.all([
 				withFallback(() => atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`), { subjects: [] as Subject[] }),
 				withFallback(() => atlasApi.get<{ faculty: Array<{ id: number; firstName: string; lastName: string }> }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`), { faculty: [] }),
 				withFallback(() => fetchVersionedApi<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`), { sections: [] } as unknown as SectionSummaryResponse),
-				withFallback(() => atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest/timetable`), null as DraftReport | null, 6000),
+				reportRequest(),
 			]);
 
 			if (cancelled) return;
@@ -207,6 +231,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 			setScheduleLoading(false);
 		})().catch(() => {
 			if (!cancelled) {
+				setActiveSchoolYearLabel(null);
 				setScheduleReport(null);
 				setScheduleLoading(false);
 			}
@@ -239,6 +264,9 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 	}, [buildings, scheduleReport, subjectMap]);
 
 	const selectedHasSchedule = Boolean(selectedBuilding?.rooms?.some((room) => (roomUtilization.get(room.id) ?? 0) > 0));
+	const scheduleEmptyLabel = activeSchoolYearLabel
+		? `No ${activeSchoolYearLabel} timetable yet`
+		: 'No current-year timetable yet';
 
 	const roomScheduleIndicators = useMemo(() => {
 		const occupancy = new Map<number, string>();
@@ -475,7 +503,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 											<div className="mt-3 grid grid-cols-3 gap-2 text-center">
 												<ReadinessChip label="Teaching rooms" value={`${selectedTeachingRooms}/${selectedTotalRooms}`} />
 												<ReadinessChip label="Floors" value={selectedFloors.toString()} />
-												<ReadinessChip label="Schedules" value={selectedHasSchedule ? 'Available' : scheduleLoading ? 'Checking' : 'No latest run'} />
+												<ReadinessChip label="Schedules" value={selectedHasSchedule ? 'Available' : scheduleLoading ? 'Checking' : scheduleEmptyLabel} />
 											</div>
 										) : null}
 
@@ -677,6 +705,8 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 				subjectMap={subjectMap}
 				facultyMap={facultyMap}
 				sectionMap={overlaySectionMap}
+				emptyTitle={scheduleEmptyLabel}
+				emptyDescription="Build Teaching Load before creating the first timetable."
 			/>
 		</div>
 	);
