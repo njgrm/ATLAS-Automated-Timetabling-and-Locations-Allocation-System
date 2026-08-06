@@ -1,6 +1,7 @@
 import { Save, Undo2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
+import { cn } from '@/lib/utils';
 
 type TeachingLoadDraftActionBarProps = {
 	activeDraftCount: number;
@@ -39,14 +40,14 @@ export function TeachingLoadDraftActionBar({
 						</p>
 					)}
 				</div>
-				<Button type="button" variant="outline" size="sm" className="h-9 gap-2 font-bold" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}>
+				<Button type="button" variant="outline" size="sm" className={cn('h-9 gap-2 font-bold', activeDraftCount === 0 && '[@media(max-height:500px)]:hidden')} onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}>
 					<Undo2 className="size-4" />
 					Undo last
 				</Button>
-				<Button type="button" variant="outline" size="sm" className="h-9 font-bold" onClick={onDiscard} disabled={activeDraftCount === 0 || saving || isReadOnlyMode}>
+				<Button type="button" variant="outline" size="sm" className={cn('h-9 font-bold', activeDraftCount === 0 && '[@media(max-height:500px)]:hidden')} onClick={onDiscard} disabled={activeDraftCount === 0 || saving || isReadOnlyMode}>
 					Discard draft
 				</Button>
-				<Button type="button" size="sm" className="h-9 gap-2 font-bold" onClick={onSave} disabled={saveDisabled}>
+				<Button type="button" size="sm" className={cn('h-9 gap-2 font-bold', activeDraftCount === 0 && '[@media(max-height:500px)]:hidden')} onClick={onSave} disabled={saveDisabled}>
 					<Save className="size-4" />
 					{saving ? 'Saving...' : 'Save draft'}
 				</Button>

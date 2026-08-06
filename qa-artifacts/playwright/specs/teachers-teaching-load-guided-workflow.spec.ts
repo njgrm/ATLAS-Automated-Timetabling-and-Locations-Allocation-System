@@ -124,17 +124,46 @@ test.describe.serial('Teachers + Teaching Load guided workflow simplification', 
 		await expect(page.getByTestId('teaching-load-current-repair')).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByTestId('teaching-load-advanced-grid-toggle').first()).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByTestId('teaching-load-draft-action-bar')).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByRole('button', { name: /More filters/i }).first()).toBeVisible({ timeout: 20_000 });
+		const suggestDraftAction = page.getByRole('button', { name: /Suggest Teaching Load draft/i });
+		await expect(suggestDraftAction).toBeVisible({ timeout: 60_000 });
+		await expect(suggestDraftAction).toBeEnabled({ timeout: 60_000 });
+		await expect(page.getByTestId('teaching-load-apply-suggestion')).toHaveCount(0);
+		const proposalResponsePromise = page.waitForResponse((response) =>
+			response.url().includes('/api/v1/faculty-assignments/suggestion-proposals')
+			&& !response.url().includes('/apply')
+			&& response.request().method() === 'POST',
+		);
+		await suggestDraftAction.click();
+		const proposalResponse = await proposalResponsePromise;
+		expect(proposalResponse.status(), `Suggestion proposal preview must persist a pending proposal, got HTTP ${proposalResponse.status()}.`).toBe(201);
+		const proposalPayload = await proposalResponse.json() as { proposal?: { id?: number; status?: string } };
+		expect(Number(proposalPayload.proposal?.id)).toBeGreaterThan(0);
+		expect(proposalPayload.proposal?.status).toBe('PENDING');
+		await expect(page.getByTestId('teaching-load-suggestion-preview')).toBeVisible({ timeout: 60_000 });
+		await expect(page.getByTestId('teaching-load-apply-suggestion')).toBeVisible();
+		const cancelResponsePromise = page.waitForResponse((response) =>
+			response.url().includes(`/api/v1/faculty-assignments/suggestion-proposals/${proposalPayload.proposal?.id}/cancel`)
+			&& response.request().method() === 'POST',
+		);
+		await page.getByTestId('teaching-load-suggestion-preview').getByRole('button', { name: /Cancel/i }).click();
+		const cancelResponse = await cancelResponsePromise;
+		expect(cancelResponse.status(), `Suggestion proposal cancel must persist cancellation, got HTTP ${cancelResponse.status()}.`).toBe(200);
+		const cancelPayload = await cancelResponse.json() as { proposal?: { status?: string } };
+		expect(cancelPayload.proposal?.status).toBe('CANCELLED');
 
-		const saveButton = page.getByRole('button', { name: /^Save draft$/i }).last();
-		if (await saveButton.isDisabled()) {
+		const saveButton = page.getByRole('button', { name: /^Save draft$/i });
+		if (await saveButton.count() === 0) {
+			await expect(page.getByTestId('teaching-load-draft-save-reason')).toBeVisible({ timeout: 10_000 });
+		} else if (await saveButton.last().isDisabled()) {
 			await expect(page.getByTestId('teaching-load-draft-save-reason')).toBeVisible({ timeout: 10_000 });
 		}
 
 		const toggle = page.getByTestId('teaching-load-advanced-grid-toggle').first();
-		await toggle.click();
-		await expect(page.getByText(/Guided mode is active/i)).toBeVisible({ timeout: 20_000 });
-		await page.getByTestId('teaching-load-advanced-grid-toggle').last().click();
+		if (await page.getByText(/Guided mode is active/i).isVisible().catch(() => false)) {
+			await page.getByTestId('teaching-load-advanced-grid-toggle').last().click();
+		} else {
+			await toggle.click();
+		}
 		await expect(page.getByRole('button', { name: /More filters/i }).first()).toBeVisible({ timeout: 20_000 });
 
 		const metrics = await page.evaluate(() => {

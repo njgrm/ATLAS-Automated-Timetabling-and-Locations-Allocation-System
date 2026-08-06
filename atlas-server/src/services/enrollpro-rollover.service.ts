@@ -125,7 +125,6 @@ export type RolloverDummyYearResetResult = RolloverStatusResult & {
 	rolloverApply: RolloverApplyResult | null;
 };
 
-const ENROLLPRO_BASE_URL = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 const SCHOOL_YEAR_ENDPOINT = '/integration/v1/school-year';
 const SECTION_ENDPOINT = '/integration/v1/sections';
 const FACULTY_ENDPOINTS = ['/integration/v1/faculty', '/integration/v1/default/faculty'];
@@ -152,7 +151,8 @@ function authHeaders(authToken?: string): Record<string, string> | undefined {
 }
 
 async function fetchJson(path: string, authToken?: string): Promise<unknown> {
-	const res = await fetch(`${ENROLLPRO_BASE_URL}${path}`, {
+	const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
+	const res = await fetch(`${baseUrl}${path}`, {
 		headers: authHeaders(authToken),
 		signal: AbortSignal.timeout(10000),
 	});

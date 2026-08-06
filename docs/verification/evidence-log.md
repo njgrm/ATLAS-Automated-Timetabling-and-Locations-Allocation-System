@@ -5182,3 +5182,149 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 ## Remaining Caveat
 
 - The setup-to-generation compatibility path is proven with a reversible fixture, but the controlled generation still produced `135` unassigned sessions. That is a schedule-readiness issue for the future Teaching Load/setup workflow, not an EnrollPro rollover compatibility blocker.
+
+# 2026-08-06 - Teaching Load + EnrollPro Readiness UX Improvement
+
+- Prompt executed: expose Teaching Load automation as a reviewed officer draft assistant, keep empty-year setup guidance obvious, add EnrollPro field-level drift checks, and verify the 2026-2027 Teaching Load path against Tailnet.
+- Operator: Codex.
+- ATLAS target: `https://njgrm.buru-degree.ts.net`.
+
+## Implementation Evidence
+
+- Teaching Load primary action is now `Suggest Teaching Load draft`.
+- Suggestion flow is preview-first: clicking the action opens a review dialog before any apply action is available.
+- Suggestion preview shows source/readiness context and explicit actions: cancel, review manually, and apply suggested Teaching Load.
+- Suggestion apply is a separate officer action and reports persistent feedback near the draft action area.
+- Empty active-year Teaching Load defaults to the guided repair queue and keeps the advanced grid available behind the explicit advanced-grid toggle.
+- Mobile-landscape Teaching Load hides disabled no-op draft buttons only when there are zero draft changes and keeps the save-disabled reason visible.
+- EnrollPro rollover readiness tests now include field-level drift checks for active school year, sections, faculty, public settings, and optional subject-offerings classification.
+
+## Backend Contract Evidence
+
+- `atlas-server`: `npm run test:rollover-readiness`: PASS `41/41`.
+- EnrollPro active-year contract: ID `1`, label `2026-2027`.
+- EnrollPro section field contract: section id, name, program type, grade identity, capacity/enrollment, and adviser fields when adviser exists.
+- EnrollPro faculty field contract: faculty id, readable name, active scheduling status, and department/specialization fields.
+- Optional subject-offerings route is currently `404` and remains classified as optional.
+- Reversible setup-to-generation fixture created run `392`, completed with `790` entries, and cleanup restored current-year run/load/audit counts.
+
+## Tailnet Browser Evidence
+
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/enrollpro-new-year-readiness.spec.ts --workers=1`: PASS `3/3`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teachers-teaching-load-guided-workflow.spec.ts --workers=1`: PASS `9/9`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/enrollpro-new-year-readiness.spec.ts qa-artifacts/playwright/specs/teachers-teaching-load-guided-workflow.spec.ts --workers=1`: PASS `12/12` after correcting preview-loading copy.
+- Desktop, mobile portrait, and mobile landscape verified:
+  - Dashboard and Teaching Load expose the 2026-2027 setup path.
+  - Teaching Load exposes `Suggest Teaching Load draft`.
+  - Suggestion preview appears before the apply action.
+  - Advanced grids remain reachable without being the default first-screen workflow.
+  - Save-disabled feedback remains visible when no draft changes exist.
+
+## Verification
+
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS `37/37`.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS `10/10`.
+- `atlas-client`: `npm run build`: PASS.
+
+## Remaining Caveats
+
+- The reviewed suggestion apply path uses the existing Teaching Load write endpoint after explicit officer confirmation; it is no longer silent, but it is still an apply/write action rather than a separate persisted draft proposal object.
+- The controlled generation fixture still produced `135` unassigned sessions, so real 2026-2027 scheduling readiness still depends on officers resolving staffing and room blockers after suggested load creation.
+
+# 2026-08-06 - Teaching Load Suggestion Proposal Persistence and Rollover Simulation
+
+- Prompt executed: close the reviewed-suggestion caveat by persisting proposal objects, prove ATLAS receives live Tailnet EnrollPro data instead of stale saved data, and safely simulate EnrollPro moving to the next school year.
+- Operator: Codex.
+- ATLAS target: `https://njgrm.buru-degree.ts.net`.
+
+## Implementation Evidence
+
+- Added `TeachingLoadSuggestionProposal` persistence with statuses `PENDING`, `APPLIED`, `CANCELLED`, `SUPERSEDED`, and `EXPIRED`.
+- Added migration `0034_add_teaching_load_suggestion_proposals`.
+- Added `POST /api/v1/faculty-assignments/suggestion-proposals`.
+- Added `POST /api/v1/faculty-assignments/suggestion-proposals/:proposalId/apply`.
+- Added `POST /api/v1/faculty-assignments/suggestion-proposals/:proposalId/cancel`.
+- Teaching Load suggestion preview now creates a persisted `PENDING` proposal before showing the apply action.
+- Closing or cancelling the suggestion review marks the proposal `CANCELLED` and does not write Teaching Load rows.
+- Applying a suggestion is allowed only from a persisted `PENDING` proposal, refreshes the preview, writes through the existing Teaching Load service after officer confirmation, and marks the proposal `APPLIED`.
+- EnrollPro rollover service and faculty adapter now resolve `ENROLLPRO_API` at request time for drift/source checks.
+
+## Backend Contract Evidence
+
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-server`: `npm run test:rollover-readiness`: PASS `58/58`.
+- Live EnrollPro contract proof still returns active year `1 / 2026-2027`, `20` sections, and `24` faculty.
+- Proposal preview proof: `PENDING` proposal is created and preview performs no `FacultySubject` or `SubjectSectionOwnership` writes.
+- Proposal cancel proof: unused proposal becomes `CANCELLED` and performs no Teaching Load writes.
+- Proposal apply proof: reviewed proposal becomes `APPLIED`, creates `257` normalized Teaching Load ownership rows in the reversible fixture, and cleanup restores run/load/audit/proposal counts.
+- Simulated next-year EnrollPro proof: fake EnrollPro reported `2 / 2027-2028`; ATLAS returned drift `atlas-stale`, recommended `RUN_ROLLOVER_SYNC`, counted live-shaped section/faculty feeds, performed no local writes, and blocked old-year generation with `ACTIVE_YEAR_DRIFT`.
+
+## Tailnet Live Source Evidence
+
+- `POST /api/v1/auth/login` with `1234501 / DepEdSY2026!`: PASS; role `officer`.
+- `GET /api/v1/health`: PASS; status `ok`.
+- `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true`: PASS; source `enrollpro-verified`, drift `aligned`, EnrollPro active year `1 / 2026-2027`.
+- `GET /api/v1/runtime/rollover-status?schoolId=1&includeCounts=true`: PASS; drift `aligned`, section count `20`, faculty count `24`, mirror year `2026-2027`, mirror status `setup-review-required`.
+- `GET /enrollpro-api/settings/public`: PASS; active school year `1 / 2026-2027`.
+
+## Tailnet Browser Evidence
+
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/enrollpro-new-year-readiness.spec.ts qa-artifacts/playwright/specs/teachers-teaching-load-guided-workflow.spec.ts --workers=1`: PASS `12/12`.
+- Desktop, mobile portrait, and mobile landscape verified:
+  - Dashboard/Teaching Load expose the 2026-2027 setup path.
+  - `Suggest Teaching Load draft` creates a persisted `PENDING` proposal before apply is visible.
+  - Cancel marks the proposal `CANCELLED`.
+  - Advanced grids remain reachable without being the default workflow.
+  - Timetable generation remains blocked until Teaching Load is ready.
+
+## Verification
+
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS `37/37`.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS `10/10`.
+- `atlas-client`: `npm run build`: PASS.
+
+## Remaining Caveats
+
+- The next-year rollover simulation intentionally used a fake EnrollPro HTTP server instead of EnrollPro's local `simulate:lifecycle` script because that script is documented as destructive and resets the local EnrollPro database. This is a safety decision, not a product blocker.
+- The controlled current-year generation fixture still produced `135` unassigned sessions, so scheduling readiness remains dependent on officer review of staffing and room blockers after Teaching Load suggestion.
+
+# 2026-08-06 - EnrollPro Dev Tailnet Destructive Rollover Attempt
+
+- Prompt executed: try the destructive EnrollPro rollover path against the dev Tailnet EnrollPro environment and report/fix blockers where possible.
+- Operator: Codex.
+- EnrollPro target: `https://dev-jegs.buru-degree.ts.net`.
+- ATLAS target checked after mutation: `https://njgrm.buru-degree.ts.net`.
+
+## Destructive Preparation Performed
+
+- Authenticated to EnrollPro dev with `1234501 / DepEdSY2026!`; account roles include `SYSTEM_ADMIN`.
+- Starting state: active school year `1 / 2026-2027`, system phase `CLASSES_ONGOING`.
+- Created and approved incoming calendar policy `1` for target year `2027-2028`.
+- Changed EnrollPro dev system phase to `EOSY_CLOSING`.
+- Updated `80` EOSY records to promoted/final-average-ready state.
+- Finalized all `20` sections.
+- Recorded `20` SF5 artifacts.
+- Recorded school-wide SF6 artifact version `1`.
+
+## Rollover Attempt Result
+
+- `POST /api/school-years/rollover` with source year `1`, calendar policy `1`, and PIN `123456`: blocked as expected with `422 ROLLOVER_NOT_READY`.
+- After preparation, readiness has no global blockers.
+- Form readiness is complete: `currentSf5Count=20`, `totalSections=20`, `sf6Recorded=true`, `sf6Current=true`.
+- Remaining blocker: all `20` sections report `SMART_OUTCOME_MISSING`.
+- Direct SMART sync probe for section `1` returned `503`, indicating the EnrollPro dev server does not currently have a usable SMART final-outcome source configured.
+
+## ATLAS Integration Check After Mutation
+
+- ATLAS `/enrollpro-api/settings/public` now sees the same EnrollPro dev state: active year `1 / 2026-2027`, phase `EOSY_CLOSING`.
+- ATLAS `/api/v1/runtime/context?schoolId=1&verifyUpstream=true`: PASS; source `enrollpro-verified`, drift `aligned`.
+- ATLAS `/api/v1/runtime/rollover-status?schoolId=1&includeCounts=true`: PASS; drift `aligned`, section count `20`, faculty count `24`.
+- Active-year drift remains aligned because EnrollPro atomic rollover did not complete.
+
+## Required Fix Before Real Dev Rollover Can Complete
+
+- EnrollPro dev needs a working SMART final-outcome source for EOSY grade sync, or a deliberately guarded dev-only fixture path for publishing SMART final outcomes.
+- No ATLAS code fix was required from this attempt; ATLAS correctly continued to verify the live EnrollPro source and did not detect a new active-year drift because EnrollPro did not activate `2027-2028`.

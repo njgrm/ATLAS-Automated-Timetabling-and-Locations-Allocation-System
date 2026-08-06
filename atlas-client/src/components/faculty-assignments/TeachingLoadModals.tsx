@@ -36,6 +36,10 @@ type TeachingLoadModalsProps = {
 	summaryModalOpen: boolean;
 	onSummaryModalOpenChange: (open: boolean) => void;
 	autoFillResult: AutoFillSummaryResult | null;
+	onApplySuggestion: () => void;
+	onReviewSuggestionManually: () => void;
+	suggestionApplying: boolean;
+	suggestionApplyDisabledReason?: string | null;
 	resetDialogOpen: boolean;
 	onResetDialogOpenChange: (open: boolean) => void;
 	canRunGlobalReset: boolean;
@@ -57,6 +61,10 @@ export function TeachingLoadModals({
 	summaryModalOpen,
 	onSummaryModalOpenChange,
 	autoFillResult,
+	onApplySuggestion,
+	onReviewSuggestionManually,
+	suggestionApplying,
+	suggestionApplyDisabledReason,
 	resetDialogOpen,
 	onResetDialogOpenChange,
 	canRunGlobalReset,
@@ -70,10 +78,10 @@ export function TeachingLoadModals({
 			<ConfirmationModal
 				open={autoFillDialogOpen}
 				onOpenChange={onAutoFillDialogOpenChange}
-				title="Auto-Fill Remaining Assignments?"
-				description={`Coverage mode: ${coverageModeConfig.label}. ${coverageModeConfig.description}`}
+				title="Preview suggested Teaching Load draft?"
+				description={`Coverage mode: ${coverageModeConfig.label}. ${coverageModeConfig.description} This preview will not save Teaching Load rows.`}
 				onConfirm={onAutoFillConfirm}
-				confirmText="Run Auto-Fill"
+				confirmText="Preview suggestion"
 				variant="primary"
 				loading={autoFillLoading}
 			/>
@@ -120,6 +128,10 @@ export function TeachingLoadModals({
 				open={summaryModalOpen}
 				onOpenChange={onSummaryModalOpenChange}
 				result={autoFillResult}
+				onApplySuggestion={onApplySuggestion}
+				onReviewManually={onReviewSuggestionManually}
+				applyingSuggestion={suggestionApplying}
+				applyDisabledReason={suggestionApplyDisabledReason}
 			/>
 
 			<Dialog open={resetDialogOpen} onOpenChange={onResetDialogOpenChange}>
@@ -134,7 +146,7 @@ export function TeachingLoadModals({
 					<div className="bg-rose-50 border border-rose-100 rounded-xl p-4 space-y-3">
 						<p className="text-xs font-bold text-rose-900 leading-relaxed">
 							This cannot be undone. All teacher-subject ownership records will be cleared. 
-							You will need to run Auto-Fill or re-assign sections manually.
+							You will need to suggest a Teaching Load draft or re-assign sections manually.
 						</p>
 						<div className="space-y-2">
 							<label htmlFor="reset-confirm" className="text-xs font-semibold uppercase tracking-widest text-rose-800/60">

@@ -93,10 +93,14 @@ export default function TeachingLoad() {
 	});
 
 	const [autoFillResult, setAutoFillResult] = useState<AutoFillSummaryResult | null>(null);
+	const [suggestionProposalId, setSuggestionProposalId] = useState<number | null>(null);
+	const [suggestionLoading, setSuggestionLoading] = useState(false);
+	const [suggestionApplying, setSuggestionApplying] = useState(false);
 	const [resetLoading, setResetLoading] = useState(false);
 	const [hasGeneratedRuns, setHasGeneratedRuns] = useState(false);
 	const [showSaveWarning, setShowSaveWarning] = useState(false);
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
+	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Use a repair action first.');
 
 	useEffect(() => {
@@ -361,40 +365,120 @@ export default function TeachingLoad() {
 		}
 	}, [data, ui]);
 
-	const handleAutoFill = useCallback(async () => {
+	const handlePreviewSuggestedTeachingLoad = useCallback(async () => {
 		if (!data.activeSchoolYearId) return;
 		ui.setAutoFillDialogOpen(false);
-		if (splitBrainNeedsReconcile) {
-			const reconciled = await applySplitBrainReconcile({ silent: true });
-			if (!reconciled) {
-				toast.error('Auto-fill could not start because saved coverage reconcile failed.');
-				return;
-			}
-		}
-		const toastId = toast.loading(`Running auto-fill (${COVERAGE_MODE_CONFIG[ui.coverageMode].label})...`);
+		setSuggestionLoading(true);
+		setAutoFillResult(null);
+		setSuggestionProposalId(null);
+		ui.setSummaryModalOpen(true);
+		const toastId = toast.loading(`Preparing Teaching Load suggestion (${COVERAGE_MODE_CONFIG[ui.coverageMode].label})...`);
 		try {
-			const { data: result } = await atlasApi.post<AutoFillSummaryResult>(
-				'/faculty-assignments/auto-fill',
+			const { data: result } = await atlasApi.post<{
+				proposal: { id: number; status: string; suggestedAssignmentCount: number; unresolvedCount: number };
+				preview: AutoFillSummaryResult;
+			}>(
+				'/faculty-assignments/suggestion-proposals',
 				{
 					schoolId: DEFAULT_SCHOOL_ID,
 					schoolYearId: data.activeSchoolYearId,
 					coverageMode: ui.coverageMode,
 				},
 			);
-			setAutoFillResult(result);
-			ui.setSummaryModalOpen(true);
+			setSuggestionProposalId(result.proposal.id);
+			setAutoFillResult(result.preview);
 			
-			const unresolvedCount = result.unresolved ?? 0;
+			const unresolvedCount = result.preview.unresolved ?? 0;
 			if (unresolvedCount > 0) {
-				toast.warning('Auto-fill finished with gaps. Review the summary for detailed staffing recommendations.', { id: toastId });
+				const message = 'Teaching Load suggestion is ready, but some classes still need scheduler review.';
+				setDraftStatusMessage(message);
+				toast.warning(message, { id: toastId });
 			} else {
-				toast.success('Auto-fill completed successfully.', { id: toastId });
+				const message = 'Teaching Load suggestion is ready. Review it before applying.';
+				setDraftStatusMessage(message);
+				toast.success(message, { id: toastId });
 			}
-			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
-			toast.error(error?.response?.data?.message ?? 'Auto-fill failed.', { id: toastId });
+			const message = error?.response?.data?.message ?? 'ATLAS could not prepare a Teaching Load suggestion. Refresh the source and try again.';
+			setDraftStatusMessage(message);
+			toast.error(message, { id: toastId });
+		} finally {
+			setSuggestionLoading(false);
 		}
-	}, [applySplitBrainReconcile, data, splitBrainNeedsReconcile, ui]);
+	}, [data.activeSchoolYearId, ui]);
+
+	const suggestionApplyDisabledReason = useMemo(() => {
+		if (!autoFillResult) return 'Preview a Teaching Load suggestion before applying it.';
+		if (!suggestionProposalId) return 'ATLAS needs to save this preview as a proposal before it can be applied.';
+		if (!data.activeSchoolYearId) return 'ATLAS needs an active school year before applying a Teaching Load suggestion.';
+		if (!data.canPersistAssignments) {
+			if (!data.isOnline) return 'Saving is disabled while ATLAS is offline.';
+			if (data.dataSource === 'refreshing') return 'Wait for source verification before applying a Teaching Load suggestion.';
+			return 'ATLAS must verify writable Teaching Load data before applying a suggestion.';
+		}
+		if (splitBrainNeedsReconcile) return 'Review saved coverage first, then preview the suggestion again.';
+		if (suggestionApplying) return 'ATLAS is applying the suggested Teaching Load now.';
+		return null;
+	}, [autoFillResult, data.activeSchoolYearId, data.canPersistAssignments, data.dataSource, data.isOnline, splitBrainNeedsReconcile, suggestionApplying, suggestionProposalId]);
+
+	const handleApplySuggestedTeachingLoad = useCallback(async () => {
+		if (suggestionApplyDisabledReason || !data.activeSchoolYearId || !suggestionProposalId) {
+			const message = suggestionApplyDisabledReason ?? 'Preview a Teaching Load suggestion before applying it.';
+			setDraftStatusMessage(message);
+			toast.error(message);
+			return;
+		}
+		setSuggestionApplying(true);
+		const toastId = toast.loading('Applying suggested Teaching Load...');
+		try {
+			const { data: result } = await atlasApi.post<{
+				proposal: { id: number; status: string; suggestedAssignmentCount: number; unresolvedCount: number };
+				preview: AutoFillSummaryResult;
+				refreshedPreview?: AutoFillSummaryResult;
+				applyResult?: AutoFillSummaryResult;
+			}>(`/faculty-assignments/suggestion-proposals/${suggestionProposalId}/apply`);
+			const applied = result.applyResult ?? result.refreshedPreview ?? result.preview;
+			setAutoFillResult(applied);
+			const unresolvedCount = applied.unresolved ?? 0;
+			const message = unresolvedCount > 0
+				? `Suggested Teaching Load applied with ${unresolvedCount} class row${unresolvedCount === 1 ? '' : 's'} still needing review.`
+				: 'Suggested Teaching Load applied. Review the saved load before creating the timetable.';
+			setDraftStatusMessage(message);
+			setSuggestionProposalId(null);
+			toast.success(message, { id: toastId });
+			await data.fetchData({ forceRefresh: true });
+			ui.setSummaryModalOpen(false);
+		} catch (error: any) {
+			const message = error?.response?.data?.actionHint ?? error?.response?.data?.message ?? 'ATLAS could not apply the suggested Teaching Load. It is safe to retry after refreshing the source.';
+			setDraftStatusMessage(message);
+			toast.error(message, { id: toastId });
+		} finally {
+			setSuggestionApplying(false);
+		}
+	}, [data, suggestionApplyDisabledReason, suggestionProposalId, ui]);
+
+	const handleCancelPendingSuggestionProposal = useCallback(async (options?: { silent?: boolean }) => {
+		const proposalId = suggestionProposalId;
+		if (!proposalId || suggestionApplying) return;
+		try {
+			await atlasApi.post(`/faculty-assignments/suggestion-proposals/${proposalId}/cancel`);
+			setSuggestionProposalId(null);
+			if (!options?.silent) {
+				setDraftStatusMessage('Teaching Load suggestion cancelled. No Teaching Load rows were changed.');
+			}
+		} catch (error: any) {
+			const message = error?.response?.data?.actionHint ?? error?.response?.data?.message ?? 'ATLAS could not cancel this Teaching Load suggestion. Refresh the page before applying a new suggestion.';
+			setDraftStatusMessage(message);
+			if (!options?.silent) toast.error(message);
+		}
+	}, [suggestionApplying, suggestionProposalId]);
+
+	const handleSummaryModalOpenChange = useCallback((open: boolean) => {
+		ui.setSummaryModalOpen(open);
+		if (!open) {
+			void handleCancelPendingSuggestionProposal();
+		}
+	}, [handleCancelPendingSuggestionProposal, ui]);
 
 	const handleViewStaffingNeeds = useCallback(async () => {
 		if (!data.activeSchoolYearId) return;
@@ -486,6 +570,19 @@ export default function TeachingLoad() {
 		}
 		return { assigned: 0, realAssigned: 0, syntheticAssigned: 0, total: 0, unassigned: 0, rawUnassigned: 0 };
 	}, [data.coverageTotals]);
+
+	const emptyActiveYearTeachingLoad = useMemo(
+		() => !data.loading && coverageHeadline.total > 0 && coverageHeadline.assigned === 0 && data.activeDraftCount === 0,
+		[data.activeDraftCount, data.loading, coverageHeadline.assigned, coverageHeadline.total],
+	);
+
+	useEffect(() => {
+		if (!guidedDefaultApplied && emptyActiveYearTeachingLoad) {
+			setAdvancedGridVisible(false);
+			setGuidedDefaultApplied(true);
+			setDraftStatusMessage('Build 2026-2027 Teaching Load first. Start with the suggested draft or use the guided repair queue.');
+		}
+	}, [emptyActiveYearTeachingLoad, guidedDefaultApplied]);
 
 	const overCapCount = useMemo(
 		() => data.faculty.filter((member) => member.isActiveForScheduling && (member.policyCreditedHours ?? 0) > member.maxHoursPerWeek).length,
@@ -738,10 +835,10 @@ export default function TeachingLoad() {
 						syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
 						unassignedPairs={coverageHeadline.unassigned}
 						totalPairs={coverageHeadline.total}
-						autoFillLoading={data.loading}
+						autoFillLoading={data.loading || suggestionLoading}
 						staffingNeedsLoading={data.loading}
 						autoFillEnabled={Boolean(data.activeSchoolYearId) && data.canPersistAssignments && !data.splitBrainQuarantineRequired}
-						onAutoFillClick={() => ui.setAutoFillDialogOpen(true)}
+						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
 						onViewStaffingNeedsClick={handleViewStaffingNeeds}
 						viewMode={ui.viewMode}
 						onViewModeChange={(value) => ui.setViewMode(value as 'teacher' | 'allocation')}
@@ -819,6 +916,14 @@ export default function TeachingLoad() {
 							onUndo={data.handleUndo}
 							onToggleAdvancedGrid={() => setAdvancedGridVisible((visible) => !visible)}
 						/>
+
+						<p
+							data-testid="teaching-load-suggestion-feedback"
+							className="mx-3 mt-1 rounded-lg border border-border/50 bg-muted/30 px-3 py-1.5 text-xs font-semibold text-muted-foreground lg:mx-5"
+							aria-live="polite"
+						>
+							{draftStatusMessage}
+						</p>
 
 						{advancedGridVisible ? (ui.viewMode === 'teacher' ? (
 							<TeacherGridMode
@@ -952,14 +1057,23 @@ export default function TeachingLoad() {
 				autoFillDialogOpen={ui.autoFillDialogOpen}
 				onAutoFillDialogOpenChange={ui.setAutoFillDialogOpen}
 				coverageModeConfig={COVERAGE_MODE_CONFIG[ui.coverageMode]}
-				onAutoFillConfirm={handleAutoFill}
-				autoFillLoading={data.loading}
+				onAutoFillConfirm={handlePreviewSuggestedTeachingLoad}
+				autoFillLoading={data.loading || suggestionLoading}
 				swapCandidate={ui.swapCandidate}
 				onSwapCandidateChange={ui.setSwapCandidate}
 				onSwapConfirm={executeSwap}
 				summaryModalOpen={ui.summaryModalOpen}
-				onSummaryModalOpenChange={ui.setSummaryModalOpen}
+				onSummaryModalOpenChange={handleSummaryModalOpenChange}
 				autoFillResult={autoFillResult}
+				onApplySuggestion={handleApplySuggestedTeachingLoad}
+				onReviewSuggestionManually={() => {
+					void handleCancelPendingSuggestionProposal({ silent: true });
+					ui.setSummaryModalOpen(false);
+					setAdvancedGridVisible(true);
+					setDraftStatusMessage('Manual review opened. Use the grid to adjust teachers or sections before generating.');
+				}}
+				suggestionApplying={suggestionApplying}
+				suggestionApplyDisabledReason={suggestionApplyDisabledReason}
 				resetDialogOpen={ui.resetDialogOpen}
 				onResetDialogOpenChange={ui.setResetDialogOpen}
 				canRunGlobalReset={data.canRunGlobalReset}

@@ -30,6 +30,7 @@ model School {
   sectionMirrors             SectionMirror[]
   enrollProSchoolYearMirrors EnrollProSchoolYearMirror[]
   publishedScheduleRevisions PublishedScheduleRevision[]
+  teachingLoadSuggestionProposals TeachingLoadSuggestionProposal[]
 
   @@map("schools")
 }
@@ -342,6 +343,44 @@ model SubjectSectionOwnership {
   @@index([schoolId, subjectId])
   @@index([facultyId])
   @@map("subject_section_ownerships")
+}
+
+enum TeachingLoadSuggestionStatus {
+  PENDING
+  APPLIED
+  CANCELLED
+  SUPERSEDED
+  EXPIRED
+
+  @@map("teaching_load_suggestion_status")
+}
+
+model TeachingLoadSuggestionProposal {
+  id                       Int                          @id @default(autoincrement())
+  schoolId                 Int                          @map("school_id")
+  schoolYearId             Int                          @map("school_year_id")
+  coverageMode             String                       @map("coverage_mode") @db.VarChar(48)
+  status                   TeachingLoadSuggestionStatus @default(PENDING)
+  previewPayload           Json                         @map("preview_payload")
+  refreshedPreviewPayload  Json?                        @map("refreshed_preview_payload")
+  applyPayload             Json?                        @map("apply_payload")
+  sectionSource            String?                      @map("section_source") @db.VarChar(48)
+  sectionFallbackReason    String?                      @map("section_fallback_reason") @db.VarChar(500)
+  suggestedAssignmentCount Int                          @default(0) @map("suggested_assignment_count")
+  unresolvedCount          Int                          @default(0) @map("unresolved_count")
+  warningCount             Int                          @default(0) @map("warning_count")
+  createdBy                Int?                         @map("created_by")
+  appliedBy                Int?                         @map("applied_by")
+  createdAt                DateTime                     @default(now()) @map("created_at")
+  updatedAt                DateTime                     @updatedAt @map("updated_at")
+  appliedAt                DateTime?                    @map("applied_at")
+  cancelledAt              DateTime?                    @map("cancelled_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, schoolYearId, status], map: "idx_teaching_load_suggestion_scope_status")
+  @@index([createdBy], map: "idx_teaching_load_suggestion_created_by")
+  @@map("teaching_load_suggestion_proposals")
 }
 
 // ─── Phase 2: Faculty Preferences ───

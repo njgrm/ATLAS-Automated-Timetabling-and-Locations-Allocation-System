@@ -88,6 +88,36 @@ test.describe.serial('EnrollPro 2026-2027 new-year readiness', () => {
 
 		await page.goto('/teaching-load', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		await expect(page.locator('body')).toContainText(/Build Teaching Load|review|required|Generation is blocked/i, { timeout: 30_000 });
+		const suggestDraftAction = page.getByRole('button', { name: /Suggest Teaching Load draft/i });
+		await expect(suggestDraftAction).toBeVisible({ timeout: 30_000 });
+		await expect(suggestDraftAction).toBeEnabled({ timeout: 60_000 });
+		await expect(page.getByTestId('teaching-load-apply-suggestion')).toHaveCount(0);
+		const proposalResponsePromise = page.waitForResponse((response) =>
+			response.url().includes('/api/v1/faculty-assignments/suggestion-proposals')
+			&& !response.url().includes('/apply')
+			&& response.request().method() === 'POST',
+		);
+		await suggestDraftAction.click();
+		const proposalResponse = await proposalResponsePromise;
+		expect(proposalResponse.status(), `Suggestion proposal preview must persist a pending proposal, got HTTP ${proposalResponse.status()}.`).toBe(201);
+		const proposalPayload = await proposalResponse.json() as { proposal?: { id?: number; status?: string } };
+		expect(Number(proposalPayload.proposal?.id)).toBeGreaterThan(0);
+		expect(proposalPayload.proposal?.status).toBe('PENDING');
+		const suggestionPreview = page.getByTestId('teaching-load-suggestion-preview');
+		await expect(suggestionPreview).toBeVisible({ timeout: 60_000 });
+		await expect(suggestionPreview).toContainText(/Review suggested Teaching Load draft|Suggested Teaching Load/i);
+		await expect(suggestionPreview).toContainText(/Live EnrollPro|ATLAS Mirror|ATLAS Cached|Source unavailable|Saved ATLAS data/i);
+		await expect(page.getByTestId('teaching-load-apply-suggestion')).toBeVisible();
+		const cancelResponsePromise = page.waitForResponse((response) =>
+			response.url().includes(`/api/v1/faculty-assignments/suggestion-proposals/${proposalPayload.proposal?.id}/cancel`)
+			&& response.request().method() === 'POST',
+		);
+		await suggestionPreview.getByRole('button', { name: /Cancel/i }).click();
+		const cancelResponse = await cancelResponsePromise;
+		expect(cancelResponse.status(), `Suggestion proposal cancel must persist cancellation, got HTTP ${cancelResponse.status()}.`).toBe(200);
+		const cancelPayload = await cancelResponse.json() as { proposal?: { status?: string } };
+		expect(cancelPayload.proposal?.status).toBe('CANCELLED');
+		await expect(suggestionPreview).toBeHidden({ timeout: 10_000 });
 
 		guardLatestTimetable404 = false;
 		await page.goto('/timetable', { waitUntil: 'domcontentloaded', timeout: 60_000 });

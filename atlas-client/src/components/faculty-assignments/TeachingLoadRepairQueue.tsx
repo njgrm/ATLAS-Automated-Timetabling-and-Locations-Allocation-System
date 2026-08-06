@@ -92,19 +92,19 @@ export function TeachingLoadRepairQueue({
 	return (
 		<section
 			data-testid="teaching-load-repair-queue"
-			className="shrink-0 border-b border-border/40 bg-background px-2.5 py-1 lg:px-4"
+			className="shrink-0 border-b border-border/40 bg-background px-2 py-1 lg:px-3"
 			aria-label="Guided Teaching Load repair queue"
 		>
-			<div className="grid gap-1.5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
+			<div className="grid gap-1 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
 				<div
 					data-testid="teaching-load-current-repair"
 					className={cn(
-						'min-w-0 rounded-xl border p-2 shadow-sm',
+						'min-w-0 rounded-xl border p-1.5 shadow-sm',
 						taskTone(currentItem.kind),
 					)}
 				>
 					<div className="flex min-w-0 items-start gap-2">
-						<div className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-background/80">
+						<div className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-background/80">
 							<CurrentIcon className="size-4" />
 						</div>
 						<div className="min-w-0 flex-1">
@@ -119,8 +119,8 @@ export function TeachingLoadRepairQueue({
 								)}
 								<p className="min-w-0 truncate text-sm font-bold text-foreground">{currentItem.title}</p>
 							</div>
-							<p className="mt-0.5 line-clamp-1 text-xs font-medium leading-5 text-muted-foreground">{currentItem.description}</p>
-							<p className="mt-0.5 text-xs font-semibold text-foreground [@media(max-height:500px)]:hidden" aria-live="polite">{currentItem.status}</p>
+							<p className="mt-0.5 line-clamp-1 text-xs font-medium leading-5 text-muted-foreground [@media(max-height:800px)]:hidden">{currentItem.description}</p>
+							<p className="mt-0.5 text-xs font-semibold text-foreground [@media(max-height:800px)]:hidden" aria-live="polite">{currentItem.status}</p>
 							{currentItem.disabledReason && (
 								<p data-testid="teaching-load-repair-disabled-reason" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
 									{currentItem.disabledReason}
@@ -139,7 +139,7 @@ export function TeachingLoadRepairQueue({
 								<ClipboardCheck className="size-4" />
 								{saving ? 'Saving...' : currentItem.actionLabel}
 							</Button>
-							<Button type="button" variant="outline" size="sm" className="h-8 font-semibold [@media(max-height:500px)]:hidden" onClick={() => setDetailsItem(currentItem)}>
+							<Button type="button" variant="outline" size="sm" className="h-8 font-semibold [@media(max-height:800px)]:hidden" onClick={() => setDetailsItem(currentItem)}>
 								Details
 							</Button>
 							<Button
@@ -165,7 +165,7 @@ export function TeachingLoadRepairQueue({
 					</div>
 				</div>
 
-				<div className="min-w-0 rounded-xl border border-border/50 bg-muted/20 p-1.5 [@media(max-width:640px)]:hidden [@media(max-height:500px)]:hidden">
+				<div className="min-w-0 rounded-xl border border-border/50 bg-muted/20 p-1 [@media(max-width:640px)]:hidden [@media(max-height:800px)]:hidden">
 					<div className="flex items-center justify-between gap-2">
 						<div className="flex items-center gap-2">
 							<ListChecks className="size-4 text-muted-foreground" />
@@ -192,14 +192,14 @@ export function TeachingLoadRepairQueue({
 							</Button>
 						</div>
 					</div>
-					<div className="mt-1.5 grid gap-1.5 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+					<div className="mt-1 grid gap-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
 						{nextItems.length > 0 ? nextItems.map((item) => (
 							<Button
 								key={item.id}
 								type="button"
 								variant="outline"
 								data-testid="teaching-load-next-repair"
-								className="h-auto min-h-11 min-w-0 justify-start rounded-lg border-border/50 bg-background px-2.5 py-2 text-left shadow-sm transition hover:border-primary/30 hover:bg-primary/5"
+								className="h-auto min-h-10 min-w-0 justify-start rounded-lg border-border/50 bg-background px-2 py-1.5 text-left shadow-sm transition hover:border-primary/30 hover:bg-primary/5"
 								onClick={() => onSelectItem(item)}
 							>
 								<span className="block min-w-0">
@@ -214,7 +214,7 @@ export function TeachingLoadRepairQueue({
 							</div>
 						)}
 					</div>
-					<div className="mt-1.5 flex flex-wrap items-center gap-2">
+					<div className="mt-1 hidden flex-wrap items-center gap-2 xl:flex">
 						<Button type="button" variant="ghost" size="sm" className="h-8 text-xs font-bold" onClick={() => onSkipItem(currentItem)}>
 							Skip this one
 						</Button>

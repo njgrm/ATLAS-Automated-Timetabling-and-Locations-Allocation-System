@@ -79,7 +79,8 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 	): Promise<FacultyFetchResult> {
 		// Use the public integration/v1/faculty endpoint — no auth required.
 		// EnrollPro now paginates this feed (default limit=50), so collect all pages.
-		const url = `${this.baseUrl}/integration/v1/faculty`;
+		const baseUrl = process.env.ENROLLPRO_API ?? this.baseUrl;
+		const url = `${baseUrl}/integration/v1/faculty`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 

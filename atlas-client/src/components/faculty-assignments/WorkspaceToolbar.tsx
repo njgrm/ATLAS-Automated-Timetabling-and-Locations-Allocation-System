@@ -130,11 +130,11 @@ export function WorkspaceToolbar({
 			};
 		}
 		return {
-			label: 'Preview auto-fill',
+			label: 'Suggest Teaching Load draft',
 			onClick: onAutoFillClick,
 			disabled: autoFillLoading || !autoFillEnabled,
 			variant: 'secondary' as const,
-			helper: autoFillEnabled ? 'Review automated assignment help before applying it.' : 'Auto-fill needs live writable data.',
+			helper: autoFillEnabled ? 'Preview ATLAS suggestions before any Teaching Load rows are saved.' : 'Suggestions need live writable data.',
 		};
 	}, [activeDraftCount, autoFillEnabled, autoFillLoading, dataSource, isOnline, isWorkspaceWritable, onAutoFillClick, onRetrySource, onSave, saving]);
 
@@ -310,6 +310,7 @@ export function WorkspaceToolbar({
 							size="sm"
 							onClick={primaryAction.onClick}
 							disabled={primaryAction.disabled}
+							data-testid={primaryAction.label === 'Suggest Teaching Load draft' ? 'teaching-load-suggest-draft-action' : undefined}
 							className="h-8 gap-2 border border-primary/20 bg-primary/5 px-3 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-4"
 						>
 							{activeDraftCount > 0 ? <Activity className="size-4" /> : <Zap className="size-4" />}

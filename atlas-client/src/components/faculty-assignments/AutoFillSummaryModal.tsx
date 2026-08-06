@@ -38,13 +38,39 @@ type AutoFillSummaryModalProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	result: AutoFillSummaryResult | null;
+	onApplySuggestion?: () => void;
+	onReviewManually?: () => void;
+	applyingSuggestion?: boolean;
+	applyDisabledReason?: string | null;
 };
 
 function formatHires(value: number): string {
 	return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
-export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSummaryModalProps) {
+function suggestedAssignmentCount(result: AutoFillSummaryResult | null, coverageMode: CoverageMode): number {
+	if (!result) return 0;
+	if ((result.assignmentsCreated ?? 0) > 0) return result.assignmentsCreated;
+	const truth = result.staffingTruth;
+	if (!truth) return 0;
+	if (coverageMode === 'REAL_FACULTY_STANDARD') {
+		return Math.max(0, truth.realOnly.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
+	}
+	if (coverageMode === 'REAL_FACULTY_HARD_CAP') {
+		return Math.max(0, truth.hardCap.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
+	}
+	return Math.max(0, truth.teacherX.rowsClosedByRealFaculty + truth.teacherX.rowsClosedByTeacherX - truth.baseline.realCoveredRows - truth.baseline.syntheticCoveredRows);
+}
+
+export function AutoFillSummaryModal({
+	open,
+	onOpenChange,
+	result,
+	onApplySuggestion,
+	onReviewManually,
+	applyingSuggestion = false,
+	applyDisabledReason,
+}: AutoFillSummaryModalProps) {
 	const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
 	const report = result?.staffingReport ?? null;
 	const staffingTruth = result?.staffingTruth ?? null;
@@ -70,16 +96,23 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 		stub: 'Stub Data',
 	};
 	const sectionSourceLabel = sourceLabelMap[sectionSource];
+	const suggestedRows = suggestedAssignmentCount(result, coverageMode);
 	const sourceToneClass = sectionSource === 'enrollpro'
 		? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
 		: sectionSource === 'stub'
 			? 'border-amber-200 bg-amber-50/60 text-amber-900'
 			: 'border-blue-200 bg-blue-50/60 text-blue-900';
 
-	const title = hasShortage ? 'Coverage Incomplete: Review Next Staffing Actions' : 'Schedule Fully Assigned!';
-	const description = hasShortage
-		? `Some subject rows are still uncovered across multiple departments. Dominant concurrent shortage bucket: ${dominantDepartment}.`
-		: 'All classes have been successfully assigned to a teacher. No one has exceeded their maximum allowed teaching hours.';
+	const title = !hasResult
+		? 'Checking Teaching Load suggestion'
+		: hasShortage
+			? 'Review suggested Teaching Load draft'
+			: 'Suggested Teaching Load covers all rows';
+	const description = !hasResult
+		? 'ATLAS is reading the current EnrollPro setup and checking which Teaching Load rows can be suggested. Nothing is being saved.'
+		: hasShortage
+			? `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'}, but some rows still need a scheduler decision. Dominant shortage bucket: ${dominantDepartment}.`
+			: `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'} for review. Apply only after checking the summary.`;
 	const specialProgramApprovalQueue = result?.specialProgramApprovalQueue ?? [];
 
 	const toggleDepartment = (department: string) => {
@@ -91,7 +124,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl flex flex-col max-h-[90vh]">
+			<DialogContent data-testid="teaching-load-suggestion-preview" className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl flex flex-col max-h-[90vh]">
 				<DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0 relative overflow-hidden">
 					{/* Background decorative elements */}
 					<div className="absolute top-0 right-0 p-4 opacity-10">
@@ -100,7 +133,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 					
 					<div className="relative z-10 flex flex-col items-start gap-3">
 						<div className="bg-white/20 p-2 rounded-xl backdrop-blur-md border border-white/20">
-							{hasShortage ? <AlertTriangle className="size-6" /> : <BadgeCheck className="size-6" />}
+							{!hasResult ? <Zap className="size-6 animate-pulse" /> : hasShortage ? <AlertTriangle className="size-6" /> : <BadgeCheck className="size-6" />}
 						</div>
 						<div className="space-y-1">
 							<DialogTitle className="text-2xl font-bold tracking-tight">
@@ -366,16 +399,37 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 					</div>
 				</div>
 
-				<DialogFooter className="p-4 bg-background border-t shrink-0 flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
-							Audit-Mode
-						</Badge>
-						<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">Simulation</span>
+				<DialogFooter className="p-4 bg-background border-t shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0 space-y-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
+								Preview first
+							</Badge>
+							<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">No Teaching Load rows were saved by opening this review.</span>
+						</div>
+						{applyDisabledReason && (
+							<p data-testid="teaching-load-suggestion-feedback" className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800" aria-live="polite">
+								{applyDisabledReason}
+							</p>
+						)}
 					</div>
-					<Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-9 rounded-xl px-8 font-bold border-border hover:bg-muted/50 transition-colors shadow-sm text-sm uppercase">
-						Close Audit
-					</Button>
+					<div className="flex flex-wrap justify-end gap-2">
+						<Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-9 rounded-xl px-4 font-bold">
+							Cancel
+						</Button>
+						<Button type="button" variant="outline" onClick={onReviewManually} className="h-9 rounded-xl px-4 font-bold">
+							Review manually
+						</Button>
+						<Button
+							type="button"
+							onClick={onApplySuggestion}
+							disabled={!onApplySuggestion || applyingSuggestion || Boolean(applyDisabledReason)}
+							data-testid="teaching-load-apply-suggestion"
+							className="h-9 rounded-xl px-4 font-bold"
+						>
+							{applyingSuggestion ? 'Applying...' : 'Apply suggested Teaching Load'}
+						</Button>
+					</div>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

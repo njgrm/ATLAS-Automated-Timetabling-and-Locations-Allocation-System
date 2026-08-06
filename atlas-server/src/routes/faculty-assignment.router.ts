@@ -9,6 +9,11 @@ import {
 	previewOrApplyTeachingLoadSplitBrainReconcile,
 	type CoverageMode,
 } from '../services/teaching-load-automation.service.js';
+import {
+	applyTeachingLoadSuggestionProposal,
+	cancelTeachingLoadSuggestionProposal,
+	createTeachingLoadSuggestionProposal,
+} from '../services/teaching-load-suggestion-proposal.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 
 const router = Router();
@@ -529,6 +534,84 @@ router.delete('/capability-overrides', authenticate, requirePrivilegedRole, asyn
 		});
 
 		res.json({ overrides });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// POST /faculty-assignments/suggestion-proposals
+// Persists a reviewed Teaching Load suggestion preview without writing Teaching Load rows.
+// Body: { schoolId: number, schoolYearId: number, coverageMode?: CoverageMode }
+router.post('/suggestion-proposals', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const coverageMode = parseCoverageMode(req.body.coverageMode);
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (req.body.coverageMode != null && !coverageMode) {
+			res.status(400).json({
+				code: 'INVALID_PARAM',
+				message: `coverageMode must be one of: ${COVERAGE_MODES.join(', ')}`,
+			});
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await createTeachingLoadSuggestionProposal({
+			schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken,
+			coverageMode: coverageMode ?? undefined,
+		});
+		res.status(201).json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// POST /faculty-assignments/suggestion-proposals/:proposalId/apply
+// Applies only a previously persisted pending Teaching Load suggestion proposal.
+router.post('/suggestion-proposals/:proposalId/apply', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const proposalId = Number(req.params.proposalId);
+		if (!proposalId || Number.isNaN(proposalId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'proposalId must be a valid number.' });
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await applyTeachingLoadSuggestionProposal({
+			proposalId,
+			actorId: req.user?.userId ?? 0,
+			authToken,
+		});
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// POST /faculty-assignments/suggestion-proposals/:proposalId/cancel
+// Cancels a pending reviewed Teaching Load suggestion proposal without writing Teaching Load rows.
+router.post('/suggestion-proposals/:proposalId/cancel', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const proposalId = Number(req.params.proposalId);
+		if (!proposalId || Number.isNaN(proposalId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'proposalId must be a valid number.' });
+			return;
+		}
+
+		const result = await cancelTeachingLoadSuggestionProposal({ proposalId });
+		res.json(result);
 	} catch (err) {
 		next(err);
 	}
