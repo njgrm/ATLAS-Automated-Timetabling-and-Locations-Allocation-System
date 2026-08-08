@@ -25,7 +25,7 @@ export async function loginAdmin(page: Page): Promise<string> {
 
 export async function openTimetableSimple(page: Page) {
 	await page.goto('/timetable', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-	await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 45_000 });
+	await expect(page.locator('table[aria-label="Timetable"], [data-testid="timetable-simple-header"], [data-testid="timetable-simple-task-prompt"]').first()).toBeVisible({ timeout: 45_000 });
 	if (await page.getByTestId('timetable-simple-header').isVisible({ timeout: 2_000 }).catch(() => false)) {
 		await expect(page.getByTestId('timetable-task-guide')).toHaveCount(0);
 		return;

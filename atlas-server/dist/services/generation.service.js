@@ -27,6 +27,24 @@ function err(statusCode, code, message, options) {
     e.details = options?.details;
     return e;
 }
+async function assertRolloverSetupReadyForGeneration(schoolId, schoolYearId) {
+    const [sectionCount, teachingLoadOwnerCount] = await Promise.all([
+        prisma.sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } }),
+        prisma.subjectSectionOwnership.count({ where: { schoolId } }),
+    ]);
+    if (sectionCount === 0) {
+        throw err(409, 'SECTION_SETUP_REQUIRED', 'Generation is blocked until EnrollPro sections are synced and reviewed for the active school year.', {
+            actionHint: 'Open Sections, sync from EnrollPro, then review room/setup readiness before generating.',
+            details: { schoolId, schoolYearId, sectionCount },
+        });
+    }
+    if (teachingLoadOwnerCount === 0) {
+        throw err(409, 'TEACHING_LOAD_REVIEW_REQUIRED', 'Generation is blocked until Teaching Load is built for the new school year.', {
+            actionHint: 'Open Teaching Load, assign section owners, save the load, then create the timetable.',
+            details: { schoolId, schoolYearId, teachingLoadOwnerCount },
+        });
+    }
+}
 function asSummaryRecord(summary) {
     if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
         return {};
@@ -410,6 +428,7 @@ export function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) 
 // ─── Trigger ───
 export async function triggerGenerationRun(schoolId, schoolYearId, actorId, options) {
     await assertActiveSchoolYearForGeneration(schoolId, schoolYearId, options?.authToken);
+    await assertRolloverSetupReadyForGeneration(schoolId, schoolYearId);
     const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
     if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
         throw err(409, 'OPEN_ROOM_REQUESTS_BLOCK_GENERATION', `Generation is blocked until all submitted faculty requests are decided. ${gateStatus.openCount} request(s) remain pending.`, {

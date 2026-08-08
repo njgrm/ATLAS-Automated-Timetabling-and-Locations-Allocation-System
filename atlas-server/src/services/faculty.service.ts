@@ -537,13 +537,20 @@ isStale: true,
 });
 
 const localByExternalId = new Map(localTeachers.map((teacher) => [teacher.externalId, teacher]));
+const localByEmployeeId = new Map<string, (typeof localTeachers)[number]>();
+for (const teacher of localTeachers) {
+if (teacher.employeeId) {
+localByEmployeeId.set(teacher.employeeId, teacher);
+}
+}
 
 const reconciliation = buildFacultyReconciliationSummary(external, localTeachers, mode);
 
 const canonicalLocalIdByExternalId = new Map<number, number>();
+const retainedLocalIds = new Set<number>();
 
 for (const f of external) {
-	const existingLocal = localByExternalId.get(f.id);
+	const existingLocal = localByExternalId.get(f.id) ?? (f.employeeId ? localByEmployeeId.get(f.employeeId) : undefined);
 	const hasExternalAncillary = Number.isFinite(Number(f.ancillaryMinutesPerWeek));
 	const nextAncillaryMinutes = hasExternalAncillary
 		? Math.max(0, Math.round(Number(f.ancillaryMinutesPerWeek)))
@@ -552,9 +559,8 @@ for (const f of external) {
 		? 'HR'
 		: (existingLocal?.ancillaryLoadSource === 'LOCAL' ? 'LOCAL' : 'NONE');
 
-const upserted = await prisma.facultyMirror.upsert({
-where: { schoolId_externalId: { schoolId, externalId: f.id } },
-update: {
+const mirrorUpdateData = {
+externalId: f.id,
 employeeId: f.employeeId ?? null,
 firstName: f.firstName,
 lastName: f.lastName,
@@ -573,8 +579,15 @@ lastSyncedAt: new Date(),
 isStale: false,
 staleReason: null,
 staleAt: null,
-},
-create: {
+};
+
+const upserted = existingLocal
+? await prisma.facultyMirror.update({
+where: { id: existingLocal.id },
+data: mirrorUpdateData,
+})
+: await prisma.facultyMirror.create({
+data: {
 externalId: f.id,
 schoolId,
 employeeId: f.employeeId ?? null,
@@ -599,6 +612,7 @@ isStale: false,
 },
 });
 canonicalLocalIdByExternalId.set(f.id, upserted.id);
+retainedLocalIds.add(upserted.id);
 }
 
 const mergedFacultyIds = new Set<number>();
@@ -657,7 +671,7 @@ mergedFacultyIds.add(local.id);
 }
 
 const missingLocal = localTeachers.filter(
-(local) => !externalIds.has(local.externalId) && !mergedFacultyIds.has(local.id),
+(local) => !externalIds.has(local.externalId) && !mergedFacultyIds.has(local.id) && !retainedLocalIds.has(local.id),
 );
 let deactivatedCount = 0;
 

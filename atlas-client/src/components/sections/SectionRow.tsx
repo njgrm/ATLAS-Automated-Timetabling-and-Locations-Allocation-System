@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
 import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
+import { gradeCompact } from '@/lib/deped-glossary';
 import type { ExternalSection } from '@/types';
 
 /* ─── Constants (matching Sections.tsx) ─── */
@@ -42,7 +43,10 @@ function gradeKey(name: string) {
 }
 
 function fillColor(pct: number) {
-	if (pct >= 95) return 'bg-red-600 text-white';
+	// Phase 0C.1: the over-full band uses a neutral dark slate rather than red,
+	// reserving red for grade-level meaning (G9) and destructive buttons. The
+	// scale progresses muted -> emerald (good) -> amber (high) -> slate (full).
+	if (pct >= 95) return 'bg-slate-800 text-white';
 	if (pct >= 85) return 'bg-amber-500 text-white';
 	if (pct >= 70) return 'bg-emerald-600 text-white';
 	return 'bg-muted text-muted-foreground';
@@ -75,7 +79,9 @@ export function SectionRow({
 	const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
 	const gKey = gradeKey(section.gradeLevelName);
 	const gColor = GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground';
-	const gradeLabel = `G${section.gradeLevelName.replace(/^Grade\s+/i, '')}`;
+	// Phase 0C.2 / Decision 5: compact grade label is GR{grade}, never G{grade}.
+	const gradeMatch = section.gradeLevelName.match(/\d+/);
+	const gradeLabel = gradeMatch ? gradeCompact(Number(gradeMatch[0])) : section.gradeLevelName;
 	const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
 
 	return (
@@ -134,7 +140,10 @@ export function SectionRow({
 			</td>
 
 			<td className="px-4 py-3 text-right">
-				<span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${fillColor(fill)}`}>
+				<span
+					className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${fillColor(fill)}`}
+					aria-label={`${fill}% full${fill >= 95 ? ' (at or over capacity)' : fill >= 85 ? ' (high)' : ''}`}
+				>
 					{fill}%
 				</span>
 			</td>

@@ -523,7 +523,12 @@ export const SubjectRow = memo(({
 																			)}
 																		/>
 																		<span className={`text-[0.75rem] font-semibold leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'} flex items-center gap-1.5 flex-1 min-w-0`}>
-																			<span className={cn("size-2 rounded-full shrink-0", completedSectionIds?.has(section.id) ? "bg-emerald-500" : "bg-amber-400")} />
+																			{/* Phase 0C.1: completion dot carries a text alternative so it is not color-only. */}
+																			<span
+																				className={cn("size-2 rounded-full shrink-0", completedSectionIds?.has(section.id) ? "bg-emerald-500" : "bg-amber-400")}
+																				role="img"
+																				aria-label={completedSectionIds?.has(section.id) ? 'Assigned' : 'Pending'}
+																			/>
 																			{section.name}
 																			{isOwnedByOther && (
 																				<span className="text-[9px] font-bold tracking-tight text-amber-600 bg-amber-50 border border-amber-200/50 px-1 py-0.5 rounded leading-none shrink-0 truncate max-w-28 ml-1">

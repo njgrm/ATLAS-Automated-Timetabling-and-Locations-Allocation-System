@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isAxiosError } from 'axios';
-import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, Printer, RefreshCcw, Search, Users, Wifi, WifiOff } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { AlertCircle, Clock3, RefreshCcw, Search } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
@@ -9,6 +9,7 @@ import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readLatestPubl
 import { resolvePublicSectionGrade } from '@/lib/public-schedule-grade';
 import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, type PublishedScheduleMatrixEntry, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { GradeLevelBadge } from '@/components/GradeLevelBadge';
+import { SmartCommandBar, SmartNextStepCard, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -444,54 +445,74 @@ export default function PublicPublishedSchedule() {
 			? selectedRoom ? `${selectedEntries.length} class${selectedEntries.length === 1 ? '' : 'es'} in the published timetable.` : 'Choose a room from the list.'
 			: selectedSection ? `${selectedEntries.length} class${selectedEntries.length === 1 ? '' : 'es'} in the published timetable.` : 'Choose a section from the list.';
 	const listEmptyMessage = mode === 'teachers' ? 'No teachers matched your search.' : mode === 'rooms' ? 'No rooms matched your search.' : 'No sections matched your search.';
+	const sourceTone = sourceMode === 'live' ? 'live' : sourceMode === 'saved' ? 'warning' : 'neutral';
 
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
 			<div className="flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6 sm:py-6">
 				<div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
-					<Card className="rounded-2xl border-border/70">
-						<CardHeader className="pb-3">
-							<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-								<div className="space-y-1">
-									<CardTitle className="text-2xl font-semibold tracking-tight">Find your class schedule</CardTitle>
-									<CardDescription>Search by section. Filter by grade or program. The official schedule for your school.</CardDescription>
-								</div>
-								<div className="flex flex-wrap items-center gap-2">
-									<Badge variant="outline" className={online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}>
-										{online ? <Wifi className="mr-1 size-3" /> : <WifiOff className="mr-1 size-3" />}
-										{online ? 'Online' : 'Offline'}
-									</Badge>
-									<Badge variant="outline" className={sourceMode === 'live' ? 'border-sky-200 bg-sky-50 text-sky-700' : sourceMode === 'saved' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-muted bg-muted text-muted-foreground'}>
-										{sourceMode === 'live' ? 'Official schedule' : sourceMode === 'saved' ? 'Showing the last saved copy' : 'No official schedule yet'}
-									</Badge>
-									<Button variant="outline" size="sm" className="rounded-xl print:hidden" onClick={() => window.print()}>
-										<Printer className="mr-2 size-4" /> Print Schedule
-									</Button>
-									<Button variant="outline" size="sm" className="rounded-xl print:hidden" onClick={() => void loadPublishedSchedule()}>
-										<RefreshCcw className="mr-2 size-4" /> Refresh
-									</Button>
-									<Button asChild variant="ghost" size="sm" className="rounded-xl print:hidden"><Link to="/login">Sign In</Link></Button>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent className="space-y-3 pt-0 text-sm text-muted-foreground">
+					<SmartCommandBar
+						title="Find your class schedule"
+						eyebrow="Public schedule"
+						subtitle="Search by section, then read the official timetable for your school."
+						source={(
 							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline">{summary.classCount} class{summary.classCount === 1 ? '' : 'es'}</Badge>
-								<Badge variant="outline">{summary.sectionCount} section{summary.sectionCount === 1 ? '' : 's'}</Badge>
-								<Badge variant="outline">{summary.facultyCount} teacher{summary.facultyCount === 1 ? '' : 's'}</Badge>
-								<Badge variant="outline">{summary.roomCount} room{summary.roomCount === 1 ? '' : 's'}</Badge>
+								<SmartSourceStatusChip label={online ? 'Online' : 'Offline'} tone={online ? 'live' : 'warning'} />
+								<SmartSourceStatusChip
+									label={sourceMode === 'live' ? 'Official schedule' : sourceMode === 'saved' ? 'Last saved copy' : 'No schedule yet'}
+									tone={sourceTone}
+									testId="public-schedule-source-status"
+								/>
 							</div>
-							<div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm">
-								<p className="font-semibold text-foreground">Official schedule updated {formatTimestamp(payload.source.publishedAt)}</p>
-								<p className="mt-1 text-muted-foreground">
-									{payload.source.activeRevisionId
-										? `Includes approved changes effective ${formatTimestamp(payload.source.activeRevisionEffectiveDate ?? null)}.`
-										: `Published schedule for ${requestedDate}.`}
-								</p>
-							</div>
-							{sourceMode === 'saved' && savedAt && <p>Showing the last saved copy from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date.' : '.'}</p>}
-						</CardContent>
-					</Card>
+						)}
+						nextAction={(
+							<SmartNextStepCard
+								title={selectedSection ? `Review ${selectedSection.name}` : 'Choose a section'}
+								body={selectedSection ? `${selectedEntries.length} published classes are shown.` : 'Use the section list below to pick the schedule you need.'}
+								tone={sourceTone}
+								testId="public-schedule-next-step"
+							/>
+						)}
+						primaryAction={(
+							<Button variant="default" size="sm" className="h-9 rounded-xl print:hidden" onClick={() => void loadPublishedSchedule()}>
+								<RefreshCcw className="mr-2 size-4" /> Refresh
+							</Button>
+						)}
+						help={{
+							title: 'How to read this schedule',
+							description: 'Use these steps to find one section and read its official published classes.',
+							steps: [
+								{ title: 'Search section', body: 'Type the section name or choose from the list.', target: 'Sections' },
+								{ title: 'Filter if needed', body: 'Use grade or program filters only when the list is long.', target: 'Grade filter' },
+								{ title: 'Read the timetable', body: 'The selected section schedule appears on the right or below on phone screens.', target: 'Schedule' },
+								{ title: 'Refresh or print', body: 'Use More for print, sign in, or update checks.', target: 'More' },
+							],
+						}}
+						moreGroups={[
+							{
+								label: 'Schedule tools',
+								items: [
+									{ label: 'Print schedule', onSelect: () => window.print(), description: 'Open the browser print dialog.' },
+									{ label: 'Sign in to ATLAS', href: '/login', description: 'Open staff and scheduler tools.' },
+								],
+							},
+							{
+								label: 'Schedule facts',
+								items: [
+									{ label: `${summary.classCount} classes`, disabled: true },
+									{ label: `${summary.sectionCount} sections`, disabled: true },
+									{ label: `Updated ${formatTimestamp(payload.source.publishedAt)}`, disabled: true },
+								],
+							},
+						]}
+						testId="public-schedule-command-bar"
+					/>
+
+					{sourceMode === 'saved' && savedAt && (
+						<div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+							Showing the last saved copy from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date. Tap Refresh when online.' : '.'}
+						</div>
+					)}
 
 					<div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
 						<Card className="rounded-2xl border-border/70">

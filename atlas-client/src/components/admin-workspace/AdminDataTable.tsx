@@ -13,6 +13,7 @@ import {
 } from '@/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 export type AdminDataTableSortDirection = 'asc' | 'desc';
 
@@ -90,6 +91,25 @@ function renderSortIcon<TSort extends string>(
 	return sort.direction === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 }
 
+/** Build the sort button's accessible name: "Sort by {column}, currently {ascending|descending|unsorted}". */
+function sortAriaLabel<TSort extends string>(
+	column: AdminDataTableColumn<unknown, TSort>,
+	sort?: { key: TSort; direction: AdminDataTableSortDirection },
+): string {
+	const direction = sort?.key === column.sortKey && sort ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'unsorted';
+	return `Sort by ${column.label}, currently ${direction}`;
+}
+
+/** Return the aria-sort value for a column, or undefined when not the active sort column. */
+function ariaSortValue<TSort extends string>(
+	column: AdminDataTableColumn<unknown, TSort>,
+	sort?: { key: TSort; direction: AdminDataTableSortDirection },
+): 'ascending' | 'descending' | 'none' | undefined {
+	if (!column.sortKey) return undefined;
+	if (sort?.key !== column.sortKey) return 'none';
+	return sort.direction === 'asc' ? 'ascending' : 'descending';
+}
+
 function AdminDataTableActionMenu({
 	actions,
 	destructiveActions = [],
@@ -143,7 +163,7 @@ function AdminDataTableFooter({ pagination }: { pagination: AdminDataTablePagina
 					<div className="flex items-center gap-2 border-border/50 md:border-l md:pl-4">
 						<span>Rows per page</span>
 						<Select value={String(pagination.pageSize)} onValueChange={(value) => pagination.onPageSizeChange?.(Number(value))}>
-							<SelectTrigger className="h-7 w-20 bg-background text-xs">
+							<SelectTrigger className="h-9 w-20 bg-background text-xs" aria-label="Rows per page">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -154,13 +174,13 @@ function AdminDataTableFooter({ pagination }: { pagination: AdminDataTablePagina
 				)}
 			</div>
 			<div className="flex items-center gap-1.5">
-				<Button variant="outline" size="icon" className="size-8" onClick={() => pagination.onPageChange?.(1)} disabled={pagination.page <= 1 || !pagination.onPageChange} aria-label="First page"><ChevronsLeft className="size-4" /></Button>
-				<Button variant="outline" size="icon" className="size-8" onClick={() => pagination.onPageChange?.(Math.max(1, pagination.page - 1))} disabled={pagination.page <= 1 || !pagination.onPageChange} aria-label="Previous page"><ChevronLeft className="size-4" /></Button>
-				<div className="flex h-8 items-center gap-1.5 rounded-md border bg-background px-3 text-[0.7rem] font-bold tabular-nums">
+				<Button variant="outline" size="icon" className="size-9" onClick={() => pagination.onPageChange?.(1)} disabled={pagination.page <= 1 || !pagination.onPageChange} aria-label="First page"><ChevronsLeft className="size-4" /></Button>
+				<Button variant="outline" size="icon" className="size-9" onClick={() => pagination.onPageChange?.(Math.max(1, pagination.page - 1))} disabled={pagination.page <= 1 || !pagination.onPageChange} aria-label="Previous page"><ChevronLeft className="size-4" /></Button>
+				<div className="flex h-9 items-center gap-1.5 rounded-md border bg-background px-3 text-[0.7rem] font-bold tabular-nums">
 					<span>{pagination.page}</span><span className="font-normal text-muted-foreground/50">/</span><span className="font-normal text-muted-foreground">{totalPages}</span>
 				</div>
-				<Button variant="outline" size="icon" className="size-8" onClick={() => pagination.onPageChange?.(Math.min(totalPages, pagination.page + 1))} disabled={pagination.page >= totalPages || !pagination.onPageChange} aria-label="Next page"><ChevronRight className="size-4" /></Button>
-				<Button variant="outline" size="icon" className="size-8" onClick={() => pagination.onPageChange?.(totalPages)} disabled={pagination.page >= totalPages || !pagination.onPageChange} aria-label="Last page"><ChevronsRight className="size-4" /></Button>
+				<Button variant="outline" size="icon" className="size-9" onClick={() => pagination.onPageChange?.(Math.min(totalPages, pagination.page + 1))} disabled={pagination.page >= totalPages || !pagination.onPageChange} aria-label="Next page"><ChevronRight className="size-4" /></Button>
+				<Button variant="outline" size="icon" className="size-9" onClick={() => pagination.onPageChange?.(totalPages)} disabled={pagination.page >= totalPages || !pagination.onPageChange} aria-label="Last page"><ChevronsRight className="size-4" /></Button>
 			</div>
 		</div>
 	);
@@ -223,26 +243,47 @@ export function AdminDataTable<TData, TSort extends string = string>({
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									{columns.map((column) => {
-										const headerContent = (
-											<div className="flex min-w-0 flex-col items-start gap-0.5">
-												<span className="flex items-center gap-1.5 whitespace-nowrap">{column.label}{renderSortIcon(column as AdminDataTableColumn<unknown, TSort>, sort)}</span>
-												{column.description && <span className="max-w-44 text-left text-[0.6rem] font-medium normal-case leading-4 text-muted-foreground/70">{column.description}</span>}
-											</div>
-										);
+{columns.map((column) => {
+									const headerContent = (
+										<div className="flex min-w-0 flex-col items-start gap-0.5">
+											<span className="flex items-center gap-1.5 whitespace-nowrap">{column.label}{renderSortIcon(column as AdminDataTableColumn<unknown, TSort>, sort)}</span>
+											{column.description && <span className="max-w-44 text-left text-[0.7rem] font-medium normal-case leading-4 text-muted-foreground/70">{column.description}</span>}
+										</div>
+									);
 
-										return (
-											<th key={column.id} className={cn('px-4 py-3 text-left align-bottom', column.headerClassName)}>
-												{column.sortKey && onSortChange ? (
-													<Button variant="ghost" size="sm" onClick={() => onSortChange(column.sortKey as TSort)} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-														{headerContent}
-													</Button>
-												) : (
-													<div className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">{headerContent}</div>
-												)}
-											</th>
-										);
-									})}
+									const isSortable = Boolean(column.sortKey && onSortChange);
+								const handleSort = isSortable ? () => onSortChange?.(column.sortKey as TSort) : undefined;
+								return (
+									<th
+										key={column.id}
+										className={cn('px-4 py-3 text-left align-bottom', column.headerClassName)}
+										aria-sort={isSortable ? ariaSortValue(column as AdminDataTableColumn<unknown, TSort>, sort) : undefined}
+									>
+										{isSortable && handleSort ? (
+											<TooltipProvider delayDuration={200}>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="ghost"
+															size="sm"
+															onClick={handleSort}
+															aria-label={sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
+															className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
+														>
+															{headerContent}
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent side="top" className="text-xs">
+														{sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										) : (
+											<div className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">{headerContent}</div>
+										)}
+									</th>
+								);
+								})}
 									{hasActions && <th className="px-4 py-3 text-right align-bottom text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>}
 								</tr>
 							</thead>

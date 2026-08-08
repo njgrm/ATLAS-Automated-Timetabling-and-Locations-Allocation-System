@@ -365,10 +365,17 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
         },
     });
     const localByExternalId = new Map(localTeachers.map((teacher) => [teacher.externalId, teacher]));
+    const localByEmployeeId = new Map();
+    for (const teacher of localTeachers) {
+        if (teacher.employeeId) {
+            localByEmployeeId.set(teacher.employeeId, teacher);
+        }
+    }
     const reconciliation = buildFacultyReconciliationSummary(external, localTeachers, mode);
     const canonicalLocalIdByExternalId = new Map();
+    const retainedLocalIds = new Set();
     for (const f of external) {
-        const existingLocal = localByExternalId.get(f.id);
+        const existingLocal = localByExternalId.get(f.id) ?? (f.employeeId ? localByEmployeeId.get(f.employeeId) : undefined);
         const hasExternalAncillary = Number.isFinite(Number(f.ancillaryMinutesPerWeek));
         const nextAncillaryMinutes = hasExternalAncillary
             ? Math.max(0, Math.round(Number(f.ancillaryMinutesPerWeek)))
@@ -376,53 +383,59 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
         const nextAncillarySource = hasExternalAncillary
             ? 'HR'
             : (existingLocal?.ancillaryLoadSource === 'LOCAL' ? 'LOCAL' : 'NONE');
-        const upserted = await prisma.facultyMirror.upsert({
-            where: { schoolId_externalId: { schoolId, externalId: f.id } },
-            update: {
-                employeeId: f.employeeId ?? null,
-                firstName: f.firstName,
-                lastName: f.lastName,
-                department: f.department,
-                specialization: f.specialization ?? null,
-                employmentStatus: f.employmentStatus ?? 'PERMANENT',
-                isClassAdviser: f.isClassAdviser ?? false,
-                advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
-                ancillaryMinutesPerWeek: nextAncillaryMinutes,
-                ancillaryLoadSource: nextAncillarySource,
-                canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
-                contactInfo: f.contactInfo,
-                advisedSectionId: f.advisedSectionId ?? null,
-                advisedSectionName: f.advisedSectionName ?? null,
-                lastSyncedAt: new Date(),
-                isStale: false,
-                staleReason: null,
-                staleAt: null,
-            },
-            create: {
-                externalId: f.id,
-                schoolId,
-                employeeId: f.employeeId ?? null,
-                firstName: f.firstName,
-                lastName: f.lastName,
-                department: f.department,
-                specialization: f.specialization ?? null,
-                employmentStatus: f.employmentStatus ?? 'PERMANENT',
-                isClassAdviser: f.isClassAdviser ?? false,
-                advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
-                ancillaryMinutesPerWeek: nextAncillaryMinutes,
-                ancillaryLoadSource: nextAncillarySource,
-                canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
-                contactInfo: f.contactInfo,
-                advisedSectionId: f.advisedSectionId ?? null,
-                advisedSectionName: f.advisedSectionName ?? null,
-                isPlaceholder: false,
-                isActiveForScheduling: true,
-                maxHoursPerWeek: 30,
-                lastSyncedAt: new Date(),
-                isStale: false,
-            },
-        });
+        const mirrorUpdateData = {
+            externalId: f.id,
+            employeeId: f.employeeId ?? null,
+            firstName: f.firstName,
+            lastName: f.lastName,
+            department: f.department,
+            specialization: f.specialization ?? null,
+            employmentStatus: f.employmentStatus ?? 'PERMANENT',
+            isClassAdviser: f.isClassAdviser ?? false,
+            advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
+            ancillaryMinutesPerWeek: nextAncillaryMinutes,
+            ancillaryLoadSource: nextAncillarySource,
+            canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
+            contactInfo: f.contactInfo,
+            advisedSectionId: f.advisedSectionId ?? null,
+            advisedSectionName: f.advisedSectionName ?? null,
+            lastSyncedAt: new Date(),
+            isStale: false,
+            staleReason: null,
+            staleAt: null,
+        };
+        const upserted = existingLocal
+            ? await prisma.facultyMirror.update({
+                where: { id: existingLocal.id },
+                data: mirrorUpdateData,
+            })
+            : await prisma.facultyMirror.create({
+                data: {
+                    externalId: f.id,
+                    schoolId,
+                    employeeId: f.employeeId ?? null,
+                    firstName: f.firstName,
+                    lastName: f.lastName,
+                    department: f.department,
+                    specialization: f.specialization ?? null,
+                    employmentStatus: f.employmentStatus ?? 'PERMANENT',
+                    isClassAdviser: f.isClassAdviser ?? false,
+                    advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
+                    ancillaryMinutesPerWeek: nextAncillaryMinutes,
+                    ancillaryLoadSource: nextAncillarySource,
+                    canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
+                    contactInfo: f.contactInfo,
+                    advisedSectionId: f.advisedSectionId ?? null,
+                    advisedSectionName: f.advisedSectionName ?? null,
+                    isPlaceholder: false,
+                    isActiveForScheduling: true,
+                    maxHoursPerWeek: 30,
+                    lastSyncedAt: new Date(),
+                    isStale: false,
+                },
+            });
         canonicalLocalIdByExternalId.set(f.id, upserted.id);
+        retainedLocalIds.add(upserted.id);
     }
     const mergedFacultyIds = new Set();
     for (const [duplicateExternalId, canonicalExternalId] of deduped.duplicateExternalToCanonicalExternal.entries()) {
@@ -476,7 +489,7 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
         });
         mergedFacultyIds.add(local.id);
     }
-    const missingLocal = localTeachers.filter((local) => !externalIds.has(local.externalId) && !mergedFacultyIds.has(local.id));
+    const missingLocal = localTeachers.filter((local) => !externalIds.has(local.externalId) && !mergedFacultyIds.has(local.id) && !retainedLocalIds.has(local.id));
     let deactivatedCount = 0;
     if (mode === 'prune' && missingLocal.length > 0) {
         const removedFacultyIds = missingLocal.map((local) => local.id);
@@ -517,9 +530,13 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
         prisma.facultyMirror.count({ where: { schoolId, isStale: true } }),
     ]);
     // Auto-seed qualified assignments for faculty whose dept matches a subject's allowedSpecializations
-    const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
+    const seededAssignments = options.seedAssignments === false
+        ? { created: 0, skipped: 0 }
+        : await seedQualifiedAssignments(schoolId, schoolYearId);
     // Persist HG ownership records for all active class advisers
-    await syncAdvisoryHgAssignments(schoolId, schoolYearId);
+    if (options.syncAdvisoryAssignments !== false) {
+        await syncAdvisoryHgAssignments(schoolId, schoolYearId);
+    }
     return {
         synced: true,
         source: sourceLabel,

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapPinned, MousePointer2, Pencil } from 'lucide-react';
 
 import { CampusMapOverview } from '@/components/campus-map/CampusMapOverview';
+import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import atlasApi from '@/lib/api';
 import type { Building, Room } from '@/types';
 import { Button } from '@/ui/button';
@@ -176,6 +177,18 @@ export default function MapEditor() {
 	if (mode === 'overview') {
 		return (
 			<>
+				<div className="fixed right-6 top-32 z-30">
+					<SmartHelpTrigger
+						title="How to review rooms"
+						description="Start with room readiness before opening the map editor."
+						steps={[
+							{ title: 'Review readiness first', body: 'The readiness list shows which rooms need capacity, type, or section review.', target: 'Room readiness' },
+							{ title: 'Open a building only when needed', body: 'Use the map to inspect a building after you know what needs attention.', target: 'Campus map' },
+							{ title: 'Check schedules after generation', body: 'Room schedule overlays appear only after a current timetable exists.', target: 'Schedule overlay' },
+							{ title: 'Edit only for setup corrections', body: 'Use Edit map when room or building setup needs to change.', target: 'Edit map' },
+						]}
+					/>
+				</div>
 				<ModeToggle mode={mode} onChange={(next) => {
 					const next2 = new URLSearchParams(searchParams);
 					if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
@@ -199,11 +212,23 @@ export default function MapEditor() {
 							Campus map editor
 						</h1>
 					</div>
-					<ModeToggle mode={mode} inline onChange={(next) => {
-						const next2 = new URLSearchParams(searchParams);
-						if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
-						setSearchParams(next2);
-					}} />
+					<div className="flex items-center gap-2">
+						<SmartHelpTrigger
+							title="How to use the campus map editor"
+							description="Use this workspace only when room or building information needs correction."
+							steps={[
+								{ title: 'Select a building', body: 'Click a building on the map or choose it from the side panel.', target: 'Campus map' },
+								{ title: 'Review rooms first', body: 'Check room type, capacity, and teaching-space status before editing shapes.', target: 'Room list' },
+								{ title: 'Edit carefully', body: 'Use undo if a map shape or room detail changes by mistake.', target: 'Undo' },
+								{ title: 'Return to overview', body: 'Use Overview when you only need readiness or schedule information.', target: 'Overview' },
+							]}
+						/>
+						<ModeToggle mode={mode} inline onChange={(next) => {
+							const next2 = new URLSearchParams(searchParams);
+							if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
+							setSearchParams(next2);
+						}} />
+					</div>
 				</div>
 				<Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500">Loading map editor…</div>}>
 				<CampusMapEditor

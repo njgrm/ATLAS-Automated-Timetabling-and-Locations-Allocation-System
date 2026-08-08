@@ -5328,3 +5328,137 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 
 - EnrollPro dev needs a working SMART final-outcome source for EOSY grade sync, or a deliberately guarded dev-only fixture path for publishing SMART final outcomes.
 - No ATLAS code fix was required from this attempt; ATLAS correctly continued to verify the live EnrollPro source and did not detect a new active-year drift because EnrollPro did not activate `2027-2028`.
+
+# 2026-08-07 - SMART-Parity Cross-Page UX/UI Overhaul
+
+- Prompt executed: create the SMART parity master plan and seven prompt files, implement grouped waves across the remaining non-timetable pages, and verify cross-page parity against the Tailnet target.
+- Operator: Codex.
+- Tailnet target: `https://njgrm.buru-degree.ts.net`.
+
+## Implementation Summary
+
+- Added the formal SMART-family contract at `docs/design/atlas-smart-parity-contract.md`.
+- Added the master phase plan and seven execution prompts:
+  - `docs/phases/smart-parity-cross-page-overhaul-plan-2026-08-07.md`
+  - `docs/prompts/smart-parity-01-contract.md`
+  - `docs/prompts/smart-parity-02-cross-page-audit.md`
+  - `docs/prompts/smart-parity-03-one-decision-pages.md`
+  - `docs/prompts/smart-parity-04-help-and-guidance.md`
+  - `docs/prompts/smart-parity-05-dense-surface-simplification.md`
+  - `docs/prompts/smart-parity-06-visual-consistency.md`
+  - `docs/prompts/smart-parity-07-release-proof.md`
+- Added shared SMART UI primitives in `atlas-client/src/components/smart/SmartPageShell.tsx`.
+- Applied SMART help/next-step/source-status patterns to Dashboard, setup shell pages, Teaching Load, Campus/Rooms, Schedules/Publish, faculty schedule, and public schedule.
+- Added Teaching Load page-level help after the first parity audit found it missing.
+- Moved Sonner toasts to a top-center offset placement so success/error feedback no longer covers mobile Teaching Load controls.
+- Added `qa-artifacts/playwright/specs/smart-parity-cross-page.spec.ts` and hardened stale timetable/setup-first helpers for the current no-current-year-timetable state.
+
+## Verification
+
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS `37/37`.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS `10/10`.
+- `atlas-client`: `npm run build`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/smart-parity-cross-page.spec.ts --workers=1`: PASS `27/30`, with `3` faculty-login-dependent variants skipped by fixture guard.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/setup-first-uiux-iteration-7-8.spec.ts --workers=1`: PASS `6/6`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teachers-teaching-load-guided-workflow.spec.ts --workers=1`: PASS `9/9`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-tailnet-preflight.spec.ts qa-artifacts/playwright/specs/timetable-simple-view-completion.spec.ts --workers=1`: PASS `12/15`, with `3` selected-class detail cases skipped because the current active-year Tailnet fixture has no timetable entries.
+
+## Findings and Caveats
+
+- SMART parity browser audit is GO for Dashboard, Sections, Subjects, Teachers, Teaching Load, Timetable shell, Campus/Rooms, Schedules/Publish, public schedule, and the fixture-guarded faculty schedule path.
+- Setup-first and Teaching Load guided workflow regressions are GO after fixing the mobile toast/control overlap.
+- Timetable current-year populated-entry interactions could not be re-proven in this pass because Tailnet currently has no current-year timetable entries; the Simple shell, schedule switching, filters, tutorial, and preflight remained GO.
+- EnrollPro new-year readiness smoke is currently NO-GO because `/api/v1/runtime/rollover-status?schoolId=1&includeCounts=true` reports drift `atlas-stale` instead of `aligned`.
+- Faculty full matrix is blocked by live faculty login failure for `2000056 / DepEd2026!`; no faculty UI assertion ran after auth failed.
+
+# 2026-08-08 - SMART Repo Handoff and ATLAS Faculty Mirror Rollover Fix
+
+- Prompt executed: pull the new SMART repository, inspect `ATLAS-DEV-HANDOFF-2026-08-07.md` and `SMART-API-ENDPOINTS-2026-08-07.md`, and continue the SMART/EnrollPro/ATLAS rollover assessment.
+- Operator: Codex.
+- SMART repository cloned to `D:\smart-final-capstone`.
+- SMART checkout: `main`, commit `ea9700a` (`docs: add ATLAS & EnrollPro original handoff md files to repo`).
+
+## Handoff Findings
+
+- Requested files found:
+  - `D:\smart-final-capstone\mdfiles\ATLAS-DEV-HANDOFF-2026-08-07.md`
+  - `D:\smart-final-capstone\mdfiles\SMART-API-ENDPOINTS-2026-08-07.md`
+- SMART handoff identifies an ATLAS-side rollover blocker: `POST /api/v1/runtime/rollover-sync/apply` can fail with Prisma `P2002` on `facultyMirror.upsert()` because `employee_id` is unique while the previous sync write path targeted only `(schoolId, externalId)`.
+- SMART implementation check found the relevant documented routes present in source:
+  - `/api/integration/smart/sections/:sectionId/sync-grades`
+  - `/api/integration/sections/:sectionId/sync-grades`
+  - `/api/integration/enrollpro-webhook`
+  - `/api/integration/status`
+  - `/api/integration/sync/stream`
+  - `/api/sync/all`
+  - `/api/sync/atlas`
+  - `/api/health`
+- SMART caveat: the section grade-outcome sync route currently maps enrolled learners to placeholder outcomes using `finalGeneralAverage = 88` and `finalOutcome = PROMOTED`; this proves endpoint shape but not production-grade final academic outcome truth.
+
+## ATLAS Fix
+
+- Updated `atlas-server/src/services/faculty.service.ts` so faculty sync can match an existing mirror by employee ID when EnrollPro returns the same employee under a new external teacher ID.
+- The update path now updates that existing local mirror instead of attempting to create a duplicate row that violates `uq_faculty_employee_id`.
+- The sync pass also tracks retained local IDs so a reused employee mirror is not treated as missing and pruned/deactivated later in the same pass.
+
+## Verification
+
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-server`: `npm run build`: PASS.
+- Built app startup/health probe via `node --input-type=module` importing `dist/app.js`: PASS, `/api/v1/health` returned HTTP `200` with `status="ok"`.
+
+## Remaining Caution
+
+- No live rollover `apply` or dummy reset was executed in this pass.
+- The next live validation step is a controlled `POST /api/v1/runtime/rollover-sync/apply` after confirming the active Tailnet ATLAS server has picked up this fix.
+- EnrollPro still needs to point its EOSY SMART outcome validation to a live SMART deployment that exposes the documented sync-grade route, and SMART must return real final outcomes before this should be treated as production-ready rollover proof.
+# 2026-08-08 — Tailnet EnrollPro rollover dummy reset closure
+
+## Summary
+- Investigated live reset failure: `confirmationText="RESET_DUMMY_SCHOOL_YEAR_1" is required to reset dummy school-year data.`
+- Root cause: `RolloverResetPanel` was sending `confirmationText: 'CONFIRMED'` while the server contract requires the dummy reset confirmation phrase.
+- Fixed the client reset apply path to send the correct server-required confirmation phrase without exposing the raw phrase in the user-facing two-step reset panel.
+
+## Live Tailnet Evidence
+- Login target: `https://njgrm.buru-degree.ts.net`
+- Credential used: officer `1234501`.
+- Preview-only reset proof before apply:
+  - `drift.status=mapping-conflict`
+  - `recommendedAction=RESET_DUMMY_YEAR`
+  - `canResetDummyYear=true`
+  - `publishedResetBlocked=false`
+  - `sectionMirrors=20`
+  - `teachingLoadOwnerships=530`
+- Confirmed reset/apply result:
+  - `resetApplied=true`
+  - `applied=true`
+  - `drift.status=aligned`
+  - `enrollProActiveYear.id=3`
+  - `enrollProActiveYear.yearLabel=2026-2027`
+  - reset cleared `20` section mirrors and `530` Teaching Load ownership rows.
+- Post-apply runtime context:
+  - `activeSchoolYearId=3`
+  - `activeSchoolYearLabel=2026-2027`
+  - `source=enrollpro-verified`
+  - `activeYearDrift.status=aligned`
+  - `activeYearDrift.recommendedAction=NONE`
+- Post-apply rollover status:
+  - `drift.status=aligned`
+  - mirror counts: `20` sections, `23` faculty.
+- Post-apply data probes:
+  - `/api/v1/sections/summary/3?schoolId=1` returned `20` sections and `80` enrolled learners.
+  - `/api/v1/faculty?schoolId=1&schoolYearId=3&page=1&pageSize=5` returned active EnrollPro-synced faculty rows.
+  - `/api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=3` returned reachable Teaching Load summary with zero assigned subjects/sections, which is expected after dummy reset.
+- Direct EnrollPro Tailnet probes:
+  - `https://dev-jegs.buru-degree.ts.net/api/health` returned `{ "ok": true }`.
+  - `https://dev-jegs.buru-degree.ts.net/api/integration/v1/school-year` returned `id=3`, `yearLabel=2026-2027`.
+  - EnrollPro `sections?schoolYearId=3` and `default/faculty?schoolYearId=3` returned live data.
+  - EnrollPro `/api/integration/v1/health` still reported ATLAS as offline with a 404, which matches probing the wrong ATLAS health path.
+- ATLAS health-path proof:
+  - `https://njgrm.buru-degree.ts.net/api/health` returned `404`.
+  - `https://njgrm.buru-degree.ts.net/api/v1/health` returned `{ "status": "ok", "service": "atlas" }`.
+
+## Remaining Caveat
+- SMART can now stop treating ATLAS as school-year-mismatched, but Teaching Load is intentionally empty/review-required for `2026-2027` after reset. SMART should expect either an empty Teaching Load response or wait until scheduler officers apply/review the Teaching Load draft.
+- EnrollPro's integration-health ATLAS probe must be updated to call `https://njgrm.buru-degree.ts.net/api/v1/health` or another documented `/api/v1/...` ATLAS endpoint. If EnrollPro keeps probing `/api/health`, it will continue to report ATLAS as offline even though ATLAS is reachable and aligned.

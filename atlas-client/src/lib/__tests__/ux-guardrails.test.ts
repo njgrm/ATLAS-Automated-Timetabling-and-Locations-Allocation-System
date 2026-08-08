@@ -320,14 +320,17 @@ test('Iteration C keeps setup and teaching-load headers compact', () => {
 	assert.match(adminWorkspace, /px-4 py-1\.5/);
 	assert.match(adminWorkspace, /data-testid="admin-content-shell"/);
 	assert.match(adminWorkspace, /data-testid="admin-source-truth-summary"/);
-	assert.match(adminWorkspace, /Source truth:/);
+	assert.match(adminWorkspace, /data-testid="setup-source-details-popover"/);
+	assert.match(adminWorkspace, /data-testid="setup-readiness-strip"/);
 	assert.match(adminWorkspace, /aria-live="polite"/);
+	assert.doesNotMatch(adminWorkspace, />Source truth:/);
 	assert.doesNotMatch(adminWorkspace, /px-6 py-4/);
 	assert.doesNotMatch(adminWorkspace, /mt-4 rounded-2xl/);
 
 	assert.match(teachingToolbar, /data-testid="teaching-load-command-header"/);
+	assert.match(teachingToolbar, /data-testid="teaching-load-compact-command-header"/);
 	assert.match(teachingToolbar, /data-testid="teaching-load-source-truth-summary"/);
-	assert.match(teachingToolbar, /Source truth:/);
+	assert.doesNotMatch(teachingToolbar, />Source truth:/);
 	assert.match(teachingToolbar, /Compact workflow guide/);
 	assert.doesNotMatch(teachingToolbar, /<button/);
 	assert.match(teachingLoad, /data-testid="teaching-load-content-shell"/);
@@ -594,4 +597,126 @@ test('older-user Phase 4 keeps generated unassigned queues touch-scrollable with
 	assert.match(phaseFourSpec, /assertNoGlobalOverflow/);
 	assert.match(phaseFourSpec, /font-size: 200% !important/);
 	assert.match(phaseFourSpec, /blockedWrites/);
+});
+
+test('Phase 0A.1: ATLAS DepEd glossary exists and expands made-up department codes', () => {
+	const glossary = source('src/lib/deped-glossary.ts');
+	assert.match(glossary, /export const DEPARTMENT_LABELS/);
+	assert.match(glossary, /SCI:\s*'Science'/);
+	assert.match(glossary, /FIL:\s*'Filipino'/);
+	assert.match(glossary, /ENG:\s*'English'/);
+	assert.match(glossary, /export const PROGRAM_LABELS/);
+	assert.match(glossary, /Special Program in the Arts/);
+	assert.match(glossary, /Special Program in Sports/);
+	assert.match(glossary, /Science, Technology, and Engineering/);
+	// Compact grade format must be GR{grade}, never the G7 shorthand.
+	assert.match(glossary, /return `GR\$\{grade\}`/);
+	assert.doesNotMatch(glossary, /return `G\$\{grade\}`/);
+});
+
+test('Phase 0A.3: AccessibleInfo is keyboard-focusable and never hover-only', () => {
+	const accessibleInfo = source('src/components/smart/AccessibleInfo.tsx');
+	// Trigger must be a real Button (keyboard-focusable), not a span/div.
+	assert.match(accessibleInfo, /<Button[\s\S]*?aria-label=/);
+	// Tooltip must wrap a focusable trigger (asChild on a Button), not a Badge/span.
+	assert.match(accessibleInfo, /<TooltipTrigger asChild>/);
+	// When longHelp is provided, click/tap opens a Popover -- not hover-only.
+	assert.match(accessibleInfo, /<Popover/);
+	assert.match(accessibleInfo, /onClick=\{\(\) => longHelp && setPopoverOpen/);
+});
+
+test('Phase 0A.4: AdminDataTable exposes sort + pagination a11y to assistive tech', () => {
+	const table = source('src/components/admin-workspace/AdminDataTable.tsx');
+	// Sortable columns expose aria-sort.
+	assert.match(table, /aria-sort=\{/);
+	// Sort buttons expose direction in their accessible name.
+	assert.match(table, /aria-label=\{sortAriaLabel/);
+	// Sort buttons also surface a visible Tooltip (not icon-only).
+	assert.match(table, /<TooltipTrigger asChild>/);
+	assert.match(table, /sortAriaLabel\(column as AdminDataTableColumn/);
+	// Pagination icon buttons get aria-labels and larger (size-9) touch targets.
+	assert.match(table, /aria-label="First page"/);
+	assert.match(table, /aria-label="Previous page"/);
+	assert.match(table, /aria-label="Next page"/);
+	assert.match(table, /aria-label="Last page"/);
+	assert.match(table, /className="size-9"/);
+	// Page-size Select is labelled for screen readers.
+	assert.match(table, /aria-label="Rows per page"/);
+});
+
+test('Phase 0A.2: high-density readable-label floor rule is established', () => {
+	// Phase 0A.2 establishes the rule; the per-page sweep happens in Phases 1-4.
+	// This guardrail pins the structural baseline: the glossary documents the
+	// compact-vs-long grade rule, AccessibleInfo exists (Phase 0A.3), and
+	// AdminDataTable no longer uses sub-0.7rem tracking-widest header captions.
+	const glossary = source('src/lib/deped-glossary.ts');
+	assert.match(glossary, /Compact grade format is `GR\{grade\}`/);
+	assert.match(glossary, /Long form is/);
+	assert.match(glossary, /never `G\{grade\}`/);
+
+	const adminTable = source('src/components/admin-workspace/AdminDataTable.tsx');
+	// The header description sub-label was bumped from text-[0.6rem] to text-[0.7rem]
+	// as part of Phase 0A. Regressions that drop below 0.7rem with tracking-widest fail.
+	assert.doesNotMatch(
+		adminTable,
+		/text-\[0\.6[0-9]?rem\][^"']{0,80}tracking-widest/,
+		'AdminDataTable must not render sub-10px tracking-widest header captions',
+	);
+
+	// Per-page label cleanups (SubjectFormModal, FacultyRow, etc.) get their own
+	// guardrail tests added in Phases 1-4 when those files are touched.
+});
+
+test('Phase 0A.5: EnrollPro intro popover exists and is one-time dismissible', () => {
+	const intro = source('src/components/smart/EnrollProIntro.tsx');
+	// Renders a Popover that opens once when localStorage key is absent.
+	assert.match(intro, /Popover open=\{open\}/);
+	assert.match(intro, /window\.localStorage\.getItem\(storageKey\)/);
+	assert.match(intro, /Got it/);
+	// Dismiss persists the key.
+	assert.match(intro, /window\.localStorage\.setItem\(storageKey, '1'\)/);
+	// AdminWorkspace wires it around the source-state chip so the intro appears
+	// on the four admin setup pages on first visit.
+	const adminWorkspace = source('src/components/admin-workspace/AdminWorkspace.tsx');
+	assert.match(adminWorkspace, /EnrollProIntro/);
+});
+
+test('Phase 0B.1: RolloverGuidanceCard is dismissible and non-destructive on setup pages', () => {
+	const card = source('src/components/runtime/RolloverGuidanceCard.tsx');
+	// Dismissible via localStorage per drift status.
+	assert.match(card, /DISMISS_STORAGE_PREFIX/);
+	assert.match(card, /window\.localStorage\.setItem\(dismissStorageKey, '1'\)/);
+	assert.match(card, /data-testid="rollover-banner-dismiss"/);
+	// Destructive reset is no longer inline: the card links to the admin route instead.
+	assert.doesNotMatch(card, /Reset dummy data/);
+	assert.doesNotMatch(card, /variant="destructive"/);
+	assert.doesNotMatch(card, /RESET_DUMMY_SCHOOL_YEAR_1/);
+	assert.match(card, /Open year setup/);
+	// Jargon replacements via Phase 0A.1 glossary rule.
+	assert.doesNotMatch(card, /Migration needed/);
+	assert.match(card, /New year needs setup|Old year's data needs clearing/);
+});
+
+test('Phase 0B.2: /admin/year-setup route exists, is admin-only, and uses a two-step reset confirmation', () => {
+	const app = source('src/App.tsx');
+	assert.match(app, /AdminYearSetup/);
+	assert.match(app, /path: 'admin\/year-setup'/);
+
+	const page = source('src/pages/AdminYearSetup.tsx');
+	// Admin role guard.
+	assert.match(page, /ADMIN_ROLES/);
+	assert.match(page, /admin['"]|SYSTEM_ADMIN['"]|officer['"]/);
+	assert.match(page, /<Navigate to="\/" replace \/>/, 'Non-admin role must redirect to dashboard');
+
+	const panel = source('src/components/runtime/RolloverResetPanel.tsx');
+	// Two-step confirmation: checkbox + a non-default-focused destructive button.
+	assert.match(panel, /Checkbox/);
+	assert.match(panel, /onCheckedChange/);
+	assert.match(panel, /Yes, erase and sync/);
+	assert.match(panel, /data-testid="rollover-reset-confirm"/);
+	// Friendly reset count labels (no internal domain jargon like "Section mirrors").
+	assert.match(panel, /Show what will be erased/);
+	assert.doesNotMatch(panel, /Section mirrors/);
+	assert.doesNotMatch(panel, /Follow-up flags/);
+	assert.doesNotMatch(panel, /RESET_DUMMY_SCHOOL_YEAR_1/);
 });

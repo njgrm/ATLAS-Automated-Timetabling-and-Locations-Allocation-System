@@ -23,6 +23,7 @@ const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
 const Audit = lazy(() => import('./pages/Audit'));
+const AdminYearSetup = lazy(() => import('./pages/AdminYearSetup'));
 const PublicPublishedSchedule = lazy(() => import('./pages/PublicPublishedSchedule'));
 
 function LegacyRouteRedirect({ to }: { to: string }) {
@@ -119,11 +120,15 @@ const router = createBrowserRouter([
 				path: 'map',
 				element: <MapEditor />,
 			},
-			{
-				path: 'audit',
-				element: <Audit />,
-			},
-			{ path: '*', element: <Navigate to="/" replace /> },
+{
+			path: 'audit',
+			element: <Audit />,
+		},
+		{
+			path: 'admin/year-setup',
+			element: <AdminYearSetup />,
+		},
+		{ path: '*', element: <Navigate to="/" replace /> },
 		],
 	},
 ]);
@@ -132,7 +137,13 @@ export function App() {
 	return (
 		<>
 			<RouterProvider router={router} />
-			<Toaster richColors position="bottom-right" closeButton />
+			<Toaster
+				richColors
+				position="top-center"
+				closeButton
+				offset={{ top: 72, right: 24, left: 24 }}
+				mobileOffset={{ top: 76, right: 16, left: 16 }}
+			/>
 		</>
 	);
 }

@@ -121,7 +121,6 @@ export default function Subjects() {
 	const [syncError, setSyncError] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
-	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
@@ -429,8 +428,7 @@ export default function Subjects() {
 			? subjects.filter((subject) => subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id)).length
 			: null;
 		return [
-			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Subjects currently available for scheduling this school year.' },
-			{ label: 'Archived', value: archivedCount, tone: archivedCount > 0 ? 'neutral' as const : 'success' as const, helpText: 'Subjects kept for history but hidden from new schedule setup.' },
+			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: archivedCount > 0 ? `${activeCount} active · ${archivedCount} archived (kept for history, hidden from new setup).` : 'Subjects currently available for scheduling this school year.' },
 			{ label: 'Missing coverage', value: coverageRiskCount ?? 'Checking', tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const, helpText: coverageRiskCount === null ? 'ATLAS is checking teaching-load coverage.' : 'Active schedulable subjects with no assigned teacher found in the current teaching load.' },
 			{ label: 'Room constrained', value: roomConstrainedCount, tone: roomConstrainedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active subjects that need a specialized room type or room feature.' },
 		];
@@ -478,10 +476,8 @@ export default function Subjects() {
 		setCoverageSubject(subject);
 		fetchTeacherCoverage(subject.id);
 	}, [fetchTeacherCoverage]);
-	const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
-		const duration = timeMode === 'minutes'
-			? `${subject.minMinutesPerWeek} min`
-			: `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
+const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
+		const duration = `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
 		const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
 			? 'Standard classroom'
 			: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
@@ -565,25 +561,26 @@ export default function Subjects() {
 							? 'Refresh offerings before treating this as final curriculum truth.'
 						: 'Reconnect and sync subjects before this page can be used.',
 			}}
-			stats={subjectStats}
-			secondaryActions={(
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button variant="outline" onClick={handleSyncContract} size="sm" className="gap-2" disabled={syncingContract}>
-								<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
-								Refresh offerings
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent className="max-w-72 text-xs leading-relaxed">Checks which subjects and program offerings should be active for the current school year.</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			)}
+stats={subjectStats}
+			secondaryActions={null}
 			primaryActions={(
-				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
-					<Plus className="size-4" />
-					Add subject
-				</Button>
+				<div className="flex items-center gap-2">
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="outline" onClick={handleSyncContract} size="sm" className="gap-2" disabled={syncingContract}>
+									<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
+									Refresh offerings
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-72 text-xs leading-relaxed">Checks which subjects and program offerings should be active for the current school year.</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+					<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} variant="outline" size="sm" className="gap-2">
+						<Plus className="size-4" />
+						Add subject
+					</Button>
+				</div>
 			)}
 			toolbar={(
 				<AdminSearchFilterToolbar
@@ -646,17 +643,9 @@ export default function Subjects() {
 									<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+</Select>
 
-						<div className="flex items-center gap-2 border-l pl-3">
-						<span className="text-sm font-medium text-muted-foreground">Time display</span>
-							<div className="flex items-center p-0.5 rounded-md bg-muted gap-0.5">
-							<Button type="button" variant="ghost" size="xs" onClick={() => setTimeMode('hours')} className={timeMode === 'hours' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}>Hours</Button>
-							<Button type="button" variant="ghost" size="xs" onClick={() => setTimeMode('minutes')} className={timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}>Minutes</Button>
-							</div>
-						</div>
-
-						{hasActiveFilters && (
+					{hasActiveFilters && (
 							<Button
 								variant="ghost"
 								size="sm"
@@ -788,10 +777,10 @@ export default function Subjects() {
 									</tr>
 								) : (
 									paged.map((s) => (
-										<SubjectRow
+<SubjectRow
 											key={s.id}
 											subject={s}
-											timeMode={timeMode}
+											timeMode="hours"
 											onEdit={openSubjectEditor}
 											onDelete={(target) => setDeleteTarget(target)}
 											onArchive={(target) => setArchiveTarget(target)}

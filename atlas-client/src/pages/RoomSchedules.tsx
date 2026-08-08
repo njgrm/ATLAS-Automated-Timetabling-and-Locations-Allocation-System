@@ -26,6 +26,7 @@ import { Skeleton } from '@/ui/skeleton';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
 import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
 import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, DraftReport } from '@/types';
 
 type SectionInfo = { name: string; gradeLevel: number | null };
@@ -391,12 +392,29 @@ export default function RoomSchedules() {
 							Browse the latest room, teacher, and section schedules.
 						</p>
 					</div>
-					<div className="rounded-lg border border-primary/10 bg-primary/5 px-2.5 py-1.5" data-source-state={scheduleSourceState}>
-						<div className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-slate-500">
-							<CalendarDays className="size-4 text-primary" />
-							Source
+					<div className="flex flex-wrap items-center justify-end gap-2">
+						<div className="rounded-lg border border-primary/10 bg-primary/5 px-2.5 py-1.5" data-source-state={scheduleSourceState} data-testid="schedules-source-status">
+							<div className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-slate-500">
+								<CalendarDays className="size-4 text-primary" />
+								Source
+							</div>
+							<p className="mt-0.5 max-w-sm truncate text-xs font-bold text-slate-900">{sourceSummary}</p>
 						</div>
-						<p className="mt-0.5 max-w-sm truncate text-xs font-bold text-slate-900">{sourceSummary}</p>
+						<SmartSourceStatusChip
+							label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
+							tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
+							testId="schedules-readiness-chip"
+						/>
+						<SmartHelpTrigger
+							title="How to browse schedules"
+							description="Use this page to inspect the published or latest generated schedule by room, teacher, or section."
+							steps={[
+								{ title: 'Choose a view', body: 'Pick Rooms, Teachers, or Sections depending on what you need to inspect.', target: 'View buttons' },
+								{ title: 'Pick one schedule', body: 'Use the searchable selector to choose the exact room, teacher, or section.', target: 'Schedule selector' },
+								{ title: 'Review conflicts', body: 'Conflict badges explain which classes need attention.', target: 'Conflict labels' },
+								{ title: 'Use expert tools only when needed', body: 'Run ID and occupancy preview are for troubleshooting.', target: 'Expert tools' },
+							]}
+						/>
 					</div>
 				</header>
 

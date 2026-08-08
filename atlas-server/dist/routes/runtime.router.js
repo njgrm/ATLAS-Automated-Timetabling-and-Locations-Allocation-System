@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { resolveRuntimeContext } from '../services/runtime-context.service.js';
-import { applyRolloverSync, getRolloverStatus, previewRolloverSync } from '../services/enrollpro-rollover.service.js';
+import { applyRolloverSync, getRolloverStatus, previewRolloverSync, resetDummyYearAndApplyRollover, } from '../services/enrollpro-rollover.service.js';
 const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 function parseSchoolId(raw) {
@@ -87,6 +87,30 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req, res
             return;
         }
         const result = await applyRolloverSync(schoolId, getUpstreamAuthToken(req));
+        res.json(result);
+    }
+    catch (err) {
+        next(err);
+    }
+});
+router.post('/rollover-sync/reset-dummy-year', authenticateWithSystemToken, async (req, res, next) => {
+    try {
+        if (!isPrivilegedRole(req.user?.role)) {
+            res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can reset dummy school-year data.' });
+            return;
+        }
+        const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
+        if (typeof schoolId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+            return;
+        }
+        const result = await resetDummyYearAndApplyRollover({
+            schoolId,
+            actorId: req.user?.userId ?? 0,
+            authToken: getUpstreamAuthToken(req),
+            confirmReset: req.body?.confirmReset === true,
+            confirmationText: typeof req.body?.confirmationText === 'string' ? req.body.confirmationText : undefined,
+        });
         res.json(result);
     }
     catch (err) {

@@ -12,6 +12,7 @@ phasePlan.md
 requirements-phase1-ux.md
 questions.md
 docs/
+qa-artifacts/
 
 # Dependency locks not required for this planning-only phase
 package-lock.json

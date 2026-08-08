@@ -45,7 +45,6 @@ import {
 } from '@/lib/enrollpro-public-settings';
 import {
 	getFacultyLoadSortRank,
-	STANDARD_WEEKLY_TEACHING_HOURS,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -499,20 +498,13 @@ export default function Faculty() {
 		const activeCount = rosterStats?.activeCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling).length;
 		const assignedCount = rosterStats?.assignedCount ?? faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
 		const unassignedCount = rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
-		const reviewCount = rosterStats?.reviewCount ?? faculty.filter((teacher) => {
-			const creditedHours = teacher.policyCreditedHours ?? 0;
-			return teacher.isActiveForScheduling && creditedHours > STANDARD_WEEKLY_TEACHING_HOURS && creditedHours <= teacher.maxHoursPerWeek;
-		}).length;
 		const overCapCount = rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length;
 		return [
 			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
-			{ label: 'With load', value: assignedCount, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: 'Teachers with at least one subject or section in Teaching Load.' },
-			{ label: 'Without load', value: unassignedCount, tone: unassignedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers with no teaching load yet.' },
-			{ label: 'Approval review', value: reviewCount, tone: reviewCount > 0 ? 'warning' as const : 'success' as const, helpText: `Active teachers above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within their cap.` },
+			{ label: 'With load', value: `${assignedCount}/${activeCount}`, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: `${unassignedCount} of ${activeCount} active teachers still need a teaching load.` },
 			{ label: 'Over cap', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly cap. Repair these before generation.' },
-			{ label: 'Last sync', value: timeSince ?? 'Not synced', tone: timeSince ? 'neutral' as const : 'warning' as const, helpText: 'When ATLAS last refreshed the teacher load summary.' },
 		];
-	}, [faculty, rosterStats, timeSince]);
+	}, [faculty, rosterStats]);
 
 	const profileSourceLabel = useMemo(() => {
 		if (teacherSourceState === 'verified-live') return timeSince ? `Verified live - ${timeSince}` : 'Verified live';
@@ -578,11 +570,12 @@ export default function Faculty() {
 		{ id: 'all' as const, label: 'All teachers', count: rosterStats?.totalCount ?? faculty.length },
 	];
 
-	return (
+return (
 		<AdminWorkspaceFrame
 			title = "Teachers"
 			description="Review the teacher roster and scheduling load before assigning classes."
 			sourceState={teacherSourceState}
+			lastVerified={timeSince ?? undefined}
 			sourceCopy={{
 				description:
 					teacherSourceState === 'verified-live'
@@ -603,7 +596,15 @@ export default function Faculty() {
 			}}
 			stats={teacherStats}
 			primaryActions={(
-				<div className="flex items-center gap-2">
+				<Button asChild size="sm" className="gap-2 font-semibold shadow-sm">
+					<Link to="/teaching-load">
+						<BookOpenCheck className="size-4" />
+						Review load
+					</Link>
+				</Button>
+			)}
+			secondaryActions={(
+				<>
 					<Button
 						onClick={() => {
 							setPlaceholderEditTarget(null);
@@ -619,7 +620,7 @@ export default function Faculty() {
 						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
 						{syncing ? 'Refreshing...' : !isOnline ? 'Offline' : refreshing ? 'Checking...' : 'Refresh teacher roster'}
 					</Button>
-				</div>
+				</>
 			)}
 			toolbar={(
 				<AdminSearchFilterToolbar

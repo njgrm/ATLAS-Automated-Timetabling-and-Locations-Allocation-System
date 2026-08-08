@@ -1,1 +1,0 @@
-import"./room-type-labels-C9YvkR5j.js";import{t as e}from"./BuildingView-CB98cySy.js";export{e as BuildingView};

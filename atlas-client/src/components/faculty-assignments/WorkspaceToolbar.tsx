@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import { ChartColumn, Zap, Layers, Users, Info, Activity, Settings2, RotateCcw } from 'lucide-react';
+import { Zap, Activity, Settings2, RotateCcw, Layers, Users, ChartColumn } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
-import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import type { TeachingLoadSplitBrainReconcileResult, CoverageMode } from '@/types';
 
 type WorkspaceToolbarProps = {
@@ -13,6 +13,7 @@ type WorkspaceToolbarProps = {
 	syntheticPlaceholderPairs: number;
 	unassignedPairs: number;
 	totalPairs: number;
+	overCapCount: number;
 	autoFillLoading: boolean;
 	staffingNeedsLoading: boolean;
 	autoFillEnabled: boolean;
@@ -40,12 +41,17 @@ type WorkspaceToolbarProps = {
 	workspaceStateLabel: string;
 	workspaceStateDescription: string;
 	workspaceStateNextAction: string;
-	coverageStateLabel: string;
-	coverageStateDescription: string;
 	activeDraftCount: number;
 	saving: boolean;
 	onSave: () => void;
 	onRetrySource: () => void;
+};
+
+const STRIP_TONE: Record<'success' | 'warning' | 'danger' | 'info', string> = {
+	success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+	warning: 'border-amber-200 bg-amber-50 text-amber-700',
+	danger:  'border-rose-200 bg-rose-50 text-rose-700',
+	info:    'border-sky-200 bg-sky-50 text-sky-700',
 };
 
 export function WorkspaceToolbar({
@@ -53,6 +59,7 @@ export function WorkspaceToolbar({
 	syntheticPlaceholderPairs,
 	unassignedPairs,
 	totalPairs,
+	overCapCount,
 	autoFillLoading,
 	staffingNeedsLoading,
 	autoFillEnabled,
@@ -81,16 +88,12 @@ export function WorkspaceToolbar({
 	workspaceStateLabel,
 	workspaceStateDescription,
 	workspaceStateNextAction,
-	coverageStateLabel,
-	coverageStateDescription,
 	activeDraftCount,
 	saving,
 	onSave,
 	onRetrySource,
 }: WorkspaceToolbarProps & { reviewDismissed?: boolean }) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
-	const hasCoverageUniverse = totalPairs > 0;
-	const assignedPairs = realAssignedPairs + syntheticPlaceholderPairs;
 
 	const statusConfig = useMemo(() => {
 		if (!isOnline) return { label: 'Offline', color: 'bg-amber-500', description: 'Disconnected from the server. Changes are locked until ATLAS reconnects.' };
@@ -148,10 +151,49 @@ export function WorkspaceToolbar({
 		return splitBrainIncident.quarantine.severity === 'WARNING';
 	}, [splitBrainIncident, reviewDismissed]);
 
+	// State-driven alert chip: surfaces only when something needs attention.
+	// Priority: split-brain review > over-cap (generation blocker) > Teacher X placeholders.
+	const alertChip = useMemo(() => {
+		if (showReviewBadge) {
+			return {
+				key: 'review',
+				label: 'Review saved coverage',
+				tone: 'warning' as const,
+				tooltip: 'ATLAS detected a mismatch between local assignments and saved coverage. Review before continuing.',
+				onClick: onViewStaffingNeedsClick,
+				disabled: staffingNeedsLoading,
+				testId: 'teaching-load-alert-review-coverage',
+			};
+		}
+		if (overCapCount > 0) {
+			return {
+				key: 'overcap',
+				label: `Over cap: ${overCapCount}`,
+				tone: 'danger' as const,
+				tooltip: 'Active teachers above the weekly cap. Repair these before generation.',
+				onClick: onViewStaffingNeedsClick,
+				disabled: staffingNeedsLoading,
+				testId: 'teaching-load-alert-over-cap',
+			};
+		}
+		if (syntheticPlaceholderPairs > 0) {
+			return {
+				key: 'teacherx',
+				label: `Teacher X: ${syntheticPlaceholderPairs}`,
+				tone: 'warning' as const,
+				tooltip: 'Placeholder teachers are filling load rows. Replace before publishing.',
+				onClick: undefined as (() => void) | undefined,
+				disabled: false,
+				testId: 'teaching-load-alert-teacher-x',
+			};
+		}
+		return null;
+	}, [overCapCount, syntheticPlaceholderPairs, showReviewBadge, onViewStaffingNeedsClick, staffingNeedsLoading]);
+
 	return (
 		<div className="rounded-xl border border-border/40 bg-background px-2.5 py-1.5 shadow-sm" data-testid="teaching-load-command-header">
 			{/* Compact workflow guide: keep Teaching Load to one decision row; disclose stats and repair tools through More. */}
-			<div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
+			<div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5" data-testid="teaching-load-compact-command-header">
 				<div className="flex min-w-0 shrink-0 items-center gap-2">
 					<h1 className="text-base font-bold tracking-tight text-foreground sm:text-lg">Teaching Load</h1>
 					<Tooltip>
@@ -167,140 +209,31 @@ export function WorkspaceToolbar({
 					</Tooltip>
 				</div>
 
-				<p
-					data-testid="teaching-load-source-truth-summary"
-					className="hidden max-w-sm shrink truncate text-xs font-medium text-muted-foreground xl:block"
-				>
-					Source truth: {statusConfig.description}
-				</p>
-
 				<div className="ml-auto flex shrink-0 items-center gap-2">
-				{/* Runtime Status */}
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<div
-							className="flex h-8 items-center gap-2 rounded-lg border border-border/40 bg-muted/20 px-2.5 transition-all hover:bg-muted/30"
-							data-source-state={dataSource}
-							aria-label={`${statusConfig.label}. ${statusConfig.description}`}
-						>
-							<div className={`size-1.5 rounded-full ${statusConfig.color}`} />
-							<span className="text-xs font-bold uppercase tracking-tight text-muted-foreground/80 leading-none">{statusConfig.label}</span>
-						</div>
-					</TooltipTrigger>
-					<TooltipContent side="bottom" className="max-w-62.5 p-2.5 text-xs font-semibold">
-						{statusConfig.description}
-					</TooltipContent>
-				</Tooltip>
-
-				{showReviewBadge && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={onViewStaffingNeedsClick}
-								className="h-8 gap-2 border border-amber-100 bg-amber-50 px-2.5 text-amber-700 transition-all hover:bg-amber-100"
-							>
-								<Info className="size-4" />
-								<span className="text-xs font-bold uppercase tracking-tight">Review</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="bottom" className="max-w-50 text-xs font-bold">
-							{splitBrainIncident?.quarantine.message}
-							<div className="mt-1 flex items-center gap-2 opacity-70">
-								<span>{splitBrainIncident?.counters.loadReviewRows ?? 0} Overloads</span>
-							</div>
-						</TooltipContent>
-					</Tooltip>
-				)}
-
-				{/* Workspace View Mode */}
-				<div className="flex items-center gap-3">
-					<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-7">
-						<TabsList className="h-7 p-0.5 bg-muted/40 border border-border/40">
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<TabsTrigger value="teacher" className="h-6 px-2 text-xs font-semibold uppercase data-[state=active]:bg-background data-[state=active]:shadow-sm sm:px-3">Teacher</TabsTrigger>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
-									Inspect and adjust one teacher at a time.
-								</TooltipContent>
-							</Tooltip>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<TabsTrigger value="allocation" className="h-6 px-2 text-xs font-semibold uppercase data-[state=active]:bg-background data-[state=active]:shadow-sm sm:px-3">Sections</TabsTrigger>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
-									Fill section coverage gaps by subject.
-								</TooltipContent>
-							</Tooltip>
-						</TabsList>
-					</Tabs>
-				</div>
-
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="outline" size="icon-sm" className="h-8 w-8 shadow-sm" aria-label="More Teaching Load tools">
-									<Settings2 className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-64 p-2">
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Coverage snapshot</DropdownMenuLabel>
-								<div className="grid gap-1 px-2 py-1 text-xs">
-									<p className="font-semibold text-foreground">{hasCoverageUniverse ? 'Staffed coverage' : coverageStateLabel}</p>
-									<p className="text-muted-foreground">{coverageStateDescription}</p>
-									<div className="mt-1 flex flex-wrap gap-1.5">
-										<Badge variant="outline" className={cn('h-6', completenessPercent === 100 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700')}>{completenessPercent}% staffed</Badge>
-										<Badge variant="outline" className="h-6">{assignedPairs}/{totalPairs} pairs</Badge>
-										{syntheticPlaceholderPairs > 0 && <Badge variant="outline" className="h-6 border-violet-200 bg-violet-50 text-violet-700">{syntheticPlaceholderPairs} Teacher X</Badge>}
-										<Badge variant="outline" className={cn('h-6', unassignedPairs > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>{unassignedPairs} unassigned</Badge>
-									</div>
-								</div>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onSelect={onViewStaffingNeedsClick} disabled={staffingNeedsLoading} className="gap-2 font-semibold">
-									<ChartColumn className="size-4" />
-									Open staffing audit
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={onToggleJumpList} className="gap-2 font-semibold">
-									<Users className="size-4" />
-									{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
-								</DropdownMenuItem>
-								{showReconcileAction && (
-									<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
-										<Layers className="size-4" />
-										{reconcileLoading ? 'Reconciling...' : 'Reconcile saved coverage'}
-									</DropdownMenuItem>
-								)}
-								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
-								<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
-									{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
-										<DropdownMenuRadioItem key={mode} value={mode} className="flex flex-col items-start gap-0.5 py-2 cursor-pointer">
-											<span className="text-xs font-bold uppercase tracking-tight">{config.label}</span>
-											<span className="text-xs text-muted-foreground font-medium leading-tight">{config.description}</span>
-										</DropdownMenuRadioItem>
-									))}
-								</DropdownMenuRadioGroup>
-								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Maintenance</DropdownMenuLabel>
-								<DropdownMenuItem 
-									onSelect={onGlobalResetClick} 
-									disabled={!canRunGlobalReset}
-									className="text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer py-2"
-								>
-									<RotateCcw className="size-4 mr-2" />
-									<div className="flex flex-col gap-0.5">
-										<span className="text-xs font-bold uppercase tracking-tight">Global Reset</span>
-										<span className="text-xs opacity-80">Wipe all assignments for this year</span>
-									</div>
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</TooltipTrigger>
-					<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
-				</Tooltip>
+				<SmartHelpTrigger
+					title="How to use Teaching Load"
+					description="Use this page to build and review which teacher owns each subject-section load before timetable generation."
+					steps={[
+						{
+							title: 'Start with the repair queue',
+							body: 'ATLAS puts missing load, overloads, placeholders, and unsaved draft work in the order scheduler officers should fix them.',
+						},
+						{
+							title: 'Preview suggestions first',
+							body: 'Suggest Teaching Load draft shows what ATLAS can fill before anything becomes final.',
+						},
+						{
+							title: 'Use Advanced grid only when needed',
+							body: 'Dense teacher and section grids stay available for expert repair, but they should not be your first stop.',
+						},
+						{
+							title: 'Save only after review',
+							body: 'Draft changes stay visible near the action bar so you can save, undo, or discard with a clear status message.',
+						},
+					]}
+					triggerLabel="Help"
+					className="h-8 shrink-0"
+				/>
 
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -322,12 +255,126 @@ export function WorkspaceToolbar({
 					</TooltipContent>
 				</Tooltip>
 
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="outline" size="icon-sm" className="h-8 w-8 shadow-sm" aria-label="More Teaching Load tools">
+									<Settings2 className="size-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-64 p-2">
+								<DropdownMenuItem onSelect={onViewStaffingNeedsClick} disabled={staffingNeedsLoading} className="gap-2 font-semibold">
+									<ChartColumn className="size-4" />
+									Open staffing audit
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={onToggleJumpList} className="gap-2 font-semibold">
+									<Users className="size-4" />
+									{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">View mode</DropdownMenuLabel>
+								<DropdownMenuRadioGroup value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')}>
+									<DropdownMenuRadioItem value="teacher" className="cursor-pointer py-2 text-xs font-bold uppercase tracking-tight">
+										Teacher view
+									</DropdownMenuRadioItem>
+									<DropdownMenuRadioItem value="allocation" className="cursor-pointer py-2 text-xs font-bold uppercase tracking-tight">
+										Section view
+									</DropdownMenuRadioItem>
+								</DropdownMenuRadioGroup>
+								{showReconcileAction && (
+									<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
+										<Layers className="size-4" />
+										{reconcileLoading ? 'Reconciling...' : 'Reconcile saved coverage'}
+									</DropdownMenuItem>
+								)}
+								<DropdownMenuSeparator />
+								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
+								<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
+									{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
+										<DropdownMenuRadioItem key={mode} value={mode} className="flex flex-col items-start gap-0.5 py-2 cursor-pointer">
+											<span className="text-xs font-bold uppercase tracking-tight">{config.label}</span>
+											<span className="text-xs text-muted-foreground font-medium leading-tight">{config.description}</span>
+										</DropdownMenuRadioItem>
+									))}
+								</DropdownMenuRadioGroup>
+								<DropdownMenuSeparator />
+								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Maintenance</DropdownMenuLabel>
+								<DropdownMenuItem
+									onSelect={onGlobalResetClick}
+									disabled={!canRunGlobalReset}
+									className="text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer py-2"
+								>
+									<RotateCcw className="size-4 mr-2" />
+									<div className="flex flex-col gap-0.5">
+										<span className="text-xs font-bold uppercase tracking-tight">Global Reset</span>
+										<span className="text-xs opacity-80">Wipe all assignments for this year</span>
+									</div>
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
+				</Tooltip>
+
 				</div>
 			</div>
+
+			{/* Readiness strip: at-a-glance health below the command row.
+				% staffed (always) + Unassigned pairs (always, prominent) + state-driven alert chip. */}
+			<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-readiness-strip">
+				<div
+					className={cn(
+						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',
+						STRIP_TONE[completenessPercent === 100 ? 'success' : 'warning'],
+					)}
+				>
+					<span className="text-[0.65rem] uppercase tracking-wide opacity-75">% staffed</span>
+					<span className="text-sm font-bold tabular-nums">{completenessPercent}%</span>
+				</div>
+
+				<div
+					className={cn(
+						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',
+						STRIP_TONE[unassignedPairs > 0 ? 'warning' : 'success'],
+					)}
+				>
+					<span className="text-[0.65rem] uppercase tracking-wide opacity-75">Unassigned pairs</span>
+					<span className="text-sm font-bold tabular-nums">{unassignedPairs}</span>
+				</div>
+
+{alertChip ? (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							variant="outline"
+							data-testid={alertChip.testId}
+							data-alert-key={alertChip.key}
+							onClick={alertChip.onClick}
+							disabled={alertChip.disabled}
+							aria-label={alertChip.label}
+							className={cn(
+								'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition-colors',
+								STRIP_TONE[alertChip.tone],
+								alertChip.onClick ? 'cursor-pointer hover:brightness-95' : 'cursor-default',
+							)}
+						>
+							{alertChip.key === 'review' ? <Layers className="size-3.5" /> : alertChip.key === 'overcap' ? <Activity className="size-3.5" /> : <Users className="size-3.5" />}
+							<span className="text-sm font-bold">{alertChip.label}</span>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="max-w-64 text-xs leading-relaxed">
+						{alertChip.tooltip}
+					</TooltipContent>
+				</Tooltip>
+			) : null}
+			</div>
+
 			<p className="sr-only">
 				<span className="font-semibold text-foreground">Next:</span> {workspaceStateNextAction}
 			</p>
-			<p className="sr-only" aria-live="polite">
+			<p className="sr-only" aria-live="polite" data-testid="teaching-load-source-truth-summary">
 				{statusConfig.label}. {statusConfig.description}
 			</p>
 		</div>

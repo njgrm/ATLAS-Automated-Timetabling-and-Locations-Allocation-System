@@ -1,12 +1,15 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, CheckCircle2, Info, Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, MoreHorizontal, Search, SlidersHorizontal } from 'lucide-react';
 
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { Input } from '@/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { EnrollProIntro } from '@/components/smart/EnrollProIntro';
+import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
 export type AdminSourceState = 'verified-live' | 'checking-source' | 'saved-data' | 'no-saved-data';
 
@@ -65,34 +68,42 @@ function resolveSourceStateCopy(state: AdminSourceState, copy?: Partial<AdminSou
 	return { ...SOURCE_STATE_COPY[state], ...copy };
 }
 
-export function AdminSourceStateChip({ state, copy }: { state: AdminSourceState; copy?: Partial<AdminSourceStateCopy> }) {
+export function AdminSourceStateChip({ state, copy, lastVerified }: { state: AdminSourceState; copy?: Partial<AdminSourceStateCopy>; lastVerified?: string }) {
 	const resolvedCopy = resolveSourceStateCopy(state, copy);
 	const StatusIcon = state === 'verified-live' ? CheckCircle2 : state === 'no-saved-data' ? AlertTriangle : Info;
 
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Badge
+		<EnrollProIntro>
+			<Popover>
+				<PopoverTrigger asChild>
+					<Button
+						type="button"
 						variant="outline"
+						size="sm"
 						data-source-state={state}
 						className={cn(
-							'h-7 cursor-help rounded-full border px-2.5 text-[0.65rem] font-bold uppercase tracking-wide shadow-none',
+							'h-8 rounded-full border px-2.5 text-[0.65rem] font-bold uppercase tracking-wide shadow-none',
 							sourceStateStyles[state],
 							state === 'checking-source' && 'animate-pulse',
 						)}
-						aria-label={`${resolvedCopy.label}. ${resolvedCopy.description}`}
+						aria-label={`${resolvedCopy.label}. Open source details.`}
 					>
 						<StatusIcon className="mr-1.5 size-3.5" />
 						{resolvedCopy.label}
-					</Badge>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-72 space-y-1 p-3 text-xs leading-relaxed">
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent align="start" className="w-80 space-y-2 rounded-xl p-3 text-sm" data-testid="setup-source-details-popover">
+					<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Source details</p>
 					<p className="font-bold text-popover-foreground">{resolvedCopy.description}</p>
-					<p className="text-muted-foreground">{resolvedCopy.nextAction}</p>
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+					<p className="text-sm leading-snug text-muted-foreground">{resolvedCopy.nextAction}</p>
+					{lastVerified ? (
+						<p className="border-t border-slate-100 pt-2 text-xs font-semibold text-muted-foreground" data-testid="setup-source-last-verified">
+							Last verified: {lastVerified}
+						</p>
+					) : null}
+				</PopoverContent>
+			</Popover>
+		</EnrollProIntro>
 	);
 }
 
@@ -100,7 +111,7 @@ export function AdminStatBanner({ items }: { items: AdminStatItem[] }) {
 	if (items.length === 0) return null;
 
 	return (
-		<div className="hidden min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 lg:flex">
+		<div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5" data-testid="setup-readiness-strip">
 			{items.map((item) => (
 				<div
 					key={item.label}
@@ -136,6 +147,7 @@ export function AdminWorkspaceFrame({
 	description,
 	sourceState,
 	sourceCopy,
+	lastVerified,
 	stats,
 	primaryActions,
 	secondaryActions,
@@ -146,6 +158,7 @@ export function AdminWorkspaceFrame({
 	description: string;
 	sourceState: AdminSourceState;
 	sourceCopy?: Partial<AdminSourceStateCopy>;
+	lastVerified?: string;
 	stats?: AdminStatItem[];
 	primaryActions?: ReactNode;
 	secondaryActions?: ReactNode;
@@ -157,37 +170,56 @@ export function AdminWorkspaceFrame({
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
 			<div
-				/* Compact baseline was px-4 py-1.5; this release keeps px-4 and uses py-1 to meet short-screen content budgets. */
-				className="shrink-0 border-b bg-background/85 px-4 py-1 backdrop-blur-md lg:px-5"
+				className="shrink-0 border-b bg-background/85 px-4 py-1.5 backdrop-blur-md lg:px-5"
 				data-testid="admin-command-header"
 			>
-				<div className="flex items-start justify-between gap-2">
-					<div className="min-w-0 space-y-1">
-						<div className="flex min-w-0 items-baseline gap-2">
-							<h1 className="shrink-0 text-lg font-bold text-slate-900 lg:text-xl">{title}</h1>
-							<p className="hidden min-w-0 max-w-4xl truncate text-xs font-medium text-slate-500 lg:block">{description}</p>
-						</div>
-						<div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
-							<AdminSourceStateChip state={sourceState} copy={sourceCopy} />
-							<span
-								data-testid="admin-source-truth-summary"
-								className="hidden max-w-md shrink truncate text-xs font-semibold text-muted-foreground xl:inline"
-							>
-								Source truth: {resolvedSourceCopy.description}
-							</span>
-							<AdminStatBanner items={stats ?? []} />
-						</div>
-						<p className="sr-only" aria-live="polite">
+				<div className="flex min-w-0 items-center justify-between gap-2" data-testid="setup-compact-command-header">
+					<div className="flex min-w-0 items-center gap-2">
+						<h1 className="shrink-0 text-lg font-bold text-slate-900 lg:text-xl">{title}</h1>
+						<AdminSourceStateChip state={sourceState} copy={sourceCopy} lastVerified={lastVerified} />
+						<p className="sr-only" aria-live="polite" data-testid="admin-source-truth-summary">
 							{resolvedSourceCopy.label}. {resolvedSourceCopy.description} {resolvedSourceCopy.nextAction}
 						</p>
 					</div>
-					<div className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
-						{secondaryActions}
+					<div className="flex shrink-0 flex-nowrap items-center gap-2">
 						{primaryActions}
+						<SmartHelpTrigger
+							title={`How to use ${title}`}
+							description={description}
+							steps={[
+								{ title: 'Check source status', body: 'Confirm whether ATLAS is using live source data or a saved setup copy.', target: 'Source chip' },
+								{ title: 'Review the first issue', body: 'Use the visible list or table to find the first row needing attention.', target: 'Setup list' },
+								{ title: 'Use one action first', body: 'Press the primary row action before opening advanced details.', target: 'Primary action' },
+								{ title: 'Open filters only when needed', body: 'Use More filters to narrow long lists without crowding the page.', target: 'More filters' },
+							]}
+						/>
+						{secondaryActions ? (
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button type="button" variant="outline" size="sm" className="h-9 gap-2 rounded-xl" aria-label={`${title} more actions`}>
+										<MoreHorizontal className="size-4" />
+										<span className="hidden sm:inline">More</span>
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent align="end" className="w-72 rounded-xl p-3">
+									<div className="space-y-2">
+										<p className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground" data-testid="setup-more-daily">{title} actions</p>
+										<div className="flex flex-col gap-2 [&_button]:w-full [&_button]:justify-start">
+											{secondaryActions}
+										</div>
+									</div>
+								</PopoverContent>
+							</Popover>
+						) : null}
 					</div>
 				</div>
-				{toolbar && <div className="mt-0.5 rounded-xl border border-slate-100 bg-white/75 p-1 shadow-sm">{toolbar}</div>}
 			</div>
+			{(stats?.length || toolbar) ? (
+				<div className="shrink-0 space-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-1.5 lg:px-5">
+					{stats?.length ? <AdminStatBanner items={stats} /> : null}
+					{toolbar ? <div className="rounded-xl border border-slate-100 bg-white/75 p-1 shadow-sm">{toolbar}</div> : null}
+				</div>
+			) : null}
 			{children}
 		</div>
 	);

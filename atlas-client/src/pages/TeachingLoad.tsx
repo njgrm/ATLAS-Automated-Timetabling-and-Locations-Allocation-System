@@ -830,11 +830,12 @@ export default function TeachingLoad() {
 		<TooltipProvider delayDuration={200}>
 			<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-background overflow-hidden">
 				<div className="shrink-0 border-b border-border/40 px-3 py-1.5 lg:px-5">
-					<WorkspaceToolbar
+<WorkspaceToolbar
 						realAssignedPairs={coverageHeadline.realAssigned}
 						syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
 						unassignedPairs={coverageHeadline.unassigned}
 						totalPairs={coverageHeadline.total}
+						overCapCount={overCapCount}
 						autoFillLoading={data.loading || suggestionLoading}
 						staffingNeedsLoading={data.loading}
 						autoFillEnabled={Boolean(data.activeSchoolYearId) && data.canPersistAssignments && !data.splitBrainQuarantineRequired}
@@ -865,8 +866,6 @@ export default function TeachingLoad() {
 						workspaceStateLabel={workspaceState.label}
 						workspaceStateDescription={workspaceState.description}
 						workspaceStateNextAction={workspaceState.nextAction}
-						coverageStateLabel={coverageState.label}
-						coverageStateDescription={coverageState.description}
 						activeDraftCount={data.activeDraftCount}
 						saving={data.saving}
 						onSave={handleSave}

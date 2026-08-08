@@ -9,6 +9,7 @@ import { getActionableApiError } from '@/lib/actionable-api-error';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import { PublishedTimetableMatrix, formatShortTime, type PublishedScheduleMatrixEntry } from '@/components/published-schedule/PublishedTimetableMatrix';
+import { SmartHelpTrigger, SmartNextStepCard } from '@/components/smart/SmartPageShell';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -302,7 +303,17 @@ export default function MySchedule() {
 				advisory={advisory}
 				onRetryFailed={usingCachedSchedule ? () => void loadSchedule() : undefined}
 				rightSlot={(
-					<div className="flex gap-2">
+					<div className="flex flex-wrap gap-2">
+						<SmartHelpTrigger
+							title="How to use your schedule"
+							description="Use this page to check your published teaching day."
+							steps={[
+								{ title: 'Check the status', body: 'Online means ATLAS is checking the latest published copy.', target: 'Status' },
+								{ title: 'Read by day', body: 'On phones, your classes are grouped by day so you can scan one day at a time.', target: 'Day cards' },
+								{ title: 'Find room and time', body: 'Each class card shows the subject, section, time, and room.', target: 'Class card' },
+								{ title: 'Refresh if unsure', body: 'Tap Refresh schedule to check for approved changes.', target: 'Refresh schedule' },
+							]}
+						/>
 						<Button variant="outline" size="sm" className="h-9 rounded-full print:hidden" onClick={() => window.print()}>
 							<Printer className="mr-2 size-4" />
 							Print Schedule
@@ -312,6 +323,14 @@ export default function MySchedule() {
 							{checkingForUpdates ? 'Checking' : 'Refresh schedule'}
 						</Button>
 					</div>
+				)}
+				belowSlot={(
+					<SmartNextStepCard
+						title={schedule && schedule.entries.length > 0 ? 'Review today by day' : 'Wait for the official published schedule'}
+						body={schedule && schedule.entries.length > 0 ? 'Check each class time and room before the school day starts.' : 'The scheduler must publish the timetable before classes appear here.'}
+						tone={usingCachedSchedule ? 'warning' : schedule ? 'live' : 'neutral'}
+						testId="faculty-schedule-next-step"
+					/>
 				)}
 			/>
 

@@ -9,7 +9,6 @@ import {
 	ChevronRight,
 	RefreshCw,
 	Users,
-	X,
 	ChevronsLeft,
 	ChevronsRight,
 	Map as MapIcon,
@@ -773,16 +772,6 @@ export default function Sections() {
 		};
 	}, [activeSchoolYearId, dataSource, isOnline, queuedHomeRoomEdits.length, state.status]);
 
-	const PROGRAM_FILTER_COLORS: Record<string, string> = {
-		STE:   'bg-emerald-100/80 text-emerald-700',
-		SPA:   'bg-purple-100/80 text-purple-700',
-		SPS:   'bg-orange-100/80 text-orange-700',
-		SPJ:   'bg-sky-100/80 text-sky-700',
-		SPFL:  'bg-indigo-100/80 text-indigo-700',
-		SPTVE: 'bg-amber-100/80 text-amber-700',
-		REGULAR: 'bg-slate-100/80 text-slate-700',
-	};
-
 	return (
 		<AdminWorkspaceFrame
 			title = "Sections"
@@ -870,82 +859,6 @@ export default function Sections() {
 								</SelectContent>
 							</Select>
 						</div>
-
-						<div className="hidden">
-							<div className="flex items-center gap-2">
-								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Grade Level:</span>
-								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50">
-									<Button 
-										variant={gradeFilter === 'all' ? 'secondary' : 'ghost'} 
-										size="sm" 
-										className="h-8 px-3 text-xs font-bold" 
-										onClick={() => setGradeFilter('all')}
-									>
-										All
-									</Button>
-									{availableGrades.map(g => (
-										<Button 
-											key={g} 
-											variant={gradeFilter === g ? 'secondary' : 'ghost'} 
-											size="sm" 
-											className={cn("h-8 px-3 text-xs font-bold", gradeFilter === g && GRADE_COLORS[g])} 
-											onClick={() => setGradeFilter(g)}
-										>
-											G{g}
-										</Button>
-									))}
-								</div>
-							</div>
-
-							<div className="flex items-center gap-2">
-								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Program Type:</span>
-								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50 flex-wrap">
-									<Button 
-										variant={programFilter === 'all' ? 'secondary' : 'ghost'} 
-										size="sm" 
-										className="h-8 px-3 text-xs font-bold" 
-										onClick={() => setProgramFilter('all')}
-									>
-										All
-									</Button>
-									<Button 
-										variant={programFilter === 'REGULAR' ? 'secondary' : 'ghost'} 
-										size="sm" 
-										className={cn("h-8 px-3 text-xs font-bold", programFilter === 'REGULAR' && PROGRAM_FILTER_COLORS.REGULAR)} 
-										onClick={() => setProgramFilter('REGULAR')}
-									>
-										Regular
-									</Button>
-									{availablePrograms.map(p => (
-										<Button 
-											key={p} 
-											variant={programFilter === p ? 'secondary' : 'ghost'} 
-											size="sm" 
-											className={cn("h-8 px-3 text-xs font-bold", programFilter === p && (PROGRAM_FILTER_COLORS[p] || 'bg-blue-50 text-blue-700'))} 
-											onClick={() => setProgramFilter(p)}
-										>
-											{p}
-										</Button>
-									))}
-								</div>
-							</div>
-
-							{hasActiveFilters && (
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground font-bold"
-									onClick={() => { 
-										setGradeFilter('all'); 
-										setProgramFilter('all'); 
-										setSearchQuery('');
-									}}
-								>
-									<X className="size-3 mr-1" />
-									Reset Filters
-								</Button>
-							)}
-						</div>
 				</AdminSearchFilterToolbar>
 			)}
 		>
@@ -968,17 +881,21 @@ export default function Sections() {
 					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
 				</div>
 			)}
-			{state.status === 'ok' && homeRoomEditStatus.tone !== 'ready' && (
-				<div className={cn(
+{state.status === 'ok' && homeRoomEditStatus.tone !== 'ready' && (
+			<div
+				role={homeRoomEditStatus.tone === 'blocked' ? 'alert' : 'status'}
+				className={cn(
 					"pointer-events-none shrink-0 mx-4 mt-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-sm animate-in fade-in duration-300 lg:mx-5",
 					homeRoomEditStatus.tone === 'queued' && 'border-sky-200 bg-sky-50 text-sky-900',
 					homeRoomEditStatus.tone === 'checking' && 'border-amber-200 bg-amber-50 text-amber-900',
-					homeRoomEditStatus.tone === 'blocked' && 'border-red-200 bg-red-50 text-red-900',
+					// Phase 0C.1: blocked uses the destructive semantic token so the
+					// G9 grade red stays reserved for grade-level meaning only.
+					homeRoomEditStatus.tone === 'blocked' && 'border-destructive/30 bg-destructive/10 text-destructive',
 				)}>
-					{homeRoomEditStatus.tone === 'queued' ? <WifiOff className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
-					<span className="flex-1 font-semibold">{homeRoomEditStatus.message}</span>
-				</div>
-			)}
+				{homeRoomEditStatus.tone === 'queued' ? <WifiOff className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
+				<span className="flex-1 font-semibold">{homeRoomEditStatus.message}</span>
+			</div>
+		)}
 
 			<AdminTableShell
 				footer={state.status === 'ok' && state.data.sections.length > 0 ? (

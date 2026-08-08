@@ -27,6 +27,8 @@ export interface FacultySyncOptions {
     mode?: FacultySyncMode;
     pruneSectionAssignments?: boolean;
     invalidateRuns?: boolean;
+    seedAssignments?: boolean;
+    syncAdvisoryAssignments?: boolean;
 }
 export interface FacultySyncResult {
     synced: boolean;

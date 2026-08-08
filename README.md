@@ -594,6 +594,20 @@ npm run db:bootstrap   # Generate + Migrate (fresh setup)
 
 ATLAS exposes REST endpoints for integration with downstream systems. All endpoints are versioned under `/api/v1/`.
 
+For SMART/EnrollPro rollover coordination, use the current endpoint handoff in [`docs/reference/atlas-smart-rollover-api-endpoints-2026-08-07.md`](docs/reference/atlas-smart-rollover-api-endpoints-2026-08-07.md). That document covers runtime context, rollover status, rollover preview/apply, generation guards, setup-readiness checks, and the EnrollPro feeds ATLAS expects during school-year rollover.
+
+### Rollover and Runtime Endpoints (Protected)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/runtime/context?schoolId=1&verifyUpstream=true` | Verify ATLAS vs EnrollPro active-school-year drift |
+| `GET` | `/api/v1/runtime/rollover-status?schoolId=1&includeCounts=true` | Read rollover state, local mirror state, and readiness counts |
+| `POST` | `/api/v1/runtime/rollover-sync/preview` | Preview EnrollPro active-year sync without writing |
+| `POST` | `/api/v1/runtime/rollover-sync/apply` | Apply EnrollPro active-year mirror/snapshot sync in ATLAS |
+| `POST` | `/api/v1/runtime/rollover-sync/reset-dummy-year` | Guarded dev-only dummy-data reset before canonical EnrollPro sync |
+
+Generation against a stale school year returns `ACTIVE_YEAR_DRIFT`. Generation against the current active year with empty Teaching Load returns `TEACHING_LOAD_REVIEW_REQUIRED`. Do not hard-code active school-year IDs or source counts; read them from `/api/v1/runtime/context` or `/api/v1/runtime/rollover-status`.
+
 ### Subject Endpoints (Public)
 
 | Method | Endpoint | Description |
@@ -675,7 +689,7 @@ Content-Type: application/json
 
 ## Integration with EnrollPro
 
-ATLAS integrates with EnrollPro for faculty and section data through swappable adapters.
+ATLAS integrates with EnrollPro for active school-year identity, faculty, section, and public settings data through swappable adapters. EnrollPro owns the active-year and roster identity; ATLAS owns Teaching Load, scheduling policies, generation runs, timetable artifacts, and published schedule revisions.
 
 ### Data Flow
 
@@ -694,21 +708,25 @@ EnrollPro                         ATLAS
 
 ### Enabling EnrollPro Integration
 
-1. **Start EnrollPro** on port 5000
-2. **Generate Service Token** in EnrollPro with `SYSTEM_ADMIN` role
+1. **Start or reach EnrollPro** through the configured Tailnet or local URL.
+2. **Generate or bridge an authenticated token** that can read EnrollPro integration feeds.
 3. **Configure ATLAS:**
 
 ```env
 # atlas-server/.env
-ENROLLPRO_API=http://localhost:5000/api
+ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api
 FACULTY_ADAPTER=enrollpro
-ENROLLPRO_SERVICE_TOKEN=your_enrollpro_jwt_token
 SECTION_SOURCE_MODE=enrollpro
 ```
 
-4. **Sync Faculty:**
-   - Navigate to Faculty page in ATLAS
-   - Click "Sync from EnrollPro"
+4. **Verify rollover/runtime state:**
+   - `GET /api/v1/runtime/context?schoolId=1&verifyUpstream=true`
+   - `GET /api/v1/runtime/rollover-status?schoolId=1&includeCounts=true`
+5. **Sync setup data through rollover or explicit sync:**
+   - `POST /api/v1/runtime/rollover-sync/preview`
+   - `POST /api/v1/runtime/rollover-sync/apply`
+   - `POST /api/v1/sections/sync`
+   - `POST /api/v1/faculty/sync`
 
 ### Stub Mode (Standalone)
 

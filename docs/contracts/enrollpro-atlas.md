@@ -1,5 +1,7 @@
 # EnrollPro <> ATLAS Integration Contract Notes
 
+> Current rollover handoff: use `docs/reference/atlas-smart-rollover-api-endpoints-2026-08-07.md` for SMART/EnrollPro stability checks, ATLAS runtime rollover endpoints, generation guards, and the active EnrollPro feeds ATLAS consumes during `2026-2027` rollover.
+>
 > Historical note: the cohort-specialization portions of this document are stale after the `2026-05-21` MATATAG TLE reset. Current active section feeds expose no TLE split metadata for `schoolYearId=55`. Use `docs/analysis/phase3-matatag-tle-reset-and-faculty-baseline-audit-2026-05-21.md` for the current contract interpretation.
 
 ## Purpose

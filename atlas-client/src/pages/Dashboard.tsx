@@ -21,6 +21,7 @@ import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { useDashboardData, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
 const CampusReadinessCard = lazy(() => import('@/components/dashboard/CampusReadinessCard').then((module) => ({ default: module.CampusReadinessCard })));
 
@@ -486,6 +487,16 @@ export default function Dashboard() {
 							<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
 							<span className='hidden sm:inline'>Check for updates</span>
 						</Button>
+						<SmartHelpTrigger
+							title='How to use the dashboard'
+							description='Use the dashboard to find the next setup task before opening detailed tools.'
+							steps={[
+								{ title: 'Check source status', body: 'Confirm whether ATLAS is using live EnrollPro data or saved setup data.', target: 'Source connection' },
+								{ title: 'Follow the next step', body: 'Use the Your next step card to move scheduling forward one task at a time.', target: 'Your next step' },
+								{ title: 'Review setup readiness', body: 'The checklist shows which setup areas still need attention.', target: 'Setup readiness' },
+								{ title: 'Open timetable last', body: 'Create or review the timetable after setup and Teaching Load are ready.', target: 'Open Timetable' },
+							]}
+						/>
 						<Badge className='hidden border-0 bg-primary/10 text-primary hover:bg-primary/10 font-semibold gap-1.5 px-3 py-1.5 rounded-full sm:inline-flex [@media(max-height:500px)]:hidden'>
 							<Sparkles className='w-3.5 h-3.5' />
 							{PHASE_LABEL[lifecyclePhase]}

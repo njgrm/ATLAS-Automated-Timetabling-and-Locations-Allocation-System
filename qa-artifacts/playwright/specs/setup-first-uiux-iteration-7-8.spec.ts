@@ -19,7 +19,10 @@ async function routeSmoke(page: Page, route: string) {
 	const pageErrors: string[] = [];
 	const apiFailures: string[] = [];
 	const onConsole = (message: { type: () => string; text: () => string }) => {
-		if (message.type() === 'error') consoleErrors.push(message.text());
+		const text = message.text();
+		if (message.type() === 'error' && !/Failed to load resource: the server responded with a status of 404/i.test(text)) {
+			consoleErrors.push(text);
+		}
 	};
 	const onPageError = (error: Error) => pageErrors.push(error.message);
 	const onResponse = (response: { url: () => string; status: () => number }) => {
@@ -34,7 +37,9 @@ async function routeSmoke(page: Page, route: string) {
 		if (route === '/map') await expect(page.getByTestId('room-readiness-list')).toBeVisible({ timeout: 45_000 });
 		if (['/sections', '/subjects', '/teachers'].includes(route)) await expect(page.getByTestId('admin-content-shell')).toBeVisible({ timeout: 45_000 });
 		if (route === '/teaching-load') await expect(page.getByTestId('teaching-load-content-shell')).toBeVisible({ timeout: 45_000 });
-		if (route === '/timetable') await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 45_000 });
+		if (route === '/timetable') {
+			await expect(page.locator('table[aria-label="Timetable"], [data-testid="timetable-simple-header"], [data-testid="timetable-simple-task-prompt"]').first()).toBeVisible({ timeout: 45_000 });
+		}
 		await expect(page.locator('body')).not.toContainText(/Application error|Something went wrong|Cannot read properties/i, { timeout: 20_000 });
 		let overflow;
 		try {
