@@ -10,7 +10,8 @@ import {
 	ChevronRight,
 	ChevronsLeft,
 	ChevronsRight,
-	Map,
+	Loader2,
+	Map as MapIcon,
 	Plus,
 	RefreshCw,
 	Users,
@@ -49,6 +50,7 @@ import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { cn } from '@/lib/utils';
 import {
 	AdminSearchFilterToolbar,
 	AdminStatePanel,
@@ -61,7 +63,7 @@ import {
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 
-type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
+type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'programScopes' | 'gradeLevels' | 'isSeedable';
 type SortDir = 'asc' | 'desc';
 
 type TeachingLoadResetPreview = {
@@ -124,10 +126,13 @@ export default function Subjects() {
 
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
-	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { 
+	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, {
 		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
+	// Phase 2.3: per-subject coverage fetch error so the drawer can distinguish
+	// "no teachers assigned" from "the coverage fetch failed" (audit Sub-5).
+	const [coverageError, setCoverageError] = useState<Map<number, string>>(new Map());
 	const [assignedSubjectIds, setAssignedSubjectIds] = useState<Set<number> | null>(null);
 
 	// Sorting
@@ -218,8 +223,14 @@ export default function Subjects() {
 				...prev, 
 				[subjectId]: { assigned } 
 			}));
-		} catch {
-			toast.error('Failed to load teacher coverage');
+		} catch (err: any) {
+			const message = err?.response?.data?.message ?? err?.message ?? 'Failed to load teacher coverage';
+			setCoverageError((prev) => {
+				const next = new Map(prev);
+				next.set(subjectId, message);
+				return next;
+			});
+			toast.error(message);
 		} finally {
 			setCoverageLoading(false);
 		}
@@ -286,7 +297,9 @@ export default function Subjects() {
 				case 'name': cmp = a.name.localeCompare(b.name); break;
 				case 'minMinutesPerWeek': cmp = a.minMinutesPerWeek - b.minMinutesPerWeek; break;
 				case 'preferredRoomType': cmp = a.preferredRoomType.localeCompare(b.preferredRoomType); break;
+				case 'programScopes': cmp = (a.programScopes?.[0] ?? '').localeCompare(b.programScopes?.[0] ?? ''); break;
 				case 'gradeLevels': cmp = a.gradeLevels.length - b.gradeLevels.length; break;
+				case 'isSeedable': cmp = Number(b.isSeedable) - Number(a.isSeedable); break;
 			}
 			return sortDir === 'desc' ? -cmp : cmp;
 		});
@@ -312,6 +325,48 @@ export default function Subjects() {
 	const SortIcon = ({ field }: { field: SortField }) => {
 		if (sortField !== field) return <ArrowUpDown className="size-3 text-muted-foreground/50" />;
 		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
+	};
+	// Phase 2.4: SortableHeader closes over sortField/sortDir/toggleSort from
+	// the component scope. aria-sort exposes the WCAG-standard sort state;
+	// the button carries a plain-language accessible name and a visible Tooltip.
+	const SortableHeader = ({
+		field,
+		label,
+		align = 'left',
+	}: {
+		field: SortField;
+		label: string;
+		align?: 'left' | 'right';
+	}) => {
+		const isActive = sortField === field;
+		const direction = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+		const ariaLabel = `Sort by ${label}, currently ${direction}`;
+		return (
+			<th
+				className={cn('px-4 py-3 text-left', align === 'right' && 'text-right')}
+				aria-sort={direction as 'ascending' | 'descending' | 'none'}
+			>
+				<TooltipProvider delayDuration={200}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => toggleSort(field)}
+								aria-label={ariaLabel}
+								className={cn(
+									'h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground',
+									align === 'right' && 'ml-auto',
+								)}
+							>
+								{label} <SortIcon field={field} />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="top" className="text-xs">{ariaLabel}</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			</th>
+		);
 	};
 
 	const handleModalSave = async (values: SubjectFormValues) => {
@@ -363,7 +418,12 @@ export default function Subjects() {
 		}
 	};
 
-	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all' || attentionFilter !== 'all';
+	const hasActiveFilters = statusFilter !== 'all'
+		|| roomTypeFilter !== 'all'
+		|| gradeLevelFilter !== 'all'
+		|| programScopeFilter !== 'all'
+		|| attentionFilter !== 'all'
+		|| searchQuery.trim() !== '';
 
 	const handleSyncContract = async () => {
 		setSyncingContract(true);
@@ -429,7 +489,16 @@ export default function Subjects() {
 			: null;
 		return [
 			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: archivedCount > 0 ? `${activeCount} active · ${archivedCount} archived (kept for history, hidden from new setup).` : 'Subjects currently available for scheduling this school year.' },
-			{ label: 'Missing coverage', value: coverageRiskCount ?? 'Checking', tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const, helpText: coverageRiskCount === null ? 'ATLAS is checking teaching-load coverage.' : 'Active schedulable subjects with no assigned teacher found in the current teaching load.' },
+			{
+				label: 'Missing coverage',
+				value: coverageRiskCount === null
+					? <Loader2 className="size-3 animate-spin" data-testid="subjects-missing-coverage-spinner" />
+					: coverageRiskCount,
+				tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const,
+				helpText: coverageRiskCount === null
+					? 'ATLAS is checking teaching-load coverage.'
+					: 'Active schedulable subjects with no assigned teacher found in the current teaching load.',
+			},
 			{ label: 'Room constrained', value: roomConstrainedCount, tone: roomConstrainedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active subjects that need a specialized room type or room feature.' },
 		];
 	}, [assignedSubjectIds, subjects]);
@@ -603,10 +672,10 @@ stats={subjectStats}
 						</Select>
 						<Select value={attentionFilter} onValueChange={(value) => setAttentionFilter(value as typeof attentionFilter)}>
 							<SelectTrigger className="h-10 w-52 text-sm">
-								<SelectValue placeholder="All attention states" />
+								<SelectValue placeholder="All statuses" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All attention states</SelectItem>
+								<SelectItem value="all">All statuses</SelectItem>
 								<SelectItem value="missing-coverage">Missing teacher coverage</SelectItem>
 								<SelectItem value="room-constrained">Room-constrained subjects</SelectItem>
 							</SelectContent>
@@ -650,15 +719,17 @@ stats={subjectStats}
 								variant="ghost"
 								size="sm"
 								className="px-3 text-sm text-muted-foreground hover:text-foreground"
-								onClick={() => { 
-									setStatusFilter('all'); 
-									setRoomTypeFilter('all'); 
-									setGradeLevelFilter('all'); 
-									setProgramScopeFilter('all'); 
+								data-testid="subjects-reset-filters"
+								onClick={() => {
+									setStatusFilter('all');
+									setRoomTypeFilter('all');
+									setGradeLevelFilter('all');
+									setProgramScopeFilter('all');
 									setAttentionFilter('all');
+									setSearchQuery('');
 								}}
 							>
-								Reset all
+								Reset filters
 							</Button>
 						)}
 				</AdminSearchFilterToolbar>
@@ -677,12 +748,28 @@ stats={subjectStats}
 			)}
 
 			{error && !syncError && (
-				<div className="shrink-0 mx-6 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900 flex items-center justify-between shadow-sm">
+				<div
+					role={error ? 'alert' : 'status'}
+					data-testid="subjects-error-banner"
+					className="shrink-0 mx-6 mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive flex items-center justify-between shadow-sm"
+				>
 					<div className="flex items-center gap-2">
-						<AlertTriangle className="size-4 shrink-0 text-red-600" />
+						<AlertTriangle className="size-4 shrink-0" />
 						<span className="font-medium">{error}</span>
 					</div>
-					<Button variant="ghost" size="sm" className="h-7 px-2 font-bold" onClick={() => setError(null)}>Dismiss</Button>
+					<div className="flex items-center gap-1">
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => void fetchSubjects()}
+							disabled={loading}
+							className="h-7 px-2 font-bold"
+							data-testid="subjects-error-retry"
+						>
+							<RefreshCw className={`mr-1 size-3 ${loading ? 'animate-spin' : ''}`} /> Try again
+						</Button>
+						<Button variant="ghost" size="sm" className="h-7 px-2 font-bold" onClick={() => setError(null)}>Dismiss</Button>
+					</div>
 				</div>
 			)}
 
@@ -732,29 +819,19 @@ stats={subjectStats}
 								paged.map((subject) => <SubjectMobileCard key={subject.id} subject={subject} />)
 							)}
 						</div>
-						<table className="hidden w-full text-sm md:table">
+					<table className="hidden w-full text-sm md:table">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Subject & Code <SortIcon field="name" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('minMinutesPerWeek')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Weekly time <SortIcon field="minMinutesPerWeek" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('preferredRoomType')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Room need <SortIcon field="preferredRoomType" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevels')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Grades <SortIcon field="gradeLevels" />
-										</Button>
-									</th>
+									{/* Phase 2.4: SortableHeader helper mirrors Phase 1.5. aria-sort
+										exposes the sort state, the button carries an accessible
+										name + visible Tooltip. The helper closes over the
+										component's sortField/sortDir/toggleSort. */}
+									<SortableHeader field="name" label="Subject and code" align="left" />
+									<SortableHeader field="minMinutesPerWeek" label="Weekly time" align="left" />
+									<SortableHeader field="preferredRoomType" label="Room need" align="left" />
+									<SortableHeader field="programScopes" label="Program" align="left" />
+									<SortableHeader field="gradeLevels" label="Grades" align="left" />
+									<SortableHeader field="isSeedable" label="Coverage" align="left" />
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Actions</th>
 								</tr>
 							</thead>
@@ -766,12 +843,14 @@ stats={subjectStats}
 											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={5} className="px-4 py-20 text-center">
+										<td colSpan={7} className="px-4 py-20 text-center">
 											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'} />
 										</td>
 									</tr>
@@ -781,6 +860,7 @@ stats={subjectStats}
 											key={s.id}
 											subject={s}
 											timeMode="hours"
+											assignedSubjectIds={assignedSubjectIds ?? undefined}
 											onEdit={openSubjectEditor}
 											onDelete={(target) => setDeleteTarget(target)}
 											onArchive={(target) => setArchiveTarget(target)}
@@ -795,7 +875,7 @@ stats={subjectStats}
 
 			{/* Coverage Side Drawer */}
 			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
-				<SheetContent className="w-100 sm:w-135 overflow-y-auto">
+				<SheetContent className="w-full sm:max-w-md overflow-y-auto">
 					<SheetHeader className="pb-6 border-b">
 						<SheetTitle className="flex items-center gap-2 text-xl font-bold">
 							<Users className="size-5 text-primary" />
@@ -814,10 +894,39 @@ stats={subjectStats}
 							</div>
 						) : coverageSubject && (
 							<>
-								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
-									<div className="flex items-center justify-between">
-										<p className="text-xs font-semibold uppercase tracking-widest text-violet-700/80">Term rotation</p>
-										{coverageSubject.rotationFamily && (
+								{/* Phase 2.3: in-drawer error panel (audit Sub-5). Distinct
+									from the "no teachers assigned" empty state below so a
+									network failure is not misclassified as a coverage gap. */}
+								{coverageError.has(coverageSubject.id) ? (
+									<div
+										role="alert"
+										data-testid="coverage-drawer-error"
+										className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
+									>
+										<AlertTriangle className="size-5 shrink-0 mt-0.5" />
+										<div className="space-y-1">
+											<p className="font-semibold">Could not load coverage right now.</p>
+											<p className="text-xs opacity-90">{coverageError.get(coverageSubject.id)}</p>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="mt-2 h-8 font-bold"
+												onClick={() => fetchTeacherCoverage(coverageSubject.id)}
+											>
+												<RefreshCw className="mr-1 size-3" /> Try again
+											</Button>
+										</div>
+									</div>
+								) : null}
+
+								{/* Phase 2.3: only render the Term rotation panel for subjects
+									with a rotation family. The italic body line that
+									always rendered was confusing for non-rotating subjects. */}
+								{coverageSubject.rotationFamily ? (
+									<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
+										<div className="flex items-center justify-between">
+											<p className="text-xs font-semibold uppercase tracking-widest text-violet-700/80">Term rotation</p>
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<div className="flex items-center gap-1.5 cursor-help">
@@ -826,30 +935,28 @@ stats={subjectStats}
 													</div>
 												</TooltipTrigger>
 												<TooltipContent side="top" className="text-xs font-bold max-w-50">
-														This subject shares a weekly schedule lane with related subjects across terms.
+													This subject shares a weekly schedule lane with related subjects across terms.
 												</TooltipContent>
 											</Tooltip>
-										)}
-									</div>
-									<div className="flex flex-wrap gap-1.5">
-										<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-xs uppercase px-1.5 h-5 shadow-none">
-											{coverageSubject.code}
-										</Badge>
-										{coverageSubject.rotationFamily && (
+										</div>
+										<div className="flex flex-wrap gap-1.5">
+											<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-xs uppercase px-1.5 h-5 shadow-none">
+												{coverageSubject.code}
+											</Badge>
 											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
 												Rotating
 											</Badge>
-										)}
-										{resolveSubjectTermLabel(coverageSubject) && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
-												{resolveSubjectTermLabel(coverageSubject)}
-											</Badge>
-										)}
+											{resolveSubjectTermLabel(coverageSubject) && (
+												<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
+													{resolveSubjectTermLabel(coverageSubject)}
+												</Badge>
+											)}
+										</div>
+										<p className="text-xs text-violet-800/80 leading-relaxed font-medium italic">
+											Rotating subjects share time across terms, so check both assigned teachers and uncovered grades before generation.
+										</p>
 									</div>
-									<p className="text-xs text-violet-800/80 leading-relaxed font-medium italic">
-										Rotating subjects share time across terms, so check both assigned teachers and uncovered grades before generation.
-									</p>
-								</div>
+								) : null}
 
 								{/* Assigned Teachers */}
 								<div className="space-y-4">
@@ -914,7 +1021,7 @@ stats={subjectStats}
 								<div className="space-y-4">
 									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 										<div className={`size-1.5 rounded-full ${(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-										Uncovered scope
+										Coverage gaps
 									</h4>
 									<div className={(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'rounded-xl border border-amber-200 bg-amber-50 p-4' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4'}>
 										{(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? (
@@ -932,12 +1039,24 @@ stats={subjectStats}
 													</Button>
 												</Link>
 											</div>
+										) : (coverageDetail?.programScopes.length ?? 0) > 0 ? (
+											/* Phase 2.3: when program scopes are set, we cannot
+												verify per-program coverage from the current data
+												shape. The audit (Sub-6) flagged the green "all
+												covered" check as misleading in that case. Show a
+												neutral "verify in Teaching Load" hint instead. */
+											<div className="flex items-start gap-3 text-amber-900">
+												<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+												<div>
+													<p className="text-sm font-bold">All listed grades have assigned coverage.</p>
+													<p className="text-xs font-medium text-amber-800">This subject is scoped to specific programs. Verify per-program coverage in Teaching Load before generation.</p>
+												</div>
+											</div>
 										) : (
 											<div className="flex items-start gap-3 text-emerald-900">
 												<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
 												<div>
 													<p className="text-sm font-bold">All listed grades have assigned coverage.</p>
-													<p className="text-xs font-medium text-emerald-700">Review program scope below if this subject only applies to selected programs.</p>
 												</div>
 											</div>
 										)}
@@ -956,13 +1075,25 @@ stats={subjectStats}
 									</Link>
 								</div>
 
-								{/* Facilities Requirement */}
-								{coverageSubject.preferredRoomType !== 'CLASSROOM' && (
+								{/* Phase 2.3: render Resource requirements for non-classroom
+									subjects AND for subjects with required room features
+									(audit Sub-6 -- the old code only gated on
+									preferredRoomType !== 'CLASSROOM', silently dropping
+									subjects that needed a feature but used a standard room). */}
+								{((coverageSubject.preferredRoomType !== 'CLASSROOM') || (coverageSubject.requiredFeatures.length > 0)) && (
 									<div className="p-4 rounded-xl bg-muted/40 border border-muted/50 flex items-start gap-3 shadow-sm">
-										<Map className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+										<MapIcon className="size-5 text-muted-foreground shrink-0 mt-0.5" />
 										<div className="space-y-1">
-											<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Resource Constraint</p>
-											<p className="text-sm font-medium">Requires <span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType]}</span> facilities.</p>
+											<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Resource requirements</p>
+											{coverageSubject.preferredRoomType !== 'CLASSROOM' ? (
+												<p className="text-sm font-medium">Requires <span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType] ?? coverageSubject.preferredRoomType}</span> facilities.</p>
+											) : null}
+											{coverageSubject.requiredFeatures.length > 0 ? (
+												<p className="text-sm font-medium">
+													Needs {coverageSubject.requiredFeatures.length} room feature{coverageSubject.requiredFeatures.length === 1 ? '' : 's'}:{' '}
+													<span className="font-bold text-primary">{coverageSubject.requiredFeatures.join(', ')}</span>
+												</p>
+											) : null}
 											<Link to="/map" className="text-xs text-primary font-bold flex items-center gap-1 hover:underline pt-1 uppercase tracking-tight">
 												View occupancy map
 												<ChevronRight className="size-3" />

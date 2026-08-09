@@ -1,9 +1,14 @@
 /**
  * Shared grade label normalization helper.
- * All user-facing grade labels should use "Gx" format (G7, G8, G9, G10).
+ *
+ * Per Decision 5 in `docs/phases/setup-content-area-improvement-plan-2026-08-08.md`:
+ * the official compact grade format is `GR{grade}` (e.g. `GR7`, `GR8`, `GR9`, `GR10`).
+ * The shorthand `G{grade}` is intentionally absent. The long form is
+ * `Grade {grade}` -- use `gradeLong` in `deped-glossary.ts` for explanatory
+ * copy where space is not constrained.
  */
 
-/** Convert a numeric grade level to its short label */
+/** Convert a numeric grade level to its compact short label (e.g. `GR7`). */
 export function gradeLabel(grade: number): string {
 	return `GR${grade}`;
 }

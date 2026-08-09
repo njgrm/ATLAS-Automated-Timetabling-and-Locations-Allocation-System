@@ -86,9 +86,13 @@ export const DEPARTMENT_COLORS: Record<string, { bg: string; text: string; borde
 	UNASSIGNED: { bg: 'bg-gray-50/50', text: 'text-gray-600', border: 'border-gray-200/50', icon: 'bg-gray-100 text-gray-500' },
 };
 
-export const QUALIFICATION_PRIORITY_LABELS: Record<'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY', string> = {
+// Phase 0C.2: the QUALIFICATION_PRIORITY_OPTIONS array only ever exposes
+// DEPARTMENT_FIRST (the empty form hard-codes it and the form UI never lets
+// the scheduler pick SPECIALIZATION_PRIMARY). Narrow the labels record to a
+// single key so the dead SPECIALIZATION_PRIMARY branch does not survive as
+// a typed option.
+export const QUALIFICATION_PRIORITY_LABELS: Record<'DEPARTMENT_FIRST', string> = {
 	DEPARTMENT_FIRST: 'Department-first',
-	SPECIALIZATION_PRIMARY: 'Specialization-first',
 };
 
 export const QUALIFICATION_PRIORITY_OPTIONS = [
@@ -129,7 +133,11 @@ export const emptyForm: NewSubjectForm = {
 	minMinutesPerWeek: 225,
 	preferredRoomType: 'CLASSROOM',
 	isActive: true,
-	isSeedable: false,
+	// Phase 2 / Decision 2: the common case is "available for timetable".
+	// Subjects that should NOT be placed on the grid (e.g. Homeroom
+	// Guidance, consultation periods) are turned off in the Edit modal
+	// after creation.
+	isSeedable: true,
 	isSystemManaged: false,
 	gradeLevels: [7, 8, 9, 10],
 	interSectionEnabled: false,

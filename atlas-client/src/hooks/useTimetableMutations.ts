@@ -633,10 +633,18 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			if (run.status === 'FAILED') {
 				toast.error(`Generation failed: ${run.error ?? 'Unknown error'}`);
 			} else {
-				const summary = run.summary as RunSummary | null;
-				const assigned = summary?.assignedCount ?? 0;
-				const unassigned = summary?.unassignedCount ?? 0;
-				const hardViolations = summary?.hardViolationCount ?? 0;
+				let summary = run.summary as RunSummary | null;
+				if (!summary && run.id != null) {
+					try {
+						const { data: generatedDraft } = await atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${run.id}/draft`);
+						summary = generatedDraft.summary as RunSummary | null;
+					} catch {
+						summary = null;
+					}
+				}
+				const assigned = summary?.assignedCount;
+				const unassigned = summary?.unassignedCount;
+				const hardViolations = summary?.hardViolationCount;
 				setCenterView('schedule');
 				setPreGenOnboarding(false);
 				setSelectedEntry(null);
@@ -645,7 +653,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setPreGenPreviewError(null);
 				setPreGenAllowSoftOverride(false);
 				try { localStorage.removeItem('atlas_pregen_active'); } catch { /* ignore */ }
-				toast.success(`Schedule generated - ${assigned} assigned, ${unassigned} unassigned, ${hardViolations} hard violations`);
+				if (summary) {
+					toast.success(`Schedule generated - ${assigned} assigned, ${unassigned} unassigned, ${hardViolations} hard violations`);
+				} else {
+					toast.success('Schedule generated. ATLAS is loading the assigned, unassigned, and conflict totals.');
+				}
 				if (lockedAnchorCount > 0) {
 					toast.info(`${lockedAnchorCount} draft anchor${lockedAnchorCount === 1 ? '' : 's'} locked into the new generated run. Review them from Generated Run view.`);
 				}

@@ -250,13 +250,17 @@ export declare function getPerformanceFixtureSource(schoolId: number, schoolYear
     id: number;
     createdAt: string;
 }>;
+type PerformanceFixturePurpose = 'PERFORMANCE' | 'TEACHER_DEPARTURE';
 /**
  * Create an isolated completed run for destructive performance verification.
  * The fixture is deliberately marked in both runType and summary metadata so
  * the companion deletion operation can never target an operator-owned run.
  */
-export declare function createPerformanceFixture(sourceRunId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<{
+export declare function createPerformanceFixture(sourceRunId: number, schoolId: number, schoolYearId: number, actorId: number, options?: {
+    purpose?: PerformanceFixturePurpose;
+}): Promise<{
     sourceRunId: number;
+    fixtureMetadata: Record<string, unknown>;
     id: number;
     version: number;
     createdAt: Date;

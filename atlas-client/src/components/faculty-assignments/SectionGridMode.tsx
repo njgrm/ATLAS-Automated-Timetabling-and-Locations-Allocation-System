@@ -279,7 +279,12 @@ export function SectionGridMode({
 
 								<div className="flex-1 min-w-0">
 									<div className="flex items-center gap-2">
-										<span className={cn("size-2 rounded-full shrink-0", completedSectionIds.has(row.section.id) ? "bg-emerald-500" : "bg-amber-400")} />
+										{/* Phase 0C.1: completion dot carries a text alternative so it is not color-only. */}
+										<span
+											className={cn("size-2 rounded-full shrink-0", completedSectionIds.has(row.section.id) ? "bg-emerald-500" : "bg-amber-400")}
+											role="img"
+											aria-label={completedSectionIds.has(row.section.id) ? 'Assigned' : 'Pending'}
+										/>
 										<h4 className="text-sm font-semibold uppercase tracking-tight truncate">
 											{row.section.name}
 										</h4>

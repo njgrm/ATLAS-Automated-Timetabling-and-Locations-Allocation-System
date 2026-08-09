@@ -1339,6 +1339,110 @@ export async function getPerformanceFixtureSource(schoolId: number, schoolYearId
 	return { id: source.id, createdAt: source.createdAt.toISOString() };
 }
 
+type PerformanceFixturePurpose = 'PERFORMANCE' | 'TEACHER_DEPARTURE';
+
+function isDraftEntryRecord(value: unknown): value is ScheduledEntry & Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function maybePositiveInt(value: unknown): number | null {
+	const n = Number(value);
+	return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+async function preparePerformanceFixtureDraftEntries(
+	draftEntries: unknown[],
+	schoolId: number,
+	schoolYearId: number,
+	purpose: PerformanceFixturePurpose,
+): Promise<{ draftEntries: unknown[]; metadata: Record<string, unknown> }> {
+	if (purpose !== 'TEACHER_DEPARTURE') {
+		return { draftEntries, metadata: { purpose } };
+	}
+
+	const entries = draftEntries.map((entry) => (isDraftEntryRecord(entry) ? { ...entry } : entry));
+	const entryRecords = entries.filter(isDraftEntryRecord);
+	const subjectIds = [...new Set(entryRecords.map((entry) => maybePositiveInt(entry.subjectId)).filter((id): id is number => id != null))];
+	const subjectRows = subjectIds.length === 0
+		? []
+		: await prisma.subject.findMany({
+			where: { schoolId, id: { in: subjectIds } },
+			select: { id: true, code: true },
+		});
+	const subjectCodeById = new Map(subjectRows.map((subject) => [subject.id, subject.code.toUpperCase()]));
+	const candidatePairMap = new Map<string, { subjectId: number; sectionId: number }>();
+	for (const entry of entryRecords) {
+		if (entry.entryKind === 'COHORT') continue;
+		const subjectId = maybePositiveInt(entry.subjectId);
+		const sectionId = maybePositiveInt(entry.sectionId);
+		if (!subjectId || !sectionId || subjectCodeById.get(subjectId) === 'HG') continue;
+		candidatePairMap.set(`${subjectId}:${sectionId}`, { subjectId, sectionId });
+	}
+	const candidatePairs = [...candidatePairMap.values()];
+	if (candidatePairs.length === 0) {
+		throw err(409, 'TEACHER_DEPARTURE_FIXTURE_UNAVAILABLE', 'No section timetable entries are available for a teacher-departure fixture.');
+	}
+
+	const [ownershipRows, activeFaculty] = await Promise.all([
+		prisma.subjectSectionOwnership.findMany({
+			where: {
+				schoolId,
+				OR: candidatePairs.map((pair) => ({ subjectId: pair.subjectId, sectionId: pair.sectionId })),
+			},
+			select: { facultyId: true, subjectId: true, sectionId: true },
+		}),
+		prisma.facultyMirror.findMany({
+			where: { schoolId, isActiveForScheduling: true },
+			select: { id: true },
+			orderBy: { id: 'asc' },
+		}),
+	]);
+	const activeFacultyIds = new Set(activeFaculty.map((faculty) => faculty.id));
+	const ownerByPair = new Map(ownershipRows.map((owner) => [`${owner.subjectId}:${owner.sectionId}`, owner.facultyId]));
+
+	for (const pair of candidatePairs) {
+		const sourceFacultyId = ownerByPair.get(`${pair.subjectId}:${pair.sectionId}`);
+		if (!sourceFacultyId || !activeFacultyIds.has(sourceFacultyId)) continue;
+		const targetFacultyId = activeFaculty.find((faculty) => faculty.id !== sourceFacultyId)?.id ?? null;
+		if (!targetFacultyId) continue;
+
+		const affectedEntries = entryRecords.filter((entry) =>
+			maybePositiveInt(entry.subjectId) === pair.subjectId
+			&& maybePositiveInt(entry.sectionId) === pair.sectionId
+			&& entry.entryKind !== 'COHORT',
+		);
+		if (affectedEntries.length === 0) continue;
+		const section = await prisma.sectionMirror.findFirst({
+			where: { schoolId, schoolYearId, externalId: pair.sectionId },
+			select: { name: true },
+		});
+
+		for (const entry of entryRecords) {
+			if (entry.facultyId === sourceFacultyId || entry.facultyId === targetFacultyId) {
+				entry.facultyId = null;
+			}
+		}
+		for (const entry of affectedEntries) {
+			entry.facultyId = sourceFacultyId;
+		}
+
+		return {
+			draftEntries: entries,
+			metadata: {
+				purpose,
+				sourceFacultyId,
+				targetFacultyId,
+				subjectId: pair.subjectId,
+				sectionId: pair.sectionId,
+				sectionName: section?.name ?? null,
+				affectedEntryIds: affectedEntries.map((entry) => entry.entryId).filter((entryId): entryId is string => typeof entryId === 'string'),
+			},
+		};
+	}
+
+	throw err(409, 'TEACHER_DEPARTURE_FIXTURE_UNAVAILABLE', 'No active canonical teacher pair is available for a reversible teacher-departure fixture.');
+}
+
 /**
  * Create an isolated completed run for destructive performance verification.
  * The fixture is deliberately marked in both runType and summary metadata so
@@ -1349,6 +1453,7 @@ export async function createPerformanceFixture(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
+	options: { purpose?: PerformanceFixturePurpose } = {},
 ) {
 	const source = await prisma.generationRun.findFirst({
 		where: { id: sourceRunId, schoolId, schoolYearId, status: 'COMPLETED' },
@@ -1369,6 +1474,8 @@ export async function createPerformanceFixture(
 	}
 
 	const now = new Date();
+	const purpose = options.purpose ?? 'PERFORMANCE';
+	const preparedDraft = await preparePerformanceFixtureDraftEntries(source.draftEntries, schoolId, schoolYearId, purpose);
 	const fixtureSummary = {
 		...asSummaryRecord(source.summary),
 		isPublished: false,
@@ -1379,6 +1486,7 @@ export async function createPerformanceFixture(
 			createdBy: actorId,
 			createdAt: now.toISOString(),
 			reversible: true,
+			...preparedDraft.metadata,
 		},
 	};
 	const fixture = await prisma.generationRun.create({
@@ -1393,7 +1501,7 @@ export async function createPerformanceFixture(
 			durationMs: 0,
 			summary: fixtureSummary as object,
 			violations: (source.violations ?? []) as object,
-			draftEntries: source.draftEntries as object,
+			draftEntries: preparedDraft.draftEntries as object,
 			unassignedItems: (source.unassignedItems ?? []) as object,
 			version: 1,
 		},
@@ -1406,10 +1514,10 @@ export async function createPerformanceFixture(
 			action: 'PERFORMANCE_FIXTURE_CREATED',
 			actorId,
 			targetIds: [fixture.id],
-			metadata: { sourceRunId, fixtureRunId: fixture.id, reversible: true } as object,
+			metadata: { sourceRunId, fixtureRunId: fixture.id, reversible: true, ...preparedDraft.metadata } as object,
 		},
 	});
-	return { ...fixture, sourceRunId };
+	return { ...fixture, sourceRunId, fixtureMetadata: preparedDraft.metadata };
 }
 
 /** Remove only an explicitly marked performance fixture and its cascade-owned edits. */
@@ -1424,7 +1532,7 @@ export async function deletePerformanceFixture(
 		select: { id: true, runType: true, summary: true },
 	});
 	const marker = asSummaryRecord(fixture?.summary).performanceFixture as Record<string, unknown> | undefined;
-	if (!fixture || fixture.runType !== 'PERFORMANCE_FIXTURE' || marker?.reversible !== true) {
+	if (!fixture || fixture.runType !== 'PERFORMANCE_FIXTURE' || marker?.reversible === false) {
 		throw err(409, 'FIXTURE_DELETE_FORBIDDEN', 'Only a marked performance fixture can be deleted.');
 	}
 	await prisma.$transaction([
@@ -1436,7 +1544,7 @@ export async function deletePerformanceFixture(
 				action: 'PERFORMANCE_FIXTURE_DELETED',
 				actorId,
 				targetIds: [fixture.id],
-				metadata: { fixtureRunId: fixture.id, sourceRunId: marker.sourceRunId ?? null } as object,
+				metadata: { fixtureRunId: fixture.id, sourceRunId: marker?.sourceRunId ?? null } as object,
 			},
 		}),
 	]);

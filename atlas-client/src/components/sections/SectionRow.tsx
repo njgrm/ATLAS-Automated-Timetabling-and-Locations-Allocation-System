@@ -87,33 +87,42 @@ export function SectionRow({
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			<td className="px-4 py-3">
-				<Button
-					type="button"
-					variant="ghost"
-					className="-ml-2 h-auto w-full justify-start gap-3 rounded-xl p-2 text-left hover:bg-primary/5"
-					onClick={() => onShowDetails(section)}
-					aria-label={`View class coverage and room context for ${section.name}`}
-				>
-					<div className={`flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-sm font-bold text-sm ${gColor} border-opacity-50`}>
-						{gKey || section.name[0]}
-					</div>
-					<div className="flex flex-col min-w-0">
-						<div className="flex items-center gap-2">
-							<span className="font-semibold text-foreground leading-tight truncate">{section.name}</span>
-							{section.isSpecialProgram && section.programCode && (
-								<Badge
-									variant="outline"
-									className={`text-[0.6rem] px-1.5 py-0 h-4 font-bold border-opacity-50 ${PROGRAM_BADGE[section.programCode] ?? PROGRAM_BADGE.OTHER}`}
-								>
-									{section.programCode}
-								</Badge>
-							)}
-						</div>
-						<span className="text-[0.65rem] text-muted-foreground uppercase tracking-tight">
-							{section.isSpecialProgram ? section.programName : 'Regular Program'}
-						</span>
-					</div>
-				</Button>
+				<TooltipProvider delayDuration={200}>
+					<Tooltip>
+						{/* Phase 1.6: section-name button is the primary "View" entry point; the
+							wrapper Tooltip is now the only visible help affordance. */}
+						<TooltipTrigger asChild>
+							<Button
+								type="button"
+								variant="ghost"
+								className="-ml-2 h-auto w-full justify-start gap-3 rounded-xl p-2 text-left hover:bg-primary/5"
+								onClick={() => onShowDetails(section)}
+								aria-label={`View class coverage and room context for ${section.name}`}
+							>
+								<div className={`flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-sm font-bold text-sm ${gColor} border-opacity-50`}>
+									{gKey || section.name[0]}
+								</div>
+								<div className="flex flex-col min-w-0">
+									<div className="flex items-center gap-2">
+										<span className="font-semibold text-foreground leading-tight truncate">{section.name}</span>
+										{section.isSpecialProgram && section.programCode && (
+											<Badge
+												variant="outline"
+												className={`text-[0.6rem] px-1.5 py-0 h-4 font-bold border-opacity-50 ${PROGRAM_BADGE[section.programCode] ?? PROGRAM_BADGE.OTHER}`}
+											>
+												{section.programCode}
+											</Badge>
+										)}
+									</div>
+									<span className="text-[0.65rem] text-muted-foreground uppercase tracking-tight">
+										{section.isSpecialProgram ? section.programName : 'Regular Program'}
+									</span>
+								</div>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>View section details</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</td>
 
 			<td className="px-4 py-3">
@@ -148,7 +157,7 @@ export function SectionRow({
 				</span>
 			</td>
 
-			<td className="px-4 py-3 min-w-56">
+			<td className="px-4 py-3">
 				<div className="space-y-1.5">
 					<SectionRoomPicker
 						sectionId={section.id}
@@ -176,33 +185,12 @@ export function SectionRow({
 
 			<td className="px-4 py-3 text-right">
 				<div className="flex justify-end gap-1">
-					<TooltipProvider delayDuration={200}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="size-8 text-muted-foreground hover:text-primary"
-									onClick={() => onShowDetails(section)}
-									aria-label={`View class coverage for ${section.name}`}
-								>
-									<Users className="size-4" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>View class coverage and room context</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Link to={`/teaching-load?sectionId=${section.id}`}>
-									<Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary" aria-label={`Open teaching load for ${section.name}`}>
-										<ClipboardList className="size-4" />
-									</Button>
-								</Link>
-							</TooltipTrigger>
-							<TooltipContent>Open teaching load assignments</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-
+					{/* Phase 1.6: removed the redundant Users icon action (the
+						section-name button already opens the same details sheet).
+						Keep the kebab as the only icon; the section-name button
+						above acts as the primary "View" entry point and carries
+						the visible tooltip via AccessibleInfo once the page
+						adopts it (S-1, S-8). */}
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label={`More actions for ${section.name}`}>

@@ -1,6 +1,6 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, Profiler } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, CalendarClock, ChevronLeft, Loader2, Lock, MapPin } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, Play } from 'lucide-react';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
@@ -130,6 +130,10 @@ type CenterWorkspaceProps = {
 	draftBoard: any;
 	draft: any;
 	runs: any[];
+	generating: boolean;
+	newDraftLoading: boolean;
+	handleStartNewPreGenerationDraft: () => Promise<void>;
+	handleTriggerGenerate: () => void;
 	entityFilter: string;
 	pivotLabel: (id: number) => string;
 	viewMode: 'section' | 'faculty' | 'room';
@@ -211,6 +215,10 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		draftBoard,
 		draft,
 		runs,
+		generating,
+		newDraftLoading,
+		handleStartNewPreGenerationDraft,
+		handleTriggerGenerate,
 		entityFilter,
 		pivotLabel,
 		viewMode,
@@ -635,7 +643,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 								</div>
 							) : (
 								<div className="flex min-h-56 items-center justify-center p-4">
-									<div className="text-center space-y-2">
+									<div className="max-w-md text-center space-y-3">
 										<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
 										<p className="text-sm text-muted-foreground">
 											{centerView === 'pre-generation'
@@ -644,6 +652,29 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 												? 'Start with Pre-Generation Draft on the left, then Generate when ready.'
 												: 'No draft entries in this run'}
 										</p>
+										{centerView !== 'pre-generation' && runs.length === 0 ? (
+											<div className="flex flex-col justify-center gap-2 sm:flex-row" data-testid="timetable-empty-primary-actions">
+												<Button
+													type="button"
+													className="h-11 gap-2"
+													disabled={newDraftLoading || !schoolYearId}
+													onClick={() => void handleStartNewPreGenerationDraft()}
+												>
+													{newDraftLoading ? <Loader2 className="size-4 animate-spin" /> : <CalendarClock className="size-4" />}
+													Start Pre-Generation Draft
+												</Button>
+												<Button
+													type="button"
+													variant="outline"
+													className="h-11 gap-2"
+													disabled={generating || !schoolYearId}
+													onClick={handleTriggerGenerate}
+												>
+													{generating ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+													Generate when ready
+												</Button>
+											</div>
+										) : null}
 									</div>
 								</div>
 							)}

@@ -41,10 +41,19 @@ export function SectionRoomPicker({
 	const [open, setOpen] = React.useState(false);
 	const [query, setQuery] = React.useState('');
 	const [mapModalOpen, setMapModalOpen] = React.useState(false);
+	const [focusedRoomId, setFocusedRoomId] = React.useState<number | null>(null);
 	const inputRef = React.useRef<HTMLInputElement>(null);
 	const activeItemRef = React.useRef<HTMLButtonElement>(null);
+	// Phase 1.4: stable ids so aria-controls/aria-labelledby link the trigger
+	// to the listbox.
+	const listboxId = React.useId();
+	const triggerId = React.useId();
 
 	const selectedRoom = React.useMemo(() => options.find((opt) => opt.id === value), [options, value]);
+	// Phase 1.1: when the user is about to pick an occupied room, surface a
+	// hint so the swap escalation in the parent is no longer a surprise.
+	const focusedOccupant = focusedRoomId !== null ? roomOccupancy?.get(focusedRoomId) : undefined;
+	const hasFocusedOccupant = Boolean(focusedOccupant);
 
 	const filteredOptions = React.useMemo(() => {
 		if (!query) return options;
@@ -71,10 +80,12 @@ export function SectionRoomPicker({
 			});
 	}, [filteredOptions]);
 
-	// Auto-focus and scroll to active room when opening
+	// Phase 1.4: stop suppressing Radix's natural focus management so the
+	// search input becomes the first focus target on open (keyboard users
+	// land where they expect). The active-option scroll-into-view still
+	// runs after focus to bring the current room into view.
 	React.useEffect(() => {
 		if (open) {
-			// Small timeout to allow popover to render
 			setTimeout(() => {
 				if (activeItemRef.current) {
 					activeItemRef.current.scrollIntoView({ behavior: 'auto', block: 'center' });
@@ -90,73 +101,97 @@ export function SectionRoomPicker({
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger asChild>
 					<Button
+						id={triggerId}
 						variant="outline"
 						role="combobox"
 						aria-expanded={open}
+						aria-controls={listboxId}
+						aria-haspopup="listbox"
 						disabled={disabled || isSaving}
 						className={cn(
-							'h-9 w-full justify-between px-3 rounded-lg border-muted-foreground/20 hover:bg-muted/50 hover:border-muted-foreground/30 transition-all text-xs',
+							'h-9 w-full justify-between px-3 rounded-lg border-muted-foreground/20 hover:bg-muted/50 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/40 transition-all text-xs',
 							isSaving && 'opacity-70 grayscale bg-muted/30 cursor-wait',
-							!value && 'text-muted-foreground italic'
+							!value && 'text-muted-foreground italic',
 						)}
 					>
 						<span className="flex items-center gap-2 truncate">
 							{isSaving ? (
-								<span className="flex items-center gap-2 font-bold animate-pulse text-[10px] uppercase tracking-wider text-muted-foreground">
+								<span className="flex items-center gap-2 font-bold text-sm text-muted-foreground">
 									<Clock className="size-3 animate-spin" />
 									Saving...
 								</span>
 							) : selectedRoom ? (
 								<>
 									<span className="font-semibold text-foreground">{selectedRoom.name}</span>
-									<span className="text-[0.65rem] text-muted-foreground/70 uppercase tracking-tighter hidden sm:inline">
-										• {selectedRoom.buildingName}
+									<span className="text-xs text-muted-foreground hidden sm:inline">
+										- {selectedRoom.buildingName}
 									</span>
 								</>
 							) : (
 								'Choose home room'
 							)}
 						</span>
-						<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-40" />
+						<ChevronsUpDown className="ml-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent 
-					className="w-70 p-0 shadow-xl border-border/40 flex flex-col h-100" 
+				<PopoverContent
+					id={listboxId}
+					className="w-70 p-0 shadow-xl border-border/40 flex flex-col h-100"
 					align="start"
-					onOpenAutoFocus={(e) => { e.preventDefault(); }}
 				>
 					{/* Header */}
 					<div className="shrink-0 flex items-center border-b px-2 py-1.5 bg-muted/30">
-						<Search className="ml-1 mr-2 size-3.5 shrink-0 text-muted-foreground/60" />
+						<Search className="ml-1 mr-2 size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
 						<Input
 							ref={inputRef}
 							value={query}
 							onChange={(e) => setQuery(e.target.value)}
 							placeholder="Search room or building..."
+							aria-label="Search rooms or buildings"
 							className="h-7 w-full border-0 bg-transparent px-0 text-xs shadow-none outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
 						/>
-						{query && (
-							<Button 
-								variant="ghost" 
-								size="icon" 
-								className="size-6 -mr-1 text-muted-foreground hover:text-foreground" 
+						{query ? (
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-6 -mr-1 text-muted-foreground hover:text-foreground"
+								aria-label="Clear search"
 								onClick={() => setQuery('')}
 							>
 								<X className="size-3" />
 							</Button>
-						)}
+						) : null}
 					</div>
+
+					{/* Phase 1.1: occupied-room hint. Appears when the user is about
+						to pick a room that already has a home section, so the swap
+						escalation in the parent is no longer a surprise. */}
+					{hasFocusedOccupant && focusedOccupant ? (
+						<div
+							role="status"
+							aria-live="polite"
+							data-testid="room-picker-occupied-hint"
+							className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+						>
+							<p className="font-semibold">Selecting this will move {focusedOccupant} out of this room.</p>
+							<p className="mt-0.5 opacity-80">ATLAS will ask you to confirm before saving.</p>
+						</div>
+					) : null}
 
 					{/* Options List */}
 					<ScrollArea className="flex-1">
-						<div className="p-1.5">
+						<div className="p-1.5" role="listbox" aria-labelledby={triggerId}>
 							<Button
 								type="button"
 								variant="ghost"
+								role="option"
+								aria-selected={value === null}
 								onClick={() => {
 									onSelect(null);
 									setOpen(false);
 								}}
+								onFocus={() => setFocusedRoomId(null)}
+								onMouseEnter={() => setFocusedRoomId(null)}
 								className={cn(
 									'w-full justify-start px-2 py-2.5 h-auto text-xs transition-all rounded-md outline-none',
 									'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
@@ -166,19 +201,19 @@ export function SectionRoomPicker({
 								<Check className={cn('mr-2 size-3.5 shrink-0', value === null ? 'opacity-100' : 'opacity-0')} />
 								<span className={cn('italic transition-colors', value === null ? 'text-foreground' : 'text-muted-foreground', 'group-hover:text-primary-foreground')}>Unassigned</span>
 							</Button>
-							
+
 							{groups.length === 0 && (
 								<div className="py-8 text-center text-xs text-muted-foreground space-y-1">
 									<p>No matching rooms found.</p>
-									<p className="text-[0.65rem] opacity-70">Try a different search term.</p>
+									<p className="text-xs opacity-70">Try a different search term.</p>
 								</div>
 							)}
-							
+
 							{groups.map((group) => (
 								<div key={group.label} className="mt-1">
-									<div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm px-2 py-1.5 text-[0.625rem] font-black uppercase tracking-[0.12em] text-muted-foreground/80 flex items-center justify-between">
+									<div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm px-2 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center justify-between">
 										{group.label}
-										<Badge variant="outline" className="h-3.5 text-[0.6rem] px-1 font-normal opacity-50 border-0">{group.items.length}</Badge>
+										<Badge variant="outline" className="h-3.5 text-xs px-1 font-normal opacity-50 border-0">{group.items.length}</Badge>
 									</div>
 									<div className="grid gap-0.5 mt-0.5">
 										{group.items.map((item) => {
@@ -190,10 +225,15 @@ export function SectionRoomPicker({
 													ref={isSelected ? activeItemRef : null}
 													type="button"
 													variant="ghost"
+													role="option"
+													aria-selected={isSelected}
+													data-occupied={occupying ? 'true' : undefined}
 													onClick={() => {
 														onSelect(item.id);
 														setOpen(false);
 													}}
+													onFocus={() => setFocusedRoomId(item.id)}
+													onMouseEnter={() => setFocusedRoomId(item.id)}
 													className={cn(
 														'w-full justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
 														'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
@@ -204,18 +244,18 @@ export function SectionRoomPicker({
 													<div className="flex flex-col items-start min-w-0 flex-1">
 														<div className="flex items-center gap-2 w-full">
 															<span className="truncate group-hover:text-primary-foreground">{item.name}</span>
-															{occupying && (
+															{occupying ? (
 																<Badge variant="outline" className={cn(
-																	"ml-auto h-4 px-1 text-[8px] font-black uppercase border-opacity-50",
+																	"ml-auto h-4 px-1 text-xs font-bold uppercase border-opacity-50",
 																	isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
 																)}>
 																	Used by {occupying}
 																</Badge>
-															)}
+															) : null}
 														</div>
 														<div className="flex items-center gap-1.5 mt-0.5">
-															<span className="text-[0.6rem] text-muted-foreground/60 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
-															{occupying && <span className="text-[0.6rem] font-bold text-amber-600/80 group-hover:text-primary-foreground/60">Room already has a home section</span>}
+															<span className="text-xs text-muted-foreground/70 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
+															{occupying ? <span className="text-xs font-bold text-amber-600/80 group-hover:text-primary-foreground/60">Room already has a home section</span> : null}
 														</div>
 													</div>
 												</Button>
@@ -229,9 +269,9 @@ export function SectionRoomPicker({
 
 					{/* Footer */}
 					<div className="shrink-0 p-1.5 border-t bg-muted/20">
-						<Button 
-							variant="outline" 
-							className="w-full h-8 text-[10px] font-black uppercase tracking-widest gap-2 bg-background hover:bg-primary hover:text-primary-foreground hover:border-primary shadow-sm"
+						<Button
+							variant="outline"
+							className="w-full h-8 text-xs font-bold uppercase tracking-wider gap-2 bg-background hover:bg-primary hover:text-primary-foreground hover:border-primary shadow-sm"
 							onClick={() => {
 								setOpen(false);
 								setMapModalOpen(true);

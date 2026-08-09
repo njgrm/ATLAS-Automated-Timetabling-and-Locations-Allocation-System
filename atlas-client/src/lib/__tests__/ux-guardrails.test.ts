@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
@@ -719,4 +719,295 @@ test('Phase 0B.2: /admin/year-setup route exists, is admin-only, and uses a two-
 	assert.doesNotMatch(panel, /Section mirrors/);
 	assert.doesNotMatch(panel, /Follow-up flags/);
 	assert.doesNotMatch(panel, /RESET_DUMMY_SCHOOL_YEAR_1/);
+});
+
+test('Phase 0C.1: DepEd grade red is reserved for grade-level meaning only', () => {
+	// SectionRow used to color over-full sections with bg-red-600 -- the same
+	// hue as the G9 grade color (CC-7 / TL-30). The fill-state over-full band
+	// now uses a neutral dark slate so the visual signal does not collide with
+	// grade-level meaning. The G9 grade color itself stays red (DepEd rule).
+	const sectionRow = source('src/components/sections/SectionRow.tsx');
+	assert.doesNotMatch(sectionRow, /bg-red-600 text-white/);
+	assert.match(sectionRow, /bg-slate-800 text-white/);
+	// Fill pill carries a text alternative so color is not the only signal.
+	assert.match(sectionRow, new RegExp('aria-label=.*fill.*% full'));
+	assert.match(sectionRow, new RegExp('fill >= 95.*at or over capacity'));
+});
+
+test('Phase 0C.1: Section blocked-edit banner uses destructive semantic, not raw red', () => {
+	const sections = source('src/pages/Sections.tsx');
+	// The blocked tone used border-red-200 bg-red-50 text-red-900 -- raw red
+	// collides with G9. It now uses the destructive semantic tokens.
+	const blockedExpr = /homeRoomEditStatus\.tone === 'blocked' && 'border-destructive\/30 bg-destructive\/10 text-destructive'/;
+	assert.match(sections, blockedExpr);
+});
+
+test('Phase 0C.1: completion dots carry role="img" text alternatives', () => {
+	const subjectRow = source('src/components/faculty-assignments/SubjectRow.tsx');
+	const sectionGrid = source('src/components/faculty-assignments/SectionGridMode.tsx');
+	assert.match(subjectRow, /role="img"[\s\S]{0,200}aria-label=\{completedSectionIds\?\.has\(section\.id\) \? 'Assigned' : 'Pending'\}/);
+	assert.match(sectionGrid, /role="img"[\s\S]{0,200}aria-label=\{completedSectionIds\.has\(row\.section\.id\) \? 'Assigned' : 'Pending'\}/);
+});
+
+test('Phase 0C.2: dead SubjectAddForm.tsx is removed and the no-reintroduction guardrail is in place', () => {
+	// Per Decision 4, SubjectAddForm.tsx is dead code. The implementation pass
+	// re-confirmed zero imports; this test pins the file as removed so a
+	// future refactor cannot silently revive it.
+	assert.equal(
+		existsSync(resolve(root, 'src/components/subjects/SubjectAddForm.tsx')),
+		false,
+		'SubjectAddForm.tsx must stay removed; Subjects uses SubjectFormModal only',
+	);
+});
+
+test('Phase 0C.2: grade-labels helper documents the GR{grade} compact form (Decision 5)', () => {
+	const gradeLabels = source('src/lib/grade-labels.ts');
+	assert.match(gradeLabels, /official compact grade format is `GR\{grade\}`/);
+	assert.doesNotMatch(gradeLabels, /"Gx" format/);
+	assert.match(gradeLabels, /return `GR\$\{grade\}`/);
+});
+
+test('Phase 0C.2: SPECIALIZATION_PRIMARY dead branch is removed from QUALIFICATION_PRIORITY_LABELS', () => {
+	const constants = source('src/lib/subject-constants.ts');
+	// The labels record should no longer carry the dead SPECIALIZATION_PRIMARY
+	// key. The form's qualificationPriority default remains DEPARTMENT_FIRST
+	// (the only option the UI actually exposes).
+	assert.doesNotMatch(
+		constants,
+		/QUALIFICATION_PRIORITY_LABELS[\s\S]{0,200}SPECIALIZATION_PRIMARY/,
+		'SPECIALIZATION_PRIMARY must not be in the labels record (dead option)',
+	);
+	assert.match(constants, /QUALIFICATION_PRIORITY_LABELS[\s\S]{0,200}Record<'DEPARTMENT_FIRST', string>/);
+});
+
+test('Phase 1.5: Sections table exposes aria-sort, accessible sort labels, and the renamed % Full column', () => {
+	const sections = source('src/pages/Sections.tsx');
+	// aria-sort on the sortable <th> elements.
+	assert.match(sections, /aria-sort=/);
+	// Sort buttons announce the direction in their accessible name.
+	assert.match(sections, /Sort by \$\{label\}, currently \$\{direction\}/);
+	// Visible Tooltip on sort buttons (not icon-only).
+	assert.match(sections, /<TooltipContent side="top" className="text-xs">\{ariaLabel\}<\/TooltipContent>/);
+	// Column rename: "% Full" replaces "Status"; "Home room" replaces "Home-room readiness".
+	assert.match(sections, /label="% Full"/);
+	assert.match(sections, new RegExp('<th[^>]*>Home room</'));
+	assert.doesNotMatch(sections, new RegExp('>Status <SortIcon'));
+	assert.doesNotMatch(sections, new RegExp('>Home-room readiness<'));
+	// Home-room cell no longer carries the 224px min-w-56.
+	const sectionRow = source('src/components/sections/SectionRow.tsx');
+	assert.doesNotMatch(sectionRow, /min-w-56/);
+});
+
+test('Phase 1.7: program filter shows the full program labels in a plain legend (no hover dependency)', () => {
+	const sections = source('src/pages/Sections.tsx');
+	// The SelectItem renders the short label (e.g. "STE") and the legend
+	// below renders the full label via the Phase 0A.1 glossary.
+	assert.match(sections, /programShortLabel\(p\)/);
+	assert.match(sections, /data-testid="program-code-legend"/);
+	assert.match(sections, /\$\{programShortLabel\(p\)\} = \$\{programFullLabel\(p\)\}/);
+});
+
+test('Phase 1.1: Sections page renders a start-here banner when sections need a home room', () => {
+	const sections = source('src/pages/Sections.tsx');
+	// Top-level sectionsNeedingRooms derivation (not nested inside sectionStats).
+	assert.match(sections, /const sectionsNeedingRooms = state\.status === 'ok' \? Math\.max\(0, state\.data\.totalSections - assignedCount\) : 0/);
+	// Banner rendered when count > 0; data-testid present for Playwright.
+	assert.match(sections, /data-testid="sections-start-here-banner"/);
+	assert.match(sections, /Use the "Choose home room" control on each row\./);
+});
+
+test('Phase 1.1+1.4: SectionRoomPicker exposes an ARIA combobox pattern (aria-controls, aria-haspopup, listbox/option roles)', () => {
+	const picker = source('src/components/sections/SectionRoomPicker.tsx');
+	// Trigger -> listbox linkage.
+	assert.match(picker, /role="combobox"/);
+	assert.match(picker, /aria-controls=\{listboxId\}/);
+	assert.match(picker, /aria-haspopup="listbox"/);
+	// Listbox + option semantics on the option container + each option.
+	assert.match(picker, /role="listbox" aria-labelledby=\{triggerId\}/);
+	assert.match(picker, new RegExp('role="option"\\s+aria-selected=\\{'));
+	// The opaque onOpenAutoFocus suppression is gone (Phase 1.4).
+	assert.doesNotMatch(picker, /onOpenAutoFocus=\{\(e\) => \{ e\.preventDefault\(\); \}\}/);
+	// Phase 1.1: occupied-room hint with the swap cue.
+	assert.match(picker, /data-testid="room-picker-occupied-hint"/);
+	assert.match(picker, /Selecting this will move \{focusedOccupant\} out of this room/);
+});
+
+test('Phase 1.6: Sections row keeps only the section-name button and the kebab (Users icon removed)', () => {
+	const sectionRow = source('src/components/sections/SectionRow.tsx');
+	// The actions cell is the last <td> in the row and contains the kebab.
+	// Anchor on the DropdownMenu block to isolate the actions cell.
+	const dropdownIdx = sectionRow.indexOf('<DropdownMenu>');
+	assert.ok(dropdownIdx > -1, 'Expected a DropdownMenu in SectionRow');
+	const actionsCell = sectionRow.slice(0, sectionRow.indexOf('</tr>', dropdownIdx));
+	// No Users-icon button next to the kebab (audit S-8 dedup).
+	assert.doesNotMatch(actionsCell, /aria-label="View class coverage for/);
+	assert.doesNotMatch(actionsCell, /aria-label="Open teaching load for/);
+	assert.doesNotMatch(actionsCell, /<TooltipTrigger asChild>\s*<Button[\s\S]{0,200}View class coverage/);
+	assert.doesNotMatch(actionsCell, /<TooltipContent>View class coverage and room context<\/TooltipContent>/);
+	// Kebab remains.
+	assert.match(actionsCell, /More actions for/);
+	// Section-name button still has a visible tooltip.
+	assert.match(sectionRow, /<TooltipContent>View section details<\/TooltipContent>/);
+});
+
+test('Phase 1.2: SwapConfirmationModal uses plain English and fixes the "becomes moved to" grammar', () => {
+	const modals = source('src/components/sections/SectionHomeRoomModals.tsx');
+	// Audit S-3 / S-4 / S-9.
+	assert.doesNotMatch(modals, new RegExp('>Source Section<'));
+	assert.doesNotMatch(modals, new RegExp('>Displaced Section<'));
+	assert.doesNotMatch(modals, new RegExp('>Final Outcome<'));
+	assert.doesNotMatch(modals, /becomes moved to/);
+	// "becomes" appears in JSDoc comments and in the friendly "will have no home
+	// room" copy; the audit specifically targeted the ungrammatical "becomes
+	// moved to" construction, so we assert that pattern only.
+	// Plain-language labels and copy.
+	assert.match(modals, />This section</);
+	assert.match(modals, />The other section</);
+	assert.match(modals, />After this swap</);
+	assert.match(modals, /moves to <span className="font-bold text-emerald-600">/);
+	assert.match(modals, /will have no home room/);
+	// Unassigned-path warning announces via role="alert".
+	assert.match(modals, /role="alert"/);
+	assert.match(modals, /data-testid="swap-displaced-unassigned-warning"/);
+	assert.match(modals, /Reassign it before generating the timetable/);
+	// Confirm icon switched to a plain ArrowRight (audit: "refresh icon reinforces ambiguity").
+	assert.match(modals, new RegExp('<ArrowRight className="mr-2 size-4" />'));
+	assert.match(modals, new RegExp('Confirm swap'));
+});
+
+test('Phase 1.3: UnassignConfirmationModal inverts the button order (safe first, destructive second)', () => {
+	const modals = source('src/components/sections/SectionHomeRoomModals.tsx');
+	// Safe "Keep" button appears before destructive in the rendered footer.
+	const keepIndex = modals.search(/data-testid="unassign-modal-keep"/);
+	const confirmIndex = modals.search(/data-testid="unassign-modal-confirm"/);
+	assert.ok(keepIndex > -1 && confirmIndex > -1, 'Both buttons must be present');
+	assert.ok(keepIndex < confirmIndex, 'Keep (safe) must precede destructive in the DOM');
+	// Safe button gets autoFocus so a stray Enter does not destroy the assignment.
+	assert.match(modals, new RegExp('autoFocus[\\s\\S]{0,200}data-testid="unassign-modal-keep"'));
+	// Destructive button is second and visually distinct.
+	assert.match(modals, /variant="destructive"[\s\S]{0,200}data-testid="unassign-modal-confirm"/);
+});
+
+test('Phase 2.1: SubjectFormModal stepper, default hours, and Available-for-timetable default', () => {
+	const modal = source('src/components/subjects/SubjectFormModal.tsx');
+	const constants = source('src/lib/subject-constants.ts');
+
+	// Decision 2: emptyForm.isSeedable defaults to true.
+	assert.match(constants, /isSeedable: true,/);
+
+	// Step indicator (4 sections) so the scheduler knows where they are.
+	assert.match(modal, /data-testid="subjects-form-stepper"/);
+	assert.match(modal, /Identity/);
+	assert.match(modal, /Time and room/);
+	assert.match(modal, /Programs and owner/);
+	assert.match(modal, /Advanced/);
+
+	// Default unit is hours (was minutes before this pass).
+	assert.match(modal, /useState<'minutes' \| 'hours'>\('hours'\)/);
+	assert.match(modal, /setTimeMode\('hours'\)/);
+
+	// "Skip if unsure" gate: Advanced collapsed by default in add mode.
+	assert.match(modal, /setShowAdvanced\(mode === 'edit'\)/);
+	assert.match(modal, /Skip if you are unsure/);
+
+	// Decision 2: rename "Can be scheduled" to plain-language "Available for
+	// timetable" with helper.
+	assert.match(modal, /Available for timetable/);
+	assert.doesNotMatch(modal, />Can be scheduled</);
+	// Expanded helper text mentions the two use cases from the old tooltip.
+	assert.match(modal, /Homeroom Guidance/);
+	assert.match(modal, /consultation periods/);
+
+	// Phase 0A.2 label floor: field labels are sentence case text-sm, not
+	// sub-0.7rem uppercase.
+	assert.match(modal, /text-sm font-semibold text-foreground/);
+	assert.doesNotMatch(modal, /text-\[0\.7rem\] font-bold text-muted-foreground uppercase/);
+});
+
+test('Phase 2.2: SubjectFormModal shows inline validation errors and a tooltip on the disabled Save button', () => {
+	const modal = source('src/components/subjects/SubjectFormModal.tsx');
+	// Inline error text per field: role="alert" rendered per field; the
+	// message strings exist in the validation builder.
+	assert.match(modal, /nextValidationErrors\.code = 'Subject code is required\.'/);
+	assert.match(modal, /nextValidationErrors\.name = 'Subject name is required\.'/);
+	assert.match(modal, /nextValidationErrors\.programScopes = 'Pick at least one program scope\.'/);
+	// role="alert" renders the interpolated per-field error.
+	assert.match(modal, /role="alert"[\s\S]{0,300}\{validationErrors\.code\}/);
+	// Tooltip on the disabled Save button names the missing field.
+	assert.match(modal, /saveDisabledReason/);
+	assert.match(modal, /'Enter a subject code\.'/);
+	assert.match(modal, /'Enter a subject name\.'/);
+	// Form is a real <form> with onSubmit.
+	assert.match(modal, /<form[\s\S]{0,200}onSubmit=\{/);
+});
+
+test('Phase 2.3: Coverage drawer distinguishes fetch failure from empty coverage, gates panels, fixes width', () => {
+	const subjects = source('src/pages/Subjects.tsx');
+	// Failure-vs-empty distinction (audit Sub-5).
+	assert.match(subjects, /coverageError/);
+	assert.match(subjects, /Could not load coverage right now/);
+	assert.match(subjects, /data-testid="coverage-drawer-error"/);
+	// Term rotation panel gated on rotationFamily (audit Sub-4). The
+	// header text "Term rotation" only renders inside that gate; the
+	// negative assertion is intentionally not used because the literal
+	// string legitimately appears inside the conditional branch.
+	assert.match(subjects, /coverageSubject\.rotationFamily \? \(/);
+	// Sheet width fix (audit Sub-10): proper Tailwind instead of "w-100 sm:w-135".
+	assert.match(subjects, /<SheetContent className="w-full sm:max-w-md overflow-y-auto">/);
+	assert.doesNotMatch(subjects, /<SheetContent className="w-100 sm:w-135/);
+	// Resource requirements panel renders for non-classroom OR required features
+	// (audit Sub-6). The expression uses defensive grouping; the test
+	// accepts the core OR condition.
+	assert.match(subjects, /coverageSubject\.preferredRoomType !== 'CLASSROOM'/);
+	assert.match(subjects, /coverageSubject\.requiredFeatures\.length > 0/);
+	assert.match(subjects, /Resource requirements/);
+	// Coverage gaps title replaces "Uncovered scope" (which ignored program scopes).
+	assert.doesNotMatch(subjects, />Uncovered scope</);
+	assert.match(subjects, /Coverage gaps/);
+	// The misleading green-check is replaced by a verify-in-Teaching-Load hint
+	// when program scopes are set.
+	assert.match(subjects, /Verify per-program coverage in Teaching Load/);
+});
+
+test('Phase 2.4: Subjects table exposes Coverage column and accessible sort headers', () => {
+	const subjects = source('src/pages/Subjects.tsx');
+	// New Coverage column + 7-col layout (was 5).
+	assert.match(subjects, /<SortableHeader field="isSeedable" label="Coverage"/);
+	assert.match(subjects, /colSpan=\{7\}/);
+	// aria-sort on the sortable <th>.
+	assert.match(subjects, /aria-sort=/);
+	// SortableHeader helper added (mirrors Phase 1.5).
+	assert.match(subjects, /const SortableHeader = \(\{/);
+});
+
+test('Phase 2.5: Subjects page error banner has Try-again; Reset filters clears search; Checking is a spinner', () => {
+	const subjects = source('src/pages/Subjects.tsx');
+	// Error banner uses destructive semantic + has a Try again button.
+	assert.match(subjects, /data-testid="subjects-error-retry"/);
+	assert.match(subjects, /data-testid="subjects-error-banner"/);
+	assert.doesNotMatch(subjects, /<div className="shrink-0 mx-6 mt-3 rounded-xl border border-red-200 bg-red-50/);
+	// Reset filters also clears the search query.
+	assert.match(subjects, /data-testid="subjects-reset-filters"/);
+	assert.match(subjects, /setSearchQuery\(''\)/);
+	// "Checking" string replaced by a spinner in the readiness strip.
+	assert.match(subjects, /data-testid="subjects-missing-coverage-spinner"/);
+	assert.doesNotMatch(subjects, /coverageRiskCount \?\? 'Checking'/);
+	// hasActiveFilters now includes search.
+	assert.match(subjects, /searchQuery\.trim\(\) !== ''/);
+	// "All attention states" renamed to plain language.
+	assert.doesNotMatch(subjects, /All attention states/);
+});
+
+test('Phase 2.6: SubjectRow uses compact grade format and accessible info for jargon badges', () => {
+	const row = source('src/components/subjects/SubjectRow.tsx');
+	// Compact grade format (Decision 5) -- template literal `GR${...}`, not `G${...}`.
+	assert.ok(row.includes('GR${sorted[0]}') && row.includes('GR${g}'), 'compact grade format must use the GR${...} template');
+	assert.ok(!row.includes('G${sorted[0]}') && !row.includes('G${g}'), 'legacy G${...} shorthand must be gone');
+	// Sub-0.55rem uppercase-tracked sentence labels removed (Phase 0A.2 floor).
+	assert.doesNotMatch(row, /text-\[0\.55rem\]/);
+	// Accessible info used for jargon-y badges (Rotating, Schedulable, room features).
+	assert.match(row, /AccessibleInfo/);
+	// aria-label on the program-scope badge so the info is reachable without
+	// the AccessibleInfo trigger.
+	assert.ok(row.includes('aria-label={programScopes.length > 0'), 'program-scope badge must carry an aria-label');
 });

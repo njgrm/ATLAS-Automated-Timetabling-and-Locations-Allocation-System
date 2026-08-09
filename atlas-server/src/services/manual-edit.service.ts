@@ -537,6 +537,7 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
 		'homeRoomSuccessRate',
 		'resourceDiagnostics',
 		'inputSnapshot',
+		'performanceFixture',
 	];
 	for (const key of preserveKeys) {
 		if (prev[key] !== undefined) {
@@ -1097,7 +1098,7 @@ export async function commitManualEdit(
 		status: updatedRun.status,
 		entries: newEntries,
 		unassignedItems: newUnassigned as unknown as DraftReport['unassignedItems'],
-		summary: newSummary,
+		summary: preservedSummary,
 		finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
 		createdAt: updatedRun.createdAt.toISOString(),
 		version: updatedRun.version,
@@ -1256,7 +1257,7 @@ export async function commitManualEditBatch(
 		status: updatedRun.status,
 		entries: newEntries,
 		unassignedItems: newUnassigned as unknown as DraftReport['unassignedItems'],
-		summary: newSummary,
+		summary: finalSummary,
 		finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
 		createdAt: updatedRun.createdAt.toISOString(),
 		version: updatedRun.version,
@@ -1444,7 +1445,7 @@ export async function revertLastEdit(
 		status: updatedRun.status,
 		entries: newEntries,
 		unassignedItems: newUnassigned as unknown as DraftReport['unassignedItems'],
-		summary: newSummary,
+		summary: preservedSummary,
 		finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
 		createdAt: updatedRun.createdAt.toISOString(),
 		version: updatedRun.version,
@@ -1918,7 +1919,7 @@ export async function swapManualEntries(
 		status: updatedRun.status,
 		entries: newEntries,
 		unassignedItems: unassignedItems as unknown as DraftReport['unassignedItems'],
-		summary: newSummary,
+		summary: preservedSummary,
 		finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
 		createdAt: updatedRun.createdAt.toISOString(),
 		version: updatedRun.version,

@@ -48,6 +48,10 @@ type Fixture = {
 	entryCount: number;
 };
 
+function escapeRegExp(value: string) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function facultyLabel(faculty: Faculty) {
 	const adviserSuffix = faculty.advisedSectionName ? ` Â· Adviser ${faculty.advisedSectionName}` : '';
 	return `${faculty.lastName}, ${faculty.firstName}${adviserSuffix}`;
@@ -67,6 +71,12 @@ async function apiGet<T>(request: APIRequestContext, path: string): Promise<T> {
 async function apiPost<T>(request: APIRequestContext, path: string, data: unknown): Promise<T> {
 	const response = await request.post(path, { data });
 	expect(response.ok(), `POST ${path} failed with ${response.status()}: ${(await response.text()).slice(0, 500)}`).toBeTruthy();
+	return response.json() as Promise<T>;
+}
+
+async function apiDelete<T>(request: APIRequestContext, path: string): Promise<T> {
+	const response = await request.delete(path);
+	expect(response.ok(), `DELETE ${path} failed with ${response.status()}: ${(await response.text()).slice(0, 500)}`).toBeTruthy();
 	return response.json() as Promise<T>;
 }
 
@@ -120,10 +130,29 @@ async function applyRepair(request: APIRequestContext, fixture: Fixture, draft: 
 	);
 }
 
-async function findReversibleFixture(request: APIRequestContext, visibleKeys?: Set<string>): Promise<Fixture> {
+async function createTeacherDepartureFixtureRun(request: APIRequestContext): Promise<{ schoolYearId: number; fixtureRunId: number; sourceRunId: number; sectionName: string | null }> {
 	const context = await apiGet<{ activeSchoolYearId: number }>(request, '/api/v1/runtime/context?schoolId=1');
 	const schoolYearId = context.activeSchoolYearId;
-	const { draft, faculty } = await loadDraftAndFaculty(request, schoolYearId, 'latest');
+	const source = await apiGet<{ source: { id: number } }>(request, `/api/v1/generation/1/${schoolYearId}/runs/performance-fixture-source`);
+	const fixture = await apiPost<{ fixture: { id: number; sourceRunId: number; fixtureMetadata?: { sectionName?: string | null } } }>(
+		request,
+		`/api/v1/generation/1/${schoolYearId}/runs/${source.source.id}/performance-fixture`,
+		{ purpose: 'TEACHER_DEPARTURE' },
+	);
+	return {
+		schoolYearId,
+		fixtureRunId: fixture.fixture.id,
+		sourceRunId: fixture.fixture.sourceRunId,
+		sectionName: fixture.fixture.fixtureMetadata?.sectionName ?? null,
+	};
+}
+
+async function deleteTeacherDepartureFixtureRun(request: APIRequestContext, schoolYearId: number, fixtureRunId: number) {
+	return apiDelete<{ deleted: boolean }>(request, `/api/v1/generation/1/${schoolYearId}/runs/${fixtureRunId}/performance-fixture`);
+}
+
+async function findReversibleFixture(request: APIRequestContext, schoolYearId: number, runId: number, visibleKeys?: Set<string>): Promise<Fixture> {
+	const { draft, faculty } = await loadDraftAndFaculty(request, schoolYearId, runId);
 	const facultyById = new Map(faculty.map((item) => [item.id, item]));
 	const activeFaculty = faculty.filter((item) => item.isActiveForScheduling);
 	const busySlots = new Set(
@@ -194,34 +223,74 @@ async function chooseSearchableSelectOption(page: Page, wrapperTestId: string, o
 	await wrapper.getByRole('combobox').click();
 	const popover = page.locator('[data-radix-popper-content-wrapper]').last();
 	await popover.locator('input').fill(optionLabel);
-	await popover.getByRole('button', { name: optionLabel }).click();
+	const exactOption = popover.getByRole('button', { name: optionLabel });
+	if (await exactOption.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
+		await exactOption.first().click();
+		return;
+	}
+	const fallbackLabel = optionLabel.split('Adviser')[0].split(' · ')[0].split(' Â')[0].trim();
+	await popover.locator('input').fill(fallbackLabel);
+	await popover.getByRole('button').filter({ hasText: new RegExp(escapeRegExp(fallbackLabel), 'i') }).first().click();
+}
+
+async function chooseSectionSchedule(page: Page, sectionName: string | null, sectionId: number) {
+	const switcher = page.getByTestId('timetable-simple-schedule-switcher');
+	await expect(switcher).toBeVisible({ timeout: 20_000 });
+	if ((await switcher.getAttribute('data-view-mode')) !== 'section') {
+		await switcher.getByTestId('timetable-simple-view-mode-select').click();
+		await page.getByRole('option', { name: /^Section$/i }).click();
+	}
+	const searchLabel = sectionName ?? `Section ${sectionId}`;
+	await switcher.getByTestId('timetable-simple-entity-select').getByRole('combobox').click();
+	const popover = page.locator('[data-radix-popper-content-wrapper]').last();
+	await popover.locator('input').fill(searchLabel);
+	await popover.getByRole('button', { name: new RegExp(escapeRegExp(searchLabel), 'i') }).first().click();
+	await expect(switcher).toHaveAttribute('data-view-mode', 'section');
+}
+
+function logLiveStep(message: string) {
+	console.info(`[teacher-departure-live] ${message}`);
 }
 
 test.describe.serial('Timetable teacher departure live reversible flow', () => {
 	test('reassigns a departing teacher through the browser, verifies grid/data, then reverts', async ({ page }, testInfo) => {
 		test.skip(testInfo.project.name !== 'desktop', 'Run the live write/revert fixture only once on desktop.');
-		test.setTimeout(180_000);
+		test.setTimeout(300_000);
 
 		await page.context().clearCookies();
+		page.setDefaultTimeout(15_000);
+		page.setDefaultNavigationTimeout(60_000);
 		await loginAdmin(page);
 		let saved = false;
 		let fixture: Fixture | null = null;
+		let fixtureRun: Awaited<ReturnType<typeof createTeacherDepartureFixtureRun>> | null = null;
 
 		try {
+			logLiveStep('creating isolated fixture run');
+			fixtureRun = await createTeacherDepartureFixtureRun(page.request);
+			logLiveStep(`created fixture run ${fixtureRun.fixtureRunId}`);
 			await openTimetableSimple(page);
+			logLiveStep('opened timetable simple view');
+			const draftFixture = await findReversibleFixture(page.request, fixtureRun.schoolYearId, fixtureRun.fixtureRunId);
+			logLiveStep(`fixture source teacher ${draftFixture.sourceFacultyId}, target teacher ${draftFixture.targetFacultyId}, section ${draftFixture.groups[0].sectionId}`);
+			await chooseSectionSchedule(page, fixtureRun.sectionName, draftFixture.groups[0].sectionId);
+			logLiveStep('selected fixture section schedule');
 			const visibleKeys = new Set(await page.locator('[data-timetable-entry="true"][data-faculty-id]:not([data-faculty-id=""])').evaluateAll((nodes) =>
 				nodes.map((node) => {
 					const el = node as HTMLElement;
 					return `${el.dataset.facultyId}:${el.dataset.subjectId}:${el.dataset.sectionId}`;
 				}),
 			));
-			fixture = await findReversibleFixture(page.request, visibleKeys);
+			fixture = await findReversibleFixture(page.request, fixtureRun.schoolYearId, fixtureRun.fixtureRunId, visibleKeys);
+			logLiveStep('verified fixture entry visible on grid');
 			const selectedEntry = page.locator(
 				`[data-timetable-entry="true"][data-faculty-id="${fixture.sourceFacultyId}"][data-subject-id="${fixture.groups[0].subjectId}"][data-section-id="${fixture.groups[0].sectionId}"]`,
 			).first();
 			await expect(selectedEntry).toBeVisible({ timeout: 30_000 });
 			await selectedEntry.click();
+			logLiveStep('selected fixture grid entry');
 			const sheet = await openSelectedClassTeacherDeparture(page);
+			logLiveStep('opened teacher departure sheet');
 			await expect(sheet).toContainText(/Affected sessions/i);
 			await expect(page.getByTestId('teacher-departure-show-affected-only')).toBeVisible();
 			await page.getByTestId('teacher-departure-show-affected-only').click();
@@ -234,10 +303,12 @@ test.describe.serial('Timetable teacher departure live reversible flow', () => {
 
 			await page.getByTestId('teacher-departure-next-button').click();
 			await chooseSearchableSelectOption(page, 'teacher-departure-replacement-select', fixture.targetLabel);
+			logLiveStep('selected replacement teacher');
 			await page.getByRole('button', { name: /^Use for all$/i }).click();
 			await page.getByTestId('teacher-departure-next-button').click();
 			await page.getByTestId('teacher-departure-preview-button').click();
 			await expect(page.getByTestId('teacher-departure-save-reason')).toContainText(/Ready to save|Review and acknowledge/i, { timeout: 30_000 });
+			logLiveStep('preview ready');
 			const warningCheckbox = page.locator('label').filter({ hasText: /I reviewed the warnings/i }).getByRole('checkbox');
 			if (await warningCheckbox.count()) {
 				await warningCheckbox.first().check();
@@ -246,6 +317,7 @@ test.describe.serial('Timetable teacher departure live reversible flow', () => {
 			await page.getByTestId('teacher-departure-save-button').click();
 			await expect(sheet).toHaveCount(0, { timeout: 45_000 });
 			saved = true;
+			logLiveStep('saved reassignment through UI');
 
 			const { draft: changedDraft } = await loadDraftAndFaculty(page.request, fixture.schoolYearId, fixture.runId);
 			const changedEntries = changedDraft.entries.filter((entry) =>
@@ -255,10 +327,14 @@ test.describe.serial('Timetable teacher departure live reversible flow', () => {
 			expect(changedEntries.every((entry) => entry.facultyId === fixture.targetFacultyId), 'Affected entries should move to the replacement teacher.').toBeTruthy();
 
 			await page.reload({ waitUntil: 'domcontentloaded' });
+			await expect(page.getByTestId('timetable-simple-header')).toBeVisible({ timeout: 45_000 });
+			await chooseSectionSchedule(page, fixtureRun?.sectionName ?? null, fixture.groups[0].sectionId);
 			await expect(page.locator(`[data-timetable-entry="true"][data-faculty-id="${fixture.targetFacultyId}"][data-subject-id="${fixture.groups[0].subjectId}"][data-section-id="${fixture.groups[0].sectionId}"]`).first()).toBeVisible({ timeout: 45_000 });
 			await assertNoGlobalOverflow(page);
+			logLiveStep('verified reassignment after reload');
 		} finally {
 			if (saved) {
+				logLiveStep('reverting canonical and fixture reassignment');
 				expect(fixture, 'Cleanup requires the saved fixture.').toBeTruthy();
 				const savedFixture = fixture!;
 				const { draft: currentDraft, faculty: currentFaculty } = await loadDraftAndFaculty(page.request, savedFixture.schoolYearId, savedFixture.runId);
@@ -269,6 +345,12 @@ test.describe.serial('Timetable teacher departure live reversible flow', () => {
 					savedFixture.groups.some((group) => group.subjectId === entry.subjectId && group.sectionId === entry.sectionId),
 				);
 				expect(restoredEntries.every((entry) => entry.facultyId === savedFixture.sourceFacultyId), 'Cleanup should restore original teacher ownership.').toBeTruthy();
+				logLiveStep('restored original teacher ownership');
+			}
+			if (fixtureRun) {
+				logLiveStep(`deleting fixture run ${fixtureRun.fixtureRunId}`);
+				await deleteTeacherDepartureFixtureRun(page.request, fixtureRun.schoolYearId, fixtureRun.fixtureRunId);
+				logLiveStep('deleted fixture run');
 			}
 		}
 	});

@@ -10,6 +10,7 @@ import {
 	History,
 	Info,
 	ListChecks,
+	Loader2,
 	MoreHorizontal,
 	Play,
 	GraduationCap,
@@ -632,6 +633,19 @@ function TimetableSimpleHeaderImpl({
 						onEntityChange={handleEntityChange}
 					/>
 					<SimpleTutorialControl />
+					<Button
+						type="button"
+						variant="default"
+						size="sm"
+						className="hidden h-8 shrink-0 gap-1.5 px-2 text-xs sm:inline-flex sm:px-2.5"
+						disabled={context.generating || context.loading || !context.schoolYearId}
+						onClick={context.handleTriggerGenerate}
+						data-testid="timetable-simple-generate-action"
+					>
+						{context.generating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
+						<span className="hidden sm:inline">{context.generating ? 'Generating…' : 'Generate'}</span>
+						<span className="sr-only sm:hidden">{context.generating ? 'Generating' : 'Generate schedule'}</span>
+					</Button>
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>

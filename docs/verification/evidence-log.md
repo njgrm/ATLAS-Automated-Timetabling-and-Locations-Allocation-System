@@ -5462,3 +5462,52 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 ## Remaining Caveat
 - SMART can now stop treating ATLAS as school-year-mismatched, but Teaching Load is intentionally empty/review-required for `2026-2027` after reset. SMART should expect either an empty Teaching Load response or wait until scheduler officers apply/review the Teaching Load draft.
 - EnrollPro's integration-health ATLAS probe must be updated to call `https://njgrm.buru-degree.ts.net/api/v1/health` or another documented `/api/v1/...` ATLAS endpoint. If EnrollPro keeps probing `/api/health`, it will continue to report ATLAS as offline even though ATLAS is reachable and aligned.
+
+# 2026-08-08 — Timetable swap regression and full-function Tailnet sweep
+
+## Summary
+- Investigated the reported post-swap timetable regression where teachers, sections, lunch/recess, and current timetable display metadata appeared to fall back to an older shape.
+- Root cause found in manual-edit/swap service responses: the persisted generation-run summary preserved display metadata, but the immediate API response returned a newly rebuilt summary object that omitted timetable display slots, shape contracts, and source snapshot metadata. The client accepted that response as the current draft state, causing the visible regression after a successful swap.
+- Fixed manual-edit, batch edit, revert, and swap responses to return the preserved/final persisted summary shape.
+- Fixed generated-run feedback so a generation response without inline summary no longer reports `0 assigned, 0 unassigned, 0 hard violations`; the client fetches the generated draft summary before showing completion feedback.
+- Restored visible timetable empty-state actions for `Start Pre-Generation Draft` and `Generate when ready`, and restored a desktop/tablet header `Generate` action while preserving mobile control budgets.
+
+## Verification
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run test:timetable-conflict`: PASS (`10/10`).
+- `atlas-client`: `npm run test:ux-guardrails`: PASS (`44/44`).
+- `atlas-server`: `npm run build`: PASS.
+- `atlas-client`: `npm run build`: PASS.
+- Built server startup probe on temporary port `5021`: PASS; `/api/v1/health` returned HTTP `200`.
+- Tailnet latest SY `3` generation truth probe: latest run `396` reported `830` assigned, `95` unassigned, `95` hard violations, and `408` total violations, confirming the prior `0/0/0` message was frontend feedback fallback, not generator truth.
+- `timetable-simple-ease-of-use.spec.ts`: PASS (`12/12`).
+- `timetable-current-full-function-matrix.spec.ts` + `timetable-feedback-readiness.spec.ts` + `timetable-finalization-grid-overflow.spec.ts`: PASS (`42/42`) across desktop, mobile portrait, and mobile landscape.
+- `timetable-draft-swap-live-reversible.spec.ts`: PASS for desktop live write/revert (`1 passed`, `5 skipped` for intentional mobile write skips).
+- `timetable-teacher-departure.spec.ts` + `timetable-finalization-published-revision.spec.ts`: PASS (`9/9`) across desktop, mobile portrait, and mobile landscape.
+- `timetable-simple-view-completion.spec.ts` + `timetable-visual-readiness.spec.ts`: PASS (`18/18`) across desktop, mobile portrait, and mobile landscape.
+- `timetable-performance.spec.ts` with Tailnet credentials: PASS (`42/42`) across desktop, mobile portrait, and mobile landscape.
+
+## Remaining Caveat
+- `timetable-teacher-departure-live-reversible.spec.ts` now classifies the current live dataset as `fixture-unavailable` instead of failing as a product regression. The non-write teacher-departure and published-revision browser flows pass; however, the current live timetable data does not expose a safe reversible teacher-departure save/revert pair for a destructive desktop write proof.
+
+# 2026-08-08 — Timetable teacher-departure live reversible caveat closure
+
+## Summary
+- Closed the remaining teacher-departure live write-proof caveat by making the existing reversible performance-fixture endpoint support a `TEACHER_DEPARTURE` fixture purpose.
+- The fixture now clones a safe completed run, chooses a canonical section-subject owner as the departing/source teacher, clears only the fixture clone's source/target teacher schedules, and assigns one visible affected group to the source teacher.
+- The browser spec now creates that isolated fixture, switches Simple view to the affected section, saves a teacher-departure reassignment through the UI, verifies the reassigned class after reload, reverses canonical/run ownership, and deletes the fixture.
+- Fixture cleanup now remains possible after manual/teacher-load edits because `performanceFixture` summary metadata is preserved during summary recomputation, and guarded delete still requires `runType='PERFORMANCE_FIXTURE'`.
+
+## Verification
+- `atlas-server`: `npx tsc --noEmit`: PASS.
+- `atlas-server`: `npm run build`: PASS.
+- Built server startup probe through `dist/app.js`: PASS; `/api/v1/health` returned HTTP `200`.
+- `timetable-teacher-departure-live-reversible.spec.ts`: PASS (`1` desktop live save/reload/revert/delete proof, `2` intentional mobile write skips).
+- `timetable-performance.spec.ts` with Tailnet credentials: PASS (`42/42`) across desktop, mobile portrait, and mobile landscape.
+- `timetable-current-full-function-matrix.spec.ts` + `timetable-feedback-readiness.spec.ts` + `timetable-finalization-grid-overflow.spec.ts`: PASS (`42/42`) across desktop, mobile portrait, and mobile landscape.
+- Post-test Tailnet run probe confirmed `performanceFixtureCount=0`.
+
+## Decision
+- Teacher-departure mechanics are now fully proven for the destructive save/reload/revert/delete path on a deterministic live fixture.
+- Mobile projects continue to skip live writes intentionally; they are covered by discovery, preview, feedback, and layout specs.

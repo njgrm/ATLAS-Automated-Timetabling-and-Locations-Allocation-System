@@ -12,6 +12,7 @@ import {
 	ChevronsLeft,
 	ChevronsRight,
 	Map as MapIcon,
+	MapPin,
 	WifiOff,
 	CheckCircle2,
 } from 'lucide-react';
@@ -34,6 +35,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	AdminSearchFilterToolbar,
 	AdminStatePanel,
@@ -46,7 +48,9 @@ import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/componen
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
+import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { cn } from '@/lib/utils';
+import { programShortLabel, programFullLabel } from '@/lib/deped-glossary';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -589,6 +593,9 @@ export default function Sections() {
 	}, [state, searchQuery, gradeFilter, programFilter, homeRoomFilter, sortField, sortDir, page, pageSize]);
 
 	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all' || homeRoomFilter !== 'all';
+	// Phase 1.1: top-level "sections needing rooms" count for the start-here
+	// banner above the table. Mirrors the same value used inside sectionStats.
+	const sectionsNeedingRooms = state.status === 'ok' ? Math.max(0, state.data.totalSections - assignedCount) : 0;
 
 	const buildingOccupancy = useMemo(() => {
 		const map = new Map<number, number>();
@@ -623,6 +630,49 @@ export default function Sections() {
 	const SortIcon = ({ field }: { field: SortField }) => {
 		if (sortField !== field) return <ArrowUpDown className="size-3 text-muted-foreground/50" />;
 		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
+	};
+	// Phase 1.5: aria-sort + plain-language accessible name + visible Tooltip on
+	// every sortable column header. The aria-sort value is the WCAG-standard
+	// "ascending" / "descending" / "none" so screen readers and voice control
+	// both perceive current sort state.
+	const SortableSectionHeader = ({
+		field,
+		label,
+		align = 'left',
+	}: {
+		field: SortField;
+		label: string;
+		align?: 'left' | 'right';
+	}) => {
+		const isActive = sortField === field;
+		const direction = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+		const ariaLabel = `Sort by ${label}, currently ${direction}`;
+		return (
+			<th
+				className={cn('px-4 py-3 text-left', align === 'right' && 'text-right')}
+				aria-sort={direction as 'ascending' | 'descending' | 'none'}
+			>
+				<TooltipProvider delayDuration={200}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => toggleSort(field)}
+								aria-label={ariaLabel}
+								className={cn(
+									'h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground',
+									align === 'right' && 'ml-auto',
+								)}
+							>
+								{label} <SortIcon field={field} />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="top" className="text-xs">{ariaLabel}</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			</th>
+		);
 	};
 	const SectionMobileCard = ({ section }: { section: SectionDetail }) => {
 		const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
@@ -836,7 +886,7 @@ export default function Sections() {
 									))}
 								</SelectContent>
 							</Select>
-							<Select value={programFilter} onValueChange={setProgramFilter}>
+														<Select value={programFilter} onValueChange={setProgramFilter}>
 								<SelectTrigger className="h-10 text-sm">
 									<SelectValue placeholder="All Programs" />
 								</SelectTrigger>
@@ -844,7 +894,11 @@ export default function Sections() {
 									<SelectItem value="all">All Programs</SelectItem>
 									<SelectItem value="REGULAR">Regular Program</SelectItem>
 									{availablePrograms.map(p => (
-										<SelectItem key={p} value={p}>{p}</SelectItem>
+										// Phase 1.7: render the program short label via the
+										// Phase 0A.1 glossary; the full label appears in the
+										// legend below so older users always know what each
+										// code means without hover.
+										<SelectItem key={p} value={p}>{programShortLabel(p)}</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -859,6 +913,15 @@ export default function Sections() {
 								</SelectContent>
 							</Select>
 						</div>
+						{/* Phase 1.7: plain-language program-code legend so older users always know what each acronym means. */}
+						{availablePrograms.length > 0 ? (
+							<p className="text-xs text-muted-foreground" data-testid="program-code-legend">
+								<span className="font-semibold">Program codes:</span>{' '}
+								{availablePrograms
+									.map((p) => `${programShortLabel(p)} = ${programFullLabel(p)}`)
+									.join('; ')}
+							</p>
+						) : null}
 				</AdminSearchFilterToolbar>
 			)}
 		>
@@ -897,6 +960,21 @@ export default function Sections() {
 			</div>
 		)}
 
+			{/* Phase 1.1: "start here" banner above the table. Tells the scheduler
+				where to click to fulfill the "Need rooms" readiness chip. */}
+			{state.status === 'ok' && state.data.sections.length > 0 && sectionsNeedingRooms > 0 ? (
+				<div
+					role="status"
+					data-testid="sections-start-here-banner"
+					className="shrink-0 mx-4 mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary shadow-sm lg:mx-5"
+				>
+					<MapPin className="size-4 shrink-0" />
+					<span className="flex-1 font-semibold">
+						{sectionsNeedingRooms} {sectionsNeedingRooms === 1 ? 'section needs' : 'sections need'} a home room. Use the "Choose home room" control on each row.
+					</span>
+				</div>
+			) : null}
+
 			<AdminTableShell
 				footer={state.status === 'ok' && state.data.sections.length > 0 ? (
 					<div className="flex items-center justify-between gap-3">
@@ -929,22 +1007,18 @@ export default function Sections() {
 						<table className="hidden w-full text-sm md:table">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">Section <SortIcon field="name" /></Button>
-									</th>
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevelId')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">Grade <SortIcon field="gradeLevelId" /></Button>
-									</th>
-									<th className="px-4 py-3 text-right">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('enrolledCount')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Enrolled <SortIcon field="enrolledCount" /></Button>
-									</th>
-									<th className="px-4 py-3 text-right">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('maxCapacity')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Capacity <SortIcon field="maxCapacity" /></Button>
-									</th>
-									<th className="px-4 py-3 text-right">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('fill')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Status <SortIcon field="fill" /></Button>
-									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home-room readiness</th>
+									{/* Phase 1.5: each sortable column exposes aria-sort and a
+										plain-language accessible name; the sort button has a
+										visible Tooltip. aria-sort values: "ascending" /
+										"descending" / "none". The SortableSectionHeader helper
+										closes over sortField/sortDir/toggleSort from the
+										component scope. */}
+									<SortableSectionHeader field="name" label="Section" />
+									<SortableSectionHeader field="gradeLevelId" label="Grade" />
+									<SortableSectionHeader field="enrolledCount" label="Enrolled" align="right" />
+									<SortableSectionHeader field="maxCapacity" label="Capacity" align="right" />
+									<SortableSectionHeader field="fill" label="% Full" align="right" />
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home room</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Details</th>
 								</tr>
 							</thead>

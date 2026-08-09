@@ -103,7 +103,8 @@ router.post(
 			}
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
-			const fixture = await genService.createPerformanceFixture(runId, schoolId, schoolYearId, actorId);
+			const purpose = req.body?.purpose === 'TEACHER_DEPARTURE' ? 'TEACHER_DEPARTURE' : 'PERFORMANCE';
+			const fixture = await genService.createPerformanceFixture(runId, schoolId, schoolYearId, actorId, { purpose });
 			res.status(201).json({ fixture });
 		} catch (e) { next(e); }
 	},

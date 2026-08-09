@@ -16,19 +16,32 @@ import { cn } from '@/lib/utils';
  * - When `longHelp` is omitted, click/Enter still shows the tooltip via
  *   `aria-describedby`.
  *
- * Important explanations must never be hover-only; every help trigger is
- * keyboard-focusable and exposes the help via an accessible name.
+ * The trigger is keyboard-focusable in both render modes:
+ *
+ * - Standalone (default): renders an `Info` Button as the trigger so the help
+ *   affordance is always reachable.
+ * - Wrap (when `children` is provided): wraps the caller's element as the
+ *   trigger via `asChild`. The caller MUST ensure the child is itself
+ *   keyboard-focusable (e.g. a real `<button>`). A `<span>` Badge is not
+ *   focusable and will violate WCAG 1.4.13 if used as a wrap child.
  */
 export type AccessibleInfoProps = {
-	/** Accessible name for the trigger button. Should be plain language. */
+	/** Accessible name for the trigger. Should be plain language. */
 	label: string;
 	/** Short help text shown in the tooltip (hover/focus) and as fallback in the popover. */
 	shortHelp: ReactNode;
 	/** Optional longer help text shown in the popover. When omitted, click toggles the tooltip description only. */
 	longHelp?: ReactNode;
-	/** Optional icon override. Defaults to an `Info` glyph. */
+	/**
+	 * When provided, AccessibleInfo wraps this element as the focusable
+	 * trigger via asChild instead of rendering its own Info button. The
+	 * child must itself be a focusable interactive element (e.g. a real
+	 * `<button type="button">` or a focusable Badge with `tabIndex={0}`).
+	 */
+	children?: ReactNode;
+	/** Optional icon override for the standalone trigger. Defaults to an `Info` glyph. */
 	icon?: ReactNode;
-	/** Visual size of the trigger button. */
+	/** Visual size of the standalone trigger button. Ignored when `children` is provided. */
 	size?: 'icon-sm' | 'icon-xs';
 	/** Optional className passthrough for layout alignment. */
 	className?: string;
@@ -42,6 +55,7 @@ export function AccessibleInfo({
 	label,
 	shortHelp,
 	longHelp,
+	children,
 	icon,
 	size = 'icon-sm',
 	className,
@@ -50,8 +64,11 @@ export function AccessibleInfo({
 }: AccessibleInfoProps) {
 	const [popoverOpen, setPopoverOpen] = useState(false);
 	const triggerIcon = icon ?? <Info className="size-4" />;
+	const isWrap = children !== undefined;
 
-	const trigger = (
+	const trigger = isWrap ? (
+		children
+	) : (
 		<Button
 			type="button"
 			variant="ghost"
@@ -90,9 +107,10 @@ export function AccessibleInfo({
 		);
 	}
 
-	// Tooltip-only path: short help is the whole explanation. Keyboard-focusable
-	// via the button trigger, and announced via an sr-only mirror so screen
-	// readers always have the description even when the portaled tooltip is not
+	// Tooltip-only path: short help is the whole explanation. The
+	// caller-provided trigger (or our standalone button) must be keyboard
+	// focusable; we add a Tooltip + an sr-only mirror so screen readers
+	// always have the description even when the portaled tooltip is not
 	// reliably reachable by aria-describedby.
 	const descriptionId = `accessible-info-${slug(label)}`;
 	return (
