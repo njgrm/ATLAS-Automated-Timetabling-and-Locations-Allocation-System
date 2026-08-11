@@ -79,6 +79,7 @@ type AdminDataTableProps<TData, TSort extends string = string> = {
 	emptyState: AdminDataTableState;
 	noResultsState: AdminDataTableState;
 	errorState?: AdminDataTableState | null;
+	leadingContent?: ReactNode;
 	renderMobileCard?: (row: TData, context: AdminDataTableMobileContext) => ReactNode;
 };
 
@@ -160,7 +161,7 @@ function AdminDataTableFooter({ pagination }: { pagination: AdminDataTablePagina
 			<div className="flex flex-wrap items-center gap-3 text-xs font-medium text-muted-foreground">
 				<span>{pagination.total === 0 ? 'No results' : `Showing ${start}-${end} of ${pagination.total} results`}</span>
 				{pagination.onPageSizeChange && (
-					<div className="flex items-center gap-2 border-border/50 md:border-l md:pl-4">
+					<div className="hidden items-center gap-2 border-border/50 sm:flex md:border-l md:pl-4">
 						<span>Rows per page</span>
 						<Select value={String(pagination.pageSize)} onValueChange={(value) => pagination.onPageSizeChange?.(Number(value))}>
 							<SelectTrigger className="h-9 w-20 bg-background text-xs" aria-label="Rows per page">
@@ -200,6 +201,7 @@ export function AdminDataTable<TData, TSort extends string = string>({
 	emptyState,
 	noResultsState,
 	errorState,
+	leadingContent,
 	renderMobileCard,
 }: AdminDataTableProps<TData, TSort>) {
 	const state = errorState ?? (isFiltered ? noResultsState : emptyState);
@@ -209,6 +211,11 @@ export function AdminDataTable<TData, TSort extends string = string>({
 
 	return (
 		<AdminTableShell footer={footer}>
+			{leadingContent ? (
+				<div className="shrink-0 border-b border-slate-100 bg-white/95">
+					{leadingContent}
+				</div>
+			) : null}
 			{loading ? (
 				<div className="space-y-0">
 					<div data-admin-table-view="desktop" className="hidden md:block">
@@ -229,7 +236,7 @@ export function AdminDataTable<TData, TSort extends string = string>({
 							</tbody>
 						</table>
 					</div>
-					<div data-admin-table-view="mobile" className="space-y-3 p-4 md:hidden">
+					<div data-admin-table-view="mobile" className="space-y-3 p-4 pb-32 md:hidden">
 						{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36 rounded-xl" />)}
 					</div>
 				</div>

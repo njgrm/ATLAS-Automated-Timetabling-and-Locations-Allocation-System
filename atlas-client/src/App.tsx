@@ -3,7 +3,6 @@ import { lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
 
 import { AppShell } from './components/AppShell';
-import { Skeleton } from './ui/skeleton';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -139,10 +138,9 @@ export function App() {
 			<RouterProvider router={router} />
 			<Toaster
 				richColors
-				position="top-center"
-				closeButton
-				offset={{ top: 72, right: 24, left: 24 }}
-				mobileOffset={{ top: 76, right: 16, left: 16 }}
+				position="bottom-center"
+				offset={{ bottom: 24, right: 24, left: 24 }}
+				mobileOffset={{ bottom: 16, right: 16, left: 16 }}
 			/>
 		</>
 	);

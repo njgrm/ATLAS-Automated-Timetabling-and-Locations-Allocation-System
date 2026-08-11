@@ -97,12 +97,12 @@ export function useTeachingLoadRepairQueue({
 			items.push({
 				id: 'missing-load',
 				kind: 'missing-load',
-				title: 'Fill missing teaching loads',
-				description: 'Some section-subject pairs do not have a Teaching Load owner yet. Start with the section allocation view.',
-				status: `${coverageUnassigned} section-subject ${coverageUnassigned === 1 ? 'pair needs' : 'pairs need'} an owner.`,
-				actionLabel: 'Open missing loads',
+				title: 'Assign teachers to open classes',
+				description: 'Some section-subject pairs do not have a teacher assigned yet. Start with the section view.',
+				status: `${coverageUnassigned} section-subject ${coverageUnassigned === 1 ? 'pair needs' : 'pairs need'} a teacher.`,
+				actionLabel: 'Open open classes',
 				disabledReason: isReadOnlyMode ? writeBlockedReason : null,
-				countLabel: `${coverageUnassigned} missing`,
+				countLabel: `${coverageUnassigned} open`,
 			});
 		}
 		for (const member of teachersWithoutLoad.slice(0, 4)) {
@@ -112,7 +112,7 @@ export function useTeachingLoadRepairQueue({
 				title: `${formatTeacherName(member)} has no load`,
 				description: 'This active teacher has no assigned subject or section. Review whether they should receive load or stay excluded.',
 				status: member.department ? `${member.department} department` : 'No department listed',
-				actionLabel: 'Fix missing load',
+				actionLabel: 'Assign teaching load',
 				facultyId: member.id,
 				disabledReason: isReadOnlyMode ? writeBlockedReason : null,
 			});
@@ -122,10 +122,10 @@ export function useTeachingLoadRepairQueue({
 			items.push({
 				id: `over-cap-${member.id}`,
 				kind: 'over-cap',
-				title: `${formatTeacherName(member)} is over cap`,
+				title: `${formatTeacherName(member)} is over the weekly max`,
 				description: 'Move one class to another eligible teacher or reduce this teacher’s assigned load before generation.',
-				status: `${loadHours.toFixed(1)}h used / ${member.maxHoursPerWeek}h cap.`,
-				actionLabel: 'Reduce overload',
+				status: `${loadHours.toFixed(1)}h used / ${member.maxHoursPerWeek}h max.`,
+				actionLabel: 'Move classes',
 				facultyId: member.id,
 				disabledReason: isReadOnlyMode ? writeBlockedReason : null,
 			});
@@ -135,10 +135,10 @@ export function useTeachingLoadRepairQueue({
 			items.push({
 				id: `placeholder-${member.id}`,
 				kind: 'placeholder',
-				title: `${formatTeacherName(member)} is still Teacher X`,
-				description: 'Teacher X is a temporary coverage holder. Replace it with a real eligible teacher when staffing is known.',
+				title: `${formatTeacherName(member)} is still a temporary substitute`,
+				description: 'This temporary record is holding coverage. Replace it with a real eligible teacher when staffing is known.',
 				status: `${subjectGroupCount} subject ${subjectGroupCount === 1 ? 'group' : 'groups'} assigned.`,
-				actionLabel: 'Review placeholder',
+				actionLabel: 'Review temporary',
 				facultyId: member.id,
 				disabledReason: isReadOnlyMode ? writeBlockedReason : null,
 			});
@@ -148,7 +148,7 @@ export function useTeachingLoadRepairQueue({
 				id: 'review-ready',
 				kind: 'review-ready',
 				title: 'Teaching Load looks ready',
-				description: 'No missing-load, over-cap, or placeholder repair is visible. Review teachers once before generating.',
+				description: 'No open classes, over-cap teachers, or temporary substitutes need review. Review teachers once before generating.',
 				status: `${coverageAssigned}/${coverageTotal} pairs staffed.`,
 				actionLabel: 'Review teachers',
 			});

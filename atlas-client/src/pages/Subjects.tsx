@@ -15,8 +15,6 @@ import {
 	Plus,
 	RefreshCw,
 	Users,
-	Zap,
-	X,
 	Info,
 	CheckCircle2,
 } from 'lucide-react';
@@ -46,11 +44,11 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from '@/ui/sheet';
-import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { departmentLabel, programFullLabel, gradeCompact } from '@/lib/deped-glossary';
 import {
 	AdminSearchFilterToolbar,
 	AdminStatePanel,
@@ -208,7 +206,7 @@ export default function Subjects() {
 				const load = (f as any).loadPercentage ?? 0;
 				if (isAssigned) {
 					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
-					const sections = (assignment?.sections ?? []).map((section: any) => `G${section.displayOrder} ${section.name}`);
+					const sections = (assignment?.sections ?? []).map((section: any) => `${gradeCompact(section.displayOrder)} ${section.name}`);
 					assigned.push({ 
 						facultyId: f.id,
 						name: `${f.lastName}, ${f.firstName}`, 
@@ -554,7 +552,7 @@ const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
 			? [...subject.gradeLevels].sort((a, b) => a - b).map((grade) => gradeLabel(grade)).join(', ')
 			: 'No grades';
 		const programScopes = subject.programScopes ?? [];
-		const programCopy = programScopes.length === 0 ? 'All programs' : programScopes.length === 1 ? programScopes[0] : `${programScopes.length} programs`;
+		const programCopy = programScopes.length === 0 ? 'All programs' : programScopes.length === 1 ? programFullLabel(programScopes[0]) : `${programScopes.length} programs`;
 		const coverage = teacherCoverage[subject.id]?.assigned?.length ?? 0;
 		const needsCoverage = assignedSubjectIds !== null && subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id);
 
@@ -564,13 +562,19 @@ const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-2">
 							<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">{subject.code}</Badge>
-							<Badge className={subject.isActive ? 'h-6 rounded-full border-0 bg-emerald-50 text-xs font-bold text-emerald-700' : 'h-6 rounded-full border-0 bg-amber-50 text-xs font-bold text-amber-700'}>
-								{subject.isActive ? 'Schedulable' : 'Archived'}
-							</Badge>
+							{/* Phase 2.4 audit fix: match the desktop Coverage column
+								(Archived / Excluded / schedulable states). */}
+							{!subject.isActive ? (
+								<Badge className="h-6 rounded-full border-0 bg-amber-50 text-xs font-bold text-amber-700">Archived</Badge>
+							) : subject.isSeedable ? (
+								<Badge className="h-6 rounded-full border-0 bg-emerald-50 text-xs font-bold text-emerald-700">Available</Badge>
+							) : (
+								<Badge className="h-6 rounded-full border-0 bg-slate-50 text-xs font-bold text-slate-600">Excluded</Badge>
+							)}
 							{needsCoverage && <Badge className="h-6 rounded-full border-0 bg-amber-100 text-xs font-bold text-amber-800">Needs teacher</Badge>}
 						</div>
 						<h3 className="mt-2 truncate text-base font-bold text-foreground">{subject.name}</h3>
-						<p className="mt-0.5 text-xs font-medium text-muted-foreground">{subject.ownerDepartment || 'General'} · {programCopy}</p>
+						<p className="mt-0.5 text-xs font-medium text-muted-foreground">{departmentLabel(subject.ownerDepartment)} · {programCopy}</p>
 					</div>
 				</div>
 
@@ -590,7 +594,7 @@ const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
 					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
 						<p className="font-bold uppercase tracking-widest text-muted-foreground">Coverage</p>
 						<p className={needsCoverage ? 'mt-1 text-sm font-bold text-amber-700' : 'mt-1 text-sm font-bold text-emerald-700'}>
-							{needsCoverage ? 'Needs teacher' : `${coverage} teacher${coverage === 1 ? '' : 's'}`}
+							{!subject.isActive ? 'Archived' : !subject.isSeedable ? 'Excluded' : needsCoverage ? 'Needs teacher' : `${coverage} teacher${coverage === 1 ? '' : 's'}`}
 						</p>
 					</div>
 				</div>
@@ -1064,7 +1068,7 @@ stats={subjectStats}
 									<div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 										<span className="font-bold uppercase tracking-wider">Program scope:</span>
 										{coverageDetail?.programScopes.map((scope) => (
-											<Badge key={scope} variant="outline" className="bg-white text-slate-700 shadow-none">{scope}</Badge>
+											<Badge key={scope} variant="outline" className="bg-white text-slate-700 shadow-none" aria-label={programFullLabel(scope)}>{programFullLabel(scope)}</Badge>
 										))}
 									</div>
 									<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="inline-flex">

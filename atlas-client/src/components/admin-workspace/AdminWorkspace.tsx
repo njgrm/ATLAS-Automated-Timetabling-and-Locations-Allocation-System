@@ -8,7 +8,6 @@ import { Input } from '@/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { EnrollProIntro } from '@/components/smart/EnrollProIntro';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
 export type AdminSourceState = 'verified-live' | 'checking-source' | 'saved-data' | 'no-saved-data';
@@ -73,37 +72,37 @@ export function AdminSourceStateChip({ state, copy, lastVerified }: { state: Adm
 	const StatusIcon = state === 'verified-live' ? CheckCircle2 : state === 'no-saved-data' ? AlertTriangle : Info;
 
 	return (
-		<EnrollProIntro>
-			<Popover>
-				<PopoverTrigger asChild>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						data-source-state={state}
-						className={cn(
-							'h-8 rounded-full border px-2.5 text-[0.65rem] font-bold uppercase tracking-wide shadow-none',
-							sourceStateStyles[state],
-							state === 'checking-source' && 'animate-pulse',
-						)}
-						aria-label={`${resolvedCopy.label}. Open source details.`}
-					>
-						<StatusIcon className="mr-1.5 size-3.5" />
-						{resolvedCopy.label}
-					</Button>
-				</PopoverTrigger>
-				<PopoverContent align="start" className="w-80 space-y-2 rounded-xl p-3 text-sm" data-testid="setup-source-details-popover">
-					<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Source details</p>
-					<p className="font-bold text-popover-foreground">{resolvedCopy.description}</p>
-					<p className="text-sm leading-snug text-muted-foreground">{resolvedCopy.nextAction}</p>
-					{lastVerified ? (
-						<p className="border-t border-slate-100 pt-2 text-xs font-semibold text-muted-foreground" data-testid="setup-source-last-verified">
-							Last verified: {lastVerified}
-						</p>
-					) : null}
-				</PopoverContent>
-			</Popover>
-		</EnrollProIntro>
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					data-source-state={state}
+					className={cn(
+						'relative z-20 h-8 rounded-full border px-2.5 text-[0.65rem] font-bold uppercase tracking-wide shadow-none',
+						sourceStateStyles[state],
+						state === 'checking-source' && 'animate-pulse',
+					)}
+					aria-label={`${resolvedCopy.label}. Open source details.`}
+				>
+					<StatusIcon className="mr-1.5 size-3.5" />
+					{resolvedCopy.label}
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent align="start" className="w-80 space-y-2 rounded-xl p-3 text-sm" data-testid="setup-source-details-popover">
+				<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Source details</p>
+				<p className="font-bold text-popover-foreground">{resolvedCopy.description}</p>
+				<p className="text-sm leading-snug text-muted-foreground">{resolvedCopy.nextAction}</p>
+				<div className="rounded-lg border border-primary/10 bg-primary/5 p-2 text-xs leading-5 text-muted-foreground">
+					<p className="font-semibold text-foreground">EnrollPro roster source</p>
+					<p>EnrollPro is the DepEd enrollment system. ATLAS reads teachers and sections from EnrollPro, then keeps scheduling work inside ATLAS.</p>
+				</div>
+				<p className="border-t border-slate-100 pt-2 text-xs font-semibold text-muted-foreground" data-testid="setup-source-last-verified">
+					Last verified: {lastVerified ?? 'Not verified in this session'}
+				</p>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
@@ -272,7 +271,7 @@ export function AdminTableShell({ children, footer }: { children: ReactNode; foo
 		<div className="flex-1 min-h-0 px-4 py-3 lg:px-5 [@media(max-height:500px)]:py-2" data-testid="admin-content-shell">
 			<Card className="flex h-full flex-col overflow-hidden border-0 bg-white shadow-soft">
 				<div className="flex-1 min-h-0 overflow-auto">{children}</div>
-				{footer && <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-3 py-2">{footer}</div>}
+				{footer && <div className="relative z-20 shrink-0 border-t border-slate-100 bg-slate-50 px-3 py-2 shadow-[0_-8px_16px_rgba(15,23,42,0.06)]">{footer}</div>}
 			</Card>
 		</div>
 	);

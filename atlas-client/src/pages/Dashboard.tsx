@@ -19,7 +19,9 @@ import {
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { useDashboardData, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
+import type { RolloverStatus } from '@/lib/settings';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
@@ -91,6 +93,17 @@ const SOURCE_BADGE_COPY: Record<string, string> = {
 	using_saved_data: 'Using saved data',
 	no_saved_data: 'No saved data',
 	partial_degraded: 'Partial data',
+};
+
+// Short header-badge labels for narrow mobile widths so the command cluster
+// stays on one row and the readiness list lands inside the first-content
+// budget. The full label remains in the readiness hub's data-source badge.
+const SOURCE_BADGE_COPY_MOBILE: Record<string, string> = {
+	verified_live: 'Live',
+	checking_source: 'Checking',
+	using_saved_data: 'Saved data',
+	no_saved_data: 'No data',
+	partial_degraded: 'Partial',
 };
 
 const SOURCE_BADGE_CLASS: Record<string, string> = {
@@ -312,6 +325,13 @@ function pickNextStep(args: {
 
 export default function Dashboard() {
 	const [showAllSetupSteps, setShowAllSetupSteps] = useState(false);
+	// Year-status tracking for the compact aligned chip: the full-width
+	// "Year aligned" card is NOT rendered above "Your next step"; the aligned
+	// state lives as a chip in the header. Blocking drift renders a compact
+	// guidance card instead.
+	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
+	const rolloverAligned = rolloverStatus?.drift.status === 'aligned';
+	const rolloverBlocking = rolloverStatus !== null && !rolloverAligned;
 	const {
 		loading,
 		buildings,
@@ -457,23 +477,51 @@ export default function Dashboard() {
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
 			<div className='flex-1 min-h-0 overflow-auto scrollbar-thin'>
-				<div className='max-w-7xl mx-auto flex flex-col gap-4 px-4 py-4 lg:px-8 lg:py-8 animate-fade-in [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:py-2'>
+				<div className='max-w-7xl mx-auto flex flex-col gap-2 px-4 py-1.5 sm:gap-4 sm:py-4 lg:px-8 lg:py-8 animate-fade-in [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:py-2'>
 				{/* Header */}
 				<div className='flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:items-center'>
 					<div>
-						<h1 className='text-2xl font-bold text-slate-900 lg:text-3xl [@media(max-height:500px)]:text-lg'>Scheduling Dashboard</h1>
-						<p className='mt-1 text-sm text-slate-500 lg:mt-1.5 [@media(max-height:500px)]:hidden'>
+						<div className='flex flex-wrap items-center gap-2'>
+							{/* Compact header: smaller title on mobile so the first useful
+								work object (Your next step) lands inside the older-user budget. */}
+							<h1 className='text-lg font-bold text-slate-900 sm:text-2xl lg:text-3xl [@media(max-height:500px)]:text-lg'>Scheduling Dashboard</h1>
+							{/* Year status chip when aligned: replaces the full-width
+								"Year aligned" card; details stay in the popover. */}
+							{rolloverAligned && rolloverStatus ? (
+								<Popover>
+									<PopoverTrigger asChild>
+										<Badge variant='outline' className='h-7 cursor-help gap-1.5 rounded-full border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 shadow-none' data-testid='dashboard-year-status-chip'>
+											<CheckCircle2 className='w-3.5 h-3.5' />
+											Year aligned
+										</Badge>
+									</PopoverTrigger>
+									<PopoverContent align='end' className='w-72 rounded-xl p-3 text-sm'>
+										<p className='text-xs font-bold uppercase tracking-wide text-muted-foreground'>School year status</p>
+										<p className='mt-1 font-semibold text-slate-900'>{rolloverStatus.drift.message}</p>
+										{rolloverStatus.enrollProActiveYear?.yearLabel ? (
+											<p className='mt-1 text-xs leading-relaxed text-slate-500'>
+												EnrollPro {rolloverStatus.enrollProActiveYear.yearLabel} is the active school year.
+											</p>
+										) : null}
+									</PopoverContent>
+								</Popover>
+							) : null}
+						</div>
+						<p className='mt-1 hidden text-sm text-slate-500 sm:block lg:mt-1.5 [@media(max-height:500px)]:hidden'>
 							Build, review, and publish the school timetable.
 						</p>
 					</div>
 					<div className='flex flex-wrap items-center gap-1.5 [@media(max-height:500px)]:justify-end'>
-						<Badge className={`${SOURCE_BADGE_CLASS[readinessSourceState]} font-semibold gap-1.5 px-3 py-1.5 rounded-full`}>
+						{/* Source badge: short label + icon hidden on mobile so the
+							cluster fits one row (buttons keep the 44px touch target). */}
+						<Badge className={`${SOURCE_BADGE_CLASS[readinessSourceState]} font-semibold gap-1.5 px-2 py-1.5 rounded-full sm:px-3`}>
 							{readinessSourceState === 'partial_degraded' ? (
-								<AlertTriangle className='w-3.5 h-3.5' />
+								<AlertTriangle className='hidden w-3.5 h-3.5 sm:block' />
 							) : (
-								<CheckCircle2 className='w-3.5 h-3.5' />
+								<CheckCircle2 className='hidden w-3.5 h-3.5 sm:block' />
 							)}
-							{SOURCE_BADGE_COPY[readinessSourceState]}
+							<span className='sm:hidden'>{SOURCE_BADGE_COPY_MOBILE[readinessSourceState]}</span>
+							<span className='hidden sm:inline'>{SOURCE_BADGE_COPY[readinessSourceState]}</span>
 						</Badge>
 						<Button
 							type='button'
@@ -496,13 +544,14 @@ export default function Dashboard() {
 								{ title: 'Review setup readiness', body: 'The checklist shows which setup areas still need attention.', target: 'Setup readiness' },
 								{ title: 'Open timetable last', body: 'Create or review the timetable after setup and Teaching Load are ready.', target: 'Open Timetable' },
 							]}
+							className='h-8 sm:h-9'
 						/>
 						<Badge className='hidden border-0 bg-primary/10 text-primary hover:bg-primary/10 font-semibold gap-1.5 px-3 py-1.5 rounded-full sm:inline-flex [@media(max-height:500px)]:hidden'>
 							<Sparkles className='w-3.5 h-3.5' />
 							{PHASE_LABEL[lifecyclePhase]}
 						</Badge>
 						<Link to='/timetable'>
-							<Button className='h-8 gap-2 bg-primary px-2.5 text-xs font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90 sm:px-3'>
+							<Button className='h-8 gap-2 bg-primary px-2 text-xs font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90 sm:px-3'>
 								<CalendarRange className='w-4 h-4' />
 								Open Timetable
 							</Button>
@@ -510,7 +559,14 @@ export default function Dashboard() {
 					</div>
 				</div>
 
-				<RolloverGuidanceCard />
+				{/* Year status: while unknown or blocking (atlas-stale /
+					mapping-conflict / enrollpro-unreachable) render a COMPACT
+					guidance card with one action. When aligned, render nothing
+					here -- the compact chip in the header carries the state so the
+					full-width card never pushes "Your next step" down. */}
+				{rolloverStatus === null || rolloverBlocking ? (
+					<RolloverGuidanceCard compact onStatus={setRolloverStatus} />
+				) : null}
 
 				<section
 					data-testid='dashboard-source-health-panel'
@@ -686,10 +742,32 @@ export default function Dashboard() {
 					</Card>
 				</div>
 
-				{/* Next step + setup checklist */}
-				<div className='order-1 grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]'>
-					<Card className='order-2 border-0 shadow-soft-xl rounded-2xl bg-white overflow-hidden p-0 md:order-1'>
-						<CardHeader className='border-b border-slate-100 bg-primary/5 px-4 py-3 sm:px-6 sm:py-4'>
+				{/* Next step + setup checklist. On mobile "Your next step" is the
+					first work object (order-1); the readiness list follows (order-2).
+					On md+ they sit side by side with next-step on the left. */}
+				<div className='order-1 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] md:gap-6'>
+					<Card data-testid='dashboard-next-step-card' className='order-1 border-0 shadow-soft-xl rounded-2xl bg-white overflow-hidden p-0'>
+						{/* Mobile: one compact row (title + warn + action) so the
+							readiness list below lands inside the first-content budget. */}
+						<CardContent className='flex items-center gap-2 p-3 sm:hidden [@media(max-height:500px)]:p-3'>
+							<span className='min-w-0 flex-1'>
+								<span className='block truncate text-sm font-bold text-slate-900'>{next.title}</span>
+								{next.warn ? (
+									<span className='mt-0.5 flex items-center gap-1 text-xs font-bold text-amber-700'>
+										<AlertTriangle className='w-3 h-3' />
+										{next.warn}
+									</span>
+								) : null}
+							</span>
+							<Link to={next.href} data-repair-target='next-step'>
+								<Button className='h-9 shrink-0 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow sm:h-10'>
+									{next.cta}
+									<ArrowRight className='w-4 h-4' />
+								</Button>
+							</Link>
+						</CardContent>
+						{/* sm+: full card with header strip, body, source message, CTA. */}
+						<CardHeader className='hidden border-b border-slate-100 bg-primary/5 px-6 py-4 sm:block'>
 							<div className='flex items-center justify-between'>
 								<div>
 									<CardTitle className='text-lg flex items-center gap-2 text-slate-900'>
@@ -706,13 +784,13 @@ export default function Dashboard() {
 								) : null}
 							</div>
 						</CardHeader>
-						<CardContent className='p-4 sm:p-6'>
+						<CardContent className='hidden p-6 sm:block'>
 							<h2 className='text-xl font-bold text-slate-900'>{next.title}</h2>
-							<p className='text-slate-500 mt-2 leading-relaxed'>{next.body}</p>
+							<p className='mt-2 text-sm leading-relaxed text-slate-500'>{next.body}</p>
 							<p className='mt-2 text-sm font-medium text-slate-600'>{readinessSourceMessage}</p>
-							<div className='mt-6'>
+							<div className='mt-4'>
 								<Link to={next.href} data-repair-target='next-step'>
-									<Button className='gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
+									<Button className='h-10 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
 										{next.cta}
 										<ArrowRight className='w-4 h-4' />
 									</Button>
@@ -721,7 +799,7 @@ export default function Dashboard() {
 						</CardContent>
 					</Card>
 
-					<Card data-testid='dashboard-readiness-hub' className='order-1 border-0 shadow-soft-xl rounded-2xl bg-white p-0 overflow-hidden md:order-2'>
+					<Card data-testid='dashboard-readiness-hub' className='order-2 border-0 shadow-soft-xl rounded-2xl bg-white p-0 overflow-hidden'>
 						<CardHeader className='border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4'>
 							<div className='flex items-start justify-between gap-3'>
 								<div>

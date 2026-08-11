@@ -26,7 +26,9 @@ async function visibleButtonTexts(page: Page) {
 async function gotoTeachingLoad(page: Page) {
 	await page.goto('/teaching-load', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 	await expect(page.getByTestId('teaching-load-content-shell')).toBeVisible({ timeout: 45_000 });
-	await expect(page.getByTestId('teaching-load-task-guide')).toBeVisible({ timeout: 45_000 });
+	// Phase 4.1: the standalone task guide was removed; the repair queue is
+	// the single "next step" surface.
+	await expect(page.getByTestId('teaching-load-repair-queue')).toBeVisible({ timeout: 45_000 });
 }
 
 test.describe.serial('Setup-first UI/UX Iterations 3-4', () => {
@@ -35,15 +37,15 @@ test.describe.serial('Setup-first UI/UX Iterations 3-4', () => {
 		await loginAdmin(page);
 	});
 
-	test('Teaching Load opens with a next-task guide inside the working area', async ({ page }, testInfo) => {
+	test('Teaching Load opens with a next-step queue inside the working area', async ({ page }, testInfo) => {
 		test.setTimeout(90_000);
 		await gotoTeachingLoad(page);
 
 		const metrics = await page.evaluate(() => {
 			const header = document.querySelector('[data-testid="teaching-load-command-header"]')?.getBoundingClientRect();
 			const content = document.querySelector('[data-testid="teaching-load-content-shell"]')?.getBoundingClientRect();
-			const guide = document.querySelector('[data-testid="teaching-load-task-guide"]')?.getBoundingClientRect();
-			const nextAction = document.querySelector('[data-testid="teaching-load-next-action"]')?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+			const guide = document.querySelector('[data-testid="teaching-load-repair-queue"]')?.getBoundingClientRect();
+			const nextAction = document.querySelector('[data-testid="teaching-load-current-repair"]')?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 			return {
 				headerHeight: Math.round(header?.height ?? 0),
 				contentTop: Math.round(content?.top ?? 0),
@@ -53,12 +55,12 @@ test.describe.serial('Setup-first UI/UX Iterations 3-4', () => {
 			};
 		});
 
-		expect(metrics.nextAction).toMatch(/Save your draft changes|Fill missing teaching loads|Review overloaded teachers|Teaching Load looks ready/i);
+		expect(metrics.nextAction).toMatch(/Next step|Teaching Load looks ready|Assign teachers to open classes|has no load|is over the weekly max|Save your draft changes/i);
 		expect(metrics.guideTop).toBeGreaterThanOrEqual(metrics.contentTop);
-		expect(metrics.guideHeight).toBeLessThanOrEqual(72);
+		expect(metrics.guideHeight).toBeLessThanOrEqual(96);
 		expect(metrics.contentTop).toBeLessThanOrEqual(page.viewportSize()!.width < 768 ? 260 : 230);
 		await assertNoGlobalOverflow(page);
-		await attachReport(testInfo, 'teaching-load-task-guide', metrics);
+		await attachReport(testInfo, 'teaching-load-repair-queue', metrics);
 	});
 
 	test('Teaching Load hides advanced filters until the operator asks for them', async ({ page }, testInfo) => {

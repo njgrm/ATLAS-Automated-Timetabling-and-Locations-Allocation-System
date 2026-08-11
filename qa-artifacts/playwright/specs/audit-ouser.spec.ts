@@ -107,7 +107,9 @@ test.describe.serial('Older-User Session Validation Audit (T01-T12)', () => {
 			const start = Date.now();
 			await page.goto('/teaching-load', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 			await expect(page.getByTestId('teaching-load-content-shell')).toBeVisible({ timeout: 45_000 });
-			const guide = page.getByTestId('teaching-load-task-guide');
+			// Phase 4.1: the standalone task guide is gone; the repair queue is
+			// the single "next step" surface.
+			const guide = page.getByTestId('teaching-load-repair-queue');
 			await expect(guide).toBeVisible();
 			const guideText = await guide.innerText();
 			const durationMs = Date.now() - start;
@@ -117,7 +119,7 @@ test.describe.serial('Older-User Session Validation Audit (T01-T12)', () => {
 				viewport: vpName,
 				durationMs,
 				status: 'Independent',
-				notes: `Teaching load guide visible: "${guideText.replace(/\n/g, ' ')}" in ${durationMs}ms.`,
+				notes: `Teaching load next-step queue visible: "${guideText.replace(/\n/g, ' ')}" in ${durationMs}ms.`,
 				targetMinSizePx: 44,
 				ariaCompliant: true,
 				textLabels: [guideText],

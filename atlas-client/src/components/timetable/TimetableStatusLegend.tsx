@@ -18,7 +18,7 @@ const STATUS_ITEMS = [
 	{ label: 'Current', description: "This is the selected session's current slot or current value.", tone: 'border-blue-200 bg-blue-50 text-blue-800' },
 ] as const;
 
-const STATUS_SUMMARY = 'Can place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.';
+const STATUS_SUMMARY = 'Can place = empty slot. Can swap = occupied slot to review. Blocked = review first. Warning = review before saving. Occupied = already scheduled. Current = selected session location.';
 
 export function TimetableStatusLegend({ compact = false }: TimetableStatusLegendProps) {
 	return (

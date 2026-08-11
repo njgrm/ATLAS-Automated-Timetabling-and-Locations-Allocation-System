@@ -135,7 +135,6 @@ export function SectionRoomPicker({
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
-					id={listboxId}
 					className="w-70 p-0 shadow-xl border-border/40 flex flex-col h-100"
 					align="start"
 				>
@@ -180,7 +179,9 @@ export function SectionRoomPicker({
 
 					{/* Options List */}
 					<ScrollArea className="flex-1">
-						<div className="p-1.5" role="listbox" aria-labelledby={triggerId}>
+						{/* Phase 1.4 audit fix: the listbox div owns the id that the
+							combobox trigger's aria-controls points to. */}
+						<div id={listboxId} className="p-1.5" role="listbox" aria-labelledby={triggerId}>
 							<Button
 								type="button"
 								variant="ghost"

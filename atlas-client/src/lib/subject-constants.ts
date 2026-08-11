@@ -105,7 +105,7 @@ export type NewSubjectForm = {
 	name: string;
 	ownerDepartment: string;
 	allowedOwnerDepartments: string[];
-	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+	qualificationPriority: 'DEPARTMENT_FIRST';
 	rotationFamily: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;

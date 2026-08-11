@@ -39,7 +39,7 @@ export type Subject = {
     outputLabel?: string | null;
     displayCode?: string;
     ownerDepartment?: string | null;
-    qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+    qualificationPriority?: 'DEPARTMENT_FIRST';
     rotationFamily?: string | null;
     specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
     isSystemManaged?: boolean;

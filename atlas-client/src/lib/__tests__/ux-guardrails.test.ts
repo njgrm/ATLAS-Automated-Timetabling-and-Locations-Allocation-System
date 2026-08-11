@@ -269,7 +269,7 @@ test('timetable Phase 5 foolproofing keeps persistent help, large task targets, 
 	assert.match(statusLegend, /data-testid="timetable-status-legend"/);
 	assert.match(statusLegend, /Can place = empty slot/);
 	assert.match(statusLegend, /Can swap = occupied slot to review/);
-	assert.match(statusLegend, /Blocked = fix first/);
+	assert.match(statusLegend, /Blocked = review first/);
 	assert.match(statusLegend, /Warning = review before saving/);
 	assert.match(statusLegend, /Occupied = already scheduled/);
 	assert.match(statusLegend, /Current = selected session location/);
@@ -447,19 +447,17 @@ test('timetable performance harness enforces the published Prompt 0 and Prompt 1
 	assert.doesNotMatch(harness, /Covered by preview and placement scenarios/);
 });
 
-test('setup-first Iteration 3 gives Teaching Load an explicit next-task guide without expanding the header', () => {
+test('Phase 4.1: Teaching Load has a single next-step surface (TaskGuide removed)', () => {
 	const teachingLoad = source('src/pages/TeachingLoad.tsx');
-	const taskGuide = source('src/components/faculty-assignments/TeachingLoadTaskGuide.tsx');
 
-	assert.match(teachingLoad, /<TeachingLoadTaskGuide/);
-	assert.match(teachingLoad, /data-testid="teaching-load-content-shell"[\s\S]{0,500}<TeachingLoadTaskGuide/);
-	assert.doesNotMatch(teachingLoad, /<TeachingLoadTaskGuide[\s\S]{0,500}\{splitBrainNeedsAttention/);
-	assert.match(taskGuide, /data-testid="teaching-load-task-guide"/);
-	assert.match(taskGuide, /data-testid="teaching-load-next-action"/);
-	assert.match(taskGuide, /Fix first/);
-	assert.match(taskGuide, /Fill missing teaching loads/);
-	assert.match(taskGuide, /Teachers without load/);
-	assert.doesNotMatch(taskGuide, /<button\b/);
+	// The standalone TaskGuide is gone; the repair queue is the single
+	// "next step" surface (it duplicated the readiness strip's % staffed
+	// badge and the repair queue's next-fix prompt).
+	assert.doesNotMatch(teachingLoad, /<TeachingLoadTaskGuide/);
+	assert.match(teachingLoad, /<TeachingLoadRepairQueue/);
+	// No "Fix first" / "repair" jargon in the page's user-visible copy.
+	assert.doesNotMatch(teachingLoad, /Fix first/);
+	assert.doesNotMatch(teachingLoad, /repair action first/);
 	assert.match(teachingLoad, /hidden w-80 shrink-0[\s\S]{0,120}lg:block/);
 });
 
@@ -509,9 +507,12 @@ test('teachers and Teaching Load expose guided repair workflows before dense con
 	assert.match(faculty, /data-testid="teacher-repair-card"/);
 	assert.match(faculty, /data-testid="teacher-row-primary-action"/);
 	assert.match(faculty, /task=\$\{repairIntent\.task\}/);
-	assert.match(faculty, /Needs load/);
-	assert.match(faculty, /Over cap/);
-	assert.match(faculty, /Review placeholders/);
+	// Phase 3.3: attention chips use plain DepEd language (no "Needs load",
+	// "Over cap", "Review placeholders" engineering jargon).
+	assert.match(faculty, /No subjects assigned/);
+	assert.match(faculty, /Above weekly max/);
+	assert.match(faculty, /Temporary teachers/);
+	assert.match(faculty, /aria-pressed=\{attentionFilter === chip\.id\}/);
 	assert.match(table, /menuTestId/);
 	assert.match(table, /data-testid=\{testId\}/);
 
@@ -519,7 +520,7 @@ test('teachers and Teaching Load expose guided repair workflows before dense con
 	assert.match(teachingLoad, /<TeachingLoadDraftActionBar/);
 	assert.match(draftActionBar, /data-testid="teaching-load-draft-action-bar"/);
 	assert.match(teachingLoad, /formatTeachingLoadSaveError/);
-	assert.match(teachingLoad, /This teacher is already over the weekly cap/);
+	assert.match(teachingLoad, /This teacher is already above the weekly maximum/);
 	assert.match(teachingLoad, /This section already has an owner for this subject/);
 	assert.match(repairQueue, /data-testid="teaching-load-repair-queue"/);
 	assert.match(repairQueue, /data-testid="teaching-load-current-repair"/);
@@ -675,10 +676,11 @@ test('Phase 0A.5: EnrollPro intro popover exists and is one-time dismissible', (
 	assert.match(intro, /Got it/);
 	// Dismiss persists the key.
 	assert.match(intro, /window\.localStorage\.setItem\(storageKey, '1'\)/);
-	// AdminWorkspace wires it around the source-state chip so the intro appears
-	// on the four admin setup pages on first visit.
 	const adminWorkspace = source('src/components/admin-workspace/AdminWorkspace.tsx');
-	assert.match(adminWorkspace, /EnrollProIntro/);
+	// Source details now carry the EnrollPro explanation directly. The intro
+	// component remains available, but it must not steal the source-chip click.
+	assert.match(adminWorkspace, /EnrollPro roster source/);
+	assert.doesNotMatch(adminWorkspace, /<EnrollProIntro>[\s\S]{0,500}<PopoverTrigger asChild>/);
 });
 
 test('Phase 0B.1: RolloverGuidanceCard is dismissible and non-destructive on setup pages', () => {
@@ -1010,4 +1012,240 @@ test('Phase 2.6: SubjectRow uses compact grade format and accessible info for ja
 	// aria-label on the program-scope badge so the info is reachable without
 	// the AccessibleInfo trigger.
 	assert.ok(row.includes('aria-label={programScopes.length > 0'), 'program-scope badge must carry an aria-label');
+});
+
+test('Phase 3.1: Teachers desktop table restores subject/section/weekly-hours columns with the standard visible', () => {
+	const faculty = source('src/pages/Faculty.tsx');
+	// Columns: Teacher, Department, Teaching Load, Weekly hours, Status (was
+	// only Teacher/Department/Load State before -- audit T-1/T-2).
+	assert.match(faculty, /<FacultyTeachingLoadCell faculty=\{teacher\} \/>/);
+	assert.match(faculty, /<FacultyWeeklyLoadCell faculty=\{teacher\} \/>/);
+	assert.match(faculty, /label: 'Teaching Load'/);
+	assert.match(faculty, /label: 'Weekly hours'/);
+	assert.doesNotMatch(faculty, /label: 'Load State'/);
+
+	const row = source('src/components/faculty/FacultyRow.tsx');
+	// The standard/cap must be visible in-cell, not only in a keyboard-
+	// inaccessible tooltip (audit T-8).
+	assert.match(row, /\/ \{STANDARD_WEEKLY_TEACHING_HOURS\}h standard/);
+	assert.match(row, /max \$\{maxHours\}h/);
+});
+
+test('Phase 3.2: placeholders are visibly distinct with plain "Temporary" labels', () => {
+	const row = source('src/components/faculty/FacultyRow.tsx');
+	// "Temporary" label replaces the "Teacher X" brand string; AccessibleInfo
+	// explains what a placeholder is.
+	assert.match(row, /Temporary<\/Badge>/);
+	assert.doesNotMatch(row, />Teacher X<\/Badge>/);
+	assert.match(row, /AccessibleInfo/);
+	assert.match(row, /TEACHER_X_LABEL/);
+	// Violet avatar tint distinguishes placeholders from real teachers.
+	assert.match(row, /isPlaceholder \? 'border-violet-200 bg-violet-50 text-violet-700'/);
+});
+
+test('Phase 3.3: attention chips use plain language, aria-pressed, tooltips, and no silent reset', () => {
+	const faculty = source('src/pages/Faculty.tsx');
+	// Plain-language chip labels.
+	assert.match(faculty, /'No subjects assigned'/);
+	assert.match(faculty, /'Above weekly max'/);
+	assert.match(faculty, /'No sections assigned'/);
+	assert.match(faculty, /'Temporary teachers'/);
+	assert.match(faculty, /'All teachers'/);
+	// aria-pressed + per-chip tooltips.
+	assert.match(faculty, /aria-pressed=\{attentionFilter === chip\.id\}/);
+	assert.match(faculty, /<TooltipContent side="bottom" className="max-w-60 text-xs">\{chip\.helper\}<\/TooltipContent>/);
+	// "All teachers" no longer resets the department filter (audit T-6).
+	assert.match(faculty, /if \(filter === 'all'\) \{\s*return;/);
+});
+
+test('Phase 3.4: Teachers strip stops saying "Load data is still loading" forever', () => {
+	const faculty = source('src/pages/Faculty.tsx');
+	// Heading renamed per the "fix" language rule.
+	assert.doesNotMatch(faculty, /Next teacher to fix/);
+	assert.match(faculty, /Next teacher to review/);
+	// The perpetual "Load data is still loading." is replaced by a real
+	// loading/empty/ready state machine.
+	assert.doesNotMatch(faculty, /Load data is still loading/);
+	assert.match(faculty, /Checking the teacher roster\.\.\./);
+	assert.match(faculty, /No active teachers to review\. Sync the roster first\./);
+	assert.match(faculty, /Every teacher looks ready to review\./);
+});
+
+test('Phase 3.5: CreatePlaceholderDialog uses empty defaults, plain labels, inline validation, and Enter-to-save', () => {
+	const dialog = source('src/components/faculty/CreatePlaceholderDialog.tsx');
+	// No more "Teacher X" default name.
+	assert.doesNotMatch(dialog, /setFirstName\('Teacher'\)/);
+	assert.doesNotMatch(dialog, /setLastName\('X'\)/);
+	assert.match(dialog, /setFirstName\(''\)/);
+	assert.match(dialog, /setLastName\(''\)/);
+	// Inline field validation instead of toasts.
+	assert.match(dialog, /fieldErrors\.firstName/);
+	assert.match(dialog, /role="alert"/);
+	// Plain labels: "Maximum weekly hours" + DepEd helper; no silent clamp.
+	assert.match(dialog, />Maximum weekly hours</);
+	assert.match(dialog, /Default 30h\. The DepEd maximum is \{MAX_WEEKLY_HOURS\}h per week\./);
+	assert.doesNotMatch(dialog, /Math\.max\(1, Math\.min\(60/);
+	// "Can teach outside their department" (full word, no "Dept").
+	assert.match(dialog, />Can teach outside their department</);
+	// Real <form> so Enter saves.
+	assert.match(dialog, /<form[\s\S]{0,200}onSubmit=\{/);
+	// Department options show plain labels.
+	assert.match(dialog, /departmentLabel\(d\)/);
+});
+
+test('Phase 3.6: Teachers copy uses plain DepEd language (no credited/hard-repair/approval jargon)', () => {
+	const sheet = source('src/components/faculty/FacultyProfileSheet.tsx');
+	const helpers = source('src/lib/faculty-assignment-helpers.ts');
+	const row = source('src/components/faculty/FacultyRow.tsx');
+	// Profile sheet: "Credited workload" -> "Total weekly hours"; "hard repair
+	// limit" -> plain-language absolute limit.
+	assert.doesNotMatch(sheet, />Credited workload</);
+	assert.doesNotMatch(sheet, /hard repair limit/);
+	assert.doesNotMatch(sheet, />Credited load: /);
+	assert.match(sheet, />Total weekly hours</);
+	assert.match(sheet, /absolute limit before ATLAS cannot generate/);
+	// Department badge expands codes via the glossary.
+	assert.match(sheet, /departmentLabel\(faculty\.department\)/);
+	// Decision 3: no fake "approval needed" process.
+	assert.doesNotMatch(helpers, /approval needed/);
+	assert.doesNotMatch(helpers, /must fix/);
+	assert.match(helpers, /review before generating/);
+	assert.match(helpers, /move classes before generating/);
+	// Row load-state badge shows the standard/cap inline (not only in tooltip).
+	assert.match(row, /h standard/);
+	assert.doesNotMatch(row, /must be repaired before generation/);
+});
+
+test('Phase 4.5: Teaching Load coverage modes use plain DepEd labels', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(page, /Standard Teacher Load \(30h\)/);
+	assert.doesNotMatch(page, /Hard Cap Utilization \(40h\)/);
+	assert.doesNotMatch(page, /Hybrid Staffing \(Real \+ Temp\)/);
+	assert.match(page, /Real teachers first, up to 30h\/week/);
+	assert.match(page, /Maximum allowed hours \(40h\)/);
+	assert.match(page, /Real teachers first, then substitutes/);
+});
+
+test('Phase 4.1: Teaching Load has a single next-step surface (TaskGuide removed)', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(page, /<TeachingLoadTaskGuide/);
+	assert.match(page, /<TeachingLoadRepairQueue/);
+	assert.doesNotMatch(page, /Fix first/);
+	assert.doesNotMatch(page, /repair action first/);
+});
+
+test('Phase 4.2: repair queue is one-at-a-time with visible Skip and a skipped-items note', () => {
+	const queue = source('src/components/faculty-assignments/TeachingLoadRepairQueue.tsx');
+	// "Next fix" -> "Next step".
+	assert.doesNotMatch(queue, />Next fix</);
+	assert.ok(queue.includes('Next step'), 'repair queue badge must be plain-language "Next step"');
+	// Next-items disclosure closed by default.
+	assert.match(queue, /useState\(false\);\s*\/\/ Phase 4\.2/);
+	assert.match(queue, /data-testid="teaching-load-next-items-toggle"/);
+	assert.match(queue, /aria-expanded=\{showNextItems\}/);
+	// Skip visible at all breakpoints (no sm:hidden).
+	assert.doesNotMatch(queue, /className="h-8 px-2 text-xs font-bold sm:hidden"/);
+	// Description/status no longer hidden at max-height:800px.
+	assert.doesNotMatch(queue, /\[@media\(max-height:800px\)\]:hidden/);
+	// Skipped-items note.
+	assert.match(queue, /data-testid="teaching-load-skipped-note"/);
+	assert.match(queue, /Skipped items still need action before generation/);
+	// No "No urgent repair queued" jargon.
+	assert.doesNotMatch(queue, /No urgent repair queued/);
+});
+
+test('Phase 4.3: Teaching Load has one save bar, a Discard confirmation, and a plain save-warning modal', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	// Discard opens a confirmation.
+	assert.match(page, /showDiscardConfirm/);
+	assert.match(page, /onDiscard=\{\(\) => setShowDiscardConfirm\(true\)\}/);
+	assert.match(page, /Discard all/);
+	// Save-warning modal in plain English (no "stale"/"displaced"/"allocations").
+	assert.doesNotMatch(page, /will make the current active draft timetable stale/);
+	assert.doesNotMatch(page, /will be displaced to the unassigned list/);
+	assert.doesNotMatch(page, /subject allocations were modified/);
+	assert.match(page, /will be moved back to the unassigned list/);
+	const actionBar = source('src/components/faculty-assignments/TeachingLoadDraftActionBar.tsx');
+	// Footer save bar stays visible at every viewport height.
+	assert.doesNotMatch(actionBar, /\[@media\(max-height:500px\)\]:hidden/);
+	assert.doesNotMatch(actionBar, /saveDisabledReason/);
+});
+
+test('Phase 4.4: split-brain copy is plain language; Quarantined badge renamed "Editing locked"', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(page, /Saved-truth reconcile requires writable runtime evidence/);
+	assert.doesNotMatch(page, /Reloading current Teaching Load truth/);
+	assert.doesNotMatch(page, /Saved coverage reconcile failed/);
+	assert.doesNotMatch(page, /Repair saved scope drift/);
+	assert.match(page, /Reconcile needs a live connection/);
+	assert.match(page, /Reloaded the saved assignments/);
+	// Quarantine state described in plain language.
+	assert.doesNotMatch(page, /data\.splitBrainReasonLabel,\s*$/);
+	assert.ok(page.includes('two saved versions of the same class assignment'), 'quarantine copy must use plain language');
+	const subjectRow = source('src/components/faculty-assignments/SubjectRow.tsx');
+	assert.doesNotMatch(subjectRow, />Quarantined</);
+	assert.ok(subjectRow.includes('Editing locked'), 'quarantine badge must be plain-language "Editing locked"');
+});
+
+test('Phase 4.6: Teaching Load grid cells and row headers are keyboard-operable', () => {
+	const subjectRow = source('src/components/faculty-assignments/SubjectRow.tsx');
+	// Section cell exposes role="button" + Enter/Space handling.
+	assert.match(subjectRow, /role=\{isClickable \? 'button' : undefined\}/);
+	assert.match(subjectRow, /event\.key === 'Enter' \|\| event\.key === ' '/);
+	assert.match(subjectRow, /tabIndex=\{isClickable \? 0 : undefined\}/);
+	assert.match(subjectRow, /focus-visible:ring-2 focus-visible:ring-primary\/50/);
+	const teacherGrid = source('src/components/faculty-assignments/TeacherGridMode.tsx');
+	// Department + teacher row headers are keyboard-operable with aria-expanded.
+	assert.match(teacherGrid, /role="button"[\s\S]{0,300}aria-expanded=\{!isCollapsed\}/);
+	assert.match(teacherGrid, /role="button"[\s\S]{0,300}aria-expanded=\{isExpanded\}/);
+	// Undo/Redo buttons have aria-labels.
+	assert.match(teacherGrid, /aria-label="Undo last change"/);
+	assert.match(teacherGrid, /aria-label="Redo last change"/);
+});
+
+test('Phase 4.7: subject rows cap badges at one priority alert with an AccessibleInfo summary', () => {
+	const subjectRow = source('src/components/faculty-assignments/SubjectRow.tsx');
+	// Quarantined badge renamed to plain language; other signals moved into
+	// AccessibleInfo.
+	assert.doesNotMatch(subjectRow, />Rotating Term Lane</);
+	assert.doesNotMatch(subjectRow, />Requires Specialization</);
+	assert.doesNotMatch(subjectRow, />Outside Dept</);
+	assert.ok(!subjectRow.includes('DB Conflict'), '"DB Conflict" must be fully removed (header + per-section)');
+	assert.ok(subjectRow.includes('Owner conflict'), 'priority alert badge must be plain-language "Owner conflict"');
+	assert.match(subjectRow, /<AccessibleInfo/);
+	// Weekly load shown in hours, not the cryptic "m".
+	assert.doesNotMatch(subjectRow, /\{subject\.minMinutesPerWeek\}m \/ week/);
+	assert.match(subjectRow, /h \/ week/);
+});
+
+test('Phase 4.8: mobile inspector is accessible below lg via a Sheet', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.match(page, /data-testid="teaching-load-mobile-inspector-open"/);
+	assert.match(page, /data-testid="teaching-load-mobile-inspector-sheet"/);
+	assert.match(page, /className="fixed bottom-16 right-4 z-40 h-10 gap-2 font-bold shadow-lg lg:hidden"/);
+});
+
+test('Phase 4.9: StaffingAuditSheet uses a dense inline stat banner and plain headers', () => {
+	const sheet = source('src/components/faculty-assignments/StaffingAuditSheet.tsx');
+	assert.doesNotMatch(sheet, />Staffing Health Audit</);
+	assert.doesNotMatch(sheet, /Operational report on current school year teaching load coverage/);
+	assert.doesNotMatch(sheet, /Temp Roles/);
+	assert.doesNotMatch(sheet, />Teacher X Assignments</);
+	assert.doesNotMatch(sheet, /Overload States/);
+	assert.doesNotMatch(sheet, /Go to Allocation Workflow/);
+	assert.doesNotMatch(sheet, /w-100 sm:w-135/);
+	assert.match(sheet, />Staffing summary</);
+	assert.match(sheet, /InlineStat/);
+	assert.match(sheet, /Assign by section/);
+	assert.match(sheet, /className="w-full sm:max-w-md overflow-y-auto"/);
+});
+
+test('Phase 4.10: Teaching Load workspace state uses plain DepEd copy', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.doesNotMatch(page, /Write actions stay off until the connection returns/);
+	assert.doesNotMatch(page, /it cannot safely write assignment changes yet/);
+	assert.doesNotMatch(page, /Offline saved data/);
+	assert.match(page, /Saving is off until ATLAS reconnects/);
+	assert.match(page, /Saving is off while ATLAS verifies the roster with EnrollPro/);
+	assert.match(page, /Editing is temporarily locked while ATLAS checks the saved assignments/);
 });

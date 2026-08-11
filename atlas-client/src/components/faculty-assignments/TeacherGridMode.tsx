@@ -3,11 +3,9 @@ import {
 	ChevronDown, 
 	ChevronRight, 
 	AlertTriangle, 
-	CheckCircle2, 
 	Search, 
 	Filter,
 	Users,
-	UserPlus,
 	Save,
 	RotateCcw,
 	Undo2,
@@ -310,13 +308,23 @@ export function TeacherGridMode({
 					const isCollapsed = collapsedDepts[dept] ?? false;
 					return (
 						<div key={dept} className="space-y-2">
-							<div 
-								className="flex items-center justify-between gap-3 px-2 py-1.5 cursor-pointer select-none hover:bg-muted/10 rounded-lg transition-colors"
+							{/* Phase 4.6: department collapse is keyboard-operable. */}
+							<div
+								role="button"
+								tabIndex={0}
+								aria-expanded={!isCollapsed}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' || event.key === ' ') {
+										event.preventDefault();
+										setCollapsedDepts(prev => ({ ...prev, [dept]: !prev[dept] }));
+									}
+								}}
+								className="flex items-center justify-between gap-3 px-2 py-1.5 cursor-pointer select-none hover:bg-muted/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
 								onClick={() => setCollapsedDepts(prev => ({ ...prev, [dept]: !prev[dept] }))}
 							>
 								<div className="flex items-center gap-2">
 									{isCollapsed ? <ChevronRight className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-									<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">{dept}</h3>
+									<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{dept}</h3>
 								</div>
 								<div className="flex-1 h-px bg-border/30" />
 								<Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground shadow-none">{members.length}</Badge>
@@ -342,16 +350,26 @@ export function TeacherGridMode({
 													isSelected ? "bg-background border-primary/30 shadow-md ring-1 ring-primary/5" : "bg-background border-border/40 hover:border-primary/20 hover:shadow-sm"
 												)}
 											>
-												{/* Row Header */}
-												<div 
+												{/* Phase 4.6: teacher row expand is keyboard-operable. */}
+												<div
+													role="button"
+													tabIndex={0}
+													aria-expanded={isExpanded}
+													aria-label={`${member.lastName}, ${member.firstName}${isExpanded ? ' - expanded' : ' - collapsed'}`}
+													onKeyDown={(event) => {
+														if (event.key === 'Enter' || event.key === ' ') {
+															event.preventDefault();
+															handleTeacherClick(member.id);
+														}
+													}}
 													className={cn(
-														"flex items-center gap-4 p-3 cursor-pointer select-none",
+														"flex items-center gap-4 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
 														isExpanded && "border-b border-border/40"
 													)}
 													onClick={() => handleTeacherClick(member.id)}
 												>
 													<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/10">
-														{member.firstName[0]}{member.lastName[0]}
+														{member.firstName?.[0] ?? ''}{member.lastName?.[0] ?? ''}
 													</div>
 													
 													<div className="flex-1 min-w-0">
@@ -407,8 +425,8 @@ export function TeacherGridMode({
 														<div className="sticky top-[calc(0px-1.5rem)] z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm p-2 border-b border-border/40 shadow-sm">
 															<div className="flex items-center gap-2">
 																<div className="flex items-center bg-muted/20 rounded-md p-0.5 border border-border/40">
-																	<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}><Undo2 className="size-3.5" /></Button>
-																	<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onRedo} disabled={!canRedo || saving || isReadOnlyMode}><Redo2 className="size-3.5" /></Button>
+																	<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode} aria-label="Undo last change"><Undo2 className="size-3.5" /></Button>
+																	<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onRedo} disabled={!canRedo || saving || isReadOnlyMode} aria-label="Redo last change"><Redo2 className="size-3.5" /></Button>
 																</div>
 																<Button 
 																	size="xs" 
@@ -450,7 +468,7 @@ export function TeacherGridMode({
 															{departmentQualifiedSubjects.length > 0 && (
 																<div className="space-y-3">
 																	<div className="flex items-center gap-3">
-																		<span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600/70">Qualified Subjects</span>
+																		<span className="text-xs font-semibold uppercase tracking-widest text-emerald-600/70">Qualified Subjects</span>
 																		<div className="flex-1 h-px bg-emerald-500/10" />
 																	</div>
 																	<div className="grid gap-3">
@@ -485,7 +503,7 @@ export function TeacherGridMode({
 															{showOutsideDept && outsideDepartmentSubjects.length > 0 && (
 																<div className="space-y-3">
 																	<div className="flex items-center gap-3">
-																		<span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">Cross-Department</span>
+																		<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50">Cross-Department</span>
 																		<div className="flex-1 h-px bg-border/40" />
 																	</div>
 																	<div className="grid gap-3">

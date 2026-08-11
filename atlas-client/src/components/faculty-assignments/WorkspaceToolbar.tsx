@@ -152,7 +152,7 @@ export function WorkspaceToolbar({
 	}, [splitBrainIncident, reviewDismissed]);
 
 	// State-driven alert chip: surfaces only when something needs attention.
-	// Priority: split-brain review > over-cap (generation blocker) > Teacher X placeholders.
+	// Priority: split-brain review > above-weekly-maximum classes (generation blocker) > temporary teacher placeholders.
 	const alertChip = useMemo(() => {
 		if (showReviewBadge) {
 			return {
@@ -168,9 +168,9 @@ export function WorkspaceToolbar({
 		if (overCapCount > 0) {
 			return {
 				key: 'overcap',
-				label: `Over cap: ${overCapCount}`,
+				label: `Above weekly max: ${overCapCount}`,
 				tone: 'danger' as const,
-				tooltip: 'Active teachers above the weekly cap. Repair these before generation.',
+				tooltip: 'Active teachers above the weekly maximum. Move classes before generating.',
 				onClick: onViewStaffingNeedsClick,
 				disabled: staffingNeedsLoading,
 				testId: 'teaching-load-alert-over-cap',
@@ -179,9 +179,9 @@ export function WorkspaceToolbar({
 		if (syntheticPlaceholderPairs > 0) {
 			return {
 				key: 'teacherx',
-				label: `Teacher X: ${syntheticPlaceholderPairs}`,
+				label: `Temporary substitutes: ${syntheticPlaceholderPairs}`,
 				tone: 'warning' as const,
-				tooltip: 'Placeholder teachers are filling load rows. Replace before publishing.',
+				tooltip: 'Temporary substitutes are filling load rows. Replace before publishing.',
 				onClick: undefined as (() => void) | undefined,
 				disabled: false,
 				testId: 'teaching-load-alert-teacher-x',
@@ -191,20 +191,35 @@ export function WorkspaceToolbar({
 	}, [overCapCount, syntheticPlaceholderPairs, showReviewBadge, onViewStaffingNeedsClick, staffingNeedsLoading]);
 
 	return (
-		<div className="rounded-xl border border-border/40 bg-background px-2.5 py-1.5 shadow-sm" data-testid="teaching-load-command-header">
+		<div className="rounded-xl border border-border/40 bg-background px-2 py-1 shadow-sm" data-testid="teaching-load-command-header">
 			{/* Compact workflow guide: keep Teaching Load to one decision row; disclose stats and repair tools through More. */}
-			<div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5" data-testid="teaching-load-compact-command-header">
+			<div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto" data-testid="teaching-load-compact-command-header">
 				<div className="flex min-w-0 shrink-0 items-center gap-2">
-					<h1 className="text-base font-bold tracking-tight text-foreground sm:text-lg">Teaching Load</h1>
+					<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Badge variant="outline" className="h-7 cursor-help rounded-full border-primary/15 bg-primary/5 px-2 text-xs font-semibold text-primary shadow-none">
+							<Badge variant="outline" className="h-6 cursor-help rounded-full border-primary/15 bg-primary/5 px-2 text-xs font-semibold text-primary shadow-none">
 								{workspaceStateLabel}
 							</Badge>
 						</TooltipTrigger>
 						<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
 							<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
 							<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
+						</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge
+								variant="outline"
+								data-source-state={dataSource}
+								className="h-6 cursor-help rounded-full border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-none"
+							>
+								<span className={cn('mr-1.5 size-2 rounded-full', statusConfig.color)} />
+								{statusConfig.label}
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
+							{statusConfig.description}
 						</TooltipContent>
 					</Tooltip>
 				</div>
@@ -232,7 +247,7 @@ export function WorkspaceToolbar({
 						},
 					]}
 					triggerLabel="Help"
-					className="h-8 shrink-0"
+					className="h-7 shrink-0 px-2 text-xs"
 				/>
 
 				<Tooltip>
@@ -244,7 +259,7 @@ export function WorkspaceToolbar({
 							onClick={primaryAction.onClick}
 							disabled={primaryAction.disabled}
 							data-testid={primaryAction.label === 'Suggest Teaching Load draft' ? 'teaching-load-suggest-draft-action' : undefined}
-							className="h-8 gap-2 border border-primary/20 bg-primary/5 px-3 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-4"
+							className="h-7 gap-1.5 border border-primary/20 bg-primary/5 px-2 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-3"
 						>
 							{activeDraftCount > 0 ? <Activity className="size-4" /> : <Zap className="size-4" />}
 							{primaryAction.label}
@@ -259,7 +274,7 @@ export function WorkspaceToolbar({
 					<TooltipTrigger asChild>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="outline" size="icon-sm" className="h-8 w-8 shadow-sm" aria-label="More Teaching Load tools">
+								<Button variant="outline" size="icon-sm" className="h-7 w-7 shadow-sm" aria-label="More Teaching Load tools">
 									<Settings2 className="size-4" />
 								</Button>
 							</DropdownMenuTrigger>

@@ -5511,3 +5511,35 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 ## Decision
 - Teacher-departure mechanics are now fully proven for the destructive save/reload/revert/delete path on a deterministic live fixture.
 - Mobile projects continue to skip live writes intentionally; they are covered by discovery, preview, feedback, and layout specs.
+
+# 2026-08-09 — Setup/Teaching Load Phase 0A-4 audit closure
+
+## Summary
+- Audited the cross-cutting setup shell work from Phase 0A/0B/0C plus Phase 1 Sections, Phase 2 Subjects, Phase 3 Teachers, and Phase 4 Teaching Load.
+- Found and corrected several implementation slip-ups that affected older-user clarity and mobile layout reliability:
+  - the shared source chip could be blocked by the EnrollPro intro wrapper instead of opening source details directly;
+  - non-blocking rollover guidance duplicated source-status content and consumed too much vertical space on setup pages;
+  - Teachers placed the next-review strip above the scrollable work area and allowed footer/toast overlap on mobile;
+  - the Teachers strip lost the accessible `Next teacher to review` wording after visual compaction;
+  - Teaching Load lost a compact visible source state and its guided queue button could hide the advanced grid instead of opening it;
+  - setup copy still used technical/negative labels such as `Over cap` and `Blocked = fix first`;
+  - Grade badges still defaulted to `G{grade}` instead of the agreed `GR{grade}` compact form.
+- Kept the compact SMART-family direction intact: one-decision headers, source/status chips, search-first content regions, progressive disclosure for advanced controls, local scrolling, and no global page scrollbars.
+
+## Verification
+- Tailnet/browser target: `https://njgrm.buru-degree.ts.net`.
+- Browser credentials used: `1234501 / DepEdSY2026!`.
+- Focused Playwright phase sweep: PASS (`57/57`) across desktop, mobile portrait, and mobile landscape:
+  - `setup-header-simplification.spec.ts`
+  - `setup-first-uiux-iteration-0-2.spec.ts`
+  - `setup-first-uiux-iteration-3-4.spec.ts`
+  - `teachers-teaching-load-guided-workflow.spec.ts`
+- `atlas-client`: `npx tsc --noEmit`: PASS.
+- `atlas-client`: `npm run test:ux-guardrails`: PASS (`79/79`).
+- `atlas-client`: `npm run test:timetable-conflict`: PASS (`10/10`).
+- `atlas-client`: `npm run build`: PASS.
+
+## Decision
+- Phase 0A/0B/0C, Phase 1 Sections, Phase 2 Subjects, Phase 3 Teachers, and Phase 4 Teaching Load are `GO` from this audit pass.
+- No concrete page blocker remains in the audited phase scope.
+- Generated `atlas-client/dist` assets changed because the production build was run as part of verification.

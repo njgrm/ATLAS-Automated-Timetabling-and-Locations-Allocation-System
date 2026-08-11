@@ -169,17 +169,46 @@ export function RolloverGuidanceCard({
 
 	if (!loading && !status && !error) return null;
 
-	// Aligned + compact -> tiny green strip (kept for back-compat with existing consumers).
-	if (status?.drift.status === 'aligned' && compact && !isDismissed) {
+	// Compact setup pages need a true one-row year status. The full explanatory
+	// card stays available on Dashboard and /admin/year-setup.
+	if (compact && !isDismissed) {
+		// Setup pages already expose source health through the command-bar chip.
+		// Avoid duplicating non-blocking "checking/aligned" status in the work
+		// area because it pushes the first useful content below the budget.
+		if (!isBlocking && !error) return null;
+
 		return (
-			<div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-700">
-				<CheckCircle2 className="h-4 w-4 shrink-0" />
-				<span>{status.drift.message}</span>
+			<div
+				className={cn(
+					'flex min-h-8 items-center gap-2 rounded-xl border px-2.5 py-1 text-xs shadow-none',
+					isBlocking ? 'border-amber-200 bg-amber-50/70 text-amber-800' : 'border-slate-200 bg-white/80 text-slate-700',
+					status?.drift.status === 'aligned' && 'border-emerald-100 bg-emerald-50/60 text-emerald-700',
+				)}
+				data-testid="rollover-guidance-card"
+			>
+				{icon}
+				<span className="shrink-0 font-bold">{loading ? 'Checking school year' : driftLabel(currentDrift)}</span>
+				<span className="min-w-0 truncate text-muted-foreground">
+					{status?.drift.message ?? 'Checking EnrollPro school year status.'}
+				</span>
+				{canPreviewReset || isBlocking ? (
+					<Button type="button" variant="ghost" size="sm" asChild className="ml-auto h-7 shrink-0 px-2 text-xs font-semibold" data-testid="rollover-banner-open-year-setup">
+						<Link to={adminHref}>Year setup</Link>
+					</Button>
+				) : null}
 				{dismissible ? (
 					<TooltipProvider delayDuration={200}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="icon-sm" className="ml-auto h-6 w-6 shrink-0 text-emerald-700 hover:text-emerald-900" aria-label="Dismiss year status" onClick={dismiss} data-testid="rollover-banner-dismiss">
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									className={cn('h-6 w-6 shrink-0', !(canPreviewReset || isBlocking) && 'ml-auto')}
+									aria-label="Dismiss year status"
+									onClick={dismiss}
+									data-testid="rollover-banner-dismiss"
+								>
 									<X className="size-3.5" />
 								</Button>
 							</TooltipTrigger>
@@ -192,17 +221,10 @@ export function RolloverGuidanceCard({
 	}
 
 	// Dismissed non-blocking banner -> render nothing. Blocking drift states
-	// (atlas-stale / mapping-conflict) cannot be dismissed: they hide the
-	// banner only for the current session key, and the banner re-shows when the
-	// drift status flips. We still allow dismiss on the blocking states but it
-	// only suppresses for the current drift key, so the user re-sees it after a
-	// status transition.
+	// Blocking drift states (atlas-stale / mapping-conflict) are never
+	// dismissible: they stay visible until the year status changes. The
+	// dismiss action only applies to non-blocking banners.
 	if (isDismissed && !isBlocking) return null;
-	if (isDismissed && isBlocking) {
-		// Still render the blocking banner but unlock the dismiss action so the
-		// user can revisit it. We deliberately do not silently hide blocking
-		// banners forever.
-	}
 
 	return (
 		<Card
@@ -229,7 +251,9 @@ export function RolloverGuidanceCard({
 								{status.counts.sectionCount} sections - {status.counts.facultyCount} teachers
 							</Badge>
 						) : null}
-						{dismissible ? (
+						{/* Phase 0B audit fix: blocking drift states are intentionally
+							not dismissible; hiding the X avoids a dead button. */}
+						{dismissible && !isBlocking ? (
 							<TooltipProvider delayDuration={200}>
 								<Tooltip>
 									<TooltipTrigger asChild>

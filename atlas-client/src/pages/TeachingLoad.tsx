@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, UserRound } from 'lucide-react';
 import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { cn } from '@/lib/utils';
 
 import atlasApi from '@/lib/api';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import {
-	buildMultiOwnerSavedMap,
-	buildOwnershipMap,
-	buildOwnershipMapFromIndex,
-	getAssignmentOwnershipKey,
-	STANDARD_WEEKLY_TEACHING_HOURS,
 	computeSectionAssignmentDeltaMinutes,
 } from '@/lib/faculty-assignment-helpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -24,7 +20,6 @@ import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMod
 import { WorkloadInspector } from '@/components/faculty-assignments/WorkloadInspector';
 import { SectionInspector } from '@/components/faculty-assignments/SectionInspector';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
-import { TeachingLoadTaskGuide } from '@/components/faculty-assignments/TeachingLoadTaskGuide';
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
@@ -37,24 +32,26 @@ import type {
 	CoverageMode, 
 	ExternalSection,
 	Subject,
-	SectionAssignedClassesResult,
-	SpecialProgramRebalancePreviewResult 
+	SectionAssignedClassesResult
 } from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
 
 const COVERAGE_MODE_CONFIG: Record<CoverageMode, { label: string; description: string }> = {
+	// Phase 4.5: plain DepEd language. "Teacher X" / "Hard Cap" / "Hybrid
+	// Staffing" are ATLAS-internal terms; the 40h limit is the Magna Carta
+	// weekly maximum for DepEd teachers.
 	REAL_FACULTY_STANDARD: {
-		label: 'Standard Teacher Load (30h)',
-		description: 'Fills qualified real teachers up to 30h. Some sections may remain unassigned.',
+		label: 'Real teachers first, up to 30h/week',
+		description: 'Fills qualified real teachers up to the 30h standard. Some sections may stay unassigned.',
 	},
 	REAL_FACULTY_HARD_CAP: {
-		label: 'Hard Cap Utilization (40h)',
-		description: 'Maximizes real teacher load up to the 40h legal limit.',
+		label: 'Maximum allowed hours (40h)',
+		description: 'Fills real teachers up to the 40h DepEd Magna Carta maximum before leaving any section unassigned.',
 	},
 	REAL_FACULTY_THEN_TEACHER_X: {
-		label: 'Hybrid Staffing (Real + Temp)',
-		description: 'Prioritizes real teachers, then uses Teacher X for remaining sections.',
+		label: 'Real teachers first, then substitutes',
+		description: 'Prioritizes real teachers, then uses temporary substitutes for the remaining sections.',
 	},
 };
 
@@ -66,7 +63,7 @@ function formatTeachingLoadSaveError(error: any) {
 	}
 	if (typeof message === 'string' && message.trim()) {
 		if (/over.*cap|cap/i.test(message)) {
-			return 'This teacher is already over the weekly cap. Choose another teacher or move one class first.';
+			return 'This teacher is already above the weekly maximum. Choose another teacher or move one class first.';
 		}
 		if (/owner|ownership|already assigned/i.test(message)) {
 			return 'This section already has an owner for this subject. Review the current owner before saving.';
@@ -99,9 +96,13 @@ export default function TeachingLoad() {
 	const [resetLoading, setResetLoading] = useState(false);
 	const [hasGeneratedRuns, setHasGeneratedRuns] = useState(false);
 	const [showSaveWarning, setShowSaveWarning] = useState(false);
+	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+	// Phase 4.8: the inspector is hard-cut below lg. A mobile Sheet restores
+	// access to the teacher/section load profile on small screens.
+	const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
-	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Use a repair action first.');
+	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
 
 	useEffect(() => {
 		if (data.activeSchoolYearId) {
@@ -172,7 +173,7 @@ export default function TeachingLoad() {
 		}
 		if (!data.canPersistAssignments) {
 			if (!options?.silent) {
-				toast.error('Saved-truth reconcile requires writable runtime evidence. Refresh and try again.');
+				toast.error('Reconcile needs a live connection. Refresh and try again.');
 			}
 			return false;
 		}
@@ -186,13 +187,13 @@ export default function TeachingLoad() {
 				confirmApply: true,
 			});
 			if (!options?.silent) {
-				toast.success('Saved coverage reconcile applied. Reloading current Teaching Load truth.');
+				toast.success('Reloaded the saved assignments. You can continue editing.');
 			}
 			await data.fetchData({ forceRefresh: true });
 			return true;
 		} catch (error: any) {
 			if (!options?.silent) {
-				toast.error(error?.response?.data?.message ?? 'Saved coverage reconcile failed.');
+				toast.error(error?.response?.data?.message ?? 'ATLAS could not reconcile the saved assignments.');
 			}
 			return false;
 		} finally {
@@ -611,32 +612,32 @@ export default function TeachingLoad() {
 	const workspaceState = useMemo(() => {
 		if (!data.isOnline) {
 			return {
-				label: 'Offline saved data',
-				description: 'ATLAS is showing the last saved teaching load snapshot. Write actions stay off until the connection returns.',
-				nextAction: 'Reconnect, then refresh the source before saving assignments.',
-				writeBlockedReason: 'Saving is disabled while ATLAS is offline.',
+				label: 'Offline',
+				description: 'ATLAS is showing the last saved teaching load. Changes stay off until the connection returns.',
+				nextAction: 'Reconnect, then refresh before saving assignments.',
+				writeBlockedReason: 'Saving is off until ATLAS reconnects. Your work is safe to review.',
 			};
 		}
 		if (data.splitBrainQuarantineRequired) {
 			return {
 				label: 'Review lock active',
-				description: data.splitBrainReasonLabel,
-				nextAction: 'Repair saved scope drift before changing assignments.',
-				writeBlockedReason: data.splitBrainReasonLabel,
+				description: 'ATLAS found two saved versions of the same class assignment. Choose which one to keep before editing.',
+				nextAction: 'Open the review and reconcile the saved assignments.',
+				writeBlockedReason: 'Editing is temporarily locked while ATLAS checks the saved assignments. Review and reconcile to continue.',
 			};
 		}
 		if (data.dataSource === 'refreshing') {
 			return {
 				label: 'Checking source',
-				description: 'ATLAS is comparing the saved workspace with the live source. The last saved snapshot remains visible while this finishes.',
+				description: 'ATLAS is comparing the saved workspace with EnrollPro. The last saved snapshot remains visible while this finishes.',
 				nextAction: 'Wait for verification before saving new changes.',
-				writeBlockedReason: 'Saving is disabled while source verification is still running.',
+				writeBlockedReason: 'Saving is off while ATLAS verifies the roster with EnrollPro.',
 			};
 		}
 		if (data.dataSource === 'live' && data.canPersistAssignments) {
 			return {
 				label: 'Verified live',
-				description: 'Assignment data was checked against the live source. Draft changes can be saved.',
+				description: 'Assignment data was checked against EnrollPro. Draft changes can be saved.',
 				nextAction: data.activeDraftCount > 0 ? 'Save the draft changes before leaving this page.' : 'Inspect one teacher or fill section coverage gaps.',
 				writeBlockedReason: null,
 			};
@@ -644,7 +645,7 @@ export default function TeachingLoad() {
 		if (data.dataSource === 'cached' && data.canPersistAssignments) {
 			return {
 				label: 'Using saved data',
-				description: data.degradedNotice ?? 'ATLAS is using a saved workspace snapshot with enough school-year evidence to allow edits.',
+				description: data.degradedNotice ?? 'ATLAS is using a saved workspace with enough school-year evidence to allow edits.',
 				nextAction: data.activeDraftCount > 0 ? 'Save the draft, then refresh when live verification is available.' : 'Review coverage carefully, then refresh when live verification is available.',
 				writeBlockedReason: null,
 			};
@@ -652,16 +653,16 @@ export default function TeachingLoad() {
 		if (data.dataSource === 'cached') {
 			return {
 				label: 'Read-only saved data',
-				description: data.degradedNotice ?? 'ATLAS can show the saved snapshot, but it cannot safely write assignment changes yet.',
-				nextAction: 'Refresh the source before saving, auto-fill, reset, or transferring assignments.',
-				writeBlockedReason: 'Saving is disabled until ATLAS verifies the live source.',
+				description: data.degradedNotice ?? 'ATLAS can show the saved assignments, but it cannot safely save changes yet.',
+				nextAction: 'Refresh from EnrollPro before saving, suggesting, or resetting assignments.',
+				writeBlockedReason: 'Saving is off until ATLAS reconnects to EnrollPro.',
 			};
 		}
 		return {
 			label: 'No assignment data',
-			description: data.error ?? 'ATLAS could not load a live source or a saved teaching load snapshot.',
-			nextAction: 'Retry the source connection before assigning teachers.',
-			writeBlockedReason: 'Saving is disabled because no teaching load data is available.',
+			description: data.error ?? 'ATLAS could not load a live source or a saved teaching load.',
+			nextAction: 'Retry the connection before assigning teachers.',
+			writeBlockedReason: 'Saving is off because no teaching load data is available.',
 		};
 	}, [
 		data.activeDraftCount,
@@ -795,7 +796,7 @@ export default function TeachingLoad() {
 		if (coverageHeadline.syntheticAssigned > 0) {
 			return {
 				label: 'Mixed coverage',
-				description: `${coverageHeadline.realAssigned} pairs are staffed by real teachers and ${coverageHeadline.syntheticAssigned} use Teacher X placeholders.`,
+				description: `${coverageHeadline.realAssigned} pairs are staffed by real teachers and ${coverageHeadline.syntheticAssigned} use temporary substitutes.`,
 			};
 		}
 		return {
@@ -883,24 +884,15 @@ export default function TeachingLoad() {
 				<div className="flex-1 flex min-h-0" data-testid="teaching-load-content-shell">
 					{/* Main Grid Area */}
 					<div className="flex-1 flex flex-col min-w-0">
-						<div className="shrink-0 px-3 pt-2 lg:px-5">
+						<div className="shrink-0 px-3 pt-1 lg:px-5">
 							<RolloverGuidanceCard compact />
 						</div>
 
-						<TeachingLoadTaskGuide
-							unassignedPairs={coverageHeadline.unassigned}
-							overCapCount={overCapCount}
-							activeDraftCount={data.activeDraftCount}
-							totalPairs={coverageHeadline.total}
-							assignedPairs={coverageHeadline.assigned}
-							isReadOnly={data.isReadOnlyMode}
-							saving={data.saving}
-							onShowUnassigned={showUnassignedTeachingLoad}
-							onShowOverloaded={showOverloadedTeachers}
-							onShowUnloadedTeachers={showTeachersWithoutLoad}
-							onSaveDraft={() => void handleSave()}
-						/>
-
+						{/* Phase 4.1: the standalone TeachingLoadTaskGuide is removed.
+							Its "next step" prompt duplicated the repair queue, and its
+							% staffed badge already lives in the readiness strip under
+							the command header. The repair queue is now the single
+							"next step" surface. */}
 						<TeachingLoadRepairQueue
 							items={repairQueueItems}
 							activeItemId={activeRepairId ?? routedRepairId}
@@ -913,7 +905,7 @@ export default function TeachingLoad() {
 							onSelectItem={handleSelectRepairItem}
 							onSkipItem={handleSkipRepairItem}
 							onUndo={data.handleUndo}
-							onToggleAdvancedGrid={() => setAdvancedGridVisible((visible) => !visible)}
+							onToggleAdvancedGrid={() => setAdvancedGridVisible(true)}
 						/>
 
 						<p
@@ -1022,7 +1014,7 @@ export default function TeachingLoad() {
 							statusMessage={draftStatusMessage}
 							writeBlockedReason={workspaceState.writeBlockedReason}
 							onUndo={data.handleUndo}
-							onDiscard={discardAllDrafts}
+							onDiscard={() => setShowDiscardConfirm(true)}
 							onSave={() => void handleSave()}
 						/>
 					</div>
@@ -1051,6 +1043,58 @@ export default function TeachingLoad() {
 					</div>
 				</div>
 			</div>
+
+			{/* Phase 4.8: mobile inspector access. The persistent inspector is
+				hidden below lg; this floating button opens the same profile in a
+				Sheet on small screens. */}
+			{advancedGridVisible && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="fixed bottom-16 right-4 z-40 h-10 gap-2 font-bold shadow-lg lg:hidden"
+					data-testid="teaching-load-mobile-inspector-open"
+					onClick={() => setMobileInspectorOpen(true)}
+				>
+					<UserRound className="size-4" />
+					View profile
+				</Button>
+			)}
+
+			<Sheet open={mobileInspectorOpen} onOpenChange={setMobileInspectorOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto" data-testid="teaching-load-mobile-inspector-sheet">
+					<SheetHeader className="pb-4 border-b border-border/40">
+						<SheetTitle className="text-base font-bold">
+							{ui.viewMode === 'teacher'
+								? data.selected
+									? `${data.selected.lastName}, ${data.selected.firstName}`
+									: 'Teacher profile'
+								: 'Section profile'}
+						</SheetTitle>
+					</SheetHeader>
+					<div className="py-4">
+						{ui.viewMode === 'teacher' ? (
+							<WorkloadInspector
+								selected={data.selected}
+								loadProfile={ui.loadProfile}
+								rotationTermBreakdown={data.selected?.rotationTermBreakdown ?? []}
+								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
+								previewLoadHours={previewLoadHours}
+								isReadOnlyMode={data.isReadOnlyMode}
+								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
+								writeBlockedReason={workspaceState.writeBlockedReason}
+							/>
+						) : (
+							<SectionInspector
+								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
+								sectionContract={selectedSectionContract}
+								effectiveOwnershipMap={data.effectiveOwnershipMap}
+								writeBlockedReason={workspaceState.writeBlockedReason}
+							/>
+						)}
+					</div>
+				</SheetContent>
+			</Sheet>
 
 			<TeachingLoadModals
 				autoFillDialogOpen={ui.autoFillDialogOpen}
@@ -1098,11 +1142,26 @@ export default function TeachingLoad() {
 			<ConfirmationModal
 				open={showSaveWarning}
 				onOpenChange={setShowSaveWarning}
-				title="Save Teaching Load & Timetable Sync Warning"
-				description="Saving these changes will make the current active draft timetable stale. Any sessions whose teachers or subject allocations were modified will be displaced to the unassigned list once the timetable is synced. Do you want to proceed?"
+				title="Save teaching load changes?"
+				description="Saving now will update the timetable's unassigned list when ATLAS next syncs. Any class whose teacher you changed will be moved back to the unassigned list. Do you want to continue?"
 				onConfirm={() => handleSave(true)}
-				confirmText="Confirm and Save"
+				confirmText="Save changes"
 				variant="warning"
+			/>
+
+			{/* Phase 4.3: Discard requires confirmation. The cancel action is the
+				safe default; the destructive confirm is explicit. */}
+			<ConfirmationModal
+				open={showDiscardConfirm}
+				onOpenChange={setShowDiscardConfirm}
+				title={`Discard ${data.activeDraftCount} draft ${data.activeDraftCount === 1 ? 'change' : 'changes'}?`}
+				description="This will discard every unsaved Teaching Load change. This cannot be undone."
+				onConfirm={() => {
+					discardAllDrafts();
+					setShowDiscardConfirm(false);
+				}}
+				confirmText="Discard all"
+				variant="danger"
 			/>
 		</TooltipProvider>
 	);

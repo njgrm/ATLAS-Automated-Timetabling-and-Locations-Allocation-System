@@ -1,5 +1,5 @@
 import { useMemo, useState, memo, useCallback } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle, X, ArrowLeftRight } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -13,6 +13,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -118,6 +119,17 @@ export const SubjectRow = memo(({
 	completedSectionIds = new Set(),
 }: SubjectRowProps) => {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
+
+	// Phase 4.7: subject-level hard-conflict signal (a section in this subject
+	// has more than one owner saved). Used by the header priority badge; the
+	// per-section cells still show their own conflict states.
+	const hasHardConflict = useMemo(() => {
+		for (const section of sections) {
+			const key = getOwnershipKey(subject.id, section.id);
+			if ((savedConflictMap[key]?.length ?? 0) > 1) return true;
+		}
+		return false;
+	}, [savedConflictMap, sections, subject.id]);
 
 	// Compute filtered sections locally based on global searchTerm and sectionFilter
 	const displaySections = useMemo(() => {
@@ -288,52 +300,59 @@ export const SubjectRow = memo(({
 					<div className="min-w-0">
 						<div className="flex items-center gap-2">
 							<span className="font-bold text-foreground truncate">{subject.name}</span>
-							{isOutsideDepartment && (
-								<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-tight h-5 px-1.5 shadow-none">Outside Dept</Badge>
-							)}
-							{isRotationFamily && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Badge variant="outline" className="text-xs font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-5 px-1.5 shadow-none cursor-help">
-											Rotating Term Lane
-										</Badge>
-									</TooltipTrigger>
-											<TooltipContent side="top" className="text-xs font-bold max-w-70 p-3">
-												<p className="mb-1">Rotational Weekly Lane</p>
-												<p className="text-muted-foreground leading-relaxed font-medium italic">
-													Year-round classes stay every week. Rotational Science/TLE contributes only from the busiest term.
-													<br/><br/>
-													<span className="text-foreground">Credited load = year-round classes + peak rotational term.</span>
-												</p>
-											</TooltipContent>
-								</Tooltip>
-							)}
-							{isRotationFamily && rotationTermLabel && (
-								<Badge variant="outline" className="text-[10px] font-bold bg-violet-100 text-violet-900 border-violet-300 uppercase tracking-tight h-4 px-1.5 shadow-none">
-									{rotationTermLabel}
+							{/* Phase 4.7: cap simultaneous badges. Only the highest-priority
+								alert renders inline (Quarantined > Two-teachers-owner >
+								Outside dept > Rotating > Requires specialization). Every
+								other signal moves into the AccessibleInfo summary next to
+								the name. */}
+							{quarantined && (
+								<Badge variant="outline" className="text-xs font-bold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
+									Editing locked
 								</Badge>
 							)}
-							{isSpecializationSlot && (
-								<Badge variant="outline" className="text-[10px] font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Requires Specialization</Badge>
+							{!quarantined && hasHardConflict && (
+								<Badge variant="outline" className="text-xs font-bold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
+									Owner conflict
+								</Badge>
 							)}
-							{quarantined && (
-								<Badge variant="outline" className="text-[10px] font-bold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Quarantined</Badge>
+							{!quarantined && !hasHardConflict && isOutsideDepartment && (
+								<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
+									Outside department
+								</Badge>
 							)}
+							{!quarantined && !hasHardConflict && !isOutsideDepartment && isRotationFamily && (
+								<Badge variant="outline" className="text-xs font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
+									Rotating
+								</Badge>
+							)}
+							{!quarantined && !hasHardConflict && !isOutsideDepartment && !isRotationFamily && isSpecializationSlot && (
+								<Badge variant="outline" className="text-xs font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
+									Needs specialization
+								</Badge>
+							)}
+							{/* Phase 4.7: remaining signals live in this AccessibleInfo
+								summary instead of cluttering the row. */}
+							{(isOutsideDepartment || isRotationFamily || isSpecializationSlot || (isRotationFamily && rotationTermLabel)) ? (
+								<AccessibleInfo
+									label={`More details for ${subject.name}`}
+									shortHelp={[
+										isOutsideDepartment ? 'This subject is outside this teacher\'s department.' : null,
+										isRotationFamily ? 'This subject rotates by term (shares one weekly lane across terms).' : null,
+										isRotationFamily && rotationTermLabel ? `Active in ${rotationTermLabel}.` : null,
+										isSpecializationSlot ? 'This subject needs a specific specialization to teach.' : null,
+									].filter(Boolean).join(' ')}
+									size="icon-xs"
+								/>
+							) : null}
 						</div>
 						<div className="flex items-center gap-2 mt-1">
 							<code className="text-xs font-mono text-muted-foreground/80 font-bold uppercase tracking-tight">{subject.code}</code>
 							<span className="text-muted-foreground/30 text-[10px]">*</span>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="text-xs text-muted-foreground font-semibold flex items-center gap-1 uppercase tracking-tight cursor-help">
-										<Clock className="size-3" />
-										{subject.minMinutesPerWeek}m / week
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side="top" className="text-xs font-bold">
-									{isRotationFamily ? 'Total Combined Minutes' : 'Actual Weekly Load'}
-								</TooltipContent>
-							</Tooltip>
+							{/* Phase 4.5: minutes-per-week shown in hours ("m" was cryptic). */}
+							<span className="text-xs text-muted-foreground font-semibold flex items-center gap-1 uppercase tracking-tight">
+								<Clock className="size-3" />
+								{Math.round((subject.minMinutesPerWeek / 60) * 10) / 10}h / week
+							</span>
 						</div>
 					</div>
 				</div>
@@ -457,7 +476,7 @@ export const SubjectRow = memo(({
 														const isClickable = !disabled && !isSystemAssignedSection && (!blocked || isOwnedByOther);
 
 														const conflictLabel = isHardConflict
-															? 'DB Conflict'
+															? 'Two teachers both saved as owner'
 															: isOwnedByOther
 															? owner?.facultyName
 															: null;
@@ -483,7 +502,23 @@ export const SubjectRow = memo(({
 														return (
 															<div
 																key={section.id}
+																// Phase 4.6: the section cell is keyboard-operable. The Checkbox
+																// below is pointer-events-none, so the wrapping div is the real
+																// toggle target and must expose role="button" + key handling.
+																role={isClickable ? 'button' : undefined}
+																tabIndex={isClickable ? 0 : undefined}
+																aria-pressed={isClickable ? isSelected : undefined}
+																aria-label={isClickable
+																	? `${section.name}${isSelected ? ' - assigned to this teacher' : ' - not assigned'}`
+																	: undefined}
 																onClick={handleClick}
+																onKeyDown={(event) => {
+																	if (!isClickable) return;
+																	if (event.key === 'Enter' || event.key === ' ') {
+																		event.preventDefault();
+																		handleClick();
+																	}
+																}}
 																onMouseEnter={() => {
 																	if (!isSelected && !blocked && !isOwnedByOther) {
 																		const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
@@ -494,7 +529,7 @@ export const SubjectRow = memo(({
 																}}
 																onMouseLeave={() => onClearHoverLoad?.()}
 																className={cn(
-																	"group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm select-none",
+																	"group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
 																	isClickable && "cursor-pointer",
 																	isSystemAssignedSection
 																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
@@ -517,6 +552,8 @@ export const SubjectRow = memo(({
 																			checked={isSelected}
 																			onCheckedChange={handleClick}
 																			disabled={disabled || quarantined || isSystemAssignedSection || isHardConflict}
+																			tabIndex={-1}
+																			aria-hidden="true"
 																			className={cn(
 																				"size-4 rounded transition-opacity shadow-none border-border/60 pointer-events-none",
 																				isSystemAssignedSection ? 'opacity-0' : 'opacity-100'
@@ -579,13 +616,13 @@ export const SubjectRow = memo(({
 																					<TooltipTrigger asChild>
 																						<div className="flex items-center gap-1 cursor-help">
 																							<div className="size-1.5 rounded-full shrink-0 bg-rose-500" />
-																							<span className="text-xs font-bold uppercase tracking-tight truncate max-w-20 text-rose-700">
-																								DB Conflict
+																							<span className="text-xs font-bold uppercase tracking-tight truncate max-w-24 text-rose-700">
+																								Owner conflict
 																							</span>
 																						</div>
 																					</TooltipTrigger>
 																					<TooltipContent side="top" className="text-xs font-bold">
-																						Database-level conflict detected.
+																						Two teachers are both saved as the owner of this class. Review before continuing.
 																					</TooltipContent>
 																				</Tooltip>
 																			)}

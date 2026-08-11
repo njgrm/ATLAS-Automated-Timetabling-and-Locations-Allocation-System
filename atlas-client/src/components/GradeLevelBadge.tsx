@@ -1,6 +1,6 @@
 /**
  * GradeLevelBadge — Small grade-level chip using DepEd semantic colors.
- * G7 = Green, G8 = Yellow, G9 = Red, G10 = Blue.
+ * GR7 = Green, GR8 = Yellow, GR9 = Red, GR10 = Blue.
  * Falls back to neutral styling for unknown grades.
  */
 
@@ -20,7 +20,7 @@ const GRADE_STYLES: Record<number, string> = {
 	10: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-700',
 };
 
-export function GradeLevelBadge({ grade, size = 'xs', className, prefix = 'G' }: GradeLevelBadgeProps) {
+export function GradeLevelBadge({ grade, size = 'xs', className, prefix = 'GR' }: GradeLevelBadgeProps) {
 	if (grade == null || !Number.isFinite(grade)) return null;
 	const style = GRADE_STYLES[grade] ?? 'bg-muted text-muted-foreground border-border';
 	const sizing = size === 'sm'

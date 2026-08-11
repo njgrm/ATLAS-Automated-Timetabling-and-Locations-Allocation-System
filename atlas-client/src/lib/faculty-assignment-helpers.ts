@@ -158,12 +158,14 @@ function uniqueSortedPositiveInts(values: readonly number[] | null | undefined):
 
 export function deriveLoadStatus(policyCreditedHours: number): { status: LoadStatus; label: string } {
 	if (policyCreditedHours > MAX_WEEKLY_TEACHING_HOURS) {
-		return { status: 'over-cap', label: 'Over cap - must fix' };
+		// Phase 3 / Decision 3: plain DepEd language -- no engineering
+		// vocabulary and no fake approval process.
+		return { status: 'over-cap', label: 'Over maximum - move classes before generating' };
 	}
 	if (policyCreditedHours > STANDARD_WEEKLY_TEACHING_HOURS) {
 		return {
 			status: 'overload-allowed',
-			label: 'Above standard - approval needed',
+			label: 'Above standard - review before generating',
 		};
 	}
 	if (policyCreditedHours === STANDARD_WEEKLY_TEACHING_HOURS) {

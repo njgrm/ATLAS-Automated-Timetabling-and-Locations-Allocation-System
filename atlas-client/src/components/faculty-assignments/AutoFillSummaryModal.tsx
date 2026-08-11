@@ -85,9 +85,9 @@ export function AutoFillSummaryModal({
 	const overlapHours = Math.round(((report?.rotationAdjustedMinutesPerWeek ?? 0) / 60) * 10) / 10;
 	const sectionSource = result?.sectionSource ?? 'enrollpro';
 	const coverageModeLabel: Record<CoverageMode, string> = {
-		REAL_FACULTY_STANDARD: 'Real Teacher Standard (30h)',
-		REAL_FACULTY_HARD_CAP: 'Real Teacher Hard Cap (40h)',
-		REAL_FACULTY_THEN_TEACHER_X: 'Real Teacher then Teacher X',
+		REAL_FACULTY_STANDARD: 'Real teachers first, up to 30h/week',
+		REAL_FACULTY_HARD_CAP: 'Maximum allowed hours (40h)',
+		REAL_FACULTY_THEN_TEACHER_X: 'Real teachers first, then substitutes',
 	};
 	const sourceLabelMap: Record<NonNullable<AutoFillSummaryResult['sectionSource']>, string> = {
 		enrollpro: 'Live EnrollPro',
@@ -235,14 +235,14 @@ export function AutoFillSummaryModal({
 												<p className="text-[0.65rem] font-semibold text-amber-800/80">{staffingTruth.realOnly.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-1">
-												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-blue-700">Hard Cap 40h</p>
+												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-blue-700">Maximum 40h</p>
 												<p className="text-lg font-semibold text-blue-900">{staffingTruth.hardCap.shortageRows} rows</p>
 												<p className="text-[0.65rem] font-semibold text-blue-800/80">{staffingTruth.hardCap.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-1">
-												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-violet-700">Teacher X Fallback</p>
+												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-violet-700">Temporary substitutes</p>
 												<p className="text-lg font-semibold text-violet-900">{staffingTruth.teacherX.shortageRows} rows</p>
-												<p className="text-[0.65rem] font-semibold text-violet-800/80">{staffingTruth.teacherX.rowsClosedByTeacherX} rows closed by Teacher X</p>
+												<p className="text-[0.65rem] font-semibold text-violet-800/80">{staffingTruth.teacherX.rowsClosedByTeacherX} rows closed by substitutes</p>
 											</div>
 										</div>
 										<div className="grid gap-2 sm:grid-cols-2 text-[0.65rem] font-bold text-muted-foreground uppercase tracking-tight">

@@ -25,6 +25,7 @@ import { Link } from 'react-router-dom';
 import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
 import { getDepartmentColor } from '@/lib/department-colors';
 import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
+import { departmentLabel } from '@/lib/deped-glossary';
 
 interface FacultyProfileSheetProps {
 	faculty: FacultySummary | null;
@@ -76,7 +77,7 @@ export function FacultyProfileSheet({
 				<SheetHeader className="pb-6 border-b">
 					<div className="flex items-center gap-4">
 						<div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary shadow-sm border border-primary/10">
-							{faculty.firstName[0]}{faculty.lastName[0]}
+							{faculty.firstName?.[0] ?? ''}{faculty.lastName?.[0] ?? ''}
 						</div>
 						<div className="min-w-0">
 							<div className="flex items-center gap-2">
@@ -123,8 +124,8 @@ export function FacultyProfileSheet({
 								<p className="text-[0.65rem] font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
 									<Briefcase className="size-3 opacity-50" /> Department
 								</p>
-								<Badge variant="outline" className={`text-[0.7rem] font-semibold py-0.5 h-6 px-2 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
-									{faculty.department || 'GENERAL'}
+								<Badge variant="outline" className={`text-xs font-semibold py-0.5 h-6 px-2 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
+									{departmentLabel(faculty.department)}
 								</Badge>
 							</div>
 							<div className="space-y-1.5">
@@ -140,32 +141,35 @@ export function FacultyProfileSheet({
 
 					{/* Workload Section */}
 					<div className="space-y-4">
-						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Current credited workload</h4>
-						
+						<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Current weekly hours</h4>
+
 						<div className={`p-4 rounded-xl border flex flex-col gap-3 ${loadColor} bg-opacity-30 border-current border-opacity-10 shadow-sm`}>
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
 									<Clock className="size-4 opacity-70" />
-									<span className="text-sm font-bold">Credited workload</span>
+									<span className="text-sm font-bold">Total weekly hours</span>
 								</div>
 								<span className="text-lg font-bold tracking-tight">{weeklyHours}h <span className="text-xs font-normal opacity-70">/ {maxHours}h max</span></span>
 							</div>
-							
+
 							<div className="h-2 w-full bg-black/5 rounded-full overflow-hidden">
-								<div 
-									className={`h-full ${loadProgressColor} transition-all`} 
+								<div
+									className={`h-full ${loadProgressColor} transition-all`}
 									style={{ width: `${Math.min(100, loadPercent)}%` }}
 								/>
 							</div>
-							
-							<div className="flex items-center justify-between text-[0.65rem] font-bold uppercase tracking-widest">
-								<span>Credited load: {loadPercent}% of cap</span>
+
+							<div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+								<span>{loadPercent}% of the weekly maximum</span>
 								<span>{loadState}</span>
 							</div>
 							{faculty.isClassAdviser && (
-								<p className="text-[0.65rem] font-bold opacity-70 mt-1 uppercase tracking-wider">Includes {faculty.advisoryEquivalentHours}h Advisory Credit</p>
+								<p className="text-xs font-bold opacity-70 mt-1 uppercase tracking-wider">Includes {faculty.advisoryEquivalentHours}h for class adviser duties</p>
 							)}
-							<p className="text-[0.65rem] font-bold opacity-70 uppercase tracking-wider">Standard is {STANDARD_WEEKLY_TEACHING_HOURS}h. The {maxHours}h cap is the hard repair limit.</p>
+							{/* Phase 3.6: the 40h cap is now described as the absolute
+								maximum before ATLAS cannot generate -- plain DepEd
+								language instead of the old engineering term. */}
+							<p className="text-xs font-bold opacity-70 uppercase tracking-wider">The standard is {STANDARD_WEEKLY_TEACHING_HOURS}h. The {maxHours}h maximum is the absolute limit before ATLAS cannot generate the timetable.</p>
 						</div>
 
 						<div className="grid grid-cols-2 gap-4 pt-2">
@@ -206,8 +210,8 @@ export function FacultyProfileSheet({
 												<p className="text-sm font-bold truncate leading-tight">{fs.subject?.name || 'Unknown Subject'}</p>
 												<code className="text-[0.65rem] text-muted-foreground font-mono uppercase opacity-70">{fs.subject?.code}</code>
 											</div>
-											<Badge variant="secondary" className="text-[0.65rem] font-bold px-1.5 py-0.5 h-5 bg-muted/50">
-												{fs.subject?.minMinutesPerWeek || 0}m
+											<Badge variant="secondary" className="text-xs font-bold px-1.5 py-0.5 h-5 bg-muted/50">
+												{fs.subject?.minMinutesPerWeek ? `${Math.round((fs.subject.minMinutesPerWeek / 60) * 10) / 10}h` : '-'}
 											</Badge>
 										</div>
 										<div className="flex flex-col gap-1.5">

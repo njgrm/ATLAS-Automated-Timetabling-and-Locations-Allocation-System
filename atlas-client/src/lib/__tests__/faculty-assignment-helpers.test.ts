@@ -31,7 +31,8 @@ test('deriveWorkloadCapacity flags 35 teaching plus 5 credit as approval-needed 
 	assert.equal(workload.overStandardHours, 10);
 	assert.equal(workload.overCapHours, 0);
 	assert.equal(workload.status, 'overload-allowed');
-	assert.equal(workload.statusLabel, 'Above standard - approval needed');
+	// Phase 3 / Decision 3: plain DepEd label.
+	assert.equal(workload.statusLabel, 'Above standard - review before generating');
 });
 
 test('deriveWorkloadCapacity flags 36 teaching plus 5 credit as over cap', () => {
@@ -40,7 +41,8 @@ test('deriveWorkloadCapacity flags 36 teaching plus 5 credit as over cap', () =>
 	assert.equal(workload.creditedTotalHours, 41);
 	assert.equal(workload.overCapHours, 1);
 	assert.equal(workload.status, 'over-cap');
-	assert.equal(workload.statusLabel, 'Over cap - must fix');
+	// Phase 3 / Decision 3: plain DepEd label.
+	assert.equal(workload.statusLabel, 'Over maximum - move classes before generating');
 });
 
 test('getFacultyLoadSortRank puts urgent workload states first', () => {

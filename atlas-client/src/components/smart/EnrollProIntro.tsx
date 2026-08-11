@@ -7,19 +7,21 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 /**
  * `EnrollProIntro` -- one-time-dismissible intro Popover (Decision 6).
  *
- * Renders its trigger child (the source-state chip). On first visit per browser
- * profile, opens a Popover explaining that ATLAS uses EnrollPro as roster
- * source. Dismiss persists a localStorage key so the intro never re-shows
- * unprompted.
+ * Renders its trigger child (the source-state chip button). On first visit per
+ * browser profile, opens a Popover explaining that ATLAS uses EnrollPro as
+ * roster source. Dismiss persists a localStorage key so the intro never
+ * re-shows unprompted.
  *
- * Re-trigger: delete `atlas.enrollpro-intro.dismissed` from localStorage or
- * expose a Help affordance in a future phase.
+ * The child is used as the intro's PopoverTrigger via `asChild`, so the
+ * chip button stays the single focusable element (the chip's own details
+ * Popover nests inside this intro's trigger). See
+ * `AdminSourceStateChip` in AdminWorkspace.tsx for the wiring.
  */
 const STORAGE_KEY = 'atlas.enrollpro-intro.dismissed';
 export { STORAGE_KEY as ENROLLPRO_INTRO_STORAGE_KEY };
 
 export type EnrollProIntroProps = {
-	/** The element to anchor the intro to (typically the source-state chip). */
+	/** The element to anchor the intro to (the source-state chip button). */
 	children: ReactNode;
 	/** Storage key override (used by tests). */
 	storageKey?: string;

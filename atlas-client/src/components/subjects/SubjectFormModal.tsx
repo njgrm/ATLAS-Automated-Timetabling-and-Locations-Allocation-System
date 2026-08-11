@@ -192,14 +192,14 @@ export function SubjectFormModal({
 					: '';
 
 	// Re-run validation on every change so the inline errors + tooltip track the
-	// live form state.
+	// live form state. React's sanctioned render-phase setState re-renders
+	// before commit, so the errors never flash one frame late.
 	if (
 		(nextValidationErrors.code ?? null) !== (validationErrors.code ?? null)
 		|| (nextValidationErrors.name ?? null) !== (validationErrors.name ?? null)
 		|| (nextValidationErrors.programScopes ?? null) !== (validationErrors.programScopes ?? null)
 	) {
-		// Schedule on microtask to avoid setState-during-render warnings.
-		queueMicrotask(() => setValidationErrors(nextValidationErrors));
+		setValidationErrors(nextValidationErrors);
 	}
 
 	const subjectMetaRotationLabel = resolveCanonicalRotationTermLabel(

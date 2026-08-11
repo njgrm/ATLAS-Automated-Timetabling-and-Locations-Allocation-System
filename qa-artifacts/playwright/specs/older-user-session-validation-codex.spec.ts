@@ -110,7 +110,7 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 		await tryTask(results, viewport, 'T03', async () => {
 			const timedRoute = await timed(() => openRoute(page, '/subjects'));
 			await page.getByRole('button', { name: /More filters/i }).click();
-			await expect(page.getByText(/All attention states/i).first()).toBeVisible();
+			await expect(page.getByText(/All statuses/i).first()).toBeVisible();
 			const search = await page.getByPlaceholder(/Search name or code/i).getAttribute('placeholder');
 			return `Subjects attention filter disclosed in ${timedRoute.timeMs}ms; search=${search}`;
 		});

@@ -48,9 +48,8 @@ import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/componen
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
-import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { cn } from '@/lib/utils';
-import { programShortLabel, programFullLabel } from '@/lib/deped-glossary';
+import { programShortLabel, programFullLabel, gradeCompact } from '@/lib/deped-glossary';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -678,11 +677,15 @@ export default function Sections() {
 		const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
 		const gKey = gradeKey(section.gradeLevelName);
 		const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
+		// Phase 0C.1 audit fix: mobile fill pill uses the same neutral slate
+		// scale as the desktop pill (red is reserved for G9 grade meaning).
 		const fillTone = fill >= 95
-			? 'border-red-200 bg-red-50 text-red-700'
+			? 'border-slate-800 bg-slate-800 text-white'
 			: fill >= 85
-			? 'border-amber-200 bg-amber-50 text-amber-700'
-			: 'border-emerald-200 bg-emerald-50 text-emerald-700';
+			? 'border-amber-500 bg-amber-500 text-white'
+			: fill >= 70
+			? 'border-emerald-600 bg-emerald-600 text-white'
+			: 'border-slate-200 bg-slate-50 text-slate-700';
 
 		return (
 			<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="section-mobile-card">
@@ -690,7 +693,7 @@ export default function Sections() {
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-2">
 							<Badge className={cn('h-6 rounded-full border-0 text-xs font-bold', GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground')}>
-								G{section.gradeLevelName.replace(/^Grade\s+/i, '')}
+								{gradeCompact(Number(gKey))}
 							</Badge>
 							{section.isSpecialProgram && section.programCode && (
 								<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">
@@ -785,8 +788,12 @@ export default function Sections() {
 		const sectionsNeedingRooms = Math.max(0, state.data.totalSections - assignedCount);
 		return [
 			{ label: 'Sections', value: state.data.totalSections, tone: 'brand' as const, helpText: 'Total section rosters available for the active school year.' },
-			{ label: 'Home rooms assigned', value: `${assignedCount}/${state.data.totalSections}`, tone: assignmentPct === 100 ? 'success' as const : 'warning' as const, helpText: `${assignmentPct}% of sections already have a home room.` },
-			{ label: 'Need rooms', value: sectionsNeedingRooms, tone: sectionsNeedingRooms === 0 ? 'success' as const : 'warning' as const, helpText: sectionsNeedingRooms === 0 ? 'Every visible section has a home room.' : 'Assign these sections before schedule generation.' },
+			{
+				label: sectionsNeedingRooms === 0 ? 'Home rooms' : 'Need rooms',
+				value: sectionsNeedingRooms === 0 ? `${assignedCount}/${state.data.totalSections}` : sectionsNeedingRooms,
+				tone: sectionsNeedingRooms === 0 ? 'success' as const : 'warning' as const,
+				helpText: sectionsNeedingRooms === 0 ? `${assignmentPct}% of sections already have a home room.` : 'Assign these sections before schedule generation.',
+			},
 			...(queuedHomeRoomEdits.length > 0 ? [{ label: 'Queued', value: queuedHomeRoomEdits.length, tone: 'info' as const, helpText: 'Home-room changes saved locally and waiting to sync.' }] : []),
 		];
 	}, [assignedCount, queuedHomeRoomEdits.length, state]);
@@ -926,7 +933,7 @@ export default function Sections() {
 			)}
 		>
 
-			<div className="shrink-0 px-4 pt-2 lg:px-5">
+			<div className="shrink-0 px-4 pt-1 lg:px-5">
 				<RolloverGuidanceCard compact />
 			</div>
 
@@ -966,7 +973,7 @@ export default function Sections() {
 				<div
 					role="status"
 					data-testid="sections-start-here-banner"
-					className="shrink-0 mx-4 mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary shadow-sm lg:mx-5"
+					className="shrink-0 mx-4 mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm text-primary shadow-sm lg:mx-5"
 				>
 					<MapPin className="size-4 shrink-0" />
 					<span className="flex-1 font-semibold">

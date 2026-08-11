@@ -20,6 +20,7 @@ import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	AdminSearchFilterToolbar,
 	AdminWorkspaceFrame,
@@ -37,6 +38,7 @@ import {
 } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
+import { departmentLabel } from '@/lib/deped-glossary';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -96,8 +98,8 @@ function getTeacherRepairIntent(teacher: FacultySummary) {
 	if (teacher.isPlaceholder) {
 		return {
 			task: 'review-placeholders',
-			label: 'Review placeholder',
-			helper: 'Teacher X is temporary. Replace this with a real teacher when staffing is known.',
+			label: 'Review temporary',
+			helper: 'This is a temporary record for a teacher who has not been hired yet. Replace it before publishing.',
 		};
 	}
 	if (!teacher.isActiveForScheduling) {
@@ -110,15 +112,15 @@ function getTeacherRepairIntent(teacher: FacultySummary) {
 	if ((teacher.subjectCount ?? 0) === 0) {
 		return {
 			task: 'missing-load',
-			label: 'Fix missing load',
+			label: 'Assign teaching load',
 			helper: 'This active teacher has no Teaching Load yet.',
 		};
 	}
 	if (loadHours > teacher.maxHoursPerWeek) {
 		return {
 			task: 'over-cap',
-			label: 'Reduce overload',
-			helper: 'This teacher is over the weekly cap and needs repair before generation.',
+			label: 'Move classes',
+			helper: 'This teacher is over the weekly maximum. Move classes before generating the timetable.',
 		};
 	}
 	return {
@@ -160,7 +162,7 @@ export default function Faculty() {
 			await atlasApi.delete(`/faculty/${confirmDeleteTarget.id}`, {
 				params: { schoolId: DEFAULT_SCHOOL_ID }
 			});
-			toast.success('Placeholder teacher deleted successfully.');
+			toast.success('Temporary teacher deleted successfully.');
 			setConfirmDeleteTarget(null);
 			void fetchFaculty({ forceRefresh: true });
 		} catch (err: any) {
@@ -476,10 +478,32 @@ export default function Faculty() {
 			cellClassName: 'min-w-52',
 			render: (teacher) => <FacultyDepartmentCell faculty={teacher} />,
 		},
+		// Phase 3.1: restore the three hidden desktop columns. The subject and
+		// section counts and weekly hours were only mounted on the mobile card
+		// before, so desktop users could not compare load across rows at a
+		// glance (audit T-1/T-2/T-8).
+		{
+			id: 'teachingLoad',
+			label: 'Teaching Load',
+			description: 'Subjects and sections assigned to this teacher.',
+			sortKey: 'subjects',
+			headerClassName: 'text-center',
+			cellClassName: 'text-center min-w-32',
+			render: (teacher) => <FacultyTeachingLoadCell faculty={teacher} />,
+		},
+		{
+			id: 'weeklyHours',
+			label: 'Weekly hours',
+			description: 'Total weekly hours against the 30h standard.',
+			sortKey: 'weeklyLoad',
+			headerClassName: 'text-center',
+			cellClassName: 'text-center min-w-32',
+			render: (teacher) => <FacultyWeeklyLoadCell faculty={teacher} />,
+		},
 		{
 			id: 'loadState',
-			label: 'Load State',
-			description: 'Readiness against standard and cap.',
+			label: 'Status',
+			description: 'Load readiness against the standard and the cap.',
 			sortKey: 'status',
 			headerClassName: 'text-center',
 			cellClassName: 'text-center',
@@ -502,7 +526,7 @@ export default function Faculty() {
 		return [
 			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
 			{ label: 'With load', value: `${assignedCount}/${activeCount}`, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: `${unassignedCount} of ${activeCount} active teachers still need a teaching load.` },
-			{ label: 'Over cap', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly cap. Repair these before generation.' },
+			{ label: 'Above weekly max', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly maximum. Move classes before generating.' },
 		];
 	}, [faculty, rosterStats]);
 
@@ -527,6 +551,12 @@ export default function Faculty() {
 
 	const applyAttentionFilter = useCallback((filter: TeacherAttentionFilter) => {
 		setAttentionFilter(filter);
+		// Phase 3.3: "All teachers" only clears the attention filter. It no
+		// longer silently resets the department filter the scheduler may have
+		// set intentionally (audit T-6).
+		if (filter === 'all') {
+			return;
+		}
 		if (filter === 'needs-load') {
 			setSchedulingFilter('active');
 			setAssignmentFilter('unassigned');
@@ -555,19 +585,14 @@ export default function Faculty() {
 			setSortDir('asc');
 			return;
 		}
-		setSchedulingFilter('all');
-		setAssignmentFilter('all');
-		setDepartmentFilter('all');
-		setSortField('name');
-		setSortDir('asc');
 	}, []);
 
 	const attentionChips = [
-		{ id: 'needs-load' as const, label: 'Needs load', count: rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length },
-		{ id: 'over-cap' as const, label: 'Over cap', count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
-		{ id: 'no-active-load' as const, label: 'No active load', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
-		{ id: 'placeholders' as const, label: 'Review placeholders', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
-		{ id: 'all' as const, label: 'All teachers', count: rosterStats?.totalCount ?? faculty.length },
+		{ id: 'needs-load' as const, label: 'No subjects assigned', helper: 'Active teachers with no subject assigned in Teaching Load.', count: rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length },
+		{ id: 'over-cap' as const, label: 'Above weekly max', helper: 'Active teachers above the 40h weekly maximum. Move classes before generating.', count: rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length },
+		{ id: 'no-active-load' as const, label: 'No sections assigned', helper: 'Active teachers with no section assigned yet.', count: faculty.filter((teacher) => teacher.isActiveForScheduling && !teacher.isPlaceholder && (teacher.sectionCount ?? 0) === 0).length },
+		{ id: 'placeholders' as const, label: 'Temporary teachers', helper: 'Placeholder records for teachers who have not been hired yet. Replace before publishing.', count: faculty.filter((teacher) => teacher.isPlaceholder).length },
+		{ id: 'all' as const, label: 'All teachers', helper: 'Clear the attention filter and show every teacher.', count: rosterStats?.totalCount ?? faculty.length },
 	];
 
 return (
@@ -596,7 +621,7 @@ return (
 			}}
 			stats={teacherStats}
 			primaryActions={(
-				<Button asChild size="sm" className="gap-2 font-semibold shadow-sm">
+				<Button asChild size="sm" className="hidden gap-2 font-semibold shadow-sm sm:inline-flex">
 					<Link to="/teaching-load">
 						<BookOpenCheck className="size-4" />
 						Review load
@@ -605,6 +630,12 @@ return (
 			)}
 			secondaryActions={(
 				<>
+					<Button asChild size="sm" className="gap-2 font-semibold shadow-sm sm:hidden">
+						<Link to="/teaching-load">
+							<BookOpenCheck className="size-4" />
+							Review load
+						</Link>
+					</Button>
 					<Button
 						onClick={() => {
 							setPlaceholderEditTarget(null);
@@ -614,7 +645,7 @@ return (
 						className="gap-2 font-semibold shadow-sm"
 					>
 						<Plus className="size-4" />
-						Create Placeholder
+						Create Temporary
 					</Button>
 					<Button variant="outline" onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="gap-2 font-semibold">
 						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
@@ -658,7 +689,7 @@ return (
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="all">All Departments</SelectItem>
-									{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+									{departments.map((d) => <SelectItem key={d} value={d}>{departmentLabel(d)}</SelectItem>)}
 								</SelectContent>
 							</Select>
 						)}
@@ -669,62 +700,16 @@ return (
 								className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
 								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); setAttentionFilter('all'); }}
 							>
-								Reset all
+								Reset filters
 							</Button>
 						)}
 				</AdminSearchFilterToolbar>
 			)}
 		>
 
-			<div className="shrink-0 px-4 pt-2 lg:px-5">
+			<div className="shrink-0 px-4 pt-1 lg:px-5">
 				<RolloverGuidanceCard compact />
 			</div>
-
-			<section
-				data-testid="teachers-next-action-strip"
-				className="shrink-0 mx-4 mt-2 rounded-xl border border-primary/10 bg-primary/[0.03] px-3 py-1.5 shadow-sm lg:mx-5"
-				aria-label="Teacher load repair guidance"
-			>
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<div className="min-w-0">
-						<p className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground">Next teacher to fix</p>
-						{nextTeacherToFix && nextTeacherIntent ? (
-							<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2">
-								<p className="truncate text-sm font-bold text-foreground">{nextTeacherToFix.lastName}, {nextTeacherToFix.firstName}</p>
-								<span className="hidden text-xs font-semibold text-muted-foreground md:inline [@media(max-height:500px)]:hidden">{nextTeacherIntent.helper}</span>
-							</div>
-						) : (
-							<p className="mt-0.5 text-sm font-semibold text-muted-foreground">Load data is still loading.</p>
-						)}
-					</div>
-					<div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
-						{nextTeacherToFix && nextTeacherIntent && (
-							<Button asChild size="sm" className="h-9 gap-2 font-bold" data-testid="teacher-repair-card">
-								<Link to={`/teaching-load?facultyId=${nextTeacherToFix.id}&task=${nextTeacherIntent.task}`}>
-									<ListChecks className="size-4" />
-									{nextTeacherIntent.label}
-									<ArrowRight className="size-4" />
-								</Link>
-							</Button>
-						)}
-						<div className="flex max-w-full shrink-0 flex-nowrap items-center gap-1.5 sm:max-w-[22rem] lg:max-w-full">
-							{attentionChips.map((chip) => (
-								<Button
-									key={chip.id}
-									type="button"
-									variant={attentionFilter === chip.id ? 'secondary' : 'outline'}
-									size="sm"
-									className="h-8 shrink-0 rounded-full px-3 text-xs font-bold"
-									onClick={() => applyAttentionFilter(chip.id)}
-								>
-									{chip.label}
-									<span className="ml-1 tabular-nums text-muted-foreground">{chip.count}</span>
-								</Button>
-							))}
-						</div>
-					</div>
-				</div>
-			</section>
 
 			{/* Status Banners */}
 			{syncError && (
@@ -757,6 +742,72 @@ return (
 				data={paged}
 				columns={teacherColumns}
 				getRowKey={(teacher) => teacher.id}
+				leadingContent={(
+					<section
+						data-testid="teachers-next-action-strip"
+						className="rounded-t-xl bg-primary/[0.03] px-2.5 py-1"
+						aria-label="Teacher load guidance"
+					>
+						<div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+							<div className="flex min-w-0 shrink-0 items-center gap-2">
+								<div className="min-w-0 shrink-0">
+								{/* Phase 3.4 + "fix" language rule: the heading and empty-state
+									copy no longer use "fix" and no longer say "Load data is
+									still loading" forever after load completes. */}
+									<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
+										<span aria-hidden="true">Next teacher</span>
+										<span className="sr-only">Next teacher to review</span>
+									</p>
+									{nextTeacherToFix && nextTeacherIntent ? (
+										<div className="mt-0.5 flex min-w-0 items-center gap-2">
+											<p className="max-w-32 truncate text-sm font-bold text-foreground sm:max-w-48">{nextTeacherToFix.lastName}, {nextTeacherToFix.firstName}</p>
+											<span className="sr-only">{nextTeacherIntent.helper}</span>
+										</div>
+									) : loading || refreshing ? (
+										<p className="mt-0.5 text-sm font-semibold text-muted-foreground">Checking the teacher roster...</p>
+									) : faculty.length === 0 ? (
+										<p className="mt-0.5 text-sm font-semibold text-muted-foreground">No active teachers to review. Sync the roster first.</p>
+									) : (
+										<p className="mt-0.5 text-sm font-semibold text-muted-foreground">Every teacher looks ready to review.</p>
+									)}
+								</div>
+								{nextTeacherToFix && nextTeacherIntent && (
+									<Button asChild size="sm" className="h-8 shrink-0 gap-1.5 px-2 text-xs font-bold" data-testid="teacher-repair-card">
+										<Link to={`/teaching-load?facultyId=${nextTeacherToFix.id}&task=${nextTeacherIntent.task}`}>
+											<ListChecks className="size-4" />
+											{nextTeacherIntent.label}
+											<ArrowRight className="size-4" />
+										</Link>
+									</Button>
+								)}
+							</div>
+							<div className="flex min-w-0 flex-1 flex-nowrap items-center justify-start gap-2 overflow-x-auto pb-0.5 sm:justify-end">
+								<div className="flex max-w-full shrink-0 flex-nowrap items-center gap-1.5 sm:max-w-[22rem] lg:max-w-full">
+									{attentionChips.map((chip) => (
+										<TooltipProvider key={chip.id} delayDuration={200}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														type="button"
+														variant={attentionFilter === chip.id ? 'secondary' : 'outline'}
+														size="sm"
+														aria-pressed={attentionFilter === chip.id}
+														className="h-8 shrink-0 rounded-full px-2.5 text-xs font-bold"
+														onClick={() => applyAttentionFilter(chip.id)}
+													>
+														{chip.label}
+														<span className="ml-1 tabular-nums text-muted-foreground">{chip.count}</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" className="max-w-60 text-xs">{chip.helper}</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									))}
+								</div>
+							</div>
+						</div>
+					</section>
+				)}
 				loading={loading}
 				isFiltered={searchQuery.trim().length > 0 || hasActiveFilters}
 				sort={{ key: sortField, direction: sortDir }}
@@ -824,7 +875,7 @@ return (
 						];
 						if (teacher.isPlaceholder) {
 							actions.push({
-									label: 'Edit placeholder details',
+									label: 'Edit temporary teacher details',
 									icon: <Pencil className="size-4" />,
 									onSelect: () => {
 										setPlaceholderEditTarget(teacher);
@@ -835,7 +886,7 @@ return (
 						return actions;
 					},
 					destructive: (teacher) => teacher.isPlaceholder ? [{
-						label: 'Delete placeholder',
+						label: 'Delete temporary teacher',
 						icon: <Trash2 className="size-4" />,
 						onSelect: () => setConfirmDeleteTarget(teacher),
 					}] : [],
@@ -866,7 +917,7 @@ return (
 			<Dialog open={confirmDeleteTarget !== null} onOpenChange={(open) => !open && setConfirmDeleteTarget(null)}>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader>
-						<DialogTitle className="text-lg font-bold text-red-600">Delete Placeholder Teacher</DialogTitle>
+						<DialogTitle className="text-lg font-bold text-red-600">Delete Temporary Teacher</DialogTitle>
 						<DialogDescription>
 							Are you sure you want to delete <span className="font-semibold text-foreground">{confirmDeleteTarget?.firstName} {confirmDeleteTarget?.lastName}</span>? This action is permanent and will remove all their assigned teaching load sections.
 						</DialogDescription>

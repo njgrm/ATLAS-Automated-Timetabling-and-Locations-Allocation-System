@@ -23,6 +23,7 @@ import atlasApi from '@/lib/api';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
+import { departmentLabel } from '@/lib/deped-glossary';
 import type { SectionDetail } from './SectionRow';
 import type { RoomOption } from './SectionRoomPicker';
 import { cn } from '@/lib/utils';
@@ -253,7 +254,7 @@ export function SectionDetailsSheet({
 																<Users className="size-3 text-muted-foreground" />
 																<span className="text-xs font-semibold text-foreground">{cls.facultyName}</span>
 																<Badge variant="outline" className={`text-[0.6rem] font-bold py-0 h-4 px-1 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
-																	{cls.facultyDepartment || 'GENERAL'}
+																	{departmentLabel(cls.facultyDepartment)}
 																</Badge>
 															</div>
 														</div>

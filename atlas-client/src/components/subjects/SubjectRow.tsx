@@ -18,7 +18,6 @@ import {
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { GRADE_COLORS } from '@/lib/grade-labels';
 import {
 	PROGRAM_SCOPE_BADGE,
 	ROOM_TYPE_LABELS,
@@ -120,7 +119,7 @@ export function SubjectRow({
 								className={`text-xs font-semibold py-0 h-5 px-1.5 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}
 								aria-label={`Owner department: ${departmentLabel(subject.ownerDepartment)}`}
 							>
-								{subject.ownerDepartment || 'GENERAL'}
+								{departmentLabel(subject.ownerDepartment)}
 							</Badge>
 							{subject.rotationFamily && (
 								<>
@@ -213,37 +212,46 @@ export function SubjectRow({
 					}
 					if (!subject.isSeedable) {
 						return (
-							<AccessibleInfo
-								label={`${subject.name} excluded from timetable`}
-								shortHelp="This subject counts toward teacher load but is not placed on the timetable grid."
-							>
-								<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-slate-600 border-slate-200 shadow-none">
+							<span className="flex items-center gap-1">
+								{/* Phase 4.7 audit fix: the Badge is a passive indicator; the
+									AccessibleInfo is a sibling focusable icon trigger so the
+									explanation is keyboard-reachable (WCAG 1.4.13). */}
+								<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-slate-600 border-slate-200 shadow-none" aria-label={`${subject.name} excluded from timetable`}>
 									Excluded
 								</Badge>
-							</AccessibleInfo>
+								<AccessibleInfo
+									label={`${subject.name} excluded from timetable`}
+									shortHelp="This subject counts toward teacher load but is not placed on the timetable grid."
+									size="icon-xs"
+								/>
+							</span>
 						);
 					}
 					if (assignedSubjectIds?.has(subject.id)) {
 						return (
-							<AccessibleInfo
-								label={`${subject.name} has a teacher assigned`}
-								shortHelp="A teacher is already assigned to this subject in Teaching Load."
-							>
-								<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">
+							<span className="flex items-center gap-1">
+								<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has a teacher assigned`}>
 									Teacher assigned
 								</Badge>
-							</AccessibleInfo>
+								<AccessibleInfo
+									label={`${subject.name} has a teacher assigned`}
+									shortHelp="A teacher is already assigned to this subject in Teaching Load."
+									size="icon-xs"
+								/>
+							</span>
 						);
 					}
 					return (
-						<AccessibleInfo
-							label={`${subject.name} needs a teacher`}
-							shortHelp="No teacher has been assigned to this subject in Teaching Load yet. Open coverage to review."
-						>
-							<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none">
+						<span className="flex items-center gap-1">
+							<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} needs a teacher`}>
 								Needs teacher
 							</Badge>
-						</AccessibleInfo>
+							<AccessibleInfo
+								label={`${subject.name} needs a teacher`}
+								shortHelp="No teacher has been assigned to this subject in Teaching Load yet. Open coverage to review."
+								size="icon-xs"
+							/>
+						</span>
 					);
 				})()}
 			</td>

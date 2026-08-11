@@ -140,12 +140,16 @@ test.describe.serial('Setup-first UI/UX Iterations 0-2', () => {
 				metrics.sourceText,
 				`${target.label} must show source status without hover. Metrics: ${JSON.stringify(metrics)}`,
 			).toMatch(/Verified live|Checking source|Using saved data|No saved data|Read-only|Offline/i);
-			if (!isMobile) {
-				expect(
-					metrics.sourceSummaryText,
-					`${target.label} desktop header should include visible source truth summary. Metrics: ${JSON.stringify(metrics)}`,
-				).toMatch(/Source truth:/i);
-			}
+			expect(
+				metrics.sourceSummaryText,
+				`${target.label} header should expose an assistive source summary. Metrics: ${JSON.stringify(metrics)}`,
+			).toMatch(/Verified live|Checking source|Using saved data|No saved data|Read-only|Offline/i);
+			// The visible "Source truth:" sentence is intentionally gone (header
+			// simplification); the summary is sr-only + the source chip popover.
+			expect(
+				metrics.sourceSummaryText,
+				`${target.label} must NOT show a visible "Source truth:" sentence. Metrics: ${JSON.stringify(metrics)}`,
+			).not.toMatch(/Source truth:/i);
 
 			await assertNoGlobalOverflow(page);
 			await attachReport(testInfo, `${target.label.toLowerCase().replace(/\s+/g, '-')}-iteration-0-2`, metrics);

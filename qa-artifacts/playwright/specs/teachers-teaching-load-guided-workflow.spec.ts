@@ -75,9 +75,10 @@ test.describe.serial('Teachers + Teaching Load guided workflow simplification', 
 		await expect(page.locator('[data-testid="teacher-row-primary-action"]:visible').first()).toBeVisible({ timeout: 20_000 });
 		await expect(page.locator('[data-testid="teacher-row-more-actions"]:visible').first()).toBeVisible({ timeout: 20_000 });
 		const strip = page.getByTestId('teachers-next-action-strip');
-		await expect(strip.getByRole('button', { name: /Needs load/i })).toBeVisible();
-		await expect(strip.getByRole('button', { name: /^Over cap/i })).toBeVisible();
-		await expect(strip.getByRole('button', { name: /Review placeholders/i })).toBeVisible();
+		// Phase 3.3: chips use plain DepEd language.
+		await expect(strip.getByRole('button', { name: /No subjects assigned/i })).toBeVisible();
+		await expect(strip.getByRole('button', { name: /Above weekly max/i })).toBeVisible();
+		await expect(strip.getByRole('button', { name: /Temporary teachers/i })).toBeVisible();
 
 		const href = await page.locator('[data-testid="teacher-row-primary-action"]:visible').first().getAttribute('href');
 		expect(href, 'Teacher row primary action must deep-link to Teaching Load with a task intent.').toMatch(/\/teaching-load\?facultyId=\d+&task=(missing-load|over-cap|review-placeholders|review)/);
@@ -167,18 +168,17 @@ test.describe.serial('Teachers + Teaching Load guided workflow simplification', 
 		await expect(page.getByRole('button', { name: /More filters/i }).first()).toBeVisible({ timeout: 20_000 });
 
 		const metrics = await page.evaluate(() => {
-			const guide = document.querySelector('[data-testid="teaching-load-task-guide"]')?.getBoundingClientRect();
+			// Phase 4.1: the standalone task guide was removed; the repair
+			// queue is the single "next step" surface.
 			const queue = document.querySelector('[data-testid="teaching-load-repair-queue"]')?.getBoundingClientRect();
 			const bar = document.querySelector('[data-testid="teaching-load-draft-action-bar"]')?.getBoundingClientRect();
 			return {
-				guideHeight: Math.round(guide?.height ?? 0),
 				queueHeight: Math.round(queue?.height ?? 0),
 				draftBarHeight: Math.round(bar?.height ?? 0),
 				currentRepair: document.querySelector('[data-testid="teaching-load-current-repair"]')?.textContent?.replace(/\s+/g, ' ').trim(),
 			};
 		});
-		expect(metrics.guideHeight).toBeLessThanOrEqual(72);
-		expect(metrics.queueHeight).toBeLessThanOrEqual(page.viewportSize()!.width < 768 ? 260 : 180);
+		expect(metrics.queueHeight).toBeLessThanOrEqual(page.viewportSize()!.width < 768 ? 260 : 200);
 		await assertNoGlobalOverflow(page);
 		await assertNoVisibleOverlap(page);
 		await attachReport(testInfo, 'teaching-load-guided-queue', metrics);

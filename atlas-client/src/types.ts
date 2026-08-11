@@ -54,7 +54,7 @@ export type Subject = {
 	displayCode?: string;
 	ownerDepartment?: string | null;
 	allowedOwnerDepartments?: string[];
-	qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+	qualificationPriority?: 'DEPARTMENT_FIRST';
 	rotationFamily?: string | null;
 	rotationTermRank?: number | null;
 	rotationTermLabel?: string | null;

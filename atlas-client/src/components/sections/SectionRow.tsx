@@ -187,10 +187,9 @@ export function SectionRow({
 				<div className="flex justify-end gap-1">
 					{/* Phase 1.6: removed the redundant Users icon action (the
 						section-name button already opens the same details sheet).
-						Keep the kebab as the only icon; the section-name button
-						above acts as the primary "View" entry point and carries
-						the visible tooltip via AccessibleInfo once the page
-						adopts it (S-1, S-8). */}
+						The kebab is the only icon; the section-name button above
+						acts as the primary "View" entry point and carries a visible
+						Tooltip ("View section details"). */}
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label={`More actions for ${section.name}`}>
