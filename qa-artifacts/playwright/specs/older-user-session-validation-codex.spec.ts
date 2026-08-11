@@ -2,20 +2,63 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { assertNoGlobalOverflow, loginAdmin, openTimetableSimple } from './timetable-layout-helpers';
+import { assertNoGlobalOverflow, loginAdmin, openTimetableSimple, openSimpleMore, ensureSimpleMode } from './timetable-layout-helpers';
 
 const reportRoot = path.join(process.cwd(), 'qa-artifacts', 'older-user-session-validation-codex');
 const statusLabels = ['Can place', 'Can swap', 'Blocked', 'Warning', 'Occupied', 'Current'];
 
 type TaskResult = {
-
 	id: string;
 	viewport: string;
-	result: 'Independent' | 'One hint' | 'Coached' | 'Failed' | 'Proxy limitation';
+	result: 'Independent' | 'One hint' | 'Coached' | 'Failed' | 'Proxy limitation' | 'Stale selector' | 'Fixture unavailable';
 	timeMs: number | null;
 	observed: string;
 	reason?: string;
 };
+
+function classifyError(error: Error): TaskResult['result'] {
+	const message = error.message;
+	const lower = message.toLowerCase();
+
+	const STALE_SELECTOR_IDS = [
+		'timetable-layout-toggle',
+		'timetable-simple-more-trigger',
+		'timetable-task-drawer',
+		'timetable-simple-header',
+		'timetable-simple-primary-action',
+		'timetable-task-guide',
+		'timetable-status-legend',
+	];
+
+	for (const id of STALE_SELECTOR_IDS) {
+		if (lower.includes(id) && (/timeout|not found|not visible|not attached|cannot find/i.test(message))) {
+			return 'Stale selector';
+		}
+	}
+
+	if (/cannot find element/i.test(message) || /element is not attached/i.test(message)) {
+		return 'Stale selector';
+	}
+
+	if (/fix teaching load/i.test(message) || /teaching load repair before placement/i.test(message)) {
+		return 'Fixture unavailable';
+	}
+	if (/status guidance is gated by teaching-load repair/i.test(message)) {
+		return 'Fixture unavailable';
+	}
+
+	if (/data-virtualized-rail/i.test(message) && /timeout|scroll/i.test(message)) {
+		return 'Proxy limitation';
+	}
+	if (/virtualized.*not.*scrollable/i.test(message)) {
+		return 'Proxy limitation';
+	}
+	if (/mouse.*wheel.*no.*effect/i.test(message)) {
+		return 'Proxy limitation';
+	}
+
+	return 'Failed';
+}
 
 async function writeReport(testInfo: TestInfo, data: unknown) {
 	fs.mkdirSync(reportRoot, { recursive: true });
@@ -55,8 +98,11 @@ async function tryTask(results: TaskResult[], viewport: string, id: string, fn: 
 		results.push({ id, viewport, result: 'Independent', timeMs: Date.now() - start, observed });
 		console.log(`[older-user-audit] ${viewport} ${id} pass ${Date.now() - start}ms`);
 	} catch (error) {
-		results.push({ id, viewport, result: 'Proxy limitation', timeMs: Date.now() - start, observed: '', reason: error instanceof Error ? error.message : String(error) });
-		console.log(`[older-user-audit] ${viewport} ${id} proxy-limitation ${Date.now() - start}ms`);
+		const err = error instanceof Error ? error : new Error(String(error));
+		const result = classifyError(err);
+		const reason = `${result}: ${err.message.slice(0, 200)}`;
+		results.push({ id, viewport, result, timeMs: Date.now() - start, observed: '', reason });
+		console.log(`[older-user-audit] ${viewport} ${id} ${result.toLowerCase()} ${Date.now() - start}ms`);
 	}
 }
 
@@ -133,11 +179,19 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 		});
 		await tryTask(results, viewport, 'T07', async () => {
 			await openTimetableSimple(page);
-			await page.getByRole('button', { name: /^More$/i }).click();
-			await page.getByRole('button', { name: /Place unresolved sessions/i }).click();
+			await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
+			await openSimpleMore(page);
+			await expect(page.getByTestId('timetable-simple-more-daily-tasks')).toBeVisible();
+			const placeUnresolved = page.getByRole('menuitem', { name: /Place unresolved sessions/i });
+			await expect(placeUnresolved).toBeVisible();
+			await placeUnresolved.click();
 			const drawer = page.getByTestId('timetable-task-drawer');
-			await expect(drawer).toBeVisible();
+			await expect(drawer).toBeVisible({ timeout: 15_000 });
 			const list = page.locator('[data-virtualized-rail="Unassigned generated sessions"]');
+			const hasList = await list.isVisible({ timeout: 5_000 }).catch(() => false);
+			if (!hasList) {
+				return `Task drawer opened; virtualized session list not present (may be empty or loading): ${(await drawer.innerText()).slice(0, 220)}`;
+			}
 			const metrics = await list.evaluate((node) => ({ clientHeight: node.clientHeight, scrollHeight: node.scrollHeight, scrollTop: node.scrollTop }));
 			const box = await list.boundingBox();
 			if (box) {
@@ -149,9 +203,18 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 				node.scrollTop = Math.min(600, node.scrollHeight);
 				return node.scrollTop;
 			});
-			return `Unresolved workflow opened; list ${metrics.clientHeight}px viewport / ${metrics.scrollHeight}px content; wheel scrollTop=${afterWheel}; programmatic scrollTop=${afterProgrammatic}; ${ (await drawer.innerText()).slice(0, 220)}`;
+			return `Unresolved workflow opened; list ${metrics.clientHeight}px viewport / ${metrics.scrollHeight}px content; wheel scrollTop=${afterWheel}; programmatic scrollTop=${afterProgrammatic}; ${(await drawer.innerText()).slice(0, 220)}`;
 		});
 		await tryTask(results, viewport, 'T08', async () => {
+			await openTimetableSimple(page);
+			await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
+			await openSimpleMore(page);
+			await expect(page.getByTestId('timetable-simple-more-daily-tasks')).toBeVisible();
+			const placeUnresolved = page.getByRole('menuitem', { name: /Place unresolved sessions/i });
+			await expect(placeUnresolved).toBeVisible();
+			await placeUnresolved.click();
+			const drawer = page.getByTestId('timetable-task-drawer');
+			await expect(drawer).toBeVisible({ timeout: 15_000 });
 			const list = page.locator('[data-virtualized-rail="Unassigned generated sessions"]');
 			await expect(list).toBeVisible({ timeout: 15_000 });
 			await list.locator('[role="listitem"] button').first().click();
@@ -177,13 +240,18 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 		});
 		await tryTask(results, viewport, 'T09', async () => {
 			await openTimetableSimple(page);
+			await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
+			await expect(page.getByTestId('timetable-simple-more-trigger')).toBeVisible({ timeout: 10_000 });
 			const simpleLegendCount = await page.getByTestId('timetable-status-legend').count();
+			await openSimpleMore(page);
+			await expect(page.getByTestId('timetable-layout-toggle')).toBeVisible();
 			await page.getByTestId('timetable-layout-toggle').click();
 			const advancedLegendLocator = page.getByTestId('timetable-status-legend');
-			const advancedLegendVisible = await advancedLegendLocator.isVisible().catch(() => false);
+			const advancedLegendVisible = await advancedLegendLocator.isVisible({ timeout: 5_000 }).catch(() => false);
 			const advancedLegend = advancedLegendVisible ? await advancedLegendLocator.innerText() : '(not visible at this viewport)';
 			if (!advancedLegendVisible) {
-				await page.getByTestId('timetable-layout-toggle').click();
+				await openTimetableSimple(page);
+				await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
 				return `Simple legend count=${simpleLegendCount}; Advanced legend hidden at this viewport; placement guidance could not be independently exposed by the browser proxy.`;
 			}
 			await page.getByTestId('timetable-task-place').click();
@@ -204,7 +272,8 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 			const occupiedCount = await page.getByText(/Occupied \(/i).count();
 			const help = await page.getByTestId('timetable-foolproof-help').innerText().catch(() => '');
 			await cancelOpenSurface(page);
-			await page.getByTestId('timetable-layout-toggle').click();
+			await openTimetableSimple(page);
+			await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
 			const closeDrawer = page.getByRole('button', { name: /Close task drawer/i });
 			if (await closeDrawer.isVisible().catch(() => false)) await closeDrawer.click();
 			return `Simple legend count=${simpleLegendCount}; Advanced legend=${advancedLegend}; placement labels=${found.join(', ') || 'none'}; cell status attributes=${[...new Set(attributeStatuses)].join(', ') || 'none'}; occupied labels=${occupiedCount}; task help=${help.slice(0, 180)}`;
@@ -229,10 +298,14 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 		});
 		await tryTask(results, viewport, 'T11', async () => {
 			await openTimetableSimple(page);
+			await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
+			await expect(page.getByTestId('timetable-simple-more-trigger')).toBeVisible({ timeout: 10_000 });
+			await openSimpleMore(page);
+			await expect(page.getByTestId('timetable-layout-toggle')).toBeVisible();
 			await page.getByTestId('timetable-layout-toggle').click();
 			await expect(page.getByTestId('timetable-task-guide')).toBeVisible();
 			const advanced = (await page.getByTestId('timetable-task-guide').innerText()).slice(0, 180);
-			await page.getByTestId('timetable-layout-toggle').click();
+			await openTimetableSimple(page);
 			await expect(page.getByTestId('timetable-simple-header')).toBeVisible();
 			return `Advanced then Simple reversible; advanced guide=${advanced}`;
 		});
@@ -244,6 +317,8 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 			return `Safe backtrack leaves ${dialogs} dialog(s) and ${saveActions} save/commit action(s) exposed.`;
 		});
 
+		await openSimpleMore(page);
+		await expect(page.getByTestId('timetable-layout-toggle')).toBeVisible();
 		await page.getByTestId('timetable-layout-toggle').focus();
 		await page.keyboard.press('Tab');
 		const focusOrder = await page.evaluate(() => ({
@@ -278,5 +353,10 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 		expect(blockedWrites, 'Audit must not commit timetable writes.').toEqual([]);
 		expect(pageErrors, 'No uncaught page errors expected during the proxy session.').toEqual([]);
 		expect(apiFailures, 'No ATLAS API 5xx responses expected during the proxy session.').toEqual([]);
+
+		const failedTasks = results.filter((r) => r.result === 'Failed');
+		const staleTasks = results.filter((r) => r.result === 'Stale selector');
+		expect(failedTasks.length, `Product failures must not pass: ${failedTasks.map((r) => `${r.id}: ${r.reason}`).join('; ')}`).toBe(0);
+		expect(staleTasks.length, `Stale selectors must not pass: ${staleTasks.map((r) => `${r.id}: ${r.reason}`).join('; ')}`).toBe(0);
 	});
 });
