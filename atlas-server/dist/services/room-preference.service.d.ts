@@ -310,10 +310,10 @@ export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): 
         status: import("@prisma/client").$Enums.RoomPreferenceStatus;
         startTime: string;
         endTime: string;
-        termIndex: number;
-        runId: number;
-        decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
         submittedAt: Date | null;
+        runId: number;
+        termIndex: number;
+        decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
         reviewerId: number | null;
         reviewerNotes: string | null;
         reviewedAt: Date | null;

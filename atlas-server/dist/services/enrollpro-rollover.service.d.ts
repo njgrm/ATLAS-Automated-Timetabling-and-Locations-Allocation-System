@@ -103,6 +103,12 @@ export type RolloverDummyYearResetResult = RolloverStatusResult & {
     reset: RolloverDummyYearResetPreview;
     rolloverApply: RolloverApplyResult | null;
 };
+export declare function fetchSectionExternalIds(authToken?: string): Promise<Set<number>>;
+export declare function resolveMappingConflictAction(publishedResetBlocked: boolean): {
+    recommendedAction: RolloverAction;
+    message: string;
+};
+export declare function findMappingConflicts(schoolId: number, upstreamYear: EnrollProYearInfo, sectionExternalIds?: Set<number>): Promise<RolloverConflict[]>;
 export declare function getRolloverStatus(schoolId: number, authToken?: string, options?: {
     includeCounts?: boolean;
     atlasSchoolYearId?: number | null;

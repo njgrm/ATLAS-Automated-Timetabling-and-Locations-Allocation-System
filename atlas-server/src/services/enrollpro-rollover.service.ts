@@ -222,6 +222,11 @@ function rowExternalIds(rows: unknown[]): Set<number> {
 	return ids;
 }
 
+export async function fetchSectionExternalIds(authToken?: string): Promise<Set<number>> {
+	const { rows } = await fetchPaginatedRows([SECTION_ENDPOINT], authToken);
+	return rowExternalIds(rows);
+}
+
 async function fetchRolloverCounts(authToken?: string): Promise<RolloverFeedCounts & { sectionExternalIds: Set<number>; sources: Record<string, string> }> {
 	const [sections, faculty, settings] = await Promise.allSettled([
 		fetchPaginatedRows([SECTION_ENDPOINT], authToken),
@@ -245,11 +250,28 @@ async function fetchRolloverCounts(authToken?: string): Promise<RolloverFeedCoun
 	};
 }
 
+export function resolveMappingConflictAction(publishedResetBlocked: boolean): {
+	recommendedAction: RolloverAction;
+	message: string;
+} {
+	if (publishedResetBlocked) {
+		return {
+			recommendedAction: 'REVIEW_MAPPING_CONFLICT',
+			message: 'ATLAS has dummy data using the EnrollPro year ID, but published schedule artifacts block a reset. Review migration before syncing.',
+		};
+	}
+	return {
+		recommendedAction: 'RESET_DUMMY_YEAR',
+		message: 'ATLAS has dummy data using the EnrollPro year ID. Reset dummy data and sync from EnrollPro.',
+	};
+}
+
 function buildDriftState(input: {
 	atlasSchoolYearId: number | null;
 	upstreamYear: EnrollProYearInfo | null;
 	upstreamReachable: boolean;
 	hasMappingConflict: boolean;
+	publishedResetBlocked?: boolean;
 	mirrorSyncedAt?: Date | null;
 }): ActiveYearDriftState {
 	if (!input.upstreamReachable || !input.upstreamYear) {
@@ -265,10 +287,11 @@ function buildDriftState(input: {
 	}
 
 	if (input.hasMappingConflict) {
+		const action = resolveMappingConflictAction(input.publishedResetBlocked ?? false);
 		return {
 			status: 'mapping-conflict',
-			message: `ATLAS has dummy data using EnrollPro's ${input.upstreamYear.yearLabel} year ID. Reset dummy data, then sync from EnrollPro.`,
-			recommendedAction: 'RESET_DUMMY_YEAR',
+			message: action.message,
+			recommendedAction: action.recommendedAction,
 			atlasSchoolYearId: input.atlasSchoolYearId,
 			enrollProSchoolYearId: input.upstreamYear.id,
 			enrollProSchoolYearLabel: input.upstreamYear.yearLabel,
@@ -299,7 +322,7 @@ function buildDriftState(input: {
 	};
 }
 
-async function findMappingConflicts(
+export async function findMappingConflicts(
 	schoolId: number,
 	upstreamYear: EnrollProYearInfo,
 	sectionExternalIds?: Set<number>,
@@ -558,6 +581,7 @@ export async function getRolloverStatus(
 
 	let counts: RolloverFeedCounts | undefined;
 	let conflicts: RolloverConflict[] = [];
+	let publishedResetBlocked = false;
 	if (upstreamYear && options?.includeCounts) {
 		const feedCounts = await fetchRolloverCounts(authToken);
 		counts = {
@@ -570,11 +594,17 @@ export async function getRolloverStatus(
 		conflicts = await findMappingConflicts(schoolId, upstreamYear);
 	}
 
+	if (upstreamYear && conflicts.length > 0) {
+		const previewCounts = await countDummyYearRecords(schoolId, upstreamYear.id);
+		publishedResetBlocked = previewCounts.publishedGenerationRuns > 0 || previewCounts.publishedScheduleRevisions > 0;
+	}
+
 	const drift = buildDriftState({
 		atlasSchoolYearId,
 		upstreamYear,
 		upstreamReachable: !!upstreamYear,
 		hasMappingConflict: conflicts.length > 0,
+		publishedResetBlocked,
 		mirrorSyncedAt: mirror?.lastSyncedAt ?? null,
 	});
 	const resetPreview = await buildDummyYearResetPreview(schoolId, { drift, enrollProActiveYear: upstreamYear });

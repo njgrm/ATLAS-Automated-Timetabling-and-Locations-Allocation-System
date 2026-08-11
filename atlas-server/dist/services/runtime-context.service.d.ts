@@ -1,7 +1,7 @@
 type RuntimeContextEvidenceType = 'school-year-mirror' | 'scheduling-policy' | 'section-mirror' | 'section-snapshot' | 'faculty-snapshot' | 'generation-run';
 type RuntimeContextSource = 'atlas-persisted' | 'enrollpro-verified';
 type RuntimeDriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
-type RuntimeDriftAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO';
+type RuntimeDriftAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR';
 export type RuntimeContextEvidence = {
     type: RuntimeContextEvidenceType;
     schoolYearId: number;

@@ -88,6 +88,10 @@ function rowExternalIds(rows) {
     }
     return ids;
 }
+export async function fetchSectionExternalIds(authToken) {
+    const { rows } = await fetchPaginatedRows([SECTION_ENDPOINT], authToken);
+    return rowExternalIds(rows);
+}
 async function fetchRolloverCounts(authToken) {
     const [sections, faculty, settings] = await Promise.allSettled([
         fetchPaginatedRows([SECTION_ENDPOINT], authToken),
@@ -110,6 +114,18 @@ async function fetchRolloverCounts(authToken) {
         },
     };
 }
+export function resolveMappingConflictAction(publishedResetBlocked) {
+    if (publishedResetBlocked) {
+        return {
+            recommendedAction: 'REVIEW_MAPPING_CONFLICT',
+            message: 'ATLAS has dummy data using the EnrollPro year ID, but published schedule artifacts block a reset. Review migration before syncing.',
+        };
+    }
+    return {
+        recommendedAction: 'RESET_DUMMY_YEAR',
+        message: 'ATLAS has dummy data using the EnrollPro year ID. Reset dummy data and sync from EnrollPro.',
+    };
+}
 function buildDriftState(input) {
     if (!input.upstreamReachable || !input.upstreamYear) {
         return {
@@ -123,10 +139,11 @@ function buildDriftState(input) {
         };
     }
     if (input.hasMappingConflict) {
+        const action = resolveMappingConflictAction(input.publishedResetBlocked ?? false);
         return {
             status: 'mapping-conflict',
-            message: `ATLAS has dummy data using EnrollPro's ${input.upstreamYear.yearLabel} year ID. Reset dummy data, then sync from EnrollPro.`,
-            recommendedAction: 'RESET_DUMMY_YEAR',
+            message: action.message,
+            recommendedAction: action.recommendedAction,
             atlasSchoolYearId: input.atlasSchoolYearId,
             enrollProSchoolYearId: input.upstreamYear.id,
             enrollProSchoolYearLabel: input.upstreamYear.yearLabel,
@@ -154,7 +171,7 @@ function buildDriftState(input) {
         mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
     };
 }
-async function findMappingConflicts(schoolId, upstreamYear, sectionExternalIds) {
+export async function findMappingConflicts(schoolId, upstreamYear, sectionExternalIds) {
     const conflicts = [];
     const mirror = await prisma.enrollProSchoolYearMirror.findUnique({
         where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: upstreamYear.id } },
@@ -368,6 +385,7 @@ export async function getRolloverStatus(schoolId, authToken, options) {
         : null;
     let counts;
     let conflicts = [];
+    let publishedResetBlocked = false;
     if (upstreamYear && options?.includeCounts) {
         const feedCounts = await fetchRolloverCounts(authToken);
         counts = {
@@ -380,11 +398,16 @@ export async function getRolloverStatus(schoolId, authToken, options) {
     else if (upstreamYear) {
         conflicts = await findMappingConflicts(schoolId, upstreamYear);
     }
+    if (upstreamYear && conflicts.length > 0) {
+        const previewCounts = await countDummyYearRecords(schoolId, upstreamYear.id);
+        publishedResetBlocked = previewCounts.publishedGenerationRuns > 0 || previewCounts.publishedScheduleRevisions > 0;
+    }
     const drift = buildDriftState({
         atlasSchoolYearId,
         upstreamYear,
         upstreamReachable: !!upstreamYear,
         hasMappingConflict: conflicts.length > 0,
+        publishedResetBlocked,
         mirrorSyncedAt: mirror?.lastSyncedAt ?? null,
     });
     const resetPreview = await buildDummyYearResetPreview(schoolId, { drift, enrollProActiveYear: upstreamYear });

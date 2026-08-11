@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { findMappingConflicts, fetchSectionExternalIds, resolveMappingConflictAction } from './enrollpro-rollover.service.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
 const CONTEXT_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 const EVIDENCE_FRESHNESS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
@@ -65,10 +66,11 @@ export function pickBestRuntimeYear(evidence) {
 }
 function buildActiveYearDrift(input) {
     if (input.mappingConflict) {
+        const action = resolveMappingConflictAction(input.publishedResetBlocked ?? false);
         return {
             status: 'mapping-conflict',
-            message: 'EnrollPro active-year mapping conflicts with existing ATLAS school-year data. Review migration before syncing.',
-            recommendedAction: 'REVIEW_MAPPING_CONFLICT',
+            message: action.message,
+            recommendedAction: action.recommendedAction,
             atlasSchoolYearId: input.selectedYearId,
             enrollProSchoolYearId: input.upstreamYearId,
             enrollProSchoolYearLabel: input.upstreamYearLabel,
@@ -222,11 +224,18 @@ export async function resolveRuntimeContext(schoolId, authToken, options) {
                 upstreamReachable = true;
                 upstreamActiveSchoolYearId = upstreamYear.id;
                 upstreamActiveSchoolYearLabel = upstreamYear.yearLabel;
-                if (schoolYearMirror
-                    && schoolYearMirror.enrollProSchoolYearId === upstreamYear.id
-                    && schoolYearMirror.yearLabel !== upstreamYear.yearLabel) {
-                    mappingConflict = true;
+                // Use shared conflict detection that checks both YEAR_LABEL_MISMATCH
+                // and SECTION_ID_COLLISION (consistent with rollover-status endpoint)
+                let sectionExternalIds;
+                try {
+                    sectionExternalIds = await fetchSectionExternalIds(authToken);
                 }
+                catch {
+                    // If we can't fetch section IDs, skip the collision check
+                    // (the YEAR_LABEL_MISMATCH check still runs)
+                }
+                const conflicts = await findMappingConflicts(schoolId, upstreamYear, sectionExternalIds);
+                mappingConflict = conflicts.length > 0;
                 const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
                 if (upstreamRank && selectedRank) {
                     const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
@@ -252,12 +261,35 @@ export async function resolveRuntimeContext(schoolId, authToken, options) {
     if (!activeSchoolYearLabel && schoolYearMirror?.enrollProSchoolYearId === selected.yearId) {
         activeSchoolYearLabel = schoolYearMirror.yearLabel;
     }
+    let publishedResetBlocked = false;
+    if (mappingConflict && upstreamActiveSchoolYearId) {
+        const [generationRuns, publishedRevisions] = await Promise.all([
+            prisma.generationRun.findMany({
+                where: { schoolId, schoolYearId: upstreamActiveSchoolYearId },
+                select: { summary: true },
+            }),
+            prisma.publishedScheduleRevision.count({
+                where: { schoolId, schoolYearId: upstreamActiveSchoolYearId },
+            }),
+        ]);
+        const publishedRuns = generationRuns.filter((run) => {
+            const summary = run.summary;
+            if (!summary || typeof summary !== 'object')
+                return false;
+            const candidate = summary;
+            return candidate.isPublished === true
+                || (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0)
+                || typeof candidate.publishedBy === 'number';
+        }).length;
+        publishedResetBlocked = publishedRuns > 0 || publishedRevisions > 0;
+    }
     const activeYearDrift = buildActiveYearDrift({
         selectedYearId: selected.yearId,
         upstreamYearId: upstreamActiveSchoolYearId,
         upstreamYearLabel: upstreamActiveSchoolYearLabel,
         upstreamReachable,
         mappingConflict,
+        publishedResetBlocked,
         mirrorSyncedAt: schoolYearMirror?.lastSyncedAt ?? null,
         verifyUpstream,
     });
