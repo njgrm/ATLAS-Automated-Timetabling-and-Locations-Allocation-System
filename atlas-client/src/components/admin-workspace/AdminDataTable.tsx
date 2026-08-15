@@ -53,6 +53,8 @@ export type AdminDataTableMenuAction = {
 export type AdminDataTableRowActions<TData> = {
 	label: string;
 	primary: (row: TData) => ReactNode;
+	/** Visible button rendered inline next to the primary action (not in the ellipsis). */
+	inlineSecondary?: (row: TData) => ReactNode;
 	secondary?: (row: TData) => AdminDataTableMenuAction[];
 	destructive?: (row: TData) => AdminDataTableMenuAction[];
 	menuTestId?: string;
@@ -358,6 +360,7 @@ export function AdminDataTable<TData, TSort extends string = string>({
 												<td className={cn(rowPadding, 'text-right')}>
 													<div className="flex items-center justify-end gap-2">
 														{rowActions.primary(row)}
+														{rowActions.inlineSecondary?.(row)}
 														<AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} testId={rowActions.menuTestId} />
 													</div>
 												</td>

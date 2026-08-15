@@ -1015,7 +1015,7 @@ test('Phase 2.6: SubjectRow uses compact grade format and accessible info for ja
 test('Phase 3.1: Teachers desktop table has compact columns with load status, weekly load, and assigned classes', () => {
 	const faculty = source('src/pages/Faculty.tsx');
 	// Compact column layout: Teacher, Load status, Weekly load, Assigned classes.
-	assert.match(faculty, /<FacultyAssignedClassesCell faculty=\{teacher\} \/>/);
+	assert.match(faculty, /<FacultyAssignedClassesCell[\s\S]*faculty=\{teacher\}/);
 	assert.match(faculty, /<FacultyWeeklyLoadCell faculty=\{teacher\} \/>/);
 	assert.match(faculty, /label: 'Assigned classes'/);
 	assert.match(faculty, /label: 'Weekly load'/);

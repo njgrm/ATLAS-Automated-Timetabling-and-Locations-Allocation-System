@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { BookOpen, Star } from 'lucide-react';
+import { BookOpen, Eye, Star } from 'lucide-react';
 
 import {
 	deriveLoadStatus,
@@ -7,6 +7,7 @@ import {
 	STANDARD_WEEKLY_TEACHING_HOURS,
 } from '@/lib/faculty-assignment-helpers';
 import { cn } from '@/lib/utils';
+import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
@@ -208,9 +209,21 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 	);
 }
 
-export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummary }) {
+export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: FacultySummary; onClick?: () => void }) {
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
+	const teacherName = `${faculty.lastName}, ${faculty.firstName}`;
+
+	const Wrapper = onClick ? 'button' : 'div';
+	const wrapperProps = onClick
+		? {
+			type: 'button' as const,
+			onClick,
+			className: 'text-left text-xs text-foreground leading-tight w-full cursor-pointer hover:underline transition-colors',
+			'aria-label': `Open teaching load summary for ${teacherName}`,
+			'data-testid': 'teacher-row-assigned-classes-summary-trigger',
+		}
+		: { className: 'text-xs text-foreground leading-tight' };
 
 	if (summaries.length === 0) {
 		return <span className="text-xs text-muted-foreground">No classes assigned</span>;
@@ -223,12 +236,13 @@ export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummar
 		const remaining = s.sections.length - shownSections.length;
 
 		return (
-			<div className="text-xs text-foreground leading-tight">
+			<Wrapper {...wrapperProps}>
 				<span className="font-semibold">{s.code}</span>
 				{' · '}
 				<span className="text-muted-foreground">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
 				{s.sections.length > 0 && (
 					<div className="mt-0.5 text-muted-foreground">
+						<span>Sections: </span>
 						{shownSections.map((sec, i) => (
 							<span key={sec.id}>
 								{i > 0 && <span>, </span>}
@@ -239,7 +253,7 @@ export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummar
 					</div>
 				)}
 				<AssignmentBreakdownPopover assignments={assignments} />
-			</div>
+			</Wrapper>
 		);
 	}
 
@@ -250,7 +264,7 @@ export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummar
 	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
 
 	return (
-		<div className="text-xs text-foreground leading-tight">
+		<Wrapper {...wrapperProps}>
 			<div>
 				{shown.map((s, i) => (
 					<span key={s.code}>
@@ -265,7 +279,7 @@ export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummar
 			</div>
 			{firstSections.length > 0 && (
 				<div className="mt-0.5 text-muted-foreground">
-					<span>First: </span>
+					<span>Sections: </span>
 					{firstSections.map((sec, i) => (
 						<span key={sec.id}>
 							{i > 0 && <span>, </span>}
@@ -276,7 +290,7 @@ export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummar
 				</div>
 			)}
 			<AssignmentBreakdownPopover assignments={assignments} />
-		</div>
+		</Wrapper>
 	);
 }
 
@@ -326,15 +340,20 @@ export function FacultyMobileCard({
 	faculty,
 	primaryAction,
 	secondaryActionMenu,
+	onAssignedClassesClick,
+	onProfileClick,
 }: {
 	faculty: FacultySummary;
 	primaryAction?: ReactNode;
 	secondaryActionMenu?: ReactNode;
+	onAssignedClassesClick?: () => void;
+	onProfileClick?: () => void;
 }) {
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const presentation = getFacultyLoadPresentation(faculty);
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
+	const teacherName = `${faculty.lastName}, ${faculty.firstName}`;
 
 	return (
 		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="teacher-mobile-card">
@@ -349,7 +368,13 @@ export function FacultyMobileCard({
 				</span>
 			</div>
 			{summaries.length > 0 && (
-				<div className="mt-2 text-xs text-muted-foreground leading-tight">
+				<button
+					type="button"
+					className="mt-2 w-full text-left text-xs text-muted-foreground leading-tight cursor-pointer hover:underline transition-colors"
+					onClick={onAssignedClassesClick}
+					aria-label={`Open teaching load summary for ${teacherName}`}
+					data-testid="teacher-row-assigned-classes-summary-trigger"
+				>
 					{summaries.length === 1
 						? <>
 							<span><span className="font-semibold text-foreground">{summaries[0].code}</span> · {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
@@ -365,11 +390,33 @@ export function FacultyMobileCard({
 								</div>
 							)}
 						</>
-						: <span>{summaries.slice(0, 2).map((s) => `${s.code} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
+						: <>
+							<span>{summaries.slice(0, 2).map((s) => `${s.code} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
+							{summaries[0].sections.length > 0 && (
+								<div className="mt-0.5">
+									<span className="text-foreground/70">Sections: </span>
+									{summaries[0].sections.slice(0, 2).map((sec, i) => (
+										<span key={sec.id} className="text-foreground/70">
+											{i > 0 && ', '}
+											{sec.gradeLabel} {sec.name}
+										</span>
+									))}
+									{summaries[0].sections.length > 2 && <span className="text-foreground/70"> +{summaries[0].sections.length - 2}</span>}
+								</div>
+							)}
+						</>
 					}
-				</div>
+				</button>
 			)}
-			{primaryAction && <div className="mt-3">{primaryAction}</div>}
+			<div className="mt-3 flex items-center gap-2">
+				{primaryAction}
+				{onProfileClick && (
+					<Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-bold" onClick={onProfileClick} aria-label={`View profile for ${teacherName}`} data-testid="teacher-row-profile-action">
+						<Eye className="size-3.5" />
+						Profile
+					</Button>
+				)}
+			</div>
 		</div>
 	);
 }

@@ -490,7 +490,12 @@ export default function Faculty() {
 			cellRole: 'text',
 			sortKey: 'subjects',
 			cellClassName: 'min-w-28',
-			render: (teacher) => <FacultyAssignedClassesCell faculty={teacher} />,
+			render: (teacher) => (
+				<FacultyAssignedClassesCell
+					faculty={teacher}
+					onClick={() => setProfileTarget(teacher)}
+				/>
+			),
 		},
 	], []);
 
@@ -834,7 +839,7 @@ return (
 						</Button>
 					),
 				} : null}
-				rowActions={{
+			rowActions={{
 					label: 'Teacher actions',
 					menuTestId: 'teacher-row-more-actions',
 					primary: (teacher) => {
@@ -848,14 +853,21 @@ return (
 							</Button>
 						);
 					},
+					inlineSecondary: (teacher) => (
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-8 gap-1.5 px-2.5 text-xs font-bold"
+							onClick={() => setProfileTarget(teacher)}
+							aria-label={`View profile for ${teacher.lastName}, ${teacher.firstName}`}
+							data-testid="teacher-row-profile-action"
+						>
+							<Eye className="size-3.5" />
+							Profile
+						</Button>
+					),
 					secondary: (teacher) => {
-						const actions = [
-							{
-								label: 'View teacher profile',
-								icon: <Eye className="size-4" />,
-								onSelect: () => setProfileTarget(teacher),
-							}
-						];
+						const actions = [];
 						if (teacher.isPlaceholder) {
 							actions.push({
 									label: 'Edit temporary teacher details',
@@ -875,7 +887,13 @@ return (
 					}] : [],
 				}}
 				renderMobileCard={(teacher, context) => (
-					<FacultyMobileCard faculty={teacher} primaryAction={context.primaryAction} secondaryActionMenu={context.secondaryActionMenu} />
+					<FacultyMobileCard
+						faculty={teacher}
+						primaryAction={context.primaryAction}
+						secondaryActionMenu={context.secondaryActionMenu}
+						onAssignedClassesClick={() => setProfileTarget(teacher)}
+						onProfileClick={() => setProfileTarget(teacher)}
+					/>
 				)}
 			/>
 
