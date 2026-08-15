@@ -24,10 +24,12 @@ import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/Teachi
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
+import { TeachingLoadLockRecoveryDialog } from '@/components/faculty-assignments/TeachingLoadLockRecoveryDialog';
 import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
-import type { 
+import { hasTeachingLoadLockRecoveryAction } from '@/lib/teaching-load-lock-helpers';
+import type {
 	AutoFillSummaryResult, 
 	CoverageMode, 
 	ExternalSection,
@@ -103,6 +105,8 @@ export default function TeachingLoad() {
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
+	const [lockRecoveryOpen, setLockRecoveryOpen] = useState(false);
+	const [lockRecoveryError, setLockRecoveryError] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (data.activeSchoolYearId) {
@@ -154,13 +158,7 @@ export default function TeachingLoad() {
 	}, [data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds]);
 
 	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
-	const splitBrainNeedsReconcile = Boolean(
-		data.splitBrainIncident
-		&& (
-			(data.splitBrainIncident.counters.truthRowsToUpdate ?? 0) > 0
-			|| (data.splitBrainIncident.counters.integrityOutOfSubjectScopePairs ?? 0) > 0
-		)
-	);
+	const splitBrainNeedsReconcile = hasTeachingLoadLockRecoveryAction(data.splitBrainIncident);
 	const splitBrainNeedsAttention = Boolean(
 		data.splitBrainIncident
 		&& data.splitBrainIncident.quarantine.severity !== 'NONE'
@@ -621,9 +619,9 @@ export default function TeachingLoad() {
 		if (data.splitBrainQuarantineRequired) {
 			return {
 				label: 'Review lock active',
-				description: 'ATLAS found two saved versions of the same class assignment. Choose which one to keep before editing.',
-				nextAction: 'Open the review and reconcile the saved assignments.',
-				writeBlockedReason: 'Editing is temporarily locked while ATLAS checks the saved assignments. Review and reconcile to continue.',
+				description: 'Editing is locked while ATLAS checks saved Teaching Load links that no longer match the current roster.',
+				nextAction: 'Unlock editing to continue.',
+				writeBlockedReason: 'Editing is temporarily locked. Open the lock recovery dialog to review and unlock.',
 			};
 		}
 		if (data.dataSource === 'refreshing') {
@@ -850,6 +848,7 @@ export default function TeachingLoad() {
 						isOnline={data.isOnline}
 						dataSourceNotice={data.degradedNotice}
 						splitBrainIncident={data.splitBrainIncident}
+						splitBrainQuarantineRequired={data.splitBrainQuarantineRequired}
 						showJumpList={ui.showJumpList}
 						onToggleJumpList={() => ui.setShowJumpList(!ui.showJumpList)}
 						coverageMode={ui.coverageMode}
@@ -858,7 +857,8 @@ export default function TeachingLoad() {
 						onGlobalResetClick={() => ui.setResetDialogOpen(true)}
 						canRunGlobalReset={data.canRunGlobalReset}
 						onReconcileClick={() => {
-							void applySplitBrainReconcile();
+							setLockRecoveryError(null);
+							setLockRecoveryOpen(true);
 						}}
 						reconcileLoading={data.splitBrainApplyLoading}
 						showReconcileAction={splitBrainNeedsReconcile}
@@ -1095,6 +1095,43 @@ export default function TeachingLoad() {
 					</div>
 				</SheetContent>
 			</Sheet>
+
+			<TeachingLoadLockRecoveryDialog
+				open={lockRecoveryOpen}
+				onOpenChange={setLockRecoveryOpen}
+				splitBrainIncident={data.splitBrainIncident}
+				loading={data.splitBrainApplyLoading}
+				enabled={data.canPersistAssignments}
+				error={lockRecoveryError}
+				disabledReason={
+					!data.activeSchoolYearId
+						? 'ATLAS needs the active school year before it can unlock Teaching Load editing.'
+						: !data.isOnline
+						? 'Reconnect before unlocking Teaching Load editing.'
+						: data.dataSource === 'refreshing'
+						? 'Wait for ATLAS to finish checking EnrollPro, then try again.'
+						: !data.canPersistAssignments
+						? 'ATLAS needs writable saved setup data before it can unlock Teaching Load editing. Refresh source data first.'
+						: null
+				}
+				onConfirm={async () => {
+					setLockRecoveryError(null);
+					const success = await applySplitBrainReconcile();
+					if (success) {
+						setLockRecoveryOpen(false);
+						setLockRecoveryError(null);
+						// Check if still locked after refresh.
+						const stillLocked = data.splitBrainIncident?.quarantine.required === true;
+						setDraftStatusMessage(
+							stillLocked
+								? 'ATLAS cleaned what it could, but editing is still locked. Review the remaining blocker below.'
+								: 'Teaching Load editing is unlocked. Review the remaining open classes before generating.'
+						);
+					} else {
+						setLockRecoveryError('ATLAS could not reconcile the saved assignments. The dialog will remain open so you can try again or close and continue reviewing.');
+					}
+				}}
+			/>
 
 			<TeachingLoadModals
 				autoFillDialogOpen={ui.autoFillDialogOpen}

@@ -9,9 +9,11 @@ import {
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { TEACHER_X_LABEL } from '@/lib/deped-glossary';
-import type { FacultySummary } from '@/types';
+import { gradeLabel } from '@/lib/grade-labels';
+import type { FacultySummary, FacultyAssignmentRecord } from '@/types';
 
 type LoadPresentation = {
 	label: string;
@@ -93,19 +95,117 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 	);
 }
 
+type SubjectSummary = {
+	code: string;
+	name: string;
+	sectionCount: number;
+	gradeRange: string;
+};
+
+function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectSummary[] {
+	return assignments
+		.filter((a) => a.sections.length > 0 || (a.subject?.code))
+		.map((a) => {
+			const grades = [...new Set(a.sections.map((s) => s.gradeLevelId))].sort((a, b) => a - b);
+			const gradeRange = grades.length === 0
+				? ''
+				: grades.length === 1
+				? gradeLabel(grades[0])
+				: `${gradeLabel(grades[0])}–${gradeLabel(grades[grades.length - 1])}`;
+			return {
+				code: a.subject?.code ?? `SUBJ#${a.subjectId}`,
+				name: a.subject?.name ?? '',
+				sectionCount: a.sections.length,
+				gradeRange,
+			};
+		})
+		.filter((s) => s.sectionCount > 0 || s.code);
+}
+
+function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssignmentRecord[] }) {
+	const summaries = buildSubjectSummaries(assignments);
+	if (summaries.length === 0) return null;
+
+	return (
+		<Popover>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors align-middle ml-0.5"
+					aria-label="View full class breakdown"
+				>
+					<BookOpen className="size-3" />
+				</button>
+			</PopoverTrigger>
+			<PopoverContent side="bottom" className="w-72 p-3 text-xs" align="start">
+				<p className="mb-2 font-bold uppercase tracking-wider text-muted-foreground">Assigned classes</p>
+				<div className="space-y-1.5">
+					{summaries.map((s) => (
+						<div key={s.code} className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-1.5 min-w-0">
+								<Badge variant="outline" className="h-4 shrink-0 px-1 text-[0.6rem] font-bold">{s.code}</Badge>
+								{s.gradeRange && <span className="text-muted-foreground">{s.gradeRange}</span>}
+							</div>
+							<span className="shrink-0 font-semibold tabular-nums">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
+						</div>
+					))}
+				</div>
+				{assignments.some((a) => a.sections.length === 0 && a.subject?.code) && (
+					<div className="mt-2 border-t border-border/50 pt-2">
+						<p className="text-muted-foreground">No sections yet:</p>
+						<div className="flex flex-wrap">
+							{assignments
+								.filter((a) => a.sections.length === 0 && a.subject?.code)
+								.map((a) => (
+									<Badge key={a.id} variant="outline" className="mr-1 mt-1 h-4 px-1 text-[0.6rem] font-bold">{a.subject.code}</Badge>
+								))}
+						</div>
+					</div>
+				)}
+			</PopoverContent>
+		</Popover>
+	);
+}
+
 export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummary }) {
-	const subjectCount = faculty.subjectCount ?? 0;
-	const sectionCount = faculty.sectionCount ?? 0;
+	const assignments = faculty.assignments ?? [];
+	const summaries = buildSubjectSummaries(assignments);
+	const totalSections = summaries.reduce((sum, s) => sum + s.sectionCount, 0);
+
+	if (summaries.length === 0) {
+		return <span className="text-xs text-muted-foreground">No classes assigned</span>;
+	}
+
+	// Single subject: show code + section count
+	if (summaries.length === 1) {
+		const s = summaries[0];
+		return (
+			<span className="text-xs text-foreground tabular-nums">
+				<span className="font-semibold">{s.code}</span>
+				{' '}\u00B7{' '}
+				{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}
+				<AssignmentBreakdownPopover assignments={assignments} />
+			</span>
+		);
+	}
+
+	// Multiple subjects: show up to two + overflow
+	const shown = summaries.slice(0, 2);
+	const remaining = summaries.length - shown.length;
 
 	return (
 		<span className="text-xs text-foreground tabular-nums">
-			{subjectCount} subject{subjectCount === 1 ? '' : 's'}
-			{sectionCount > 0 && (
-				<>
-					{' '}\u00B7{' '}
-					{sectionCount} section{sectionCount === 1 ? '' : 's'}
-				</>
+			{shown.map((s, i) => (
+				<span key={s.code}>
+					{i > 0 && <span className="text-muted-foreground">, </span>}
+					<span className="font-semibold">{s.code}</span>
+					{' '}{s.sectionCount}
+				</span>
+			))}
+			{remaining > 0 && (
+				<span className="text-muted-foreground"> +{remaining} more</span>
 			)}
+			<AssignmentBreakdownPopover assignments={assignments} />
 		</span>
 	);
 }
@@ -163,6 +263,8 @@ export function FacultyMobileCard({
 }) {
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const presentation = getFacultyLoadPresentation(faculty);
+	const assignments = faculty.assignments ?? [];
+	const summaries = buildSubjectSummaries(assignments);
 
 	return (
 		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="teacher-mobile-card">
@@ -176,6 +278,14 @@ export function FacultyMobileCard({
 					{weeklyHours > 0 ? `${weeklyHours} / ${STANDARD_WEEKLY_TEACHING_HOURS}h` : '\u2014'}
 				</span>
 			</div>
+			{summaries.length > 0 && (
+				<div className="mt-2 text-xs text-muted-foreground">
+					{summaries.length === 1
+						? <span><span className="font-semibold text-foreground">{summaries[0].code}</span> \u00B7 {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
+						: <span>{summaries.slice(0, 2).map((s) => `${s.code} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
+					}
+				</div>
+			)}
 			{primaryAction && <div className="mt-3">{primaryAction}</div>}
 		</div>
 	);

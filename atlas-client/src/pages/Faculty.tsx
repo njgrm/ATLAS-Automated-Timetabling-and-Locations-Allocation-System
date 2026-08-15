@@ -463,6 +463,7 @@ export default function Faculty() {
 		{
 			id: 'teacher',
 			label: 'Teacher',
+			cellRole: 'identity',
 			sortKey: 'name',
 			cellClassName: 'min-w-52',
 			render: (teacher) => <FacultyIdentityCell faculty={teacher} />,
@@ -470,12 +471,14 @@ export default function Faculty() {
 		{
 			id: 'loadState',
 			label: 'Load status',
+			cellRole: 'status',
 			sortKey: 'status',
 			render: (teacher) => <FacultyLoadStateBadge faculty={teacher} />,
 		},
 		{
 			id: 'weeklyHours',
 			label: 'Weekly load',
+			cellRole: 'numeric',
 			sortKey: 'weeklyLoad',
 			headerClassName: 'text-center',
 			cellClassName: 'text-center min-w-28',
@@ -484,6 +487,7 @@ export default function Faculty() {
 		{
 			id: 'teachingLoad',
 			label: 'Assigned classes',
+			cellRole: 'text',
 			sortKey: 'subjects',
 			cellClassName: 'min-w-28',
 			render: (teacher) => <FacultyAssignedClassesCell faculty={teacher} />,

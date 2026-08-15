@@ -131,76 +131,24 @@ function ariaSortValue<TSort extends string>(
 	return sort.direction === 'asc' ? 'ascending' : 'descending';
 }
 
-/** Compact header cell content with optional description popover. */
-function ColumnHeader<TSort extends string = string>({
-	column,
-	sort,
-	density,
-}: {
-	column: AdminDataTableColumn<any, TSort>;
-	sort?: { key: TSort; direction: AdminDataTableSortDirection };
-	density: AdminDataTableDensity;
-}) {
-	const isSortable = Boolean(column.sortKey);
-	const hasDescription = density === 'detail' && Boolean(column.description);
-
-	const labelNode = (
-		<span className="flex items-center gap-1.5 whitespace-nowrap">
-			{column.label}
-			{renderSortIcon(column, sort)}
-		</span>
+/** Info popover trigger for column descriptions. Renders as a standalone button. */
+function ColumnInfoTrigger({ label, description }: { label: string; description: string }) {
+	return (
+		<Popover>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+					aria-label={`Info about ${label}`}
+				>
+					<Info className="size-3" />
+				</button>
+			</PopoverTrigger>
+			<PopoverContent side="top" className="w-64 text-xs leading-relaxed" align="start">
+				{description}
+			</PopoverContent>
+		</Popover>
 	);
-
-	const content = (
-		<div className="flex min-w-0 flex-col items-start gap-0.5">
-			<div className="flex items-center gap-1.5">
-				{labelNode}
-				{column.description && (
-					<Popover>
-						<PopoverTrigger asChild>
-							<button
-								type="button"
-								className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-								aria-label={`Info about ${column.label}`}
-							>
-								<Info className="size-3" />
-							</button>
-						</PopoverTrigger>
-						<PopoverContent side="top" className="w-64 text-xs leading-relaxed" align="start">
-							{column.description}
-						</PopoverContent>
-					</Popover>
-				)}
-			</div>
-			{hasDescription && (
-				<span className="max-w-44 text-left text-[0.7rem] font-medium normal-case leading-4 text-muted-foreground/70">{column.description}</span>
-			)}
-		</div>
-	);
-
-	if (isSortable) {
-		return (
-			<TooltipProvider delayDuration={200}>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="ghost"
-							size="sm"
-							aria-label={sortAriaLabel(column, sort)}
-							className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
-						>
-							{content}
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="top" className="text-xs">
-						{sortAriaLabel(column, sort)}
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
-		);
-	}
-
-	return <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">{content}</div>;
 }
 
 function AdminDataTableActionMenu({
@@ -344,42 +292,58 @@ export function AdminDataTable<TData, TSort extends string = string>({
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									{columns.map((column) => {
-										const isSortable = Boolean(column.sortKey && onSortChange);
-										const handleSort = isSortable ? () => onSortChange?.(column.sortKey as TSort) : undefined;
-										return (
-											<th
-												key={column.id}
-												className={cn('px-4 py-3 text-left align-bottom', column.headerClassName)}
-												aria-sort={isSortable ? ariaSortValue(column as AdminDataTableColumn<unknown, TSort>, sort) : undefined}
-												data-column-id={column.id}
-												data-cell-role={column.cellRole}
-											>
-												{isSortable && handleSort ? (
-													<TooltipProvider delayDuration={200}>
-														<Tooltip>
-															<TooltipTrigger asChild>
-																<Button
-																	variant="ghost"
-																	size="sm"
-																	onClick={handleSort}
-																	aria-label={sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
-																	className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
-																>
-																	<ColumnHeader column={column} sort={sort} density={density} />
-																</Button>
-															</TooltipTrigger>
-															<TooltipContent side="top" className="text-xs">
-																{sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
-															</TooltipContent>
-														</Tooltip>
-													</TooltipProvider>
-												) : (
-													<ColumnHeader column={column} sort={sort} density={density} />
+								{columns.map((column) => {
+									const isSortable = Boolean(column.sortKey && onSortChange);
+									const handleSort = isSortable ? () => onSortChange?.(column.sortKey as TSort) : undefined;
+									const showDescription = density === 'detail' && column.description;
+									return (
+										<th
+											key={column.id}
+											className={cn('px-4 py-3 text-left align-bottom', column.headerClassName)}
+											aria-sort={isSortable ? ariaSortValue(column as AdminDataTableColumn<unknown, TSort>, sort) : undefined}
+											data-column-id={column.id}
+											data-cell-role={column.cellRole}
+										>
+											<div className="flex min-w-0 flex-col items-start gap-0.5">
+												<div className="flex items-center gap-1.5">
+													{isSortable && handleSort ? (
+														<TooltipProvider delayDuration={200}>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Button
+																		variant="ghost"
+																		size="sm"
+																		onClick={handleSort}
+																		aria-label={sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
+																		className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
+																	>
+																		<span className="flex items-center gap-1.5 whitespace-nowrap">
+																			{column.label}
+																			{renderSortIcon(column as AdminDataTableColumn<unknown, TSort>, sort)}
+																		</span>
+																	</Button>
+																</TooltipTrigger>
+																<TooltipContent side="top" className="text-xs">
+																	{sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
+																</TooltipContent>
+															</Tooltip>
+														</TooltipProvider>
+													) : (
+														<span className="flex items-center gap-1.5 whitespace-nowrap text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
+															{column.label}
+														</span>
+													)}
+													{column.description && (
+														<ColumnInfoTrigger label={column.label} description={column.description} />
+													)}
+												</div>
+												{showDescription && (
+													<span className="max-w-44 text-left text-[0.7rem] font-medium normal-case leading-4 text-muted-foreground/70">{column.description}</span>
 												)}
-											</th>
-										);
-									})}
+											</div>
+										</th>
+									);
+								})}
 									{hasActions && <th className="px-4 py-3 text-right align-bottom text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground" data-column-id="actions" data-cell-role="action">Actions</th>}
 								</tr>
 							</thead>

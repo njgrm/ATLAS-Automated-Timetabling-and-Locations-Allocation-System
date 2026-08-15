@@ -27,6 +27,7 @@ type WorkspaceToolbarProps = {
 	isOnline: boolean;
 	dataSourceNotice: string | null;
 	splitBrainIncident: TeachingLoadSplitBrainReconcileResult | null;
+	splitBrainQuarantineRequired?: boolean;
 	showJumpList: boolean;
 	onToggleJumpList: () => void;
 	coverageMode: CoverageMode;
@@ -73,6 +74,7 @@ export function WorkspaceToolbar({
 	isOnline,
 	dataSourceNotice,
 	splitBrainIncident,
+	splitBrainQuarantineRequired = false,
 	showJumpList,
 	onToggleJumpList,
 	coverageMode,
@@ -155,14 +157,17 @@ export function WorkspaceToolbar({
 	// Priority: split-brain review > above-weekly-maximum classes (generation blocker) > temporary teacher placeholders.
 	const alertChip = useMemo(() => {
 		if (showReviewBadge) {
+			const isLocked = splitBrainIncident?.quarantine.required === true;
 			return {
 				key: 'review',
-				label: 'Review saved coverage',
+				label: isLocked ? 'Unlock editing' : 'Review saved coverage',
 				tone: 'warning' as const,
-				tooltip: 'ATLAS detected a mismatch between local assignments and saved coverage. Review before continuing.',
-				onClick: onViewStaffingNeedsClick,
-				disabled: staffingNeedsLoading,
-				testId: 'teaching-load-alert-review-coverage',
+				tooltip: isLocked
+					? 'Editing is locked. Open the lock recovery dialog to review and unlock.'
+					: 'ATLAS detected a mismatch between local assignments and saved coverage. Review before continuing.',
+				onClick: isLocked ? onReconcileClick : onViewStaffingNeedsClick,
+				disabled: isLocked ? (reconcileLoading || !reconcileEnabled) : staffingNeedsLoading,
+				testId: isLocked ? 'teaching-load-alert-unlock-editing' : 'teaching-load-alert-review-coverage',
 			};
 		}
 		if (overCapCount > 0) {
@@ -247,7 +252,7 @@ export function WorkspaceToolbar({
 						},
 					]}
 					triggerLabel="Help"
-					className="h-7 shrink-0 px-2 text-xs"
+					className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
 				/>
 
 				<Tooltip>
@@ -297,12 +302,12 @@ export function WorkspaceToolbar({
 										Section view
 									</DropdownMenuRadioItem>
 								</DropdownMenuRadioGroup>
-								{showReconcileAction && (
-									<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
-										<Layers className="size-4" />
-										{reconcileLoading ? 'Reconciling...' : 'Reconcile saved coverage'}
-									</DropdownMenuItem>
-								)}
+							{showReconcileAction && (
+								<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
+									<Layers className="size-4" />
+									{reconcileLoading ? 'Unlocking...' : splitBrainQuarantineRequired ? 'Review and unlock editing' : 'Reconcile saved coverage'}
+								</DropdownMenuItem>
+							)}
 								<DropdownMenuSeparator />
 								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
 								<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
@@ -337,7 +342,7 @@ export function WorkspaceToolbar({
 
 			{/* Readiness strip: at-a-glance health below the command row.
 				% staffed (always) + Unassigned pairs (always, prominent) + state-driven alert chip. */}
-			<div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5" data-testid="teaching-load-readiness-strip">
+			<div className="mt-1.5 hidden min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-border/40 pt-1.5 sm:flex" data-testid="teaching-load-readiness-strip">
 				<div
 					className={cn(
 						'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm',

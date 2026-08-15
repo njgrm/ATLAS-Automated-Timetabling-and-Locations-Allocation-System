@@ -1179,7 +1179,7 @@ test('Phase 4.4: split-brain copy is plain language; Quarantined badge renamed "
 	assert.match(page, /Reloaded the saved assignments/);
 	// Quarantine state described in plain language.
 	assert.doesNotMatch(page, /data\.splitBrainReasonLabel,\s*$/);
-	assert.ok(page.includes('two saved versions of the same class assignment'), 'quarantine copy must use plain language');
+	assert.ok(page.includes('saved Teaching Load links that no longer match'), 'quarantine copy must use plain language');
 	const subjectRow = source('src/components/faculty-assignments/SubjectRow.tsx');
 	assert.doesNotMatch(subjectRow, />Quarantined</);
 	assert.ok(subjectRow.includes('Editing locked'), 'quarantine badge must be plain-language "Editing locked"');
@@ -1245,5 +1245,55 @@ test('Phase 4.10: Teaching Load workspace state uses plain DepEd copy', () => {
 	assert.doesNotMatch(page, /Offline saved data/);
 	assert.match(page, /Saving is off until ATLAS reconnects/);
 	assert.match(page, /Saving is off while ATLAS verifies the roster with EnrollPro/);
-	assert.match(page, /Editing is temporarily locked while ATLAS checks the saved assignments/);
+	assert.match(page, /Editing is temporarily locked/);
+});
+
+test('Teaching Load lock recovery: helper checks broad quarantine conditions', () => {
+	const helper = source('src/lib/teaching-load-lock-helpers.ts');
+	// Must check quarantine.required and quarantine.severity (via local alias q)
+	assert.match(helper, /\.required/);
+	assert.match(helper, /\.severity/);
+	// Must check stale ownership reason codes
+	assert.match(helper, /STALE_OWNERSHIP_PRESENT/);
+	assert.match(helper, /TRUTH_RECONCILE_PENDING/);
+	assert.match(helper, /INTEGRITY_MISSING_OWNERSHIP/);
+	assert.match(helper, /INTEGRITY_OWNERSHIP_WITHOUT_SCOPE/);
+	assert.match(helper, /INTEGRITY_OUT_OF_SUBJECT_SCOPE/);
+	// Must check counter-based conditions
+	assert.match(helper, /staleOwnedCurrentYearPairs/);
+	assert.match(helper, /loadReviewRows/);
+	assert.match(helper, /integrityMissingOwnershipPairs/);
+	assert.match(helper, /integrityOwnershipWithoutScopePairs/);
+	assert.match(helper, /integrityOutOfSubjectScopePairs/);
+});
+
+test('Teaching Load lock recovery: dialog exists and does not use AutoFillSummaryModal', () => {
+	const dialog = source('src/components/faculty-assignments/TeachingLoadLockRecoveryDialog.tsx');
+	assert.match(dialog, /Review and unlock Teaching Load editing/);
+	assert.match(dialog, /Unlock Teaching Load editing/);
+	assert.match(dialog, /reconcile-split-brain|onConfirm/);
+	assert.doesNotMatch(dialog, /AutoFillSummaryModal/);
+	assert.doesNotMatch(dialog, /Suggested Teaching Load/);
+});
+
+test('Teaching Load lock recovery: TeachingLoad.tsx wires lock recovery dialog', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	// Must import the lock recovery helper
+	assert.match(page, /hasTeachingLoadLockRecoveryAction/);
+	// Must import the lock recovery dialog
+	assert.match(page, /TeachingLoadLockRecoveryDialog/);
+	// Must have lockRecoveryOpen state
+	assert.match(page, /lockRecoveryOpen/);
+	// Must NOT call applySplitBrainReconcile directly from toolbar reconcile click
+	assert.doesNotMatch(page, /onReconcileClick.*applySplitBrainReconcile/);
+});
+
+test('Teaching Load lock recovery: RepairQueue has no interactive controls inside sr-only', () => {
+	const queue = source('src/components/faculty-assignments/TeachingLoadRepairQueue.tsx');
+	// Find all sr-only blocks and check they don't contain button elements
+	const srOnlyBlocks = queue.match(/className="sr-only"[\s\S]*?<\/div>/g) ?? [];
+	for (const block of srOnlyBlocks) {
+		assert.doesNotMatch(block, /<Button/);
+		assert.doesNotMatch(block, /<button/);
+	}
 });

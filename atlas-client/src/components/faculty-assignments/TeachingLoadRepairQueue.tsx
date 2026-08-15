@@ -150,15 +150,15 @@ export function TeachingLoadRepairQueue({
 								<ClipboardCheck className="size-4" />
 								<span className="max-w-24 truncate sm:max-w-none">{saving ? 'Saving...' : currentItem.actionLabel}</span>
 							</Button>
-							<Button type="button" variant="outline" size="sm" className="h-8 px-2 font-semibold" onClick={() => setDetailsItem(currentItem)}>
+							<Button type="button" variant="outline" size="sm" className="hidden h-8 px-2 font-semibold sm:inline-flex" onClick={() => setDetailsItem(currentItem)}>
 								Details
 							</Button>
-							{/* Phase 4.2: Skip is visible at ALL breakpoints (was sm:hidden). */}
+							{/* Phase 4.2: Skip is visible at sm+ breakpoints. Hidden on mobile to prevent crowding. */}
 							<Button
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="h-8 px-2 text-xs font-bold"
+								className="hidden h-8 px-2 text-xs font-bold sm:inline-flex"
 								onClick={() => onSkipItem(currentItem)}
 							>
 								Skip
@@ -167,7 +167,7 @@ export function TeachingLoadRepairQueue({
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="h-8 px-2 text-xs font-bold"
+								className="hidden h-8 px-2 text-xs font-bold sm:inline-flex"
 								data-testid="teaching-load-advanced-grid-toggle"
 								onClick={onToggleAdvancedGrid}
 							>
@@ -183,73 +183,73 @@ export function TeachingLoadRepairQueue({
 					) : null}
 				</div>
 
-				<div className="sr-only">
-					<div className="flex items-center justify-between gap-2">
-						<div className="flex items-center gap-2">
-							<ListChecks className="size-4 text-muted-foreground" />
-							<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Next items</p>
-						</div>
-						<div className="flex shrink-0 items-center gap-1.5">
-							<Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs font-bold" onClick={() => setFindOpen(true)}>
-								<Search className="size-3.5" />
-								Find
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-8 gap-1.5 px-2 text-xs font-bold"
-								data-testid="teaching-load-next-items-grid-toggle"
-								onClick={onToggleAdvancedGrid}
-							>
-								Advanced grid
-							</Button>
-							<Button type="button" variant="ghost" size="icon-sm" className="size-8" onClick={onUndo} disabled={!canUndo || saving || isReadOnly} aria-label="Undo last Teaching Load draft change">
-								<Undo2 className="size-4" />
-							</Button>
-						</div>
+			<div className="mt-3 border-t border-border/50 pt-3">
+				<div className="flex items-center justify-between gap-2">
+					<div className="flex items-center gap-2">
+						<ListChecks className="size-4 text-muted-foreground" />
+						<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Next items</p>
 					</div>
-					{/* Phase 4.2: disclosure closed by default so only the current
-						item is shown until the scheduler asks for more. */}
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className="mt-1 h-8 w-full justify-between gap-2 px-2 text-xs font-bold text-muted-foreground hover:text-foreground"
-						onClick={() => setShowNextItems((show) => !show)}
-						aria-expanded={showNextItems}
-						aria-controls="teaching-load-next-items"
-						data-testid="teaching-load-next-items-toggle"
-					>
-						<span>{showNextItems ? 'Hide next items' : 'Show next items'}</span>
-						<ChevronDown className={cn('size-3.5 transition-transform', showNextItems && 'rotate-180')} />
-					</Button>
-					{/* Phase 4.2 audit fix: the container is always in the DOM so the
-						aria-controls relationship stays valid; it is hidden with the
-						`hidden` class while collapsed. */}
-					<div id="teaching-load-next-items" className={cn('mt-1 grid gap-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3', !showNextItems && 'hidden')}>
-						{nextItems.length > 0 ? nextItems.map((item) => (
-							<Button
-								key={item.id}
-								type="button"
-								variant="outline"
-								data-testid="teaching-load-next-repair"
-								className="h-auto min-h-10 min-w-0 justify-start rounded-lg border-border/50 bg-background px-2 py-1.5 text-left shadow-sm transition hover:border-primary/30 hover:bg-primary/5"
-								onClick={() => onSelectItem(item)}
-							>
-								<span className="block min-w-0">
-									<span className="block truncate text-xs font-bold text-foreground">{item.title}</span>
-									<span className="mt-0.5 block truncate text-xs font-medium text-muted-foreground">{item.status}</span>
-								</span>
-							</Button>
-						)) : (
-								<div className="col-span-full flex min-h-11 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
-									<Sparkles className="size-4" />
-									Nothing else needs review.
-								</div>
-							)}
+					<div className="flex shrink-0 items-center gap-1.5">
+						<Button type="button" variant="ghost" size="sm" className="hidden h-8 gap-1.5 px-2 text-xs font-bold sm:inline-flex" onClick={() => setFindOpen(true)}>
+							<Search className="size-3.5" />
+							Find
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="hidden h-8 gap-1.5 px-2 text-xs font-bold sm:inline-flex"
+							data-testid="teaching-load-next-items-grid-toggle"
+							onClick={onToggleAdvancedGrid}
+						>
+							Advanced grid
+						</Button>
+						<Button type="button" variant="ghost" size="icon-sm" className="size-8" onClick={onUndo} disabled={!canUndo || saving || isReadOnly} aria-label="Undo last Teaching Load draft change">
+							<Undo2 className="size-4" />
+						</Button>
 					</div>
 				</div>
+				{/* Phase 4.2: disclosure closed by default so only the current
+					item is shown until the scheduler asks for more. */}
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="mt-1 h-8 w-full justify-between gap-2 px-2 text-xs font-bold text-muted-foreground hover:text-foreground"
+					onClick={() => setShowNextItems((show) => !show)}
+					aria-expanded={showNextItems}
+					aria-controls="teaching-load-next-items"
+					data-testid="teaching-load-next-items-toggle"
+				>
+					<span>{showNextItems ? 'Hide next items' : 'Show next items'}</span>
+					<ChevronDown className={cn('size-3.5 transition-transform', showNextItems && 'rotate-180')} />
+				</Button>
+				{/* Phase 4.2 audit fix: the container is always in the DOM so the
+					aria-controls relationship stays valid; it is hidden with the
+					`hidden` class while collapsed. */}
+				<div id="teaching-load-next-items" className={cn('mt-1 grid gap-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3', !showNextItems && 'hidden')}>
+					{nextItems.length > 0 ? nextItems.map((item) => (
+						<Button
+							key={item.id}
+							type="button"
+							variant="outline"
+							data-testid="teaching-load-next-repair"
+							className="h-auto min-h-10 min-w-0 justify-start rounded-lg border-border/50 bg-background px-2 py-1.5 text-left shadow-sm transition hover:border-primary/30 hover:bg-primary/5"
+							onClick={() => onSelectItem(item)}
+						>
+							<span className="block min-w-0">
+								<span className="block truncate text-xs font-bold text-foreground">{item.title}</span>
+								<span className="mt-0.5 block truncate text-xs font-medium text-muted-foreground">{item.status}</span>
+							</span>
+						</Button>
+					)) : (
+							<div className="col-span-full flex min-h-11 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+								<Sparkles className="size-4" />
+								Nothing else needs review.
+							</div>
+						)}
+				</div>
+			</div>
 			</div>
 
 			<Dialog open={detailsItem !== null} onOpenChange={(open) => !open && setDetailsItem(null)}>

@@ -31,27 +31,24 @@ export function TeachingLoadDraftActionBar({
 		<div className="shrink-0 border-t border-border/40 bg-background px-3 py-2" data-testid="teaching-load-draft-action-bar">
 			<div className="flex flex-wrap items-center gap-2">
 				<div className="min-w-0 flex-1">
-					<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Draft status</p>
+					<p className="hidden text-xs font-bold uppercase tracking-wider text-muted-foreground sm:block">Draft status</p>
 					<p className="truncate text-sm font-semibold text-foreground" aria-live="polite">{statusMessage}</p>
 					{(isReadOnlyMode || activeDraftCount === 0) && (
-						<p className="mt-1 text-xs font-medium text-muted-foreground" data-testid="teaching-load-draft-save-reason">
+						<p className="mt-1 hidden text-xs font-medium text-muted-foreground sm:block" data-testid="teaching-load-draft-save-reason">
 							{isReadOnlyMode ? writeBlockedReason : 'Save stays disabled until you prepare a draft change.'}
 						</p>
 					)}
 				</div>
-				{/* Phase 4.3: the footer action bar stays visible at every viewport
-					height (the old max-height:500px hide removed) so the scheduler
-					can always save, undo, or discard. */}
-				<Button type="button" variant="outline" size="sm" className="h-9 gap-2 font-bold" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}>
+				<Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2 font-bold sm:h-9 sm:gap-2 sm:px-3" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}>
 					<Undo2 className="size-4" />
-					Undo last
+					<span className="hidden sm:inline">Undo last</span>
 				</Button>
-				<Button type="button" variant="outline" size="sm" className="h-9 font-bold" onClick={onDiscard} disabled={activeDraftCount === 0 || saving || isReadOnlyMode}>
+				<Button type="button" variant="outline" size="sm" className="hidden h-9 font-bold sm:inline-flex" onClick={onDiscard} disabled={activeDraftCount === 0 || saving || isReadOnlyMode}>
 					Discard draft
 				</Button>
-				<Button type="button" size="sm" className="h-9 gap-2 font-bold" onClick={onSave} disabled={saveDisabled}>
+				<Button type="button" size="sm" className="h-8 gap-1.5 px-2 font-bold sm:h-9 sm:gap-2 sm:px-3" onClick={onSave} disabled={saveDisabled}>
 					<Save className="size-4" />
-					{saving ? 'Saving...' : activeDraftCount > 0 ? `Save ${activeDraftCount} draft ${activeDraftCount === 1 ? 'change' : 'changes'}` : 'Save draft'}
+					{saving ? 'Saving...' : activeDraftCount > 0 ? `Save ${activeDraftCount}` : 'Save'}
 				</Button>
 			</div>
 		</div>
