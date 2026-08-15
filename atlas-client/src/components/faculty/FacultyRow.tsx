@@ -12,8 +12,35 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { TEACHER_X_LABEL } from '@/lib/deped-glossary';
-import { gradeLabel } from '@/lib/grade-labels';
-import type { FacultySummary, FacultyAssignmentRecord } from '@/types';
+import type { FacultySummary, FacultyAssignmentRecord, ExternalSection } from '@/types';
+
+/** Valid JHS grade levels for Philippine Junior High School. */
+const VALID_JHS_GRADES = new Set([7, 8, 9, 10]);
+
+/**
+ * Extract the academic grade number from an ExternalSection.
+ * Priority: gradeLevelName → displayOrder → gradeLevelId.
+ * Returns null if no valid JHS grade (7–10) can be determined.
+ */
+function getSectionGradeNumber(section: ExternalSection): number | null {
+	// 1. Parse gradeLevelName (e.g. "Grade 7", "GR8", "Grade 10")
+	const nameMatch = (section.gradeLevelName ?? '').match(/(\d+)/);
+	if (nameMatch) {
+		const n = Number(nameMatch[1]);
+		if (VALID_JHS_GRADES.has(n)) return n;
+	}
+	// 2. Use displayOrder if it's a valid JHS grade
+	if (VALID_JHS_GRADES.has(section.displayOrder)) return section.displayOrder;
+	// 3. Use gradeLevelId only if it's directly a valid JHS grade
+	if (VALID_JHS_GRADES.has(section.gradeLevelId)) return section.gradeLevelId;
+	return null;
+}
+
+/** Format a section's grade as "GR7", "GR8", etc. Returns "" for unknown grades. */
+function formatSectionGradeLabel(section: ExternalSection): string {
+	const n = getSectionGradeNumber(section);
+	return n != null ? `GR${n}` : '';
+}
 
 type LoadPresentation = {
 	label: string;
@@ -95,28 +122,42 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 	);
 }
 
+type SectionInfo = {
+	id: number;
+	name: string;
+	gradeLabel: string;
+};
+
 type SubjectSummary = {
 	code: string;
 	name: string;
 	sectionCount: number;
 	gradeRange: string;
+	sections: SectionInfo[];
 };
 
 function buildSubjectSummaries(assignments: FacultyAssignmentRecord[]): SubjectSummary[] {
 	return assignments
 		.filter((a) => a.sections.length > 0 || (a.subject?.code))
 		.map((a) => {
-			const grades = [...new Set(a.sections.map((s) => s.gradeLevelId))].sort((a, b) => a - b);
-			const gradeRange = grades.length === 0
+			const sortedSections = [...a.sections].sort((x, y) => (x.displayOrder ?? 0) - (y.displayOrder ?? 0));
+			const sectionInfos: SectionInfo[] = sortedSections.map((s) => ({
+				id: s.id,
+				name: s.name,
+				gradeLabel: formatSectionGradeLabel(s),
+			}));
+			const gradeNums = [...new Set(a.sections.map((s) => getSectionGradeNumber(s)).filter((n): n is number => n != null))].sort((x, y) => x - y);
+			const gradeRange = gradeNums.length === 0
 				? ''
-				: grades.length === 1
-				? gradeLabel(grades[0])
-				: `${gradeLabel(grades[0])}–${gradeLabel(grades[grades.length - 1])}`;
+				: gradeNums.length === 1
+				? `GR${gradeNums[0]}`
+				: `GR${gradeNums[0]}–GR${gradeNums[gradeNums.length - 1]}`;
 			return {
 				code: a.subject?.code ?? `SUBJ#${a.subjectId}`,
 				name: a.subject?.name ?? '',
 				sectionCount: a.sections.length,
 				gradeRange,
+				sections: sectionInfos,
 			};
 		})
 		.filter((s) => s.sectionCount > 0 || s.code);
@@ -170,43 +211,72 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummary }) {
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
-	const totalSections = summaries.reduce((sum, s) => sum + s.sectionCount, 0);
 
 	if (summaries.length === 0) {
 		return <span className="text-xs text-muted-foreground">No classes assigned</span>;
 	}
 
-	// Single subject: show code + section count
+	// Single subject: show code + section names
 	if (summaries.length === 1) {
 		const s = summaries[0];
+		const shownSections = s.sections.slice(0, 2);
+		const remaining = s.sections.length - shownSections.length;
+
 		return (
-			<span className="text-xs text-foreground tabular-nums">
+			<div className="text-xs text-foreground leading-tight">
 				<span className="font-semibold">{s.code}</span>
-				{' '}\u00B7{' '}
-				{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}
+				{' · '}
+				<span className="text-muted-foreground">{s.sectionCount} section{s.sectionCount === 1 ? '' : 's'}</span>
+				{s.sections.length > 0 && (
+					<div className="mt-0.5 text-muted-foreground">
+						{shownSections.map((sec, i) => (
+							<span key={sec.id}>
+								{i > 0 && <span>, </span>}
+								{sec.gradeLabel} {sec.name}
+							</span>
+						))}
+						{remaining > 0 && <span> +{remaining}</span>}
+					</div>
+				)}
 				<AssignmentBreakdownPopover assignments={assignments} />
-			</span>
+			</div>
 		);
 	}
 
-	// Multiple subjects: show up to two + overflow
+	// Multiple subjects: show up to two + overflow, with first section as discriminator
 	const shown = summaries.slice(0, 2);
 	const remaining = summaries.length - shown.length;
+	const firstSections = summaries[0]?.sections.slice(0, 2) ?? [];
+	const firstRemaining = (summaries[0]?.sections.length ?? 0) - firstSections.length;
 
 	return (
-		<span className="text-xs text-foreground tabular-nums">
-			{shown.map((s, i) => (
-				<span key={s.code}>
-					{i > 0 && <span className="text-muted-foreground">, </span>}
-					<span className="font-semibold">{s.code}</span>
-					{' '}{s.sectionCount}
-				</span>
-			))}
-			{remaining > 0 && (
-				<span className="text-muted-foreground"> +{remaining} more</span>
+		<div className="text-xs text-foreground leading-tight">
+			<div>
+				{shown.map((s, i) => (
+					<span key={s.code}>
+						{i > 0 && <span className="text-muted-foreground">, </span>}
+						<span className="font-semibold">{s.code}</span>
+						{' '}{s.sectionCount}
+					</span>
+				))}
+				{remaining > 0 && (
+					<span className="text-muted-foreground"> +{remaining} more</span>
+				)}
+			</div>
+			{firstSections.length > 0 && (
+				<div className="mt-0.5 text-muted-foreground">
+					<span>First: </span>
+					{firstSections.map((sec, i) => (
+						<span key={sec.id}>
+							{i > 0 && <span>, </span>}
+							{sec.gradeLabel} {sec.name}
+						</span>
+					))}
+					{firstRemaining > 0 && <span> +{firstRemaining}</span>}
+				</div>
 			)}
 			<AssignmentBreakdownPopover assignments={assignments} />
-		</span>
+		</div>
 	);
 }
 
@@ -279,9 +349,22 @@ export function FacultyMobileCard({
 				</span>
 			</div>
 			{summaries.length > 0 && (
-				<div className="mt-2 text-xs text-muted-foreground">
+				<div className="mt-2 text-xs text-muted-foreground leading-tight">
 					{summaries.length === 1
-						? <span><span className="font-semibold text-foreground">{summaries[0].code}</span> \u00B7 {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
+						? <>
+							<span><span className="font-semibold text-foreground">{summaries[0].code}</span> · {summaries[0].sectionCount} section{summaries[0].sectionCount === 1 ? '' : 's'}</span>
+							{summaries[0].sections.length > 0 && (
+								<div className="mt-0.5">
+									{summaries[0].sections.slice(0, 2).map((sec, i) => (
+										<span key={sec.id} className="text-foreground/70">
+											{i > 0 && ', '}
+											{sec.gradeLabel} {sec.name}
+										</span>
+									))}
+									{summaries[0].sections.length > 2 && <span> +{summaries[0].sections.length - 2}</span>}
+								</div>
+							)}
+						</>
 						: <span>{summaries.slice(0, 2).map((s) => `${s.code} ${s.sectionCount}`).join(', ')}{summaries.length > 2 ? ` +${summaries.length - 2} more` : ''}</span>
 					}
 				</div>
