@@ -28,12 +28,11 @@ import {
 } from '@/components/admin-workspace/AdminWorkspace';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-workspace/AdminDataTable';
 import {
-	FacultyDepartmentCell,
+	FacultyAssignedClassesCell,
 	getFacultyLoadPresentation,
 	FacultyIdentityCell,
 	FacultyLoadStateBadge,
 	FacultyMobileCard,
-	FacultyTeachingLoadCell,
 	FacultyWeeklyLoadCell,
 } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
@@ -59,7 +58,7 @@ import {
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 
-type SortField = 'name' | 'specialization' | 'subjects' | 'weeklyLoad' | 'status';
+type SortField = 'name' | 'subjects' | 'weeklyLoad' | 'status';
 type SortDir = 'asc' | 'desc';
 type TeacherRosterStats = {
 	totalCount: number;
@@ -434,7 +433,6 @@ export default function Faculty() {
 			let cmp = 0;
 			switch (sortField) {
 				case 'name': cmp = compareTeacherName(left, right); break;
-				case 'specialization': cmp = (left.specialization ?? left.department ?? '').localeCompare(right.specialization ?? right.department ?? ''); break;
 				case 'subjects': cmp = (left.subjectCount ?? 0) - (right.subjectCount ?? 0); break;
 				case 'weeklyLoad': cmp = (left.policyCreditedHours ?? 0) - (right.policyCreditedHours ?? 0); break;
 				case 'status': cmp = getFacultyLoadSortRank(left) - getFacultyLoadSortRank(right); break;
@@ -465,49 +463,30 @@ export default function Faculty() {
 		{
 			id: 'teacher',
 			label: 'Teacher',
-			description: 'Name, adviser role, and roster ID.',
 			sortKey: 'name',
-			cellClassName: 'min-w-60',
+			cellClassName: 'min-w-52',
 			render: (teacher) => <FacultyIdentityCell faculty={teacher} />,
 		},
 		{
-			id: 'department',
-			label: 'Department',
-			description: 'Department, specialization, and source state.',
-			sortKey: 'specialization',
-			cellClassName: 'min-w-52',
-			render: (teacher) => <FacultyDepartmentCell faculty={teacher} />,
-		},
-		// Phase 3.1: restore the three hidden desktop columns. The subject and
-		// section counts and weekly hours were only mounted on the mobile card
-		// before, so desktop users could not compare load across rows at a
-		// glance (audit T-1/T-2/T-8).
-		{
-			id: 'teachingLoad',
-			label: 'Teaching Load',
-			description: 'Subjects and sections assigned to this teacher.',
-			sortKey: 'subjects',
-			headerClassName: 'text-center',
-			cellClassName: 'text-center min-w-32',
-			render: (teacher) => <FacultyTeachingLoadCell faculty={teacher} />,
+			id: 'loadState',
+			label: 'Load status',
+			sortKey: 'status',
+			render: (teacher) => <FacultyLoadStateBadge faculty={teacher} />,
 		},
 		{
 			id: 'weeklyHours',
-			label: 'Weekly hours',
-			description: 'Total weekly hours against the 30h standard.',
+			label: 'Weekly load',
 			sortKey: 'weeklyLoad',
 			headerClassName: 'text-center',
-			cellClassName: 'text-center min-w-32',
+			cellClassName: 'text-center min-w-28',
 			render: (teacher) => <FacultyWeeklyLoadCell faculty={teacher} />,
 		},
 		{
-			id: 'loadState',
-			label: 'Status',
-			description: 'Load readiness against the standard and the cap.',
-			sortKey: 'status',
-			headerClassName: 'text-center',
-			cellClassName: 'text-center',
-			render: (teacher) => <FacultyLoadStateBadge faculty={teacher} />,
+			id: 'teachingLoad',
+			label: 'Assigned classes',
+			sortKey: 'subjects',
+			cellClassName: 'min-w-28',
+			render: (teacher) => <FacultyAssignedClassesCell faculty={teacher} />,
 		},
 	], []);
 

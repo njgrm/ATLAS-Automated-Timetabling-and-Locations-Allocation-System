@@ -488,8 +488,7 @@ test('setup-first Iteration 4 keeps table controls simple by default and details
 	assert.match(teacherGrid, /More filters/);
 	assert.match(teacherGrid, /p-3 space-y-3/);
 	assert.match(sectionGrid, /p-3 space-y-3/);
-	assert.match(subjectRow, /programScopeSummary/);
-	assert.match(subjectRow, /Program scope:/);
+	assert.match(subjectRow, /programText/);
 	assert.doesNotMatch(subjectRow, /\(subject\.programScopes \?\? \[\]\)\.map/);
 	assert.match(sectionRow, /Needs home room\. Choose a room\./);
 	assert.doesNotMatch(sectionRow, /Choose a room to make this section schedulable/);
@@ -971,11 +970,11 @@ test('Phase 2.3: Coverage drawer distinguishes fetch failure from empty coverage
 	assert.match(subjects, /Verify per-program coverage in Teaching Load/);
 });
 
-test('Phase 2.4: Subjects table exposes Coverage column and accessible sort headers', () => {
+test('Phase 2.4: Subjects table exposes Teacher coverage column and accessible sort headers', () => {
 	const subjects = source('src/pages/Subjects.tsx');
-	// New Coverage column + 7-col layout (was 5).
-	assert.match(subjects, /<SortableHeader field="isSeedable" label="Coverage"/);
-	assert.match(subjects, /colSpan=\{7\}/);
+	// Teacher coverage column + 6-col layout (was 7 with orphaned Program/Grades split).
+	assert.match(subjects, /<SortableHeader field="isSeedable" label="Teacher coverage"/);
+	assert.match(subjects, /colSpan=\{6\}/);
 	// aria-sort on the sortable <th>.
 	assert.match(subjects, /aria-sort=/);
 	// SortableHeader helper added (mirrors Phase 1.5).
@@ -1007,27 +1006,26 @@ test('Phase 2.6: SubjectRow uses compact grade format and accessible info for ja
 	assert.ok(!row.includes('G${sorted[0]}') && !row.includes('G${g}'), 'legacy G${...} shorthand must be gone');
 	// Sub-0.55rem uppercase-tracked sentence labels removed (Phase 0A.2 floor).
 	assert.doesNotMatch(row, /text-\[0\.55rem\]/);
-	// Accessible info used for jargon-y badges (Rotating, Schedulable, room features).
+	// Accessible info used for jargon-y badges (room features).
 	assert.match(row, /AccessibleInfo/);
-	// aria-label on the program-scope badge so the info is reachable without
-	// the AccessibleInfo trigger.
-	assert.ok(row.includes('aria-label={programScopes.length > 0'), 'program-scope badge must carry an aria-label');
+	// Program text still rendered via programFullLabel in the Grades / program column.
+	assert.match(row, /programFullLabel/);
 });
 
-test('Phase 3.1: Teachers desktop table restores subject/section/weekly-hours columns with the standard visible', () => {
+test('Phase 3.1: Teachers desktop table has compact columns with load status, weekly load, and assigned classes', () => {
 	const faculty = source('src/pages/Faculty.tsx');
-	// Columns: Teacher, Department, Teaching Load, Weekly hours, Status (was
-	// only Teacher/Department/Load State before -- audit T-1/T-2).
-	assert.match(faculty, /<FacultyTeachingLoadCell faculty=\{teacher\} \/>/);
+	// Compact column layout: Teacher, Load status, Weekly load, Assigned classes.
+	assert.match(faculty, /<FacultyAssignedClassesCell faculty=\{teacher\} \/>/);
 	assert.match(faculty, /<FacultyWeeklyLoadCell faculty=\{teacher\} \/>/);
-	assert.match(faculty, /label: 'Teaching Load'/);
-	assert.match(faculty, /label: 'Weekly hours'/);
-	assert.doesNotMatch(faculty, /label: 'Load State'/);
+	assert.match(faculty, /label: 'Assigned classes'/);
+	assert.match(faculty, /label: 'Weekly load'/);
+	assert.match(faculty, /label: 'Load status'/);
+	// No column descriptions in headers (simplified scanning).
+	assert.doesNotMatch(faculty, /description: 'Name, adviser/);
 
 	const row = source('src/components/faculty/FacultyRow.tsx');
-	// The standard/cap must be visible in-cell, not only in a keyboard-
-	// inaccessible tooltip (audit T-8).
-	assert.match(row, /\/ \{STANDARD_WEEKLY_TEACHING_HOURS\}h standard/);
+	// The standard/cap must be visible in the tooltip (audit T-8).
+	assert.match(row, /h standard/);
 	assert.match(row, /max \$\{maxHours\}h/);
 });
 

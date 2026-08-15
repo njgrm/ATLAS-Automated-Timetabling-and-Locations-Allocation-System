@@ -17,6 +17,11 @@ import {
 	Users,
 	Info,
 	CheckCircle2,
+	MoreVertical,
+	Pencil,
+	Trash2,
+	Archive,
+	RotateCcw,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -46,6 +51,7 @@ import {
 } from '@/ui/sheet';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { departmentLabel, programFullLabel, gradeCompact } from '@/lib/deped-glossary';
@@ -61,7 +67,7 @@ import {
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 
-type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'programScopes' | 'gradeLevels' | 'isSeedable';
+type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels' | 'isSeedable';
 type SortDir = 'asc' | 'desc';
 
 type TeachingLoadResetPreview = {
@@ -295,7 +301,6 @@ export default function Subjects() {
 				case 'name': cmp = a.name.localeCompare(b.name); break;
 				case 'minMinutesPerWeek': cmp = a.minMinutesPerWeek - b.minMinutesPerWeek; break;
 				case 'preferredRoomType': cmp = a.preferredRoomType.localeCompare(b.preferredRoomType); break;
-				case 'programScopes': cmp = (a.programScopes?.[0] ?? '').localeCompare(b.programScopes?.[0] ?? ''); break;
 				case 'gradeLevels': cmp = a.gradeLevels.length - b.gradeLevels.length; break;
 				case 'isSeedable': cmp = Number(b.isSeedable) - Number(a.isSeedable); break;
 			}
@@ -544,7 +549,6 @@ export default function Subjects() {
 		fetchTeacherCoverage(subject.id);
 	}, [fetchTeacherCoverage]);
 const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
-		const duration = `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
 		const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
 			? 'Standard classroom'
 			: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
@@ -552,60 +556,73 @@ const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
 			? [...subject.gradeLevels].sort((a, b) => a - b).map((grade) => gradeLabel(grade)).join(', ')
 			: 'No grades';
 		const programScopes = subject.programScopes ?? [];
-		const programCopy = programScopes.length === 0 ? 'All programs' : programScopes.length === 1 ? programFullLabel(programScopes[0]) : `${programScopes.length} programs`;
-		const coverage = teacherCoverage[subject.id]?.assigned?.length ?? 0;
+		const programCopy = programScopes.length === 0 ? null : programScopes.length === 1 ? programFullLabel(programScopes[0]) : `${programScopes.length} programs`;
 		const needsCoverage = assignedSubjectIds !== null && subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id);
+		const isArchived = !subject.isActive;
+		const isExcluded = subject.isActive && !subject.isSeedable;
 
 		return (
 			<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="subject-mobile-card">
 				<div className="flex items-start justify-between gap-3">
 					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">{subject.code}</Badge>
-							{/* Phase 2.4 audit fix: match the desktop Coverage column
-								(Archived / Excluded / schedulable states). */}
-							{!subject.isActive ? (
-								<Badge className="h-6 rounded-full border-0 bg-amber-50 text-xs font-bold text-amber-700">Archived</Badge>
-							) : subject.isSeedable ? (
-								<Badge className="h-6 rounded-full border-0 bg-emerald-50 text-xs font-bold text-emerald-700">Available</Badge>
-							) : (
-								<Badge className="h-6 rounded-full border-0 bg-slate-50 text-xs font-bold text-slate-600">Excluded</Badge>
-							)}
-							{needsCoverage && <Badge className="h-6 rounded-full border-0 bg-amber-100 text-xs font-bold text-amber-800">Needs teacher</Badge>}
+						<div className="flex flex-wrap items-center gap-1.5">
+							<code className="text-[0.7rem] font-mono text-muted-foreground uppercase px-1 py-0.5 bg-muted/30 rounded border border-border/40 font-bold tracking-tight">{subject.code}</code>
+							{isArchived && <Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>}
+							{isExcluded && <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-slate-50 text-slate-600 border-slate-200 shadow-none">Excluded</Badge>}
+							{!isArchived && !isExcluded && subject.isSeedable && <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">Available</Badge>}
 						</div>
-						<h3 className="mt-2 truncate text-base font-bold text-foreground">{subject.name}</h3>
-						<p className="mt-0.5 text-xs font-medium text-muted-foreground">{departmentLabel(subject.ownerDepartment)} · {programCopy}</p>
+						<h3 className="mt-1.5 truncate text-base font-bold text-foreground">{subject.name}</h3>
 					</div>
 				</div>
 
-				<div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-						<p className="font-bold uppercase tracking-widest text-muted-foreground">Weekly time</p>
-						<p className="mt-1 text-sm font-bold text-foreground">{duration}</p>
+				<div className="mt-2.5 space-y-1.5 text-xs">
+					<div className="flex items-center justify-between gap-2">
+						<span className="text-muted-foreground font-medium">Grades</span>
+						<span className="font-semibold text-foreground text-right">{grades}{programCopy ? ` · ${programCopy}` : ''}</span>
 					</div>
-					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-						<p className="font-bold uppercase tracking-widest text-muted-foreground">Room need</p>
-						<p className="mt-1 truncate text-sm font-bold text-foreground">{roomNeedLabel}</p>
-					</div>
-					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-						<p className="font-bold uppercase tracking-widest text-muted-foreground">Grades</p>
-						<p className="mt-1 truncate text-sm font-bold text-foreground">{grades}</p>
-					</div>
-					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-						<p className="font-bold uppercase tracking-widest text-muted-foreground">Coverage</p>
-						<p className={needsCoverage ? 'mt-1 text-sm font-bold text-amber-700' : 'mt-1 text-sm font-bold text-emerald-700'}>
-							{!subject.isActive ? 'Archived' : !subject.isSeedable ? 'Excluded' : needsCoverage ? 'Needs teacher' : `${coverage} teacher${coverage === 1 ? '' : 's'}`}
-						</p>
+					<div className="flex items-center justify-between gap-2">
+						<span className="text-muted-foreground font-medium">Coverage</span>
+						<span className={needsCoverage ? 'font-bold text-amber-700' : isArchived || isExcluded ? 'text-muted-foreground font-medium' : 'font-bold text-emerald-700'}>
+							{isArchived ? 'Archived' : isExcluded ? 'Excluded' : needsCoverage ? 'Needs teacher' : 'Ready'}
+						</span>
 					</div>
 				</div>
 
-				<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
-					<Button type="button" size="sm" className="h-11 flex-1 font-bold" onClick={() => openSubjectCoverage(subject)}>
+				<div className="mt-3 flex items-center gap-2 border-t border-slate-200/70 pt-3">
+					<Button type="button" size="sm" className="h-9 flex-1 gap-1.5 font-bold" onClick={() => openSubjectCoverage(subject)}>
+						<Users className="size-3.5" />
 						Review coverage
 					</Button>
-					<Button type="button" size="sm" variant="outline" className="h-11 flex-1 font-bold" onClick={() => openSubjectEditor(subject)}>
-						Edit subject
-					</Button>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 text-muted-foreground" aria-label={`More subject actions for ${subject.name}`}>
+								<MoreVertical className="size-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-44">
+							<DropdownMenuItem onClick={() => openSubjectEditor(subject)}>
+								<Pencil className="mr-2 size-4" />
+								<span>Edit subject</span>
+							</DropdownMenuItem>
+							{subject.isActive && (
+								<DropdownMenuItem onClick={() => setArchiveTarget(subject)}>
+									<Archive className="mr-2 size-4" />
+									<span>Archive for new schedules</span>
+								</DropdownMenuItem>
+							)}
+							{!subject.isActive && (
+								<DropdownMenuItem onClick={() => handleReactivateSubject(subject)}>
+									<RotateCcw className="mr-2 size-4" />
+									<span>Make schedulable again</span>
+								</DropdownMenuItem>
+							)}
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onClick={() => setDeleteTarget(subject)} className="text-red-600 focus:text-red-600">
+								<Trash2 className="mr-2 size-4" />
+								<span>Delete permanently</span>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 			</div>
 		);
@@ -830,13 +847,12 @@ stats={subjectStats}
 										exposes the sort state, the button carries an accessible
 										name + visible Tooltip. The helper closes over the
 										component's sortField/sortDir/toggleSort. */}
-									<SortableHeader field="name" label="Subject and code" align="left" />
-									<SortableHeader field="minMinutesPerWeek" label="Weekly time" align="left" />
+									<SortableHeader field="name" label="Subject" align="left" />
+									<SortableHeader field="gradeLevels" label="Grades / program" align="left" />
+									<SortableHeader field="minMinutesPerWeek" label="Weekly need" align="left" />
 									<SortableHeader field="preferredRoomType" label="Room need" align="left" />
-									<SortableHeader field="programScopes" label="Program" align="left" />
-									<SortableHeader field="gradeLevels" label="Grades" align="left" />
-									<SortableHeader field="isSeedable" label="Coverage" align="left" />
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Actions</th>
+									<SortableHeader field="isSeedable" label="Teacher coverage" align="left" />
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Action</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -844,17 +860,16 @@ stats={subjectStats}
 									Array.from({ length: 8 }).map((_, i) => (
 										<tr key={i}>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-8 w-28 ml-auto" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-20 text-center">
+										<td colSpan={6} className="px-4 py-20 text-center">
 											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'} />
 										</td>
 									</tr>

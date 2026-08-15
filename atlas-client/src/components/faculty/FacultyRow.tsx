@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { BookOpen, Star } from 'lucide-react';
 
-import { getDepartmentColor } from '@/lib/department-colors';
 import {
 	deriveLoadStatus,
 	getFacultyLoadSortRank,
@@ -11,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
-import { departmentLabel, TEACHER_X_LABEL } from '@/lib/deped-glossary';
+import { TEACHER_X_LABEL } from '@/lib/deped-glossary';
 import type { FacultySummary } from '@/types';
 
 type LoadPresentation = {
@@ -39,12 +38,12 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 		: 'within';
 
 	const copy = {
-		excluded: { label: 'Excluded from scheduling', badgeClassName: 'border-slate-200 bg-slate-100 text-slate-600', help: 'This teacher is not available for scheduling.' },
-		'no-load': { label: 'No teaching load', badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700', help: 'This active teacher has no load assigned yet.' },
-		'below-standard': { label: loadStatus.label, badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700', help: `This teacher is below the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and can still receive assignments.` },
-		'above-standard': { label: loadStatus.label, badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700', help: `This teacher is above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within the ${maxHours}h cap.` },
-		'over-cap': { label: loadStatus.label, badgeClassName: 'border-rose-200 bg-rose-50 text-rose-700', help: `This teacher exceeds the ${maxHours}h cap. Move classes before generating the timetable.` },
-		within: { label: loadStatus.label, badgeClassName: 'border-emerald-200 bg-emerald-50 text-emerald-700', help: `This teacher is exactly at the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard.` },
+		excluded: { label: 'Excluded', badgeClassName: 'border-slate-200 bg-slate-100 text-slate-600', help: 'This teacher is not available for scheduling.' },
+		'no-load': { label: 'No load', badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700', help: 'This active teacher has no load assigned yet.' },
+		'below-standard': { label: 'Below standard', badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700', help: `This teacher is below the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and can still receive assignments.` },
+		'above-standard': { label: 'Near cap', badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700', help: `This teacher is above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within the ${maxHours}h cap.` },
+		'over-cap': { label: 'Over cap', badgeClassName: 'border-rose-200 bg-rose-50 text-rose-700', help: `This teacher exceeds the ${maxHours}h cap. Move classes before generating the timetable.` },
+		within: { label: 'Ready', badgeClassName: 'border-emerald-200 bg-emerald-50 text-emerald-700', help: `This teacher is at the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard.` },
 	}[loadState];
 
 	const hoursClassName =
@@ -57,21 +56,24 @@ export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresent
 	return { ...copy, hoursClassName };
 }
 
+/** Compact load status label for the badge. */
+export function getCompactLoadLabel(faculty: FacultySummary): string {
+	return getFacultyLoadPresentation(faculty).label;
+}
+
 export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 	const isPlaceholder = faculty.isPlaceholder;
 	return (
 		<div className="flex min-w-0 items-center gap-3">
-			<div className={`flex size-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold shadow-sm ${isPlaceholder ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-primary/10 bg-primary/10 text-primary'}`}>
+			<div className={`flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold shadow-sm ${isPlaceholder ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-primary/10 bg-primary/10 text-primary'}`}>
 				{faculty.firstName?.[0] ?? ''}{faculty.lastName?.[0] ?? ''}
 			</div>
-			<div className="min-w-0 space-y-1">
+			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
 					<p className="truncate font-semibold leading-tight text-foreground">{faculty.lastName}, {faculty.firstName}</p>
-					{/* Phase 3.2: "Temporary" label instead of the "Teacher X" brand string.
-						The AccessibleInfo explains what a placeholder is. */}
 					{isPlaceholder && (
 						<>
-							<Badge variant="outline" className="h-5 border-violet-200 bg-violet-50 text-xs font-bold text-violet-700">Temporary</Badge>
+							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold border-violet-200 bg-violet-50 text-violet-700">Temporary</Badge>
 							<AccessibleInfo
 								label={`Temporary teacher ${faculty.lastName}, ${faculty.firstName}`}
 								shortHelp={`${TEACHER_X_LABEL}. Replace this temporary record before publishing the timetable.`}
@@ -80,80 +82,68 @@ export function FacultyIdentityCell({ faculty }: { faculty: FacultySummary }) {
 						</>
 					)}
 				</div>
-				<div className="flex min-w-0 flex-wrap items-center gap-2">
-					{faculty.isClassAdviser && (
-						<span className="flex max-w-44 items-center gap-1 truncate rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-bold text-amber-700">
-							<Star className="size-2.5 shrink-0 fill-amber-400 text-amber-500" />
-							<span className="truncate">{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Adviser'}</span>
-						</span>
-					)}
-					<span className="truncate font-mono text-xs tracking-tight text-muted-foreground/80">#{faculty.employeeId || 'ID pending'}</span>
-				</div>
+				{faculty.isClassAdviser && (
+					<span className="mt-0.5 flex max-w-44 items-center gap-1 truncate text-xs text-muted-foreground">
+						<Star className="size-2.5 shrink-0 fill-amber-400 text-amber-500" />
+						<span className="truncate">{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Adviser'}</span>
+					</span>
+				)}
 			</div>
 		</div>
 	);
 }
 
-export function FacultyDepartmentCell({ faculty }: { faculty: FacultySummary }) {
-	const deptColor = getDepartmentColor(faculty.department);
-
-	return (
-		<div className="flex min-w-0 flex-col gap-1.5">
-			<div className="flex items-center gap-2">
-				<Badge variant="outline" className={cn('h-5 border-opacity-50 px-1.5 py-0 text-xs font-semibold', deptColor.bg, deptColor.text, deptColor.border)}>
-					{departmentLabel(faculty.department)}
-				</Badge>
-				<Badge variant="outline" className={cn('h-5 px-1.5 py-0 text-xs font-bold', faculty.isActiveForScheduling ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600')}>
-					{faculty.isActiveForScheduling ? 'Active' : 'Excluded from scheduling'}
-				</Badge>
-			</div>
-			<span className="truncate pl-0.5 text-xs font-medium text-muted-foreground">{faculty.specialization || 'No specialization listed'}</span>
-		</div>
-	);
-}
-
-export function FacultyTeachingLoadCell({ faculty }: { faculty: FacultySummary }) {
+export function FacultyAssignedClassesCell({ faculty }: { faculty: FacultySummary }) {
 	const subjectCount = faculty.subjectCount ?? 0;
 	const sectionCount = faculty.sectionCount ?? 0;
 
 	return (
-		<div className="flex flex-col items-center gap-1 text-center">
-			<Badge className={cn('text-xs font-bold shadow-none', subjectCount > 0 ? 'border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50' : 'border-amber-100 bg-amber-50 text-amber-700 hover:bg-amber-50')}>
-				<BookOpen className="mr-1 size-3" />
-				{subjectCount} subject{subjectCount === 1 ? '' : 's'}
-			</Badge>
-			<span className="text-[0.65rem] font-medium text-muted-foreground">{sectionCount} section{sectionCount === 1 ? '' : 's'}</span>
-		</div>
+		<span className="text-xs text-foreground tabular-nums">
+			{subjectCount} subject{subjectCount === 1 ? '' : 's'}
+			{sectionCount > 0 && (
+				<>
+					{' '}\u00B7{' '}
+					{sectionCount} section{sectionCount === 1 ? '' : 's'}
+				</>
+			)}
+		</span>
 	);
 }
 
 export function FacultyWeeklyLoadCell({ faculty }: { faculty: FacultySummary }) {
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
+	const maxHours = faculty.maxHoursPerWeek;
 	const presentation = getFacultyLoadPresentation(faculty);
+	const isOver = weeklyHours > maxHours;
 
 	return (
-		<div className="flex flex-col items-center text-center">
-			<span className={cn('text-sm font-semibold tabular-nums', presentation.hoursClassName)}>{weeklyHours > 0 ? `${weeklyHours}h` : '-'}</span>
-			<span className="text-xs font-medium text-muted-foreground">/ {STANDARD_WEEKLY_TEACHING_HOURS}h standard</span>
-		</div>
+		<TooltipProvider delayDuration={300}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span className={cn('text-sm font-semibold tabular-nums cursor-default', presentation.hoursClassName)}>
+						{weeklyHours > 0 ? `${weeklyHours} / ${STANDARD_WEEKLY_TEACHING_HOURS}h` : '\u2014'}
+						{isOver && <span className="ml-1 text-[0.65rem] font-bold text-rose-600">over</span>}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-52 text-xs leading-relaxed">
+					{weeklyHours > 0
+						? `${weeklyHours}h credited / ${STANDARD_WEEKLY_TEACHING_HOURS}h standard (max ${maxHours}h)`
+						: `No load assigned. Standard is ${STANDARD_WEEKLY_TEACHING_HOURS}h, max ${maxHours}h.`}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
 export function FacultyLoadStateBadge({ faculty }: { faculty: FacultySummary }) {
 	const presentation = getFacultyLoadPresentation(faculty);
-	const weeklyHours = faculty.policyCreditedHours ?? 0;
-	const maxHours = faculty.maxHoursPerWeek;
 
-	// Phase 3.1: the standard and cap are now visible in-cell (the tooltip
-	// remains as supplementary detail, not the only source of the numbers).
 	return (
 		<TooltipProvider delayDuration={300}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Badge variant="outline" className={cn('cursor-help text-xs font-bold shadow-none', presentation.badgeClassName)}>
 						{presentation.label}
-						{weeklyHours > 0 ? ` - ${weeklyHours}h / ${STANDARD_WEEKLY_TEACHING_HOURS}h standard` : ''}
-						{maxHours > 0 ? ` (max ${maxHours}h)` : ''}
 					</Badge>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-60 text-xs leading-relaxed">{presentation.help}</TooltipContent>
@@ -171,27 +161,25 @@ export function FacultyMobileCard({
 	primaryAction?: ReactNode;
 	secondaryActionMenu?: ReactNode;
 }) {
+	const weeklyHours = faculty.policyCreditedHours ?? 0;
+	const presentation = getFacultyLoadPresentation(faculty);
+
 	return (
-		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 shadow-sm">
+		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="teacher-mobile-card">
 			<div className="flex items-start justify-between gap-3">
 				<FacultyIdentityCell faculty={faculty} />
 				{secondaryActionMenu}
 			</div>
-			<div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-				<div className="space-y-1">
-					<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Department</p>
-					<FacultyDepartmentCell faculty={faculty} />
-				</div>
-				<div className="space-y-1 text-right">
-					<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total weekly hours</p>
-					<FacultyWeeklyLoadCell faculty={faculty} />
-				</div>
-			</div>
-			<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 pt-3">
-				<FacultyTeachingLoadCell faculty={faculty} />
+			<div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
 				<FacultyLoadStateBadge faculty={faculty} />
+				<span className={cn('font-semibold tabular-nums', presentation.hoursClassName)}>
+					{weeklyHours > 0 ? `${weeklyHours} / ${STANDARD_WEEKLY_TEACHING_HOURS}h` : '\u2014'}
+				</span>
 			</div>
-			{primaryAction && <div className="mt-4">{primaryAction}</div>}
+			{primaryAction && <div className="mt-3">{primaryAction}</div>}
 		</div>
 	);
 }
+
+// Keep the old export name for backward compat with any remaining imports.
+export { FacultyAssignedClassesCell as FacultyTeachingLoadCell };

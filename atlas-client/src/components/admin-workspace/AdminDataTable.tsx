@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreHorizontal } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Info, MoreHorizontal } from 'lucide-react';
 
 import { AdminStatePanel, AdminTableShell } from '@/components/admin-workspace/AdminWorkspace';
 import { cn } from '@/lib/utils';
@@ -11,16 +11,31 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 export type AdminDataTableSortDirection = 'asc' | 'desc';
 
+/** Semantic role hint for audit validation. Describes what the cell data represents. */
+export type AdminDataTableCellRole =
+	| 'identity'
+	| 'status'
+	| 'numeric'
+	| 'badge'
+	| 'text'
+	| 'action'
+	| string;
+
 export type AdminDataTableColumn<TData, TSort extends string = string> = {
 	id: string;
+	/** Visible column header label. */
 	label: string;
+	/** Optional description shown behind an info popover trigger (not always visible). */
 	description?: string;
+	/** Semantic cell role for audit validation. */
+	cellRole?: AdminDataTableCellRole;
 	sortKey?: TSort;
 	headerClassName?: string;
 	cellClassName?: string;
@@ -65,6 +80,9 @@ type AdminDataTableMobileContext = {
 	secondaryActionMenu?: ReactNode;
 };
 
+/** Row density mode. 'simple' = compact rows; 'detail' = extra vertical space and visible descriptions. */
+export type AdminDataTableDensity = 'simple' | 'detail';
+
 type AdminDataTableProps<TData, TSort extends string = string> = {
 	data: TData[];
 	columns: AdminDataTableColumn<TData, TSort>[];
@@ -81,6 +99,8 @@ type AdminDataTableProps<TData, TSort extends string = string> = {
 	errorState?: AdminDataTableState | null;
 	leadingContent?: ReactNode;
 	renderMobileCard?: (row: TData, context: AdminDataTableMobileContext) => ReactNode;
+	/** Row density mode. Defaults to 'simple'. */
+	density?: AdminDataTableDensity;
 };
 
 function renderSortIcon<TSort extends string>(
@@ -109,6 +129,78 @@ function ariaSortValue<TSort extends string>(
 	if (!column.sortKey) return undefined;
 	if (sort?.key !== column.sortKey) return 'none';
 	return sort.direction === 'asc' ? 'ascending' : 'descending';
+}
+
+/** Compact header cell content with optional description popover. */
+function ColumnHeader<TSort extends string = string>({
+	column,
+	sort,
+	density,
+}: {
+	column: AdminDataTableColumn<any, TSort>;
+	sort?: { key: TSort; direction: AdminDataTableSortDirection };
+	density: AdminDataTableDensity;
+}) {
+	const isSortable = Boolean(column.sortKey);
+	const hasDescription = density === 'detail' && Boolean(column.description);
+
+	const labelNode = (
+		<span className="flex items-center gap-1.5 whitespace-nowrap">
+			{column.label}
+			{renderSortIcon(column, sort)}
+		</span>
+	);
+
+	const content = (
+		<div className="flex min-w-0 flex-col items-start gap-0.5">
+			<div className="flex items-center gap-1.5">
+				{labelNode}
+				{column.description && (
+					<Popover>
+						<PopoverTrigger asChild>
+							<button
+								type="button"
+								className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+								aria-label={`Info about ${column.label}`}
+							>
+								<Info className="size-3" />
+							</button>
+						</PopoverTrigger>
+						<PopoverContent side="top" className="w-64 text-xs leading-relaxed" align="start">
+							{column.description}
+						</PopoverContent>
+					</Popover>
+				)}
+			</div>
+			{hasDescription && (
+				<span className="max-w-44 text-left text-[0.7rem] font-medium normal-case leading-4 text-muted-foreground/70">{column.description}</span>
+			)}
+		</div>
+	);
+
+	if (isSortable) {
+		return (
+			<TooltipProvider delayDuration={200}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="sm"
+							aria-label={sortAriaLabel(column, sort)}
+							className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
+						>
+							{content}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="top" className="text-xs">
+						{sortAriaLabel(column, sort)}
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
+	}
+
+	return <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">{content}</div>;
 }
 
 function AdminDataTableActionMenu({
@@ -203,11 +295,13 @@ export function AdminDataTable<TData, TSort extends string = string>({
 	errorState,
 	leadingContent,
 	renderMobileCard,
+	density = 'simple',
 }: AdminDataTableProps<TData, TSort>) {
 	const state = errorState ?? (isFiltered ? noResultsState : emptyState);
 	const hasActions = Boolean(rowActions);
 	const footer = !loading && pagination && pagination.total > 0 ? <AdminDataTableFooter pagination={pagination} /> : undefined;
 	const statePanelProps = { icon: state.icon, title: state.title, description: state.description, action: state.action };
+	const rowPadding = density === 'simple' ? 'px-4 py-3' : 'px-4 py-4';
 
 	return (
 		<AdminTableShell footer={footer}>
@@ -229,8 +323,8 @@ export function AdminDataTable<TData, TSort extends string = string>({
 							<tbody>
 								{Array.from({ length: loadingRowCount }).map((_, index) => (
 									<tr key={index} className="border-b last:border-0">
-										{columns.map((column) => <td key={column.id} className={cn('px-4 py-4', column.cellClassName)}>{column.skeleton ?? <Skeleton className="h-5 w-28" />}</td>)}
-										{hasActions && <td className="px-4 py-4"><Skeleton className="ml-auto h-8 w-32" /></td>}
+										{columns.map((column) => <td key={column.id} className={cn(rowPadding, column.cellClassName)}>{column.skeleton ?? <Skeleton className="h-5 w-28" />}</td>)}
+										{hasActions && <td className={rowPadding}><Skeleton className="ml-auto h-8 w-32" /></td>}
 									</tr>
 								))}
 							</tbody>
@@ -250,48 +344,43 @@ export function AdminDataTable<TData, TSort extends string = string>({
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-{columns.map((column) => {
-									const headerContent = (
-										<div className="flex min-w-0 flex-col items-start gap-0.5">
-											<span className="flex items-center gap-1.5 whitespace-nowrap">{column.label}{renderSortIcon(column as AdminDataTableColumn<unknown, TSort>, sort)}</span>
-											{column.description && <span className="max-w-44 text-left text-[0.7rem] font-medium normal-case leading-4 text-muted-foreground/70">{column.description}</span>}
-										</div>
-									);
-
-									const isSortable = Boolean(column.sortKey && onSortChange);
-								const handleSort = isSortable ? () => onSortChange?.(column.sortKey as TSort) : undefined;
-								return (
-									<th
-										key={column.id}
-										className={cn('px-4 py-3 text-left align-bottom', column.headerClassName)}
-										aria-sort={isSortable ? ariaSortValue(column as AdminDataTableColumn<unknown, TSort>, sort) : undefined}
-									>
-										{isSortable && handleSort ? (
-											<TooltipProvider delayDuration={200}>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															variant="ghost"
-															size="sm"
-															onClick={handleSort}
-															aria-label={sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
-															className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
-														>
-															{headerContent}
-														</Button>
-													</TooltipTrigger>
-													<TooltipContent side="top" className="text-xs">
-														{sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										) : (
-											<div className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">{headerContent}</div>
-										)}
-									</th>
-								);
-								})}
-									{hasActions && <th className="px-4 py-3 text-right align-bottom text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>}
+									{columns.map((column) => {
+										const isSortable = Boolean(column.sortKey && onSortChange);
+										const handleSort = isSortable ? () => onSortChange?.(column.sortKey as TSort) : undefined;
+										return (
+											<th
+												key={column.id}
+												className={cn('px-4 py-3 text-left align-bottom', column.headerClassName)}
+												aria-sort={isSortable ? ariaSortValue(column as AdminDataTableColumn<unknown, TSort>, sort) : undefined}
+												data-column-id={column.id}
+												data-cell-role={column.cellRole}
+											>
+												{isSortable && handleSort ? (
+													<TooltipProvider delayDuration={200}>
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<Button
+																	variant="ghost"
+																	size="sm"
+																	onClick={handleSort}
+																	aria-label={sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
+																	className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground"
+																>
+																	<ColumnHeader column={column} sort={sort} density={density} />
+																</Button>
+															</TooltipTrigger>
+															<TooltipContent side="top" className="text-xs">
+																{sortAriaLabel(column as AdminDataTableColumn<unknown, TSort>, sort)}
+															</TooltipContent>
+														</Tooltip>
+													</TooltipProvider>
+												) : (
+													<ColumnHeader column={column} sort={sort} density={density} />
+												)}
+											</th>
+										);
+									})}
+									{hasActions && <th className="px-4 py-3 text-right align-bottom text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground" data-column-id="actions" data-cell-role="action">Actions</th>}
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -300,14 +389,14 @@ export function AdminDataTable<TData, TSort extends string = string>({
 									const destructive = rowActions?.destructive?.(row) ?? [];
 									return (
 										<tr key={getRowKey(row)} className="transition-colors hover:bg-muted/30">
-											{columns.map((column) => <td key={column.id} className={cn('px-4 py-3 align-middle', column.cellClassName)}>{column.render(row)}</td>)}
+											{columns.map((column) => <td key={column.id} className={cn(rowPadding, 'align-middle', column.cellClassName)}>{column.render(row)}</td>)}
 											{rowActions && (
-												<td className="px-4 py-3 text-right">
+												<td className={cn(rowPadding, 'text-right')}>
 													<div className="flex items-center justify-end gap-2">
-								{rowActions.primary(row)}
-								<AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} testId={rowActions.menuTestId} />
-							</div>
-						</td>
+														{rowActions.primary(row)}
+														<AdminDataTableActionMenu actions={secondary} destructiveActions={destructive} label={rowActions.label} testId={rowActions.menuTestId} />
+													</div>
+												</td>
 											)}
 										</tr>
 									);
