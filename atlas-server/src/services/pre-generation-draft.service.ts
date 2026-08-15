@@ -777,7 +777,7 @@ function validateInputOrThrow(input: DraftPlacementInput, ctx: DraftContext) {
 		const startMinutes = timeToMinutes(input.startTime);
 		const endMinutes = timeToMinutes(input.endTime);
 		if (startMinutes < timeToMinutes(gradeWindow.startTime) || endMinutes > timeToMinutes(gradeWindow.endTime)) {
-			throw err(422, 'GRADE_WINDOW_BLOCK', `Selected slot is outside Grade ${demandItem.gradeLevel} scheduling window ${gradeWindow.startTime}-${gradeWindow.endTime}.`);
+			throw err(422, 'GRADE_WINDOW_BLOCK', `This placement is blocked because Grade ${demandItem.gradeLevel} can only be scheduled from ${gradeWindow.startTime} to ${gradeWindow.endTime}. Choose a slot inside that time window.`);
 		}
 	}
 	return demandItem;

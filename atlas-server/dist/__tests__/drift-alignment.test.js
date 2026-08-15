@@ -29,32 +29,39 @@ async function run() {
             console.log(`    - ${c.code}: ${c.message}`);
         }
     }
-    section('Runtime context and rollover status agree on drift status');
+    section('Runtime context and rollover status agree on drift status (live-state coverage)');
     const runtimeContext = await resolveRuntimeContext(schoolId, undefined, { verifyUpstream: true });
     const rolloverStatus = await getRolloverStatus(schoolId, undefined, { includeCounts: true });
+    assert(runtimeContext !== null, 'Runtime context returns a result');
+    assert(rolloverStatus !== null, 'Rollover status returns a result');
     if (runtimeContext && rolloverStatus) {
         assertEqual(runtimeContext.activeYearDrift.status, rolloverStatus.drift.status, 'Runtime context and rollover status report the same drift.status');
-        console.log(`  ℹ Runtime context drift: ${runtimeContext.activeYearDrift.status}`);
-        console.log(`  ℹ Rollover status drift: ${rolloverStatus.drift.status}`);
-        if (runtimeContext.activeYearDrift.status === 'mapping-conflict') {
-            assert(rolloverStatus.conflicts.length > 0, 'When runtime context reports mapping-conflict, rollover status has conflicts');
+        assertEqual(runtimeContext.activeYearDrift.recommendedAction, rolloverStatus.drift.recommendedAction, 'Runtime context and rollover status report the same recommendedAction');
+        console.log(`  ℹ Live drift status: ${runtimeContext.activeYearDrift.status}`);
+        console.log(`  ℹ Live recommended action: ${runtimeContext.activeYearDrift.recommendedAction}`);
+        // Verify drift-specific properties
+        const driftStatus = runtimeContext.activeYearDrift.status;
+        if (driftStatus === 'mapping-conflict') {
+            assert(rolloverStatus.conflicts.length > 0, 'When drift is mapping-conflict, rollover status has conflicts');
+            assertEqual(runtimeContext.activeYearDrift.recommendedAction, 'RESET_DUMMY_YEAR', 'Mapping conflict recommends RESET_DUMMY_YEAR when reset is available');
             console.log(`  ℹ Rollover conflicts: ${rolloverStatus.conflicts.map((c) => c.code).join(', ')}`);
+        }
+        else if (driftStatus === 'enrollpro-unreachable') {
+            assertEqual(runtimeContext.activeYearDrift.recommendedAction, 'RETRY_ENROLLPRO', 'EnrollPro unreachable recommends RETRY_ENROLLPRO');
+        }
+        else if (driftStatus === 'aligned') {
+            assertEqual(runtimeContext.activeYearDrift.recommendedAction, 'NONE', 'Aligned state recommends NONE');
         }
     }
     else {
-        console.log('  ℹ Skipping alignment check — one or both endpoints returned null');
+        console.log('  ⚠ Skipping alignment check — one or both endpoints returned null');
+        fail++;
     }
     section('Current-year reviewed data does not become dummy conflict by itself');
-    // After a successful sync, current-year data (generation runs, teaching load, etc.)
-    // should NOT automatically make the year a dummy conflict.
-    // The only valid conflicts are YEAR_LABEL_MISMATCH and SECTION_ID_COLLISION.
     const currentYearConflicts = await findMappingConflicts(schoolId, upstreamYear);
     const nonIdentityConflicts = currentYearConflicts.filter((c) => c.code !== 'YEAR_LABEL_MISMATCH' && c.code !== 'SECTION_ID_COLLISION');
     assertEqual(nonIdentityConflicts.length, 0, 'No non-identity conflicts exist for current year (reviewed data is not a dummy conflict)');
     section('SECTION_ID_COLLISION detection');
-    // Verify that the collision detection works by checking the logic:
-    // If ATLAS has section mirrors for a year ID but external IDs don't match,
-    // it should report SECTION_ID_COLLISION.
     const sectionMirrors = await prisma.sectionMirror.findMany({
         where: { schoolId, schoolYearId: upstreamYear.id },
         select: { externalId: true },
@@ -64,6 +71,12 @@ async function run() {
     if (sectionMirrors.length > 0) {
         const externalIds = new Set(sectionMirrors.map((s) => s.externalId));
         console.log(`  ℹ External IDs: ${[...externalIds].slice(0, 5).join(', ')}${externalIds.size > 5 ? '...' : ''}`);
+    }
+    section('Active school year consistency');
+    if (runtimeContext) {
+        assert(runtimeContext.activeSchoolYearId > 0, 'Runtime context has a positive activeSchoolYearId');
+        console.log(`  ℹ Active school year ID: ${runtimeContext.activeSchoolYearId}`);
+        console.log(`  ℹ Active school year label: ${runtimeContext.activeSchoolYearLabel ?? '(unavailable)'}`);
     }
     console.log('\n' + '═'.repeat(56));
     console.log(`Tests: ${pass} passed, ${fail} failed, ${pass + fail} total`);

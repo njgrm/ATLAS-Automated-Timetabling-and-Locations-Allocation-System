@@ -172,6 +172,18 @@ function buildActiveYearDrift(input: {
 		};
 	}
 
+	if (!input.upstreamReachable && input.verifyUpstream) {
+		return {
+			status: 'enrollpro-unreachable' as const,
+			message: 'EnrollPro active school year could not be verified. ATLAS is using saved setup data for now.',
+			recommendedAction: 'RETRY_ENROLLPRO' as const,
+			atlasSchoolYearId: input.selectedYearId,
+			enrollProSchoolYearId: null,
+			enrollProSchoolYearLabel: null,
+			mirrorSyncedAt: input.mirrorSyncedAt?.toISOString() ?? null,
+		};
+	}
+
 	if (!input.upstreamYearId) {
 		return {
 			status: input.verifyUpstream ? 'enrollpro-unreachable' as const : 'aligned' as const,

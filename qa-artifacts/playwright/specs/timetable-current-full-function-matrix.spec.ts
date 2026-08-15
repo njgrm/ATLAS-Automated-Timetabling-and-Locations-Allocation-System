@@ -147,7 +147,7 @@ test.describe('Timetable current full-function matrix', () => {
 		const dialog = await openDraftPlacementReview(page);
 		await expect(dialog).toContainText(/Review draft placement/i);
 		await expect(dialog.getByTestId('draft-placement-feedback')).toBeVisible();
-		await expect(dialog.getByTestId('draft-placement-save-reason')).toContainText(/Ready|Fix|Choose|Waiting|blocked/i);
+		await expect(dialog.getByTestId('draft-placement-save-reason')).toContainText(/Ready|Fix|Choose|Waiting|blocked|outside|inside|time window/i);
 		await assertNoObsoleteAssignmentModal(page);
 		await dialog.getByRole('button', { name: /^Cancel$/i }).click();
 		await assertNoGlobalOverflow(page);
