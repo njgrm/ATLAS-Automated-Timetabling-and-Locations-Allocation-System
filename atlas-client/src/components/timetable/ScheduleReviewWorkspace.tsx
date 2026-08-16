@@ -318,10 +318,14 @@ export default function ScheduleReviewWorkspace() {
 						softCount: state.headerContext.softCount,
 						summary: state.summary,
 						roomRequestSummary: state.roomRequestSummary,
-						openPublishDialog: () => {
-							state.headerContext.setPublishAcknowledged(false);
-							state.headerContext.setShowPublishDialog(true);
-						},
+					openPublishDialog: () => {
+						state.headerContext.setPublishAcknowledged(false);
+						state.headerContext.setShowPublishDialog(true);
+					},
+					activeGeneratedRunId: state.headerContext.activeGeneratedRunId,
+					sectionLabel: state.centerWorkspaceContext.sectionLabel,
+					subjectLabel: state.centerWorkspaceContext.subjectLabel,
+					facultyLabel: state.centerWorkspaceContext.facultyLabel,
 						leftRailContentContext: state.leftRailContentContext,
 						centerWorkspaceContext: state.centerWorkspaceContext,
 						rightPanelContext: state.rightPanelContext,

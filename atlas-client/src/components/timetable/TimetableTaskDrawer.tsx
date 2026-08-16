@@ -4,6 +4,7 @@ import {
 	CalendarClock,
 	CheckCircle2,
 	ClipboardCheck,
+	ExternalLink,
 	Flag,
 	ListChecks,
 	Search,
@@ -23,7 +24,7 @@ import { getUnassignedStatus } from '@/components/timetable/GeneratedUnassignedP
 import { DraggableQueuePin, DraggableUnassignedPin } from '@/components/timetable/DraggablePinWrappers';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
-import type { DraftQueueItem, UnassignedItem } from '@/types';
+import type { DraftQueueItem, UnassignedItem, Violation } from '@/types';
 
 type TimetableTaskDrawerProps = {
 	task: TimetableSimpleTask | null;
@@ -32,8 +33,14 @@ type TimetableTaskDrawerProps = {
 	hardCount: number;
 	softCount: number;
 	unassignedCount: number;
+	assignedCount: number;
+	runId: number | null;
 	isPreGenerationWorkspace: boolean;
 	onPublish: () => void;
+	violations?: Violation[];
+	sectionLabel?: (id: number) => string;
+	subjectLabel?: (id: number) => string;
+	facultyLabel?: (id: number) => string;
 };
 
 type DrawerCopy = {
@@ -82,6 +89,217 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 	},
 };
 
+type BlockerGroup = {
+	reason: string;
+	plainLabel: string;
+	count: number;
+	actionLabel: string;
+	actionHref: string;
+	items: Array<{
+		sectionName: string;
+		subjectName: string;
+		facultyName: string;
+		reason: string;
+	}>;
+};
+
+const UNASSIGNED_GROUP_MAP: Record<string, { plainLabel: string; actionLabel: string; actionHref: string }> = {
+	FACULTY_OVERLOADED: { plainLabel: 'Teachers are overloaded', actionLabel: 'Review Teaching Load', actionHref: '/teaching-load' },
+	NO_QUALIFIED_FACULTY: { plainLabel: 'No qualified teacher is assigned', actionLabel: 'Assign a qualified teacher', actionHref: '/teaching-load' },
+	NO_AVAILABLE_SLOT: { plainLabel: 'No available time slot', actionLabel: 'Review timetable slots or policy', actionHref: '/timetable' },
+	NO_COMPATIBLE_ROOM: { plainLabel: 'No compatible room found', actionLabel: 'Review room setup', actionHref: '/campus-rooms' },
+	ROOM_CAPACITY_EXCEEDED: { plainLabel: 'Room capacity exceeded', actionLabel: 'Review room assignment', actionHref: '/campus-rooms' },
+};
+
+function buildBlockerGroups(
+	violations: Violation[],
+	sectionLabelFn: (id: number) => string,
+	subjectLabelFn: (id: number) => string,
+	facultyLabelFn: (id: number) => string,
+): BlockerGroup[] {
+	const hardViolations = violations.filter((v) => v.severity === 'HARD');
+	const groups = new Map<string, BlockerGroup>();
+
+	for (const v of hardViolations) {
+		const code = v.code;
+		const groupConfig = UNASSIGNED_GROUP_MAP[code];
+		if (!groupConfig) continue;
+
+		if (!groups.has(code)) {
+			groups.set(code, {
+				reason: code,
+				plainLabel: groupConfig.plainLabel,
+				count: 0,
+				actionLabel: groupConfig.actionLabel,
+				actionHref: groupConfig.actionHref,
+				items: [],
+			});
+		}
+
+		const group = groups.get(code)!;
+		group.count += 1;
+
+		const sectionName = v.entities.sectionId != null ? sectionLabelFn(v.entities.sectionId) : '';
+		const subjectName = v.entities.subjectId != null ? subjectLabelFn(v.entities.subjectId) : '';
+		const facultyName = v.entities.facultyId != null ? facultyLabelFn(v.entities.facultyId) : '';
+
+		if (sectionName || subjectName) {
+			group.items.push({
+				sectionName: sectionName || 'Unknown section',
+				subjectName: subjectName || 'Unknown subject',
+				facultyName: facultyName || 'No teacher assigned',
+				reason: v.message,
+			});
+		}
+	}
+
+	return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+}
+
+function PublishChecklistContent({
+	runId,
+	assignedCount,
+	unassignedCount,
+	hardCount,
+	softCount,
+	violations,
+	sectionLabel,
+	subjectLabel,
+	facultyLabel,
+	onPublish,
+	onReviewIssues,
+	onPlaceUnresolved,
+}: {
+	runId: number | null;
+	assignedCount: number;
+	unassignedCount: number;
+	hardCount: number;
+	softCount: number;
+	violations: Violation[];
+	sectionLabel: (id: number) => string;
+	subjectLabel: (id: number) => string;
+	facultyLabel: (id: number) => string;
+	onPublish: () => void;
+	onReviewIssues: () => void;
+	onPlaceUnresolved: () => void;
+}) {
+	const blockerGroups = useMemo(
+		() => buildBlockerGroups(violations, sectionLabel, subjectLabel, facultyLabel),
+		[violations, sectionLabel, subjectLabel, facultyLabel],
+	);
+
+	return (
+		<div className="space-y-3 p-3 text-sm">
+			<div className="rounded-xl border border-border bg-muted/30 p-3" data-testid="timetable-publish-readiness-summary">
+				<p className="font-semibold text-foreground">Publish checklist</p>
+				{runId && (
+					<p className="mt-1 text-xs text-muted-foreground">Run #{runId}</p>
+				)}
+				<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+					<li>Assigned sessions: {assignedCount}</li>
+					<li>Unresolved sessions: {unassignedCount}</li>
+					<li>Hard blockers: {hardCount}</li>
+					<li>Warnings to review: {softCount}</li>
+				</ul>
+			</div>
+
+			{blockerGroups.map((group) => (
+				<BlockerGroupCard key={group.reason} group={group} onNavigate={group.actionHref.includes('/teaching-load') ? onReviewIssues : onPlaceUnresolved} />
+			))}
+
+			{unassignedCount > 0 && hardCount === 0 && (
+				<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+					<p className="text-sm font-semibold">Sessions still unresolved</p>
+					<p className="mt-1 text-xs">{unassignedCount} session{unassignedCount === 1 ? '' : 's'} need placement before publishing.</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="mt-2 h-8 text-xs"
+						onClick={onPlaceUnresolved}
+					>
+						Place unresolved sessions
+					</Button>
+				</div>
+			)}
+
+			{softCount > 0 && hardCount === 0 && unassignedCount === 0 && (
+				<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+					<p className="text-sm font-semibold">Warnings to review</p>
+					<p className="mt-1 text-xs">{softCount} warning{softCount === 1 ? '' : 's'} must be acknowledged before publish.</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="mt-2 h-8 text-xs"
+						onClick={onReviewIssues}
+					>
+						Review warnings
+					</Button>
+				</div>
+			)}
+
+			{hardCount === 0 && unassignedCount === 0 && softCount === 0 && (
+				<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+					<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+					<p className="text-sm">Schedule is clean and ready to publish.</p>
+				</div>
+			)}
+
+			<Button
+				type="button"
+				className="h-11 w-full"
+				disabled={hardCount > 0 || unassignedCount > 0}
+				onClick={onPublish}
+			>
+				Publish schedule
+			</Button>
+		</div>
+	);
+}
+
+function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; onNavigate: () => void }) {
+	const [expanded, setExpanded] = useState(false);
+	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+
+	return (
+		<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900" data-testid="timetable-publish-blocked-reason">
+			<div className="flex items-start justify-between gap-2">
+				<div className="min-w-0">
+					<p className="text-sm font-semibold">{group.plainLabel}</p>
+					<p className="mt-0.5 text-xs text-red-700">{group.count} session{group.count === 1 ? '' : 's'} affected</p>
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="h-7 shrink-0 gap-1 text-xs"
+					onClick={onNavigate}
+				>
+					{group.actionLabel}
+					<ExternalLink className="size-3" aria-hidden="true" />
+				</Button>
+			</div>
+
+			{group.items.length > 0 && (
+				<div className="mt-2 space-y-1.5">
+					{visibleItems.map((item, index) => (
+						<div key={index} className="rounded-lg border border-red-100 bg-white/60 px-2 py-1.5 text-xs">
+							<p className="font-medium text-red-800">{item.sectionName} · {item.subjectName}</p>
+							<p className="text-red-600">{item.facultyName}</p>
+						</div>
+					))}
+					{group.items.length > 3 && (
+						<Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-red-700" onClick={() => setExpanded(!expanded)}>
+							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
+						</Button>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 function TimetableTaskDrawerImpl({
 	task,
 	onTaskChange,
@@ -89,8 +307,14 @@ function TimetableTaskDrawerImpl({
 	hardCount,
 	softCount,
 	unassignedCount,
+	assignedCount,
+	runId,
 	isPreGenerationWorkspace,
 	onPublish,
+	violations = [],
+	sectionLabel = (id: number) => `Section #${id}`,
+	subjectLabel = (id: number) => `Subject #${id}`,
+	facultyLabel = (id: number) => `Teacher #${id}`,
 }: TimetableTaskDrawerProps) {
 	if (!task) return null;
 	const copy = copyByTask[task];
@@ -173,19 +397,20 @@ function TimetableTaskDrawerImpl({
 			) : (
 				<div className="flex min-h-0 flex-1 flex-col">
 					<ScrollArea className="flex-1">
-						<div className="space-y-3 p-3 text-sm">
-							<div className="rounded-xl border border-border bg-muted/30 p-3">
-								<p className="font-semibold text-foreground">Publish checklist</p>
-								<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
-									<li>Hard blockers: {hardCount}</li>
-									<li>Warnings to review: {softCount}</li>
-									<li>Unresolved sessions: {unassignedCount}</li>
-								</ul>
-							</div>
-							<Button type="button" className="h-11 w-full" disabled={hardCount > 0 || unassignedCount > 0} onClick={onPublish}>
-								Publish schedule
-							</Button>
-						</div>
+						<PublishChecklistContent
+							runId={runId}
+							assignedCount={assignedCount}
+							unassignedCount={unassignedCount}
+							hardCount={hardCount}
+							softCount={softCount}
+							violations={violations}
+							sectionLabel={sectionLabel}
+							subjectLabel={subjectLabel}
+							facultyLabel={facultyLabel}
+							onPublish={onPublish}
+							onReviewIssues={() => onTaskChange('review-issues')}
+							onPlaceUnresolved={() => onTaskChange('place-unresolved')}
+						/>
 					</ScrollArea>
 				</div>
 			)}

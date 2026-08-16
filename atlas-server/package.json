@@ -50,6 +50,7 @@
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
     "test:rollover-readiness": "tsx src/__tests__/enrollpro-rollover-readiness.test.ts",
     "test:timetable-quick-place": "tsx src/__tests__/timetable-quick-place.test.ts",
+    "test:workbook-export": "tsx src/__tests__/workbook-export-content.test.ts",
     "benchmark:hybrid": "tsx src/scripts/benchmark-hybrid.ts"
   },
   "dependencies": {
@@ -57,6 +58,7 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",

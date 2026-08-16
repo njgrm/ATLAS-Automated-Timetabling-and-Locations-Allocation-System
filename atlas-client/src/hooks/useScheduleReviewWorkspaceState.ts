@@ -3,9 +3,11 @@ import { flushSync } from 'react-dom';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 import {
+	findGradeWindow,
 	getDefaultUnassignedReasonDetail,
 	matchesEntryKindFilter,
 	matchesProgramFilter,
+	resolveSectionGradeNumber,
 	type EntryKindFilter,
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
@@ -114,7 +116,9 @@ export function useScheduleReviewWorkspaceState() {
 	const [violationReport, setViolationReport] = useState<ViolationReport | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [policy, setPolicy] = useState<{ teacherMoveEnabled: boolean } | null>({ teacherMoveEnabled: true });
+	const [policy, setPolicy] = useState<{ teacherMoveEnabled: boolean; earliestStartTime?: string; latestEndTime?: string } | null>({ teacherMoveEnabled: true });
+	const [gradeWindows, setGradeWindows] = useState<Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>>([]);
+	const [showFullDay, setShowFullDay] = useState(false);
 	/* -- Reference data lookups -- */
 	const [subjectMap, setSubjectMap] = useState<Map<number, Subject>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, FacultyMirror>>(new Map());
@@ -351,21 +355,27 @@ export function useScheduleReviewWorkspaceState() {
 		}
 	}, [isDesktop, isLeftCollapsed, isRightCollapsed]);
 
-	// Fetch scheduling policy when schoolYearId is available
+	// Fetch scheduling policy and grade windows when schoolYearId is available
 	useEffect(() => {
 		if (!schoolYearId) return;
-		const fetchPolicy = async () => {
+		const fetchPolicyAndWindows = async () => {
 			try {
 				const schoolId = DEFAULT_SCHOOL_ID;
-				const { data } = await atlasApi.get<{ policy: { teacherMoveEnabled: boolean } }>(
-					`/policies/scheduling/${schoolId}/${schoolYearId}`,
-				);
-				setPolicy(data.policy);
+				const [policyRes, windowsRes] = await Promise.all([
+					atlasApi.get<{ policy: { teacherMoveEnabled: boolean; earliestStartTime: string; latestEndTime: string; enableFlagCeremony: boolean; flagCeremonyStartTime: string; flagCeremonyEndTime: string; enableRecess: boolean; recessStartTime: string; recessEndTime: string; enableLunchWindow: boolean; lunchStartTime: string; lunchEndTime: string } }>(
+						`/policies/scheduling/${schoolId}/${schoolYearId}`,
+					),
+					atlasApi.get<{ windows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }> }>(
+						`/generation/${schoolId}/${schoolYearId}/grade-windows`,
+					).catch(() => ({ data: { windows: [] } })),
+				]);
+				setPolicy(policyRes.data.policy);
+				setGradeWindows(windowsRes.data.windows);
 			} catch (err) {
 				console.error('Failed to fetch policy:', err);
 			}
 		};
-		void fetchPolicy();
+		void fetchPolicyAndWindows();
 	}, [schoolYearId]);
 
 	const {
@@ -406,6 +416,8 @@ export function useScheduleReviewWorkspaceState() {
 		isPreGenerationWorkspace,
 		activeGridEntriesBase,
 		timeSlots,
+		displayTimeSlots,
+		hiddenRowCount,
 		getCellConflict,
 		getLiveCellConflict,
 		releaseDeferredDragUpdates,
@@ -508,6 +520,8 @@ export function useScheduleReviewWorkspaceState() {
 		kbSelectedSource,
 		setPreGenKbSource,
 		setKbSelectedSource,
+		showFullDay,
+		gradeWindows,
 	});
 
 	useEffect(() => {
@@ -1179,14 +1193,48 @@ export function useScheduleReviewWorkspaceState() {
 		});
 	}, []);
 
+	// Context-aware window warning: only warn when rows are actually hidden
+	const policyAlignmentWarning = useMemo(() => {
+		if (showFullDay) return null;
+		if (hiddenRowCount <= 0) return null;
+		if (!policy?.earliestStartTime || gradeWindows.length === 0) return null;
+
+		const selectedId = Number(entityFilter);
+		if (!selectedId) return null;
+
+		// Determine the relevant window based on view mode
+		let windowLabel = '';
+		if (viewMode === 'section') {
+			const section = sectionMap.get(selectedId);
+			if (!section) return null;
+			const gradeNumber = resolveSectionGradeNumber(section);
+			if (gradeNumber == null) return null;
+			const matchingWindow = findGradeWindow(gradeNumber, section.programType, gradeWindows);
+			if (!matchingWindow) return null;
+			windowLabel = `this section's grade/program window (${matchingWindow.startTime})`;
+		} else {
+			// Teacher/Room view: no single window, describe based on occupied entries
+			return null;
+		}
+
+		const fmtTime = (t: string) => {
+			const [h, m] = t.split(':').map(Number);
+			const period = h >= 12 ? 'PM' : 'AM';
+			const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+			return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+		};
+
+		return `${hiddenRowCount} earlier row${hiddenRowCount === 1 ? '' : 's'} hidden. The school day starts at ${fmtTime(policy.earliestStartTime)}, but ${windowLabel}. Use Show full day to review all rows.`;
+	}, [showFullDay, hiddenRowCount, policy?.earliestStartTime, gradeWindows, entityFilter, viewMode, sectionMap]);
+
 	const rawWorkspaceContexts = (() => {
 		if ((loading && !draft) || error) {
 			return {};
 		}
 		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, severityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, leftPanelRef, rightPanelRef, selectedEntry, setSelectedEntry, selectedUnassignedForRepair, setSelectedUnassignedForRepair, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomMap, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement, openTacticalSandbox });
-		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, generating, newDraftLoading, handleStartNewPreGenerationDraft, handleTriggerGenerate, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, handleKbPlaceStart, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
+		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots: displayTimeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, generating, newDraftLoading, handleStartNewPreGenerationDraft, handleTriggerGenerate, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, handleKbPlaceStart, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView, openTacticalSandbox });
-		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, refreshReferenceLabels, referenceLookupStatus, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, collaborationConnected, presence, remoteSelections });
+		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, refreshReferenceLabels, referenceLookupStatus, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, policyAlignmentWarning, showFullDay, setShowFullDay, hiddenRowCount, collaborationConnected, presence, remoteSelections });
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
 		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext };
@@ -1301,6 +1349,7 @@ export function useScheduleReviewWorkspaceState() {
 		subjectLabel,
 		sectionLabel,
 		showTopLoadingStrip,
+		policyAlignmentWarning,
 		...workspaceContexts,
 	};
 }

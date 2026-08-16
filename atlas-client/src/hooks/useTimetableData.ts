@@ -3,7 +3,7 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter } from '@/lib/schedule-review-helpers';
+import { findGradeWindow, getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
 	deriveTimeSlotsFromSummary,
@@ -236,6 +236,9 @@ type UseTimetableDataInput = {
 	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
 	unassignedReasonFilter: UnassignedReason | 'all';
 
+	showFullDay: boolean;
+	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
+
 	draftBoard: DraftBoardState | null;
 	setDraftBoard: React.Dispatch<React.SetStateAction<DraftBoardState | null>>;
 	setDraftBoardSummary: React.Dispatch<React.SetStateAction<DraftBoardState['counts'] | null>>;
@@ -289,6 +292,8 @@ export type TimetableDataState = {
 	isPreGenerationWorkspace: boolean;
 	activeGridEntriesBase: ScheduledEntry[];
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	displayTimeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	hiddenRowCount: number;
 	getCellConflict: ((cellId: string) => import('@/types').CellConflictInfo | null) | null;
 	getLiveCellConflict: (source: any, cellId: string) => import('@/types').CellConflictInfo | null;
 	releaseDeferredDragUpdates: () => void;
@@ -338,6 +343,11 @@ function useStablePrimitiveArray<T>(arr: T[]): T[] {
 	const isEqual = arr.length === ref.current.length && arr.every((val, i) => val === ref.current[i]);
 	if (!isEqual) ref.current = arr;
 	return ref.current;
+}
+
+function timeToMinutes(time: string): number {
+	const [h, m] = time.split(':').map(Number);
+	return h * 60 + m;
 }
 
 export function useTimetableData(input: UseTimetableDataInput): TimetableDataState {
@@ -557,6 +567,86 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			isPreGenerationWorkspace,
 		],
 	);
+
+	// Context-aware display slots: filter timeSlots based on view mode and entity selection
+	const { gradeWindows, showFullDay } = input;
+	const displayTimeSlots = useMemo(() => {
+		if (showFullDay) return timeSlots;
+
+		const selectedId = Number(entityFilter);
+		if (!selectedId || !draft?.entries) return timeSlots;
+
+		const entries = draft.entries;
+
+		if (viewMode === 'section') {
+			// Section view: use the section's grade/program window
+			const section = sectionMap.get(selectedId);
+			if (!section) return timeSlots;
+			const gradeNumber = resolveSectionGradeNumber(section);
+			if (gradeNumber == null) return timeSlots;
+			const matchingWindow = findGradeWindow(gradeNumber, section.programType, gradeWindows);
+			if (!matchingWindow) return timeSlots;
+
+			const windowStart = timeToMinutes(matchingWindow.startTime);
+			const windowEnd = timeToMinutes(matchingWindow.endTime);
+
+			// Include rows within the window, special events that overlap the window, and occupied rows outside the window
+			const occupiedKeys = new Set<string>();
+			for (const e of entries) {
+				if (e.sectionId === selectedId) {
+					occupiedKeys.add(`${e.startTime}-${e.endTime}`);
+				}
+			}
+
+			return timeSlots.filter((slot) => {
+				if (slot.isSpecialEvent) {
+					// Only include special events that overlap the section's visible window
+					const slotStart = timeToMinutes(slot.startTime);
+					const slotEnd = timeToMinutes(slot.endTime);
+					return slotStart < windowEnd && slotEnd > windowStart;
+				}
+				const start = timeToMinutes(slot.startTime);
+				const end = timeToMinutes(slot.endTime);
+				if (start >= windowStart && end <= windowEnd) return true;
+				if (occupiedKeys.has(`${slot.startTime}-${slot.endTime}`)) return true;
+				return false;
+			});
+		}
+
+		if (viewMode === 'faculty') {
+			// Teacher view: show all occupied rows for this teacher
+			const occupiedKeys = new Set<string>();
+			for (const e of entries) {
+				if (e.facultyId === selectedId) {
+					occupiedKeys.add(`${e.startTime}-${e.endTime}`);
+				}
+			}
+			if (occupiedKeys.size === 0) return timeSlots;
+			return timeSlots.filter((slot) => {
+				if (slot.isSpecialEvent) return true;
+				return occupiedKeys.has(`${slot.startTime}-${slot.endTime}`);
+			});
+		}
+
+		if (viewMode === 'room') {
+			// Room view: show all occupied rows for this room
+			const occupiedKeys = new Set<string>();
+			for (const e of entries) {
+				if (e.roomId === selectedId) {
+					occupiedKeys.add(`${e.startTime}-${e.endTime}`);
+				}
+			}
+			if (occupiedKeys.size === 0) return timeSlots;
+			return timeSlots.filter((slot) => {
+				if (slot.isSpecialEvent) return true;
+				return occupiedKeys.has(`${slot.startTime}-${slot.endTime}`);
+			});
+		}
+
+		return timeSlots;
+	}, [showFullDay, timeSlots, entityFilter, viewMode, draft?.entries, sectionMap, gradeWindows]);
+
+	const hiddenRowCount = timeSlots.length - displayTimeSlots.length;
 
 	const conflictContext = useMemo(() => {
 		let sectionId: number | undefined;
@@ -1489,6 +1579,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		isPreGenerationWorkspace,
 		activeGridEntriesBase,
 		timeSlots,
+		displayTimeSlots,
+		hiddenRowCount,
 		getCellConflict,
 		getLiveCellConflict,
 		releaseDeferredDragUpdates,

@@ -53,7 +53,7 @@ type LoadPresentation = {
 export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresentation {
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
-	const loadStatus = deriveLoadStatus(weeklyHours);
+	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);
 	const loadRank = getFacultyLoadSortRank(faculty);
 	const loadState = loadRank === 5
 		? 'excluded'

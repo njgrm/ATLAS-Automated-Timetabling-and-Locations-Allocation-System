@@ -61,8 +61,14 @@ function ScheduleReviewWorkspaceBodyImpl({
 					hardCount={hardCount}
 					softCount={softCount}
 					unassignedCount={summary?.unassignedCount ?? 0}
+					assignedCount={summary?.assignedCount ?? 0}
+					runId={context.activeGeneratedRunId ?? null}
 					isPreGenerationWorkspace={isPreGenerationWorkspace}
 					onPublish={openPublishDialog}
+					violations={context.violations as any}
+					sectionLabel={context.sectionLabel}
+					subjectLabel={context.subjectLabel}
+					facultyLabel={context.facultyLabel}
 				/>
 			</div>
 		);

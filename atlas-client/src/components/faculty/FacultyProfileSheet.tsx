@@ -48,7 +48,7 @@ export function FacultyProfileSheet({
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
 	const loadPercent = Math.round((weeklyHours / Math.max(maxHours, 1)) * 100);
-	const loadStatus = deriveLoadStatus(weeklyHours);
+	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);
 	
 	const loadState = !faculty.isActiveForScheduling
 		? 'Excluded'

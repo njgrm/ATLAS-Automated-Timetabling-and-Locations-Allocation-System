@@ -105,6 +105,10 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	setProgramFilter: (value: ProgramFilter) => void;
 	setEntryKindFilter: (value: EntryKindFilter) => void;
 	policy: { teacherMoveEnabled: boolean } | null;
+	policyAlignmentWarning: string | null;
+	showFullDay: boolean;
+	setShowFullDay: (value: boolean) => void;
+	hiddenRowCount: number;
 	collaborationConnected?: boolean;
 	presence?: any[];
 	remoteSelections?: Record<string, any>;
@@ -121,9 +125,13 @@ export type ScheduleReviewWorkspaceBodyContext = {
 	violations: unknown[];
 	hardCount: number;
 	softCount: number;
-	summary: { unassignedCount?: number } | null;
+	summary: { unassignedCount?: number; assignedCount?: number } | null;
 	roomRequestSummary: { counts?: { pending?: number } } | null;
 	openPublishDialog: () => void;
+	activeGeneratedRunId: number | null;
+	sectionLabel: (id: number) => string;
+	subjectLabel: (id: number) => string;
+	facultyLabel: (id: number) => string;
 	leftRailContentContext: LeftRailContentContext;
 	centerWorkspaceContext: CenterWorkspaceContext;
 	rightPanelContext: RightPanelContext;

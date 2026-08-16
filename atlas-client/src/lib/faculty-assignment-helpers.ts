@@ -156,8 +156,8 @@ function uniqueSortedPositiveInts(values: readonly number[] | null | undefined):
 	);
 }
 
-export function deriveLoadStatus(policyCreditedHours: number): { status: LoadStatus; label: string } {
-	if (policyCreditedHours > MAX_WEEKLY_TEACHING_HOURS) {
+export function deriveLoadStatus(policyCreditedHours: number, maxHoursPerWeek = MAX_WEEKLY_TEACHING_HOURS): { status: LoadStatus; label: string } {
+	if (policyCreditedHours > maxHoursPerWeek) {
 		// Phase 3 / Decision 3: plain DepEd language -- no engineering
 		// vocabulary and no fake approval process.
 		return { status: 'over-cap', label: 'Over maximum - move classes before generating' };
@@ -175,11 +175,12 @@ export function deriveLoadStatus(policyCreditedHours: number): { status: LoadSta
 }
 
 export function getFacultyLoadSortRank(
-	faculty: Pick<FacultySummary, 'isActiveForScheduling' | 'policyCreditedHours' | 'subjectCount'>,
+	faculty: Pick<FacultySummary, 'isActiveForScheduling' | 'policyCreditedHours' | 'subjectCount' | 'maxHoursPerWeek'>,
 ): number {
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const subjectCount = faculty.subjectCount ?? 0;
-	const loadStatus = deriveLoadStatus(weeklyHours);
+	const maxHours = faculty.maxHoursPerWeek ?? MAX_WEEKLY_TEACHING_HOURS;
+	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);
 
 	// Ascending order puts the scheduler's most urgent repair states first.
 	if (!faculty.isActiveForScheduling) return 5;
@@ -214,7 +215,7 @@ export function deriveWorkloadCapacity(
 	const normalizedTeachingHours = roundHours(Math.max(teachingHours, 0));
 	const normalizedCreditHours = roundHours(Math.max(creditHours, 0));
 	const creditedTotalHours = roundHours(normalizedTeachingHours + normalizedCreditHours);
-	const { status, label } = deriveLoadStatus(creditedTotalHours);
+	const { status, label } = deriveLoadStatus(creditedTotalHours, maxHours);
 
 	return {
 		teachingHours: normalizedTeachingHours,

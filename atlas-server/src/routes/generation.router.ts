@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import * as genService from '../services/generation.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
+import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
 
 const router = Router();
 
@@ -497,6 +498,82 @@ router.post(
 
 			res.json(result);
 		} catch (e) { next(e); }
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/runs/:runId/export/summary-teacher-schedule.xlsx — export summary workbook ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/summary-teacher-schedule.xlsx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export workbooks.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+
+			const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId });
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			res.setHeader('Content-Disposition', `attachment; filename="summary-teacher-schedule.xlsx"`);
+			res.send(buffer);
+		} catch (e: any) {
+			if (e?.message === 'RUN_NOT_FOUND') {
+				res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Generation run not found.' });
+				return;
+			}
+			if (e?.message === 'RUN_NOT_COMPLETED') {
+				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			next(e);
+		}
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/runs/:runId/export/class-program.xlsx — export class-program workbook ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/class-program.xlsx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export workbooks.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+
+			const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId });
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			res.setHeader('Content-Disposition', `attachment; filename="class-program.xlsx"`);
+			res.send(buffer);
+		} catch (e: any) {
+			if (e?.message === 'RUN_NOT_FOUND') {
+				res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Generation run not found.' });
+				return;
+			}
+			if (e?.message === 'RUN_NOT_COMPLETED') {
+				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			next(e);
+		}
 	},
 );
 

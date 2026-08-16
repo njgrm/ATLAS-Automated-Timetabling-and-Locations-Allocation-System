@@ -1,9 +1,65 @@
-import type { UnassignedItem } from '../types';
+import type { ExternalSection, UnassignedItem } from '../types';
 
 export type ProgramFilter = 'all' | 'REGULAR' | 'SPECIAL' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
 export type EntryKindFilter = 'all' | 'section' | 'cohort';
 
 type ReviewEntryKind = 'SECTION' | 'COHORT' | undefined;
+
+const VALID_JHS_GRADES = new Set([7, 8, 9, 10]);
+
+/**
+ * Extract the academic grade number from an ExternalSection.
+ * Priority: gradeLevelName → displayOrder → gradeLevelId.
+ * Returns null if no valid JHS grade (7–10) can be determined.
+ */
+export function resolveSectionGradeNumber(section: ExternalSection): number | null {
+	const nameMatch = (section.gradeLevelName ?? '').match(/(\d+)/);
+	if (nameMatch) {
+		const n = Number(nameMatch[1]);
+		if (VALID_JHS_GRADES.has(n)) return n;
+	}
+	if (VALID_JHS_GRADES.has(section.displayOrder)) return section.displayOrder;
+	if (VALID_JHS_GRADES.has(section.gradeLevelId)) return section.gradeLevelId;
+	return null;
+}
+
+/**
+ * Normalize a program type to a canonical value for grade-window matching.
+ * Treats null, undefined, empty string, and 'REGULAR' as equivalent (default window).
+ */
+function normalizeProgramTypeForWindow(programType?: string | null): string {
+	const pt = (programType ?? '').trim().toUpperCase();
+	if (!pt || pt === 'REGULAR') return '';
+	return pt;
+}
+
+/**
+ * Find the matching grade window for a section's grade and program type.
+ * Matching priority:
+ *   1. exact grade + exact program type
+ *   2. exact grade + REGULAR/default window when section is regular
+ *   3. exact grade + no program type (fallback default window)
+ * Returns null if no match found.
+ */
+export function findGradeWindow(
+	gradeNumber: number,
+	programType: string | null | undefined,
+	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>,
+): { startTime: string; endTime: string } | null {
+	const normalized = normalizeProgramTypeForWindow(programType);
+
+	// Try exact grade + exact program type
+	const exactMatch = gradeWindows.find(
+		(w) => w.gradeLevel === gradeNumber && normalizeProgramTypeForWindow(w.programType) === normalized,
+	);
+	if (exactMatch) return { startTime: exactMatch.startTime, endTime: exactMatch.endTime };
+
+	// Fallback: exact grade + default/empty window
+	const defaultMatch = gradeWindows.find(
+		(w) => w.gradeLevel === gradeNumber && !normalizeProgramTypeForWindow(w.programType),
+	);
+	return defaultMatch ? { startTime: defaultMatch.startTime, endTime: defaultMatch.endTime } : null;
+}
 
 export function isSpecialProgram(programType?: string | null): boolean {
 	return Boolean(programType && programType !== 'REGULAR' && programType !== 'OTHER');

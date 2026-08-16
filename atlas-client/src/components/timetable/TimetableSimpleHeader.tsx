@@ -1,11 +1,13 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import {
+	AlertTriangle,
 	ArrowRightLeft,
 	BookOpen,
 	CalendarClock,
 	CheckCircle2,
 	ChevronDown,
 	ClipboardCheck,
+	Download,
 	HelpCircle,
 	History,
 	Info,
@@ -18,6 +20,7 @@ import {
 	Send,
 	Settings2,
 	SlidersHorizontal,
+	Sun,
 	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
@@ -31,6 +34,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
@@ -127,6 +131,13 @@ function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 	const yearLabel = context.schoolYearContext?.activeSchoolYearLabel;
 	if (context.isPreGenerationWorkspace) return 'Planning draft';
 	if (!context.draft) return yearLabel ? `No ${yearLabel} timetable yet` : 'No current-year timetable yet';
+	const summaryRaw = context.draft.summary as unknown as Record<string, unknown> | null;
+	const isPublished = summaryRaw?.isPublished === true;
+	if (isPublished) {
+		const unassigned = context.summary?.unassignedCount ?? 0;
+		if (unassigned > 0) return `Published with ${unassigned} follow-up item${unassigned === 1 ? '' : 's'}`;
+		return 'Published';
+	}
 	if (context.hardCount > 0) return `${context.hardCount} blocker${context.hardCount === 1 ? '' : 's'}`;
 	if (context.softCount > 0) return `${context.softCount} warning${context.softCount === 1 ? '' : 's'}`;
 	return 'Ready to publish';
@@ -508,6 +519,53 @@ function TimetableSimpleHeaderImpl({
 		}
 	}, [context, currentEntityIsValid, lastEntityByMode]);
 
+	const hasGeneratedRun = Boolean(context.draft || context.runs.length > 0);
+	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
+	const isRunPublished = draftSummaryRaw?.isPublished === true;
+	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
+	const publishBlockedReason = context.hardCount > 0
+		? `${context.hardCount} hard blocker${context.hardCount === 1 ? '' : 's'} must be fixed before publish.`
+		: (context.summary?.unassignedCount ?? 0) > 0
+			? `${context.summary?.unassignedCount} session${(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need fixing before publish.`
+			: '';
+
+	const handlePublishClick = () => {
+		if (isRunPublished) return; // Already published, nothing to do
+		if (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0) {
+			context.setLeftTab('violations');
+			onTaskChange('review-issues');
+			return;
+		}
+		context.setPublishAcknowledged(false);
+		context.setShowPublishDialog(true);
+	};
+
+	const handleExportWorkbook = async () => {
+		const runId = context.draft?.runId ?? context.activeGeneratedRunId;
+		if (!runId || !context.schoolYearId) return;
+		try {
+			const schoolId = 1;
+			const response = await fetch(
+				`/api/v1/generation/${schoolId}/${context.schoolYearId}/runs/${runId}/export/summary-teacher-schedule.xlsx`,
+				{
+					headers: {
+						Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+					},
+				},
+			);
+			if (!response.ok) throw new Error('Export failed');
+			const blob = await response.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `summary-teacher-schedule-run-${runId}.xlsx`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch {
+			// Export failed silently - user can retry
+		}
+	};
+
 	const clearGridSelection = () => {
 		context.setSelectedEntry(null);
 		context.setSelectedViolation(null);
@@ -616,6 +674,43 @@ function TimetableSimpleHeaderImpl({
 					{context.referenceLookupStatus.label}
 				</Badge>
 
+				{context.policyAlignmentWarning && (
+					<TooltipProvider delayDuration={300}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-5 shrink-0 gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 hover:bg-amber-100 sm:h-6"
+									onClick={() => context.setShowFullDay(true)}
+									data-testid="timetable-hidden-rows-chip"
+								>
+									<span className="hidden sm:inline">{context.hiddenRowCount} row{context.hiddenRowCount === 1 ? '' : 's'} hidden</span>
+									<span className="sm:hidden">{context.hiddenRowCount} hidden</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
+								<p>{context.policyAlignmentWarning}</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+
+				{context.hiddenRowCount > 0 && (
+					<Button
+						type="button"
+						variant={context.showFullDay ? 'default' : 'outline'}
+						size="sm"
+						className="h-5 shrink-0 gap-1 px-1.5 text-xs sm:h-6"
+						onClick={() => context.setShowFullDay(!context.showFullDay)}
+						data-testid="timetable-show-full-day-toggle"
+					>
+						<Sun className="size-3" aria-hidden="true" />
+						<span className="hidden sm:inline">{context.showFullDay ? 'Full day' : 'Show full day'}</span>
+					</Button>
+				)}
+
 				<div className="hidden min-w-0 flex-1 lg:flex">
 					<SimpleScheduleControls
 						context={context}
@@ -646,6 +741,46 @@ function TimetableSimpleHeaderImpl({
 						<span className="hidden sm:inline">{context.generating ? 'Generating…' : 'Generate'}</span>
 						<span className="sr-only sm:hidden">{context.generating ? 'Generating' : 'Generate schedule'}</span>
 					</Button>
+
+					{hasGeneratedRun && (
+						<TooltipProvider delayDuration={300}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										type="button"
+										variant={isRunPublished ? 'outline' : publishBlocked ? 'outline' : 'default'}
+										size="sm"
+										className={cn(
+											'hidden h-8 shrink-0 gap-1.5 px-2 text-xs sm:inline-flex sm:px-2.5',
+											isRunPublished && 'border-emerald-200 bg-emerald-50 text-emerald-800',
+											!isRunPublished && !publishBlocked && 'bg-emerald-600 text-white hover:bg-emerald-700',
+										)}
+										disabled={publishBlocked}
+										onClick={handlePublishClick}
+										data-testid="timetable-simple-publish-action"
+									>
+										{isRunPublished ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <Send className="size-3.5" aria-hidden="true" />}
+										<span className="hidden sm:inline">{isRunPublished ? 'Published' : 'Publish'}</span>
+										<span className="sr-only sm:hidden">{isRunPublished ? 'Published schedule' : 'Publish schedule'}</span>
+									</Button>
+								</TooltipTrigger>
+								{publishBlocked && (
+									<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-publish-blocked-reason">
+										<p>{publishBlockedReason}</p>
+										<p className="mt-1 text-xs opacity-80">Click to review and fix issues.</p>
+									</TooltipContent>
+								)}
+								{isRunPublished && (
+									<TooltipContent side="bottom" className="max-w-xs">
+										<p>This schedule is published.</p>
+										{(context.summary?.unassignedCount ?? 0) > 0 && (
+											<p className="mt-1 text-xs opacity-80">{context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need review.</p>
+										)}
+									</TooltipContent>
+								)}
+							</Tooltip>
+						</TooltipProvider>
+					)}
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
@@ -725,6 +860,20 @@ function TimetableSimpleHeaderImpl({
 											<RefreshCw className="size-3.5" aria-hidden="true" />
 											Refresh names
 										</Button>
+										{hasGeneratedRun && (
+											<DropdownMenuItem
+												className="h-9 gap-2 text-xs"
+												data-testid="timetable-simple-export-workbook"
+												onSelect={(event) => {
+													event.preventDefault();
+													setMoreOpen(false);
+													void handleExportWorkbook();
+												}}
+											>
+												<Download className="size-3.5" aria-hidden="true" />
+												Export workbook
+											</DropdownMenuItem>
+										)}
 									</div>
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
@@ -805,24 +954,89 @@ function TimetableSimpleHeaderImpl({
 				</DialogContent>
 			</Dialog>
 
-			<div
-				className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
-				data-testid="timetable-simple-task-prompt"
-				role="status"
-				aria-live="polite"
-			>
-				<div className="flex min-w-0 items-center gap-2">
-					<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
-						<ActiveIcon className="size-4 sm:size-4.5" aria-hidden="true" />
+			{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (
+				<div
+					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
+					data-testid="timetable-simple-task-prompt"
+					role="status"
+					aria-live="polite"
+				>
+					<div className="flex min-w-0 items-center gap-2">
+						<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
+							<CalendarClock className="size-4 sm:size-4.5" aria-hidden="true" />
+						</div>
+						<div className="min-w-0">
+							<p className="hidden text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground sm:block">Get started</p>
+							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
+								No timetable yet — start with a draft or generate directly
+							</p>
+						</div>
 					</div>
-					<div className="min-w-0">
-						<p className="hidden text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground sm:block">Next step</p>
-						<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
-							{activeTask ? activeTaskDefinition.label : recommendedTask.label}
-						</p>
-						<p className="sr-only">{activeTaskDefinition.helper}</p>
+					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-7 gap-1.5 px-3 text-xs sm:h-8 sm:text-sm"
+							disabled={context.newDraftLoading || !context.schoolYearId}
+							onClick={() => void startTask('plan-draft')}
+							data-testid="timetable-empty-start-draft-action"
+						>
+							<CalendarClock className="size-3.5" aria-hidden="true" />
+							<span className="hidden sm:inline">Start Pre-Generation Draft</span>
+							<span className="sm:hidden">Draft</span>
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							className="h-7 gap-1.5 px-3 text-xs sm:h-8 sm:text-sm"
+							disabled={context.generating || context.loading || !context.schoolYearId}
+							onClick={context.handleTriggerGenerate}
+							data-testid="timetable-empty-generate-action"
+						>
+							{context.generating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
+							<span className="hidden sm:inline">Generate when ready</span>
+							<span className="sm:hidden">Generate</span>
+						</Button>
 					</div>
 				</div>
+			) : (
+				<div
+					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
+					data-testid="timetable-simple-task-prompt"
+					role="status"
+					aria-live="polite"
+				>
+					<div className="flex min-w-0 items-center gap-2">
+						<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border sm:size-6">
+							<ActiveIcon className="size-4 sm:size-4.5" aria-hidden="true" />
+						</div>
+						<div className="min-w-0">
+							<p className="hidden text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground sm:block">Next step</p>
+							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
+								{activeTask ? activeTaskDefinition.label : recommendedTask.label}
+							</p>
+							<p className="sr-only">{activeTaskDefinition.helper}</p>
+						</div>
+					</div>
+
+					{publishBlocked && (
+						<div
+							className="hidden min-w-0 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 sm:flex"
+							data-testid="timetable-publish-readiness-summary"
+						>
+							<span className="truncate">{publishBlockedReason}</span>
+						</div>
+					)}
+					{isRunPublished && !publishBlocked && (context.summary?.unassignedCount ?? 0) > 0 && (
+						<div
+							className="hidden min-w-0 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 sm:flex"
+							data-testid="timetable-publish-readiness-summary"
+						>
+							<CheckCircle2 className="size-3 shrink-0" aria-hidden="true" />
+							<span className="truncate">Published — {context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} remain</span>
+						</div>
+					)}
 
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 					{activeTaskDefinition.href ? (
@@ -853,6 +1067,7 @@ function TimetableSimpleHeaderImpl({
 					)}
 				</div>
 			</div>
+			)}
 		</header>
 	);
 }
