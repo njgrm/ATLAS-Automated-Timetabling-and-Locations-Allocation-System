@@ -590,25 +590,35 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			const windowStart = timeToMinutes(matchingWindow.startTime);
 			const windowEnd = timeToMinutes(matchingWindow.endTime);
 
-			// Include rows within the window, special events that overlap the window, and occupied rows outside the window
-			const occupiedKeys = new Set<string>();
+			// Collect occupied time ranges for this section (for overlap detection)
+			const occupiedRanges: Array<{ start: number; end: number }> = [];
 			for (const e of entries) {
 				if (e.sectionId === selectedId) {
-					occupiedKeys.add(`${e.startTime}-${e.endTime}`);
+					occupiedRanges.push({ start: timeToMinutes(e.startTime), end: timeToMinutes(e.endTime) });
 				}
 			}
 
 			return timeSlots.filter((slot) => {
+				const slotStart = timeToMinutes(slot.startTime);
+				const slotEnd = timeToMinutes(slot.endTime);
+
 				if (slot.isSpecialEvent) {
-					// Only include special events that overlap the section's visible window
-					const slotStart = timeToMinutes(slot.startTime);
-					const slotEnd = timeToMinutes(slot.endTime);
-					return slotStart < windowEnd && slotEnd > windowStart;
+					// Include special events that overlap the section's visible window
+					if (slotStart < windowEnd && slotEnd > windowStart) return true;
+					// Also include special events that overlap any occupied entry
+					for (const range of occupiedRanges) {
+						if (range.start < slotEnd && range.end > slotStart) return true;
+					}
+					return false;
 				}
+
 				const start = timeToMinutes(slot.startTime);
 				const end = timeToMinutes(slot.endTime);
 				if (start >= windowStart && end <= windowEnd) return true;
-				if (occupiedKeys.has(`${slot.startTime}-${slot.endTime}`)) return true;
+				// Check if any occupied entry overlaps this time slot
+				for (const range of occupiedRanges) {
+					if (range.start < end && range.end > start) return true;
+				}
 				return false;
 			});
 		}
@@ -1555,17 +1565,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const isStaleRoom = useCallback((roomId: number): boolean => !roomMap.has(roomId), [roomMap]);
 
-	const pivotLabelMapsRef = useRef({ viewMode, sectionLabel, facultyLabel, roomLabelShort });
-	useEffect(() => {
-		pivotLabelMapsRef.current = { viewMode, sectionLabel, facultyLabel, roomLabelShort };
-	}, [viewMode, sectionLabel, facultyLabel, roomLabelShort]);
-
 	const pivotLabel = useCallback((id: number): string => {
-		const { viewMode: vm, sectionLabel: sl, facultyLabel: fl, roomLabelShort: rl } = pivotLabelMapsRef.current;
-		if (vm === 'section') return sl(id);
-		if (vm === 'faculty') return fl(id);
-		return rl(id);
-	}, []);
+		if (viewMode === 'section') return sectionLabel(id);
+		if (viewMode === 'faculty') return facultyLabel(id);
+		return roomLabelShort(id);
+	}, [viewMode, sectionLabel, facultyLabel, roomLabelShort]);
 
 	return {
 		violations,

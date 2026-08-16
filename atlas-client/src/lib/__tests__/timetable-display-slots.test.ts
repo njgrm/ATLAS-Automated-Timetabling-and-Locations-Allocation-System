@@ -86,11 +86,19 @@ function filterSectionTimeSlots(
 	}
 
 	return timeSlots.filter((slot) => {
+		const slotStart = timeToMinutes(slot.startTime);
+		const slotEnd = timeToMinutes(slot.endTime);
+
 		if (slot.isSpecialEvent) {
-			const slotStart = timeToMinutes(slot.startTime);
-			const slotEnd = timeToMinutes(slot.endTime);
-			return slotStart < windowEnd && slotEnd > windowStart;
+			// Include special events that overlap the section's visible window
+			if (slotStart < windowEnd && slotEnd > windowStart) return true;
+			// Also include special events that overlap any occupied entry
+			for (const range of occupiedRanges) {
+				if (range.start < slotEnd && range.end > slotStart) return true;
+			}
+			return false;
 		}
+
 		const start = timeToMinutes(slot.startTime);
 		const end = timeToMinutes(slot.endTime);
 		if (start >= windowStart && end <= windowEnd) return true;
@@ -156,4 +164,83 @@ test('Show full day returns all time slots', () => {
 	// Simulate showFullDay by not filtering
 	const filtered = allTimeSlots;
 	assert.equal(filtered.length, allTimeSlots.length, 'Should return all slots when showFullDay');
+});
+
+test('Internal EnrollPro gradeLevelId=17 with gradeLevelName="Grade 7" resolves to GR7', () => {
+	const section = makeSection({ gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7 });
+	const grade = resolveSectionGradeNumber(section);
+	assert.equal(grade, 7, 'gradeLevelId=17 should resolve to grade 7');
+	const window = findGradeWindow(grade!, section.programType, gradeWindows);
+	assert.deepEqual(window, { startTime: '07:30', endTime: '12:15' }, 'Should match Grade 7 window');
+});
+
+test('Internal EnrollPro gradeLevelId=18 with gradeLevelName="Grade 8" resolves to GR8', () => {
+	const section = makeSection({ gradeLevelId: 18, gradeLevelName: 'Grade 8', displayOrder: 8 });
+	const grade = resolveSectionGradeNumber(section);
+	assert.equal(grade, 8, 'gradeLevelId=18 should resolve to grade 8');
+});
+
+test('Occupied entry partially overlapping a display slot preserves that slot', () => {
+	const sectionMap = new Map<number, ExternalSection>();
+	sectionMap.set(1, makeSection());
+	// Entry starts inside 07:30 slot and ends inside 08:15 slot (overlaps both)
+	const entries = [makeEntry({ sectionId: 1, startTime: '07:45', endTime: '08:30' })];
+
+	const filtered = filterSectionTimeSlots(allTimeSlots, 1, entries, sectionMap, gradeWindows);
+
+	// Both the 07:30 and 08:15 slots should be visible since the entry overlaps them
+	assert.ok(filtered.some((s) => s.startTime === '07:30'), 'Should include 07:30 slot (entry starts inside)');
+	assert.ok(filtered.some((s) => s.startTime === '08:15'), 'Should include 08:15 slot (entry ends inside)');
+});
+
+test('Occupied entry starting before window but ending inside window preserves the slot', () => {
+	const sectionMap = new Map<number, ExternalSection>();
+	sectionMap.set(1, makeSection());
+	// Entry starts at 06:30 (before window) and ends at 08:00 (inside window)
+	const entries = [makeEntry({ sectionId: 1, startTime: '06:30', endTime: '08:00' })];
+
+	const filtered = filterSectionTimeSlots(allTimeSlots, 1, entries, sectionMap, gradeWindows);
+
+	// The 06:45 slot should be visible (entry overlaps it)
+	assert.ok(filtered.some((s) => s.startTime === '06:45'), 'Should include 06:45 slot (entry overlaps)');
+	// The 07:30 slot should be visible (inside window + entry overlaps)
+	assert.ok(filtered.some((s) => s.startTime === '07:30'), 'Should include 07:30 slot');
+});
+
+test('Occupied entry starting inside window but ending after window preserves the slot', () => {
+	const sectionMap = new Map<number, ExternalSection>();
+	sectionMap.set(1, makeSection());
+	// Entry starts at 11:45 (inside window) and ends at 13:15 (after window)
+	const entries = [makeEntry({ sectionId: 1, startTime: '11:45', endTime: '13:15' })];
+
+	const filtered = filterSectionTimeSlots(allTimeSlots, 1, entries, sectionMap, gradeWindows);
+
+	// The 11:30 slot should be visible (entry overlaps it)
+	assert.ok(filtered.some((s) => s.startTime === '11:30'), 'Should include 11:30 slot (entry overlaps)');
+	// The 12:15 LUNCH slot should be visible (entry overlaps it)
+	assert.ok(filtered.some((s) => s.eventName === 'LUNCH'), 'Should include LUNCH slot (entry overlaps)');
+	// The 13:00 slot should be visible (entry overlaps it)
+	assert.ok(filtered.some((s) => s.startTime === '13:00'), 'Should include 13:00 slot (entry overlaps)');
+});
+
+test('No section map entry returns full time slots', () => {
+	const sectionMap = new Map<number, ExternalSection>();
+	// Section 1 is NOT in the map
+	const entries: ScheduledEntry[] = [];
+
+	const filtered = filterSectionTimeSlots(allTimeSlots, 1, entries, sectionMap, gradeWindows);
+
+	// Should return all time slots when section is not found
+	assert.equal(filtered.length, allTimeSlots.length, 'Should return all slots when section not in map');
+});
+
+test('Section with no matching grade window returns full time slots', () => {
+	const sectionMap = new Map<number, ExternalSection>();
+	sectionMap.set(1, makeSection({ gradeLevelId: 99, gradeLevelName: 'Grade 99', displayOrder: 99 }));
+	const entries: ScheduledEntry[] = [];
+
+	const filtered = filterSectionTimeSlots(allTimeSlots, 1, entries, sectionMap, gradeWindows);
+
+	// Should return all time slots when no grade window matches
+	assert.equal(filtered.length, allTimeSlots.length, 'Should return all slots when no grade window matches');
 });

@@ -678,17 +678,18 @@ function TimetableSimpleHeaderImpl({
 					<TooltipProvider delayDuration={300}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button
-									type="button"
+								<Badge
 									variant="outline"
-									size="sm"
-									className="h-5 shrink-0 gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 hover:bg-amber-100 sm:h-6"
-									onClick={() => context.setShowFullDay(true)}
+									tabIndex={0}
+									role="status"
+									aria-label={`${context.hiddenRowCount} earlier row${context.hiddenRowCount === 1 ? '' : 's'} hidden`}
+									className="h-5 shrink-0 cursor-default gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 sm:h-6"
 									data-testid="timetable-hidden-rows-chip"
+									onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
 								>
 									<span className="hidden sm:inline">{context.hiddenRowCount} row{context.hiddenRowCount === 1 ? '' : 's'} hidden</span>
 									<span className="sm:hidden">{context.hiddenRowCount} hidden</span>
-								</Button>
+								</Badge>
 							</TooltipTrigger>
 							<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
 								<p>{context.policyAlignmentWarning}</p>
