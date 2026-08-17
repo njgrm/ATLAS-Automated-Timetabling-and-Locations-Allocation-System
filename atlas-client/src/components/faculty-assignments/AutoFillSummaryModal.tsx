@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, BadgeCheck, Building2, ChevronDown, ChevronRight, Users2, Info, Zap } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Building2, ChevronDown, ChevronRight, Users2, Info, Zap, Eye, EyeOff, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
@@ -42,7 +42,57 @@ type AutoFillSummaryModalProps = {
 	onReviewManually?: () => void;
 	applyingSuggestion?: boolean;
 	applyDisabledReason?: string | null;
+	reviewWarning?: string | null;
+	reviewOnly?: boolean;
 };
+
+const ASSIGNMENT_TYPE_CONFIG: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
+	KEPT_EXISTING: { label: 'Kept existing', className: 'bg-emerald-50 text-emerald-700 border-emerald-100', icon: CheckCircle2 },
+	REAL_TEACHER: { label: 'Real teacher', className: 'bg-blue-50 text-blue-700 border-blue-100', icon: Users2 },
+	TEMPORARY_SUBSTITUTE: { label: 'Temporary substitute', className: 'bg-violet-50 text-violet-700 border-violet-100', icon: AlertCircle },
+};
+
+function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string; subjectName: string; sectionName: string; facultyName: string; assignmentType: string; warning?: string | null }> }) {
+	const [showAll, setShowAll] = useState(false);
+	const visibleRows = showAll ? rows : rows.slice(0, 10);
+	const hasMore = rows.length > 10;
+
+	return (
+		<div className="space-y-2">
+			<div className="rounded-xl border border-border/60 bg-background overflow-hidden">
+				<div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 bg-muted/50 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground border-b border-border/40">
+					<span>Subject</span>
+					<span>Section</span>
+					<span>Teacher</span>
+					<span className="text-right">Type</span>
+				</div>
+				{visibleRows.map((row, idx) => {
+					const config = ASSIGNMENT_TYPE_CONFIG[row.assignmentType] ?? ASSIGNMENT_TYPE_CONFIG.REAL_TEACHER;
+					const TypeIcon = config.icon;
+					return (
+						<div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 text-[0.65rem] border-b border-border/20 last:border-b-0 hover:bg-muted/20 transition-colors">
+							<div className="font-bold text-foreground truncate" title={row.subjectName}>{row.subjectCode}</div>
+							<div className="text-muted-foreground truncate" title={row.sectionName}>{row.sectionName}</div>
+							<div className="text-muted-foreground truncate" title={row.facultyName}>{row.facultyName}</div>
+							<div className={`flex items-center gap-1 shrink-0 rounded-md border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase ${config.className}`}>
+								<TypeIcon className="size-3" />
+								<span className="hidden sm:inline">{config.label}</span>
+							</div>
+							{row.warning && (
+								<div className="col-span-4 text-[0.6rem] text-amber-700 font-semibold mt-0.5">{row.warning}</div>
+							)}
+						</div>
+					);
+				})}
+			</div>
+			{hasMore && (
+				<Button type="button" variant="ghost" size="sm" onClick={() => setShowAll(!showAll)} className="h-7 text-xs font-bold">
+					{showAll ? <><EyeOff className="size-3 mr-1" /> Hide suggested rows</> : <><Eye className="size-3 mr-1" /> View all {rows.length} suggested rows</>}
+				</Button>
+			)}
+		</div>
+	);
+}
 
 function formatHires(value: number): string {
 	return Number.isInteger(value) ? `${value}` : value.toFixed(1);
@@ -62,6 +112,29 @@ function suggestedAssignmentCount(result: AutoFillSummaryResult | null, coverage
 	return Math.max(0, truth.teacherX.rowsClosedByRealFaculty + truth.teacherX.rowsClosedByTeacherX - truth.baseline.realCoveredRows - truth.baseline.syntheticCoveredRows);
 }
 
+function suggestedAssignmentBreakdown(result: AutoFillSummaryResult | null, coverageMode: CoverageMode): { realTeacherRows: number; substituteRows: number; existingRows: number; unresolvedRows: number } {
+	if (!result) return { realTeacherRows: 0, substituteRows: 0, existingRows: 0, unresolvedRows: 0 };
+	const truth = result.staffingTruth;
+	const existingRows = result.preserved ?? 0;
+	const unresolvedRows = result.unresolved ?? 0;
+
+	if (coverageMode === 'REAL_FACULTY_STANDARD') {
+		const realRows = truth ? Math.max(0, truth.realOnly.rowsClosedByRealFaculty - truth.baseline.realCoveredRows) : (result.assignmentsCreated ?? 0);
+		return { realTeacherRows: realRows, substituteRows: 0, existingRows, unresolvedRows };
+	}
+	if (coverageMode === 'REAL_FACULTY_HARD_CAP') {
+		const realRows = truth ? Math.max(0, truth.hardCap.rowsClosedByRealFaculty - truth.baseline.realCoveredRows) : (result.assignmentsCreated ?? 0);
+		return { realTeacherRows: realRows, substituteRows: 0, existingRows, unresolvedRows };
+	}
+	// REAL_FACULTY_THEN_TEACHER_X
+	if (truth) {
+		const realRows = Math.max(0, truth.teacherX.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
+		const subRows = Math.max(0, truth.teacherX.rowsClosedByTeacherX - truth.baseline.syntheticCoveredRows);
+		return { realTeacherRows: realRows, substituteRows: subRows, existingRows, unresolvedRows };
+	}
+	return { realTeacherRows: result.assignmentsCreated ?? 0, substituteRows: 0, existingRows, unresolvedRows };
+}
+
 export function AutoFillSummaryModal({
 	open,
 	onOpenChange,
@@ -70,6 +143,8 @@ export function AutoFillSummaryModal({
 	onReviewManually,
 	applyingSuggestion = false,
 	applyDisabledReason,
+	reviewWarning,
+	reviewOnly = false,
 }: AutoFillSummaryModalProps) {
 	const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
 	const report = result?.staffingReport ?? null;
@@ -97,22 +172,43 @@ export function AutoFillSummaryModal({
 	};
 	const sectionSourceLabel = sourceLabelMap[sectionSource];
 	const suggestedRows = suggestedAssignmentCount(result, coverageMode);
+	const breakdown = suggestedAssignmentBreakdown(result, coverageMode);
 	const sourceToneClass = sectionSource === 'enrollpro'
 		? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
 		: sectionSource === 'stub'
 			? 'border-amber-200 bg-amber-50/60 text-amber-900'
 			: 'border-blue-200 bg-blue-50/60 text-blue-900';
 
-	const title = !hasResult
-		? 'Checking Teaching Load suggestion'
-		: hasShortage
-			? 'Review suggested Teaching Load draft'
-			: 'Suggested Teaching Load covers all rows';
-	const description = !hasResult
-		? 'ATLAS is reading the current EnrollPro setup and checking which Teaching Load rows can be suggested. Nothing is being saved.'
-		: hasShortage
-			? `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'}, but some rows still need a scheduler decision. Dominant shortage bucket: ${dominantDepartment}.`
-			: `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'} for review. Apply only after checking the summary.`;
+	const title = reviewOnly
+		? 'Review saved Teaching Load coverage'
+		: !hasResult
+			? 'Checking Teaching Load suggestion'
+			: hasShortage
+				? 'Review suggested Teaching Load draft'
+				: 'Suggested Teaching Load covers all rows';
+	const description = reviewOnly
+		? 'Review the current saved Teaching Load assignments, unassigned pairs, and warnings. Use Suggest Teaching Load draft to prepare new assignments.'
+		: !hasResult
+			? 'ATLAS is reading the current EnrollPro setup and checking which Teaching Load rows can be suggested. Nothing is being saved.'
+			: hasShortage
+				? (() => {
+					const parts: string[] = [];
+					if (breakdown.existingRows > 0) parts.push(`keep ${breakdown.existingRows} existing assignment${breakdown.existingRows === 1 ? '' : 's'}`);
+					if (breakdown.realTeacherRows > 0) parts.push(`suggest ${breakdown.realTeacherRows} real-teacher assignment${breakdown.realTeacherRows === 1 ? '' : 's'}`);
+					if (breakdown.substituteRows > 0) parts.push(`use ${breakdown.substituteRows} temporary substitute row${breakdown.substituteRows === 1 ? '' : 's'}`);
+					const summary = parts.length > 0 ? `ATLAS will ${parts.join(', ')}.` : `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'}.`;
+					const unresolvedNote = breakdown.unresolvedRows > 0 ? ` ${breakdown.unresolvedRows} row${breakdown.unresolvedRows === 1 ? '' : 's'} remain${breakdown.unresolvedRows === 1 ? 's' : ''} unresolved.` : ' 0 rows remain unresolved.';
+					return `${summary}${unresolvedNote} Dominant shortage bucket: ${dominantDepartment}.`;
+				})()
+				: (() => {
+					const parts: string[] = [];
+					if (breakdown.existingRows > 0) parts.push(`keep ${breakdown.existingRows} existing assignment${breakdown.existingRows === 1 ? '' : 's'}`);
+					if (breakdown.realTeacherRows > 0) parts.push(`suggest ${breakdown.realTeacherRows} real-teacher assignment${breakdown.realTeacherRows === 1 ? '' : 's'}`);
+					if (breakdown.substituteRows > 0) parts.push(`use ${breakdown.substituteRows} temporary substitute row${breakdown.substituteRows === 1 ? '' : 's'}`);
+					const summary = parts.length > 0 ? `ATLAS will ${parts.join(', ')}.` : `ATLAS can suggest ${suggestedRows} assignment row${suggestedRows === 1 ? '' : 's'} for review.`;
+					const unresolvedNote = breakdown.unresolvedRows > 0 ? ` ${breakdown.unresolvedRows} row${breakdown.unresolvedRows === 1 ? '' : 's'} remain${breakdown.unresolvedRows === 1 ? 's' : ''} unresolved.` : ' 0 rows remain unresolved.';
+					return `${summary}${unresolvedNote}`;
+				})();
 	const specialProgramApprovalQueue = result?.specialProgramApprovalQueue ?? [];
 
 	const toggleDepartment = (department: string) => {
@@ -193,7 +289,7 @@ export function AutoFillSummaryModal({
 							</div>
 						)}
 
-						{hasShortage && report ? (
+						{hasShortage && report && result ? (
 							<div className="space-y-6 max-w-3xl mx-auto">
 								{/* Dual Truth Headline */}
 								<div className="grid gap-4 sm:grid-cols-2">
@@ -367,6 +463,19 @@ export function AutoFillSummaryModal({
 										</p>
 									</div>
 								</div>
+
+								{/* Preview Suggested Rows */}
+								{!reviewOnly && result.suggestedRows && result.suggestedRows.length > 0 && (
+									<div className="space-y-3 pt-2">
+										<div className="flex items-center justify-between">
+											<h4 className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+												<Eye className="size-3.5" /> Preview Suggested Rows
+											</h4>
+											<span className="text-[0.65rem] text-muted-foreground font-bold uppercase">{result.suggestedRows.length} Rows</span>
+										</div>
+										<SuggestedRowsPreviewList rows={result.suggestedRows} />
+									</div>
+								)}
 							</div>
 						) : hasResult && result && !hasShortage ? (
 							<div className="flex flex-col items-center justify-center py-12 text-center space-y-6 max-w-sm mx-auto">
@@ -379,14 +488,34 @@ export function AutoFillSummaryModal({
 										Every class has been assigned an eligible teacher, and everyone is within their workload capacity.
 									</p>
 								</div>
-								<div className="grid grid-cols-2 w-full gap-4 pt-4 border-t border-border/50">
-									<div className="space-y-1">
-										<p className="text-2xl font-bold tracking-tight">{result.assignmentsCreated}</p>
-										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">New Placements</p>
+								<div className="grid grid-cols-2 sm:grid-cols-4 w-full gap-3 pt-4 border-t border-border/50">
+									<div className="space-y-1 text-center">
+										<div className="inline-flex items-center justify-center size-8 rounded-full bg-emerald-100 text-emerald-600 mb-1">
+											<CheckCircle2 className="size-4" />
+										</div>
+										<p className="text-2xl font-bold tracking-tight">{breakdown.existingRows}</p>
+										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Kept Existing</p>
 									</div>
-									<div className="space-y-1 border-l border-border/50 pl-4">
-										<p className="text-2xl font-bold tracking-tight">{result.uniqueTeachersAffected}</p>
-										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Teachers Updated</p>
+									<div className="space-y-1 text-center">
+										<div className="inline-flex items-center justify-center size-8 rounded-full bg-blue-100 text-blue-600 mb-1">
+											<Users2 className="size-4" />
+										</div>
+										<p className="text-2xl font-bold tracking-tight">{breakdown.realTeacherRows}</p>
+										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Real-Teacher Suggestions</p>
+									</div>
+									<div className="space-y-1 text-center">
+										<div className="inline-flex items-center justify-center size-8 rounded-full bg-violet-100 text-violet-600 mb-1">
+											<AlertCircle className="size-4" />
+										</div>
+										<p className="text-2xl font-bold tracking-tight">{breakdown.substituteRows}</p>
+										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Temporary Substitute</p>
+									</div>
+									<div className="space-y-1 text-center">
+										<div className="inline-flex items-center justify-center size-8 rounded-full bg-amber-100 text-amber-600 mb-1">
+											<XCircle className="size-4" />
+										</div>
+										<p className="text-2xl font-bold tracking-tight">{breakdown.unresolvedRows}</p>
+										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Still Unresolved</p>
 									</div>
 								</div>
 							</div>
@@ -401,34 +530,52 @@ export function AutoFillSummaryModal({
 
 				<DialogFooter className="p-4 bg-background border-t shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="min-w-0 space-y-1">
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
-								Preview first
-							</Badge>
-							<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">No Teaching Load rows were saved by opening this review.</span>
-						</div>
+						{reviewOnly ? (
+							<div className="flex flex-wrap items-center gap-2">
+								<Badge variant="outline" className="bg-blue-50 text-blue-700 font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-blue-200">
+									Review only
+								</Badge>
+								<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">Use Suggest Teaching Load draft to prepare assignments.</span>
+							</div>
+						) : (
+							<div className="flex flex-wrap items-center gap-2">
+								<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
+									Preview first
+								</Badge>
+								<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">No Teaching Load rows were saved by opening this review.</span>
+							</div>
+						)}
 						{applyDisabledReason && (
 							<p data-testid="teaching-load-suggestion-feedback" className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800" aria-live="polite">
 								{applyDisabledReason}
 							</p>
 						)}
+						{reviewWarning && !applyDisabledReason && (
+							<p data-testid="teaching-load-suggestion-warning" className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800" aria-live="polite">
+								{reviewWarning}
+							</p>
+						)}
 					</div>
 					<div className="flex flex-wrap justify-end gap-2">
 						<Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-9 rounded-xl px-4 font-bold">
-							Cancel
+							Close
 						</Button>
-						<Button type="button" variant="outline" onClick={onReviewManually} className="h-9 rounded-xl px-4 font-bold">
-							Review manually
-						</Button>
-						<Button
-							type="button"
-							onClick={onApplySuggestion}
-							disabled={!onApplySuggestion || applyingSuggestion || Boolean(applyDisabledReason)}
-							data-testid="teaching-load-apply-suggestion"
-							className="h-9 rounded-xl px-4 font-bold"
-						>
-							{applyingSuggestion ? 'Applying...' : 'Apply suggested Teaching Load'}
-						</Button>
+						{!reviewOnly && (
+							<>
+								<Button type="button" variant="outline" onClick={onReviewManually} className="h-9 rounded-xl px-4 font-bold">
+									Review manually
+								</Button>
+								<Button
+									type="button"
+									onClick={onApplySuggestion}
+									disabled={!onApplySuggestion || applyingSuggestion || Boolean(applyDisabledReason)}
+									data-testid="teaching-load-apply-suggestion"
+									className="h-9 rounded-xl px-4 font-bold"
+								>
+									{applyingSuggestion ? 'Applying...' : 'Apply suggested Teaching Load'}
+								</Button>
+							</>
+						)}
 					</div>
 				</DialogFooter>
 			</DialogContent>

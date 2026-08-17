@@ -40,6 +40,8 @@ type TeachingLoadModalsProps = {
 	onReviewSuggestionManually: () => void;
 	suggestionApplying: boolean;
 	suggestionApplyDisabledReason?: string | null;
+	suggestionReviewWarning?: string | null;
+	summaryModalReviewOnly?: boolean;
 	resetDialogOpen: boolean;
 	onResetDialogOpenChange: (open: boolean) => void;
 	canRunGlobalReset: boolean;
@@ -65,6 +67,8 @@ export function TeachingLoadModals({
 	onReviewSuggestionManually,
 	suggestionApplying,
 	suggestionApplyDisabledReason,
+	suggestionReviewWarning,
+	summaryModalReviewOnly,
 	resetDialogOpen,
 	onResetDialogOpenChange,
 	canRunGlobalReset,
@@ -132,6 +136,8 @@ export function TeachingLoadModals({
 				onReviewManually={onReviewSuggestionManually}
 				applyingSuggestion={suggestionApplying}
 				applyDisabledReason={suggestionApplyDisabledReason}
+				reviewWarning={suggestionReviewWarning}
+				reviewOnly={summaryModalReviewOnly}
 			/>
 
 			<Dialog open={resetDialogOpen} onOpenChange={onResetDialogOpenChange}>

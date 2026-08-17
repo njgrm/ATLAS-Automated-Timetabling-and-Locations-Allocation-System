@@ -87,6 +87,18 @@ export interface StaffingTruthComparison {
 	teacherX: StaffingTruthBucket;
 }
 
+export interface SuggestedRowPreview {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number | null;
+	facultyName: string;
+	assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'TEMPORARY_SUBSTITUTE';
+	warning?: string | null;
+}
+
 export interface AutoFillResult {
 	preserved: number;
 	created: number;
@@ -108,6 +120,7 @@ export interface AutoFillResult {
 		resolvedSubjectCodes: string[];
 		stillUncoveredSubjectCodes: string[];
 	};
+	suggestedRows?: SuggestedRowPreview[];
 }
 
 export type TeachingLoadSplitBrainReasonCode =

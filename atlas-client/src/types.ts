@@ -1859,6 +1859,26 @@ export type StaffingReport = {
 	}>;
 };
 
+export type SuggestedAssignmentBreakdown = {
+	existingRows: number;
+	realTeacherRows: number;
+	substituteRows: number;
+	totalSuggestedRows: number;
+	unresolvedRows: number;
+};
+
+export type SuggestedRowPreview = {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number | null;
+	facultyName: string;
+	assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'TEMPORARY_SUBSTITUTE';
+	warning?: string | null;
+};
+
 export type AutoFillSummaryResult = {
 	preserved: number;
 	created: number;
@@ -1891,6 +1911,8 @@ export type AutoFillSummaryResult = {
 		requiredSpecializationCodes: string[];
 		reason: string;
 	}[];
+	suggestedAssignmentBreakdown?: SuggestedAssignmentBreakdown;
+	suggestedRows?: SuggestedRowPreview[];
 };
 
 export type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';

@@ -6,10 +6,8 @@ import {
 	Search, 
 	Filter,
 	Users,
-	Save,
+	MoreHorizontal,
 	RotateCcw,
-	Undo2,
-	Redo2,
 	Star,
 	LayoutGrid,
 	ListFilter
@@ -20,6 +18,7 @@ import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
@@ -54,13 +53,7 @@ type TeacherGridModeProps = {
 	resolveSectionHoverDeltaMinutes: (subject: Subject, sectionId: number) => number;
 	splitBrainQuarantineRequired: boolean;
 	splitBrainReasonLabel: string;
-	onSave: () => void;
 	onResetAssignments: () => void;
-	onDiscardDraft: () => void;
-	canUndo: boolean;
-	canRedo: boolean;
-	onUndo: () => void;
-	onRedo: () => void;
 	searchQuery: string;
 	onSearchQueryChange: (q: string) => void;
 	filterStatus: string;
@@ -111,13 +104,7 @@ export function TeacherGridMode({
 	resolveSectionHoverDeltaMinutes,
 	splitBrainQuarantineRequired,
 	splitBrainReasonLabel,
-	onSave,
 	onResetAssignments,
-	onDiscardDraft,
-	canUndo,
-	canRedo,
-	onUndo,
-	onRedo,
 	searchQuery,
 	onSearchQueryChange,
 	filterStatus,
@@ -422,45 +409,26 @@ export function TeacherGridMode({
 												{isExpanded && (
 													<div className="p-3 bg-muted/5 space-y-4">
 														{/* Actions Bar (Sticky) */}
-														<div className="sticky top-[calc(0px-1.5rem)] z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm p-2 border-b border-border/40 shadow-sm">
-															<div className="flex items-center gap-2">
-																<div className="flex items-center bg-muted/20 rounded-md p-0.5 border border-border/40">
-																	<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode} aria-label="Undo last change"><Undo2 className="size-3.5" /></Button>
-																	<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onRedo} disabled={!canRedo || saving || isReadOnlyMode} aria-label="Redo last change"><Redo2 className="size-3.5" /></Button>
-																</div>
-																<Button 
-																	size="xs" 
-																	variant="outline" 
-																	className="h-7 text-xs font-semibold uppercase tracking-widest gap-1.5"
-																	onClick={onResetAssignments}
-																	disabled={saving || isReadOnlyMode}
-																>
-																	<RotateCcw className="size-3.5" />
-																	Reset
-																</Button>
-															</div>
-
-															<div className="flex items-center gap-2">
-																{hasDraft && (
-																	<Button 
-																		size="xs" 
-																		variant="ghost" 
-																		className="h-7 text-xs font-semibold uppercase tracking-widest text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-																		onClick={onDiscardDraft}
-																	>
-																		Discard
+														<div className="sticky top-[calc(0px-1.5rem)] z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm px-2 py-1 border-b border-border/40 shadow-sm">
+															<p className="text-xs font-semibold text-muted-foreground truncate">
+																{member.firstName} {member.lastName} assignments
+															</p>
+															<DropdownMenu>
+																<DropdownMenuTrigger asChild>
+																	<Button size="icon-xs" variant="ghost" className="h-7 w-7" aria-label="Row tools">
+																		<MoreHorizontal className="size-4" />
 																	</Button>
-																)}
-																<Button 
-																	size="xs" 
-																	className="h-7 text-xs font-semibold uppercase tracking-widest gap-1.5 px-3"
-																	onClick={onSave}
-																	disabled={!hasDraft || saving || isReadOnlyMode}
-																>
-																	<Save className="size-3.5" />
-																	{saving ? 'Saving...' : 'Save Draft'}
-																</Button>
-															</div>
+																</DropdownMenuTrigger>
+																<DropdownMenuContent align="end" className="w-44">
+																	<DropdownMenuItem
+																		onClick={onResetAssignments}
+																		disabled={saving || isReadOnlyMode}
+																	>
+																		<RotateCcw className="size-4 mr-2" />
+																		Reset assignments
+																	</DropdownMenuItem>
+																</DropdownMenuContent>
+															</DropdownMenu>
 														</div>
 
 														{/* Subjects Section */}

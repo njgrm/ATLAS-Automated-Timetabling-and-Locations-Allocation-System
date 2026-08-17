@@ -184,7 +184,7 @@ function SimpleScheduleControls({
 
 	return (
 		<div
-			className="flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1"
+			className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-2 py-1"
 			data-testid="timetable-simple-schedule-switcher"
 			data-view-mode={context.viewMode}
 			data-entity-filter={context.entityFilter}
@@ -206,7 +206,7 @@ function SimpleScheduleControls({
 					<SelectItem value="room">Room</SelectItem>
 				</SelectContent>
 			</Select>
-			<div className="min-w-0 flex-1" data-testid="timetable-simple-entity-select">
+			<div className="min-w-[9rem] flex-1" data-testid="timetable-simple-entity-select">
 				<SearchableSelect
 					value={context.entityFilter}
 					onValueChange={onEntityChange}
@@ -634,6 +634,7 @@ function TimetableSimpleHeaderImpl({
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
+			{/* Primary row: source, readiness, lookup, schedule switcher, right-side actions */}
 			<div className="flex min-w-0 items-center gap-1.5 px-3 py-0.5">
 				<Badge
 					variant="outline"
@@ -674,45 +675,7 @@ function TimetableSimpleHeaderImpl({
 					{context.referenceLookupStatus.label}
 				</Badge>
 
-				{context.policyAlignmentWarning && (
-					<TooltipProvider delayDuration={300}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge
-									variant="outline"
-									tabIndex={0}
-									role="status"
-									aria-label={`${context.hiddenRowCount} earlier row${context.hiddenRowCount === 1 ? '' : 's'} hidden`}
-									className="h-5 shrink-0 cursor-default gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 sm:h-6"
-									data-testid="timetable-hidden-rows-chip"
-									onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
-								>
-									<span className="hidden sm:inline">{context.hiddenRowCount} row{context.hiddenRowCount === 1 ? '' : 's'} hidden</span>
-									<span className="sm:hidden">{context.hiddenRowCount} hidden</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
-								<p>{context.policyAlignmentWarning}</p>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				)}
-
-				{context.hiddenRowCount > 0 && (
-					<Button
-						type="button"
-						variant={context.showFullDay ? 'default' : 'outline'}
-						size="sm"
-						className="h-5 shrink-0 gap-1 px-1.5 text-xs sm:h-6"
-						onClick={() => context.setShowFullDay(!context.showFullDay)}
-						data-testid="timetable-show-full-day-toggle"
-					>
-						<Sun className="size-3" aria-hidden="true" />
-						<span className="hidden sm:inline">{context.showFullDay ? 'Full day' : 'Show full day'}</span>
-					</Button>
-				)}
-
-				<div className="hidden min-w-0 flex-1 lg:flex">
+				<div className="hidden min-w-[240px] shrink-0 flex-1 lg:flex">
 					<SimpleScheduleControls
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -926,6 +889,49 @@ function TimetableSimpleHeaderImpl({
 					</DropdownMenu>
 				</div>
 			</div>
+
+			{/* Secondary row: hidden-row status controls (only when applicable) */}
+			{(context.policyAlignmentWarning || context.hiddenRowCount > 0) && (
+				<div className="flex items-center gap-1.5 px-3 py-0.5" data-testid="timetable-hidden-row-controls">
+					{context.policyAlignmentWarning && (
+						<TooltipProvider delayDuration={300}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge
+										variant="outline"
+										tabIndex={0}
+										role="status"
+										aria-label={`${context.hiddenRowCount} earlier row${context.hiddenRowCount === 1 ? '' : 's'} hidden`}
+										className="h-5 shrink-0 cursor-default gap-1 border-amber-200 bg-amber-50 px-1.5 text-xs text-amber-800 sm:h-6"
+										data-testid="timetable-hidden-rows-chip"
+										onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+									>
+										{context.hiddenRowCount} earlier row{context.hiddenRowCount === 1 ? '' : 's'} hidden
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-hidden-rows-explanation">
+									<p>{context.policyAlignmentWarning}</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+
+					{context.hiddenRowCount > 0 && (
+						<Button
+							type="button"
+							variant={context.showFullDay ? 'default' : 'outline'}
+							size="sm"
+							className="h-5 shrink-0 gap-1 px-1.5 text-xs sm:h-6"
+							onClick={() => context.setShowFullDay(!context.showFullDay)}
+							data-testid="timetable-show-full-day-toggle"
+						>
+							<Sun className="size-3" aria-hidden="true" />
+							<span className="hidden sm:inline">{context.showFullDay ? 'Full day' : 'Show full day'}</span>
+						</Button>
+					)}
+				</div>
+			)}
+
 			<Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
 				<DialogContent className="max-w-sm">
 					<DialogHeader>

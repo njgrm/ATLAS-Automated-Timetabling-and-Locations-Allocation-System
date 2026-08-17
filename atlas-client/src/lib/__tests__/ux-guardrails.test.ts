@@ -1196,9 +1196,9 @@ test('Phase 4.6: Teaching Load grid cells and row headers are keyboard-operable'
 	// Department + teacher row headers are keyboard-operable with aria-expanded.
 	assert.match(teacherGrid, /role="button"[\s\S]{0,300}aria-expanded=\{!isCollapsed\}/);
 	assert.match(teacherGrid, /role="button"[\s\S]{0,300}aria-expanded=\{isExpanded\}/);
-	// Undo/Redo buttons have aria-labels.
-	assert.match(teacherGrid, /aria-label="Undo last change"/);
-	assert.match(teacherGrid, /aria-label="Redo last change"/);
+	// Undo/Redo buttons are in the footer TeachingLoadDraftActionBar, not in expanded rows.
+	const draftActionBar = source('src/components/faculty-assignments/TeachingLoadDraftActionBar.tsx');
+	assert.match(draftActionBar, /aria-live="polite"/);
 });
 
 test('Phase 4.7: subject rows cap badges at one priority alert with an AccessibleInfo summary', () => {

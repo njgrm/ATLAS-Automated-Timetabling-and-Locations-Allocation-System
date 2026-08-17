@@ -44,6 +44,17 @@ export interface StaffingTruthComparison {
     hardCap: StaffingTruthBucket;
     teacherX: StaffingTruthBucket;
 }
+export interface SuggestedRowPreview {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    sectionId: number;
+    sectionName: string;
+    facultyId: number | null;
+    facultyName: string;
+    assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'TEMPORARY_SUBSTITUTE';
+    warning?: string | null;
+}
 export interface AutoFillResult {
     preserved: number;
     created: number;
@@ -65,6 +76,7 @@ export interface AutoFillResult {
         resolvedSubjectCodes: string[];
         stillUncoveredSubjectCodes: string[];
     };
+    suggestedRows?: SuggestedRowPreview[];
 }
 export type TeachingLoadSplitBrainReasonCode = 'ASSIGNED_PAIR_MISMATCH' | 'UNASSIGNED_PAIR_MISMATCH' | 'TOTAL_PAIR_MISMATCH' | 'FACULTY_LOAD_OUTLIER' | 'FACULTY_LOAD_REVIEW_REQUIRED' | 'INTEGRITY_MISSING_OWNERSHIP' | 'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE' | 'INTEGRITY_OUT_OF_SUBJECT_SCOPE' | 'STALE_OWNERSHIP_PRESENT' | 'TRUTH_RECONCILE_PENDING' | 'REAL_FACULTY_RECOVERY_PENDING' | 'REAL_FACULTY_RECOVERY_BLOCKERS' | 'SPECIAL_PROGRAM_APPROVAL_REQUIRED';
 export interface TeachingLoadSplitBrainOutlierFacultyRow {

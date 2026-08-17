@@ -95,6 +95,7 @@ export default function TeachingLoad() {
 	const [suggestionProposalId, setSuggestionProposalId] = useState<number | null>(null);
 	const [suggestionLoading, setSuggestionLoading] = useState(false);
 	const [suggestionApplying, setSuggestionApplying] = useState(false);
+	const [summaryModalReviewOnly, setSummaryModalReviewOnly] = useState(false);
 	const [resetLoading, setResetLoading] = useState(false);
 	const [hasGeneratedRuns, setHasGeneratedRuns] = useState(false);
 	const [showSaveWarning, setShowSaveWarning] = useState(false);
@@ -415,10 +416,15 @@ export default function TeachingLoad() {
 			if (data.dataSource === 'refreshing') return 'Wait for source verification before applying a Teaching Load suggestion.';
 			return 'ATLAS must verify writable Teaching Load data before applying a suggestion.';
 		}
-		if (splitBrainNeedsReconcile) return 'Review saved coverage first, then preview the suggestion again.';
+		if (data.splitBrainQuarantineRequired) return 'Editing is locked. Open the lock recovery dialog to review and unlock.';
 		if (suggestionApplying) return 'ATLAS is applying the suggested Teaching Load now.';
 		return null;
-	}, [autoFillResult, data.activeSchoolYearId, data.canPersistAssignments, data.dataSource, data.isOnline, splitBrainNeedsReconcile, suggestionApplying, suggestionProposalId]);
+	}, [autoFillResult, data.activeSchoolYearId, data.canPersistAssignments, data.dataSource, data.isOnline, data.splitBrainQuarantineRequired, suggestionApplying, suggestionProposalId]);
+
+	const suggestionReviewWarning = useMemo(() => {
+		if (!splitBrainNeedsReconcile || data.splitBrainQuarantineRequired) return null;
+		return 'ATLAS found Teaching Load warnings. You may apply this draft, but review the warnings before generating or publishing.';
+	}, [splitBrainNeedsReconcile, data.splitBrainQuarantineRequired]);
 
 	const handleApplySuggestedTeachingLoad = useCallback(async () => {
 		if (suggestionApplyDisabledReason || !data.activeSchoolYearId || !suggestionProposalId) {
@@ -436,9 +442,11 @@ export default function TeachingLoad() {
 				refreshedPreview?: AutoFillSummaryResult;
 				applyResult?: AutoFillSummaryResult;
 			}>(`/faculty-assignments/suggestion-proposals/${suggestionProposalId}/apply`);
-			const applied = result.applyResult ?? result.refreshedPreview ?? result.preview;
-			setAutoFillResult(applied);
-			const unresolvedCount = applied.unresolved ?? 0;
+			// Use refreshedPreview for the modal display (it has suggestedRows and breakdown)
+			// The applyResult is the actual apply result which may not have preview data
+			const displayResult = result.refreshedPreview ?? result.preview;
+			setAutoFillResult(displayResult);
+			const unresolvedCount = (result.applyResult ?? displayResult).unresolved ?? 0;
 			const message = unresolvedCount > 0
 				? `Suggested Teaching Load applied with ${unresolvedCount} class row${unresolvedCount === 1 ? '' : 's'} still needing review.`
 				: 'Suggested Teaching Load applied. Review the saved load before creating the timetable.';
@@ -475,6 +483,7 @@ export default function TeachingLoad() {
 	const handleSummaryModalOpenChange = useCallback((open: boolean) => {
 		ui.setSummaryModalOpen(open);
 		if (!open) {
+			setSummaryModalReviewOnly(false);
 			void handleCancelPendingSuggestionProposal();
 		}
 	}, [handleCancelPendingSuggestionProposal, ui]);
@@ -492,6 +501,7 @@ export default function TeachingLoad() {
 				},
 			);
 			setAutoFillResult(result);
+			setSummaryModalReviewOnly(true);
 			ui.setSummaryModalOpen(true);
 			toast.success('Staffing needs report generated.', { id: toastId });
 		} catch (error: any) {
@@ -634,16 +644,16 @@ export default function TeachingLoad() {
 		}
 		if (data.dataSource === 'live' && data.canPersistAssignments) {
 			return {
-				label: 'Verified live',
-				description: 'Assignment data was checked against EnrollPro. Draft changes can be saved.',
+				label: 'EnrollPro roster verified',
+				description: 'ATLAS Teaching Load draft. Assignment data was checked against EnrollPro. Draft changes can be saved.',
 				nextAction: data.activeDraftCount > 0 ? 'Save the draft changes before leaving this page.' : 'Inspect one teacher or fill section coverage gaps.',
 				writeBlockedReason: null,
 			};
 		}
 		if (data.dataSource === 'cached' && data.canPersistAssignments) {
 			return {
-				label: 'Using saved data',
-				description: data.degradedNotice ?? 'ATLAS is using a saved workspace with enough school-year evidence to allow edits.',
+				label: 'ATLAS Teaching Load draft',
+				description: data.degradedNotice ?? 'ATLAS is using synced EnrollPro section data for Teaching Load. This is expected. Draft changes can be saved.',
 				nextAction: data.activeDraftCount > 0 ? 'Save the draft, then refresh when live verification is available.' : 'Review coverage carefully, then refresh when live verification is available.',
 				writeBlockedReason: null,
 			};
@@ -908,14 +918,6 @@ export default function TeachingLoad() {
 							onToggleAdvancedGrid={() => setAdvancedGridVisible(true)}
 						/>
 
-						<p
-							data-testid="teaching-load-suggestion-feedback"
-							className="mx-3 mt-1 rounded-lg border border-border/50 bg-muted/30 px-3 py-1.5 text-xs font-semibold text-muted-foreground lg:mx-5"
-							aria-live="polite"
-						>
-							{draftStatusMessage}
-						</p>
-
 						{advancedGridVisible ? (ui.viewMode === 'teacher' ? (
 							<TeacherGridMode
 								loading={data.loading}
@@ -942,16 +944,10 @@ export default function TeachingLoad() {
 								onClearHoverLoad={() => ui.setHoveredIncomingMinutes(0)}
 								activeFacultyIds={data.activeFacultyIds}
 								resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-								splitBrainQuarantineRequired={data.splitBrainQuarantineRequired}
-								splitBrainReasonLabel={data.splitBrainReasonLabel}
-								onSave={handleSave}
-								onResetAssignments={data.handleResetAssignments}
-								onDiscardDraft={discardSelectedDraft}
-								canUndo={data.canUndo}
-								canRedo={data.canRedo}
-								onUndo={data.handleUndo}
-								onRedo={data.handleRedo}
-								searchQuery={ui.searchQuery}
+							splitBrainQuarantineRequired={data.splitBrainQuarantineRequired}
+							splitBrainReasonLabel={data.splitBrainReasonLabel}
+							onResetAssignments={data.handleResetAssignments}
+							searchQuery={ui.searchQuery}
 								onSearchQueryChange={ui.setSearchQuery}
 								filterStatus={ui.filterStatus}
 								onFilterStatusChange={ui.setFilterStatus}
@@ -1004,19 +1000,7 @@ export default function TeachingLoad() {
 							/>
 						)) : (
 							<TeachingLoadGuidedModePlaceholder onOpenAdvancedGrid={() => setAdvancedGridVisible(true)} />
-						)}
-
-						<TeachingLoadDraftActionBar
-							activeDraftCount={data.activeDraftCount}
-							canUndo={data.canUndo}
-							isReadOnlyMode={data.isReadOnlyMode}
-							saving={data.saving}
-							statusMessage={draftStatusMessage}
-							writeBlockedReason={workspaceState.writeBlockedReason}
-							onUndo={data.handleUndo}
-							onDiscard={() => setShowDiscardConfirm(true)}
-							onSave={() => void handleSave()}
-						/>
+					)}
 					</div>
 
 					{/* Persistent Inspector Area */}
@@ -1042,6 +1026,18 @@ export default function TeachingLoad() {
 						)}
 					</div>
 				</div>
+
+				<TeachingLoadDraftActionBar
+					activeDraftCount={data.activeDraftCount}
+					canUndo={data.canUndo}
+					isReadOnlyMode={data.isReadOnlyMode}
+					saving={data.saving}
+					statusMessage={draftStatusMessage}
+					writeBlockedReason={workspaceState.writeBlockedReason}
+					onUndo={data.handleUndo}
+					onDiscard={() => setShowDiscardConfirm(true)}
+					onSave={() => void handleSave()}
+				/>
 			</div>
 
 			{/* Phase 4.8: mobile inspector access. The persistent inspector is
@@ -1154,6 +1150,8 @@ export default function TeachingLoad() {
 				}}
 				suggestionApplying={suggestionApplying}
 				suggestionApplyDisabledReason={suggestionApplyDisabledReason}
+				suggestionReviewWarning={suggestionReviewWarning}
+				summaryModalReviewOnly={summaryModalReviewOnly}
 				resetDialogOpen={ui.resetDialogOpen}
 				onResetDialogOpenChange={ui.setResetDialogOpen}
 				canRunGlobalReset={data.canRunGlobalReset}

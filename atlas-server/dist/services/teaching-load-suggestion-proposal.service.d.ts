@@ -17,6 +17,13 @@ type ProposalSummary = {
     updatedAt: Date;
     appliedAt: Date | null;
     cancelledAt: Date | null;
+    suggestedAssignmentBreakdown?: {
+        existingRows: number;
+        realTeacherRows: number;
+        substituteRows: number;
+        totalSuggestedRows: number;
+        unresolvedRows: number;
+    };
 };
 export type TeachingLoadSuggestionProposalResult = {
     proposal: ProposalSummary;

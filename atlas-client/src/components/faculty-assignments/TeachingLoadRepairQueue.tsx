@@ -128,10 +128,10 @@ export function TeachingLoadRepairQueue({
 							</div>
 							{/* Phase 4.2: description and status stay visible at every
 								viewport height (the old max-height:800px hide removed). */}
-							<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-								<p className="hidden min-w-0 max-w-2xl truncate font-medium leading-5 text-muted-foreground sm:block">{currentItem.description}</p>
-								<p className="shrink-0 font-semibold text-foreground" aria-live="polite">{currentItem.status}</p>
-							</div>
+						<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+							<p className={cn("min-w-0 max-w-2xl truncate font-medium leading-5 text-muted-foreground", advancedGridVisible ? "hidden" : "hidden sm:block")}>{currentItem.description}</p>
+							<p className="shrink-0 font-semibold text-foreground" aria-live="polite">{currentItem.status}</p>
+						</div>
 							{currentItem.disabledReason && (
 								<p data-testid="teaching-load-repair-disabled-reason" className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
 									{currentItem.disabledReason}
@@ -153,7 +153,8 @@ export function TeachingLoadRepairQueue({
 							<Button type="button" variant="outline" size="sm" className="hidden h-8 px-2 font-semibold sm:inline-flex" onClick={() => setDetailsItem(currentItem)}>
 								Details
 							</Button>
-							{/* Phase 4.2: Skip is visible at sm+ breakpoints. Hidden on mobile to prevent crowding. */}
+						{/* Phase 4.2: Skip is visible at sm+ breakpoints. Hidden on mobile to prevent crowding. */}
+						{!advancedGridVisible && (
 							<Button
 								type="button"
 								variant="ghost"
@@ -163,6 +164,8 @@ export function TeachingLoadRepairQueue({
 							>
 								Skip
 							</Button>
+						)}
+						{!advancedGridVisible && (
 							<Button
 								type="button"
 								variant="ghost"
@@ -173,6 +176,7 @@ export function TeachingLoadRepairQueue({
 							>
 								Advanced grid
 							</Button>
+						)}
 						</div>
 					</div>
 					{/* Phase 4.2: skipped items still need attention before generation. */}
@@ -183,6 +187,7 @@ export function TeachingLoadRepairQueue({
 					) : null}
 				</div>
 
+				{!advancedGridVisible && (
 			<div className="mt-3 border-t border-border/50 pt-3">
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2">
@@ -250,6 +255,7 @@ export function TeachingLoadRepairQueue({
 						)}
 				</div>
 			</div>
+			)}
 			</div>
 
 			<Dialog open={detailsItem !== null} onOpenChange={(open) => !open && setDetailsItem(null)}>
