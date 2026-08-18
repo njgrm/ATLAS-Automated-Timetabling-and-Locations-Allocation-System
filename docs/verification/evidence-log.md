@@ -5617,3 +5617,88 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 
 - All AIMS published schedule contract prompts (01–07) are **GO**.
 - The sequence is closed and ready for QA sign-off.
+
+---
+
+# 2026-08-18 — Timetable Simple Publish Blocker Recovery Sequence
+
+- Phase: Simple-mode publish blocker UX recovery (Prompts 01–06).
+- Operator: opencode (mimo-v2.5).
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Trigger: User requested execution of `timetable-simple-publish-blocker-recovery-sequence-2026-08-18.md`.
+
+## Work completed
+
+### Prompt 01 — Baseline and Fixture
+- Created Playwright spec `timetable-simple-publish-blockers.spec.ts` with API fixture classifier.
+- Captured baseline across desktop, mobile-portrait, mobile-landscape.
+- **Baseline evidence**: Run 427, School Year 2, 820 assigned, 105 unresolved, 105 hard blockers, 273 soft warnings.
+- **Product failure confirmed**: Simple mode showed "105 blockers" but had NO path to understand why publish is blocked without switching to Advanced.
+
+### Prompt 02 — Diagnostic Contract
+- Created `atlas-client/src/components/timetable/simplePublishReadiness.ts` — deterministic diagnostic model.
+- Created `atlas-client/src/lib/__tests__/simple-publish-readiness.test.ts` — 10 unit tests, all pass.
+- Source priority: unassignedItems → resourceDiagnostics → violation fallback.
+- Maps: FACULTY_OVERLOADED → "Teachers are overloaded", NO_AVAILABLE_SLOT → "No allowed time slot was found", etc.
+
+### Prompt 03 — Simple Readiness Sheet
+- Created `SimplePublishReadinessSheet.tsx` with test IDs: `timetable-simple-publish-readiness-sheet`, `timetable-simple-publish-blocker-summary`, `timetable-simple-blocker-group`, `timetable-simple-warning-group`.
+- Wired into `TimetableSimpleHeader.tsx`: readiness bar clickable (desktop), readiness chip clickable (mobile), publish button opens sheet when blocked.
+- Sheet shows: summary card, blocker groups by real cause, warnings section, sticky footer with Copy/Download actions.
+
+### Prompt 04 — Repair Routing and Filters
+- `FACULTY_OVERLOADED` / `NO_QUALIFIED_FACULTY` → violations tab (Teaching Load path).
+- `NO_AVAILABLE_SLOT` → unassigned tab + place-unresolved task.
+- `NO_COMPATIBLE_ROOM` / `ROOM_CAPACITY_EXCEEDED` → `/campus-rooms`.
+- Reason code passed through `onNavigateToRepair(href, reason)` callback.
+
+### Prompt 05 — Message and Export Hardening
+- Replaced raw `v.message` with plain-language `nextStep` text in `TimetableTaskDrawer.tsx`.
+- Added "Copy summary" and "Download CSV" buttons to readiness sheet footer.
+- Export includes: run ID, unresolved count, hard blocker count, soft warning count, grouped causes, actions, next steps.
+
+### Prompt 06 — Release Proof
+- All local gates pass: tsc, build, ux-guardrails (83), timetable-conflict (10).
+- All Playwright gates pass: publish-blockers (9), full-function-matrix (15), feedback-readiness (18).
+- Browser scenarios verified across desktop, mobile-portrait, mobile-landscape.
+
+## Commands run
+
+- `npx tsc --noEmit` in atlas-client: PASS
+- `npm run build` in atlas-client: PASS
+- `npm run test:ux-guardrails` in atlas-client: PASS (83/83)
+- `npm run test:timetable-conflict` in atlas-client: PASS (10/10)
+- `npx playwright test -c ../playwright.config.ts ../qa-artifacts/playwright/specs/timetable-simple-publish-blockers.spec.ts --workers=1`: PASS (9/9)
+- `npx playwright test -c ../playwright.config.ts ../qa-artifacts/playwright/specs/timetable-current-full-function-matrix.spec.ts --workers=1`: PASS (15/15)
+- `npx playwright test -c ../playwright.config.ts ../qa-artifacts/playwright/specs/timetable-feedback-readiness.spec.ts --workers=1`: PASS (18/18)
+
+## Files changed
+
+- `atlas-client/src/components/timetable/simplePublishReadiness.ts` (new)
+- `atlas-client/src/components/timetable/SimplePublishReadinessSheet.tsx` (new)
+- `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx` (modified)
+- `atlas-client/src/components/timetable/TimetableTaskDrawer.tsx` (modified)
+- `atlas-client/src/lib/__tests__/simple-publish-readiness.test.ts` (new)
+- `qa-artifacts/playwright/specs/timetable-simple-publish-blockers.spec.ts` (new)
+
+## UX readiness criteria
+
+- ✅ Simple mode answers "Why can't I publish?" within one interaction.
+- ✅ Simple mode answers "What should I fix first?" without reading a diagnostics wall.
+- ✅ Simple mode uses plain language.
+- ✅ Touch targets remain practical at mobile widths.
+- ✅ No global browser scrollbar introduced.
+- ✅ No horizontal overflow introduced.
+- ✅ No text overlaps.
+- ✅ Color is not the only state indicator.
+- ✅ Disabled actions explain why beside or near the control.
+
+## Remaining Caveats
+
+- The `unassignedCount` from the task drawer is extracted via regex from drawer text; if the drawer layout changes, the regex may need updating.
+- The performance spec requires explicit `PLAYWRIGHT_ADMIN_EMAIL` / `PLAYWRIGHT_ADMIN_PASSWORD` env vars and was not run in this sequence.
+
+## Decision
+
+- The simple publish blocker recovery sequence (Prompts 01–06) is **GO**.
+- Simple-mode publish blocker UX is release-ready.

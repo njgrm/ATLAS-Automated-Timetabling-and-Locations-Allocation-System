@@ -6,6 +6,7 @@ import {
 	CalendarClock,
 	CheckCircle2,
 	ChevronDown,
+	ChevronRight,
 	ClipboardCheck,
 	Download,
 	HelpCircle,
@@ -38,6 +39,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
+import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 
 type TimetableSimpleHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -491,6 +493,7 @@ function TimetableSimpleHeaderImpl({
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
+	const [readinessSheetOpen, setReadinessSheetOpen] = useState(false);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	const tasks = useSimpleTasks(context);
 	const recommendedTask = chooseRecommendedTask(tasks, context);
@@ -530,10 +533,9 @@ function TimetableSimpleHeaderImpl({
 			: '';
 
 	const handlePublishClick = () => {
-		if (isRunPublished) return; // Already published, nothing to do
+		if (isRunPublished) return;
 		if (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0) {
-			context.setLeftTab('violations');
-			onTaskChange('review-issues');
+			setReadinessSheetOpen(true);
 			return;
 		}
 		context.setPublishAcknowledged(false);
@@ -652,14 +654,29 @@ function TimetableSimpleHeaderImpl({
 					{visibleRunId ? <span className="hidden sm:inline">· Run #{visibleRunId}</span> : null}
 				</Badge>
 
-				<Badge
-					variant={context.hardCount > 0 ? 'destructive' : 'secondary'}
-					className="h-5 shrink-0 gap-1.5 px-2 text-xs font-semibold sm:h-6"
-					data-testid="timetable-simple-readiness-chip"
-				>
-					<CheckCircle2 className="size-3.5" aria-hidden="true" />
-					{readiness}
-				</Badge>
+				{publishBlocked ? (
+					<button
+						type="button"
+						className={cn(
+							'h-5 shrink-0 gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6',
+							'border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20',
+						)}
+						data-testid="timetable-simple-readiness-chip"
+						onClick={() => setReadinessSheetOpen(true)}
+					>
+						<AlertTriangle className="size-3.5" aria-hidden="true" />
+						{readiness}
+					</button>
+				) : (
+					<Badge
+						variant={context.hardCount > 0 ? 'destructive' : 'secondary'}
+						className="h-5 shrink-0 gap-1.5 px-2 text-xs font-semibold sm:h-6"
+						data-testid="timetable-simple-readiness-chip"
+					>
+						<CheckCircle2 className="size-3.5" aria-hidden="true" />
+						{readiness}
+					</Badge>
+				)}
 				<Badge
 					variant="outline"
 					className={cn(
@@ -1028,12 +1045,15 @@ function TimetableSimpleHeaderImpl({
 					</div>
 
 					{publishBlocked && (
-						<div
-							className="hidden min-w-0 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 sm:flex"
+						<button
+							type="button"
+							className="hidden min-w-0 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100 sm:flex"
 							data-testid="timetable-publish-readiness-summary"
+							onClick={() => setReadinessSheetOpen(true)}
 						>
 							<span className="truncate">{publishBlockedReason}</span>
-						</div>
+							<ChevronRight className="size-3 shrink-0" aria-hidden="true" />
+						</button>
 					)}
 					{isRunPublished && !publishBlocked && (context.summary?.unassignedCount ?? 0) > 0 && (
 						<div
@@ -1075,6 +1095,34 @@ function TimetableSimpleHeaderImpl({
 				</div>
 			</div>
 			)}
+
+			<SimplePublishReadinessSheet
+				open={readinessSheetOpen}
+				onOpenChange={setReadinessSheetOpen}
+				draft={context.draft}
+				violations={context.violations}
+				sectionLabel={context.pivotLabel}
+				subjectLabel={(id) => {
+					const label = context.pivotLabel(id);
+					return label !== String(id) ? label : `Subject ${id}`;
+				}}
+				facultyLabel={(id) => {
+					const label = context.pivotLabel(id);
+					return label !== String(id) ? label : `Teacher ${id}`;
+				}}
+				onNavigateToRepair={(href, reason) => {
+					if (href === '/teaching-load') {
+						context.setLeftTab('violations');
+						onTaskChange('review-issues');
+					} else if (href === '/campus-rooms') {
+						window.location.href = href;
+					} else if (reason === 'NO_AVAILABLE_SLOT') {
+						context.setLeftTab('unassigned');
+						context.setPresentationMode('workflow');
+						onTaskChange('place-unresolved');
+					}
+				}}
+			/>
 		</header>
 	);
 }
