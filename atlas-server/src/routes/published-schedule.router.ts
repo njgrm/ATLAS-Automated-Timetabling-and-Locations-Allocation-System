@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import {
 	getPublishedFacultySchedule,
+	getPublishedFacultyScheduleByExternalId,
 	getPublishedRoomSchedule,
 	getPublishedSchedulePayload,
 	getPublishedSectionSchedule,
@@ -40,6 +42,15 @@ function readScheduleOptions(req: Request) {
 	};
 }
 
+async function resolveActiveSchoolYearId(schoolId: number): Promise<number | null> {
+	const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+		where: { schoolId, isActive: true },
+		orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+		select: { enrollProSchoolYearId: true },
+	});
+	return mirror?.enrollProSchoolYearId ?? null;
+}
+
 router.get('/schools/:schoolId/schedules/published', async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -48,8 +59,38 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 			return;
 		}
 
-		const payload = await getPublishedSchedulePayload(schoolId, undefined, readScheduleOptions(req));
-		res.json(payload);
+		// Resolve the current active school year from the EnrollPro mirror
+		const activeMirror = await prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId, isActive: true },
+			orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+			select: { enrollProSchoolYearId: true },
+		});
+
+		if (!activeMirror) {
+			res.status(404).json({
+				code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+				message: 'No active school year is configured. Cannot resolve the current published schedule.',
+				actionHint: 'Configure an active school year in EnrollPro settings before AIMS syncs.',
+			});
+			return;
+		}
+
+		const activeSchoolYearId = activeMirror.enrollProSchoolYearId;
+		try {
+			const payload = await getPublishedSchedulePayload(schoolId, activeSchoolYearId, readScheduleOptions(req));
+			res.json(payload);
+		} catch (serviceError: any) {
+			// Transform PUBLISHED_RUN_NOT_FOUND into a current-year-specific message
+			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+				res.status(404).json({
+					code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+					message: `No published schedule is available for the current school year (${activeSchoolYearId}) yet.`,
+					actionHint: 'Build Teaching Load, generate a timetable, and publish the current school-year schedule before AIMS syncs.',
+				});
+				return;
+			}
+			throw serviceError;
+		}
 	} catch (error) {
 		next(error);
 	}
@@ -68,8 +109,30 @@ router.get('/schools/:schoolId/schedules/published/sections/:sectionId', async (
 			return;
 		}
 
-		const payload = await getPublishedSectionSchedule(schoolId, sectionId, undefined, readScheduleOptions(req));
-		res.json(payload);
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		if (!activeSchoolYearId) {
+			res.status(404).json({
+				code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+				message: 'No active school year is configured. Cannot resolve the current published schedule.',
+				actionHint: 'Configure an active school year in EnrollPro settings before AIMS syncs.',
+			});
+			return;
+		}
+
+		try {
+			const payload = await getPublishedSectionSchedule(schoolId, sectionId, activeSchoolYearId, readScheduleOptions(req));
+			res.json(payload);
+		} catch (serviceError: any) {
+			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+				res.status(404).json({
+					code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+					message: `No published schedule is available for the current school year (${activeSchoolYearId}) yet.`,
+					actionHint: 'Build Teaching Load, generate a timetable, and publish the current school-year schedule before AIMS syncs.',
+				});
+				return;
+			}
+			throw serviceError;
+		}
 	} catch (error) {
 		next(error);
 	}
@@ -88,8 +151,112 @@ router.get('/schools/:schoolId/schedules/published/faculty/:facultyId', async (r
 			return;
 		}
 
-		const payload = await getPublishedFacultySchedule(schoolId, facultyId, undefined, readScheduleOptions(req));
-		res.json(payload);
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		if (!activeSchoolYearId) {
+			res.status(404).json({
+				code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+				message: 'No active school year is configured. Cannot resolve the current published schedule.',
+				actionHint: 'Configure an active school year in EnrollPro settings before AIMS syncs.',
+			});
+			return;
+		}
+
+		try {
+			const payload = await getPublishedFacultySchedule(schoolId, facultyId, activeSchoolYearId, readScheduleOptions(req));
+			res.json(payload);
+		} catch (serviceError: any) {
+			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+				res.status(404).json({
+					code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+					message: `No published schedule is available for the current school year (${activeSchoolYearId}) yet.`,
+					actionHint: 'Build Teaching Load, generate a timetable, and publish the current school-year schedule before AIMS syncs.',
+				});
+				return;
+			}
+			throw serviceError;
+		}
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.get('/schools/:schoolId/schedules/published/faculty-external/:externalFacultyId', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+		if (typeof schoolId === 'string') {
+			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+			return;
+		}
+		const externalFacultyId = positiveInt(req.params.externalFacultyId, 'externalFacultyId');
+		if (typeof externalFacultyId === 'string') {
+			res.status(400).json({ code: 'INVALID_PARAM', message: externalFacultyId });
+			return;
+		}
+
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		if (!activeSchoolYearId) {
+			res.status(404).json({
+				code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+				message: 'No active school year is configured. Cannot resolve the current published schedule.',
+				actionHint: 'Configure an active school year in EnrollPro settings before AIMS syncs.',
+			});
+			return;
+		}
+
+		try {
+			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, activeSchoolYearId, readScheduleOptions(req));
+			res.json(payload);
+		} catch (serviceError: any) {
+			if (serviceError?.code === 'FACULTY_NOT_FOUND') {
+				res.status(404).json({
+					code: 'FACULTY_NOT_FOUND',
+					message: `No faculty member with external ID ${externalFacultyId} found for school ${schoolId}.`,
+				});
+				return;
+			}
+			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+				res.status(404).json({
+					code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+					message: `No published schedule is available for the current school year (${activeSchoolYearId}) yet.`,
+					actionHint: 'Build Teaching Load, generate a timetable, and publish the current school-year schedule before AIMS syncs.',
+				});
+				return;
+			}
+			throw serviceError;
+		}
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/faculty-external/:externalFacultyId', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+		if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+		const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+		if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+		const externalFacultyId = positiveInt(req.params.externalFacultyId, 'externalFacultyId');
+		if (typeof externalFacultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: externalFacultyId }); return; }
+
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		try {
+			const payload = await getPublishedFacultyScheduleByExternalId(schoolId, externalFacultyId, schoolYearId, readScheduleOptions(req));
+			if (payload && typeof payload === 'object' && 'source' in payload) {
+				const source = (payload as { source: Record<string, unknown> }).source;
+				source.isActiveSchoolYear = activeSchoolYearId === schoolYearId;
+				source.isHistorical = activeSchoolYearId !== schoolYearId;
+			}
+			res.json(payload);
+		} catch (serviceError: any) {
+			if (serviceError?.code === 'FACULTY_NOT_FOUND') {
+				res.status(404).json({
+					code: 'FACULTY_NOT_FOUND',
+					message: `No faculty member with external ID ${externalFacultyId} found for school ${schoolId}.`,
+				});
+				return;
+			}
+			throw serviceError;
+		}
 	} catch (error) {
 		next(error);
 	}
@@ -108,7 +275,114 @@ router.get('/schools/:schoolId/schedules/published/rooms/:roomId', async (req: R
 			return;
 		}
 
-		const payload = await getPublishedRoomSchedule(schoolId, roomId, undefined, readScheduleOptions(req));
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		if (!activeSchoolYearId) {
+			res.status(404).json({
+				code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+				message: 'No active school year is configured. Cannot resolve the current published schedule.',
+				actionHint: 'Configure an active school year in EnrollPro settings before AIMS syncs.',
+			});
+			return;
+		}
+
+		try {
+			const payload = await getPublishedRoomSchedule(schoolId, roomId, activeSchoolYearId, readScheduleOptions(req));
+			res.json(payload);
+		} catch (serviceError: any) {
+			if (serviceError?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+				res.status(404).json({
+					code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
+					message: `No published schedule is available for the current school year (${activeSchoolYearId}) yet.`,
+					actionHint: 'Build Teaching Load, generate a timetable, and publish the current school-year schedule before AIMS syncs.',
+				});
+				return;
+			}
+			throw serviceError;
+		}
+	} catch (error) {
+		next(error);
+	}
+});
+
+// ─── Explicit school-year routes ───
+// AIMS uses these to request current or historical schedules intentionally.
+
+router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+		if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+		const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+		if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, readScheduleOptions(req), undefined, activeSchoolYearId);
+		res.json(payload);
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/sections/:sectionId', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+		if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+		const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+		if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+		const sectionId = positiveInt(req.params.sectionId, 'sectionId');
+		if (typeof sectionId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: sectionId }); return; }
+
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		const payload = await getPublishedSectionSchedule(schoolId, sectionId, schoolYearId, readScheduleOptions(req));
+		// Attach active school year metadata to section payload
+		if (payload && typeof payload === 'object' && 'source' in payload) {
+			const source = (payload as { source: Record<string, unknown> }).source;
+			source.isActiveSchoolYear = activeSchoolYearId === schoolYearId;
+			source.isHistorical = activeSchoolYearId !== schoolYearId;
+		}
+		res.json(payload);
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/faculty/:facultyId', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+		if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+		const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+		if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+		const facultyId = positiveInt(req.params.facultyId, 'facultyId');
+		if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
+
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		const payload = await getPublishedFacultySchedule(schoolId, facultyId, schoolYearId, readScheduleOptions(req));
+		if (payload && typeof payload === 'object' && 'source' in payload) {
+			const source = (payload as { source: Record<string, unknown> }).source;
+			source.isActiveSchoolYear = activeSchoolYearId === schoolYearId;
+			source.isHistorical = activeSchoolYearId !== schoolYearId;
+		}
+		res.json(payload);
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.get('/schools/:schoolId/school-years/:schoolYearId/schedules/published/rooms/:roomId', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+		if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+		const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+		if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+		const roomId = positiveInt(req.params.roomId, 'roomId');
+		if (typeof roomId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: roomId }); return; }
+
+		const activeSchoolYearId = await resolveActiveSchoolYearId(schoolId);
+		const payload = await getPublishedRoomSchedule(schoolId, roomId, schoolYearId, readScheduleOptions(req));
+		if (payload && typeof payload === 'object' && 'source' in payload) {
+			const source = (payload as { source: Record<string, unknown> }).source;
+			source.isActiveSchoolYear = activeSchoolYearId === schoolYearId;
+			source.isHistorical = activeSchoolYearId !== schoolYearId;
+		}
 		res.json(payload);
 	} catch (error) {
 		next(error);

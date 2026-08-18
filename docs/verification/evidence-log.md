@@ -5543,3 +5543,77 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 - Phase 0A/0B/0C, Phase 1 Sections, Phase 2 Subjects, Phase 3 Teachers, and Phase 4 Teaching Load are `GO` from this audit pass.
 - No concrete page blocker remains in the audited phase scope.
 - Generated `atlas-client/dist` assets changed because the production build was run as part of verification.
+
+---
+
+# 2026-08-18 — AIMS Teaching Load & Published Schedule Contract Sequence (Prompts 01–07)
+
+- **Date/Time:** 2026-08-18
+- **Operator:** Mimo (ATLAS executor)
+- **Environment:** Live Tailnet `https://njgrm.buru-degree.ts.net`
+- **Active school year (runtime):** 2 (2026-08-18 probe)
+- **Historical published run:** ID 425, schoolYearId 5
+
+## Summary of Changes
+
+### Prompt 01–03: Baseline, Current-Year Guard, Explicit School-Year Routes
+- Default `/published` endpoint resolves active school year and returns 404 `CURRENT_PUBLISHED_RUN_NOT_FOUND` when no active-year published run exists.
+- Added explicit `/school-years/:schoolYearId/schedules/published` routes with `isActiveSchoolYear`/`isHistorical` metadata.
+
+### Prompt 04: Legacy Scoped Routes Fixed
+- Legacy scoped routes (`/sections/:sectionId`, `/faculty/:facultyId`, `/rooms/:roomId`) now resolve the active school year and no longer fall back to historical published runs.
+
+### Prompt 05: External ID Payload Contract
+- Published schedule entries now include `faculty.atlasId`, `faculty.externalId`, `faculty.employeeId`, `faculty.isPlaceholder`.
+- Published schedule entries now include `section.atlasId` and `section.externalId`.
+- Added `GET /schools/:schoolId/schedules/published/faculty-external/:externalFacultyId` route for EnrollPro-compatible faculty lookup.
+
+### Prompt 06: AIMS Documentation Handoff
+- Rewrote `docs/guides/AIMS_FETCH_PUBLISHED_SCHEDULES_GUIDE.md` with full contract specification.
+
+### Prompt 07: UI Cleanup
+- Replaced raw `title={...}` attributes in `AutoFillSummaryModal.tsx` suggested assignment preview list with Radix `Tooltip` components.
+- Renamed code comment from "Preview Suggested Rows" to "Preview New Assignments".
+- No counts, API behavior, or modal control flow were changed.
+
+## Tailnet Evidence
+
+| Test | Endpoint | Result |
+|------|----------|--------|
+| Default endpoint returns 404 | `GET /api/v1/schools/1/schedules/published` | 404 `CURRENT_PUBLISHED_RUN_NOT_FOUND` |
+| Explicit school-year returns historical data | `GET /api/v1/schools/1/school-years/5/schedules/published` | 200, `isHistorical=true`, 830 entries |
+| External IDs present | Same as above | `faculty.atlasId=24263`, `faculty.externalId=17`, `section.externalId=104`, `section.atlasId=11667` |
+| External faculty route works | `GET /api/v1/schools/1/school-years/5/schedules/published/faculty-external/17` | 200, 30 entries, all match externalId=17 |
+| Legacy section returns 404 | `GET /api/v1/schools/1/schedules/published/sections/104` | 404 |
+| Legacy faculty returns 404 | `GET /api/v1/schools/1/schedules/published/faculty/24263` | 404 |
+| Legacy room returns 404 | `GET /api/v1/schools/1/schedules/published/rooms/161` | 404 |
+| Missing external faculty returns 404 | `GET /api/v1/schools/1/school-years/5/schedules/published/faculty-external/999999` | 404 `FACULTY_NOT_FOUND` |
+
+## Test Results
+
+| Test File | Assertions | Pass | Fail |
+|-----------|-----------|------|------|
+| `teaching-load-suggestion-preview.test.ts` | 1598 | 1598 | 0 |
+| `published-schedule-external-id-contract.test.ts` | 23 | 23 | 0 |
+| `published-schedule-legacy-scoped-routes.test.ts` | 21 | 21 | 0 |
+| `published-schedule-school-year-routes.test.ts` | 10 | 10 | 0 |
+| `aims-teaching-load-proposal-isolation.test.ts` | 17 | 17 | 0 |
+| `published-schedule-current-year.test.ts` | 4 | 4 | 0 |
+| **Total** | **1673** | **1673** | **0** |
+
+## Build Verification
+
+- `atlas-server`: `npx tsc --noEmit` — PASS
+- `atlas-client`: `npx tsc --noEmit` — PASS
+- `atlas-client`: `npm run build` — PASS
+
+## Remaining Caveats
+
+- The `schoolYearLabel` is resolved from `enrollProSchoolYearMirror` and may be `null` if the mirror record doesn't exist for the requested year.
+- The existing `/:termId` routes are unchanged and continue to work as before.
+- The `faculty.id` and `section.id` fields are preserved for backward compatibility alongside the new `atlasId`/`externalId` fields.
+
+## Decision
+
+- All AIMS published schedule contract prompts (01–07) are **GO**.
+- The sequence is closed and ready for QA sign-off.

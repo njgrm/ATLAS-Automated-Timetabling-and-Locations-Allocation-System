@@ -3,6 +3,7 @@ import { AlertTriangle, BadgeCheck, Building2, ChevronDown, ChevronRight, Users2
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
 import {
 	Dialog,
 	DialogContent,
@@ -59,32 +60,49 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 
 	return (
 		<div className="space-y-2">
-			<div className="rounded-xl border border-border/60 bg-background overflow-hidden">
-				<div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 bg-muted/50 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground border-b border-border/40">
-					<span>Subject</span>
-					<span>Section</span>
-					<span>Teacher</span>
-					<span className="text-right">Type</span>
-				</div>
-				{visibleRows.map((row, idx) => {
-					const config = ASSIGNMENT_TYPE_CONFIG[row.assignmentType] ?? ASSIGNMENT_TYPE_CONFIG.REAL_TEACHER;
-					const TypeIcon = config.icon;
-					return (
-						<div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 text-[0.65rem] border-b border-border/20 last:border-b-0 hover:bg-muted/20 transition-colors">
-							<div className="font-bold text-foreground truncate" title={row.subjectName}>{row.subjectCode}</div>
-							<div className="text-muted-foreground truncate" title={row.sectionName}>{row.sectionName}</div>
-							<div className="text-muted-foreground truncate" title={row.facultyName}>{row.facultyName}</div>
-							<div className={`flex items-center gap-1 shrink-0 rounded-md border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase ${config.className}`}>
-								<TypeIcon className="size-3" />
-								<span className="hidden sm:inline">{config.label}</span>
+			<TooltipProvider>
+				<div className="rounded-xl border border-border/60 bg-background overflow-hidden">
+					<div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 bg-muted/50 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground border-b border-border/40">
+						<span>Subject</span>
+						<span>Section</span>
+						<span>Teacher</span>
+						<span className="text-right">Type</span>
+					</div>
+					{visibleRows.map((row, idx) => {
+						const config = ASSIGNMENT_TYPE_CONFIG[row.assignmentType] ?? ASSIGNMENT_TYPE_CONFIG.REAL_TEACHER;
+						const TypeIcon = config.icon;
+						return (
+							<div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 text-[0.65rem] border-b border-border/20 last:border-b-0 hover:bg-muted/20 transition-colors">
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="font-bold text-foreground truncate">{row.subjectCode}</div>
+									</TooltipTrigger>
+									<TooltipContent side="top">{row.subjectName}</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="text-muted-foreground truncate">{row.sectionName}</div>
+									</TooltipTrigger>
+									<TooltipContent side="top">{row.sectionName}</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="text-muted-foreground truncate">{row.facultyName}</div>
+									</TooltipTrigger>
+									<TooltipContent side="top">{row.facultyName}</TooltipContent>
+								</Tooltip>
+								<div className={`flex items-center gap-1 shrink-0 rounded-md border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase ${config.className}`}>
+									<TypeIcon className="size-3" />
+									<span className="hidden sm:inline">{config.label}</span>
+								</div>
+								{row.warning && (
+									<div className="col-span-4 text-[0.6rem] text-amber-700 font-semibold mt-0.5">{row.warning}</div>
+								)}
 							</div>
-							{row.warning && (
-								<div className="col-span-4 text-[0.6rem] text-amber-700 font-semibold mt-0.5">{row.warning}</div>
-							)}
-						</div>
-					);
-				})}
-			</div>
+						);
+					})}
+				</div>
+			</TooltipProvider>
 			{hasMore && (
 				<Button type="button" variant="ghost" size="sm" onClick={() => setShowAll(!showAll)} className="h-7 text-xs font-bold">
 					{showAll ? <><EyeOff className="size-3 mr-1" /> Hide new assignments</> : <><Eye className="size-3 mr-1" /> View all {rows.length} new assignments</>}
@@ -510,7 +528,7 @@ export function AutoFillSummaryModal({
 							</div>
 						)}
 
-						{/* Preview Suggested Rows — rendered after both shortage and complete-coverage branches */}
+						{/* Preview New Assignments — rendered after both shortage and complete-coverage branches */}
 						{!reviewOnly && result && breakdown.newSuggestedRows > 0 && result.suggestedRows && result.suggestedRows.length > 0 && (() => {
 							const newRows = result.suggestedRows.filter(
 								(r) => r.assignmentType === 'REAL_TEACHER' || r.assignmentType === 'TEMPORARY_SUBSTITUTE',
