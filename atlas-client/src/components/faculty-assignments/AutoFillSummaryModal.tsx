@@ -87,7 +87,7 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 			</div>
 			{hasMore && (
 				<Button type="button" variant="ghost" size="sm" onClick={() => setShowAll(!showAll)} className="h-7 text-xs font-bold">
-					{showAll ? <><EyeOff className="size-3 mr-1" /> Hide suggested rows</> : <><Eye className="size-3 mr-1" /> View all {rows.length} suggested rows</>}
+					{showAll ? <><EyeOff className="size-3 mr-1" /> Hide new assignments</> : <><Eye className="size-3 mr-1" /> View all {rows.length} new assignments</>}
 				</Button>
 			)}
 		</div>
@@ -98,41 +98,38 @@ function formatHires(value: number): string {
 	return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
-function suggestedAssignmentCount(result: AutoFillSummaryResult | null, coverageMode: CoverageMode): number {
-	if (!result) return 0;
-	if ((result.assignmentsCreated ?? 0) > 0) return result.assignmentsCreated;
-	const truth = result.staffingTruth;
-	if (!truth) return 0;
-	if (coverageMode === 'REAL_FACULTY_STANDARD') {
-		return Math.max(0, truth.realOnly.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
+type EffectiveBreakdown = { existingRows: number; realTeacherRows: number; substituteRows: number; newSuggestedRows: number; previewRowCount: number; unresolvedRows: number };
+
+function buildBreakdownFromSuggestedRows(result: AutoFillSummaryResult): EffectiveBreakdown {
+	const rows = result.suggestedRows ?? [];
+	let existingRows = 0;
+	let realTeacherRows = 0;
+	let substituteRows = 0;
+	for (const row of rows) {
+		if (row.assignmentType === 'KEPT_EXISTING') existingRows++;
+		else if (row.assignmentType === 'REAL_TEACHER') realTeacherRows++;
+		else if (row.assignmentType === 'TEMPORARY_SUBSTITUTE') substituteRows++;
+		else realTeacherRows++;
 	}
-	if (coverageMode === 'REAL_FACULTY_HARD_CAP') {
-		return Math.max(0, truth.hardCap.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
-	}
-	return Math.max(0, truth.teacherX.rowsClosedByRealFaculty + truth.teacherX.rowsClosedByTeacherX - truth.baseline.realCoveredRows - truth.baseline.syntheticCoveredRows);
+	const newSuggestedRows = realTeacherRows + substituteRows;
+	const previewRowCount = rows.length;
+	return { existingRows, realTeacherRows, substituteRows, newSuggestedRows, previewRowCount, unresolvedRows: result.unresolved ?? 0 };
 }
 
-function suggestedAssignmentBreakdown(result: AutoFillSummaryResult | null, coverageMode: CoverageMode): { realTeacherRows: number; substituteRows: number; existingRows: number; unresolvedRows: number } {
-	if (!result) return { realTeacherRows: 0, substituteRows: 0, existingRows: 0, unresolvedRows: 0 };
-	const truth = result.staffingTruth;
-	const existingRows = result.preserved ?? 0;
-	const unresolvedRows = result.unresolved ?? 0;
-
-	if (coverageMode === 'REAL_FACULTY_STANDARD') {
-		const realRows = truth ? Math.max(0, truth.realOnly.rowsClosedByRealFaculty - truth.baseline.realCoveredRows) : (result.assignmentsCreated ?? 0);
-		return { realTeacherRows: realRows, substituteRows: 0, existingRows, unresolvedRows };
+function getEffectiveBreakdown(result: AutoFillSummaryResult | null, coverageMode: CoverageMode): EffectiveBreakdown {
+	if (!result) return { existingRows: 0, realTeacherRows: 0, substituteRows: 0, newSuggestedRows: 0, previewRowCount: 0, unresolvedRows: 0 };
+	if (result.suggestedAssignmentBreakdown) {
+		const b = result.suggestedAssignmentBreakdown;
+		return {
+			existingRows: b.existingRows,
+			realTeacherRows: b.realTeacherRows,
+			substituteRows: b.substituteRows,
+			newSuggestedRows: b.newSuggestedRows,
+			previewRowCount: b.previewRowCount,
+			unresolvedRows: b.unresolvedRows,
+		};
 	}
-	if (coverageMode === 'REAL_FACULTY_HARD_CAP') {
-		const realRows = truth ? Math.max(0, truth.hardCap.rowsClosedByRealFaculty - truth.baseline.realCoveredRows) : (result.assignmentsCreated ?? 0);
-		return { realTeacherRows: realRows, substituteRows: 0, existingRows, unresolvedRows };
-	}
-	// REAL_FACULTY_THEN_TEACHER_X
-	if (truth) {
-		const realRows = Math.max(0, truth.teacherX.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
-		const subRows = Math.max(0, truth.teacherX.rowsClosedByTeacherX - truth.baseline.syntheticCoveredRows);
-		return { realTeacherRows: realRows, substituteRows: subRows, existingRows, unresolvedRows };
-	}
-	return { realTeacherRows: result.assignmentsCreated ?? 0, substituteRows: 0, existingRows, unresolvedRows };
+	return buildBreakdownFromSuggestedRows(result);
 }
 
 export function AutoFillSummaryModal({
@@ -171,8 +168,8 @@ export function AutoFillSummaryModal({
 		stub: 'Stub Data',
 	};
 	const sectionSourceLabel = sourceLabelMap[sectionSource];
-	const suggestedRows = suggestedAssignmentCount(result, coverageMode);
-	const breakdown = suggestedAssignmentBreakdown(result, coverageMode);
+	const breakdown = getEffectiveBreakdown(result, coverageMode);
+	const suggestedRows = breakdown.realTeacherRows + breakdown.substituteRows;
 	const sourceToneClass = sectionSource === 'enrollpro'
 		? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
 		: sectionSource === 'stub'
@@ -463,19 +460,6 @@ export function AutoFillSummaryModal({
 										</p>
 									</div>
 								</div>
-
-								{/* Preview Suggested Rows */}
-								{!reviewOnly && result.suggestedRows && result.suggestedRows.length > 0 && (
-									<div className="space-y-3 pt-2">
-										<div className="flex items-center justify-between">
-											<h4 className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-												<Eye className="size-3.5" /> Preview Suggested Rows
-											</h4>
-											<span className="text-[0.65rem] text-muted-foreground font-bold uppercase">{result.suggestedRows.length} Rows</span>
-										</div>
-										<SuggestedRowsPreviewList rows={result.suggestedRows} />
-									</div>
-								)}
 							</div>
 						) : hasResult && result && !hasShortage ? (
 							<div className="flex flex-col items-center justify-center py-12 text-center space-y-6 max-w-sm mx-auto">
@@ -525,6 +509,24 @@ export function AutoFillSummaryModal({
 								<p className="font-bold text-sm uppercase tracking-widest animate-pulse">Analyzing staffing demand...</p>
 							</div>
 						)}
+
+						{/* Preview Suggested Rows — rendered after both shortage and complete-coverage branches */}
+						{!reviewOnly && result && breakdown.newSuggestedRows > 0 && result.suggestedRows && result.suggestedRows.length > 0 && (() => {
+							const newRows = result.suggestedRows.filter(
+								(r) => r.assignmentType === 'REAL_TEACHER' || r.assignmentType === 'TEMPORARY_SUBSTITUTE',
+							);
+							return newRows.length > 0 ? (
+								<div className="max-w-3xl mx-auto space-y-3 pt-4 border-t border-border/40">
+									<div className="flex items-center justify-between">
+										<h4 className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+											<Eye className="size-3.5" /> Preview New Assignments
+										</h4>
+										<span className="text-[0.65rem] text-muted-foreground font-bold uppercase">{breakdown.newSuggestedRows} New Assignment{breakdown.newSuggestedRows === 1 ? '' : 's'}</span>
+									</div>
+									<SuggestedRowsPreviewList rows={newRows} />
+								</div>
+							) : null;
+						})()}
 					</div>
 				</div>
 

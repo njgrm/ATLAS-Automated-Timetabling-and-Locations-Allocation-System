@@ -1953,6 +1953,67 @@ export async function autoFill(
 		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE)
 		: selectedStaffingReport;
 
+	// ─── Build suggestedRows preview from the actual assignment plan ──────
+	const suggestedRows: SuggestedRowPreview[] = [];
+
+	// 1. KEPT_EXISTING: existing ownerships that were already resolved
+	for (const ownership of existingOwnerships) {
+		const sectionMeta_ = sectionMeta.get(ownership.sectionId);
+		const subjectRow_ = subjects.find((s) => s.id === ownership.subjectId);
+		const facultyMember = faculty.find((m) => m.id === ownership.facultyId);
+		suggestedRows.push({
+			subjectId: ownership.subjectId,
+			subjectCode: subjectRow_?.code ?? `Subject #${ownership.subjectId}`,
+			subjectName: subjectRow_?.name ?? `Subject #${ownership.subjectId}`,
+			sectionId: ownership.sectionId,
+			sectionName: sectionMeta_?.sectionName ?? `Section ${ownership.sectionId}`,
+			facultyId: ownership.facultyId,
+			facultyName: facultyMember ? `${facultyMember.lastName}, ${facultyMember.firstName}` : `Faculty #${ownership.facultyId}`,
+			assignmentType: 'KEPT_EXISTING',
+			warning: null,
+		});
+	}
+
+	// 2. REAL_TEACHER: proposed new assignments from pendingAssignments
+	for (const [facultyId, subjectMap_] of pendingAssignments) {
+		const facultyMember = faculty.find((m) => m.id === facultyId);
+		const facultyName = facultyMember ? `${facultyMember.lastName}, ${facultyMember.firstName}` : `Faculty #${facultyId}`;
+		for (const [subjectId, sectionIds] of subjectMap_) {
+			const subjectRow_ = subjects.find((s) => s.id === subjectId);
+			for (const sectionId of sectionIds) {
+				const sectionMeta_ = sectionMeta.get(sectionId);
+				suggestedRows.push({
+					subjectId,
+					subjectCode: subjectRow_?.code ?? `Subject #${subjectId}`,
+					subjectName: subjectRow_?.name ?? `Subject #${subjectId}`,
+					sectionId,
+					sectionName: sectionMeta_?.sectionName ?? `Section ${sectionId}`,
+					facultyId,
+					facultyName,
+					assignmentType: 'REAL_TEACHER',
+					warning: null,
+				});
+			}
+		}
+	}
+
+	// 3. TEMPORARY_SUBSTITUTE: unresolved pairs (in substitute mode, these will get placeholder teachers)
+	if (coverageMode === 'REAL_FACULTY_THEN_TEACHER_X') {
+		for (const pair of unresolvedPairs) {
+			suggestedRows.push({
+				subjectId: pair.subjectId,
+				subjectCode: pair.subject.code,
+				subjectName: pair.subject.name,
+				sectionId: pair.sectionId,
+				sectionName: pair.sectionName,
+				facultyId: null,
+				facultyName: 'Temporary substitute',
+				assignmentType: 'TEMPORARY_SUBSTITUTE',
+				warning: null,
+			});
+		}
+	}
+
 	return {
 		preserved,
 		created: totalCreated,
@@ -1966,6 +2027,7 @@ export async function autoFill(
 		staffingReport,
 		staffingTruth,
 		teacherXResolution,
+		suggestedRows,
 	};
 }
 

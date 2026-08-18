@@ -31,7 +31,8 @@ type ProposalSummary = {
 		existingRows: number;
 		realTeacherRows: number;
 		substituteRows: number;
-		totalSuggestedRows: number;
+		newSuggestedRows: number;
+		previewRowCount: number;
 		unresolvedRows: number;
 	};
 };
@@ -62,97 +63,43 @@ function err(
 }
 
 function suggestedAssignmentCount(result: AutoFillResult): number {
-	const breakdown = suggestedAssignmentBreakdown(result);
-	return breakdown.realTeacherRows + breakdown.substituteRows;
+	return (result.suggestedRows ?? []).filter(
+		(r) => r.assignmentType === 'REAL_TEACHER' || r.assignmentType === 'TEMPORARY_SUBSTITUTE',
+	).length;
 }
 
-function suggestedAssignmentBreakdown(result: AutoFillResult): { existingRows: number; realTeacherRows: number; substituteRows: number; totalSuggestedRows: number; unresolvedRows: number } {
-	const truth = result.staffingTruth;
-	const existingRows = result.preserved ?? 0;
+function suggestedAssignmentBreakdown(result: AutoFillResult): { existingRows: number; realTeacherRows: number; substituteRows: number; newSuggestedRows: number; previewRowCount: number; unresolvedRows: number } {
+	const suggestedRows = result.suggestedRows ?? [];
 	const unresolvedRows = result.unresolved ?? 0;
 
+	let existingRows = 0;
 	let realTeacherRows = 0;
 	let substituteRows = 0;
 
-	if (truth) {
-		if (result.coverageMode === 'REAL_FACULTY_STANDARD') {
-			realTeacherRows = Math.max(0, truth.realOnly.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
-		} else if (result.coverageMode === 'REAL_FACULTY_HARD_CAP') {
-			realTeacherRows = Math.max(0, truth.hardCap.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
-		} else {
-			// REAL_FACULTY_THEN_TEACHER_X
-			realTeacherRows = Math.max(0, truth.teacherX.rowsClosedByRealFaculty - truth.baseline.realCoveredRows);
-			substituteRows = Math.max(0, truth.teacherX.rowsClosedByTeacherX - truth.baseline.syntheticCoveredRows);
+	for (const row of suggestedRows) {
+		switch (row.assignmentType) {
+			case 'KEPT_EXISTING':
+				existingRows++;
+				break;
+			case 'REAL_TEACHER':
+				realTeacherRows++;
+				break;
+			case 'TEMPORARY_SUBSTITUTE':
+				substituteRows++;
+				break;
+			default:
+				realTeacherRows++;
+				break;
 		}
-	} else {
-		realTeacherRows = result.assignmentsCreated ?? 0;
 	}
 
-	const totalSuggestedRows = realTeacherRows + substituteRows;
-	return { existingRows, realTeacherRows, substituteRows, totalSuggestedRows, unresolvedRows };
+	const newSuggestedRows = realTeacherRows + substituteRows;
+	const previewRowCount = suggestedRows.length;
+	return { existingRows, realTeacherRows, substituteRows, newSuggestedRows, previewRowCount, unresolvedRows };
 }
 
 function toJsonValue(result: AutoFillResult): Prisma.InputJsonValue {
 	return JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue;
-}
-
-type SuggestedRowPreview = {
-	subjectId: number;
-	subjectCode: string;
-	subjectName: string;
-	sectionId: number;
-	sectionName: string;
-	facultyId: number | null;
-	facultyName: string;
-	assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'TEMPORARY_SUBSTITUTE';
-	warning?: string | null;
-};
-
-function buildSuggestedRowsPreview(
-	result: AutoFillResult,
-	breakdown: { existingRows: number; realTeacherRows: number; substituteRows: number; totalSuggestedRows: number; unresolvedRows: number },
-): SuggestedRowPreview[] {
-	const rows: SuggestedRowPreview[] = [];
-	const report = result.staffingReport;
-
-	// Build rows from the shortage sections in the staffing report
-	let realCount = 0;
-	let subCount = 0;
-	for (const shortage of report.shortages) {
-		for (const section of shortage.sections) {
-			if (realCount < breakdown.realTeacherRows) {
-				rows.push({
-					subjectId: section.subjectId,
-					subjectCode: section.subjectCode,
-					subjectName: section.subjectName,
-					sectionId: section.sectionId,
-					sectionName: section.sectionName,
-					facultyId: null,
-					facultyName: 'Suggested (real teacher)',
-					assignmentType: 'REAL_TEACHER',
-					warning: null,
-				});
-				realCount++;
-			} else if (subCount < breakdown.substituteRows) {
-				rows.push({
-					subjectId: section.subjectId,
-					subjectCode: section.subjectCode,
-					subjectName: section.subjectName,
-					sectionId: section.sectionId,
-					sectionName: section.sectionName,
-					facultyId: null,
-					facultyName: 'Temporary substitute',
-					assignmentType: 'TEMPORARY_SUBSTITUTE',
-					warning: null,
-				});
-				subCount++;
-			}
-			if (realCount + subCount >= breakdown.totalSuggestedRows) break;
-		}
-		if (realCount + subCount >= breakdown.totalSuggestedRows) break;
-	}
-
-	return rows;
 }
 
 function summarizeProposal(row: ProposalSummary): ProposalSummary {
@@ -194,7 +141,7 @@ export async function createTeachingLoadSuggestionProposal(input: {
 				previewPayload: toJsonValue(preview),
 				sectionSource: preview.sectionSource,
 				sectionFallbackReason: preview.sectionFallbackReason,
-				suggestedAssignmentCount: breakdown.totalSuggestedRows,
+				suggestedAssignmentCount: breakdown.newSuggestedRows,
 				unresolvedCount: preview.unresolved ?? 0,
 				warningCount: preview.warnings.length,
 				createdBy: input.actorId || null,
@@ -202,11 +149,9 @@ export async function createTeachingLoadSuggestionProposal(input: {
 		});
 	});
 
-	const suggestedRows = buildSuggestedRowsPreview(preview, breakdown);
-
 	return {
 		proposal: { ...summarizeProposal(proposal), suggestedAssignmentBreakdown: breakdown },
-		preview: { ...preview, suggestedRows },
+		preview,
 	};
 }
 
@@ -243,7 +188,6 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 	});
 
 	const breakdown = suggestedAssignmentBreakdown(refreshedPreview);
-	const suggestedRows = buildSuggestedRowsPreview(refreshedPreview, breakdown);
 
 	const updated = await prisma.teachingLoadSuggestionProposal.update({
 		where: { id: existing.id },
@@ -251,18 +195,18 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 			status: 'APPLIED',
 			refreshedPreviewPayload: toJsonValue(refreshedPreview),
 			applyPayload: toJsonValue(applyResult),
-			suggestedAssignmentCount: breakdown.totalSuggestedRows,
-			unresolvedCount: applyResult.unresolved ?? refreshedPreview.unresolved ?? 0,
-			warningCount: applyResult.warnings.length,
-			appliedBy: input.actorId || null,
-			appliedAt: new Date(),
+			suggestedAssignmentCount: breakdown.newSuggestedRows,
+				unresolvedCount: applyResult.unresolved ?? refreshedPreview.unresolved ?? 0,
+				warningCount: applyResult.warnings.length,
+				appliedBy: input.actorId || null,
+				appliedAt: new Date(),
 		},
 	});
 
 	return {
 		proposal: { ...summarizeProposal(updated), suggestedAssignmentBreakdown: breakdown },
 		preview: existing.previewPayload as unknown as AutoFillResult,
-		refreshedPreview: { ...refreshedPreview, suggestedRows },
+		refreshedPreview,
 		applyResult,
 	};
 }

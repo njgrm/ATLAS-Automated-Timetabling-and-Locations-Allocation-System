@@ -1863,7 +1863,8 @@ export type SuggestedAssignmentBreakdown = {
 	existingRows: number;
 	realTeacherRows: number;
 	substituteRows: number;
-	totalSuggestedRows: number;
+	newSuggestedRows: number;
+	previewRowCount: number;
 	unresolvedRows: number;
 };
 

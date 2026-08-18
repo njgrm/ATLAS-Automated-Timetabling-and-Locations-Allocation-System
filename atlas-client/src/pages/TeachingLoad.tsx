@@ -375,7 +375,7 @@ export default function TeachingLoad() {
 		const toastId = toast.loading(`Preparing Teaching Load suggestion (${COVERAGE_MODE_CONFIG[ui.coverageMode].label})...`);
 		try {
 			const { data: result } = await atlasApi.post<{
-				proposal: { id: number; status: string; suggestedAssignmentCount: number; unresolvedCount: number };
+				proposal: { id: number; status: string; suggestedAssignmentCount: number; unresolvedCount: number; suggestedAssignmentBreakdown?: import('@/types').SuggestedAssignmentBreakdown };
 				preview: AutoFillSummaryResult;
 			}>(
 				'/faculty-assignments/suggestion-proposals',
@@ -386,7 +386,10 @@ export default function TeachingLoad() {
 				},
 			);
 			setSuggestionProposalId(result.proposal.id);
-			setAutoFillResult(result.preview);
+			setAutoFillResult({
+				...result.preview,
+				suggestedAssignmentBreakdown: result.proposal.suggestedAssignmentBreakdown,
+			});
 			
 			const unresolvedCount = result.preview.unresolved ?? 0;
 			if (unresolvedCount > 0) {
@@ -437,7 +440,7 @@ export default function TeachingLoad() {
 		const toastId = toast.loading('Applying suggested Teaching Load...');
 		try {
 			const { data: result } = await atlasApi.post<{
-				proposal: { id: number; status: string; suggestedAssignmentCount: number; unresolvedCount: number };
+				proposal: { id: number; status: string; suggestedAssignmentCount: number; unresolvedCount: number; suggestedAssignmentBreakdown?: import('@/types').SuggestedAssignmentBreakdown };
 				preview: AutoFillSummaryResult;
 				refreshedPreview?: AutoFillSummaryResult;
 				applyResult?: AutoFillSummaryResult;
@@ -445,7 +448,10 @@ export default function TeachingLoad() {
 			// Use refreshedPreview for the modal display (it has suggestedRows and breakdown)
 			// The applyResult is the actual apply result which may not have preview data
 			const displayResult = result.refreshedPreview ?? result.preview;
-			setAutoFillResult(displayResult);
+			setAutoFillResult({
+				...displayResult,
+				suggestedAssignmentBreakdown: result.proposal.suggestedAssignmentBreakdown,
+			});
 			const unresolvedCount = (result.applyResult ?? displayResult).unresolved ?? 0;
 			const message = unresolvedCount > 0
 				? `Suggested Teaching Load applied with ${unresolvedCount} class row${unresolvedCount === 1 ? '' : 's'} still needing review.`
