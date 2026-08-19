@@ -183,7 +183,7 @@ function RightPanelImpl(props: RightPanelProps) {
 									<div className="px-3 py-2 space-y-2">
 										<div className="flex items-center gap-1.5">
 											<span className="text-xs font-medium">{preGenKbSource.item.sectionName}{preGenKbSource.item.cohortCode ? ` · ${preGenKbSource.item.cohortCode}` : ''}</span>
-											{(() => { const g = preGenKbSource.item.gradeLevel; const bg = gradeBadge[g]; return bg ? <Badge variant="outline" className={`h-4 px-1.5 text-xs shrink-0 ${bg}`}>G{g}</Badge> : null; })()}
+											{(() => { const g = preGenKbSource.item.gradeLevel; const bg = gradeBadge[g]; return bg ? <Badge variant="outline" className={`h-4 px-1.5 text-xs shrink-0 ${bg}`}>GR{g}</Badge> : null; })()}
 										</div>
 										<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1.5">
 											{preGenKbSource.item.hasNoTeacher ? (
@@ -272,7 +272,7 @@ function RightPanelImpl(props: RightPanelProps) {
 												<>
 													<div className="flex items-center gap-1.5">
 														<span className="text-xs font-semibold">{sectionLabel(selectedEntry.sectionId)}</span>
-														{gradeStyle && <Badge variant="outline" className={`h-4 px-1.5 text-xs shrink-0 ${gradeStyle}`}>G{grade}</Badge>}
+														{gradeStyle && <Badge variant="outline" className={`h-4 px-1.5 text-xs shrink-0 ${gradeStyle}`}>GR{grade}</Badge>}
 													</div>
 													<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2.5 py-1.5">
 														{facultyPhotoUrl ? (

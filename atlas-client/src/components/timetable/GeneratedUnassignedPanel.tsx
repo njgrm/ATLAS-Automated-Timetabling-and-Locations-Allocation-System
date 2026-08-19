@@ -187,7 +187,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									onClick={() => setGradeFilter(grade)}
 									className="h-7 shrink-0 rounded-full px-2.5 text-xs"
 								>
-									G{grade}
+									GR{grade}
 								</Button>
 							))}
 							{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
@@ -384,7 +384,7 @@ function UnassignedRailRow({
 							<div className="flex min-w-0 flex-wrap items-center gap-1">
 								{gradeBadge && (
 									<Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>
-										G{grade}
+										GR{grade}
 									</Badge>
 								)}
 								{item.entryKind === 'COHORT' && item.cohortCode && (

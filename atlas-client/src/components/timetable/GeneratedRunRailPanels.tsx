@@ -604,7 +604,7 @@ function UnassignedRailRow({
 						<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
 						{gradeBadge && (
 							<Badge variant="outline" className={`h-4.5 px-1.5 text-xs shrink-0 ${gradeBadge}`}>
-								G{grade}
+								GR{grade}
 							</Badge>
 						)}
 						{item.entryKind === 'COHORT' && item.cohortCode && (

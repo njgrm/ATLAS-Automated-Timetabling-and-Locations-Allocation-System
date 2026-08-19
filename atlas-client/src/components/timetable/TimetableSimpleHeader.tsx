@@ -256,10 +256,10 @@ function SimpleScheduleSheet({
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-8 max-w-[38vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
+					className="h-8 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
 					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
 				>
-					<span className="hidden min-[420px]:inline truncate max-w-[28vw] sm:max-w-none">{selectedLabel}</span>
+					<span className="hidden min-[420px]:inline truncate max-w-[20vw] sm:max-w-none">{selectedLabel}</span>
 					<ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
 				</Button>
 				</SheetTrigger>
@@ -661,11 +661,11 @@ function TimetableSimpleHeaderImpl({
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
 			{/* Primary row: source, readiness, lookup, schedule switcher, right-side actions */}
-			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden px-3 py-0.5 [&>*]:min-w-0">
+			<div className="relative flex min-w-0 items-center gap-1.5 overflow-hidden px-3 py-0.5 [&>*]:min-w-0">
 				<Badge
 					variant="outline"
 					className={cn(
-						'h-5 shrink-0 max-w-[28vw] gap-1.5 truncate px-2 text-xs font-semibold sm:max-w-[44vw] sm:h-6',
+						'h-5 shrink min-w-0 max-w-[22vw] gap-1.5 truncate px-1.5 text-[0.65rem] font-semibold sm:shrink-0 sm:max-w-[44vw] sm:h-6 sm:px-2 sm:text-xs',
 						context.schoolYearContext?.source === 'enrollpro-verified'
 							? 'border-emerald-200 bg-emerald-50 text-emerald-800'
 							: 'border-amber-200 bg-amber-50 text-amber-900',
@@ -684,23 +684,23 @@ function TimetableSimpleHeaderImpl({
 						variant="outline"
 						size="sm"
 						className={cn(
-							'h-5 shrink-0 gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6',
+							'h-5 shrink min-w-0 gap-1 truncate rounded-full px-1.5 text-[0.65rem] font-semibold sm:shrink-0 sm:gap-1.5 sm:px-2 sm:text-xs sm:h-6',
 							'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20',
 						)}
 						data-testid="timetable-simple-readiness-chip"
 						onClick={() => setReadinessSheetOpen(true)}
 					>
-						<AlertTriangle className="size-3.5" aria-hidden="true" />
-						{readiness}
+						<AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+						<span className="truncate">{readiness}</span>
 					</Button>
 				) : (
 					<Badge
 						variant={context.hardCount > 0 ? 'destructive' : 'secondary'}
-						className="h-5 shrink-0 gap-1.5 px-2 text-xs font-semibold sm:h-6"
+						className="h-5 shrink min-w-0 gap-1 truncate px-1.5 text-[0.65rem] font-semibold sm:shrink-0 sm:gap-1.5 sm:px-2 sm:text-xs sm:h-6"
 						data-testid="timetable-simple-readiness-chip"
 					>
-						<CheckCircle2 className="size-3.5" aria-hidden="true" />
-						{readiness}
+						<CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+						<span className="truncate">{readiness}</span>
 					</Badge>
 				)}
 				<Badge
@@ -727,7 +727,7 @@ function TimetableSimpleHeaderImpl({
 					/>
 				</div>
 
-				<div className="ml-auto flex min-w-0 shrink items-center gap-1.5 overflow-hidden">
+				<div className="absolute right-3 top-0.5 z-10 flex min-w-0 shrink items-center gap-1.5 overflow-hidden">
 					<SimpleScheduleSheet
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -867,7 +867,7 @@ function TimetableSimpleHeaderImpl({
 								type="button"
 								variant="outline"
 								size="sm"
-								className="h-8 gap-1.5 px-2 text-xs sm:px-2.5"
+								className="h-8 shrink gap-1 px-1.5 text-xs sm:gap-1.5 sm:px-2.5"
 								aria-label="More"
 								data-testid="timetable-simple-more-trigger"
 							>

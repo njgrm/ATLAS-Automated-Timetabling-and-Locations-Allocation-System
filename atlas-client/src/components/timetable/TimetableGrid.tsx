@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 import type { ReactNode, TdHTMLAttributes } from 'react';
 import { AlertCircle, AlertTriangle, Flag, GripVertical, Plus } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
+import { toast } from 'sonner';
 
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { cn, formatTime } from '@/lib/utils';
@@ -241,6 +242,28 @@ const GridCell = memo(function GridCell({
 	}, [hasKbSource, isKbHovered, kbConflictInfo]);
 
 	if (isSpecialEvent) {
+		if (hasKbSource) {
+			return (
+				<td
+					data-day={day}
+					data-start-time={startTime}
+					data-end-time={endTime}
+					data-cell-entry-ids={cellEntries.map((entry) => entry.entryId).join(' ')}
+					role="button"
+					tabIndex={0}
+					aria-label={`Blocked slot: ${eventName ?? 'Special Event'} on ${TIMETABLE_DAY_SHORT[day] ?? day} ${formatTime(startTime)}`}
+					className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700 outline-none ring-2 ring-primary/40 ring-offset-1"
+					onKeyDown={(event) => {
+						if (event.key === 'Enter' || event.key === ' ') {
+							event.preventDefault();
+							toast.info(`This slot is blocked by ${eventName ?? 'Special Event'}. Choose a regular class slot.`);
+						}
+					}}
+				>
+					{eventName ?? 'Special Event'}
+				</td>
+			);
+		}
 		return (
 			<td
 				data-day={day}

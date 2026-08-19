@@ -796,7 +796,7 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 							</Button>
 							{grades.map((grade) => (
 								<Button key={grade} type="button" variant={pinsGradeFilter === grade ? 'default' : 'secondary'} size="sm" onClick={() => { setPinsGradeFilter(grade); setPinsSectionFilter('all'); }} className="h-7 shrink-0 rounded-full px-2.5 text-xs">
-									G{grade}
+									GR{grade}
 								</Button>
 							))}
 							<Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-xs" onClick={clearFind}>

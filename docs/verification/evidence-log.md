@@ -5792,3 +5792,85 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 - The timetable simple lost-scheduler prevention sequence is **GO**.
 - All 7 prompts pass. 108/108 lost-scheduler tests, 36/36 publish-blockers tests, 12/12 view-completion tests, 12/12 ease-of-use tests, 18/18 feedback-readiness tests, 15/15 full-function-matrix tests.
 - Simple timetable mode is release-candidate for lost-scheduler prevention.
+
+---
+
+# 2026-08-19 — Timetable Simple Lost-Scheduler Fix Sequence
+
+- Phase: Lost-scheduler fix sequence closing 4 concrete release blockers.
+- Operator: opencode (mimo-v2.5).
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Trigger: User requested execution of `timetable-simple-lost-scheduler-fix-sequence-2026-08-19.md`.
+
+## Prompt 01 — Fix Keyboard Placement on Special-Event Cells (GO)
+
+- **Root cause:** Special-event `td` cells in `TimetableGrid.tsx` returned early without keyboard placement metadata (`role`, `tabIndex`, `aria-label`, `onKeyDown`), so the performance test Scenario 7 could not focus them.
+- **Fix:** When `hasKbSource` is true, special-event cells now render `role="button"`, `tabIndex={0}`, `aria-label="Blocked slot: {event} on {day} {time}"`, and `onKeyDown` handler that shows a sonner toast: "This slot is blocked by {event}. Choose a regular class slot."
+- **Files changed:** `atlas-client/src/components/timetable/TimetableGrid.tsx` (added `toast` import, branched special-event rendering).
+- **Evidence:** `timetable-performance.spec.ts` Scenario 7 passes in desktop, mobile-portrait, mobile-landscape. All 42/42 performance tests pass.
+
+## Prompt 02 — Fix Mobile-Landscape More Trigger Overflow (GO)
+
+- **Root cause:** The More trigger button was positioned at x=908 on an 844px mobile-landscape viewport because the primary row's flex layout pushed the right-side container too far right. `overflow-hidden` on the parent clipped visually but did not change the layout bounding box.
+- **Fix:** Changed the right-side actions container from `ml-auto flex` to `absolute right-3 top-0.5 z-10 flex`, pinning it to the right edge of the primary row. Also reduced source chip max-width to `22vw`, readiness chip padding/text-size on mobile, schedule sheet trigger max-width to `28vw`, and More trigger padding.
+- **Test fix:** Replaced `console.warn` overflow logging with hard `expect().toBeFalsy()` assertions that fail on visible overflow.
+- **Files changed:** `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx`, `qa-artifacts/playwright/specs/timetable-simple-lost-scheduler.spec.ts`.
+- **Evidence:** More trigger bounding box is now inside the viewport on all 3 viewports. 108/108 lost-scheduler tests pass with no overflow warnings.
+
+## Prompt 03 — Complete GR Grade Label Cleanup (GO)
+
+- **Root cause:** Previous cleanup missed 7 instances of `G{grade}` in 5 files.
+- **Fix:** Replaced all remaining `G{grade}` with `GR{grade}` in:
+  - `GeneratedUnassignedPanel.tsx` (2 instances)
+  - `GeneratedRunRailPanels.tsx` (1 instance)
+  - `RightPanel.tsx` (2 instances)
+  - `TimetableTaskDrawer.tsx` (1 instance)
+  - `LockPanel.tsx` (1 instance)
+- **Source guard:** `rg`-equivalent grep returns no user-visible `G{grade}` matches in timetable components, hooks, or LockPanel.
+- **Evidence:** 108/108 lost-scheduler tests pass. 83/83 ux-guardrails tests pass.
+
+## Prompt 04 — Release Proof (GO)
+
+### Command results
+
+| Gate | Result |
+|------|--------|
+| Server `tsc --noEmit` | PASS |
+| Server `npm run build` | PASS |
+| Client `tsc --noEmit` | PASS |
+| Client `npm run build` | PASS (343.26 kB gzipped) |
+| `test:ux-guardrails` | PASS 83/83 |
+| `test:timetable-conflict` | PASS 10/10 |
+| `/api/v1/health` | OK `{"status":"ok","service":"atlas"}` |
+| `timetable-simple-lost-scheduler.spec.ts` | PASS 108/108 |
+| `timetable-simple-publish-blockers.spec.ts` | PASS 36/36 |
+| `timetable-simple-view-completion.spec.ts` | PASS 12/12 |
+| `timetable-simple-ease-of-use.spec.ts` | PASS 12/12 |
+| `timetable-feedback-readiness.spec.ts` | PASS 18/18 |
+| `timetable-current-full-function-matrix.spec.ts` | PASS 15/15 |
+| `timetable-performance.spec.ts` | PASS 42/42 |
+| Source guard (G{grade}) | PASS — no matches |
+
+### Performance matrix
+
+- Scenario 7 `Keyboard select-then-place`: PASS (desktop, mobile-portrait, mobile-landscape)
+- Scenarios 8–14: All run after Scenario 7, none skipped
+- All 42/42 tests pass across 3 viewports
+
+### Proof points
+
+- ✅ Scenario 7 passes in all viewports
+- ✅ Scenarios 8–14 run after Scenario 7
+- ✅ Mobile-landscape More trigger is inside viewport
+- ✅ Lost-scheduler spec fails on real overflow (no more `console.warn` pass)
+- ✅ Simple mode exposes blocker context, reason stack, mobile lifecycle action, tutorial, schedule switching, selected-class details
+- ✅ No global scrollbar
+- ✅ No horizontal page overflow
+- ✅ No user-visible `G7/G8/G9/G10` labels
+- ✅ No raw internal grade IDs as labels
+
+## Decision
+
+- The timetable simple lost-scheduler fix sequence is **GO**.
+- All 4 prompts pass. 42/42 performance tests, 108/108 lost-scheduler tests, all other gates green.
+- Simple timetable mode is release-candidate for lost-scheduler prevention.
