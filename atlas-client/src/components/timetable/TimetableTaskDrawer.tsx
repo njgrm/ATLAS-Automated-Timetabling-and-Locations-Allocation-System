@@ -26,6 +26,12 @@ import type { LeftRailContentContext } from '@/components/timetable/timetableCon
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { DraftQueueItem, UnassignedItem, Violation } from '@/types';
 
+export type RepairOrigin = {
+	reason: string;
+	plainReason: string;
+	groupCount: number;
+};
+
 type TimetableTaskDrawerProps = {
 	task: TimetableSimpleTask | null;
 	onTaskChange: (task: TimetableSimpleTask | null) => void;
@@ -41,6 +47,8 @@ type TimetableTaskDrawerProps = {
 	sectionLabel?: (id: number) => string;
 	subjectLabel?: (id: number) => string;
 	facultyLabel?: (id: number) => string;
+	repairOrigin?: RepairOrigin | null;
+	onBackToBlockerSummary?: () => void;
 };
 
 type DrawerCopy = {
@@ -300,6 +308,64 @@ function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; onNaviga
 	);
 }
 
+function RepairContextBanner({
+	repairOrigin,
+	onBackToBlockerSummary,
+	onClearFilter,
+}: {
+	repairOrigin: RepairOrigin;
+	onBackToBlockerSummary?: () => void;
+	onClearFilter?: () => void;
+}) {
+	return (
+		<div
+			className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2"
+			data-testid="timetable-repair-context-banner"
+			role="status"
+			aria-label={`Repairing: ${repairOrigin.plainReason}`}
+		>
+			<div className="flex items-start justify-between gap-2">
+				<div className="min-w-0">
+					<p className="text-xs font-semibold text-amber-900">
+						Fixing publish blockers → {repairOrigin.plainReason}
+					</p>
+					<p className="mt-0.5 text-xs text-amber-700">
+						{repairOrigin.groupCount} session{repairOrigin.groupCount === 1 ? '' : 's'} affected.
+						ATLAS cannot test slots until this is resolved.
+					</p>
+				</div>
+			</div>
+			<div className="mt-1.5 flex gap-1.5">
+				{onBackToBlockerSummary && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-7 gap-1 text-xs"
+						onClick={onBackToBlockerSummary}
+						data-testid="timetable-repair-back-to-blockers"
+					>
+						<ExternalLink className="size-3" aria-hidden="true" />
+						Back to blocker summary
+					</Button>
+				)}
+				{onClearFilter && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="h-7 gap-1 text-xs text-amber-700"
+						onClick={onClearFilter}
+						data-testid="timetable-repair-clear-filter"
+					>
+						Clear filter
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+}
+
 function TimetableTaskDrawerImpl({
 	task,
 	onTaskChange,
@@ -315,6 +381,8 @@ function TimetableTaskDrawerImpl({
 	sectionLabel = (id: number) => `Section #${id}`,
 	subjectLabel = (id: number) => `Subject #${id}`,
 	facultyLabel = (id: number) => `Teacher #${id}`,
+	repairOrigin = null,
+	onBackToBlockerSummary,
 }: TimetableTaskDrawerProps) {
 	if (!task) return null;
 	const copy = copyByTask[task];
@@ -368,7 +436,18 @@ function TimetableTaskDrawerImpl({
 			</div>
 
 			{task === 'place-unresolved' ? (
-				<SimpleGeneratedPlottingTray context={leftRailContentContext} />
+				<>
+					{repairOrigin && (
+						<RepairContextBanner
+							repairOrigin={repairOrigin}
+							onBackToBlockerSummary={onBackToBlockerSummary}
+							onClearFilter={() => {
+								leftRailContentContext.setUnassignedReasonFilter('all');
+							}}
+						/>
+					)}
+					<SimpleGeneratedPlottingTray context={leftRailContentContext} />
+				</>
 			) : task === 'plan-draft' ? (
 				<SimpleDraftPlottingTray context={leftRailContentContext} />
 			) : shouldShowRail ? (
@@ -480,6 +559,38 @@ function draftStatusRank(status: DraftQueueStatus) {
 	if (status.key === 'needs-room') return 1;
 	if (status.key === 'needs-owner') return 2;
 	return 3;
+}
+
+type RowReasonStack = {
+	mainIssue: string;
+	firstFix: string;
+	explanation: string;
+};
+
+const BLOCKER_TO_ROW_REASON: Record<string, { mainIssue: string; explanation: string }> = {
+	NO_AVAILABLE_SLOT: { mainIssue: 'No available slot', explanation: 'ATLAS cannot test slots until this is resolved.' },
+	FACULTY_OVERLOADED: { mainIssue: 'Teacher overloaded', explanation: 'Teacher workload is full. Move or reassign classes.' },
+	NO_QUALIFIED_FACULTY: { mainIssue: 'No qualified teacher', explanation: 'No qualified teacher is assigned. Build or repair Teaching Load.' },
+	NO_COMPATIBLE_ROOM: { mainIssue: 'No compatible room', explanation: 'No compatible room was found. Review room setup.' },
+	ROOM_CAPACITY_EXCEEDED: { mainIssue: 'Room too small', explanation: 'The room is too small for this class. Choose a larger room.' },
+};
+
+function deriveRowReasonStack(
+	status: { key: string; label: string; actionLabel: string },
+	blockerReason?: string | null,
+): RowReasonStack | null {
+	if (status.key === 'ready') return null;
+
+	const blockerInfo = blockerReason ? BLOCKER_TO_ROW_REASON[blockerReason] : null;
+	const mainIssue = blockerInfo?.mainIssue ?? null;
+	const firstFix = status.actionLabel;
+	const explanation = blockerInfo?.explanation ?? (
+		status.key === 'needs-room' ? 'A room must be chosen before slot testing can continue.'
+			: status.key === 'needs-owner' ? 'A Teaching Load owner must be fixed before placement.'
+			: 'This session needs review before it can be placed.'
+	);
+
+	return { mainIssue: mainIssue ?? 'Needs attention', firstFix, explanation };
 }
 
 function sameDraftQueueItem(a: DraftQueueItem | null, b: DraftQueueItem | null) {
@@ -770,7 +881,7 @@ function SimpleDraftQueueRow({
 				<div className="min-w-0">
 					<div className="flex min-w-0 items-center gap-1.5">
 						{isCurrent ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">Now</Badge> : null}
-						{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>G{item.gradeLevel}</Badge> : null}
+								{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>GR{item.gradeLevel}</Badge> : null}
 						<span className="truncate font-semibold text-foreground">{item.sectionName}</span>
 					</div>
 					<p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -779,6 +890,13 @@ function SimpleDraftQueueRow({
 					<p className={cn('mt-1 inline-flex max-w-full rounded-full border px-2 py-0.5 text-xs font-semibold', status.className)}>
 						<span className="truncate">{status.label}</span>
 					</p>
+					{status.key !== 'ready' && (
+						<p className="mt-1 text-[0.65rem] leading-tight text-muted-foreground" data-testid="timetable-row-reason-stack">
+							<span className="font-medium text-foreground/80">First fix:</span> {status.actionLabel}
+							{status.key === 'needs-room' && ' — ATLAS cannot test slots until the room is known.'}
+							{status.key === 'needs-owner' && ' — ATLAS cannot evaluate placement without a teacher owner.'}
+						</p>
+					)}
 				</div>
 			</Button>
 			<div className="flex min-w-[7.5rem] flex-col justify-center gap-1">
@@ -1081,6 +1199,7 @@ function SimpleUnassignedQueueRow({
 			: status.key === 'needs-owner'
 				? 'Fix owner'
 				: 'Review blocker';
+	const reasonStack = deriveRowReasonStack(status, item.reason);
 
 	return (
 		<div role="listitem">
@@ -1108,7 +1227,7 @@ function SimpleUnassignedQueueRow({
 						<div className="min-w-0">
 							<div className="flex min-w-0 items-center gap-1.5">
 								{isCurrent ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">Now</Badge> : null}
-								{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>G{item.gradeLevel}</Badge> : null}
+								{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>GR{item.gradeLevel}</Badge> : null}
 								<span className="truncate font-semibold text-foreground">{sectionLabel(item.sectionId)}</span>
 							</div>
 							<p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -1117,6 +1236,11 @@ function SimpleUnassignedQueueRow({
 							<p className={cn('mt-1 inline-flex max-w-full rounded-full border px-2 py-0.5 text-xs font-semibold', status.className)}>
 								<span className="truncate">{status.label}</span>
 							</p>
+							{reasonStack && reasonStack.mainIssue !== 'Needs attention' && (
+								<p className="mt-1 text-[0.65rem] leading-tight text-muted-foreground" data-testid="timetable-row-reason-stack">
+									<span className="font-medium text-foreground/80">Main issue:</span> {reasonStack.mainIssue} · <span className="font-medium text-foreground/80">First fix:</span> {reasonStack.firstFix}
+								</p>
+							)}
 						</div>
 					</Button>
 					<div className="flex min-w-[7.5rem] flex-col justify-center gap-1">

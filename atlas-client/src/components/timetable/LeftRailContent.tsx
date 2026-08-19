@@ -315,7 +315,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 														>
 															<div className="min-w-0 flex-1">
 																<div className="flex items-center justify-between gap-1 min-w-0">
-																	<span className="truncate font-semibold text-xs">G{item.gradeLevel} Â· {item.sectionName}{item.cohortCode ? ` Â· ${item.cohortCode}` : ''}</span>
+																	<span className="truncate font-semibold text-xs">GR{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
 																	<span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
 																</div>
 																<div className="flex items-center gap-1 min-w-0 mt-0.5">
@@ -348,7 +348,7 @@ function LeftRailContentImpl({ context }: LeftRailContentProps) {
 															className="min-w-0 flex-1"
 														>
 															<div className="flex items-center justify-between gap-1 min-w-0">
-																<span className="truncate font-semibold text-xs">G{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
+																<span className="truncate font-semibold text-xs">GR{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
 																<span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
 															</div>
 															<div className="flex items-center gap-1 min-w-0 mt-0.5">

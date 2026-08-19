@@ -38,6 +38,7 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
+import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 
@@ -48,6 +49,9 @@ type TimetableSimpleHeaderProps = {
 	activeTask: TimetableSimpleTask | null;
 	onTaskChange: (task: TimetableSimpleTask | null) => void;
 	onOpenTeacherDeparture?: () => void;
+	onSetRepairOrigin?: (origin: RepairOrigin | null) => void;
+	readinessSheetOpen?: boolean;
+	onReadinessSheetOpenChange?: (open: boolean) => void;
 };
 
 type SimpleTaskDefinition = {
@@ -66,49 +70,56 @@ type SimpleViewMode = ScheduleReviewWorkspaceHeaderContext['viewMode'];
 const SIMPLE_TUTORIAL_STEPS = [
 	{
 		title: 'Choose whose schedule to see',
-		body: 'Use View by to switch between Section, Teacher, and Room schedules without leaving Simple view.',
+		body: 'Use the schedule switcher to switch between Section, Teacher, and Room views without leaving Simple mode.',
 		target: 'Schedule switcher',
 		targetTestId: 'timetable-simple-schedule-switcher',
 		icon: CalendarClock,
 	},
 	{
-		title: 'Pick the exact schedule',
-		body: 'Use Schedule to choose the specific section, teacher, or room you want to inspect.',
-		target: 'Schedule selector',
-		targetTestId: 'timetable-simple-entity-select',
-		icon: SlidersHorizontal,
+		title: 'Check the lifecycle action',
+		body: 'The lifecycle button shows your current status: Generate, Fix blockers, Review warnings, or Publish. Tap it to take the next step.',
+		target: 'Lifecycle action',
+		targetTestId: 'timetable-simple-primary-action',
+		icon: Send,
 	},
 	{
-		title: 'Place unresolved sessions',
-		body: 'Use Start placing, choose one session, then click a green grid slot. ATLAS shows a review before saving.',
+		title: 'Understand publish blockers',
+		body: 'If the readiness chip shows blockers, tap it to see which sessions need fixing and why the schedule cannot be published yet.',
+		target: 'Readiness chip',
+		targetTestId: 'timetable-simple-readiness-chip',
+		icon: AlertTriangle,
+	},
+	{
+		title: 'Fix a blocker group',
+		body: 'From the publish readiness sheet, tap a repair action to open the correct fix path. Use "Back to blocker summary" to return.',
+		target: 'Publish readiness sheet',
+		targetTestId: 'timetable-simple-readiness-chip',
+		icon: ClipboardCheck,
+	},
+	{
+		title: 'Place or repair one session',
+		body: 'Choose one unresolved session from the queue, then click a green grid slot. ATLAS shows a review before saving.',
 		target: 'Start placing',
 		targetTestId: 'timetable-simple-primary-action',
 		icon: ClipboardCheck,
 	},
 	{
-		title: 'Check a class on the grid',
-		body: 'Click any visible class to open simple actions and readable details.',
-		target: 'Timetable grid',
-		targetTestId: 'timetable-grid',
-		icon: BookOpen,
+		title: 'Show full day when needed',
+		body: 'If earlier rows are hidden, tap "Show full day" to see the complete schedule including shifted time slots.',
+		target: 'Show full day',
+		targetTestId: 'timetable-show-full-day-toggle',
+		icon: Sun,
 	},
 	{
-		title: 'Swap occupied classes',
-		body: 'Use Swap sessions, choose the first class, then choose the class to switch with. ATLAS opens the modern swap review.',
-		target: 'Swap sessions',
-		targetTestId: 'timetable-simple-primary-action',
-		icon: ArrowRightLeft,
-	},
-	{
-		title: 'Use More for secondary tools',
-		body: 'More contains draft planning, teacher-leaving repair, refresh actions, run selection, and edit history.',
-		target: 'More',
+		title: 'Export workbook for review',
+		body: 'Use More > Schedule data > Export workbook to download a summary for offline review or printing.',
+		target: 'More menu',
 		targetTestId: 'timetable-simple-more-trigger',
-		icon: MoreHorizontal,
+		icon: Download,
 	},
 	{
-		title: 'Use Advanced only when needed',
-		body: 'Advanced view is for expert repair tools like policy, map, diagnostics, and full manual-edit panels.',
+		title: 'Use Advanced only for expert repair',
+		body: 'Advanced view is for expert tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling.',
 		target: 'Advanced view',
 		targetTestId: 'timetable-layout-toggle',
 		icon: Settings2,
@@ -239,19 +250,19 @@ function SimpleScheduleSheet({
 		: 'Choose schedule';
 
 	return (
-		<Sheet>
-			<SheetTrigger asChild>
+			<Sheet>
+				<SheetTrigger asChild>
 				<Button
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-8 max-w-[46vw] gap-1.5 px-2 text-xs lg:hidden"
+					className="h-8 max-w-[38vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
 					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
 				>
-					<span className="truncate">Showing: {selectedLabel}</span>
+					<span className="hidden min-[420px]:inline truncate max-w-[28vw] sm:max-w-none">{selectedLabel}</span>
 					<ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
 				</Button>
-			</SheetTrigger>
+				</SheetTrigger>
 			<SheetContent
 				side="bottom"
 				className="flex max-h-[82svh] flex-col gap-3 rounded-t-2xl p-4"
@@ -351,12 +362,11 @@ function SimpleTutorialControl() {
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-8 gap-1.5 px-2 text-xs sm:px-2.5"
+					className="h-8 gap-1.5 px-1.5 text-xs sm:px-2.5"
 					data-testid="timetable-simple-tutorial-trigger"
 				>
 					<BookOpen className="size-3.5" aria-hidden="true" />
 					<span className="hidden sm:inline">Tutorial</span>
-					<span className="sm:hidden">Help</span>
 				</Button>
 			</DialogTrigger>
 			<DialogContent className="max-w-md" data-testid="timetable-simple-tutorial">
@@ -489,12 +499,17 @@ function TimetableSimpleHeaderImpl({
 	activeTask,
 	onTaskChange,
 	onOpenTeacherDeparture,
+	onSetRepairOrigin,
+	readinessSheetOpen: readinessSheetOpenProp,
+	onReadinessSheetOpenChange,
 }: TimetableSimpleHeaderProps) {
 	const navigate = useNavigate();
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
-	const [readinessSheetOpen, setReadinessSheetOpen] = useState(false);
+	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
+	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
+	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	const tasks = useSimpleTasks(context);
@@ -646,11 +661,11 @@ function TimetableSimpleHeaderImpl({
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
 			{/* Primary row: source, readiness, lookup, schedule switcher, right-side actions */}
-			<div className="flex min-w-0 items-center gap-1.5 px-3 py-0.5">
+			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden px-3 py-0.5 [&>*]:min-w-0">
 				<Badge
 					variant="outline"
 					className={cn(
-						'h-5 shrink-0 max-w-[44vw] gap-1.5 truncate px-2 text-xs font-semibold sm:h-6',
+						'h-5 shrink-0 max-w-[28vw] gap-1.5 truncate px-2 text-xs font-semibold sm:max-w-[44vw] sm:h-6',
 						context.schoolYearContext?.source === 'enrollpro-verified'
 							? 'border-emerald-200 bg-emerald-50 text-emerald-800'
 							: 'border-amber-200 bg-amber-50 text-amber-900',
@@ -712,7 +727,7 @@ function TimetableSimpleHeaderImpl({
 					/>
 				</div>
 
-				<div className="ml-auto flex shrink-0 items-center gap-1.5">
+				<div className="ml-auto flex min-w-0 shrink items-center gap-1.5 overflow-hidden">
 					<SimpleScheduleSheet
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -720,6 +735,78 @@ function TimetableSimpleHeaderImpl({
 						onEntityChange={handleEntityChange}
 					/>
 					<SimpleTutorialControl />
+					{(() => {
+						const mobileLabel = !hasGeneratedRun && !context.isPreGenerationWorkspace
+							? 'Generate'
+							: context.generating
+								? 'Generating…'
+								: isRunPublished
+									? 'Published'
+									: publishBlocked
+										? 'Fix blockers'
+										: (context.summary?.unassignedCount ?? 0) > 0
+											? 'Review warnings'
+											: hasGeneratedRun
+												? 'Publish'
+												: 'Generate';
+						const mobileDisabled = context.generating || context.loading || !context.schoolYearId
+							|| (publishBlocked && mobileLabel !== 'Fix blockers')
+							|| (isRunPublished && mobileLabel === 'Published');
+						const mobileIcon = context.generating
+							? Loader2
+							: isRunPublished
+								? CheckCircle2
+								: publishBlocked
+									? AlertTriangle
+									: hasGeneratedRun
+										? Send
+										: Play;
+						const MobileIcon = mobileIcon;
+						return (
+							<TooltipProvider delayDuration={300}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											type="button"
+											variant={isRunPublished ? 'outline' : publishBlocked ? 'outline' : 'default'}
+											size="sm"
+											className={cn(
+												'h-8 shrink gap-1.5 px-2 text-xs sm:hidden sm:px-2.5',
+												isRunPublished && 'border-emerald-200 bg-emerald-50 text-emerald-800',
+												!isRunPublished && !publishBlocked && 'bg-emerald-600 text-white hover:bg-emerald-700',
+											)}
+											disabled={mobileDisabled}
+											onClick={() => {
+												if (!hasGeneratedRun && !context.isPreGenerationWorkspace) {
+													context.handleTriggerGenerate();
+												} else if (publishBlocked) {
+													setReadinessSheetOpen(true);
+												} else if (hasGeneratedRun && !isRunPublished) {
+													handlePublishClick();
+												}
+											}}
+											data-testid="timetable-simple-mobile-lifecycle-action"
+										>
+											<MobileIcon className={cn('size-3.5', context.generating && 'animate-spin')} aria-hidden="true" />
+											<span className="hidden min-[420px]:inline">{mobileLabel}</span>
+										</Button>
+									</TooltipTrigger>
+									{publishBlocked && (
+										<TooltipContent side="bottom" className="max-w-xs">
+											<p>{publishBlockedReason}</p>
+											<p className="mt-1 text-xs opacity-80">Tap to review and fix issues.</p>
+										</TooltipContent>
+									)}
+									{isRunPublished && (context.summary?.unassignedCount ?? 0) > 0 && (
+										<TooltipContent side="bottom" className="max-w-xs">
+											<p>This schedule is published.</p>
+											<p className="mt-1 text-xs opacity-80">{context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need review.</p>
+										</TooltipContent>
+									)}
+								</Tooltip>
+							</TooltipProvider>
+						);
+					})()}
 					<Button
 						type="button"
 						variant="default"
@@ -817,7 +904,7 @@ function TimetableSimpleHeaderImpl({
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Schedule data</DropdownMenuLabel>
 									<Select value={context.selectedRunId} onValueChange={context.handleRunChange} disabled={context.runs.length === 0 || context.centerView === 'pre-generation'}>
 										<SelectTrigger className="h-9 text-xs">
-											<SelectValue placeholder={context.runs.length === 0 ? 'No generated run yet' : 'Select run'} />
+											<SelectValue placeholder={context.runs.length === 0 ? 'No generated run yet' : 'Run to review'} />
 										</SelectTrigger>
 										<SelectContent>
 											<SelectItem value="latest" disabled={context.runs.length === 0}>Latest Run</SelectItem>
@@ -876,21 +963,6 @@ function TimetableSimpleHeaderImpl({
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
-									>
-										<Info className="size-3.5" aria-hidden="true" />
-										Status key
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); onLayoutModeChange('advanced'); }}
-										data-testid="timetable-layout-toggle"
-									>
-										<Settings2 className="size-3.5" aria-hidden="true" />
-										Advanced view
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
 										disabled={context.generating || context.loading || !context.schoolYearId}
 										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.handleTriggerGenerate(); }}
 									>
@@ -904,6 +976,31 @@ function TimetableSimpleHeaderImpl({
 									>
 										<History className="size-3.5" aria-hidden="true" />
 										Edit history
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); onLayoutModeChange('advanced'); }}
+										data-testid="timetable-layout-toggle"
+									>
+										<Settings2 className="size-3.5" aria-hidden="true" />
+										Advanced view
+									</DropdownMenuItem>
+								</div>
+								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
+									<DropdownMenuLabel className="px-0 py-0 text-xs">Help</DropdownMenuLabel>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); }}
+									>
+										<BookOpen className="size-3.5" aria-hidden="true" />
+										Tutorial
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
+									>
+										<Info className="size-3.5" aria-hidden="true" />
+										Status key
 									</DropdownMenuItem>
 									<DropdownMenuItem asChild className="h-9 gap-2 text-xs">
 										<Link to="/timetabling/how-it-works">
@@ -1119,6 +1216,13 @@ function TimetableSimpleHeaderImpl({
 				facultyLabel={context.facultyLabel}
 				onNavigateToRepair={(href, reason) => {
 					setReadinessSheetOpen(false);
+					const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
+						: reason === 'FACULTY_OVERLOADED' ? 'Teachers are overloaded'
+						: reason === 'NO_QUALIFIED_FACULTY' ? 'No qualified teacher'
+						: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
+						: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
+						: 'Unknown issue';
+					onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: 0 });
 					if (reason === 'FACULTY_OVERLOADED' || reason === 'NO_QUALIFIED_FACULTY') {
 						navigate('/teaching-load');
 					} else if (reason === 'NO_AVAILABLE_SLOT') {

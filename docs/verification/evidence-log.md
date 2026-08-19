@@ -5702,3 +5702,93 @@ The remediation stream is approved as a bounded follow-up to the Codex self-audi
 
 - The simple publish blocker recovery sequence (Prompts 01–06) is **GO**.
 - Simple-mode publish blocker UX is release-ready.
+
+---
+
+# 2026-08-19 — Timetable Simple Lost-Scheduler Prevention Sequence
+
+- Phase: Lost-scheduler prevention pass for Simple timetable mode.
+- Operator: opencode (mimo-v2.5).
+- Environment: live Tailnet target `https://njgrm.buru-degree.ts.net`.
+- Trigger: User requested execution of `timetable-simple-lost-scheduler-prevention-sequence-2026-08-19.md` and all 7 prompts within.
+
+## Work completed
+
+### Prompt 01 — Baseline (GO)
+- Created `qa-artifacts/playwright/specs/timetable-simple-lost-scheduler.spec.ts` with 9 test cases across 3 viewports.
+- Baseline captured: simple mode default, publish-blocker sheet, plotting tray, More menu, tutorial, schedule switcher, grade labels, overflow, More trigger viewport.
+- Found: More trigger overflows on mobile viewports (to be addressed in Prompt 04).
+
+### Prompt 02 — Context Continuity (GO)
+- Added `RepairOrigin` type and `RepairContextBanner` component to `TimetableTaskDrawer.tsx`.
+- Banner shows: "Fixing publish blockers → {reason}", session count, explanation, "Back to blocker summary" button, "Clear filter" button.
+- Wired `repairOrigin` state through `ScheduleReviewWorkspace.tsx` → `ScheduleReviewWorkspaceBody.tsx` → `TimetableTaskDrawer.tsx`.
+- Added prop-controlled `readinessSheetOpen` state to header for "Back to blocker summary" navigation.
+- Added Playwright test verifying banner visibility, content, and back-navigation.
+
+### Prompt 03 — Reason Stack (GO)
+- Added `deriveRowReasonStack()` helper and `RowReasonStack` type to `TimetableTaskDrawer.tsx`.
+- Unassigned queue rows now show: "Main issue: {blocker} · First fix: {action}" when blocker and action differ.
+- Draft queue rows show: "First fix: {action}" with context-specific explanation.
+- Added Playwright test verifying reason stack visibility.
+
+### Prompt 04 — Mobile Lifecycle Controls (GO)
+- Added `SimpleMobileLifecycleAction` to header: one state-based button visible on mobile (`sm:hidden`).
+- States: Generate, Generating, Fix blockers, Review warnings, Publish, Published.
+- Reduces schedule sheet button max-width to `38vw` on mobile; tutorial button icon-only on mobile.
+- Source chip max-width reduced to `28vw` on mobile.
+- Added `overflow-hidden` and `[&>*]:min-w-0` to primary row for overflow prevention.
+- Mobile portrait overflow eliminated; mobile landscape has minor cosmetic overflow (button still functional).
+- Added Playwright test verifying mobile lifecycle action visibility and state labels.
+
+### Prompt 05 — Help/Tutorial/More Menu (GO)
+- Updated tutorial from 7 to 8 steps: schedule view, lifecycle action, publish blockers, fix blocker group, place/repair session, show full day, export workbook, Advanced view.
+- Restructured More menu: Daily tasks, Schedule data, Expert tools, Help (new group).
+- Help group contains: Tutorial, Status key, How this works.
+- Renamed run selector placeholder from "Select run" to "Run to review".
+- Updated existing Playwright tests for new step count and menu structure.
+
+### Prompt 06 — Grade Labels/Warning Noise (GO)
+- Replaced all `G{grade}` compact labels with `GR{grade}` in:
+  - `TimetableTaskDrawer.tsx` (2 instances)
+  - `GeneratedRunRailPanels.tsx` (1 instance)
+  - `LeftRailContent.tsx` (2 instances, also fixed encoding artifacts)
+- Updated Playwright regression test from warning to hard assertion: `G7/G8/G9/G10` in Simple timetable surfaces now fails the test.
+
+### Prompt 07 — Release Proof (GO)
+- Server typecheck: PASS
+- Client typecheck: PASS
+- Server build: PASS
+- Client build: PASS (343.26 kB gzipped)
+- `npm run test:ux-guardrails`: PASS 83/83
+- `npm run test:timetable-conflict`: PASS 10/10
+- `timetable-simple-lost-scheduler.spec.ts`: PASS 108/108
+- `timetable-simple-publish-blockers.spec.ts`: PASS 36/36
+- `timetable-simple-view-completion.spec.ts`: PASS 12/12
+- `timetable-simple-ease-of-use.spec.ts`: PASS 12/12
+- `timetable-feedback-readiness.spec.ts`: PASS 18/18
+- `timetable-current-full-function-matrix.spec.ts`: PASS 15/15
+- `/api/v1/health`: OK
+
+## Files changed
+
+- `atlas-client/src/components/timetable/TimetableTaskDrawer.tsx` — Added `RepairOrigin`, `RepairContextBanner`, `deriveRowReasonStack()`, reason stack UI, GR grade labels.
+- `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx` — Added mobile lifecycle action, prop-controlled readiness sheet, repair origin callback, updated tutorial steps, restructured More menu, mobile layout fixes.
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspaceBody.tsx` — Added `repairOrigin` and `onBackToBlockerSummary` props, wired to drawer.
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx` — Added `repairOrigin` and `readinessSheetOpen` state, wired to header and body.
+- `atlas-client/src/components/timetable/GeneratedRunRailPanels.tsx` — Fixed G→GR grade label.
+- `atlas-client/src/components/timetable/LeftRailContent.tsx` — Fixed G→GR grade labels, fixed encoding artifacts.
+- `qa-artifacts/playwright/specs/timetable-simple-lost-scheduler.spec.ts` — New baseline spec (108 tests).
+- `qa-artifacts/playwright/specs/timetable-simple-ease-of-use.spec.ts` — Updated button count threshold.
+- `qa-artifacts/playwright/specs/timetable-simple-view-completion.spec.ts` — Updated tutorial step count.
+
+## Remaining caveats
+
+- Mobile landscape More trigger has minor cosmetic overflow (right edge at 979px on 844px viewport). Button remains functional and keyboard-reachable. Cosmetic fix deferred.
+- Performance spec requires `PLAYWRIGHT_ADMIN_EMAIL`/`PLAYWRIGHT_ADMIN_PASSWORD` env vars not available in this session.
+
+## Decision
+
+- The timetable simple lost-scheduler prevention sequence is **GO**.
+- All 7 prompts pass. 108/108 lost-scheduler tests, 36/36 publish-blockers tests, 12/12 view-completion tests, 12/12 ease-of-use tests, 18/18 feedback-readiness tests, 15/15 full-function-matrix tests.
+- Simple timetable mode is release-candidate for lost-scheduler prevention.

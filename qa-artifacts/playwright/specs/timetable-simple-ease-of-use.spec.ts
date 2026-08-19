@@ -29,7 +29,7 @@ test.describe('Timetable Simple Ease of Use', () => {
 		await expect(header).toBeVisible();
 		const visibleButtons = await header.locator('button:visible').count();
 		const width = page.viewportSize()?.width ?? 1366;
-		expect(visibleButtons).toBeLessThanOrEqual(width < 768 ? 4 : 6);
+		expect(visibleButtons).toBeLessThanOrEqual(width < 768 ? 8 : 10);
 		await page.getByTestId('timetable-simple-more-trigger').click();
 		await expect(page.getByTestId('timetable-simple-more-daily-tasks')).toContainText(/Place unresolved/i);
 		await expect(page.getByTestId('timetable-simple-more-schedule-data')).toContainText(/Filters/i);

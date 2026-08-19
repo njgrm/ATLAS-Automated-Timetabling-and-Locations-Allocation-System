@@ -6,6 +6,7 @@ import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleRevi
 import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/ScheduleReviewWorkspaceOverlays';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
+import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
@@ -57,6 +58,8 @@ export default function ScheduleReviewWorkspace() {
 		return window.localStorage.getItem('atlas_timetable_layout_mode') === 'advanced' ? 'advanced' : 'simple';
 	});
 	const [activeSimpleTask, setActiveSimpleTask] = useState<TimetableSimpleTask | null>(null);
+	const [repairOrigin, setRepairOrigin] = useState<RepairOrigin | null>(null);
+	const [readinessSheetOpen, setReadinessSheetOpen] = useState(false);
 	const [teacherDepartureOpen, setTeacherDepartureOpen] = useState(false);
 	const [teacherDepartureFacultyId, setTeacherDepartureFacultyId] = useState<number | null>(null);
 	const [teacherDepartureFocusedEntryIds, setTeacherDepartureFocusedEntryIds] = useState<Set<string> | undefined>(undefined);
@@ -71,8 +74,17 @@ export default function ScheduleReviewWorkspace() {
 	};
 
 	useEffect(() => {
-		if (layoutMode === 'advanced') setActiveSimpleTask(null);
+		if (layoutMode === 'advanced') {
+			setActiveSimpleTask(null);
+			setRepairOrigin(null);
+		}
 	}, [layoutMode]);
+
+	useEffect(() => {
+		if (activeSimpleTask !== 'place-unresolved') {
+			setRepairOrigin(null);
+		}
+	}, [activeSimpleTask]);
 
 	useEffect(() => {
 		if (!state.selectedEntry) setSimpleDetailsOpen(false);
@@ -282,6 +294,9 @@ export default function ScheduleReviewWorkspace() {
 						activeTask={activeSimpleTask}
 						onTaskChange={setActiveSimpleTask}
 						onOpenTeacherDeparture={() => openTeacherDepartureRecovery()}
+						onSetRepairOrigin={setRepairOrigin}
+						readinessSheetOpen={readinessSheetOpen}
+						onReadinessSheetOpenChange={setReadinessSheetOpen}
 					/>
 				) : (
 					<div className="relative shrink-0">
@@ -305,6 +320,12 @@ export default function ScheduleReviewWorkspace() {
 					onSimpleTaskChange={setActiveSimpleTask}
 					teacherDepartureEntryIds={teacherDepartureEntryIds}
 					onReassignTeacher={openTeacherDepartureForEntry}
+					repairOrigin={repairOrigin}
+					onBackToBlockerSummary={() => {
+						setRepairOrigin(null);
+						setActiveSimpleTask(null);
+						setReadinessSheetOpen(true);
+					}}
 					context={{
 						leftPanelRef: state.leftPanelRef,
 						setIsLeftCollapsed: state.setIsLeftCollapsed,

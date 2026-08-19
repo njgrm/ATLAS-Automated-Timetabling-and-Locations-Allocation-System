@@ -82,16 +82,16 @@ test.describe('Timetable Simple View Completion', () => {
 		const tutorial = page.getByTestId('timetable-simple-tutorial');
 		await expect(tutorial).toBeVisible();
 		await expect(tutorial).toContainText(/Simple timetable tutorial/i);
-		await expect(tutorial).toContainText(/Step 1 of 7/i);
+		await expect(tutorial).toContainText(/Step 1 of 8/i);
 		await expect(tutorial).toContainText(/Section, Teacher, and Room/i);
 		await expect(page.getByTestId('simple-visual-help-step')).toBeVisible();
 		await expect(tutorial.getByRole('button', { name: /show me/i })).toBeVisible();
 
 		await page.getByTestId('timetable-simple-tutorial-next').click();
-		await expect(tutorial).toContainText(/Step 2 of 7/i);
-		await expect(tutorial).toContainText(/specific section, teacher, or room/i);
+		await expect(tutorial).toContainText(/Step 2 of 8/i);
+		await expect(tutorial).toContainText(/lifecycle/i);
 		await page.getByTestId('timetable-simple-tutorial-back').click();
-		await expect(tutorial).toContainText(/Step 1 of 7/i);
+		await expect(tutorial).toContainText(/Step 1 of 8/i);
 		await page.keyboard.press('Escape');
 		await expect(page.getByTestId('timetable-simple-tutorial')).toHaveCount(0);
 		await assertNoGlobalOverflow(page);

@@ -469,7 +469,7 @@ function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }
 				<div className="font-medium">Top unassigned clusters</div>
 				{summary.resourceDiagnostics.unassignedBySubjectGrade.slice(0, 3).map((row) => (
 					<div key={`unassigned-${row.subjectId}-${row.gradeLevel}`} className="flex items-center justify-between text-muted-foreground">
-						<span>{row.subjectCode} - G{row.gradeLevel}</span>
+						<span>{row.subjectCode} - GR{row.gradeLevel}</span>
 						<span className="font-semibold text-amber-700">{row.count}</span>
 					</div>
 				))}

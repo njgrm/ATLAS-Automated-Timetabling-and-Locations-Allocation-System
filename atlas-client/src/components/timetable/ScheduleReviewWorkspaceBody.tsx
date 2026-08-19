@@ -6,6 +6,7 @@ import { LeftRail } from '@/components/timetable/LeftRail';
 import { LeftRailContent } from '@/components/timetable/LeftRailContent';
 import { RightPanel } from '@/components/timetable/RightPanel';
 import { TimetableTaskDrawer } from '@/components/timetable/TimetableTaskDrawer';
+import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import type { ScheduleReviewWorkspaceBodyContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
@@ -17,6 +18,8 @@ type ScheduleReviewWorkspaceBodyProps = {
 	onSimpleTaskChange?: (task: TimetableSimpleTask | null) => void;
 	teacherDepartureEntryIds?: Set<string>;
 	onReassignTeacher?: (entry: any) => void;
+	repairOrigin?: RepairOrigin | null;
+	onBackToBlockerSummary?: () => void;
 };
 
 function ScheduleReviewWorkspaceBodyImpl({
@@ -26,6 +29,8 @@ function ScheduleReviewWorkspaceBodyImpl({
 	onSimpleTaskChange,
 	teacherDepartureEntryIds,
 	onReassignTeacher,
+	repairOrigin,
+	onBackToBlockerSummary,
 }: ScheduleReviewWorkspaceBodyProps) {
 	const {
 		leftPanelRef,
@@ -69,6 +74,8 @@ function ScheduleReviewWorkspaceBodyImpl({
 					sectionLabel={context.sectionLabel}
 					subjectLabel={context.subjectLabel}
 					facultyLabel={context.facultyLabel}
+					repairOrigin={repairOrigin}
+					onBackToBlockerSummary={onBackToBlockerSummary}
 				/>
 			</div>
 		);
@@ -108,6 +115,8 @@ function arePropsEqual(prevProps: ScheduleReviewWorkspaceBodyProps, nextProps: S
 	if (prevProps.onSimpleTaskChange !== nextProps.onSimpleTaskChange) return false;
 	if (prevProps.teacherDepartureEntryIds !== nextProps.teacherDepartureEntryIds) return false;
 	if (prevProps.onReassignTeacher !== nextProps.onReassignTeacher) return false;
+	if (prevProps.repairOrigin !== nextProps.repairOrigin) return false;
+	if (prevProps.onBackToBlockerSummary !== nextProps.onBackToBlockerSummary) return false;
 	if (!prevProps.context || !nextProps.context) return prevProps.context === nextProps.context;
 	const prevKeys = Object.keys(prevProps.context);
 	const nextKeys = Object.keys(nextProps.context);
