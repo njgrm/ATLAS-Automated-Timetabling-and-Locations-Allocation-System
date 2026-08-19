@@ -5,7 +5,7 @@ import { buildUnassignedKey } from '@/lib/timetable-utils';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import type { TutorialStep } from '@/components/TutorialOverlay';
 import type { TimetableToolbarGroup } from '@/components/timetable/TimetableToolbar';
-import type { DraftBoardState, DraftReport, HumanConflict, ScheduledEntry, UnassignedItem, Violation } from '@/types';
+import type { DraftBoardState, DraftReport, HumanConflict, ScheduledEntry, UnassignedItem, UnassignedReason, Violation } from '@/types';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type { DragSource, PreGenDragSource } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { LeftRailContentContext, ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
@@ -76,6 +76,10 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	revertLastEdit: () => Promise<void>;
 	setShowEditHistory: (value: boolean) => void;
 	tutorial: { start: () => void };
+	sectionLabel: (id: number) => string;
+	subjectLabel: (id: number) => string;
+	facultyLabel: (id: number) => string;
+	setUnassignedReasonFilter: Dispatch<SetStateAction<'all' | UnassignedReason>>;
 	summary: {
 		assignedCount: number;
 		classesProcessed: number;

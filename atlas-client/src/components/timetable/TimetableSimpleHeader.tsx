@@ -25,7 +25,7 @@ import {
 	UserRoundX,
 	type LucideIcon,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -490,10 +490,12 @@ function TimetableSimpleHeaderImpl({
 	onTaskChange,
 	onOpenTeacherDeparture,
 }: TimetableSimpleHeaderProps) {
+	const navigate = useNavigate();
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
 	const [readinessSheetOpen, setReadinessSheetOpen] = useState(false);
+	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	const tasks = useSimpleTasks(context);
 	const recommendedTask = chooseRecommendedTask(tasks, context);
@@ -521,6 +523,13 @@ function TimetableSimpleHeaderImpl({
 			context.setEntityFilter(nextValue);
 		}
 	}, [context, currentEntityIsValid, lastEntityByMode]);
+
+	useEffect(() => {
+		if (activeTask !== 'place-unresolved' && blockerReasonFilter) {
+			setBlockerReasonFilter(null);
+			context.setUnassignedReasonFilter('all');
+		}
+	}, [activeTask, blockerReasonFilter, context]);
 
 	const hasGeneratedRun = Boolean(context.draft || context.runs.length > 0);
 	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
@@ -655,18 +664,20 @@ function TimetableSimpleHeaderImpl({
 				</Badge>
 
 				{publishBlocked ? (
-					<button
+					<Button
 						type="button"
+						variant="outline"
+						size="sm"
 						className={cn(
 							'h-5 shrink-0 gap-1.5 rounded-full px-2 text-xs font-semibold sm:h-6',
-							'border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20',
+							'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20',
 						)}
 						data-testid="timetable-simple-readiness-chip"
 						onClick={() => setReadinessSheetOpen(true)}
 					>
 						<AlertTriangle className="size-3.5" aria-hidden="true" />
 						{readiness}
-					</button>
+					</Button>
 				) : (
 					<Badge
 						variant={context.hardCount > 0 ? 'destructive' : 'secondary'}
@@ -1045,15 +1056,17 @@ function TimetableSimpleHeaderImpl({
 					</div>
 
 					{publishBlocked && (
-						<button
+						<Button
 							type="button"
-							className="hidden min-w-0 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100 sm:flex"
+							variant="outline"
+							size="sm"
+							className="hidden min-w-0 items-center gap-1.5 border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100 sm:flex"
 							data-testid="timetable-publish-readiness-summary"
 							onClick={() => setReadinessSheetOpen(true)}
 						>
 							<span className="truncate">{publishBlockedReason}</span>
 							<ChevronRight className="size-3 shrink-0" aria-hidden="true" />
-						</button>
+						</Button>
 					)}
 					{isRunPublished && !publishBlocked && (context.summary?.unassignedCount ?? 0) > 0 && (
 						<div
@@ -1101,25 +1114,21 @@ function TimetableSimpleHeaderImpl({
 				onOpenChange={setReadinessSheetOpen}
 				draft={context.draft}
 				violations={context.violations}
-				sectionLabel={context.pivotLabel}
-				subjectLabel={(id) => {
-					const label = context.pivotLabel(id);
-					return label !== String(id) ? label : `Subject ${id}`;
-				}}
-				facultyLabel={(id) => {
-					const label = context.pivotLabel(id);
-					return label !== String(id) ? label : `Teacher ${id}`;
-				}}
+				sectionLabel={context.sectionLabel}
+				subjectLabel={context.subjectLabel}
+				facultyLabel={context.facultyLabel}
 				onNavigateToRepair={(href, reason) => {
-					if (href === '/teaching-load') {
-						context.setLeftTab('violations');
-						onTaskChange('review-issues');
-					} else if (href === '/campus-rooms') {
-						window.location.href = href;
+					setReadinessSheetOpen(false);
+					if (reason === 'FACULTY_OVERLOADED' || reason === 'NO_QUALIFIED_FACULTY') {
+						navigate('/teaching-load');
 					} else if (reason === 'NO_AVAILABLE_SLOT') {
+						context.setUnassignedReasonFilter('NO_AVAILABLE_SLOT');
+						setBlockerReasonFilter('NO_AVAILABLE_SLOT');
 						context.setLeftTab('unassigned');
 						context.setPresentationMode('workflow');
 						onTaskChange('place-unresolved');
+					} else if (reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED') {
+						navigate('/campus-rooms');
 					}
 				}}
 			/>

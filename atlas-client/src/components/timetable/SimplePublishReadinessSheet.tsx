@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, Download, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -71,24 +71,17 @@ function SimplePublishReadinessSheetImpl({
 	facultyLabel,
 	onNavigateToRepair,
 }: SimplePublishReadinessSheetProps) {
-	const triggerRef = useRef<HTMLButtonElement>(null);
-
 	const readiness = useMemo(
 		() => deriveSimplePublishReadiness(draft, violations, sectionLabel, subjectLabel, facultyLabel),
 		[draft, violations, sectionLabel, subjectLabel, facultyLabel],
 	);
 
-	const handleClose = useCallback(() => {
-		onOpenChange(false);
-		triggerRef.current?.focus();
-	}, [onOpenChange]);
-
 	const handleNavigate = useCallback(
 		(href: string, reason?: string) => {
-			handleClose();
+			onOpenChange(false);
 			onNavigateToRepair(href, reason);
 		},
-		[handleClose, onNavigateToRepair],
+		[onOpenChange, onNavigateToRepair],
 	);
 
 	const summaryPlain = useMemo(() => {
@@ -240,7 +233,7 @@ function SimplePublishReadinessSheetImpl({
 					variant="outline"
 					size="sm"
 					className="h-9 w-full gap-1.5 text-xs"
-					onClick={handleClose}
+					onClick={() => onOpenChange(false)}
 				>
 					Close
 				</Button>

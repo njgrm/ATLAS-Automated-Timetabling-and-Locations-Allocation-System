@@ -835,6 +835,8 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 		toast,
 		openTacticalSandbox,
 		GRADE_BADGE,
+		unassignedReasonFilter,
+		setUnassignedReasonFilter,
 	} = context;
 	const [skippedKeys, setSkippedKeys] = useState<Set<string>>(new Set());
 	const [activeItem, setActiveItem] = useState<UnassignedItem | null>(null);
@@ -987,6 +989,25 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 					</div>
 				) : null}
 			</div>
+
+			{unassignedReasonFilter && unassignedReasonFilter !== 'all' && (
+				<div className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-1.5" data-testid="simple-plotting-reason-filter">
+					<div className="flex items-center justify-between gap-2">
+						<p className="text-xs font-medium text-amber-800">
+							Showing sessions with {unassignedReasonFilter === 'NO_AVAILABLE_SLOT' ? 'no available slot' : unassignedReasonFilter.replace(/_/g, ' ').toLowerCase()}
+						</p>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 gap-1 px-1.5 text-xs text-amber-700"
+							onClick={() => setUnassignedReasonFilter('all')}
+						>
+							Clear filter
+						</Button>
+					</div>
+				</div>
+			)}
 
 			<div
 				className="min-h-0 flex-1 overflow-auto touch-pan-y overscroll-contain"
