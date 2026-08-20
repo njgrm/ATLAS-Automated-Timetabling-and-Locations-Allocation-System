@@ -605,7 +605,7 @@ model SchedulingPolicy {
   minBreakMinutesAfterConsecutiveBlock     Int      @default(15) @map("min_break_minutes_after_consecutive_block")
   maxTeachingMinutesPerDay                 Int      @default(400) @map("max_teaching_minutes_per_day")
   earliestStartTime                        String   @default("07:00") @map("earliest_start_time")
-  latestEndTime                            String   @default("17:00") @map("latest_end_time")
+  latestEndTime                            String   @default("18:30") @map("latest_end_time")
   enforceConsecutiveBreakAsHard            Boolean  @default(false) @map("enforce_consecutive_break_as_hard")
   enableTravelWellbeingChecks              Boolean  @default(true) @map("enable_travel_wellbeing_checks")
   maxWalkingDistanceMetersPerTransition    Int      @default(120) @map("max_walking_distance_meters_per_transition")
@@ -638,6 +638,30 @@ model SchedulingPolicy {
 
   @@unique([schoolId, schoolYearId])
   @@map("scheduling_policies")
+}
+
+// ─── Policy Special Events (shift-specific breaks) ───
+// Uniqueness is enforced by 4 partial unique indexes in migration 0036.
+// Prisma cannot represent partial indexes, so @@unique is intentionally omitted.
+// Service-level upsert uses findFirst to prevent duplicates within each scope.
+
+model PolicySpecialEvent {
+  id             Int      @id @default(autoincrement())
+  schoolId       Int      @map("school_id")
+  schoolYearId   Int      @map("school_year_id")
+  eventType      String   @map("event_type") @db.VarChar(48)
+  label          String   @map("label") @db.VarChar(120)
+  gradeGroup     String?  @map("grade_group") @db.VarChar(24)
+  programType    String?  @map("program_type") @db.VarChar(24)
+  startTime      String   @map("start_time") @db.VarChar(5)
+  endTime        String   @map("end_time") @db.VarChar(5)
+  enabled        Boolean  @default(true)
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId, schoolYearId], map: "idx_policy_special_events_scope")
+  @@map("policy_special_events")
 }
 
 // ─── Generation Run ───

@@ -722,7 +722,7 @@ export async function triggerGenerationRun(
 		}
 
 		stage = 'sections-fetch';
-		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows] = await Promise.all([
+		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specialEvents] = await Promise.all([
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true, isStale: false },
 				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true },
@@ -776,6 +776,10 @@ export async function triggerGenerationRun(
 			enforceShiftWindows
 				? prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } })
 				: Promise.resolve([]),
+			prisma.policySpecialEvent.findMany({
+				where: { schoolId, schoolYearId, enabled: true },
+				orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+			}),
 		]);
 
 		const cohorts = await prisma.instructionalCohort.findMany({
@@ -861,6 +865,14 @@ export async function triggerGenerationRun(
 				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
 				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
 				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
+				specialEvents: specialEvents.map((se) => ({
+					eventType: se.eventType,
+					label: se.label,
+					startTime: se.startTime,
+					endTime: se.endTime,
+					gradeGroup: se.gradeGroup,
+					programType: se.programType,
+				})),
 			},
 		});
 
@@ -915,6 +927,14 @@ export async function triggerGenerationRun(
 				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
 				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
 				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
+				specialEvents: specialEvents.map((se) => ({
+					eventType: se.eventType,
+					label: se.label,
+					startTime: se.startTime,
+					endTime: se.endTime,
+					gradeGroup: se.gradeGroup,
+					programType: se.programType,
+				})),
 			},
 			lockedEntries: preGenerationDrafts.lockedEntries,
 			gradeWindows: gradeWindows.map((gw) => ({

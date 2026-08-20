@@ -512,7 +512,7 @@ async function loadSectionsForDraftContext(
 
 async function loadDraftContext(schoolId: number, schoolYearId: number, authToken?: string, options: LoadDraftContextOptions = {}) {
 	const sectionResultPromise = loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options);
-	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
+	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts, specialEvents] = await Promise.all([
 		sectionResultPromise,
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -570,6 +570,10 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				preferredRoomType: true,
 			},
 		}),
+		prisma.policySpecialEvent.findMany({
+			where: { schoolId, schoolYearId, enabled: true },
+			orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+		}),
 	]);
 
 	const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
@@ -588,6 +592,15 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 	const templateProfiles = await getTemplatePeriodProfiles(schoolId);
 	const templateByProgram = new Map(templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
 	const regularTemplate = templateByProgram.get('REGULAR') ?? { periodLengthMinutes: 50, periodsPerDay: 8, programType: 'REGULAR' };
+
+	const mappedSpecialEvents = specialEvents.map((se) => ({
+		eventType: se.eventType,
+		label: se.label,
+		startTime: se.startTime,
+		endTime: se.endTime,
+		gradeGroup: se.gradeGroup,
+		programType: se.programType,
+	}));
 
 	const shapeContracts = sectionResult.gradeLevels.flatMap((grade) => {
 		const programTypes = new Set<string>(['REGULAR']);
@@ -622,6 +635,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 					enableRecess: policyRecord.enableRecess ?? undefined,
 					recessStartTime: policyRecord.recessStartTime ?? undefined,
 					recessEndTime: policyRecord.recessEndTime ?? undefined,
+					specialEvents: mappedSpecialEvents,
 				},
 			});
 		});
@@ -644,6 +658,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		enableRecess: policyRecord.enableRecess ?? undefined,
 		recessStartTime: policyRecord.recessStartTime ?? undefined,
 		recessEndTime: policyRecord.recessEndTime ?? undefined,
+		specialEvents: mappedSpecialEvents,
 	} satisfies PolicyInput);
 	const specialEventSlots = buildSpecialEventSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -661,6 +676,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		enableRecess: policyRecord.enableRecess ?? undefined,
 		recessStartTime: policyRecord.recessStartTime ?? undefined,
 		recessEndTime: policyRecord.recessEndTime ?? undefined,
+		specialEvents: mappedSpecialEvents,
 	} satisfies PolicyInput);
 	const periodSlots = buildUnionDisplaySlots(shapeContracts).length > 0
 		? buildUnionDisplaySlots(shapeContracts)

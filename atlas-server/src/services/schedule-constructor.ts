@@ -27,6 +27,7 @@ import {
 	matchesSubjectOwnershipDepartment,
 } from './subject-ownership.service.js';
 import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
+import { getEffectiveEvents, type SpecialEventRowLike } from '../lib/policy-special-events.js';
 
 // ─── Standard time grid (JHS 8-period day) ───
 
@@ -164,6 +165,14 @@ export interface PolicyInput {
 	enableTleTwoPassPriority?: boolean;
 	allowFlexibleSubjectAssignment?: boolean;
 	allowConsecutiveLabSessions?: boolean;
+	specialEvents?: Array<{
+		eventType: string;
+		label: string;
+		startTime: string;
+		endTime: string;
+		gradeGroup?: string | null;
+		programType?: string | null;
+	}>;
 }
 
 type PeriodSlot = { startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string };
@@ -182,26 +191,39 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 		const latest = timeToMinutes(policy.latestEndTime);
 		const blockedWindows: Array<{ start: number; end: number }> = [];
 
-		if (policy.enableFlagCeremony ?? true) {
-			blockedWindows.push({
-				start: timeToMinutes(policy.flagCeremonyStartTime ?? '07:00'),
-				end: timeToMinutes(policy.flagCeremonyEndTime ?? '07:30'),
-			});
-		}
+		const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
 
-		if (policy.enableRecess ?? true) {
-			blockedWindows.push({
-				start: timeToMinutes(policy.recessStartTime ?? '09:45'),
-				end: timeToMinutes(policy.recessEndTime ?? '10:00'),
-			});
-		}
+		if (hasShiftEvents) {
+			// Use shift-specific events for blocked windows
+			for (const evt of policy.specialEvents!) {
+				blockedWindows.push({
+					start: timeToMinutes(evt.startTime),
+					end: timeToMinutes(evt.endTime),
+				});
+			}
+		} else {
+			// Fall back to global policy fields
+			if (policy.enableFlagCeremony ?? true) {
+				blockedWindows.push({
+					start: timeToMinutes(policy.flagCeremonyStartTime ?? '07:00'),
+					end: timeToMinutes(policy.flagCeremonyEndTime ?? '07:30'),
+				});
+			}
 
-		const lunchEnforced = policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true;
-		if (lunchEnforced) {
-			blockedWindows.push({
-				start: timeToMinutes(policy.lunchStartTime ?? '11:55'),
-				end: timeToMinutes(policy.lunchEndTime ?? '12:55'),
-			});
+			if (policy.enableRecess ?? true) {
+				blockedWindows.push({
+					start: timeToMinutes(policy.recessStartTime ?? '09:45'),
+					end: timeToMinutes(policy.recessEndTime ?? '10:00'),
+				});
+			}
+
+			const lunchEnforced = policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true;
+			if (lunchEnforced) {
+				blockedWindows.push({
+					start: timeToMinutes(policy.lunchStartTime ?? '11:55'),
+					end: timeToMinutes(policy.lunchEndTime ?? '12:55'),
+				});
+			}
 		}
 
 		let cursor = earliest;
@@ -245,29 +267,45 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 	}
 
 	const events: PeriodSlot[] = [];
-	if (policy.enableFlagCeremony ?? true) {
-		events.push({
-			startTime: policy.flagCeremonyStartTime ?? '07:00',
-			endTime: policy.flagCeremonyEndTime ?? '07:30',
-			isSpecialEvent: true,
-			eventName: 'FLAG CEREMONY',
-		});
-	}
-	if (policy.enableRecess ?? true) {
-		events.push({
-			startTime: policy.recessStartTime ?? '09:45',
-			endTime: policy.recessEndTime ?? '10:00',
-			isSpecialEvent: true,
-			eventName: 'RECESS',
-		});
-	}
-	if (policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) {
-		events.push({
-			startTime: policy.lunchStartTime ?? '11:55',
-			endTime: policy.lunchEndTime ?? '12:55',
-			isSpecialEvent: true,
-			eventName: 'LUNCH BREAK',
-		});
+
+	const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
+
+	if (hasShiftEvents) {
+		// Use shift-specific events directly
+		for (const evt of policy.specialEvents!) {
+			events.push({
+				startTime: evt.startTime,
+				endTime: evt.endTime,
+				isSpecialEvent: true,
+				eventName: evt.label,
+			});
+		}
+	} else {
+		// Fall back to global policy fields
+		if (policy.enableFlagCeremony ?? true) {
+			events.push({
+				startTime: policy.flagCeremonyStartTime ?? '07:00',
+				endTime: policy.flagCeremonyEndTime ?? '07:30',
+				isSpecialEvent: true,
+				eventName: 'FLAG CEREMONY',
+			});
+		}
+		if (policy.enableRecess ?? true) {
+			events.push({
+				startTime: policy.recessStartTime ?? '09:45',
+				endTime: policy.recessEndTime ?? '10:00',
+				isSpecialEvent: true,
+				eventName: 'RECESS',
+			});
+		}
+		if (policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) {
+			events.push({
+				startTime: policy.lunchStartTime ?? '11:55',
+				endTime: policy.lunchEndTime ?? '12:55',
+				isSpecialEvent: true,
+				eventName: 'LUNCH BREAK',
+			});
+		}
 	}
 
 	return events.sort((left, right) => {
@@ -314,6 +352,13 @@ export function buildTimetableShapeContract(input: {
 	periodsPerDay: number;
 	basePolicy?: PolicyInput;
 }): TimetableShapeContract {
+	// Apply per-grade/program effective event resolution
+	const effectiveSpecialEvents = getEffectiveEvents(
+		(input.basePolicy?.specialEvents as SpecialEventRowLike[] | undefined) ?? [],
+		input.gradeLevel,
+		input.programType,
+	);
+
 	const policyForShape: PolicyInput = {
 		maxConsecutiveTeachingMinutesBeforeBreak: input.basePolicy?.maxConsecutiveTeachingMinutesBeforeBreak ?? 180,
 		minBreakMinutesAfterConsecutiveBlock: input.basePolicy?.minBreakMinutesAfterConsecutiveBlock ?? 20,
@@ -336,6 +381,7 @@ export function buildTimetableShapeContract(input: {
 		enableTleTwoPassPriority: input.basePolicy?.enableTleTwoPassPriority,
 		allowFlexibleSubjectAssignment: input.basePolicy?.allowFlexibleSubjectAssignment,
 		allowConsecutiveLabSessions: input.basePolicy?.allowConsecutiveLabSessions,
+		specialEvents: effectiveSpecialEvents,
 	};
 	const periodSlots = buildPeriodSlots(policyForShape);
 	const specialEventSlots = buildSpecialEventSlots(policyForShape);

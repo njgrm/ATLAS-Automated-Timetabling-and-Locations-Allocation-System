@@ -15,6 +15,7 @@ import atlasApi from '@/lib/api';
 import type {
 	ConstraintOverride,
 	GradeShiftWindow,
+	PolicySpecialEvent,
 	SchedulingPolicy,
 	SectionSummaryResponse,
 	ViolationCode,
@@ -262,6 +263,8 @@ export default function SchedulingPolicyPane({
 	const [showAddOverrideDialog, setShowAddOverrideDialog] = useState(false);
 	const [newOverride, setNewOverride] = useState<LocalGradeWindow>(createInitialOverride());
 	const [reconciliationDialog, setReconciliationDialog] = useState<ReconciliationDialogState | null>(null);
+	const [specialEvents, setSpecialEvents] = useState<PolicySpecialEvent[]>([]);
+	const [persistedSpecialEvents, setPersistedSpecialEvents] = useState<PolicySpecialEvent[]>([]);
 
 	const markIntent = useCallback((intent: Exclude<EditIntent, null>) => {
 		setEditIntent((previous) => previous ?? intent);
@@ -277,13 +280,16 @@ export default function SchedulingPolicyPane({
 		setLoading(true);
 		setPolicyStatus('loading');
 		try {
-			const policyRes = await atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, { timeout: 8_000 });
-			const [windowsRes, summaryRes] = await Promise.all([
+		const policyRes = await atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, { timeout: 8_000 });
+			const [windowsRes, summaryRes, specialEventsRes] = await Promise.all([
 				atlasApi
 					.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, { timeout: 8_000 })
 					.catch(() => null),
 				atlasApi
 					.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`, { timeout: 8_000 })
+					.catch(() => null),
+				atlasApi
+					.get<{ events: PolicySpecialEvent[] }>(`/policies/special-events/${schoolId}/${schoolYearId}`, { timeout: 8_000 })
 					.catch(() => null),
 			]);
 			const lp = policyToLocal(policyRes.data.policy);
@@ -293,6 +299,8 @@ export default function SchedulingPolicyPane({
 			setLocal(lp);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
+			setSpecialEvents(specialEventsRes?.data.events ?? []);
+			setPersistedSpecialEvents(specialEventsRes?.data.events ?? []);
 			setProgramOptions(toProgramOptionsFromSections(summary));
 			setProgramContextNote(buildProgramContextNote(summary));
 			setEditIntent(null);
@@ -844,6 +852,39 @@ export default function SchedulingPolicyPane({
 											onChange={(e) => update('lunchEndTime', e.target.value)}
 										/>
 									</div>
+								</div>
+							)}
+						</div>
+
+						{/* ─── Shift-Specific Events ─── */}
+						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
+							<div className="space-y-1">
+								<div className="text-xs font-medium text-foreground">Shift-Specific Breaks &amp; Events</div>
+								<div className="text-[0.6875rem] text-muted-foreground">
+									GR7/GR8 share day-shift breaks and GR9/GR10 share afternoon-shift breaks.
+									When shift-specific events exist below, they replace the global flag ceremony, recess, and lunch settings above for those grades.
+								</div>
+							</div>
+							{specialEvents.length === 0 ? (
+								<div className="flex items-start gap-1.5 rounded-md border border-dashed border-border/60 px-2.5 py-2 text-[0.6875rem] text-muted-foreground">
+									No shift-specific events configured. Global break settings above apply to all grades.
+								</div>
+							) : (
+								<div className="space-y-1.5">
+									{specialEvents.map((evt) => (
+										<div key={`${evt.eventType}-${evt.gradeGroup}-${evt.programType}`} className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/30 px-2 py-1.5 text-xs">
+											<Badge variant="outline" className="shrink-0 text-[0.625rem] px-1.5 py-0">
+												{evt.gradeGroup ? `GR ${evt.gradeGroup}` : 'All grades'}
+											</Badge>
+											<span className="font-medium truncate">{evt.label}</span>
+											{evt.programType && (
+												<span className="text-muted-foreground shrink-0 text-[0.625rem]">
+													{evt.programType} sections only
+												</span>
+											)}
+											<span className="text-muted-foreground shrink-0">{evt.startTime}–{evt.endTime}</span>
+										</div>
+									))}
 								</div>
 							)}
 						</div>

@@ -67,7 +67,7 @@ export const POLICY_DEFAULTS = {
 	minBreakMinutesAfterConsecutiveBlock: 15,
 	maxTeachingMinutesPerDay: 480,
 	earliestStartTime: '06:00',
-	latestEndTime: '18:00',
+	latestEndTime: '18:30',
 	enforceConsecutiveBreakAsHard: false,
 	enableTravelWellbeingChecks: true,
 	maxWalkingDistanceMetersPerTransition: 120,

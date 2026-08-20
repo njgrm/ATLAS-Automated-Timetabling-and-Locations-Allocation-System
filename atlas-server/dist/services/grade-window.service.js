@@ -17,22 +17,22 @@ function timeToMinutes(value) {
     return hours * 60 + minutes;
 }
 const PHASE3_DEFAULT_WINDOWS = [
-    { gradeLevel: 7, programType: null, startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 8, programType: null, startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 9, programType: null, startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 10, programType: null, startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 8, programType: 'STE', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 9, programType: 'STE', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 10, programType: 'STE', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 7, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 8, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 9, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 10, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 7, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 8, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 9, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
-    { gradeLevel: 10, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
+    { gradeLevel: 7, programType: null, startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 8, programType: null, startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 9, programType: null, startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 10, programType: null, startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 7, programType: 'STE', startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 8, programType: 'STE', startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 9, programType: 'STE', startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 10, programType: 'STE', startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 7, programType: 'SPA', startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 8, programType: 'SPA', startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 9, programType: 'SPA', startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 10, programType: 'SPA', startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 7, programType: 'SPS', startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 8, programType: 'SPS', startTime: '06:00', endTime: '15:30' },
+    { gradeLevel: 9, programType: 'SPS', startTime: '09:45', endTime: '18:30' },
+    { gradeLevel: 10, programType: 'SPS', startTime: '09:45', endTime: '18:30' },
 ];
 async function validateAgainstPolicyBounds(schoolId, schoolYearId, input) {
     const policy = await prisma.schedulingPolicy.findUnique({
@@ -137,6 +137,8 @@ export async function upsertGradeWindows(schoolId, schoolYearId, windows) {
     }
     return results;
 }
+const LEGACY_DEFAULT_START = '07:30';
+const LEGACY_DEFAULT_END = '17:00';
 export async function ensurePhase3GradeWindows(schoolId, schoolYearId) {
     const ensured = [];
     for (const window of PHASE3_DEFAULT_WINDOWS) {
@@ -149,7 +151,17 @@ export async function ensurePhase3GradeWindows(schoolId, schoolYearId) {
             },
         });
         if (existing) {
-            ensured.push(existing);
+            const isLegacyDefault = existing.startTime === LEGACY_DEFAULT_START && existing.endTime === LEGACY_DEFAULT_END;
+            if (isLegacyDefault) {
+                const healed = await prisma.gradeShiftWindow.update({
+                    where: { id: existing.id },
+                    data: { startTime: window.startTime, endTime: window.endTime },
+                });
+                ensured.push(healed);
+            }
+            else {
+                ensured.push(existing);
+            }
             continue;
         }
         ensured.push(await upsertGradeWindow(schoolId, schoolYearId, window));

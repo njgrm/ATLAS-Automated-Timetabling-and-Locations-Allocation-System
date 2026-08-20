@@ -259,7 +259,7 @@ async function loadSectionsForDraftContext(schoolId, schoolYearId, authToken, op
 }
 async function loadDraftContext(schoolId, schoolYearId, authToken, options = {}) {
     const sectionResultPromise = loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options);
-    const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
+    const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts, specialEvents] = await Promise.all([
         sectionResultPromise,
         prisma.facultyMirror.findMany({
             where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -317,6 +317,10 @@ async function loadDraftContext(schoolId, schoolYearId, authToken, options = {})
                 preferredRoomType: true,
             },
         }),
+        prisma.policySpecialEvent.findMany({
+            where: { schoolId, schoolYearId, enabled: true },
+            orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+        }),
     ]);
     const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
     const facultySubjects = facultySubjectRows.map((assignment) => {
@@ -333,6 +337,14 @@ async function loadDraftContext(schoolId, schoolYearId, authToken, options = {})
     const templateProfiles = await getTemplatePeriodProfiles(schoolId);
     const templateByProgram = new Map(templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
     const regularTemplate = templateByProgram.get('REGULAR') ?? { periodLengthMinutes: 50, periodsPerDay: 8, programType: 'REGULAR' };
+    const mappedSpecialEvents = specialEvents.map((se) => ({
+        eventType: se.eventType,
+        label: se.label,
+        startTime: se.startTime,
+        endTime: se.endTime,
+        gradeGroup: se.gradeGroup,
+        programType: se.programType,
+    }));
     const shapeContracts = sectionResult.gradeLevels.flatMap((grade) => {
         const programTypes = new Set(['REGULAR']);
         for (const section of grade.sections) {
@@ -366,6 +378,7 @@ async function loadDraftContext(schoolId, schoolYearId, authToken, options = {})
                     enableRecess: policyRecord.enableRecess ?? undefined,
                     recessStartTime: policyRecord.recessStartTime ?? undefined,
                     recessEndTime: policyRecord.recessEndTime ?? undefined,
+                    specialEvents: mappedSpecialEvents,
                 },
             });
         });
@@ -387,6 +400,7 @@ async function loadDraftContext(schoolId, schoolYearId, authToken, options = {})
         enableRecess: policyRecord.enableRecess ?? undefined,
         recessStartTime: policyRecord.recessStartTime ?? undefined,
         recessEndTime: policyRecord.recessEndTime ?? undefined,
+        specialEvents: mappedSpecialEvents,
     });
     const specialEventSlots = buildSpecialEventSlots({
         maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -404,6 +418,7 @@ async function loadDraftContext(schoolId, schoolYearId, authToken, options = {})
         enableRecess: policyRecord.enableRecess ?? undefined,
         recessStartTime: policyRecord.recessStartTime ?? undefined,
         recessEndTime: policyRecord.recessEndTime ?? undefined,
+        specialEvents: mappedSpecialEvents,
     });
     const periodSlots = buildUnionDisplaySlots(shapeContracts).length > 0
         ? buildUnionDisplaySlots(shapeContracts)

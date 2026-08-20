@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 
+import { gradeLabel } from '@/lib/grade-labels';
 import { getProgramBadgeLabel } from '@/lib/schedule-review-helpers';
 import type { ExternalSection, FacultyMirror, ScheduledEntry, Subject, UnassignedItem } from '@/types';
 import type { RoomInfo, ViewMode } from '@/components/timetable/ScheduleReviewWorkspace.constants';
@@ -45,7 +46,7 @@ export function useTimetableLookupHelpers({
 			return `${prefix}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
 		}
 		const section = sectionMap.get(entry.sectionId);
-		const gradePrefix = section?.displayOrder ? `G${section.displayOrder} · ` : '';
+		const gradePrefix = section?.displayOrder ? `${gradeLabel(section.displayOrder)} · ` : '';
 		const adviser = entry.adviserName ?? section?.adviserName;
 		return adviser
 			? `${gradePrefix}${sectionLabel(entry.sectionId)} · Adviser ${adviser}`
@@ -86,7 +87,7 @@ export function useTimetableLookupHelpers({
 					? getProgramBadgeLabel(section.programType, section.programCode)
 					: 'Regular';
 				const grade = gradeForSection(id);
-				label = grade ? `G${grade} · ${program}` : program;
+				label = grade ? `${gradeLabel(grade)} · ${program}` : program;
 			} else {
 				label = facultyMap.get(id)?.department || 'Unassigned';
 			}

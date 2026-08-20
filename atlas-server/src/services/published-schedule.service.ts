@@ -449,8 +449,11 @@ async function loadReferenceMaps(
 	};
 }
 
-function buildSpecialEventsPayload(policy: Awaited<ReturnType<typeof getOrCreatePolicy>>) {
-	const specialEvents = buildSpecialEventSlots({
+function buildSpecialEventsPayload(
+	policy: Awaited<ReturnType<typeof getOrCreatePolicy>>,
+	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; gradeGroup?: string | null; programType?: string | null }>,
+) {
+	const specialEventSlots = buildSpecialEventSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
@@ -466,9 +469,10 @@ function buildSpecialEventsPayload(policy: Awaited<ReturnType<typeof getOrCreate
 		enableRecess: policy.enableRecess ?? undefined,
 		recessStartTime: policy.recessStartTime ?? undefined,
 		recessEndTime: policy.recessEndTime ?? undefined,
+		specialEvents,
 	});
 
-	return specialEvents.map((event) => ({
+	return specialEventSlots.map((event) => ({
 		eventName: event.eventName,
 		startTime: event.startTime,
 		endTime: event.endTime,
@@ -495,6 +499,19 @@ export async function getPublishedSchedulePayload(
 		: resolved.entries;
 
 	const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
+
+	const publishedSpecialEvents = await prisma.policySpecialEvent.findMany({
+		where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, enabled: true },
+		orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+	});
+	const mappedPublishedSpecialEvents = publishedSpecialEvents.map((se) => ({
+		eventType: se.eventType,
+		label: se.label,
+		startTime: se.startTime,
+		endTime: se.endTime,
+		gradeGroup: se.gradeGroup,
+		programType: se.programType,
+	}));
 
 	const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
 	const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));
@@ -581,7 +598,7 @@ export async function getPublishedSchedulePayload(
 	return {
 		source: resolved.source,
 		timeSlots,
-		specialEvents: buildSpecialEventsPayload(policy),
+		specialEvents: buildSpecialEventsPayload(policy, mappedPublishedSpecialEvents),
 		entries,
 	};
 }

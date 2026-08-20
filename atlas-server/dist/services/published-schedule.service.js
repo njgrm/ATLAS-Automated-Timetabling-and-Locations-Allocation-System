@@ -361,8 +361,8 @@ async function loadReferenceMaps(schoolId, schoolYearId, sectionIds, subjectIds,
         specializationBySubjectSection,
     };
 }
-function buildSpecialEventsPayload(policy) {
-    const specialEvents = buildSpecialEventSlots({
+function buildSpecialEventsPayload(policy, specialEvents) {
+    const specialEventSlots = buildSpecialEventSlots({
         maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
         minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
         maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
@@ -378,8 +378,9 @@ function buildSpecialEventsPayload(policy) {
         enableRecess: policy.enableRecess ?? undefined,
         recessStartTime: policy.recessStartTime ?? undefined,
         recessEndTime: policy.recessEndTime ?? undefined,
+        specialEvents,
     });
-    return specialEvents.map((event) => ({
+    return specialEventSlots.map((event) => ({
         eventName: event.eventName,
         startTime: event.startTime,
         endTime: event.endTime,
@@ -400,6 +401,18 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId, option
         })
         : resolved.entries;
     const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
+    const publishedSpecialEvents = await prisma.policySpecialEvent.findMany({
+        where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, enabled: true },
+        orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+    });
+    const mappedPublishedSpecialEvents = publishedSpecialEvents.map((se) => ({
+        eventType: se.eventType,
+        label: se.label,
+        startTime: se.startTime,
+        endTime: se.endTime,
+        gradeGroup: se.gradeGroup,
+        programType: se.programType,
+    }));
     const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
     const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));
     const facultyIds = Array.from(new Set(filteredEntries.map((entry) => entry.facultyId).filter((id) => id != null)));
@@ -474,7 +487,7 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId, option
     return {
         source: resolved.source,
         timeSlots,
-        specialEvents: buildSpecialEventsPayload(policy),
+        specialEvents: buildSpecialEventsPayload(policy, mappedPublishedSpecialEvents),
         entries,
     };
 }

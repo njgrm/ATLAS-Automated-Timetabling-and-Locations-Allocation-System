@@ -103,6 +103,14 @@ export interface PolicyInput {
     enableTleTwoPassPriority?: boolean;
     allowFlexibleSubjectAssignment?: boolean;
     allowConsecutiveLabSessions?: boolean;
+    specialEvents?: Array<{
+        eventType: string;
+        label: string;
+        startTime: string;
+        endTime: string;
+        gradeGroup?: string | null;
+        programType?: string | null;
+    }>;
 }
 type PeriodSlot = {
     startTime: string;

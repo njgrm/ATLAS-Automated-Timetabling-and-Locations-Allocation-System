@@ -1746,6 +1746,25 @@ export interface SchedulingPolicy {
 	updatedAt: string;
 }
 
+export type SpecialEventType = 'FLAG_OR_HGP' | 'HEALTH_BREAK' | 'LUNCH_BREAK' | 'CUSTOM';
+export type GradeGroup = '7-8' | '9-10';
+
+export interface PolicySpecialEvent {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	eventType: SpecialEventType;
+	label: string;
+	gradeGroup: GradeGroup | null;
+	programType: string | null;
+	startTime: string;
+	endTime: string;
+	enabled: boolean;
+	sortOrder: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
 /* ─── Fix Suggestion types ─── */
 
 export type UnassignedReason = 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';

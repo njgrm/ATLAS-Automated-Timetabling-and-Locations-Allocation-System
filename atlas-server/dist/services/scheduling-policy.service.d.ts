@@ -13,7 +13,7 @@ export declare const POLICY_DEFAULTS: {
     readonly minBreakMinutesAfterConsecutiveBlock: 15;
     readonly maxTeachingMinutesPerDay: 480;
     readonly earliestStartTime: "06:00";
-    readonly latestEndTime: "18:00";
+    readonly latestEndTime: "18:30";
     readonly enforceConsecutiveBreakAsHard: false;
     readonly enableTravelWellbeingChecks: true;
     readonly maxWalkingDistanceMetersPerTransition: 120;

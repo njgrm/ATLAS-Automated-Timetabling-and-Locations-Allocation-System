@@ -32,6 +32,18 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
         throw err(404, 'ROOM_NOT_FOUND', `Room ${roomId} not found in school ${schoolId}.`);
     // 2) Fetch policy to build dynamic time slots
     const policy = await policyService.getOrCreatePolicy(schoolId, schoolYearId);
+    const roomSpecialEvents = await prisma.policySpecialEvent.findMany({
+        where: { schoolId, schoolYearId, enabled: true },
+        orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+    });
+    const mappedRoomSpecialEvents = roomSpecialEvents.map((se) => ({
+        eventType: se.eventType,
+        label: se.label,
+        startTime: se.startTime,
+        endTime: se.endTime,
+        gradeGroup: se.gradeGroup,
+        programType: se.programType,
+    }));
     const specialEventSlots = buildSpecialEventSlots({
         maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
         minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
@@ -48,6 +60,7 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
         enableRecess: policy.enableRecess,
         recessStartTime: policy.recessStartTime,
         recessEndTime: policy.recessEndTime,
+        specialEvents: mappedRoomSpecialEvents,
     });
     let classPeriodSlots = buildPeriodSlots({
         maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -65,6 +78,7 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
         enableRecess: policy.enableRecess,
         recessStartTime: policy.recessStartTime,
         recessEndTime: policy.recessEndTime,
+        specialEvents: mappedRoomSpecialEvents,
     });
     let PERIOD_SLOTS = (policy.showSpecialEventsInGrid ?? true)
         ? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
