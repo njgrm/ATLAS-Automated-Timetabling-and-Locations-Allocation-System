@@ -44,3 +44,569 @@
 [client] [2m10:37:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
 [client] [2m10:37:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
 [client] [2m10:38:06 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] The request id "D:\ATLAS\atlas-client\.env" is outside of Vite serving allow list.
+[client] 
+[client] - D:/ATLAS/atlas-client
+[client] 
+[client] Refer to docs https://vite.dev/config/server-options.html#server-fs-allow for configurations and more details.
+[client] 
+[client] [2m1:40:18 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m1:40:41 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m1:40:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m1:48:05 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceBody.tsx[22m
+[client] [2m1:48:22 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceBody.tsx[22m
+[client] [2m1:48:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceBody.tsx[22m
+[client] [2m1:48:40 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceBody.tsx[22m
+[client] [2m1:48:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceBody.tsx[22m
+[client] [2m1:49:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:49:20 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:49:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:49:43 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:49:54 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m1:50:01 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m1:50:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m1:50:23 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m1:50:33 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m1:50:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:51:40 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m1:54:20 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:54:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m1:54:42 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m2:04:56 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m2:05:28 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m2:05:38 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m2:15:24 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:23:06 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:23:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:27:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:27:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:28:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:36:28 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:36:33 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:38:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:38:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:38:41 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:38:58 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:40:05 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:45:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:46:21 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:56:08 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m2:56:49 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m3:10:07 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m3:10:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m3:12:46 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/GeneratedRunRailPanels.tsx[22m
+[client] [2m3:13:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/LeftRailContent.tsx[22m
+[client] [2m3:13:25 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/LeftRailContent.tsx[22m
+[client] The request id "D:\ATLAS\atlas-client\.env" is outside of Vite serving allow list.
+[client] [2m4:32:02 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m4:32:56 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m4:41:36 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:42:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:46:08 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:47:32 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:49:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:51:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:52:16 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:54:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:54:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m4:54:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m5:00:13 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m5:00:32 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m5:00:52 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableSimpleHeader.tsx[22m
+[client] [2m5:11:38 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/GeneratedUnassignedPanel.tsx[22m
+[client] [2m5:11:50 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/GeneratedUnassignedPanel.tsx[22m
+[client] [2m5:12:02 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/GeneratedRunRailPanels.tsx[22m
+[client] [2m5:12:15 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/RightPanel.tsx[22m
+[client] [2m5:12:26 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/RightPanel.tsx[22m
+[client] [2m5:12:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableTaskDrawer.tsx[22m
+[client] [2m5:51:50 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m5:51:57 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m5:52:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[server] 10:45:28 AM [tsx] change in ./src\services\grade-window.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 10:45:37 AM [tsx] change in ./src\services\grade-window.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 10:45:47 AM [tsx] change in ./src\services\scheduling-policy.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[client] [2m12:48:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/faculty?schoolId=1[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[server] 12:51:32 PM [tsx] change in ./src\app.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 12:51:42 PM [tsx] change in ./src\app.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:52:15 PM [tsx] change in ./src\services\schedule-constructor.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 12:52:41 PM [tsx] change in ./src\services\schedule-constructor.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:53:03 PM [tsx] change in ./src\services\schedule-constructor.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 12:53:30 PM [tsx] change in ./src\services\schedule-constructor.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:54:11 PM [tsx] change in ./src\services\generation.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:54:56 PM [tsx] change in ./src\services\generation.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:55:13 PM [tsx] change in ./src\services\generation.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 12:55:34 PM [tsx] change in ./src\services\generation.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:56:38 PM [tsx] change in ./src\services\pre-generation-draft.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:57:06 PM [tsx] change in ./src\services\pre-generation-draft.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 12:57:44 PM [tsx] change in ./src\services\pre-generation-draft.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:57:57 PM [tsx] change in ./src\services\pre-generation-draft.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:58:18 PM [tsx] change in ./src\services\pre-generation-draft.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 12:59:25 PM [tsx] change in ./src\services\room-schedule.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 1:01:06 PM [tsx] change in ./src\services\published-schedule.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 1:01:21 PM [tsx] change in ./src\services\published-schedule.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 1:01:33 PM [tsx] change in ./src\services\published-schedule.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[client] [2m1:03:38 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SchedulingPolicyPane.tsx[22m
+[client] [2m1:03:45 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SchedulingPolicyPane.tsx[22m
+[client] [2m1:03:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SchedulingPolicyPane.tsx[22m
+[client] [2m1:04:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SchedulingPolicyPane.tsx[22m
+[client] [2m1:04:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SchedulingPolicyPane.tsx[22m
+[server] 1:07:24 PM [tsx] change in ./src\services\policy-special-event.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 1:34:09 PM [tsx] change in ./src\services\policy-special-event.service.ts Rerunning...
+[server] c
+[server] node:internal/modules/run_main:107
+[server]     triggerUncaughtException(
+[server]     ^
+[server] Error [TransformError]: Transform failed with 1 error:
+[server] D:\ATLAS\atlas-server\src\services\policy-special-event.service.ts:216:16: ERROR: Multiple exports with the same name "getEffectiveEvents"
+[server]     at failureErrorWithLog (D:\ATLAS\atlas-server\node_modules\esbuild\lib\main.js:1748:15)
+[server]     at D:\ATLAS\atlas-server\node_modules\esbuild\lib\main.js:1017:50
+[server]     at responseCallbacks.<computed> (D:\ATLAS\atlas-server\node_modules\esbuild\lib\main.js:884:9)
+[server]     at handleIncomingPacket (D:\ATLAS\atlas-server\node_modules\esbuild\lib\main.js:939:12)
+[server]     at Socket.readFromStdout (D:\ATLAS\atlas-server\node_modules\esbuild\lib\main.js:862:7)
+[server]     at Socket.emit (node:events:508:28)
+[server]     at addChunk (node:internal/streams/readable:563:12)
+[server]     at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+[server]     at Readable.push (node:internal/streams/readable:394:5)
+[server]     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+[server] 
+[server] Node.js v24.14.1
+[server] 1:35:01 PM [tsx] change in ./src\services\policy-special-event.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 1:35:52 PM [tsx] change in ./src\services\schedule-constructor.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 1:36:30 PM [tsx] change in ./src\services\schedule-constructor.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 2:10:42 PM [tsx] change in ./src\lib\policy-special-events.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[server] 2:11:10 PM [tsx] change in ./src\lib\policy-special-events.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[client] [2m2:25:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:25:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health?schoolYearId=2[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:30:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:30:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health?schoolYearId=2[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:35:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:35:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health?schoolYearId=2[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:45:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:45:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health?schoolYearId=2[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:50:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m2:50:07 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health?schoolYearId=2[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[server] 2:54:43 PM [tsx] change in ./src\services\policy-special-event.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 2:56:09 PM [tsx] change in ./src\services\policy-special-event.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[client] [2m2:57:13 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SchedulingPolicyPane.tsx[22m
+[server] 6:35:35 PM [tsx] change in ./src\services\generation.service.ts Restarting...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] node:events:486
+[server]       throw er; // Unhandled 'error' event
+[server]       ^
+[server] 
+[server] Error: listen EADDRINUSE: address already in use 0.0.0.0:5001
+[server]     at Server.setupListenHandle [as _listen2] (node:net:1948:16)
+[server]     at listenInCluster (node:net:2005:12)
+[server]     at node:net:2214:7
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[server] Emitted 'error' event on WebSocketServer instance at:
+[server]     at Server.emit (node:events:508:28)
+[server]     at emitErrorNT (node:net:1984:8)
+[server]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[server]   code: 'EADDRINUSE',
+[server]   errno: -4091,
+[server]   syscall: 'listen',
+[server]   address: '0.0.0.0',
+[server]   port: 5001
+[server] }
+[server] 
+[server] Node.js v24.14.1
+[server] 6:35:41 PM [tsx] change in ./src\services\generation.service.ts Rerunning...
+[server] c[prisma] ✔ DATABASE_URL protocol looks correct
+[server] [ATLAS] Server listening on http://localhost:5001
+[server] [prisma] ✔ DB connected, 1 school(s) found
+[server] [prisma] ✔ scheduling_policies schema verified
+[client] [2m6:36:19 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] The request id "D:\ATLAS\atlas-client\.env" is outside of Vite serving allow list.
+[client] [2m9:47:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m9:47:15 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m9:48:01 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m10:35:12 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m10:35:34 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m10:36:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m10:36:26 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m10:37:12 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m10:38:47 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/modals/TimetablePlacementDialogs.tsx[22m
+[client] [2m10:39:22 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/modals/TimetablePlacementDialogs.tsx[22m
+[client] [2m10:39:46 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/modals/TimetablePlacementDialogs.tsx[22m
+[client] [2m10:40:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableGrid.tsx[22m
+[client] [2m12:08:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/WorkspaceToolbar.tsx[22m
+[client] [2m12:09:01 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/SubjectRow.tsx[22m
+[client] [2m12:10:17 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/StackedWorkloadBar.tsx[22m
+[client] [2m12:10:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m

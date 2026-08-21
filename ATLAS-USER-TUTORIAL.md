@@ -73,7 +73,7 @@ ATLAS never touches EnrollPro's database directly. They are completely separate 
 
 **How to log in directly:**
 1. Go to the ATLAS URL (e.g., `https://njgrm.buru-degree.ts.net`).
-2. Enter your **Employee ID** (e.g., `1000001`) and **password**.
+2. Enter your **Employee ID** (e.g., `1234501`) and **password**.
 3. Click **Sign In**.
 
 **How it works technically:** ATLAS uses its own local authentication database. Your employee ID and a hashed password are stored in ATLAS's PostgreSQL database. When you log in, the server verifies the password against its stored hash (using `bcrypt`) and issues a JWT (JSON Web Token). This token is stored in your browser's `localStorage` and is included automatically in every subsequent request using an Axios HTTP interceptor. The token expires after a configured time period, after which you are required to log in again.

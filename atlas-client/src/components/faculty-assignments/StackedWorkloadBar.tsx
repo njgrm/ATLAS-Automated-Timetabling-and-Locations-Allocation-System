@@ -75,7 +75,7 @@ export function StackedWorkloadBar({
 			</div>
 
 			{showLegend && (
-				<div className="flex items-center justify-between gap-2 text-[0.65rem] font-semibold uppercase tracking-tighter text-muted-foreground/85">
+				<div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-tighter text-muted-foreground/85">
 					<div className="flex min-w-0 items-center gap-1.5">
 						<span className={cn("inline-block size-2 rounded-full", barColor)} />
 						<span className="truncate">Total Load: {formatHours(creditedTotalHours)} ({formatHours(normalizedTeachingHours)} teaching + {formatHours(normalizedCreditHours)} credits)</span>

@@ -17,6 +17,7 @@ import {
 	constructBaseline,
 	computeDemand,
 	buildTimetableShapeContract,
+	buildUnionDisplaySlots,
 	type ConstructorInput,
 	type DemandItem,
 	type HomeRoomFallbackCause,
@@ -1090,7 +1091,7 @@ export async function triggerGenerationRun(
 		};
 		const termCounts = buildTermCounts(entriesWithTerms);
 		const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
-		const timetableDisplaySlots = selectPrimaryTimetableShapeContract(timetableShapeContracts)?.displaySlots ?? [];
+		const timetableDisplaySlots = buildUnionDisplaySlots(timetableShapeContracts);
 		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
 
 		const summary: RunSummary = {

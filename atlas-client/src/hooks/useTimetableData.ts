@@ -552,15 +552,39 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		|| (centerView === 'building' && preGenMapContext);
 
 	const activeGridEntriesBase = useMemo(() => isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? []), [isPreGenerationWorkspace, preGenEntries, draft]);
+
+	// Resolve section-specific display slots when in section view
+	const sectionDisplaySlots = useMemo(() => {
+		if (viewMode !== 'section') return undefined;
+		const selectedId = Number(entityFilter);
+		if (!selectedId) return undefined;
+		const section = sectionMap.get(selectedId);
+		if (!section) return undefined;
+		const gradeNumber = resolveSectionGradeNumber(section);
+		if (gradeNumber == null) return undefined;
+		const contracts = draft?.summary?.timetableShapeContracts;
+		if (!contracts || contracts.length === 0) return undefined;
+		// Find matching contract by grade level and program type
+		const normalizedProgram = (section.programType ?? 'REGULAR').toUpperCase();
+		const matching = contracts.find(
+			(c) => c.gradeLevel === gradeNumber && c.programType === normalizedProgram,
+		) ?? contracts.find(
+			(c) => c.gradeLevel === gradeNumber,
+		);
+		if (!matching || !matching.displaySlots || matching.displaySlots.length === 0) return undefined;
+		return matching.displaySlots;
+	}, [viewMode, entityFilter, sectionMap, draft?.summary?.timetableShapeContracts]);
+
 	const timeSlots = useMemo(
 		() => isPreGenerationWorkspace && draftBoard?.periodSlots?.length
 			? draftBoard.periodSlots
 			: deriveTimeSlotsFromSummary(activeGridEntriesBase, {
-				timetableDisplaySlots: draft?.summary?.timetableDisplaySlots,
+				timetableDisplaySlots: sectionDisplaySlots ?? draft?.summary?.timetableDisplaySlots,
 				timetableShapeContracts: draft?.summary?.timetableShapeContracts,
 			}),
 		[
 			activeGridEntriesBase,
+			sectionDisplaySlots,
 			draft?.summary?.timetableDisplaySlots,
 			draft?.summary?.timetableShapeContracts,
 			draftBoard?.periodSlots,

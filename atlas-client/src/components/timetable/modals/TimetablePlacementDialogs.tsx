@@ -36,21 +36,21 @@ function getDraftPlacementSaveState({
 	confirmPreviewError: string | null;
 	confirmSaving: boolean;
 }): DraftPlacementSaveState {
-	if (confirmSaving) return { key: 'saving', blocked: true, message: 'Saving draft placement now.', tone: 'neutral' };
-	if (!confirmFacultyId) return { key: 'missing_owner', blocked: true, message: 'Fix the Teaching Load owner before saving.', tone: 'bad' };
-	if (!confirmRoomId) return { key: 'missing_room', blocked: true, message: 'Choose or repair the room source before saving.', tone: 'bad' };
-	if (confirmPreviewLoading) return { key: 'checking_conflicts', blocked: true, message: 'Waiting for the conflict check to finish.', tone: 'neutral' };
-	if (confirmPreviewError) return { key: 'preview_failed', blocked: true, message: confirmPreviewError, tone: 'bad' };
-	if (!confirmPreview) return { key: 'checking_conflicts', blocked: true, message: 'Waiting for ATLAS to show the placement review.', tone: 'neutral' };
+	if (confirmSaving) return { key: 'saving', blocked: true, message: 'Saving...', tone: 'neutral' };
+	if (!confirmFacultyId) return { key: 'missing_owner', blocked: true, message: 'Fix owner before saving', tone: 'bad' };
+	if (!confirmRoomId) return { key: 'missing_room', blocked: true, message: 'Choose a room', tone: 'bad' };
+	if (confirmPreviewLoading) return { key: 'checking_conflicts', blocked: true, message: 'Checking conflicts...', tone: 'neutral' };
+	if (confirmPreviewError) return { key: 'preview_failed', blocked: true, message: 'Fix issues before saving', tone: 'bad' };
+	if (!confirmPreview) return { key: 'checking_conflicts', blocked: true, message: 'Checking conflicts...', tone: 'neutral' };
 	if (confirmPreview.hardViolations.length > 0) {
 		return {
 			key: 'blocked_by_conflict',
 			blocked: true,
-			message: 'Choose another slot or repair the blocker before saving.',
+			message: 'Blocked: Fix issues',
 			tone: 'bad',
 		};
 	}
-	return { key: 'ready', blocked: false, message: 'Ready to save. ATLAS will update the draft after you confirm.', tone: 'good' };
+	return { key: 'ready', blocked: false, message: 'Ready to save', tone: 'good' };
 }
 
 function FigureCard({ label, value, tone = 'neutral' }: { label: string; value: number | string; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
@@ -218,20 +218,20 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 	});
 	const generatedPlacementBlocked = assignPickerSaving || assignPickerPreviewLoading || !assignPickerTarget || !assignPickerRoomId || !assignPickerPreview || assignPickerPreview.hardViolations.length > 0;
 	const generatedPlacementFeedback = assignPickerSaving
-		? { message: 'Saving placement now.', tone: 'neutral' as const }
+		? { message: 'Saving...', tone: 'neutral' as const }
 		: !assignPickerTarget
-			? { message: 'Choose an unresolved session first.', tone: 'bad' as const }
+			? { message: 'Choose a session', tone: 'bad' as const }
 			: !assignPickerRoomId
-				? { message: 'Choose a room before saving. Teacher ownership stays in Teaching Load.', tone: 'bad' as const }
+				? { message: 'Choose a room', tone: 'bad' as const }
 				: assignPickerPreviewLoading
-					? { message: 'Waiting for the conflict check to finish.', tone: 'neutral' as const }
+					? { message: 'Checking conflicts...', tone: 'neutral' as const }
 					: assignPickerPreviewError
-						? { message: `${assignPickerPreviewError} Try another slot or refresh the timetable, then check again.`, tone: 'bad' as const }
+						? { message: 'Fix issues before saving', tone: 'bad' as const }
 						: !assignPickerPreview
-							? { message: 'Waiting for ATLAS to show the placement review.', tone: 'neutral' as const }
+							? { message: 'Checking conflicts...', tone: 'neutral' as const }
 							: assignPickerPreview.hardViolations.length > 0
-								? { message: 'This slot is blocked. Choose another slot or repair the blocker before saving.', tone: 'bad' as const }
-								: { message: 'Ready to save. ATLAS will place this session after you confirm.', tone: 'good' as const };
+								? { message: 'Blocked: Fix issues', tone: 'bad' as const }
+								: { message: 'Ready to save', tone: 'good' as const };
 
 	const swapSourceLabel = swapAction?.sourceLabel ?? 'Selected session';
 	const swapTargetLabel = swapAction
@@ -442,41 +442,50 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 						<ReadOnlyField label="Target slot" value={slotLabel} />
 							</ReviewActionSection>
 
-						{confirmDisplacedPlacement ? (
-							<ReviewActionSection title="Blocks" tone="warn">
-							<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-								<p className="font-semibold">This slot is occupied.</p>
-								<p className="mt-1">Review the visual switch before replacing anything.</p>
-								<Button className="mt-2" size="sm" variant="outline" onClick={() => openSwapPrompt()}>
-									Review switch
-								</Button>
-							</div>
-							</ReviewActionSection>
-						) : null}
-							<ReviewActionSection title="Blocks" tone={confirmPreview && confirmPreview.hardViolations.length > 0 ? 'bad' : confirmPreview ? 'good' : 'neutral'}>
-						{confirmPreviewLoading ? (
-							<p className="flex items-center gap-2 text-xs text-muted-foreground">
-								<Loader2 className="size-4 animate-spin" />
-								Checking placement...
-							</p>
-						) : null}
-						{confirmPreviewError ? (
-							<p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{confirmPreviewError}</p>
-						) : null}
-						{confirmPreview && confirmPreview.hardViolations.length === 0 ? (
-							<p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-								<CheckCircle2 className="size-4 shrink-0" />
-								No blocking conflicts for this owner, room, and slot.
-							</p>
-						) : null}
-						{confirmPreview && confirmPreview.hardViolations.length > 0 ? (
-							<p className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
-								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
-								This placement is blocked. Use another slot or repair the source data before saving.
-							</p>
-						) : null}
-						{confirmPreview ? conflictSummary(confirmPreview) : conflictGuidance()}
-							</ReviewActionSection>
+						<ReviewActionSection
+							title="Blocks"
+							tone={
+								confirmPreviewError || (confirmPreview && confirmPreview.hardViolations.length > 0)
+									? 'bad'
+									: confirmDisplacedPlacement
+										? 'warn'
+										: confirmPreview
+											? 'good'
+											: 'neutral'
+							}
+						>
+							{confirmDisplacedPlacement ? (
+								<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+									<p className="font-semibold">This slot is occupied.</p>
+									<p className="mt-1">Review the visual switch before replacing anything.</p>
+									<Button className="mt-2" size="sm" variant="outline" onClick={() => openSwapPrompt()}>
+										Review switch
+									</Button>
+								</div>
+							) : null}
+							{confirmPreviewLoading ? (
+								<p className="flex items-center gap-2 text-xs text-muted-foreground">
+									<Loader2 className="size-4 animate-spin" />
+									Checking placement...
+								</p>
+							) : null}
+							{confirmPreviewError ? (
+								<p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{confirmPreviewError}</p>
+							) : null}
+							{confirmPreview && confirmPreview.hardViolations.length === 0 ? (
+								<p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+									<CheckCircle2 className="size-4 shrink-0" />
+									No blocking conflicts for this owner, room, and slot.
+								</p>
+							) : null}
+							{confirmPreview && confirmPreview.hardViolations.length > 0 ? (
+								<p className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+									<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+									This placement is blocked. Use another slot or repair the source data before saving.
+								</p>
+							) : null}
+							{confirmPreview ? conflictSummary(confirmPreview) : conflictGuidance()}
+						</ReviewActionSection>
 							<ReviewActionSection title="Warnings" tone={confirmPreview && confirmPreview.softViolations.length > 0 ? 'warn' : 'neutral'}>
 						{confirmPreview && confirmPreview.softViolations.length > 0 ? (
 							<label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">

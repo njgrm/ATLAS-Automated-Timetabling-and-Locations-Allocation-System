@@ -203,17 +203,6 @@ export function WorkspaceToolbar({
 					<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Badge variant="outline" className="h-6 cursor-help rounded-full border-primary/15 bg-primary/5 px-2 text-xs font-semibold text-primary shadow-none">
-								{workspaceStateLabel}
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
-							<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
-							<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
-						</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
 							<Badge
 								variant="outline"
 								data-source-state={dataSource}
@@ -224,7 +213,8 @@ export function WorkspaceToolbar({
 							</Badge>
 						</TooltipTrigger>
 						<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
-							{statusConfig.description}
+							<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
+							<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
 						</TooltipContent>
 					</Tooltip>
 				</div>

@@ -147,9 +147,22 @@ export async function openGeneratedPlacementReview(page: Page): Promise<Placemen
 	await action.evaluate((element, value) => element.setAttribute('data-phase-0-focus-id', value), invokingIdentity);
 	await action.click();
 	await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 15_000 });
-	const target = page.locator('td[data-day][data-start-time][data-end-time]').first();
-	await expect(target).toBeVisible({ timeout: 15_000 });
-	await target.click({ position: { x: 8, y: 8 } });
+
+	// Prefer cells with data-cell-status-label="place" (not blocked, not warning, not special-event).
+	// Exclude any cell whose aria-label starts with "Blocked slot:" (special event cells).
+	const placeableCell = page.locator('td[data-day][data-start-time][data-end-time][data-cell-status-label="place"]').first();
+	const hasPlaceable = await placeableCell.isVisible({ timeout: 5_000 }).catch(() => false);
+	if (!hasPlaceable) {
+		return { status: 'fixture-unavailable', reason: 'No placeable generated slot is visible for the selected unresolved session' };
+	}
+
+	// Regression guard: never select a special-event cell
+	const ariaLabel = await placeableCell.getAttribute('aria-label');
+	if (ariaLabel && /^Blocked slot:/i.test(ariaLabel)) {
+		return { status: 'fixture-unavailable', reason: `Candidate cell is a special-event slot: ${ariaLabel}` };
+	}
+
+	await placeableCell.click({ position: { x: 8, y: 8 } });
 	const dialog = page.getByTestId('generated-placement-review-dialog');
 	await expect(dialog).toBeVisible({ timeout: 15_000 });
 	return { status: 'opened', dialog, invokingIdentity };

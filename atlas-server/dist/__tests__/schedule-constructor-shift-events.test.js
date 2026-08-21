@@ -226,6 +226,287 @@ console.log('schedule-constructor: shift-specific event integration\n');
     assert(healthEvents.length === 1, 'GR7 regular: exactly 1 health event');
     assert(healthEvents[0].eventName === 'Day Shift Health Break', 'GR7 regular: uses shift default, not STE override');
 }
+// ═══════════════════════════════════════════════════════════════
+// Prompt 04: Candidate-slot proof and special-event blocking
+// ═══════════════════════════════════════════════════════════════
+// ─── Test 11: GR7/GR8 can produce schedulable candidates at 06:00 ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7,
+        programType: null,
+        startTime: '06:00',
+        endTime: '15:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const firstSlot = contract.periodSlots[0];
+    assert(firstSlot?.startTime === '06:00', `GR7 first period starts at 06:00 (got ${firstSlot?.startTime})`);
+    assert(firstSlot?.endTime === '06:45', `GR7 first period ends at 06:45 (got ${firstSlot?.endTime})`);
+    assert(!firstSlot?.isSpecialEvent, 'GR7 06:00 slot is schedulable (not a special event)');
+}
+// ─── Test 12: GR9/GR10 can produce schedulable candidates after 17:00 ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    // GR9 window is 09:45-18:30. With 45-min periods, slots after 17:00 should exist.
+    const slotsAfter1700 = contract.periodSlots.filter((s) => s.startTime >= '17:00');
+    assert(slotsAfter1700.length > 0, `GR9 has schedulable candidates after 17:00 (found ${slotsAfter1700.length})`);
+    assert(slotsAfter1700[0].startTime === '17:00', `GR9 first post-17:00 slot starts at 17:00 (got ${slotsAfter1700[0]?.startTime})`);
+    assert(slotsAfter1700[0].endTime === '17:45', `GR9 first post-17:00 slot ends at 17:45 (got ${slotsAfter1700[0]?.endTime})`);
+}
+// ─── Test 13: GR9/GR10 can produce schedulable candidates through 18:30 ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 10,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const lastSlot = contract.periodSlots[contract.periodSlots.length - 1];
+    // GR9/GR10 window ends at 18:30. Last 45-min slot that fits: 17:45-18:30
+    assert(lastSlot?.startTime === '17:45', `GR10 last period starts at 17:45 (got ${lastSlot?.startTime})`);
+    assert(lastSlot?.endTime === '18:30', `GR10 last period ends at 18:30 (got ${lastSlot?.endTime})`);
+}
+// ─── Test 14: GR7 health break blocks 09:00-09:15 but not other slots ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7,
+        programType: null,
+        startTime: '06:00',
+        endTime: '15:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    // 08:15-09:00 should exist (before health break)
+    assert(periodStarts.includes('08:15'), 'GR7 has 08:15 slot (before health break)');
+    // 09:00 should NOT be a period start (blocked by health break 09:00-09:15)
+    assert(!periodStarts.includes('09:00'), 'GR7 09:00 blocked by health break');
+    // 09:15 should exist (after health break)
+    assert(periodStarts.includes('09:15'), 'GR7 has 09:15 slot (after health break)');
+}
+// ─── Test 15: GR9 health break blocks 15:15-15:30 but not other slots ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    // 14:30-15:15 should exist (before health break)
+    assert(periodStarts.includes('14:30'), 'GR9 has 14:30 slot (before health break)');
+    // 15:15 should NOT be a period start (blocked by health break 15:15-15:30)
+    assert(!periodStarts.includes('15:15'), 'GR9 15:15 blocked by health break');
+    // 15:30 should exist (after health break)
+    assert(periodStarts.includes('15:30'), 'GR9 has 15:30 slot (after health break)');
+}
+// ─── Test 16: GR7 health break does NOT block GR9 ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    // GR9 should have a slot at 09:45 (GR7's health break at 09:00-09:15 does NOT apply to GR9)
+    assert(periodStarts.includes('09:45'), 'GR9 has 09:45 slot (GR7 health break does not block GR9)');
+}
+// ─── Test 17: Display slots include events, period slots do not ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7,
+        programType: null,
+        startTime: '06:00',
+        endTime: '15:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const displayEvents = contract.displaySlots.filter((s) => s.isSpecialEvent);
+    const periodEvents = contract.periodSlots.filter((s) => s.isSpecialEvent);
+    assert(displayEvents.length === 2, `displaySlots has 2 events (got ${displayEvents.length})`);
+    assert(periodEvents.length === 0, `periodSlots has 0 events (got ${periodEvents.length})`);
+    assert(contract.periodSlots.length < contract.displaySlots.length, 'periodSlots < displaySlots (events add to display only)');
+}
+// ─── Test 18: GR9 lunch at 12:15-13:00 blocks that range for GR9 ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    // 11:15-12:00 should exist (before lunch)
+    assert(periodStarts.includes('11:15'), 'GR9 has 11:15 slot (before lunch)');
+    // 12:00-12:45 overlaps lunch (12:15-13:00), so 12:00 should be blocked
+    assert(!periodStarts.includes('12:00'), 'GR9 12:00 blocked by lunch overlap');
+    // 13:00 should exist (after lunch)
+    assert(periodStarts.includes('13:00'), 'GR9 has 13:00 slot (after lunch)');
+}
+// ─── Test 19: GR7 lunch at 12:15-13:00 blocks that range for GR7 ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7,
+        programType: null,
+        startTime: '06:00',
+        endTime: '15:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    assert(periodStarts.includes('11:30'), 'GR7 has 11:30 slot (before lunch)');
+    assert(!periodStarts.includes('12:15'), 'GR7 12:15 blocked by lunch');
+    assert(periodStarts.includes('13:00'), 'GR7 has 13:00 slot (after lunch)');
+}
+// ─── Test 20: GR7 candidate slots span full day-shift range ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7,
+        programType: null,
+        startTime: '06:00',
+        endTime: '15:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    // Verify candidates exist across the full day-shift range
+    assert(periodStarts[0] === '06:00', `GR7 earliest candidate is 06:00 (got ${periodStarts[0]})`);
+    const lastPeriod = contract.periodSlots[contract.periodSlots.length - 1];
+    assert(lastPeriod.endTime === '15:15', `GR7 latest candidate ends at 15:15 (got ${lastPeriod.endTime})`);
+    assert(contract.periodSlots.length >= 10, `GR7 has at least 10 schedulable periods (got ${contract.periodSlots.length})`);
+}
+// ─── Test 21: GR9 candidate slots span full afternoon-shift range ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 12,
+        basePolicy: { ...BASE_POLICY, periodsPerDay: 12, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const periodStarts = contract.periodSlots.map((s) => s.startTime);
+    assert(periodStarts[0] === '09:45', `GR9 earliest candidate is 09:45 (got ${periodStarts[0]})`);
+    const lastPeriod = contract.periodSlots[contract.periodSlots.length - 1];
+    assert(lastPeriod.endTime === '18:30', `GR9 latest candidate ends at 18:30 (got ${lastPeriod.endTime})`);
+    assert(contract.periodSlots.length >= 10, `GR9 has at least 10 schedulable periods (got ${contract.periodSlots.length})`);
+}
+// ═══════════════════════════════════════════════════════════════
+// Per-section display slot selection tests
+// ═══════════════════════════════════════════════════════════════
+// ─── Test 22: GR7 shape contract displaySlots contains only day-shift events ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7,
+        programType: null,
+        startTime: '06:00',
+        endTime: '15:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const displayEvents = contract.displaySlots.filter((s) => s.isSpecialEvent);
+    const eventNames = displayEvents.map((s) => s.eventName);
+    assert(eventNames.includes('Day Shift Health Break'), 'GR7 displaySlots includes Day Shift Health Break');
+    assert(eventNames.includes('Day Shift Lunch Break'), 'GR7 displaySlots includes Day Shift Lunch Break');
+    assert(!eventNames.includes('Afternoon Shift Health Break'), 'GR7 displaySlots excludes Afternoon Shift Health Break');
+    assert(!eventNames.includes('Afternoon Shift Lunch Break'), 'GR7 displaySlots excludes Afternoon Shift Lunch Break');
+}
+// ─── Test 23: GR9 shape contract displaySlots contains only afternoon-shift events ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9,
+        programType: null,
+        startTime: '09:45',
+        endTime: '18:30',
+        periodLengthMinutes: 45,
+        periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const displayEvents = contract.displaySlots.filter((s) => s.isSpecialEvent);
+    const eventNames = displayEvents.map((s) => s.eventName);
+    assert(eventNames.includes('Afternoon Shift Health Break'), 'GR9 displaySlots includes Afternoon Shift Health Break');
+    assert(eventNames.includes('Afternoon Shift Lunch Break'), 'GR9 displaySlots includes Afternoon Shift Lunch Break');
+    assert(!eventNames.includes('Day Shift Health Break'), 'GR9 displaySlots excludes Day Shift Health Break');
+    assert(!eventNames.includes('Day Shift Lunch Break'), 'GR9 displaySlots excludes Day Shift Lunch Break');
+}
+// ─── Test 24: Union display slots contain both shift events ───
+{
+    const { buildUnionDisplaySlots } = await import('../services/schedule-constructor.js');
+    const gr7Contract = buildTimetableShapeContract({
+        gradeLevel: 7, programType: null, startTime: '06:00', endTime: '15:30',
+        periodLengthMinutes: 45, periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const gr9Contract = buildTimetableShapeContract({
+        gradeLevel: 9, programType: null, startTime: '09:45', endTime: '18:30',
+        periodLengthMinutes: 45, periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const union = buildUnionDisplaySlots([gr7Contract, gr9Contract]);
+    const unionEvents = union.filter((s) => s.isSpecialEvent);
+    const unionNames = unionEvents.map((s) => s.eventName);
+    assert(unionNames.includes('Day Shift Health Break'), 'union includes Day Shift Health Break');
+    assert(unionNames.includes('Day Shift Lunch Break'), 'union includes Day Shift Lunch Break');
+    assert(unionNames.includes('Afternoon Shift Health Break'), 'union includes Afternoon Shift Health Break');
+    assert(unionNames.includes('Afternoon Shift Lunch Break'), 'union includes Afternoon Shift Lunch Break');
+    assert(unionEvents.length === 4, `union has exactly 4 event slots (got ${unionEvents.length})`);
+}
+// ─── Test 25: GR7 displaySlots has day-shift time range only ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 7, programType: null, startTime: '06:00', endTime: '15:30',
+        periodLengthMinutes: 45, periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    // GR7 displaySlots should span from 06:00 to at least 13:45 (day-shift range)
+    const firstDisplay = contract.displaySlots[0];
+    assert(firstDisplay.startTime === '06:00', `GR7 displaySlots first slot starts at 06:00 (got ${firstDisplay.startTime})`);
+    const lastDisplay = contract.displaySlots[contract.displaySlots.length - 1];
+    assert(lastDisplay.startTime >= '13:00', `GR7 displaySlots last slot starts at or after 13:00 (got ${lastDisplay.startTime})`);
+    // No display slot should extend past 15:30 (day-shift end)
+    const anyAfter1530 = contract.displaySlots.some((s) => s.startTime >= '15:30');
+    assert(!anyAfter1530, 'GR7 displaySlots has no slot at or after 15:30');
+}
+// ─── Test 26: GR9 displaySlots has afternoon-shift time range only ───
+{
+    const contract = buildTimetableShapeContract({
+        gradeLevel: 9, programType: null, startTime: '09:45', endTime: '18:30',
+        periodLengthMinutes: 45, periodsPerDay: 10,
+        basePolicy: { ...BASE_POLICY, specialEvents: BASELINE_EVENTS, showSpecialEventsInGrid: true },
+    });
+    const firstDisplay = contract.displaySlots[0];
+    assert(firstDisplay.startTime === '09:45', `GR9 displaySlots first slot starts at 09:45 (got ${firstDisplay.startTime})`);
+    const lastDisplay = contract.displaySlots[contract.displaySlots.length - 1];
+    assert(lastDisplay.endTime === '18:30', `GR9 displaySlots last slot ends at 18:30 (got ${lastDisplay.endTime})`);
+}
 console.log(`\n${pass + fail} tests, ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);
 //# sourceMappingURL=schedule-constructor-shift-events.test.js.map

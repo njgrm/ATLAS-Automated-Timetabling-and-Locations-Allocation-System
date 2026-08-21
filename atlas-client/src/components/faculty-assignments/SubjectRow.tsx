@@ -347,7 +347,7 @@ export const SubjectRow = memo(({
 						</div>
 						<div className="flex items-center gap-2 mt-1">
 							<code className="text-xs font-mono text-muted-foreground/80 font-bold uppercase tracking-tight">{subject.code}</code>
-							<span className="text-muted-foreground/30 text-[10px]">*</span>
+							<span className="text-muted-foreground/30 text-xs">•</span>
 							{/* Phase 4.5: minutes-per-week shown in hours ("m" was cryptic). */}
 							<span className="text-xs text-muted-foreground font-semibold flex items-center gap-1 uppercase tracking-tight">
 								<Clock className="size-3" />

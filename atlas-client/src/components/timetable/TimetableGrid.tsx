@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { cn, formatTime } from '@/lib/utils';
 import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode } from '@/types';
-import { Badge } from '@/ui/badge';
+
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { EMPTY_SCHEDULED_ENTRIES, getEntrySeverity, TIMETABLE_DAY_SHORT, TIMETABLE_DAYS } from '@/components/timetable/TimetableGrid.constants';
@@ -282,20 +282,6 @@ const GridCell = memo(function GridCell({
 	const isActive = activeInfo !== null;
 	const hasPlacementSource = hasKbSource || fullPreviewInfo !== null;
 	const dropFeedbackMode = hasPlacementSource ? (cellEntries.length > 0 ? 'swap' : 'place') : null;
-	const previewStatus = activeInfo?.kind === 'hard'
-		? 'blocked'
-		: activeInfo?.kind === 'soft'
-			? 'warning'
-			: dropFeedbackMode;
-	const previewLabel = previewStatus === 'blocked'
-		? 'Blocked'
-		: previewStatus === 'warning'
-			? 'Warning'
-			: previewStatus === 'swap'
-				? 'Can swap'
-				: previewStatus === 'place'
-					? 'Can place'
-					: null;
 	const visibleEntries = cellEntries.slice(0, 2);
 	const hiddenEntries = cellEntries.slice(2);
 	const hiddenAffectedCount = hiddenEntries.filter((entry) => teacherDepartureEntryIds?.has(entry.entryId)).length;
@@ -392,30 +378,7 @@ const GridCell = memo(function GridCell({
 				}
 			}}
 		>
-			{dropFeedbackMode && activeInfo?.kind !== 'self' && previewLabel && (
-				<div
-					className={cn(
-						'mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide',
-						previewStatus === 'blocked'
-							? 'bg-red-100 text-red-800'
-							: previewStatus === 'warning'
-								? 'bg-amber-100 text-amber-800'
-								: dropFeedbackMode === 'swap'
-							? 'bg-amber-100 text-amber-800'
-							: 'bg-emerald-100 text-emerald-800',
-					)}
-					data-cell-preview-label={dropFeedbackMode}
-					data-cell-status-label={previewStatus}
-				>
-					{previewLabel}
-				</div>
-			)}
-			{hasPlacementSource && cellEntries.length > 0 && (
-				<div className="mb-0.5 inline-flex items-center rounded-sm bg-muted px-1 py-0.5 text-xs text-muted-foreground">
-					Occupied ({cellEntries.length})
-				</div>
-			)}
-			{isActive && activeInfo && (activeInfo.kind === 'hard' || activeInfo.kind === 'soft') && (
+			{isActive && activeInfo && (activeInfo.kind === 'hard' || activeInfo.kind === 'soft') && (info !== null || kbConflictInfo !== null) && (
 				<ConflictBadgeWithTooltip
 					info={activeInfo}
 					onNavToFaculty={onNavToFaculty}
@@ -454,7 +417,7 @@ const GridCell = memo(function GridCell({
 					if (severity === 'HARD') {
 						cellClass += ' border-red-500 ring-1 ring-red-300';
 					} else if (severity === 'SOFT') {
-						cellClass += ' border-amber-500 border-dashed';
+						cellClass += ' border-amber-400';
 					}
 
 					if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
@@ -512,14 +475,10 @@ const GridCell = memo(function GridCell({
 								<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
 								<span className="min-w-0 flex-1 truncate">{entrySubjectLabel}</span>
 								{severity === 'HARD' && (
-									<Badge variant="destructive" className="h-4 shrink-0 px-1 text-[0.65rem] leading-none">
-										Blocked
-									</Badge>
+									<AlertCircle className="size-3.5 shrink-0 text-red-500" />
 								)}
 								{severity === 'SOFT' && (
-									<Badge variant="outline" className="h-4 shrink-0 border-amber-300 bg-amber-50 px-1 text-[0.65rem] leading-none text-amber-800">
-										Warning
-									</Badge>
+									<AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
 								)}
 								{entry.entryKind === 'COHORT' && entry.cohortCode && (
 									<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
@@ -718,7 +677,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 					const day = cell.dataset.day;
 					const startTime = cell.dataset.startTime;
 					const endTime = cell.dataset.endTime;
-					if (!day || !startTime || !endTime || cell.querySelector('[data-pointer-preview-label="true"]')) continue;
+					if (!day || !startTime || !endTime) continue;
 
 					const cellId = `${day}-${startTime}-${endTime}`;
 					const info = getLiveCellConflict(source, cellId) ?? getCellConflict?.(cellId) ?? null;
@@ -729,13 +688,6 @@ export const TimetableGrid = memo(function TimetableGrid({
 						: info?.kind === 'soft'
 							? 'warning'
 							: mode;
-					const labelText = status === 'blocked'
-						? 'Blocked'
-						: status === 'warning'
-							? 'Warning'
-							: mode === 'swap'
-								? 'Can swap'
-								: 'Can place';
 
 					cell.dataset.pointerPreviewStatus = status;
 					cell.classList.add('ring-1');
@@ -746,32 +698,6 @@ export const TimetableGrid = memo(function TimetableGrid({
 					} else {
 						cell.classList.add('ring-dashed', 'ring-emerald-300/50', 'bg-emerald-50/10');
 					}
-
-					const label = document.createElement('div');
-					label.dataset.pointerPreviewLabel = 'true';
-					label.dataset.cellPreviewLabel = mode;
-					label.dataset.cellStatusLabel = status;
-					label.className = [
-						'pointer-events-none',
-						'mb-1',
-						'inline-flex',
-						'items-center',
-						'gap-1',
-						'rounded',
-						'px-1.5',
-						'py-0.5',
-						'text-xs',
-						'font-semibold',
-						'uppercase',
-						'tracking-wide',
-						status === 'blocked'
-							? 'bg-red-100 text-red-800'
-							: status === 'warning' || mode === 'swap'
-								? 'bg-amber-100 text-amber-800'
-								: 'bg-emerald-100 text-emerald-800',
-					].join(' ');
-					label.textContent = labelText;
-					cell.prepend(label);
 				}
 				if (cursor < cells.length) {
 					window.requestAnimationFrame(decorateBatch);
@@ -917,14 +843,6 @@ export const TimetableGrid = memo(function TimetableGrid({
 										{formatTime(slot.startTime)}
 										<br />
 										<span className="opacity-50">{formatTime(slot.endTime)}</span>
-										{slot.isSpecialEvent && slot.eventName && (
-											<>
-												<br />
-												<span className="inline-flex mt-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">
-													{slot.eventName}
-												</span>
-											</>
-										)}
 									</td>
 									{TIMETABLE_DAYS.map((day) => {
 										const key = `${day}-${slot.startTime}-${slot.endTime}`;

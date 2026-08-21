@@ -434,7 +434,7 @@ Use `localhost` only if the user explicitly asks for a local-only task.
 
 ### QA credentials
 
-- Admin: `1000001` / `AdminSY2026!`
+- Admin: `1234501` / `DepEdSY2026!`
 - Faculty: `2000056` / `DepEd2026!` (real EnrollPro teacher record; legacy `maria.santos@deped.edu.ph` is deprecated)
 
 ### Frontend change verification

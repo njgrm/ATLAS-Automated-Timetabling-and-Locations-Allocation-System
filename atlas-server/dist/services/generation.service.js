@@ -5,7 +5,7 @@ const ENABLE_LEGACY_TIME_PREFERENCES = process.env.ATLAS_ENABLE_LEGACY_TIME_PREF
  */
 import { prisma } from '../lib/prisma.js';
 import { validateHardConstraints, } from './constraint-validator.js';
-import { computeDemand, buildTimetableShapeContract, } from './schedule-constructor.js';
+import { computeDemand, buildTimetableShapeContract, buildUnionDisplaySlots, } from './schedule-constructor.js';
 import { runHybridScheduler } from './hybrid-scheduler.js';
 import { getSectionSummary, syncSectionsFromExternal } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -885,7 +885,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         };
         const termCounts = buildTermCounts(entriesWithTerms);
         const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
-        const timetableDisplaySlots = selectPrimaryTimetableShapeContract(timetableShapeContracts)?.displaySlots ?? [];
+        const timetableDisplaySlots = buildUnionDisplaySlots(timetableShapeContracts);
         const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
         const summary = {
             classesProcessed: result.classesProcessed,

@@ -172,10 +172,10 @@ test('timetable source selection shows grid-wide placement guidance without poin
 	assert.match(timetableGrid, /cancelPreviewDecorations = decoratePointerPreview\(nextSource\)/);
 	assert.match(timetableGrid, /const fullPreviewByCell = useMemo/);
 	assert.match(timetableGrid, /getLiveCellConflict\(activePreviewSource, cellId\)/);
-	assert.match(timetableGrid, /data-cell-preview-label=\{dropFeedbackMode\}/);
-	assert.match(timetableGrid, /data-cell-status-label=\{previewStatus\}/);
-	assert.match(timetableGrid, /previewStatus === 'swap'[\s\S]{0,80}\? 'Can swap'/);
-	assert.match(timetableGrid, /previewStatus === 'place'[\s\S]{0,80}\? 'Can place'/);
+	assert.doesNotMatch(timetableGrid, /data-cell-preview-label=\{dropFeedbackMode\}/);
+	assert.doesNotMatch(timetableGrid, /data-cell-status-label=\{previewStatus\}/);
+	assert.doesNotMatch(timetableGrid, /previewStatus === 'swap'[\s\S]{0,80}\? 'Can swap'/);
+	assert.doesNotMatch(timetableGrid, /previewStatus === 'place'[\s\S]{0,80}\? 'Can place'/);
 	assert.match(dragDropHook, /atlas:timetable-drag-source/);
 	assert.doesNotMatch(dragDropHook, /getLiveCellConflict/);
 	assert.doesNotMatch(dragDropHook, /getCellConflict/);
@@ -290,11 +290,13 @@ test('timetable Phase 5 reduces badge noise while keeping plain placement states
 
 	assert.match(header, /formatTaskCount\(hardCount, 'blocked'\)/);
 	assert.match(header, /formatTaskCount\(unassignedCount, 'to place'\)/);
-	assert.match(timetableGrid, /data-cell-status-label=\{previewStatus\}/);
-	assert.match(timetableGrid, /\? 'Can swap'/);
-	assert.match(timetableGrid, /\? 'Can place'/);
-	assert.match(timetableGrid, /\? 'Blocked'/);
-	assert.match(timetableGrid, /\? 'Warning'/);
+	assert.doesNotMatch(timetableGrid, /data-cell-status-label=\{previewStatus\}/);
+	assert.doesNotMatch(timetableGrid, /\? 'Can swap'/);
+	assert.doesNotMatch(timetableGrid, /\? 'Can place'/);
+	assert.match(timetableGrid, /ring-red-500 bg-red-50\/60/);
+	assert.match(timetableGrid, /ring-amber-400 bg-amber-50\/60/);
+	assert.match(timetableGrid, /ring-emerald-400 bg-emerald-50\/60/);
+	assert.match(timetableGrid, /info !== null \|\| kbConflictInfo !== null/);
 	assert.match(generatedRail, /data-unassigned-status=\{itemStatus\.label\}/);
 	assert.match(generatedRail, /Ready to place/);
 	assert.match(generatedRail, /Needs owner/);
