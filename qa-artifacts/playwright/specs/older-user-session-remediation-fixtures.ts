@@ -131,6 +131,76 @@ export type PlacementProbe = {
 		invokingIdentity?: string;
 };
 
+/** Labels that mark a special-event cell which must never be clicked for placement. */
+const SPECIAL_EVENT_TEXT = /FLAG CEREMONY|RECESS|HEALTH BREAK|LUNCH/i;
+
+/**
+ * Wait for generated/draft placement preview to activate, then select a
+ * truly placeable (empty, non-special-event) grid cell.
+ *
+ * Product behavior:
+ * - Pointer-drag preview decorates cells with `data-pointer-preview-status`
+ *   ("place" | "swap" | "warning" | "blocked") via TimetableGrid's batched decoration;
+ *   status "place" already means empty and conflict-free.
+ * - Click-to-place (kbSelectedSource) labels every cell td with
+ *   aria-label "Move selected session to {day} {time}"; occupied cells additionally
+ *   contain a [data-timetable-entry] child; special-event cells are announced as
+ *   "Blocked slot: ..." instead.
+ *
+ * Phase 1 waits for placement activation (any move-target cell).
+ * Phase 2 briefly polls for an EMPTY target; if none appears — every visible
+ * candidate is occupied/blocked — returns fixture-unavailable instead of timing out.
+ */
+export async function selectPlaceableGridCell(
+	page: Page,
+): Promise<{ ok: true; cell: Locator } | { ok: false; reason: string }> {
+	// ── Phase 1: placement mode must be active. Any decorated cell or any
+	// move-target td (occupied or not) proves the preview source is armed.
+	const decoratedCell = page.locator('td[data-day][data-start-time][data-end-time][data-pointer-preview-status]').first();
+	const anyMoveTarget = page.locator('td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]').first();
+	await expect(decoratedCell.or(anyMoveTarget).first()).toBeVisible({ timeout: 15_000 });
+
+	// ── Phase 2a: drag-decoration "place" cells are already empty + clean.
+	const preferredPlace = page.locator('td[data-day][data-start-time][data-end-time][data-pointer-preview-status="place"]').first();
+
+	// ── Phase 2b: click-mode empty target (move-target td without an entry child).
+	const emptyClickTarget = page.locator(
+		'td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]:not(:has([data-timetable-entry="true"]))',
+	).first();
+
+	let candidate: Locator | null = null;
+	const deadline = Date.now() + 5_000;
+	while (Date.now() < deadline) {
+		if (await preferredPlace.isVisible({ timeout: 250 }).catch(() => false)) {
+			candidate = preferredPlace;
+			break;
+		}
+		if (await emptyClickTarget.isVisible({ timeout: 250 }).catch(() => false)) {
+			candidate = emptyClickTarget;
+			break;
+		}
+	}
+
+	if (!candidate) {
+		return {
+			ok: false,
+			reason: 'No placeable generated slot is visible for the selected unresolved session',
+		};
+	}
+
+	// Regression guard: never select a special-event cell.
+	const ariaLabel = (await candidate.getAttribute('aria-label')) ?? '';
+	if (/^Blocked slot:/i.test(ariaLabel)) {
+		return { ok: false, reason: `Candidate cell is a special-event slot: ${ariaLabel}` };
+	}
+	const cellText = (await candidate.innerText().catch(() => '')).trim();
+	if (SPECIAL_EVENT_TEXT.test(cellText)) {
+		return { ok: false, reason: `Candidate cell contains special-event label: ${cellText.slice(0, 60)}` };
+	}
+
+	return { ok: true, cell: candidate };
+}
+
 export async function openGeneratedPlacementReview(page: Page): Promise<PlacementProbe> {
 	const drawer = await openSimpleTask(page, /Place unresolved sessions/i);
 	const currentTray = drawer.getByTestId('simple-current-session-card');
@@ -146,23 +216,9 @@ export async function openGeneratedPlacementReview(page: Page): Promise<Placemen
 	const invokingIdentity = `phase-0-placement-${Date.now()}`;
 	await action.evaluate((element, value) => element.setAttribute('data-phase-0-focus-id', value), invokingIdentity);
 	await action.click();
-	await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 15_000 });
-
-	// Prefer cells with data-cell-status-label="place" (not blocked, not warning, not special-event).
-	// Exclude any cell whose aria-label starts with "Blocked slot:" (special event cells).
-	const placeableCell = page.locator('td[data-day][data-start-time][data-end-time][data-cell-status-label="place"]').first();
-	const hasPlaceable = await placeableCell.isVisible({ timeout: 5_000 }).catch(() => false);
-	if (!hasPlaceable) {
-		return { status: 'fixture-unavailable', reason: 'No placeable generated slot is visible for the selected unresolved session' };
-	}
-
-	// Regression guard: never select a special-event cell
-	const ariaLabel = await placeableCell.getAttribute('aria-label');
-	if (ariaLabel && /^Blocked slot:/i.test(ariaLabel)) {
-		return { status: 'fixture-unavailable', reason: `Candidate cell is a special-event slot: ${ariaLabel}` };
-	}
-
-	await placeableCell.click({ position: { x: 8, y: 8 } });
+	const placeable = await selectPlaceableGridCell(page);
+	if (!placeable.ok) return { status: 'fixture-unavailable', reason: placeable.reason };
+	await placeable.cell.click({ position: { x: 8, y: 8 } });
 	const dialog = page.getByTestId('generated-placement-review-dialog');
 	await expect(dialog).toBeVisible({ timeout: 15_000 });
 	return { status: 'opened', dialog, invokingIdentity };

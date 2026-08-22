@@ -70,17 +70,6 @@ export function useTeachingLoadUI({
 	const [resetDialogOpen, setResetDialogOpen] = useState(false);
 	const [resetConfirmText, setResetConfirmText] = useState('');
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
-	const [swapCandidate, setSwapCandidate] = useState<{
-		subjectId: number;
-		sectionId: number;
-		fromFacultyId: number;
-		toFacultyId?: number | null;
-		subjectName?: string;
-		subjectCode?: string;
-		sectionName?: string;
-		fromFacultyName?: string;
-		toFacultyName?: string;
-	} | null>(null);
 
 	const mappedSpecializations = useMemo(() => {
 		const mapped = new Set<string>();
@@ -278,7 +267,6 @@ export function useTeachingLoadUI({
 		resetDialogOpen, setResetDialogOpen,
 		resetConfirmText, setResetConfirmText,
 		hoveredIncomingMinutes, setHoveredIncomingMinutes,
-		swapCandidate, setSwapCandidate,
 		coverageMode, setCoverageMode,
 		filteredFaculty,
 		groupedFaculty,

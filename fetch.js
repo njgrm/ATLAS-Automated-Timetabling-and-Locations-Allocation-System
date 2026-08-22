@@ -1,0 +1,1 @@
+async function main() { const res = await fetch('http://100.88.55.125:5002/api/integration/v1/faculty?schoolYearId=2026'); const data = await res.json(); console.log(data.data.length, data.data.slice(0, 3)); } main();

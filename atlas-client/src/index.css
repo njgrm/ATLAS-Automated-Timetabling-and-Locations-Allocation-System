@@ -151,7 +151,7 @@
 		background:
 			linear-gradient(
 				135deg,
-				hsl(0 0% 100%) 0%,
+				#fafbfc 0%,
 				hsl(var(--primary) / 0.04) 50%,
 				hsl(var(--primary) / 0.07) 100%
 			);

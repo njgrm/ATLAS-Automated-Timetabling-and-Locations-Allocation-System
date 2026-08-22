@@ -270,42 +270,27 @@ export default function TeachingLoad() {
 	}, [data]);
 
 	const handleSwapRequest = useCallback((subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => {
-		const subject = data.subjects.find((s) => s.id === subjectId);
-		const section = data.sectionMap.get(sectionId);
-		const fromFaculty = data.faculty.find((f) => f.id === fromFacultyId);
-		const toFaculty = toFacultyId != null
-			? data.faculty.find((f) => f.id === toFacultyId)
-			: data.selected;
-		ui.setSwapCandidate({
-			subjectId,
-			sectionId,
-			fromFacultyId,
-			toFacultyId: toFacultyId ?? null,
-			subjectName: subject?.name,
-			subjectCode: subject?.code,
-			sectionName: section?.name,
-			fromFacultyName: fromFaculty ? `${fromFaculty.lastName}, ${fromFaculty.firstName}` : undefined,
-			toFacultyName: toFaculty ? `${toFaculty.lastName}, ${toFaculty.firstName}` : undefined,
-		});
-	}, [data, ui]);
-
-	const executeSwap = useCallback(async () => {
-		if (!ui.swapCandidate) return;
-		const { subjectId, sectionId, fromFacultyId, toFacultyId } = ui.swapCandidate;
 		const destinationFacultyId = toFacultyId ?? data.selectedId;
 		if (!destinationFacultyId) {
-			toast.error('Cannot transfer: no destination teacher is selected. Select a teacher first, then retry the swap.');
-			ui.setSwapCandidate(null);
+			toast.error('Cannot swap: no destination teacher is selected. Select a teacher first, then retry the swap.');
 			return;
 		}
+
+		// Check if recipient already owns any sections in this subject
+		const toAssignments = data.effectiveAssignmentsByFaculty[destinationFacultyId] ?? data.savedAssignmentsByFaculty[destinationFacultyId] ?? [];
+		const toSubjectAssignment = toAssignments.find((a) => a.subjectId === subjectId);
+		const sectionToGiveBack = toSubjectAssignment?.sectionIds[0];
 
 		try {
 			data.pushHistory();
 			data.setDraftAssignmentsByFaculty((prev) => {
 				const getBase = (id: number) => prev[id] ?? data.savedAssignmentsByFaculty[id] ?? [];
-				
-				// 1. Update donor faculty (remove section)
+
+				// Clone both faculty assignments
 				let fromCurrent = [...getBase(fromFacultyId)];
+				let toCurrent = [...getBase(destinationFacultyId)];
+
+				// Remove sectionId from donor
 				const fromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (fromIndex >= 0) {
 					const nextSectionIds = fromCurrent[fromIndex].sectionIds.filter((id: number) => id !== sectionId);
@@ -316,8 +301,7 @@ export default function TeachingLoad() {
 					}
 				}
 
-				// 2. Update recipient faculty (add section)
-				let toCurrent = [...getBase(destinationFacultyId)];
+				// Add sectionId to recipient
 				const toIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (toIndex >= 0) {
 					toCurrent[toIndex] = {
@@ -328,22 +312,51 @@ export default function TeachingLoad() {
 					toCurrent.push({ subjectId, sectionIds: [sectionId], gradeLevels: [] });
 				}
 
-				return { 
-					...prev, 
-					[fromFacultyId]: fromCurrent, 
-					[destinationFacultyId]: toCurrent 
+				// Two-way swap: if recipient had a section, give it back to donor
+				if (sectionToGiveBack != null) {
+					// Remove sectionToGiveBack from recipient
+					const updatedToIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
+					if (updatedToIndex >= 0) {
+						const remainingSections = toCurrent[updatedToIndex].sectionIds.filter((id: number) => id !== sectionToGiveBack);
+						if (remainingSections.length === 0) {
+							toCurrent.splice(updatedToIndex, 1);
+						} else {
+							toCurrent[updatedToIndex] = { ...toCurrent[updatedToIndex], sectionIds: remainingSections };
+						}
+					}
+
+					// Add sectionToGiveBack to donor
+					const updatedFromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
+					if (updatedFromIndex >= 0) {
+						fromCurrent[updatedFromIndex] = {
+							...fromCurrent[updatedFromIndex],
+							sectionIds: Array.from(new Set([...fromCurrent[updatedFromIndex].sectionIds, sectionToGiveBack])),
+						};
+					} else {
+						fromCurrent.push({ subjectId, sectionIds: [sectionToGiveBack], gradeLevels: [] });
+					}
+				}
+
+				return {
+					...prev,
+					[fromFacultyId]: fromCurrent,
+					[destinationFacultyId]: toCurrent,
 				};
 			});
-			toast.success('Ownership swapped in draft mode.');
-			setDraftStatusMessage('Ownership swap prepared in draft mode. Save the draft when the review looks correct.');
+
+			if (sectionToGiveBack != null) {
+				toast.success('Sections swapped in draft mode.');
+				setDraftStatusMessage('Sections swapped in draft mode. Save the draft when the review looks correct.');
+			} else {
+				toast.success('Section transferred in draft mode.');
+				setDraftStatusMessage('Section transferred in draft mode. Save the draft when the review looks correct.');
+			}
 		} catch (err: any) {
 			const readableError = formatTeachingLoadSaveError(err);
 			toast.error(readableError);
 			setDraftStatusMessage(readableError);
-		} finally {
-			ui.setSwapCandidate(null);
 		}
-	}, [data, ui]);
+	}, [data]);
 
 	const applyGlobalReset = useCallback(async () => {
 		if (!data.activeSchoolYearId) return;
@@ -1141,9 +1154,6 @@ export default function TeachingLoad() {
 				coverageModeConfig={COVERAGE_MODE_CONFIG[ui.coverageMode]}
 				onAutoFillConfirm={handlePreviewSuggestedTeachingLoad}
 				autoFillLoading={data.loading || suggestionLoading}
-				swapCandidate={ui.swapCandidate}
-				onSwapCandidateChange={ui.setSwapCandidate}
-				onSwapConfirm={executeSwap}
 				summaryModalOpen={ui.summaryModalOpen}
 				onSummaryModalOpenChange={handleSummaryModalOpenChange}
 				autoFillResult={autoFillResult}

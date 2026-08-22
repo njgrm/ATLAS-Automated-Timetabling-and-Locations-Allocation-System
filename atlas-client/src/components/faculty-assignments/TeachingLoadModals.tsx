@@ -10,29 +10,6 @@ type TeachingLoadModalsProps = {
 	coverageModeConfig: { label: string; description: string };
 	onAutoFillConfirm: () => void;
 	autoFillLoading: boolean;
-	swapCandidate: {
-		subjectId: number;
-		sectionId: number;
-		fromFacultyId: number;
-		toFacultyId?: number | null;
-		subjectName?: string;
-		subjectCode?: string;
-		sectionName?: string;
-		fromFacultyName?: string;
-		toFacultyName?: string;
-	} | null;
-	onSwapCandidateChange: (candidate: {
-		subjectId: number;
-		sectionId: number;
-		fromFacultyId: number;
-		toFacultyId?: number | null;
-		subjectName?: string;
-		subjectCode?: string;
-		sectionName?: string;
-		fromFacultyName?: string;
-		toFacultyName?: string;
-	} | null) => void;
-	onSwapConfirm: () => void;
 	summaryModalOpen: boolean;
 	onSummaryModalOpenChange: (open: boolean) => void;
 	autoFillResult: AutoFillSummaryResult | null;
@@ -57,9 +34,6 @@ export function TeachingLoadModals({
 	coverageModeConfig,
 	onAutoFillConfirm,
 	autoFillLoading,
-	swapCandidate,
-	onSwapCandidateChange,
-	onSwapConfirm,
 	summaryModalOpen,
 	onSummaryModalOpenChange,
 	autoFillResult,
@@ -88,44 +62,6 @@ export function TeachingLoadModals({
 				confirmText="Preview suggestion"
 				variant="primary"
 				loading={autoFillLoading}
-			/>
-
-			<ConfirmationModal
-				open={Boolean(swapCandidate)}
-				onOpenChange={(open) => {
-					if (!open) onSwapCandidateChange(null);
-				}}
-				title="Transfer Section Ownership?"
-				description={
-					swapCandidate ? (
-						<div className="space-y-1 text-sm">
-							<div className="flex gap-2">
-								<span className="font-semibold text-muted-foreground uppercase tracking-wide text-xs w-16 shrink-0 pt-0.5">Subject</span>
-								<span className="font-bold">
-									{swapCandidate.subjectCode && swapCandidate.subjectName
-										? `${swapCandidate.subjectCode} — ${swapCandidate.subjectName}`
-										: (swapCandidate.subjectName ?? '(unknown)')}
-								</span>
-							</div>
-							<div className="flex gap-2">
-								<span className="font-semibold text-muted-foreground uppercase tracking-wide text-xs w-16 shrink-0 pt-0.5">Section</span>
-								<span className="font-bold">{swapCandidate.sectionName ?? '(unknown)'}</span>
-							</div>
-							<div className="flex gap-2">
-								<span className="font-semibold text-muted-foreground uppercase tracking-wide text-xs w-16 shrink-0 pt-0.5">From</span>
-								<span className="font-bold text-rose-700">{swapCandidate.fromFacultyName ?? 'current owner'}</span>
-							</div>
-							<div className="flex gap-2">
-								<span className="font-semibold text-muted-foreground uppercase tracking-wide text-xs w-16 shrink-0 pt-0.5">To</span>
-								<span className="font-bold text-emerald-700">{swapCandidate.toFacultyName ?? 'currently selected teacher'}</span>
-							</div>
-							<p className="text-xs text-muted-foreground pt-2 border-t border-border/30">This change is in draft mode and must be saved to persist.</p>
-						</div>
-					) : ''
-				}
-				onConfirm={onSwapConfirm}
-				confirmText="Transfer"
-				variant="primary"
 			/>
 
 			<AutoFillSummaryModal

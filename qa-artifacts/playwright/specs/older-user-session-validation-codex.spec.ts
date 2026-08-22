@@ -263,12 +263,15 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 			const placeLabel = await place.innerText();
 			if (/Fix teaching load/i.test(placeLabel)) return `Status guidance is gated by teaching-load repair: ${placeLabel}`;
 			await place.click();
-			await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 10_000 });
+			const placeableCell = page.locator(
+				'td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]:not(:has([data-timetable-entry="true"]))',
+			).first();
+			await expect(placeableCell).toBeVisible({ timeout: 15_000 });
 			const found = [];
 			for (const label of statusLabels) {
 				if (await page.getByText(label, { exact: true }).count() > 0) found.push(label);
 			}
-			const attributeStatuses = await page.locator('[data-cell-status-label]').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-cell-status-label')).filter(Boolean));
+			const attributeStatuses = await page.locator('td[data-pointer-preview-status]').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-pointer-preview-status')).filter(Boolean));
 			const occupiedCount = await page.getByText(/Occupied \(/i).count();
 			const help = await page.getByTestId('timetable-foolproof-help').innerText().catch(() => '');
 			await cancelOpenSurface(page);

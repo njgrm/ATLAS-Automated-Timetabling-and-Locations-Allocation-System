@@ -62,7 +62,7 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 		<div className="space-y-2">
 			<TooltipProvider>
 				<div className="rounded-xl border border-border/60 bg-background overflow-hidden">
-					<div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 bg-muted/50 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground border-b border-border/40">
+					<div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 bg-muted/50 text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border/40">
 						<span>Subject</span>
 						<span>Section</span>
 						<span>Teacher</span>
@@ -72,7 +72,7 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 						const config = ASSIGNMENT_TYPE_CONFIG[row.assignmentType] ?? ASSIGNMENT_TYPE_CONFIG.REAL_TEACHER;
 						const TypeIcon = config.icon;
 						return (
-							<div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 text-[0.65rem] border-b border-border/20 last:border-b-0 hover:bg-muted/20 transition-colors">
+							<div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-3 py-2 text-xs border-b border-border/20 last:border-b-0 hover:bg-muted/20 transition-colors">
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<div className="font-bold text-foreground truncate">{row.subjectCode}</div>
@@ -91,12 +91,12 @@ function SuggestedRowsPreviewList({ rows }: { rows: Array<{ subjectCode: string;
 									</TooltipTrigger>
 									<TooltipContent side="top">{row.facultyName}</TooltipContent>
 								</Tooltip>
-								<div className={`flex items-center gap-1 shrink-0 rounded-md border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase ${config.className}`}>
+								<div className={`flex items-center gap-1 shrink-0 rounded-md border px-1.5 py-0.5 text-xs font-bold uppercase ${config.className}`}>
 									<TypeIcon className="size-3" />
 									<span className="hidden sm:inline">{config.label}</span>
 								</div>
 								{row.warning && (
-									<div className="col-span-4 text-[0.6rem] text-amber-700 font-semibold mt-0.5">{row.warning}</div>
+									<div className="col-span-4 text-xs text-amber-700 font-semibold mt-0.5">{row.warning}</div>
 								)}
 							</div>
 						);
@@ -253,7 +253,7 @@ export function AutoFillSummaryModal({
 							<DialogDescription className="text-primary-foreground/80 max-w-2xl text-sm font-medium leading-relaxed">
 								{description}
 							</DialogDescription>
-							<Badge className="mt-1 bg-white/15 text-primary-foreground border-white/20 shadow-none text-[0.6rem] font-bold uppercase tracking-widest">
+							<Badge className="mt-1 bg-white/15 text-primary-foreground border-white/20 shadow-none text-xs font-bold uppercase tracking-widest">
 								{coverageModeLabel[coverageMode]}
 							</Badge>
 						</div>
@@ -265,34 +265,31 @@ export function AutoFillSummaryModal({
 						{hasResult && result && (
 							<div className={`mb-4 rounded-xl border px-3 py-2 ${sourceToneClass}`}>
 								<div className="flex items-center justify-between gap-2">
-									<p className="text-[0.6rem] font-bold uppercase tracking-[0.14em]">Section Data Source</p>
-									<Badge variant="outline" className="h-4 border-current/30 bg-white/60 px-1.5 text-[0.55rem] font-bold uppercase">
+									<p className="text-xs font-bold uppercase tracking-[0.14em]">Section Data Source</p>
+									<Badge variant="outline" className="h-4 border-current/30 bg-white/60 px-1.5 text-xs font-bold uppercase">
 										{sectionSourceLabel}
 									</Badge>
 								</div>
-								{result.warnings.length > 0 && (
-									<p className="mt-1.5 text-[0.7rem] font-semibold leading-snug">{result.warnings[0]}</p>
-								)}
-								{result.sectionFallbackReason && result.sectionFallbackReason.length > 0 && (
-									<p className="mt-1 text-[0.65rem] font-medium opacity-80">Fallback reason: {result.sectionFallbackReason}</p>
-								)}
-							</div>
+							{result.warnings.length > 0 && (
+								<p className="mt-1.5 text-[0.7rem] font-semibold leading-snug">{result.warnings[0]}</p>
+							)}
+						</div>
 						)}
 
 						{specialProgramApprovalQueue.length > 0 && (
 							<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/60 px-3 py-2.5 text-amber-950">
 								<div className="flex items-center justify-between gap-2">
-									<p className="text-[0.6rem] font-bold uppercase tracking-[0.14em]">Manual Capability Approval Required</p>
-									<Badge variant="outline" className="h-4 border-amber-300 bg-white/70 px-1.5 text-[0.55rem] font-bold uppercase text-amber-800">
+									<p className="text-xs font-bold uppercase tracking-[0.14em]">Manual Capability Approval Required</p>
+									<Badge variant="outline" className="h-4 border-amber-300 bg-white/70 px-1.5 text-xs font-bold uppercase text-amber-800">
 										{specialProgramApprovalQueue.length} Candidate{specialProgramApprovalQueue.length === 1 ? '' : 's'}
 									</Badge>
 								</div>
-								<p className="mt-1 text-[0.68rem] font-semibold leading-snug text-amber-900/90">
+								<p className="mt-1 text-xs font-semibold leading-snug text-amber-900/90">
 									These candidates are plausible for SPA/SPS redistribution but remain blocked until a scheduler grants an explicit capability override.
 								</p>
 								<div className="mt-2 grid gap-1.5">
 									{specialProgramApprovalQueue.slice(0, 6).map((candidate) => (
-										<div key={`${candidate.subjectCode}:${candidate.facultyId}`} className="rounded-lg border border-amber-200 bg-white/70 px-2 py-1.5 text-[0.65rem] font-semibold">
+										<div key={`${candidate.subjectCode}:${candidate.facultyId}`} className="rounded-lg border border-amber-200 bg-white/70 px-2 py-1.5 text-xs font-semibold">
 											<div className="flex items-center justify-between gap-2">
 												<span className="font-bold text-amber-900">{candidate.subjectCode} * {candidate.facultyName}</span>
 												<span className="text-amber-700/90">{candidate.currentTotalAssignedPairs} pairs</span>
@@ -312,11 +309,11 @@ export function AutoFillSummaryModal({
 										<div className="absolute top-3 right-3 text-emerald-500 opacity-10 group-hover:opacity-20 transition-opacity">
 											<BadgeCheck className="size-10" />
 										</div>
-										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Unassigned Classes</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Unassigned Classes</p>
 										<p className="text-3xl font-bold tracking-tight">{report.unassignedSections} <span className="text-sm font-normal text-muted-foreground">Sections</span></p>
 										<p className="text-xs font-medium text-foreground/70 mt-1 leading-snug">Individual subject-section rows that still need a teacher assigned.</p>
 										<div className="mt-3 flex items-center gap-2">
-											<Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 shadow-none font-bold uppercase text-[0.6rem] tracking-wider px-2">Coverage Target</Badge>
+											<Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 shadow-none font-bold uppercase text-xs tracking-wider px-2">Coverage Target</Badge>
 										</div>
 									</Card>
 
@@ -324,11 +321,11 @@ export function AutoFillSummaryModal({
 										<div className="absolute top-3 right-3 text-red-500 opacity-10 group-hover:opacity-20 transition-opacity">
 											<Users2 className="size-10" />
 										</div>
-										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Weekly Teaching Shortage</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Weekly Teaching Shortage</p>
 										<p className="text-3xl font-bold tracking-tight text-red-600">{concurrentHours} <span className="text-sm font-normal text-muted-foreground">Hours</span></p>
 										<p className="text-xs font-medium text-foreground/70 mt-1 leading-snug">The true concurrent workload gap after rotation-overlap is removed.</p>
 										<div className="mt-3 flex items-center gap-2">
-											<Badge className="bg-red-50 text-red-700 border-red-100 shadow-none font-bold uppercase text-[0.6rem] tracking-wider px-2">Staffing Gap</Badge>
+											<Badge className="bg-red-50 text-red-700 border-red-100 shadow-none font-bold uppercase text-xs tracking-wider px-2">Staffing Gap</Badge>
 										</div>
 									</Card>
 								</div>
@@ -337,26 +334,26 @@ export function AutoFillSummaryModal({
 									<div className="rounded-2xl border border-border/60 bg-background p-4 space-y-3">
 										<div className="flex items-center justify-between">
 											<h4 className="text-[0.7rem] font-bold uppercase tracking-widest text-muted-foreground">Coverage Strategy Truth</h4>
-											<Badge variant="outline" className="text-[0.6rem] font-bold uppercase">Rows: {staffingTruth.baseline.totalTeachableRows}</Badge>
+											<Badge variant="outline" className="text-xs font-bold uppercase">Rows: {staffingTruth.baseline.totalTeachableRows}</Badge>
 										</div>
 										<div className="grid gap-3 md:grid-cols-3">
 											<div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-1">
-												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-amber-700">Real Only</p>
+												<p className="text-xs font-bold uppercase tracking-widest text-amber-700">Real Only</p>
 												<p className="text-lg font-semibold text-amber-900">{staffingTruth.realOnly.shortageRows} rows</p>
-												<p className="text-[0.65rem] font-semibold text-amber-800/80">{staffingTruth.realOnly.shortageConcurrentHoursPerWeek}h shortage</p>
+												<p className="text-xs font-semibold text-amber-800/80">{staffingTruth.realOnly.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-1">
-												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-blue-700">Maximum 40h</p>
+												<p className="text-xs font-bold uppercase tracking-widest text-blue-700">Maximum 40h</p>
 												<p className="text-lg font-semibold text-blue-900">{staffingTruth.hardCap.shortageRows} rows</p>
-												<p className="text-[0.65rem] font-semibold text-blue-800/80">{staffingTruth.hardCap.shortageConcurrentHoursPerWeek}h shortage</p>
+												<p className="text-xs font-semibold text-blue-800/80">{staffingTruth.hardCap.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-1">
-												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-violet-700">Temporary substitutes</p>
+												<p className="text-xs font-bold uppercase tracking-widest text-violet-700">Temporary substitutes</p>
 												<p className="text-lg font-semibold text-violet-900">{staffingTruth.teacherX.shortageRows} rows</p>
-												<p className="text-[0.65rem] font-semibold text-violet-800/80">{staffingTruth.teacherX.rowsClosedByTeacherX} rows closed by substitutes</p>
+												<p className="text-xs font-semibold text-violet-800/80">{staffingTruth.teacherX.rowsClosedByTeacherX} rows closed by substitutes</p>
 											</div>
 										</div>
-										<div className="grid gap-2 sm:grid-cols-2 text-[0.65rem] font-bold text-muted-foreground uppercase tracking-tight">
+										<div className="grid gap-2 sm:grid-cols-2 text-xs font-bold text-muted-foreground uppercase tracking-tight">
 											<div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2 text-emerald-800">
 												Real rows closed: {staffingTruth.hardCap.rowsClosedByRealFaculty}
 											</div>
@@ -383,10 +380,10 @@ export function AutoFillSummaryModal({
 									</div>
 									{overlapHours > 0 && (
 										<div className="pt-3 border-t border-blue-200/40 flex items-center gap-2">
-											<Badge variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-bold text-[0.65rem] shadow-none uppercase">
+											<Badge variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-bold text-xs shadow-none uppercase">
 												Rotation Benefit
 											</Badge>
-											<span className="text-[0.65rem] font-bold text-blue-800">Peak-term crediting reduced total staffing demand by {overlapHours}h/wk.</span>
+											<span className="text-xs font-bold text-blue-800">Peak-term crediting reduced total staffing demand by {overlapHours}h/wk.</span>
 										</div>
 									)}
 								</div>
@@ -394,8 +391,8 @@ export function AutoFillSummaryModal({
 								{/* Detailed Drill-Down */}
 								<div className="space-y-3">
 									<div className="flex items-center justify-between px-1">
-										<h4 className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Detailed Shortage Drill-Down</h4>
-										<span className="text-[0.65rem] text-muted-foreground font-bold uppercase">{report.shortages.length} Subjects Affected</span>
+										<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Detailed Shortage Drill-Down</h4>
+										<span className="text-xs text-muted-foreground font-bold uppercase">{report.shortages.length} Subjects Affected</span>
 									</div>
 									
 									<div className="space-y-2">
@@ -420,12 +417,12 @@ export function AutoFillSummaryModal({
 															</span>
 														</div>
 														<div className="flex items-center gap-3">
-															<div className="hidden sm:flex items-center gap-3 text-[0.65rem] font-bold uppercase tracking-tight text-muted-foreground mr-2">
+															<div className="hidden sm:flex items-center gap-3 text-xs font-bold uppercase tracking-tight text-muted-foreground mr-2">
 																<span className="flex items-center gap-1"><span className="text-foreground">{shortage.count}</span> Rows</span>
 																<span className="opacity-40">|</span>
 																<span className="flex items-center gap-1"><span className="text-red-700">{deptConcurrentHours}h</span> Shortage</span>
 															</div>
-															<Badge className={deptConcurrentHours > 0 ? 'bg-red-50 text-red-700 border-red-100 shadow-none font-bold text-[0.65rem]' : 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-none font-bold text-[0.65rem]'}>
+															<Badge className={deptConcurrentHours > 0 ? 'bg-red-50 text-red-700 border-red-100 shadow-none font-bold text-xs' : 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-none font-bold text-xs'}>
 																{deptConcurrentHours > 0 ? `${deptConcurrentHours}h Gap` : 'Covered'}
 															</Badge>
 														</div>
@@ -439,13 +436,13 @@ export function AutoFillSummaryModal({
 																		className="group p-2.5 rounded-lg border border-border/40 bg-card shadow-xs hover:border-primary/30 transition-all duration-200"
 																	>
 																		<div className="flex items-start justify-between gap-2 mb-1">
-																			<p className="font-bold text-foreground text-[0.65rem] truncate leading-tight tracking-tight uppercase">{item.subjectCode}</p>
-																			<Badge variant="outline" className="h-4 px-1 text-[0.6rem] font-bold uppercase opacity-70 border-muted-foreground/20">
+																			<p className="font-bold text-foreground text-xs truncate leading-tight tracking-tight uppercase">{item.subjectCode}</p>
+																			<Badge variant="outline" className="h-4 px-1 text-xs font-bold uppercase opacity-70 border-muted-foreground/20">
 																				GR{item.sectionName.match(/\d+/)?.[0] || '?'}
 																			</Badge>
 																		</div>
-																		<p className="text-[0.65rem] text-muted-foreground truncate font-bold">{item.sectionName}</p>
-																		<p className="text-[0.6rem] text-muted-foreground/60 uppercase tracking-widest mt-1 font-bold">{item.programType}</p>
+																		<p className="text-xs text-muted-foreground truncate font-bold">{item.sectionName}</p>
+																		<p className="text-xs text-muted-foreground/60 uppercase tracking-widest mt-1 font-bold">{item.programType}</p>
 																	</div>
 																))}
 															</div>
@@ -460,7 +457,7 @@ export function AutoFillSummaryModal({
 								{/* Actionable Strategy Recommendations */}
 								<div className="grid gap-4 md:grid-cols-2 pt-2">
 									<div className="p-4 rounded-xl bg-amber-50 border border-amber-100 space-y-1.5">
-										<p className="text-[0.65rem] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
+										<p className="text-xs font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
 											<Users2 className="size-3.5" /> Strategy: Internal Balance
 										</p>
 										<p className="text-xs text-blue-900/80 leading-relaxed font-bold">
@@ -470,7 +467,7 @@ export function AutoFillSummaryModal({
 										</p>
 									</div>
 									<div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-1.5">
-										<p className="text-[0.65rem] font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+										<p className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
 											<AlertTriangle className="size-3.5" /> Strategy: Hiring Request
 										</p>
 										<p className="text-xs text-primary/80 leading-relaxed font-bold">
@@ -496,28 +493,28 @@ export function AutoFillSummaryModal({
 											<CheckCircle2 className="size-4" />
 										</div>
 										<p className="text-2xl font-bold tracking-tight">{breakdown.existingRows}</p>
-										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Kept Existing</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Kept Existing</p>
 									</div>
 									<div className="space-y-1 text-center">
 										<div className="inline-flex items-center justify-center size-8 rounded-full bg-blue-100 text-blue-600 mb-1">
 											<Users2 className="size-4" />
 										</div>
 										<p className="text-2xl font-bold tracking-tight">{breakdown.realTeacherRows}</p>
-										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Real-Teacher Suggestions</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Real-Teacher Suggestions</p>
 									</div>
 									<div className="space-y-1 text-center">
 										<div className="inline-flex items-center justify-center size-8 rounded-full bg-violet-100 text-violet-600 mb-1">
 											<AlertCircle className="size-4" />
 										</div>
 										<p className="text-2xl font-bold tracking-tight">{breakdown.substituteRows}</p>
-										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Temporary Substitute</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Temporary Substitute</p>
 									</div>
 									<div className="space-y-1 text-center">
 										<div className="inline-flex items-center justify-center size-8 rounded-full bg-amber-100 text-amber-600 mb-1">
 											<XCircle className="size-4" />
 										</div>
 										<p className="text-2xl font-bold tracking-tight">{breakdown.unresolvedRows}</p>
-										<p className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest">Still Unresolved</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Still Unresolved</p>
 									</div>
 								</div>
 							</div>
@@ -536,10 +533,10 @@ export function AutoFillSummaryModal({
 							return newRows.length > 0 ? (
 								<div className="max-w-3xl mx-auto space-y-3 pt-4 border-t border-border/40">
 									<div className="flex items-center justify-between">
-										<h4 className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+										<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 											<Eye className="size-3.5" /> Preview New Assignments
 										</h4>
-										<span className="text-[0.65rem] text-muted-foreground font-bold uppercase">{breakdown.newSuggestedRows} New Assignment{breakdown.newSuggestedRows === 1 ? '' : 's'}</span>
+										<span className="text-xs text-muted-foreground font-bold uppercase">{breakdown.newSuggestedRows} New Assignment{breakdown.newSuggestedRows === 1 ? '' : 's'}</span>
 									</div>
 									<SuggestedRowsPreviewList rows={newRows} />
 								</div>
@@ -552,20 +549,20 @@ export function AutoFillSummaryModal({
 					<div className="min-w-0 space-y-1">
 						{reviewOnly ? (
 							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline" className="bg-blue-50 text-blue-700 font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-blue-200">
+								<Badge variant="outline" className="bg-blue-50 text-blue-700 font-bold uppercase tracking-widest text-xs h-5 px-1.5 shadow-none border-blue-200">
 									Review only
 								</Badge>
-								<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">Use Suggest Teaching Load draft to prepare assignments.</span>
+								<span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Use Suggest Teaching Load draft to prepare assignments.</span>
 							</div>
 						) : (
 							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
+								<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-xs h-5 px-1.5 shadow-none border-border/60">
 									Preview first
 								</Badge>
-								<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">No Teaching Load rows were saved by opening this review.</span>
+								<span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">No Teaching Load rows were saved by opening this review.</span>
 							</div>
 						)}
-						{applyDisabledReason && (
+						{applyDisabledReason && !reviewOnly && (
 							<p data-testid="teaching-load-suggestion-feedback" className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800" aria-live="polite">
 								{applyDisabledReason}
 							</p>

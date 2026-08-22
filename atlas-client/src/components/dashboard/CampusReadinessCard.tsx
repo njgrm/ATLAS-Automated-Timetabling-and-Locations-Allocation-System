@@ -330,7 +330,7 @@ export function CampusReadinessCard({
 	}, [focusedRoomId, selectedBuilding]);
 
 	return (
-		<Card className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
+		<Card className="overflow-hidden">
 			{/* Unified Toolbar Header */}
 			<div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 bg-slate-50/50 shrink-0">
 				<div className="flex items-center gap-1.5">

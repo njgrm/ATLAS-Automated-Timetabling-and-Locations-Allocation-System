@@ -41,8 +41,11 @@ import dashboardRouter from './routes/dashboard.router.js';
 import policySpecialEventRouter from './routes/policy-special-event.router.js';
 import timetableSyncSetupRouter from './routes/timetable-sync-setup.router.js';
 import timetableQuickPlaceRouter from './routes/timetable-quick-place.router.js';
+import notificationRouter from './routes/notification.router.js';
+import { initializeNotificationEventBridges } from './services/notification-events.service.js';
 
 const app = express();
+initializeNotificationEventBridges();
 
 app.use(
 	helmet({
@@ -110,6 +113,7 @@ app.use('/api/v1/class-templates', classTemplateRouter);
 app.use('/api/v1/specialization-aliases', specializationAliasRouter);
 app.use('/api/v1/runtime', runtimeRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
+app.use('/api/v1/notifications', notificationRouter);
 
 app.use(errorHandler);
 

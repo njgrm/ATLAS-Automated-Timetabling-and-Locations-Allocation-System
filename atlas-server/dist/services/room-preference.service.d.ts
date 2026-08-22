@@ -308,16 +308,16 @@ export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): 
         subjectId: number;
         day: import("@prisma/client").$Enums.DayOfWeek;
         status: import("@prisma/client").$Enums.RoomPreferenceStatus;
+        runId: number;
+        entryId: string;
         startTime: string;
         endTime: string;
         submittedAt: Date | null;
-        runId: number;
         termIndex: number;
         decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
         reviewerId: number | null;
         reviewerNotes: string | null;
         reviewedAt: Date | null;
-        entryId: string;
         currentRoomId: number;
         requestedRoomId: number;
         rationale: string | null;

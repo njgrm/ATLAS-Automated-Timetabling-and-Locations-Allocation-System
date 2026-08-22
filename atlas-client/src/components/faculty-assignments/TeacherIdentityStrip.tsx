@@ -13,6 +13,7 @@ import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/ui/sheet';
+import { departmentLabel } from '@/lib/deped-glossary';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -98,9 +99,7 @@ export function TeacherIdentityStrip({
 						)}
 					</div>
 					<p className="truncate text-[11px] text-muted-foreground font-bold mt-1 uppercase tracking-wider flex items-center gap-1.5 leading-none">
-						<span className="text-foreground/70">{selected.specialization || 'General'}</span>
-						<span className="opacity-30">*</span>
-						<span>{selected.department || 'No Dept'}</span>
+						<span className="text-foreground/70">{departmentLabel(selected.department)}</span>
 					</p>
 				</div>
 			</div>
@@ -117,9 +116,22 @@ export function TeacherIdentityStrip({
 							<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Credited Weekly Load</span>
 							<div className="flex items-center gap-2">
 								<span className="text-lg font-semibold tabular-nums leading-none text-foreground">{loadProfile.creditedTotalHours}h</span>
-								<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-xs font-bold uppercase px-1.5 shadow-none`}>
-									{loadProfile.statusLabel}
-								</Badge>
+								{loadProfile.statusInstruction ? (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-xs font-bold uppercase px-1.5 shadow-none cursor-help`}>
+												{loadProfile.statusLabel}
+											</Badge>
+										</TooltipTrigger>
+										<TooltipContent side="bottom" className="max-w-xs p-3">
+											<p className="text-xs font-medium">{loadProfile.statusInstruction}</p>
+										</TooltipContent>
+									</Tooltip>
+								) : (
+									<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-xs font-bold uppercase px-1.5 shadow-none`}>
+										{loadProfile.statusLabel}
+									</Badge>
+								)}
 							</div>
 						</div>
 

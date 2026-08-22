@@ -17,6 +17,7 @@ export type PreferenceEvent = {
     metadata?: Record<string, unknown>;
 };
 export declare function publishPreferenceEvent(event: Omit<PreferenceEvent, 'id' | 'timestamp'>): PreferenceEvent;
+export declare function onPreferenceEvent(listener: (event: PreferenceEvent) => void): () => void;
 export declare function subscribePreferenceEvents(params: {
     schoolId: number;
     schoolYearId: number;

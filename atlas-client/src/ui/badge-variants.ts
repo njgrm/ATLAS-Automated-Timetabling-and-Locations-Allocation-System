@@ -1,20 +1,21 @@
 import { cva } from 'class-variance-authority';
 
 export const badgeVariants = cva(
-	'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2',
+	'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
 	{
 		variants: {
 			variant: {
 				default:
-					'border-transparent bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]',
+					'bg-primary text-primary-foreground hover:bg-primary/80',
 				secondary:
-					'border-transparent bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))]',
+					'bg-secondary text-secondary-foreground hover:bg-secondary/80',
 				destructive:
-					'border-transparent bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]',
-				outline: 'text-[hsl(var(--foreground))]',
-				success: 'border-transparent bg-green-100 text-green-800',
-				warning: 'border-transparent bg-yellow-100 text-yellow-800',
-				danger: 'border-transparent bg-red-100 text-red-800',
+					'bg-destructive/10 text-destructive hover:bg-destructive/20',
+				outline: 'border-border text-foreground',
+				ghost: 'hover:bg-muted hover:text-muted-foreground',
+				success: 'bg-emerald-100 text-emerald-800',
+				warning: 'bg-amber-100 text-amber-800',
+				danger: 'bg-red-100 text-red-800',
 			},
 		},
 		defaultVariants: {

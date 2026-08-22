@@ -97,8 +97,13 @@ test.describe.serial('Timetable overhaul Iteration B placement and swap contract
 		const blockedWrites = await blockDestructiveTimetableWrites(page);
 		await openTimetableSimple(page);
 		await selectFirstGeneratedUnassignedForPlacement(page);
-		await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 10_000 });
-		await targetCell(page).click({ position: { x: 8, y: 8 } });
+		const placeableCell = page.locator(
+			'td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]:not(:has([data-timetable-entry="true"]))',
+		).first();
+		await expect(placeableCell).toBeVisible({ timeout: 15_000 });
+		const placeableText = (await placeableCell.innerText().catch(() => '')).trim();
+		expect(placeableText, 'Placement target must not be a special-event slot').not.toMatch(/FLAG CEREMONY|RECESS|HEALTH BREAK|LUNCH/i);
+		await placeableCell.click({ position: { x: 8, y: 8 } });
 		const dialog = await expectGeneratedPlacementDialog(page);
 
 		await attachReport(testInfo, 'click-generated-placement-review', {

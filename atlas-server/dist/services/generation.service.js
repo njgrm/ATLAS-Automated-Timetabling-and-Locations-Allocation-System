@@ -17,6 +17,8 @@ import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.servi
 import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
+import { publishNotificationEvent } from './notification-events.service.js';
+import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
 import { compareCurrentInputsForRun, computeGenerationInputSnapshot, } from './generation-input-snapshot.service.js';
 import { assertActiveSchoolYearForGeneration } from './school-year-drift-guard.service.js';
 function err(statusCode, code, message, options) {
@@ -451,6 +453,23 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         where: { id: run.id },
         data: { status: 'RUNNING', startedAt },
     });
+    publishNotificationEvent({
+        type: 'GENERATION_RUN_STARTED',
+        domain: 'generation',
+        severity: 'info',
+        audience: 'PRIVILEGED',
+        schoolId,
+        schoolYearId,
+        facultyId: null,
+        message: `Generation run #${run.id} started.`,
+        metadata: {
+            runId: run.id,
+            actorId,
+            roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+            gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
+            shiftWindowPolicy: options?.enforceShiftWindows === true ? 'ENFORCED' : 'DISABLED',
+        },
+    });
     let stage = 'init';
     try {
         const enforceShiftWindows = options?.enforceShiftWindows === true;
@@ -466,15 +485,47 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         try {
             await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, options?.authToken);
         }
-        catch (err) {
-            console.warn('[generation] Subject sync failed; using local mirror', err);
+        catch (syncError) {
+            console.warn('[generation] Subject sync failed; using local mirror', syncError);
+            publishNotificationEvent({
+                type: 'SUBJECT_SYNC_DEGRADED',
+                domain: 'integration',
+                severity: 'warning',
+                audience: 'PRIVILEGED',
+                schoolId,
+                schoolYearId,
+                facultyId: null,
+                message: 'Subject offering sync could not reach the upstream source; generation is using saved ATLAS subject data.',
+                metadata: {
+                    runId: run.id,
+                    stage,
+                    error: syncError instanceof Error ? syncError.message : String(syncError),
+                    sourceSystem: 'EnrollPro',
+                },
+            });
         }
         await ensureDefaultTemplates(schoolId);
         try {
             await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
         }
-        catch (err) {
-            console.warn('[generation] Section sync failed; using local mirror', err);
+        catch (syncError) {
+            console.warn('[generation] Section sync failed; using local mirror', syncError);
+            publishNotificationEvent({
+                type: 'SECTION_SYNC_DEGRADED',
+                domain: 'integration',
+                severity: 'warning',
+                audience: 'PRIVILEGED',
+                schoolId,
+                schoolYearId,
+                facultyId: null,
+                message: 'Section sync could not reach EnrollPro; generation is using saved ATLAS section mirrors.',
+                metadata: {
+                    runId: run.id,
+                    stage,
+                    error: syncError instanceof Error ? syncError.message : String(syncError),
+                    sourceSystem: 'EnrollPro',
+                },
+            });
         }
         await ensurePhase3GradeWindows(schoolId, schoolYearId);
         const sectionResult = await getSectionSummary(schoolYearId, schoolId, options?.authToken);
@@ -960,6 +1011,25 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             },
         });
         await preGenerationDraftService.markPlacementsLockedForRun(schoolId, schoolYearId, run.id, preGenerationDrafts.acceptedPlacementIds);
+        publishNotificationEvent({
+            type: 'GENERATION_RUN_COMPLETED',
+            domain: 'generation',
+            severity: summary.hardViolationCount > 0 ? 'warning' : 'success',
+            audience: 'PRIVILEGED',
+            schoolId,
+            schoolYearId,
+            facultyId: null,
+            message: `Generation run #${run.id} completed with ${summary.unassignedCount} unassigned session(s).`,
+            metadata: {
+                runId: run.id,
+                durationMs,
+                assignedCount: summary.assignedCount,
+                unassignedCount: summary.unassignedCount,
+                hardViolationCount: summary.hardViolationCount,
+                softViolationCount: mergedValidationResult.violations.filter((violation) => violation.severity === 'SOFT').length,
+                roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+            },
+        });
         return completed;
     }
     catch (error) {
@@ -985,6 +1055,22 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 actorId,
                 targetIds: [run.id],
                 metadata: { durationMs, stage, error: rawMessage },
+            },
+        });
+        publishNotificationEvent({
+            type: 'GENERATION_RUN_FAILED',
+            domain: 'generation',
+            severity: 'error',
+            audience: 'PRIVILEGED',
+            schoolId,
+            schoolYearId,
+            facultyId: null,
+            message: `Generation run #${run.id} failed during ${stage}.`,
+            metadata: {
+                runId: failed.id,
+                durationMs,
+                stage,
+                error: rawMessage,
             },
         });
         return failed;
@@ -1365,6 +1451,19 @@ export async function publishRun(schoolId, schoolYearId, runId, actorId, options
                 softViolationCount,
                 acknowledgeSoftViolations,
             },
+        },
+    });
+    publishPublishedScheduleEvent({
+        type: 'SCHEDULE_PUBLISHED',
+        schoolId,
+        schoolYearId,
+        message: 'Official schedule has been published.',
+        metadata: {
+            runId: run.id,
+            publishedAt: publishedAtIso,
+            publishedBy: actorId,
+            softViolationCount,
+            acknowledgeSoftViolations,
         },
     });
     return updated;

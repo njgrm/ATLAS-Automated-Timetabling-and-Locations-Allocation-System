@@ -41,6 +41,7 @@ import {
 import { AccessibilityMenu } from '@/components/AccessibilityMenu';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
+import { useNotificationStream } from '@/hooks/useNotificationStream';
 
 import { AppSidebar } from './app-shell/AppSidebar';
 import { FacultyMobileBottomNav } from '@/components/app-shell/FacultyMobileBottomNav';
@@ -66,6 +67,7 @@ void _getBackHref;
 const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
 const SHELL_BRANDING_CACHE_KEY = 'atlas:shell-branding:v1';
 const DEFAULT_SHELL_SCHOOL_NAME = 'ATLAS High School';
+const DEFAULT_SCHOOL_ID = 1;
 const SIDEBAR_COOKIE_NAME = 'sidebar:state';
 
 type ShellBrandingCache = {
@@ -149,6 +151,11 @@ export function AppShell() {
 
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
 	const isFaculty = bridgeUser?.role === 'faculty';
+	useNotificationStream({
+		schoolId: DEFAULT_SCHOOL_ID,
+		schoolYearId: selectedYearId,
+		enabled: Boolean(bridgeUser),
+	});
 
 	const mobileNavItems = useMemo(() => {
 		if (isFaculty) return facultyNav;

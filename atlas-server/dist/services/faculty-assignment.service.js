@@ -669,6 +669,7 @@ async function loadCoverageContext(schoolId, schoolYearId, authToken) {
 }
 export async function getActiveSubjectCoverageSummary(schoolId, schoolYearId, authToken) {
     const context = await loadCoverageContext(schoolId, schoolYearId, authToken);
+    const sectionById = new Map(context.sections.map((s) => [s.id, s]));
     const rows = context.subjects.map((subject) => {
         const relevantSectionIds = getRelevantSectionIdsForSubject(subject, context.sections);
         const relevantSectionSet = new Set(relevantSectionIds);
@@ -683,6 +684,17 @@ export async function getActiveSubjectCoverageSummary(schoolId, schoolYearId, au
             ? Math.round((ownedSectionIds.size / relevantSectionIds.length) * 10000) / 100
             : 100;
         const status = coveredStatus(ownedSectionIds.size, relevantSectionIds.length);
+        const uncoveredSections = relevantSectionIds
+            .filter((sectionId) => !ownedSectionIds.has(sectionId))
+            .map((sectionId) => {
+            const section = sectionById.get(sectionId);
+            return {
+                sectionId,
+                sectionName: section?.name ?? `Section #${sectionId}`,
+                gradeLevel: section?.gradeLevel ?? 0,
+                programType: section?.programType ?? 'REGULAR',
+            };
+        });
         return {
             subjectId: subject.id,
             subjectCode: subject.code,
@@ -693,6 +705,7 @@ export async function getActiveSubjectCoverageSummary(schoolId, schoolYearId, au
             ownedByPlaceholderCount,
             ownedByRealFacultyCount,
             uncoveredSectionCount,
+            uncoveredSections,
             coveragePercent,
             status,
             placeholderFacultyIds: [...new Set(placeholderOwnership.map((entry) => entry.facultyId))].sort((a, b) => a - b),

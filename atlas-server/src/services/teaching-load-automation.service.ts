@@ -1355,27 +1355,24 @@ function buildSectionSourceWarning(sectionResult: SectionFetchResult): string | 
 	}
 
 	if (sectionResult.source === 'stub') {
-		return 'Staffing report is running on stubbed section data.';
+		return 'Using local stub data for this preview.';
 	}
 
 	if (sectionResult.source === 'atlas-mirror') {
-		return 'Staffing report is running on ATLAS mirror-backed section data.';
+		return 'Using saved ATLAS section data instead of a live connection to EnrollPro.';
 	}
 
 	const fallbackReason = (sectionResult.fallbackReason ?? '').trim();
 	if (fallbackReason === 'atlas-mirror-preferred-runtime-control') {
-		return 'Staffing report is running on ATLAS mirror-backed section data by runtime policy (not due to an upstream outage).';
+		return 'Using saved ATLAS section data for this preview (live connection is paused).';
 	}
 
 	if (fallbackReason === 'atlas-snapshot-preferred-runtime-control') {
-		return 'Staffing report is running on ATLAS snapshot-backed section data by runtime policy.';
+		return 'Using a saved snapshot of section data for this preview.';
 	}
 
-	if (fallbackReason.length > 0) {
-		return `Staffing report is running on ATLAS-cached section data (${fallbackReason}).`;
-	}
-
-	return 'Staffing report is running on ATLAS-cached section data.';
+	// Never return the raw fallbackReason string to the user
+	return 'Using saved ATLAS section data for this preview.';
 }
 
 export async function autoFill(

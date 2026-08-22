@@ -8,6 +8,7 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { FacultySummary, FacultyAssignmentDraft } from '@/types';
 import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers';
+import { departmentLabel } from '@/lib/deped-glossary';
 
 type RosterSidebarProps = {
 	loading: boolean;
@@ -91,7 +92,7 @@ export function RosterSidebar({
 									variant={filterStatus === status ? 'default' : 'outline'}
 									size="sm"
 									onClick={() => onFilterStatusChange(status)}
-									className="h-5 flex-1 px-0 text-[0.6rem] font-bold uppercase tracking-tight"
+									className="h-5 flex-1 px-0 text-xs font-bold uppercase tracking-tight"
 								>
 									{status === 'all' ? 'Any' : status.charAt(0).toUpperCase() + status.slice(1)}
 								</Button>
@@ -103,23 +104,23 @@ export function RosterSidebar({
 								value={departmentFilter}
 								onValueChange={onDepartmentFilterChange}
 								placeholder="All Departments"
-								triggerClassName="h-6 w-full justify-between text-[0.65rem] font-semibold bg-background"
+								triggerClassName="h-6 w-full justify-between text-xs font-semibold bg-background"
 								className="w-full"
 								items={[
 									{ value: 'all', label: 'All Departments' },
-									...departmentOptions.map((department) => ({ value: department, label: department })),
+									...departmentOptions.map((department) => ({ value: department, label: departmentLabel(department) })),
 								]}
 							/>
 						</div>
 
 						<div className="grid grid-cols-1 gap-1">
 							<Select value={sortOrder} onValueChange={(value) => onSortOrderChange(value as 'load-asc' | 'load-desc')}>
-								<SelectTrigger className="h-6 w-full text-[0.65rem] font-semibold bg-background">
+								<SelectTrigger className="h-6 w-full text-xs font-semibold bg-background">
 									<SelectValue placeholder="Sort by load" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="load-asc" className="text-[0.65rem] font-semibold uppercase">Load: Low to High</SelectItem>
-									<SelectItem value="load-desc" className="text-[0.65rem] font-semibold uppercase">Load: High to Low</SelectItem>
+									<SelectItem value="load-asc" className="text-xs font-semibold uppercase">Load: Low to High</SelectItem>
+									<SelectItem value="load-desc" className="text-xs font-semibold uppercase">Load: High to Low</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -146,8 +147,8 @@ export function RosterSidebar({
 				) : (
 					groupedFaculty.map(([departmentName, members]) => (
 						<div key={departmentName} className="border-b border-border/80">
-							<div className="bg-muted/40 px-3 py-1 text-[0.55rem] font-bold uppercase tracking-widest text-muted-foreground/60 flex items-center justify-between">
-								<span className="truncate">{departmentName}</span>
+							<div className="bg-muted/40 px-3 py-1 text-xs font-bold uppercase tracking-widest text-muted-foreground/60 flex items-center justify-between">
+								<span className="truncate">{departmentName === 'UNSTAFFED TEMPORARY ROLES' || departmentName === 'UNASSIGNED DEPARTMENT' ? departmentName : departmentLabel(departmentName)}</span>
 								<span className="shrink-0 ml-2 opacity-40">{members.length}</span>
 							</div>
 							{members.map((member) => {
@@ -173,7 +174,7 @@ export function RosterSidebar({
 										}`}
 									>
 										<div className="flex w-full items-center gap-2">
-											<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.6rem] font-bold text-primary border border-primary/5">
+											<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary border border-primary/5">
 												{member.firstName[0]}
 												{member.lastName[0]}
 											</div>
@@ -183,7 +184,7 @@ export function RosterSidebar({
 												</p>
 												<div className="flex items-center gap-2 mt-0.5">
 													<span className="truncate text-xs text-muted-foreground/80 font-bold flex-1">
-														{member.specialization || member.department || 'General'}
+														{departmentLabel(member.department)}
 													</span>
 													<span className={`text-xs font-semibold tabular-nums ${loadColorClass}`}>
 														{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h` : `${actualLoadPercentage}%`}

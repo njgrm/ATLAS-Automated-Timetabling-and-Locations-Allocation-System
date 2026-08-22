@@ -7,11 +7,11 @@ test('deriveLoadStatus treats exactly 30 credited hours as at standard', () => {
 });
 
 test('deriveLoadStatus with 30h cap: 31.3h is over-cap', () => {
-	assert.deepEqual(deriveLoadStatus(31.3, 30), { status: 'over-cap', label: 'Over maximum - move classes before generating' });
+	assert.deepEqual(deriveLoadStatus(31.3, 30), { status: 'over-cap', label: 'Over maximum', instruction: 'Move classes before generating.' });
 });
 
 test('deriveLoadStatus with 40h cap: 31.3h is overload-allowed', () => {
-	assert.deepEqual(deriveLoadStatus(31.3, 40), { status: 'overload-allowed', label: 'Above standard - review before generating' });
+	assert.deepEqual(deriveLoadStatus(31.3, 40), { status: 'overload-allowed', label: 'Above standard', instruction: 'Review before generating.' });
 });
 
 test('deriveLoadStatus with 30h cap: 30h is compliant', () => {
@@ -23,7 +23,7 @@ test('deriveLoadStatus with 30h cap: 29h is below-standard', () => {
 });
 
 test('deriveLoadStatus defaults to 40h cap when not specified', () => {
-	assert.deepEqual(deriveLoadStatus(35), { status: 'overload-allowed', label: 'Above standard - review before generating' });
+	assert.deepEqual(deriveLoadStatus(35), { status: 'overload-allowed', label: 'Above standard', instruction: 'Review before generating.' });
 });
 
 test('deriveWorkloadCapacity counts advisory and ancillary credits toward the 30h standard', () => {
@@ -52,7 +52,8 @@ test('deriveWorkloadCapacity flags 35 teaching plus 5 credit as approval-needed 
 	assert.equal(workload.overCapHours, 0);
 	assert.equal(workload.status, 'overload-allowed');
 	// Phase 3 / Decision 3: plain DepEd label.
-	assert.equal(workload.statusLabel, 'Above standard - review before generating');
+	assert.equal(workload.statusLabel, 'Above standard');
+	assert.equal(workload.statusInstruction, 'Review before generating.');
 });
 
 test('deriveWorkloadCapacity flags 36 teaching plus 5 credit as over cap', () => {
@@ -62,7 +63,8 @@ test('deriveWorkloadCapacity flags 36 teaching plus 5 credit as over cap', () =>
 	assert.equal(workload.overCapHours, 1);
 	assert.equal(workload.status, 'over-cap');
 	// Phase 3 / Decision 3: plain DepEd label.
-	assert.equal(workload.statusLabel, 'Over maximum - move classes before generating');
+	assert.equal(workload.statusLabel, 'Over maximum');
+	assert.equal(workload.statusInstruction, 'Move classes before generating.');
 });
 
 test('deriveWorkloadCapacity with 30h max: 31.3h is over cap', () => {

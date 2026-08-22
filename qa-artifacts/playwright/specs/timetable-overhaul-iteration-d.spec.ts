@@ -52,13 +52,6 @@ async function openUnassignedRail(page: Page) {
 	return list;
 }
 
-function targetCell(page: Page) {
-	const empty = page.locator('td[data-day][data-start-time][data-end-time]').filter({
-		hasNot: page.locator('[data-timetable-entry="true"]'),
-	}).first();
-	return empty.or(page.locator('td[data-day][data-start-time][data-end-time]').first());
-}
-
 async function expectUnifiedReview(page: Page, type: string) {
 	const sheet = page.locator(`[data-testid="review-action-sheet"][data-review-action-type="${type}"]`);
 	await expect(sheet).toBeVisible({ timeout: 20_000 });
@@ -112,8 +105,13 @@ test.describe.serial('Timetable overhaul Iteration D unified review and performa
 		await firstCard.click();
 		await expect(list.getByRole('button', { name: /^(Place session|Review room source)$/i }).first()).toBeVisible({ timeout: 10_000 });
 		await list.getByRole('button', { name: /^(Place session|Review room source)$/i }).first().click();
-		await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 10_000 });
-		await targetCell(page).click({ position: { x: 8, y: 8 } });
+		const placeableCell = page.locator(
+			'td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]:not(:has([data-timetable-entry="true"]))',
+		).first();
+		await expect(placeableCell).toBeVisible({ timeout: 15_000 });
+		const placeableText = (await placeableCell.innerText().catch(() => '')).trim();
+		expect(placeableText, 'Placement target must not be a special-event slot').not.toMatch(/FLAG CEREMONY|RECESS|HEALTH BREAK|LUNCH/i);
+		await placeableCell.click({ position: { x: 8, y: 8 } });
 
 		const sheet = await expectUnifiedReview(page, 'generated-placement');
 		await expect(sheet).toContainText(/Room source/i);

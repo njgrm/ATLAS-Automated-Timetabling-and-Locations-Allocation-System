@@ -1060,6 +1060,13 @@ function getRelevantSectionIdsForSubject(
     .map((section) => section.id);
 }
 
+export interface UncoveredSectionInfo {
+  sectionId: number;
+  sectionName: string;
+  gradeLevel: number;
+  programType: string;
+}
+
 export interface ActiveSubjectCoverageRow {
   subjectId: number;
   subjectCode: string;
@@ -1070,6 +1077,7 @@ export interface ActiveSubjectCoverageRow {
   ownedByPlaceholderCount: number;
   ownedByRealFacultyCount: number;
   uncoveredSectionCount: number;
+  uncoveredSections: UncoveredSectionInfo[];
   coveragePercent: number;
   status: 'FULL' | 'PARTIAL' | 'ZERO';
   placeholderFacultyIds: number[];
@@ -1538,6 +1546,8 @@ export async function getActiveSubjectCoverageSummary(
 ): Promise<ActiveSubjectCoverageSummary> {
   const context = await loadCoverageContext(schoolId, schoolYearId, authToken);
 
+  const sectionById = new Map(context.sections.map((s) => [s.id, s]));
+
   const rows: ActiveSubjectCoverageRow[] = context.subjects.map((subject) => {
     const relevantSectionIds = getRelevantSectionIdsForSubject(subject, context.sections);
     const relevantSectionSet = new Set(relevantSectionIds);
@@ -1553,6 +1563,18 @@ export async function getActiveSubjectCoverageSummary(
       : 100;
     const status: 'FULL' | 'PARTIAL' | 'ZERO' = coveredStatus(ownedSectionIds.size, relevantSectionIds.length);
 
+    const uncoveredSections: UncoveredSectionInfo[] = relevantSectionIds
+      .filter((sectionId) => !ownedSectionIds.has(sectionId))
+      .map((sectionId) => {
+        const section = sectionById.get(sectionId);
+        return {
+          sectionId,
+          sectionName: section?.name ?? `Section #${sectionId}`,
+          gradeLevel: section?.gradeLevel ?? 0,
+          programType: section?.programType ?? 'REGULAR',
+        };
+      });
+
     return {
       subjectId: subject.id,
       subjectCode: subject.code,
@@ -1563,6 +1585,7 @@ export async function getActiveSubjectCoverageSummary(
       ownedByPlaceholderCount,
       ownedByRealFacultyCount,
       uncoveredSectionCount,
+      uncoveredSections,
       coveragePercent,
       status,
       placeholderFacultyIds: [...new Set(placeholderOwnership.map((entry) => entry.facultyId))].sort((a, b) => a - b),

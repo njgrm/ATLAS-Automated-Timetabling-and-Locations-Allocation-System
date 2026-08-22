@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { findMappingConflicts, fetchSectionExternalIds, resolveMappingConflictAction } from './enrollpro-rollover.service.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
+import { fetchEnrollProActiveTerm, type ActiveTermResult } from './active-term-adapter.service.js';
 
 type RuntimeContextEvidenceType =
 	| 'school-year-mirror'
@@ -65,6 +66,7 @@ export type RuntimeContextResult = {
 			lastFailureSummary: string | null;
 		} | null;
 	};
+	activeTerm: ActiveTermResult;
 };
 
 type ResolveRuntimeContextOptions = {
@@ -334,45 +336,86 @@ export async function resolveRuntimeContext(
 	let mappingConflict = false;
 
 	const verifyUpstream = options?.verifyUpstream !== false;
+	let activeTermResult: ActiveTermResult = {
+		source: 'atlas-unverified',
+		reachable: false,
+		verified: false,
+		activeTerm: null,
+		termIndex: null,
+		schoolYearId: null,
+		matchedSchoolYear: null,
+		code: null,
+		message: 'Active term verification not requested.',
+	};
+
 	if (verifyUpstream) {
-		try {
-			const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
-			if (upstreamYear) {
-				upstreamReachable = true;
-				upstreamActiveSchoolYearId = upstreamYear.id;
-				upstreamActiveSchoolYearLabel = upstreamYear.yearLabel;
+		// Fetch school year and active term in parallel — each is independent
+		const [upstreamYear, activeTermResponse] = await Promise.all([
+			fetchEnrollProActiveSchoolYear(authToken).catch(() => null),
+			fetchEnrollProActiveTerm(authToken).catch(() => null),
+		]);
 
-				// Use shared conflict detection that checks both YEAR_LABEL_MISMATCH
-				// and SECTION_ID_COLLISION (consistent with rollover-status endpoint)
-				let sectionExternalIds: Set<number> | undefined;
-				try {
-					sectionExternalIds = await fetchSectionExternalIds(authToken);
-				} catch {
-					// If we can't fetch section IDs, skip the collision check
-					// (the YEAR_LABEL_MISMATCH check still runs)
-				}
-				const conflicts = await findMappingConflicts(schoolId, upstreamYear, sectionExternalIds);
-				mappingConflict = conflicts.length > 0;
+		// Process active term result (independent of school year)
+		if (activeTermResponse) {
+			activeTermResult = activeTermResponse;
+		} else {
+			activeTermResult = {
+				source: 'enrollpro-unreachable',
+				reachable: false,
+				verified: false,
+				activeTerm: null,
+				termIndex: null,
+				schoolYearId: null,
+				matchedSchoolYear: null,
+				code: null,
+				message: 'EnrollPro active-term endpoint is unreachable.',
+			};
+		}
 
-				const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
-				if (upstreamRank && selectedRank) {
-					const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
-					const competitiveScore = upstreamRank.score >= selectedRank.score * 0.9;
-					if (strongerSignal || competitiveScore) {
-						selectedRank = upstreamRank;
-						selected = upstreamRank.representative;
-					}
-				}
+		// Process school year result
+		if (upstreamYear) {
+			upstreamReachable = true;
+			upstreamActiveSchoolYearId = upstreamYear.id;
+			upstreamActiveSchoolYearLabel = upstreamYear.yearLabel;
 
-				upstreamMatched = upstreamYear.id === selected.yearId;
-				if (upstreamMatched) {
-					source = 'enrollpro-verified';
-					upstreamVerified = true;
-					activeSchoolYearLabel = upstreamYear.yearLabel;
+			// Use shared conflict detection that checks both YEAR_LABEL_MISMATCH
+			// and SECTION_ID_COLLISION (consistent with rollover-status endpoint)
+			let sectionExternalIds: Set<number> | undefined;
+			try {
+				sectionExternalIds = await fetchSectionExternalIds(authToken);
+			} catch {
+				// If we can't fetch section IDs, skip the collision check
+				// (the YEAR_LABEL_MISMATCH check still runs)
+			}
+			const conflicts = await findMappingConflicts(schoolId, upstreamYear, sectionExternalIds);
+			mappingConflict = conflicts.length > 0;
+
+			const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
+			if (upstreamRank && selectedRank) {
+				const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
+				const competitiveScore = upstreamRank.score >= selectedRank.score * 0.9;
+				if (strongerSignal || competitiveScore) {
+					selectedRank = upstreamRank;
+					selected = upstreamRank.representative;
 				}
 			}
-		} catch {
-			// Keep atlas-persisted context when upstream is unavailable.
+
+			upstreamMatched = upstreamYear.id === selected.yearId;
+			if (upstreamMatched) {
+				source = 'enrollpro-verified';
+				upstreamVerified = true;
+				activeSchoolYearLabel = upstreamYear.yearLabel;
+			}
+
+			// Update matchedSchoolYear now that we have both school year and active term
+			if (activeTermResult.source !== 'atlas-unverified' && activeTermResult.schoolYearId !== null) {
+				activeTermResult.matchedSchoolYear = activeTermResult.schoolYearId === upstreamYear.id;
+				if (activeTermResult.matchedSchoolYear === true) {
+					activeTermResult.message = `ATLAS is aligned with EnrollPro active term ${activeTermResult.activeTerm}.`;
+				} else if (activeTermResult.matchedSchoolYear === false) {
+					activeTermResult.message = `EnrollPro active term ${activeTermResult.activeTerm} is from a different school year (expected ${upstreamYear.id}, got ${activeTermResult.schoolYearId}).`;
+				}
+			}
 		}
 	}
 
@@ -450,5 +493,6 @@ export async function resolveRuntimeContext(
 				lastFailureSummary: schoolYearMirror.lastFailureSummary,
 			} : null,
 		},
+		activeTerm: activeTermResult,
 	};
 }

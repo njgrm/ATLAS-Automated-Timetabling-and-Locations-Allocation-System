@@ -7,6 +7,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import * as cohortService from '../services/cohort.service.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
 
 const router = Router();
 
@@ -71,6 +72,20 @@ router.post('/sync', authenticate, async (req: Request, res: Response, next: Nex
 		const authToken = req.headers.authorization?.slice(7);
 		const result = await cohortService.syncCohorts(schoolId, schoolYearId, authToken);
 		if (!result.synced) {
+			publishNotificationEvent({
+				type: 'COHORT_SYNC_FAILED',
+				domain: 'integration',
+				severity: 'error',
+				audience: 'PRIVILEGED',
+				schoolId,
+				schoolYearId,
+				facultyId: null,
+				message: 'Instructional cohort sync from EnrollPro failed.',
+				metadata: {
+					source: result.source,
+					error: result.error,
+				},
+			});
 			res.status(502).json({
 				code: 'SYNC_FAILED',
 				message: result.error,
@@ -78,6 +93,21 @@ router.post('/sync', authenticate, async (req: Request, res: Response, next: Nex
 			});
 			return;
 		}
+		publishNotificationEvent({
+			type: 'COHORT_SYNC_COMPLETED',
+			domain: 'integration',
+			severity: result.warnings?.length ? 'warning' : 'success',
+			audience: 'PRIVILEGED',
+			schoolId,
+			schoolYearId,
+			facultyId: null,
+			message: 'Instructional cohorts synced from EnrollPro.',
+			metadata: {
+				source: result.source,
+				count: result.count,
+				warnings: result.warnings ?? [],
+			},
+		});
 		res.json({
 			synced: true,
 			source: result.source,

@@ -509,7 +509,7 @@ export const SubjectRow = memo(({
 																tabIndex={isClickable ? 0 : undefined}
 																aria-pressed={isClickable ? isSelected : undefined}
 																aria-label={isClickable
-																	? `${section.name}${isSelected ? ' - assigned to this teacher' : ' - not assigned'}`
+																	? `$<span className="truncate shrink">{section.name}</span>${isSelected ? ' - assigned to this teacher' : ' - not assigned'}`
 																	: undefined}
 																onClick={handleClick}
 																onKeyDown={(event) => {
@@ -559,19 +559,15 @@ export const SubjectRow = memo(({
 																				isSystemAssignedSection ? 'opacity-0' : 'opacity-100'
 																			)}
 																		/>
-																		<span className={`text-[0.75rem] font-semibold leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'} flex items-center gap-1.5 flex-1 min-w-0`}>
+																		<span className={`text-[0.75rem] font-semibold leading-tight ${isSelected ? 'text-primary' : 'text-foreground'} flex items-center gap-1.5 flex-1 min-w-0`}>
 																			{/* Phase 0C.1: completion dot carries a text alternative so it is not color-only. */}
 																			<span
 																				className={cn("size-2 rounded-full shrink-0", completedSectionIds?.has(section.id) ? "bg-emerald-500" : "bg-amber-400")}
 																				role="img"
 																				aria-label={completedSectionIds?.has(section.id) ? 'Assigned' : 'Pending'}
 																			/>
-																			{section.name}
-																			{isOwnedByOther && (
-																				<span className="text-[9px] font-bold tracking-tight text-amber-600 bg-amber-50 border border-amber-200/50 px-1 py-0.5 rounded leading-none shrink-0 truncate max-w-28 ml-1">
-																					Assigned: {owner.facultyName}
-																				</span>
-																			)}
+																			<span className="truncate shrink">{section.name}</span>
+																			
 																		</span>
 																	</div>
 																	
@@ -584,6 +580,19 @@ export const SubjectRow = memo(({
 
 																<div className="w-full space-y-1.5">
 																	<div className="flex flex-wrap items-center gap-1.5">
+																		{isOwnedByOther && (
+																			<Tooltip>
+																				<TooltipTrigger asChild>
+																					<span className="text-[10px] font-bold tracking-tight text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded truncate max-w-[180px] cursor-help">
+																						{owner.facultyName}
+																					</span>
+																				</TooltipTrigger>
+																				<TooltipContent side="top" className="text-xs font-bold">
+																					Assigned to {owner.facultyName}
+																				</TooltipContent>
+																			</Tooltip>
+																		)}
+																		
 																		{section.isSpecialProgram && section.programCode && PROGRAM_BADGE[section.programCode] && (
 																			<Badge variant="outline" className={`h-4 px-1.5 text-xs font-semibold uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
 																				{section.programCode}
@@ -667,3 +676,6 @@ export const SubjectRow = memo(({
 		</div>
 	);
 });
+
+
+

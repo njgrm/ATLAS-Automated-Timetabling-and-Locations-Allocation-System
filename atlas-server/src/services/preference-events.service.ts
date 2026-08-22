@@ -36,6 +36,7 @@ const MAX_BUFFER = 300;
 let nextEventId = 1;
 const subscribers = new Set<Subscriber>();
 const buffer: PreferenceEvent[] = [];
+const listeners = new Set<(event: PreferenceEvent) => void>();
 
 function canReceive(subscriber: Subscriber, event: PreferenceEvent): boolean {
 	if (subscriber.schoolId !== event.schoolId || subscriber.schoolYearId !== event.schoolYearId) {
@@ -65,7 +66,15 @@ export function publishPreferenceEvent(
 			subscriber.send(resolved);
 		}
 	}
+	for (const listener of listeners) {
+		listener(resolved);
+	}
 	return resolved;
+}
+
+export function onPreferenceEvent(listener: (event: PreferenceEvent) => void): () => void {
+	listeners.add(listener);
+	return () => listeners.delete(listener);
 }
 
 export function subscribePreferenceEvents(params: {

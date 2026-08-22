@@ -291,6 +291,36 @@ export type TeachingLoadCoverageTotals = {
 	rawUnassignedPairs?: number;
 };
 
+export type UncoveredSectionInfo = {
+	sectionId: number;
+	sectionName: string;
+	gradeLevel: number;
+	programType: string;
+};
+
+export type SubjectCoverageRow = {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	isActive: boolean;
+	relevantSectionCount: number;
+	ownedSectionCount: number;
+	ownedByPlaceholderCount: number;
+	ownedByRealFacultyCount: number;
+	uncoveredSectionCount: number;
+	uncoveredSections: UncoveredSectionInfo[];
+	coveragePercent: number;
+	status: 'FULL' | 'PARTIAL' | 'ZERO';
+	placeholderFacultyIds: number[];
+};
+
+export type SubjectCoverageSummary = {
+	rows: SubjectCoverageRow[];
+	zeroCoverageSubjectCodes: string[];
+	partiallyCoveredSubjectCodes: string[];
+	fullyCoveredSubjectCodes: string[];
+};
+
 export type TeachingLoadIntegrityDiagnosticRow = {
 	facultyId: number;
 	facultyName: string;
@@ -1987,6 +2017,7 @@ export type LoadProfile = {
 	remainingHours: number;
 	status: LoadStatus;
 	statusLabel: string;
+	statusInstruction?: string;
 	rotationFamilies: RotationFamilyBreakdownItem[];
 	breakdown: LoadBreakdownItem[];
 };

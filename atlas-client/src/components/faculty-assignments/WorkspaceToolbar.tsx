@@ -4,6 +4,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { cn } from '@/lib/utils';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 import type { TeachingLoadSplitBrainReconcileResult, CoverageMode } from '@/types';
@@ -220,6 +221,13 @@ export function WorkspaceToolbar({
 				</div>
 
 				<div className="ml-auto flex shrink-0 items-center gap-2">
+				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-8">
+					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
+						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
+						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
+					</TabsList>
+				</Tabs>
+
 				<SmartHelpTrigger
 					title="How to use Teaching Load"
 					description="Use this page to build and review which teacher owns each subject-section load before timetable generation."
@@ -282,16 +290,6 @@ export function WorkspaceToolbar({
 									<Users className="size-4" />
 									{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
 								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">View mode</DropdownMenuLabel>
-								<DropdownMenuRadioGroup value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')}>
-									<DropdownMenuRadioItem value="teacher" className="cursor-pointer py-2 text-xs font-bold uppercase tracking-tight">
-										Teacher view
-									</DropdownMenuRadioItem>
-									<DropdownMenuRadioItem value="allocation" className="cursor-pointer py-2 text-xs font-bold uppercase tracking-tight">
-										Section view
-									</DropdownMenuRadioItem>
-								</DropdownMenuRadioGroup>
 							{showReconcileAction && (
 								<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
 									<Layers className="size-4" />
@@ -339,7 +337,7 @@ export function WorkspaceToolbar({
 						STRIP_TONE[completenessPercent === 100 ? 'success' : 'warning'],
 					)}
 				>
-					<span className="text-[0.65rem] uppercase tracking-wide opacity-75">% staffed</span>
+					<span className="text-xs uppercase tracking-wide opacity-75">% staffed</span>
 					<span className="text-sm font-bold tabular-nums">{completenessPercent}%</span>
 				</div>
 
@@ -349,7 +347,7 @@ export function WorkspaceToolbar({
 						STRIP_TONE[unassignedPairs > 0 ? 'warning' : 'success'],
 					)}
 				>
-					<span className="text-[0.65rem] uppercase tracking-wide opacity-75">Unassigned pairs</span>
+					<span className="text-xs uppercase tracking-wide opacity-75">Unassigned pairs</span>
 					<span className="text-sm font-bold tabular-nums">{unassignedPairs}</span>
 				</div>
 

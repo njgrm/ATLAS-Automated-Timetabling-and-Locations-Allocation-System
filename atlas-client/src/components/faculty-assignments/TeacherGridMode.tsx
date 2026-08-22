@@ -13,6 +13,7 @@ import {
 	ListFilter
 } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { departmentLabel } from '@/lib/deped-glossary';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
@@ -221,7 +222,7 @@ export function TeacherGridMode({
 							<SelectContent>
 								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Departments</SelectItem>
 								{departmentOptions.map(dept => (
-									<SelectItem key={dept} value={dept} className="text-xs font-bold uppercase tracking-tight">{dept}</SelectItem>
+									<SelectItem key={dept} value={dept} className="text-xs font-bold uppercase tracking-tight">{departmentLabel(dept)}</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
@@ -311,7 +312,7 @@ export function TeacherGridMode({
 							>
 								<div className="flex items-center gap-2">
 									{isCollapsed ? <ChevronRight className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-									<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{dept}</h3>
+									<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{dept === 'UNSTAFFED TEMPORARY ROLES' || dept === 'UNASSIGNED DEPARTMENT' ? dept : departmentLabel(dept)}</h3>
 								</div>
 								<div className="flex-1 h-px bg-border/30" />
 								<Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground shadow-none">{members.length}</Badge>
@@ -375,7 +376,7 @@ export function TeacherGridMode({
 															{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 														</div>
 														<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
-															{member.specialization || 'General'}
+															{departmentLabel(member.department)}
 														</p>
 													</div>
 

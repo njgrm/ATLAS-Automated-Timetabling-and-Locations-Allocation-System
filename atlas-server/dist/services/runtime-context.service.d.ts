@@ -1,3 +1,4 @@
+import { type ActiveTermResult } from './active-term-adapter.service.js';
 type RuntimeContextEvidenceType = 'school-year-mirror' | 'scheduling-policy' | 'section-mirror' | 'section-snapshot' | 'faculty-snapshot' | 'generation-run';
 type RuntimeContextSource = 'atlas-persisted' | 'enrollpro-verified';
 type RuntimeDriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
@@ -51,6 +52,7 @@ export type RuntimeContextResult = {
             lastFailureSummary: string | null;
         } | null;
     };
+    activeTerm: ActiveTermResult;
 };
 type ResolveRuntimeContextOptions = {
     verifyUpstream?: boolean;

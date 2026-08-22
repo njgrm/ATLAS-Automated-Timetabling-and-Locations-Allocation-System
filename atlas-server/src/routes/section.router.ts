@@ -6,6 +6,7 @@ import * as sectionService from '../services/section.service.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
 import { syncSectionsFromExternal } from '../services/section.service.js';
 import { sectionSourceMode, fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
 
 const router = Router();
 
@@ -136,6 +137,23 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
 			syncSectionsFromExternal(schoolId, schoolYearId, upstreamAuthToken),
 			fetchEnrollProActiveSchoolYear(upstreamAuthToken),
 		]);
+		publishNotificationEvent({
+			type: 'SECTION_SYNC_COMPLETED',
+			domain: 'integration',
+			severity: 'success',
+			audience: 'PRIVILEGED',
+			schoolId,
+			schoolYearId,
+			facultyId: null,
+			message: 'Sections synced from EnrollPro.',
+			metadata: {
+				source: result.source,
+				count: result.count,
+				removed: result.removed,
+				fetchedAt: result.fetchedAt,
+				enrollProActiveYear: activeYear?.yearLabel ?? null,
+			},
+		});
 		res.json({ ...result, ...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}) });
 	} catch (err) {
 		next(err);

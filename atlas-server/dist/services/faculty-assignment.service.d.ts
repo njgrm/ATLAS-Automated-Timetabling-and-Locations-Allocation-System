@@ -364,6 +364,12 @@ export declare function buildRotationTermBreakdown(assignments: AssignmentRotati
 export declare function detectDuplicateOwnershipTuples(assignments: DuplicateOwnershipInput[]): DuplicateOwnershipTuple[];
 export declare function buildOwnershipConflictDetails(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): OwnershipConflictDetail[];
 export declare function buildDuplicateOwnershipBlockingResult(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): AssignmentMutationResult | null;
+export interface UncoveredSectionInfo {
+    sectionId: number;
+    sectionName: string;
+    gradeLevel: number;
+    programType: string;
+}
 export interface ActiveSubjectCoverageRow {
     subjectId: number;
     subjectCode: string;
@@ -374,6 +380,7 @@ export interface ActiveSubjectCoverageRow {
     ownedByPlaceholderCount: number;
     ownedByRealFacultyCount: number;
     uncoveredSectionCount: number;
+    uncoveredSections: UncoveredSectionInfo[];
     coveragePercent: number;
     status: 'FULL' | 'PARTIAL' | 'ZERO';
     placeholderFacultyIds: number[];

@@ -2,7 +2,7 @@
 
 **Base URL:** `http://<host>:5001/api/v1`  
 **Tailscale host:** `100.88.55.125`  
-**Auth:** All protected endpoints require `Authorization: Bearer <token>` — the JWT issued by EnrollPro.  
+**Auth:** Public published-schedule endpoints require no token. Protected endpoints require `Authorization: Bearer <token>` using an ATLAS session token, bridge token, or approved machine-to-machine integration key. Long-running sister-system integrations must use a stable machine-to-machine key instead of a browser/user-session JWT because user JWTs expire.  
 **Content-Type:** `application/json` (all request bodies)
 
 ---
@@ -925,6 +925,30 @@ AI-assisted suggestions for resolving hard violations.
 
 ---
 
+### `GET /generation/:schoolId/:schoolYearId/runs/:runId/export/summary-teacher-schedule.xlsx` 🔒
+Export the selected completed run as the Class-Monitoring Summary workbook.
+
+| | |
+|---|---|
+| **Auth** | Required (officer or admin) |
+| **Success** | `200 OK` with XLSX content |
+| **Failure** | `404 RUN_NOT_FOUND`, `422 RUN_NOT_COMPLETED` |
+
+---
+
+### `GET /generation/:schoolId/:schoolYearId/runs/:runId/export/class-program.xlsx` 🔒
+Export the selected completed run as the Class-Program workbook.
+
+| | |
+|---|---|
+| **Auth** | Required (officer or admin) |
+| **Success** | `200 OK` with XLSX content |
+| **Failure** | `404 RUN_NOT_FOUND`, `422 RUN_NOT_COMPLETED` |
+
+Workbook output rules are documented in `docs/reference/timetable-workbook-output-contract-2026-08-15.md`.
+
+---
+
 ## Manual Edits (Timetable Review)
 
 ### `POST /generation/:schoolId/:schoolYearId/runs/:runId/manual-edits/preview` 🔒
@@ -1060,41 +1084,51 @@ Each projected room entry includes `termIndex` (1, 2, or 3).
 
 ## Published Schedules
 
-**Public endpoints** (no auth required). These return only `Published` schedules.
+**Public endpoints** (no auth required). These return only published schedule truth. AIMS, EnrollPro, SMART, and other sister systems should use these endpoints for final day/time schedule sync.
+
+Do not use Teaching Load suggestion, auto-fill, assignment summary, or latest generated timetable endpoints as final published schedule truth. Those endpoints are internal scheduler workflow data until a run is published.
 
 Behavior notes:
-- `GET /schools/:schoolId/schedules/published` resolves the current active published truth for that school when no date query is supplied.
-- All published schedule endpoints accept optional `date=YYYY-MM-DD` or `asOfDate=<ISO date>` query parameters. Dates before a published revision's effective date return the previous published truth; dates on or after the effective date return the revised truth.
-- If no published run exists, the API returns `404` with `code: "PUBLISHED_RUN_NOT_FOUND"`.
+- `GET /schools/:schoolId/schedules/published` resolves the current active school-year published schedule only.
+- Explicit school-year routes under `/schools/:schoolId/school-years/:schoolYearId/schedules/published` are the supported way to read historical or test published schedules.
+- All published schedule endpoints accept optional `date=YYYY-MM-DD` or `asOfDate=<ISO date>` query parameters for revision-effective reads.
+- Dates before a published revision's effective date return the previous published truth; dates on or after the effective date return the revised truth.
+- Current-year routes return `404` with `code: "CURRENT_PUBLISHED_RUN_NOT_FOUND"` when the active school year has no published run.
+- Explicit school-year routes return `404` with `code: "PUBLISHED_RUN_NOT_FOUND"` when that requested school year has no published run.
 - If the supplied date is invalid, the API returns `400` with `code: "PUBLISHED_SCHEDULE_DATE_INVALID"`.
 - These endpoints never expose draft/review/unpublished entries.
 - If legacy rows contain invalid `FAILED + published` marker combinations, the service reconciles those rows by clearing publication markers before resolving the published payload.
 
-### `GET /schools/:schoolId/schedules/published`
-Get the current published schedule payload for a school.
+Current active-year endpoints:
 
-### `GET /schools/:schoolId/schedules/published/:termId`
-Get published schedule payload for a specific term.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/schools/:schoolId/schedules/published` | Current active-year published schedule. |
+| `GET` | `/schools/:schoolId/schedules/published/sections/:sectionId` | Current active-year schedule for one section. |
+| `GET` | `/schools/:schoolId/schedules/published/faculty/:facultyId` | Current active-year schedule for one ATLAS faculty ID. |
+| `GET` | `/schools/:schoolId/schedules/published/faculty-external/:externalFacultyId` | Current active-year schedule for one EnrollPro faculty ID. |
+| `GET` | `/schools/:schoolId/schedules/published/rooms/:roomId` | Current active-year schedule for one room. |
 
-Published entries may include `cohortName`, `specializationCode`, and `specializationLabel` so downstream consumers can distinguish explicit breakout lanes from umbrella subject rows.
+Explicit school-year endpoints:
 
-### `GET /schools/:schoolId/schedules/published/sections/:sectionId`
-Get current published schedule view for a section.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/schools/:schoolId/school-years/:schoolYearId/schedules/published` | Published schedule for a specific school year. |
+| `GET` | `/schools/:schoolId/school-years/:schoolYearId/schedules/published/sections/:sectionId` | Section schedule for a specific school year. |
+| `GET` | `/schools/:schoolId/school-years/:schoolYearId/schedules/published/faculty/:facultyId` | Faculty schedule for a specific school year using ATLAS faculty ID. |
+| `GET` | `/schools/:schoolId/school-years/:schoolYearId/schedules/published/faculty-external/:externalFacultyId` | Faculty schedule for a specific school year using EnrollPro faculty ID. |
+| `GET` | `/schools/:schoolId/school-years/:schoolYearId/schedules/published/rooms/:roomId` | Room schedule for a specific school year. |
 
-### `GET /schools/:schoolId/schedules/published/:termId/sections/:sectionId`
-Get term-specific published schedule view for a section.
+Legacy compatibility:
 
-### `GET /schools/:schoolId/schedules/published/faculty/:facultyId`
-Get current published schedule view for a faculty member.
+| Method | Endpoint | Status |
+|---|---|---|
+| `GET` | `/schools/:schoolId/schedules/published/:termId` | Legacy compatibility only; do not use for new integrations. |
+| `GET` | `/schools/:schoolId/schedules/published/:termId/sections/:sectionId` | Legacy compatibility only; do not use for new integrations. |
+| `GET` | `/schools/:schoolId/schedules/published/:termId/faculty/:facultyId` | Legacy compatibility only; do not use for new integrations. |
+| `GET` | `/schools/:schoolId/schedules/published/:termId/rooms/:roomId` | Legacy compatibility only; do not use for new integrations. |
 
-### `GET /schools/:schoolId/schedules/published/:termId/faculty/:facultyId`
-Get term-specific published schedule view for a faculty member.
-
-### `GET /schools/:schoolId/schedules/published/rooms/:roomId`
-Get current published schedule view for a room.
-
-### `GET /schools/:schoolId/schedules/published/:termId/rooms/:roomId`
-Get term-specific published schedule view for a room.
+The legacy `:termId` path is retained for compatibility, but new consumers must not treat it as the reliable term-filtering contract. Use the explicit `schoolYearId` route family for current-vs-historical selection.
 
 | | |
 |---|---|
@@ -1114,7 +1148,9 @@ Get term-specific published schedule view for a room.
     "activeRevisionId": 14,
     "activeRevisionEffectiveDate": "2026-06-03T00:00:00.000Z",
     "appliedRevisionIds": [14],
-    "revisionMarker": "run=82|published=2026-05-11T03:30:00.000Z|revision=14|effective=2026-06-03T00:00:00.000Z|date=2026-06-03"
+    "revisionMarker": "run=82|published=2026-05-11T03:30:00.000Z|revision=14|effective=2026-06-03T00:00:00.000Z|date=2026-06-03",
+    "isActiveSchoolYear": false,
+    "isHistorical": true
   },
   "timeSlots": [
     { "startTime": "07:00", "endTime": "08:00" }
@@ -1141,6 +1177,8 @@ Get term-specific published schedule view for a room.
       },
       "section": {
         "id": 101,
+        "atlasId": 2779,
+        "externalId": 101,
         "name": "7-Rizal",
         "gradeLevel": 7,
         "gradeLevelName": "Grade 7",
@@ -1150,6 +1188,10 @@ Get term-specific published schedule view for a room.
       },
       "faculty": {
         "id": 7947,
+        "atlasId": 7947,
+        "externalId": 17,
+        "employeeId": "2000056",
+        "isPlaceholder": false,
         "name": "Santos, Maria"
       },
       "room": {
@@ -1175,6 +1217,51 @@ Published entry lane fields:
 - `cohortName`: human-readable cohort/specialization lane label.
 - `specializationCode`: normalized specialization lane identity (from cohort or section ownership truth).
 - `specializationLabel`: display label for the specialization lane.
+
+Cross-system ID fields:
+- `faculty.externalId`: EnrollPro teacher/faculty ID. Use this for EnrollPro/AIMS matching.
+- `faculty.atlasId` and `faculty.id`: ATLAS internal faculty identity.
+- `faculty.isPlaceholder`: `true` means the teacher is an ATLAS placeholder and cannot be matched to an EnrollPro teacher yet.
+- `section.externalId`: EnrollPro section ID. Use this for EnrollPro/AIMS matching.
+- `section.atlasId`: ATLAS internal section identity.
+- `source.isActiveSchoolYear`: `true` when the payload matches the current active school year.
+- `source.isHistorical`: `true` when the payload is from a non-active school year.
+
+Dedicated handoff guide for AIMS/sister-system schedule consumers: `docs/guides/AIMS_FETCH_PUBLISHED_SCHEDULES_GUIDE.md`.
+
+---
+
+## Runtime Rollover & Integration Health
+
+These protected endpoints are for SMART/EnrollPro/ATLAS rollover coordination. They are not public published schedule feeds.
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/runtime/context?schoolId=<id>` | Required | Return selected year, saved runtime state, and persisted drift evidence without forcing a live upstream probe. |
+| `GET` | `/runtime/context?schoolId=<id>&verifyUpstream=true` | Required | Re-check EnrollPro and return current active-year drift state. |
+| `GET` | `/runtime/rollover-status?schoolId=<id>` | Required | Read current drift and mirror state. |
+| `GET` | `/runtime/rollover-status?schoolId=<id>&includeCounts=true` | Required | Include local count evidence for sections, faculty, generation runs, policy, and Teaching Load readiness. |
+| `POST` | `/runtime/rollover-sync/preview` | Required | Read EnrollPro active-year, faculty, sections, and settings; return what ATLAS would sync; performs no writes. |
+| `POST` | `/runtime/rollover-sync/apply` | Privileged | Upsert active-year mirror, section/faculty snapshots, and baseline policy in ATLAS. |
+| `POST` | `/runtime/rollover-sync/reset-dummy-year` | Privileged | Development-only cleanup for confirmed dummy-year conflicts. |
+
+`activeYearDrift.status` values include `aligned`, `atlas-stale`, `enrollpro-unreachable`, and `mapping-conflict`. SMART and EnrollPro clients must not hard-code active school-year IDs; use the runtime context or published payload `source.schoolYearId`.
+
+Dedicated rollover handoff: `docs/reference/atlas-smart-rollover-api-endpoints-2026-08-07.md`.
+
+---
+
+## Notifications
+
+### `GET /notifications/:schoolId/:schoolYearId/events` 🔒
+Unified authenticated Server-Sent Events stream for generation, publish/revision, timetable, upstream sync, preference, and room-request notifications.
+
+| | |
+|---|---|
+| **Auth** | Required via bearer token, `accessToken` query parameter, or `atlasAuthToken` cookie |
+| **Replay** | Supports `Last-Event-ID` header or `lastEventId` query parameter |
+
+Privileged users receive operational school-year events. Faculty users receive events scoped to their canonical faculty identity.
 
 ---
 

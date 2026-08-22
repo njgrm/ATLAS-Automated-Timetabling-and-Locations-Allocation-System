@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { resolveRuntimeContext } from '../services/runtime-context.service.js';
 import { applyRolloverSync, getRolloverStatus, previewRolloverSync, resetDummyYearAndApplyRollover, } from '../services/enrollpro-rollover.service.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
 const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 function parseSchoolId(raw) {
@@ -87,6 +88,23 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req, res
             return;
         }
         const result = await applyRolloverSync(schoolId, getUpstreamAuthToken(req));
+        const schoolYearId = Number(result.enrollProActiveYear?.id ?? 1);
+        publishNotificationEvent({
+            type: 'ROLLOVER_SYNC_COMPLETED',
+            domain: 'integration',
+            severity: 'success',
+            audience: 'PRIVILEGED',
+            schoolId,
+            schoolYearId,
+            facultyId: null,
+            message: `Active school year synced from EnrollPro${result.enrollProActiveYear?.yearLabel ? `: ${result.enrollProActiveYear.yearLabel}` : ''}.`,
+            metadata: {
+                enrollProActiveYear: result.enrollProActiveYear,
+                facultyCount: result.sync.faculty?.activeCount ?? null,
+                sectionCount: result.sync.sections?.count ?? null,
+                policyReady: result.sync.policyReady,
+            },
+        });
         res.json(result);
     }
     catch (err) {
@@ -110,6 +128,26 @@ router.post('/rollover-sync/reset-dummy-year', authenticateWithSystemToken, asyn
             authToken: getUpstreamAuthToken(req),
             confirmReset: req.body?.confirmReset === true,
             confirmationText: typeof req.body?.confirmationText === 'string' ? req.body.confirmationText : undefined,
+        });
+        const schoolYearId = Number(result.enrollProActiveYear?.id ?? result.rolloverApply?.enrollProActiveYear?.id ?? result.resetTargetSchoolYearId ?? 1);
+        publishNotificationEvent({
+            type: result.resetApplied ? 'DUMMY_YEAR_RESET_COMPLETED' : 'DUMMY_YEAR_RESET_PREVIEWED',
+            domain: 'integration',
+            severity: result.resetApplied ? 'warning' : 'info',
+            audience: 'PRIVILEGED',
+            schoolId,
+            schoolYearId,
+            facultyId: null,
+            message: result.resetApplied
+                ? 'Dummy school-year data was reset and EnrollPro rollover sync was applied.'
+                : 'Dummy school-year reset preview is ready.',
+            metadata: {
+                enrollProActiveYear: result.enrollProActiveYear,
+                resetTargetSchoolYearId: result.resetTargetSchoolYearId,
+                previewOnly: result.previewOnly,
+                resetApplied: result.resetApplied,
+                conflictingRecordCounts: result.conflictingRecordCounts,
+            },
         });
         res.json(result);
     }

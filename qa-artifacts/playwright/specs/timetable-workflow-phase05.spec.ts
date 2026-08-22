@@ -131,11 +131,13 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await expect(generatedList).toBeVisible({ timeout: 15_000 });
 		await generatedList.locator('[role="listitem"] button').first().click();
 		await generatedList.getByRole('button', { name: /^(Place session|Review room source|Fix teaching load)$/i }).first().click();
-		await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 10_000 });
-		const targetCell = page.locator('td[data-day][data-start-time][data-end-time]').filter({
-			hasNot: page.locator('[data-timetable-entry="true"]'),
-		}).first().or(page.locator('td[data-day][data-start-time][data-end-time]').first());
-		await targetCell.click({ position: { x: 8, y: 8 } });
+		const placeableCell = page.locator(
+			'td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]:not(:has([data-timetable-entry="true"]))',
+		).first();
+		await expect(placeableCell).toBeVisible({ timeout: 15_000 });
+		const placeableText = (await placeableCell.innerText().catch(() => '')).trim();
+		expect(placeableText, 'Placement target must not be a special-event slot').not.toMatch(/FLAG CEREMONY|RECESS|HEALTH BREAK|LUNCH/i);
+		await placeableCell.click({ position: { x: 8, y: 8 } });
 		const assignmentDialog = page.getByTestId('generated-placement-review-dialog');
 		await expect(assignmentDialog).toBeVisible({ timeout: 15_000 });
 		await expect(assignmentDialog).toContainText(/Review generated placement/i);

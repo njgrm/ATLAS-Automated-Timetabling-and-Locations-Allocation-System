@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import atlasApi from '@/lib/api';
 import { isUpstreamBackedSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { fetchSubjectCoverageSummary, countSubjectsWithMissingCoverage } from '@/lib/coverage';
 import type { Building } from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -149,6 +150,16 @@ export function useDashboardData(): DashboardData {
 						setReadinessResolvedAt(context.cachedAt);
 						setActiveSchoolYearId(context.activeSchoolYearId ?? null);
 						setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
+						// Override unassignedSubjectCount with subject-section coverage truth
+						if (context.activeSchoolYearId) {
+							fetchSubjectCoverageSummary(context.activeSchoolYearId)
+								.then((coverage) => {
+									if (!cancelled) {
+										setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
+									}
+								})
+								.catch(() => { /* keep legacy stats value as degraded fallback */ });
+						}
 						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
 						const syId = context.activeSchoolYearId;
 						// Sections summary
@@ -211,6 +222,16 @@ export function useDashboardData(): DashboardData {
 				setDataSource(toDataSource(summary.sourceState));
 				setActiveSchoolYearId(summary.activeSchoolYearId);
 				setActiveSchoolYearLabel(summary.activeSchoolYearLabel);
+				// Override unassignedSubjectCount with subject-section coverage truth
+				if (summary.activeSchoolYearId) {
+					fetchSubjectCoverageSummary(summary.activeSchoolYearId)
+						.then((coverage) => {
+							if (!cancelled) {
+								setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
+							}
+						})
+						.catch(() => { /* keep readiness-summary value as degraded fallback */ });
+				}
 				setLatestRunStatus(summary.generation.latestRunStatus);
 				setLatestRunId(summary.generation.latestRunId);
 				setViolationCount(summary.generation.violationCount);

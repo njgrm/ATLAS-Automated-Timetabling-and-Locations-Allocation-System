@@ -28,6 +28,7 @@ const MAX_BUFFER = 300;
 let nextEventId = 1;
 const subscribers = new Set<Subscriber>();
 const buffer: PublishedScheduleEvent[] = [];
+const listeners = new Set<(event: PublishedScheduleEvent) => void>();
 
 function canReceive(subscriber: Subscriber, event: PublishedScheduleEvent): boolean {
 	if (subscriber.schoolId !== event.schoolId || subscriber.schoolYearId !== event.schoolYearId) {
@@ -64,7 +65,15 @@ export function publishPublishedScheduleEvent(
 			subscriber.send(resolved);
 		}
 	}
+	for (const listener of listeners) {
+		listener(resolved);
+	}
 	return resolved;
+}
+
+export function onPublishedScheduleEvent(listener: (event: PublishedScheduleEvent) => void): () => void {
+	listeners.add(listener);
+	return () => listeners.delete(listener);
 }
 
 export function subscribePublishedScheduleEvents(params: {

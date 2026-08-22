@@ -71,43 +71,43 @@ export function TeachingLoadLockRecoveryDialog({
 						<div className="grid grid-cols-2 gap-2 text-sm">
 							{summary.staleOwnershipCount > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-amber-200 bg-amber-50 text-amber-700">{summary.staleOwnershipCount}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-amber-200 bg-amber-50 text-amber-700">{summary.staleOwnershipCount}</Badge>
 									<span className="text-muted-foreground">stale ownership links</span>
 								</div>
 							)}
 							{summary.loadReviewRows > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-orange-200 bg-orange-50 text-orange-700">{summary.loadReviewRows}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-orange-200 bg-orange-50 text-orange-700">{summary.loadReviewRows}</Badge>
 									<span className="text-muted-foreground">load review rows</span>
 								</div>
 							)}
 							{summary.missingOwnershipPairs > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-blue-200 bg-blue-50 text-blue-700">{summary.missingOwnershipPairs}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-blue-200 bg-blue-50 text-blue-700">{summary.missingOwnershipPairs}</Badge>
 									<span className="text-muted-foreground">missing ownership</span>
 								</div>
 							)}
 							{summary.ownershipWithoutScopePairs > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-violet-200 bg-violet-50 text-violet-700">{summary.ownershipWithoutScopePairs}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-violet-200 bg-violet-50 text-violet-700">{summary.ownershipWithoutScopePairs}</Badge>
 									<span className="text-muted-foreground">ownership without scope</span>
 								</div>
 							)}
 							{summary.outOfSubjectScopePairs > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-rose-200 bg-rose-50 text-rose-700">{summary.outOfSubjectScopePairs}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-rose-200 bg-rose-50 text-rose-700">{summary.outOfSubjectScopePairs}</Badge>
 									<span className="text-muted-foreground">out-of-subject-scope</span>
 								</div>
 							)}
 							{summary.rowsReconcilable > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-emerald-200 bg-emerald-50 text-emerald-700">{summary.rowsReconcilable}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-emerald-200 bg-emerald-50 text-emerald-700">{summary.rowsReconcilable}</Badge>
 									<span className="text-muted-foreground">rows ATLAS can reconcile</span>
 								</div>
 							)}
 							{summary.rowsNotAutomatic > 0 && (
 								<div className="flex items-center gap-2">
-									<Badge variant="outline" className="h-5 text-[0.65rem] font-bold border-slate-200 bg-slate-50 text-slate-600">{summary.rowsNotAutomatic}</Badge>
+									<Badge variant="outline" className="h-5 text-xs font-bold border-slate-200 bg-slate-50 text-slate-600">{summary.rowsNotAutomatic}</Badge>
 									<span className="text-muted-foreground">rows need manual review</span>
 								</div>
 							)}

@@ -91,12 +91,13 @@ async function openPlacementReviewWithoutSaving(page: Page, list: Locator) {
 	const actionLabel = (await action.innerText()).trim();
 	test.skip(!/^(Place session|Review room source)$/i.test(actionLabel), `Fixture first visible item is not place-capable after scrolling: ${actionLabel}`);
 	await action.click();
-	await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 15_000 });
-	const targetCell = page.locator('td[data-day][data-start-time][data-end-time]').filter({
-		hasNot: page.locator('[data-timetable-entry="true"]'),
-	}).first();
-	await expect(targetCell).toBeVisible({ timeout: 15_000 });
-	await targetCell.click({ position: { x: 8, y: 8 } });
+	const placeableCell = page.locator(
+		'td[data-day][data-start-time][data-end-time][aria-label^="Move selected session to"]:not(:has([data-timetable-entry="true"]))',
+	).first();
+	await expect(placeableCell).toBeVisible({ timeout: 15_000 });
+	const placeableText = (await placeableCell.innerText().catch(() => '')).trim();
+	expect(placeableText, 'Placement target must not be a special-event slot').not.toMatch(/FLAG CEREMONY|RECESS|HEALTH BREAK|LUNCH/i);
+	await placeableCell.click({ position: { x: 8, y: 8 } });
 	const dialog = page.getByTestId('generated-placement-review-dialog');
 	await expect(dialog).toBeVisible({ timeout: 20_000 });
 	return dialog;

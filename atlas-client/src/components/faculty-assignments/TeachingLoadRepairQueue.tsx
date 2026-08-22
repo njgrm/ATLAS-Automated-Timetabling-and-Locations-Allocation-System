@@ -114,7 +114,7 @@ export function TeachingLoadRepairQueue({
 						<div className="min-w-0 flex-1">
 							<div className="flex min-w-0 flex-nowrap items-center gap-1.5">
 								{/* Phase 4.2 + fix-language rule: "Next fix" -> "Next step". */}
-								<Badge variant="outline" className="h-6 shrink-0 bg-background/70 px-2 text-[0.65rem] font-bold uppercase tracking-wide">
+								<Badge variant="outline" className="h-6 shrink-0 bg-background/70 px-2 text-xs font-bold uppercase tracking-wide">
 									<span className="sm:hidden">Next</span>
 									<span className="hidden sm:inline">Next step</span>
 									<span className="sr-only">Next step</span>

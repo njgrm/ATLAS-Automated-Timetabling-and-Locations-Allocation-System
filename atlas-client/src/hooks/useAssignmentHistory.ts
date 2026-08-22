@@ -9,7 +9,7 @@ import {
 import type { ExternalSection, Subject } from '@/types';
 
 type UseAssignmentHistoryParams = {
-	selectedId: number | null;
+	selectedId: number | null; // Keep for interface compatibility if needed, but history is global
 	subjects: Subject[];
 	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
 	savedAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
@@ -25,6 +25,8 @@ function cloneAssignments(assignments: FacultyAssignmentDraft[]): FacultyAssignm
 	}));
 }
 
+type GlobalSnapshot = Record<number, FacultyAssignmentDraft[]>;
+
 export function useAssignmentHistory({
 	selectedId,
 	subjects,
@@ -33,8 +35,8 @@ export function useAssignmentHistory({
 	sectionMap,
 	setDraftAssignmentsByFaculty,
 }: UseAssignmentHistoryParams) {
-	const [undoStack, setUndoStack] = useState<FacultyAssignmentDraft[][]>([]);
-	const [redoStack, setRedoStack] = useState<FacultyAssignmentDraft[][]>([]);
+	const [undoStack, setUndoStack] = useState<GlobalSnapshot[]>([]);
+	const [redoStack, setRedoStack] = useState<GlobalSnapshot[]>([]);
 
 	const homeroomSubjectIds = useMemo(() => {
 		const ids = new Set<number>();
@@ -50,55 +52,77 @@ export function useAssignmentHistory({
 		return { immutable, mutable };
 	}, [homeroomSubjectIds]);
 
-	const getSelectedMutableSnapshot = useCallback(() => {
-		if (!selectedId) return [];
-		const current = effectiveAssignmentsByFaculty[selectedId] ?? [];
-		return cloneAssignments(splitImmutableAssignments(current).mutable);
-	}, [effectiveAssignmentsByFaculty, selectedId, splitImmutableAssignments]);
+	const getGlobalMutableSnapshot = useCallback(() => {
+		const snapshot: GlobalSnapshot = {};
+		for (const [facultyId, assignments] of Object.entries(effectiveAssignmentsByFaculty)) {
+			const id = Number(facultyId);
+			const mutable = splitImmutableAssignments(assignments).mutable;
+			if (mutable.length > 0) {
+				snapshot[id] = cloneAssignments(mutable);
+			}
+		}
+		return snapshot;
+	}, [effectiveAssignmentsByFaculty, splitImmutableAssignments]);
 
 	const pushHistory = useCallback(() => {
-		if (!selectedId) return;
-		const snapshot = getSelectedMutableSnapshot();
+		const snapshot = getGlobalMutableSnapshot();
 		setUndoStack((previous) => [...previous.slice(-29), snapshot]);
 		setRedoStack([]);
-	}, [getSelectedMutableSnapshot, selectedId]);
+	}, [getGlobalMutableSnapshot]);
 
-	const applySelectedMutableSnapshot = useCallback((mutableSnapshot: FacultyAssignmentDraft[]) => {
-		if (!selectedId) return;
-		const current = effectiveAssignmentsByFaculty[selectedId] ?? [];
-		const immutable = splitImmutableAssignments(current).immutable;
-		const merged = normalizeDraftAssignments([...cloneAssignments(immutable), ...cloneAssignments(mutableSnapshot)], sectionMap);
+	const applyGlobalMutableSnapshot = useCallback((mutableSnapshot: GlobalSnapshot) => {
 		setDraftAssignmentsByFaculty((previousDrafts) => {
 			const nextDrafts = { ...previousDrafts };
-			const savedSignature = buildAssignmentSignature(savedAssignmentsByFaculty[selectedId] ?? []);
-			if (buildAssignmentSignature(merged) === savedSignature) delete nextDrafts[selectedId];
-			else nextDrafts[selectedId] = merged;
+			
+			// Process all faculty IDs that exist in either current state or snapshot
+			const facultyIds = new Set([
+				...Object.keys(effectiveAssignmentsByFaculty).map(Number),
+				...Object.keys(mutableSnapshot).map(Number)
+			]);
+
+			for (const facultyId of facultyIds) {
+				const current = effectiveAssignmentsByFaculty[facultyId] ?? [];
+				const immutable = splitImmutableAssignments(current).immutable;
+				const snapshotAssignments = mutableSnapshot[facultyId] ?? [];
+				
+				const merged = normalizeDraftAssignments([...cloneAssignments(immutable), ...cloneAssignments(snapshotAssignments)], sectionMap);
+				
+				const savedSignature = buildAssignmentSignature(savedAssignmentsByFaculty[facultyId] ?? []);
+				if (buildAssignmentSignature(merged) === savedSignature) {
+					delete nextDrafts[facultyId];
+				} else {
+					nextDrafts[facultyId] = merged;
+				}
+			}
 			return nextDrafts;
 		});
-	}, [effectiveAssignmentsByFaculty, savedAssignmentsByFaculty, sectionMap, selectedId, setDraftAssignmentsByFaculty, splitImmutableAssignments]);
+	}, [effectiveAssignmentsByFaculty, savedAssignmentsByFaculty, sectionMap, setDraftAssignmentsByFaculty, splitImmutableAssignments]);
 
 	const handleUndo = useCallback(() => {
-		if (!selectedId || undoStack.length === 0) return;
+		if (undoStack.length === 0) return;
 		const previousSnapshot = undoStack[undoStack.length - 1];
 		setUndoStack((previous) => previous.slice(0, -1));
-		setRedoStack((previous) => [...previous, getSelectedMutableSnapshot()]);
-		applySelectedMutableSnapshot(previousSnapshot);
-	}, [applySelectedMutableSnapshot, getSelectedMutableSnapshot, selectedId, undoStack]);
+		setRedoStack((previous) => [...previous, getGlobalMutableSnapshot()]);
+		applyGlobalMutableSnapshot(previousSnapshot);
+	}, [applyGlobalMutableSnapshot, getGlobalMutableSnapshot, undoStack]);
 
 	const handleRedo = useCallback(() => {
-		if (!selectedId || redoStack.length === 0) return;
+		if (redoStack.length === 0) return;
 		const nextSnapshot = redoStack[redoStack.length - 1];
 		setRedoStack((previous) => previous.slice(0, -1));
-		setUndoStack((previous) => [...previous.slice(-29), getSelectedMutableSnapshot()]);
-		applySelectedMutableSnapshot(nextSnapshot);
-	}, [applySelectedMutableSnapshot, getSelectedMutableSnapshot, redoStack, selectedId]);
+		setUndoStack((previous) => [...previous.slice(-29), getGlobalMutableSnapshot()]);
+		applyGlobalMutableSnapshot(nextSnapshot);
+	}, [applyGlobalMutableSnapshot, getGlobalMutableSnapshot, redoStack]);
 
 	const handleResetAssignments = useCallback(() => {
 		if (!selectedId) return;
 		pushHistory();
-		applySelectedMutableSnapshot([]);
-		toast.success('Mutable assignments were reset. Homeroom Guidance assignments were preserved.');
-	}, [applySelectedMutableSnapshot, pushHistory, selectedId]);
+		// We only want to reset the selected teacher, so we modify the global snapshot
+		const currentSnapshot = getGlobalMutableSnapshot();
+		currentSnapshot[selectedId] = []; // Clear mutable assignments for selected teacher
+		applyGlobalMutableSnapshot(currentSnapshot);
+		toast.success('Mutable assignments were reset for this teacher.');
+	}, [applyGlobalMutableSnapshot, getGlobalMutableSnapshot, pushHistory, selectedId]);
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {

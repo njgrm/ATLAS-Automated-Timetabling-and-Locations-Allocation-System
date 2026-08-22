@@ -7,6 +7,7 @@ import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-iden
 import * as facultyService from '../services/faculty.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
 
 const router = Router();
 
@@ -107,6 +108,22 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 			fetchEnrollProActiveSchoolYear(upstreamAuthToken),
 		]);
 		if (!result.synced) {
+			publishNotificationEvent({
+				type: 'FACULTY_SYNC_FAILED',
+				domain: 'integration',
+				severity: 'error',
+				audience: 'PRIVILEGED',
+				schoolId,
+				schoolYearId,
+				facultyId: null,
+				message: 'Faculty sync from EnrollPro failed.',
+				metadata: {
+					source: result.source,
+					error: result.error,
+					staleReason: result.staleReason,
+					mode,
+				},
+			});
 			res.status(502).json({
 				code: 'SYNC_FAILED',
 				message: result.error,
@@ -116,6 +133,28 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 			});
 			return;
 		}
+		publishNotificationEvent({
+			type: 'FACULTY_SYNC_COMPLETED',
+			domain: 'integration',
+			severity: result.isStale ? 'warning' : 'success',
+			audience: 'PRIVILEGED',
+			schoolId,
+			schoolYearId,
+			facultyId: null,
+			message: result.isStale
+				? 'Faculty sync completed using saved or stale EnrollPro data.'
+				: 'Faculty roster synced from EnrollPro.',
+			metadata: {
+				source: result.source,
+				mode: result.mode,
+				activeCount: result.activeCount,
+				staleCount: result.staleCount,
+				deactivatedCount: result.deactivatedCount,
+				seededAssignments: result.seededAssignments,
+				invalidatedRuns: result.invalidatedRuns,
+				enrollProActiveYear: activeYear?.yearLabel ?? null,
+			},
+		});
 		res.json({
 			synced: true,
 			source: result.source,

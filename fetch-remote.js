@@ -1,0 +1,1 @@
+async function main() { const res = await fetch('http://100.120.169.123:5002/api/integration/v1/faculty'); const data = await res.json(); console.log(data.data.slice(0, 5).map(t => ({name: t.firstName + ' ' + t.lastName, specialization: t.specialization, dept: t.departmentCode}))); } main();

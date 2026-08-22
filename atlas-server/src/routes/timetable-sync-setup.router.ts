@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { syncTimetableSetup } from '../services/timetable-sync-setup.service.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
 
 const router = Router();
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
@@ -34,6 +35,21 @@ router.post(
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 
 			const result = await syncTimetableSetup(schoolId, schoolYearId, runId, actorId);
+			publishNotificationEvent({
+				type: 'TIMETABLE_SETUP_SYNC_COMPLETED',
+				domain: 'integration',
+				severity: 'success',
+				audience: 'PRIVILEGED',
+				schoolId,
+				schoolYearId,
+				facultyId: null,
+				message: 'Timetable setup was synced into the selected run.',
+				metadata: {
+					runId,
+					actorId,
+					result,
+				},
+			});
 			res.status(200).json(result);
 		} catch (e: any) {
 			if (e.statusCode) {

@@ -3,9 +3,9 @@ export declare function listByRun(runId: number, schoolId: number, schoolYearId:
     id: number;
     createdAt: Date;
     runId: number;
+    entryId: string;
     createdBy: number;
     note: string | null;
-    entryId: string;
 }[]>;
 /** Toggle a follow-up flag: create if absent, delete if present. Returns the new state. */
 export declare function toggleFlag(runId: number, entryId: string, createdBy: number, schoolId: number, schoolYearId: number): Promise<{

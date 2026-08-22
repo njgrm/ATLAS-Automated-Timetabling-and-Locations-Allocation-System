@@ -17,6 +17,7 @@
     "test:seed-email-rules": "tsx src/__tests__/seed-email-rules.test.ts",
     "test:faculty-route-restrictions": "tsx src/__tests__/faculty-route-restrictions.test.ts",
     "test:room-pref-sse": "tsx src/__tests__/room-preference-sse.test.ts",
+    "test:notifications": "tsx src/__tests__/notification-events.test.ts",
     "test:room-pref-sync": "tsx src/__tests__/room-preference-sync.test.ts",
     "test:faculty-dashboard-contract": "tsx src/__tests__/faculty-dashboard-contract.test.ts",
     "test:faculty-sync-reconciliation": "tsx src/__tests__/faculty-sync-reconciliation.test.ts",

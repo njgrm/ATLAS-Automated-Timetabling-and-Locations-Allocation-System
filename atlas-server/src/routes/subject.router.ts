@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as subjectService from '../services/subject.service.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
 
 const router = Router();
 
@@ -226,6 +227,17 @@ router.post('/sync-offerings', authenticate, requirePrivilegedRole, async (req: 
 
 		const authToken = req.headers.authorization?.slice(7);
 		const report = await subjectService.syncSubjectContractFromProgramOfferings(schoolId, schoolYearId, authToken);
+		publishNotificationEvent({
+			type: 'SUBJECT_OFFERINGS_SYNC_COMPLETED',
+			domain: 'integration',
+			severity: 'success',
+			audience: 'PRIVILEGED',
+			schoolId,
+			schoolYearId,
+			facultyId: null,
+			message: 'Subject offerings refreshed from enrollment setup.',
+			metadata: { report },
+		});
 		res.json({ report });
 	} catch (err) {
 		next(err);

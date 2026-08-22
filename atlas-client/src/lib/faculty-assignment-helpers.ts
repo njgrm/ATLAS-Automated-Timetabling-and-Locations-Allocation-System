@@ -156,17 +156,12 @@ function uniqueSortedPositiveInts(values: readonly number[] | null | undefined):
 	);
 }
 
-export function deriveLoadStatus(policyCreditedHours: number, maxHoursPerWeek = MAX_WEEKLY_TEACHING_HOURS): { status: LoadStatus; label: string } {
+export function deriveLoadStatus(policyCreditedHours: number, maxHoursPerWeek = MAX_WEEKLY_TEACHING_HOURS): { status: LoadStatus; label: string; instruction?: string } {
 	if (policyCreditedHours > maxHoursPerWeek) {
-		// Phase 3 / Decision 3: plain DepEd language -- no engineering
-		// vocabulary and no fake approval process.
-		return { status: 'over-cap', label: 'Over maximum - move classes before generating' };
+		return { status: 'over-cap', label: 'Over maximum', instruction: 'Move classes before generating.' };
 	}
 	if (policyCreditedHours > STANDARD_WEEKLY_TEACHING_HOURS) {
-		return {
-			status: 'overload-allowed',
-			label: 'Above standard - review before generating',
-		};
+		return { status: 'overload-allowed', label: 'Above standard', instruction: 'Review before generating.' };
 	}
 	if (policyCreditedHours === STANDARD_WEEKLY_TEACHING_HOURS) {
 		return { status: 'compliant', label: 'At standard' };
@@ -201,6 +196,7 @@ export type WorkloadCapacitySummary = {
 	overCapHours: number;
 	status: LoadStatus;
 	statusLabel: string;
+	statusInstruction?: string;
 };
 
 function roundHours(value: number): number {
@@ -215,7 +211,7 @@ export function deriveWorkloadCapacity(
 	const normalizedTeachingHours = roundHours(Math.max(teachingHours, 0));
 	const normalizedCreditHours = roundHours(Math.max(creditHours, 0));
 	const creditedTotalHours = roundHours(normalizedTeachingHours + normalizedCreditHours);
-	const { status, label } = deriveLoadStatus(creditedTotalHours, maxHours);
+	const { status, label, instruction } = deriveLoadStatus(creditedTotalHours, maxHours);
 
 	return {
 		teachingHours: normalizedTeachingHours,
@@ -227,6 +223,7 @@ export function deriveWorkloadCapacity(
 		overCapHours: roundHours(Math.max(creditedTotalHours - maxHours, 0)),
 		status,
 		statusLabel: label,
+		statusInstruction: instruction,
 	};
 }
 
@@ -651,6 +648,7 @@ export function buildTeachingLoadProfile(
 		remainingHours: workloadCapacity.toCapHours,
 		status: workloadCapacity.status,
 		statusLabel: workloadCapacity.statusLabel,
+		statusInstruction: workloadCapacity.statusInstruction,
 		rotationFamilies,
 		breakdown: breakdown.sort(
 			(left, right) =>

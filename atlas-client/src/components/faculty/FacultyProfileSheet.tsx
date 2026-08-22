@@ -130,9 +130,9 @@ export function FacultyProfileSheet({
 							</div>
 							<div className="space-y-1.5">
 								<p className="text-[0.65rem] font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
-									<User className="size-3 opacity-50" /> Specialization
+									<User className="size-3 opacity-50" /> Status
 								</p>
-								<p className="text-sm font-semibold pl-0.5">{faculty.specialization || '-'}</p>
+								<p className="text-sm font-semibold pl-0.5">{faculty.employmentStatus || 'Unknown'}</p>
 							</div>
 						</div>
 					</div>
@@ -163,9 +163,24 @@ export function FacultyProfileSheet({
 								<span>{loadPercent}% of the weekly maximum</span>
 								<span>{loadState}</span>
 							</div>
-							{faculty.isClassAdviser && (
-								<p className="text-xs font-bold opacity-70 mt-1 uppercase tracking-wider">Includes {faculty.advisoryEquivalentHours}h for class adviser duties</p>
-							)}
+							<div className="mt-2 space-y-1.5 border-t border-current/10 pt-3">
+								<div className="flex justify-between items-center text-xs font-bold opacity-80 uppercase tracking-wider">
+									<span>Class instruction</span>
+									<span>{faculty.sectionTeachingHours || 0}h</span>
+								</div>
+								{faculty.isClassAdviser && faculty.advisoryEquivalentHours > 0 && (
+									<div className="flex justify-between items-center text-xs font-bold opacity-80 uppercase tracking-wider">
+										<span>Class advising</span>
+										<span>{faculty.advisoryEquivalentHours}h</span>
+									</div>
+								)}
+								{faculty.ancillaryMinutesPerWeek > 0 && (
+									<div className="flex justify-between items-center text-xs font-bold opacity-80 uppercase tracking-wider">
+										<span>Ancillary tasks</span>
+										<span>{Math.round(faculty.ancillaryMinutesPerWeek / 6) / 10}h</span>
+									</div>
+								)}
+							</div>
 							{/* Phase 3.6: the 40h cap is now described as the absolute
 								maximum before ATLAS cannot generate -- plain DepEd
 								language instead of the old engineering term. */}

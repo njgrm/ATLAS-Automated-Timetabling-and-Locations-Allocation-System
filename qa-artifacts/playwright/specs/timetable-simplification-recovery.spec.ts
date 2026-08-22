@@ -59,14 +59,14 @@ async function blockDestructiveTimetableWrites(page: Page) {
 }
 
 async function getPreviewLabelSummary(page: Page) {
-	const labels = page.locator('[data-cell-preview-label]');
-	await expect.poll(async () => labels.count(), {
+	const decorated = page.locator('td[data-pointer-preview-status]');
+	await expect.poll(async () => decorated.count(), {
 		message: 'A selected or dragged source should show grid-wide cell guidance.',
 		timeout: 10_000,
 	}).toBeGreaterThan(5);
-	return labels.evaluateAll((nodes) => {
+	return decorated.evaluateAll((nodes) => {
 		const values = nodes
-			.map((node) => node.getAttribute('data-cell-preview-label'))
+			.map((node) => node.getAttribute('data-pointer-preview-status'))
 			.filter((value): value is string => Boolean(value));
 		return {
 			count: values.length,

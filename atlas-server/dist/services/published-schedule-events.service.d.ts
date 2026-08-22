@@ -12,6 +12,7 @@ export type PublishedScheduleEvent = {
     metadata?: Record<string, unknown>;
 };
 export declare function publishPublishedScheduleEvent(event: Omit<PublishedScheduleEvent, 'id' | 'timestamp'>): PublishedScheduleEvent;
+export declare function onPublishedScheduleEvent(listener: (event: PublishedScheduleEvent) => void): () => void;
 export declare function subscribePublishedScheduleEvents(params: {
     schoolId: number;
     schoolYearId: number;

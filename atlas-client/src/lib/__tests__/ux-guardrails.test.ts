@@ -313,6 +313,26 @@ test('timetable Phase 6 drag overlay keeps plain-language drop guidance', () => 
 	assert.match(phaseSixGate, /Release on a highlighted cell to review move or swap/i);
 });
 
+test('generated placement helpers target real grid attributes, not stale preview selectors', () => {
+	const qaDirectory = resolve(root, '../qa-artifacts/playwright/specs');
+	const qaSources = readdirSync(qaDirectory)
+		.filter((name) => name.endsWith('.spec.ts') || name.endsWith('-helpers.ts') || name.endsWith('-fixtures.ts'))
+		.map((name) => readFileSync(resolve(qaDirectory, name), 'utf8'))
+		.join('\n');
+
+	// Stale selectors removed from the product must not reappear in QA tooling.
+	assert.doesNotMatch(qaSources, /data-cell-preview-label/);
+	assert.doesNotMatch(qaSources, /data-cell-status-label/);
+
+	// Placement helper must use the real decoration attribute or the click-mode
+	// "Move selected session to" aria-label, and must guard against special-event cells.
+	const fixtures = source('../qa-artifacts/playwright/specs/older-user-session-remediation-fixtures.ts');
+	assert.match(fixtures, /data-pointer-preview-status="place"/);
+	assert.match(fixtures, /aria-label\^="Move selected session to"/);
+	assert.match(fixtures, /Blocked slot:/);
+	assert.match(fixtures, /FLAG CEREMONY\|RECESS\|HEALTH BREAK\|LUNCH/i);
+});
+
 test('Iteration C keeps setup and teaching-load headers compact', () => {
 	const adminWorkspace = source('src/components/admin-workspace/AdminWorkspace.tsx');
 	const teachingToolbar = source('src/components/faculty-assignments/WorkspaceToolbar.tsx');
@@ -1109,8 +1129,8 @@ test('Phase 3.6: Teachers copy uses plain DepEd language (no credited/hard-repai
 	// Decision 3: no fake "approval needed" process.
 	assert.doesNotMatch(helpers, /approval needed/);
 	assert.doesNotMatch(helpers, /must fix/);
-	assert.match(helpers, /review before generating/);
-	assert.match(helpers, /move classes before generating/);
+	assert.match(helpers, /review before generating/i);
+	assert.match(helpers, /move classes before generating/i);
 	// Row load-state badge shows the standard/cap inline (not only in tooltip).
 	assert.match(row, /h standard/);
 	assert.doesNotMatch(row, /must be repaired before generation/);

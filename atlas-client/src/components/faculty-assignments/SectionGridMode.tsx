@@ -224,7 +224,7 @@ export function SectionGridMode({
 
 					{hasDraft && (
 						<div className="flex items-center gap-2 bg-sky-50 border border-sky-200 px-3 py-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-right-2">
-							<span className="text-[0.65rem] font-semibold uppercase text-sky-700 tracking-widest mr-2">Pending Changes</span>
+							<span className="text-xs font-semibold uppercase text-sky-700 tracking-widest mr-2">Pending Changes</span>
 							<Button 
 								size="sm" 
 								onClick={onSave} 
@@ -289,12 +289,12 @@ export function SectionGridMode({
 											{row.section.name}
 										</h4>
 										{row.section.isSpecialProgram && (
-											<Badge variant="outline" className="h-4 px-1.5 text-[0.6rem] font-semibold uppercase bg-violet-50 text-violet-700 border-violet-100">
+											<Badge variant="outline" className="h-4 px-1.5 text-xs font-semibold uppercase bg-violet-50 text-violet-700 border-violet-100">
 												{row.section.programCode}
 											</Badge>
 										)}
 									</div>
-									<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest truncate">
+									<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
 										Grade {row.section.displayOrder} • {row.totalCount} Subjects
 									</p>
 								</div>
@@ -307,7 +307,7 @@ export function SectionGridMode({
 										)}>
 											{row.totalCount - row.unassignedCount} / {row.totalCount}
 										</p>
-										<p className="text-[0.55rem] font-bold text-muted-foreground uppercase tracking-tighter">Staffed</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Staffed</p>
 									</div>
 								</div>
 

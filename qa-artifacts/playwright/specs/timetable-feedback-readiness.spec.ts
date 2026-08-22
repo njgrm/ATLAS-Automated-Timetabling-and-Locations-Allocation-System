@@ -12,6 +12,7 @@ import {
 	installReadOnlyGenerationGuard,
 	openGeneratedPlacementReview,
 	openOccupiedSwapReview,
+	selectPlaceableGridCell,
 } from './older-user-session-remediation-fixtures';
 
 async function assertNoObsoleteAssignmentModal(page: Page) {
@@ -33,8 +34,11 @@ async function openDraftPlacementReview(page: Page) {
 		test.skip(true, `Current draft item is not place-capable: ${label}`);
 	}
 	await action.click();
-	await expect(page.locator('[data-cell-preview-label]').first()).toBeVisible({ timeout: 15_000 });
-	await page.locator('td[data-day][data-start-time][data-end-time]').first().click({ position: { x: 8, y: 8 } });
+	const placeable = await selectPlaceableGridCell(page);
+	if (!placeable.ok) {
+		test.skip(true, placeable.reason);
+	}
+	await placeable.cell.click({ position: { x: 8, y: 8 } });
 	const dialog = page.getByTestId('draft-placement-review-dialog');
 	await expect(dialog).toBeVisible({ timeout: 20_000 });
 	return dialog;

@@ -74,9 +74,22 @@ export function WorkloadInspector({
 				)}
 				<div className="flex items-center justify-between">
 					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
-					<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap", status.bg, status.text, status.border)}>
-						{loadProfile.statusLabel}
-					</Badge>
+					{loadProfile.statusInstruction ? (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap cursor-help", status.bg, status.text, status.border)}>
+									{loadProfile.statusLabel}
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-xs p-3">
+								<p className="text-xs font-medium">{loadProfile.statusInstruction}</p>
+							</TooltipContent>
+						</Tooltip>
+					) : (
+						<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap", status.bg, status.text, status.border)}>
+							{loadProfile.statusLabel}
+						</Badge>
+					)}
 				</div>
 
 				<div className="flex items-center gap-4">
