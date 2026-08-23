@@ -20,12 +20,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { AccessibleInfo } from '@/components/smart/AccessibleInfo';
 import { programFullLabel } from '@/lib/deped-glossary';
-import type { Subject } from '@/types';
+import type { Subject, SubjectCoverageRow } from '@/types';
 
 interface SubjectRowProps {
 	subject: Subject;
 	timeMode: 'minutes' | 'hours';
-	assignedSubjectIds?: Set<number>;
+	coverageRow?: SubjectCoverageRow;
 	onEdit: (subject: Subject) => void;
 	onDelete: (subject: Subject) => void;
 	onArchive: (subject: Subject) => void;
@@ -36,7 +36,7 @@ interface SubjectRowProps {
 export function SubjectRow({
 	subject,
 	timeMode,
-	assignedSubjectIds,
+	coverageRow,
 	onEdit,
 	onDelete,
 	onArchive,
@@ -90,8 +90,11 @@ export function SubjectRow({
 
 	const isArchived = !subject.isActive;
 	const isExcluded = subject.isActive && !subject.isSeedable;
-	const isReady = subject.isActive && subject.isSeedable && assignedSubjectIds?.has(subject.id);
-	const needsTeacher = subject.isActive && subject.isSeedable && !assignedSubjectIds?.has(subject.id);
+	const coverageStatus = coverageRow?.status ?? null;
+	const hasMissingCoverage = (coverageRow?.uncoveredSectionCount ?? 0) > 0;
+	const isFullCoverage = coverageStatus === 'FULL';
+	const isPartialCoverage = coverageStatus === 'PARTIAL';
+	const isZeroCoverage = coverageStatus === 'ZERO';
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
@@ -173,27 +176,32 @@ export function SubjectRow({
 							size="icon-xs"
 						/>
 					</span>
-				) : isReady ? (
+				) : coverageRow ? (
 					<span className="flex items-center gap-1">
-						<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has a teacher assigned`}>
-							Ready
-						</Badge>
+						{isFullCoverage ? (
+							<Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none" aria-label={`${subject.name} has full section coverage`}>
+								Full coverage
+							</Badge>
+						) : isPartialCoverage ? (
+							<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} has partial section coverage`}>
+								{coverageRow.ownedSectionCount}/{coverageRow.relevantSectionCount} covered
+							</Badge>
+						) : (
+							<Badge variant="outline" className="text-xs font-bold bg-red-50 text-red-700 border-red-200 shadow-none" aria-label={`${subject.name} has no section coverage`}>
+								No coverage
+							</Badge>
+						)}
 						<AccessibleInfo
-							label={`${subject.name} has a teacher assigned`}
-							shortHelp="A teacher is already assigned to this subject in Teaching Load."
+							label={`${subject.name} coverage: ${coverageRow.ownedSectionCount}/${coverageRow.relevantSectionCount} sections`}
+							shortHelp={hasMissingCoverage ? `${coverageRow.uncoveredSectionCount} section${coverageRow.uncoveredSectionCount === 1 ? '' : 's'} still need a teacher.` : 'All required sections have a teacher assigned.'}
 							size="icon-xs"
 						/>
 					</span>
 				) : (
 					<span className="flex items-center gap-1">
-						<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 shadow-none" aria-label={`${subject.name} needs a teacher`}>
-							Needs teacher
+						<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-slate-500 border-slate-200 shadow-none">
+							Checking
 						</Badge>
-						<AccessibleInfo
-							label={`${subject.name} needs a teacher`}
-							shortHelp="No teacher has been assigned to this subject in Teaching Load yet. Open coverage to review."
-							size="icon-xs"
-						/>
 					</span>
 				)}
 			</td>

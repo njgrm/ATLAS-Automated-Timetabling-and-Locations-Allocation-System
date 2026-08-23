@@ -177,6 +177,7 @@ function pickNextStep(args: {
 	facultyCount: number | null;
 	sectionCount: number | null;
 	unassignedSubjectCount: number | null;
+	missingCoverageSubjectIds: number[] | null;
 	buildingsDone: boolean;
 	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
 	violationCount: number | null;
@@ -187,6 +188,7 @@ function pickNextStep(args: {
 		facultyCount,
 		sectionCount,
 		unassignedSubjectCount,
+		missingCoverageSubjectIds,
 		buildingsDone,
 		latestRunStatus,
 		violationCount,
@@ -200,7 +202,9 @@ function pickNextStep(args: {
 			return { title: 'Sync teachers from EnrollPro', body: 'Pull the faculty roster so subjects can be assigned.', cta: 'Open teachers', href: '/teachers' };
 		}
 		if ((unassignedSubjectCount ?? 0) > 0) {
-			return { title: 'Assign teachers to every subject', body: `${unassignedSubjectCount} subject${unassignedSubjectCount === 1 ? '' : 's'} still need a teacher before generation.`, cta: 'Open teaching load', href: '/teaching-load' };
+			const subjectParam = missingCoverageSubjectIds?.length === 1 ? `&subjectId=${missingCoverageSubjectIds[0]}` : '';
+			const coverageHref = `/teaching-load?view=subjects&filter=missing-coverage${subjectParam}`;
+			return { title: 'Assign teachers to every subject', body: `${unassignedSubjectCount} subject${unassignedSubjectCount === 1 ? '' : 's'} still need teacher coverage before generation.`, cta: 'Review subject coverage', href: coverageHref };
 		}
 		if (sectionCount === null) {
 			return { title: 'Reconnect enrollment data', body: 'EnrollPro is not reachable. Check the link before generating.', cta: 'Check sections', href: '/sections', warn: 'Enrollment unavailable' };
@@ -238,14 +242,14 @@ export default function Dashboard() {
 
 	const {
 		loading, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
-		unassignedSubjectCount, buildingSetupStatus, teachingRoomCount,
+		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
 		totalRoomCount, activeSchoolYearLabel, latestRunStatus, violationCount,
 		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard,
 	} = useDashboardData();
 
 	const next = pickNextStep({
 		phase: lifecyclePhase, subjectCount, facultyCount, sectionCount,
-		unassignedSubjectCount, buildingsDone: buildingSetupStatus.done,
+		unassignedSubjectCount, missingCoverageSubjectIds, buildingsDone: buildingSetupStatus.done,
 		latestRunStatus, violationCount,
 	});
 
@@ -260,7 +264,7 @@ export default function Dashboard() {
 		{ label: 'Sections loaded for school year', done: (sectionCount ?? 0) > 0, href: '/sections', hint: sectionCount === null ? 'Enrollment unavailable' : undefined },
 		{ label: 'Subjects added', done: (subjectCount ?? 0) > 0, href: '/subjects' },
 		{ label: 'Teachers synced from EnrollPro', done: (facultyCount ?? 0) > 0, href: '/teachers' },
-		{ label: 'Every subject has a teacher', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: '/teaching-load', hint: unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
+		{ label: 'Every subject has a teacher', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
 		{ label: 'Buildings and rooms ready', done: buildingSetupStatus.done, href: '/map', hint: buildingSetupStatus.subMessage },
 		{ label: 'Timetable generated and reviewed', done: latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
 		{ label: 'Ready to publish', done: lifecyclePhase === 'PUBLISHED' || (latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0), href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing' },

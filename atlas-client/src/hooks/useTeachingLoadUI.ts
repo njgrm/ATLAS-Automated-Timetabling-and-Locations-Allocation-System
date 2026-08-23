@@ -55,7 +55,7 @@ export function useTeachingLoadUI({
 	const [showTemporaryRoles, setShowTemporaryRoles] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
 	const [showJumpList, setShowJumpList] = useState(false);
-	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('teacher');
+	const [viewMode, setViewMode] = useState<'teacher' | 'allocation' | 'subjects'>('teacher');
 	const [showOutsideDept, setShowOutsideDept] = useState(false);
 	const [showUnmappedSpecialization, setShowUnmappedSpecialization] = useState(false);
 	const [sectionModeFilter, setSectionModeFilter] = useState<'all' | 'unassigned' | 'constrained'>('unassigned');

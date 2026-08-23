@@ -407,14 +407,16 @@ export async function resolveRuntimeContext(
 				activeSchoolYearLabel = upstreamYear.yearLabel;
 			}
 
-			// Update matchedSchoolYear now that we have both school year and active term
-			if (activeTermResult.source !== 'atlas-unverified' && activeTermResult.schoolYearId !== null) {
+			// Update matchedSchoolYear only when active term is verified (not drift/unreachable)
+			if (
+				activeTermResult.verified === true &&
+				activeTermResult.schoolYearId !== null &&
+				upstreamYear
+			) {
 				activeTermResult.matchedSchoolYear = activeTermResult.schoolYearId === upstreamYear.id;
-				if (activeTermResult.matchedSchoolYear === true) {
-					activeTermResult.message = `ATLAS is aligned with EnrollPro active term ${activeTermResult.activeTerm}.`;
-				} else if (activeTermResult.matchedSchoolYear === false) {
-					activeTermResult.message = `EnrollPro active term ${activeTermResult.activeTerm} is from a different school year (expected ${upstreamYear.id}, got ${activeTermResult.schoolYearId}).`;
-				}
+				activeTermResult.message = activeTermResult.matchedSchoolYear
+					? `ATLAS is aligned with EnrollPro active term ${activeTermResult.activeTerm}.`
+					: `EnrollPro active term ${activeTermResult.activeTerm} is from a different school year (expected ${upstreamYear.id}, got ${activeTermResult.schoolYearId}).`;
 			}
 		}
 	}

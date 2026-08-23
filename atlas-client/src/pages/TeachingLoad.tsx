@@ -23,6 +23,7 @@ import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceTool
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
+import { SubjectCoverageMode } from '@/components/faculty-assignments/SubjectCoverageMode';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { TeachingLoadLockRecoveryDialog } from '@/components/faculty-assignments/TeachingLoadLockRecoveryDialog';
 import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
@@ -122,6 +123,11 @@ export default function TeachingLoad() {
 	}, [data.activeSchoolYearId]);
 
 	useEffect(() => {
+		const viewParam = searchParams.get('view');
+		const taskParam = searchParams.get('task');
+		if (viewParam === 'subjects' || taskParam === 'missing-load') {
+			ui.setViewMode('subjects');
+		}
 		if (data.sectionFocusId) {
 			ui.setViewMode('allocation');
 			ui.setSelectedSectionId(data.sectionFocusId);
@@ -131,7 +137,7 @@ export default function TeachingLoad() {
 			ui.setSelectedSubjectId(data.subjectFocusId);
 			ui.setSubjectSearch('');
 		}
-	}, [data.sectionFocusId, data.subjectFocusId, ui]);
+	}, [data.sectionFocusId, data.subjectFocusId, ui, searchParams]);
 
 	const completedSectionIds = useMemo(() => {
 		const completed = new Set<number>();
@@ -617,6 +623,17 @@ export default function TeachingLoad() {
 		[data.faculty],
 	);
 
+	const showSubjectCoverageView = useCallback(() => {
+		ui.setViewMode('subjects');
+	}, [ui]);
+
+	const handleFocusSectionFromSubject = useCallback((sectionId: number, _subjectId: number) => {
+		ui.setViewMode('allocation');
+		ui.setSelectedSectionId(sectionId);
+		ui.setSectionModeFilter('all');
+		setAdvancedGridVisible(true);
+	}, [ui]);
+
 	const showUnassignedTeachingLoad = useCallback(() => {
 		ui.setViewMode('allocation');
 		ui.setSectionModeFilter('unassigned');
@@ -727,6 +744,7 @@ export default function TeachingLoad() {
 			void handleSave();
 		},
 		onShowUnassigned: showUnassignedTeachingLoad,
+		onShowSubjectCoverage: showSubjectCoverageView,
 		onShowTeachersWithoutLoad: showTeachersWithoutLoad,
 		onShowOverloaded: showOverloadedTeachers,
 		onShowPlaceholder: () => {
@@ -870,7 +888,7 @@ export default function TeachingLoad() {
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
 						onViewStaffingNeedsClick={handleViewStaffingNeeds}
 						viewMode={ui.viewMode}
-						onViewModeChange={(value) => ui.setViewMode(value as 'teacher' | 'allocation')}
+						onViewModeChange={(value) => ui.setViewMode(value as 'teacher' | 'allocation' | 'subjects')}
 						dataSource={data.dataSource}
 						degradedWriteEnabled={data.degradedWriteEnabled}
 						isWorkspaceWritable={data.canPersistAssignments}
@@ -988,6 +1006,11 @@ export default function TeachingLoad() {
 								workspaceStateNextAction={workspaceState.nextAction}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
+						) : ui.viewMode === 'subjects' ? (
+							<SubjectCoverageMode
+								activeSchoolYearId={data.activeSchoolYearId}
+								onFocusSection={handleFocusSectionFromSubject}
+							/>
 						) : (
 							<SectionGridMode
 								loading={data.loading}
@@ -1023,7 +1046,7 @@ export default function TeachingLoad() {
 					</div>
 
 					{/* Persistent Inspector Area */}
-					<div className={cn("hidden w-80 shrink-0 border-l border-border/40 bg-background shadow-xl lg:block", !advancedGridVisible && "lg:hidden")}>
+					<div className={cn("hidden w-80 shrink-0 border-l border-border/40 bg-background shadow-xl lg:block", (!advancedGridVisible || ui.viewMode === 'subjects') && "lg:hidden")}>
 						{ui.viewMode === 'teacher' ? (
 							<WorkloadInspector
 								selected={data.selected}

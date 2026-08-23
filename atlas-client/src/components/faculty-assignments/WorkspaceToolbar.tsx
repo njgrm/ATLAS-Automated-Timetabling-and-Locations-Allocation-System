@@ -221,10 +221,11 @@ export function WorkspaceToolbar({
 				</div>
 
 				<div className="ml-auto flex shrink-0 items-center gap-2">
-				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-8">
+				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation' | 'subjects')} className="h-8">
 					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
 						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
 						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
+						<TabsTrigger value="subjects" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Subjects</TabsTrigger>
 					</TabsList>
 				</Tabs>
 

@@ -34,7 +34,8 @@ import {
 	PROGRAM_SCOPE_OPTIONS,
 	ROOM_TYPE_LABELS,
 } from '@/lib/subject-constants';
-import type { RoomType, Subject } from '@/types';
+import type { RoomType, Subject, SubjectCoverageSummary, SubjectCoverageRow } from '@/types';
+import { fetchSubjectCoverageSummary } from '@/lib/coverage';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -137,7 +138,7 @@ export default function Subjects() {
 	// Phase 2.3: per-subject coverage fetch error so the drawer can distinguish
 	// "no teachers assigned" from "the coverage fetch failed" (audit Sub-5).
 	const [coverageError, setCoverageError] = useState<Map<number, string>>(new Map());
-	const [assignedSubjectIds, setAssignedSubjectIds] = useState<Set<number> | null>(null);
+	const [subjectCoverageSummary, setSubjectCoverageSummary] = useState<SubjectCoverageSummary | null>(null);
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('code');
@@ -243,20 +244,10 @@ export default function Subjects() {
 	const fetchCoverageSummary = useCallback(async () => {
 		try {
 			const schoolYearId = await ensureActiveSchoolYear();
-			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
-				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
-			});
-			const nextAssignedSubjectIds = new Set<number>();
-			for (const faculty of data.faculty ?? []) {
-				for (const assignment of faculty.assignments ?? []) {
-					if (typeof assignment.subjectId === 'number') {
-						nextAssignedSubjectIds.add(assignment.subjectId);
-					}
-				}
-			}
-			setAssignedSubjectIds(nextAssignedSubjectIds);
+			const summary = await fetchSubjectCoverageSummary(schoolYearId);
+			setSubjectCoverageSummary(summary);
 		} catch {
-			setAssignedSubjectIds(null);
+			setSubjectCoverageSummary(null);
 		}
 	}, [ensureActiveSchoolYear]);
 
@@ -267,6 +258,15 @@ export default function Subjects() {
 	}, [fetchCoverageSummary, subjects.length]);
 
 	// Filtered, sorted, paginated
+	const coverageBySubjectId = useMemo(() => {
+		if (!subjectCoverageSummary) return null;
+		const map = new Map<number, SubjectCoverageRow>();
+		for (const row of subjectCoverageSummary.rows) {
+			map.set(row.subjectId, row);
+		}
+		return map;
+	}, [subjectCoverageSummary]);
+
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
 		let list = subjects;
 
@@ -290,7 +290,7 @@ export default function Subjects() {
 
 		// Program scope filter
 		if (programScopeFilter !== 'all') list = list.filter((s) => (s.programScopes ?? []).includes(programScopeFilter));
-		if (attentionFilter === 'missing-coverage' && assignedSubjectIds) list = list.filter((s) => s.isActive && !assignedSubjectIds.has(s.id));
+		if (attentionFilter === 'missing-coverage' && coverageBySubjectId) list = list.filter((s) => s.isActive && (coverageBySubjectId.get(s.id)?.uncoveredSectionCount ?? 0) > 0);
 		if (attentionFilter === 'room-constrained') list = list.filter((s) => s.isActive && (s.preferredRoomType !== 'CLASSROOM' || s.requiredFeatures.length > 0));
 
 		// Sort
@@ -311,7 +311,7 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, assignedSubjectIds, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, coverageBySubjectId, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
 	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, pageSize]);
@@ -487,8 +487,8 @@ export default function Subjects() {
 		const activeCount = subjects.filter((subject) => subject.isActive).length;
 		const archivedCount = subjects.length - activeCount;
 		const roomConstrainedCount = subjects.filter((subject) => subject.isActive && (subject.preferredRoomType !== 'CLASSROOM' || subject.requiredFeatures.length > 0)).length;
-		const coverageRiskCount = assignedSubjectIds
-			? subjects.filter((subject) => subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id)).length
+		const coverageRiskCount = coverageBySubjectId
+			? subjects.filter((subject) => subject.isActive && subject.isSeedable && (coverageBySubjectId.get(subject.id)?.uncoveredSectionCount ?? 0) > 0).length
 			: null;
 		return [
 			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: archivedCount > 0 ? `${activeCount} active · ${archivedCount} archived (kept for history, hidden from new setup).` : 'Subjects currently available for scheduling this school year.' },
@@ -500,11 +500,11 @@ export default function Subjects() {
 				tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const,
 				helpText: coverageRiskCount === null
 					? 'ATLAS is checking teaching-load coverage.'
-					: 'Active schedulable subjects with no assigned teacher found in the current teaching load.',
+					: 'Active schedulable subjects with one or more uncovered sections in the current teaching load.',
 			},
 			{ label: 'Room constrained', value: roomConstrainedCount, tone: roomConstrainedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active subjects that need a specialized room type or room feature.' },
 		];
-	}, [assignedSubjectIds, subjects]);
+	}, [coverageBySubjectId, subjects]);
 
 	const coverageDetail = useMemo(() => {
 		if (!coverageSubject) return null;
@@ -557,7 +557,7 @@ const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
 			: 'No grades';
 		const programScopes = subject.programScopes ?? [];
 		const programCopy = programScopes.length === 0 ? null : programScopes.length === 1 ? programFullLabel(programScopes[0]) : `${programScopes.length} programs`;
-		const needsCoverage = assignedSubjectIds !== null && subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id);
+		const needsCoverage = coverageBySubjectId !== null && subject.isActive && subject.isSeedable && (coverageBySubjectId.get(subject.id)?.uncoveredSectionCount ?? 0) > 0;
 		const isArchived = !subject.isActive;
 		const isExcluded = subject.isActive && !subject.isSeedable;
 
@@ -582,9 +582,17 @@ const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
 					</div>
 					<div className="flex items-center justify-between gap-2">
 						<span className="text-muted-foreground font-medium">Coverage</span>
-						<span className={needsCoverage ? 'font-bold text-amber-700' : isArchived || isExcluded ? 'text-muted-foreground font-medium' : 'font-bold text-emerald-700'}>
-							{isArchived ? 'Archived' : isExcluded ? 'Excluded' : needsCoverage ? 'Needs teacher' : 'Ready'}
-						</span>
+						{isArchived ? (
+							<span className="text-muted-foreground font-medium">Archived</span>
+						) : isExcluded ? (
+							<span className="text-muted-foreground font-medium">Excluded</span>
+						) : coverageBySubjectId?.get(subject.id) ? (
+							<span className={needsCoverage ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>
+								{coverageBySubjectId.get(subject.id)!.ownedSectionCount}/{coverageBySubjectId.get(subject.id)!.relevantSectionCount} covered
+							</span>
+						) : (
+							<span className="text-muted-foreground font-medium">Checking</span>
+						)}
 					</div>
 				</div>
 
@@ -879,7 +887,7 @@ stats={subjectStats}
 											key={s.id}
 											subject={s}
 											timeMode="hours"
-											assignedSubjectIds={assignedSubjectIds ?? undefined}
+											coverageRow={coverageBySubjectId?.get(s.id) ?? undefined}
 											onEdit={openSubjectEditor}
 											onDelete={(target) => setDeleteTarget(target)}
 											onArchive={(target) => setArchiveTarget(target)}
@@ -1027,7 +1035,7 @@ stats={subjectStats}
 									) : (
 										<div className="p-10 rounded-xl border border-dashed text-center bg-muted/5">
 											<p className="text-sm text-muted-foreground italic">No teachers assigned to this subject yet.</p>
-											<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="mt-3 inline-flex">
+											<Link to={`/teaching-load?view=subjects&subjectId=${coverageSubject.id}&filter=missing-coverage`} className="mt-3 inline-flex">
 												<Button size="sm" className="gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
 													Fix in Teaching Load
 													<ChevronRight className="size-3.5" />
@@ -1040,18 +1048,18 @@ stats={subjectStats}
 								<div className="space-y-4">
 									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 										<div className={`size-1.5 rounded-full ${(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-										Coverage gaps
+										Section coverage
 									</h4>
 									<div className={(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'rounded-xl border border-amber-200 bg-amber-50 p-4' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4'}>
 										{(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? (
 											<div className="space-y-3">
-												<p className="text-sm font-bold text-amber-900">These grades do not yet have a teacher mapped for this subject.</p>
+												<p className="text-sm font-bold text-amber-900">Some required sections still need a teacher for this subject.</p>
 												<div className="flex flex-wrap gap-1.5">
 													{coverageDetail?.uncoveredGrades.map((grade) => (
 														<Badge key={grade} variant="outline" className={`font-bold ${GRADE_COLORS[String(grade)] ?? ''}`}>{gradeLabel(grade)}</Badge>
 													))}
 												</div>
-												<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="inline-flex">
+												<Link to={`/teaching-load?view=subjects&subjectId=${coverageSubject.id}&filter=missing-coverage`} className="inline-flex">
 													<Button size="sm" variant="outline" className="gap-2 border-amber-300 text-amber-900 hover:bg-amber-100">
 														Fix coverage in Teaching Load
 														<ChevronRight className="size-3.5" />
@@ -1059,23 +1067,18 @@ stats={subjectStats}
 												</Link>
 											</div>
 										) : (coverageDetail?.programScopes.length ?? 0) > 0 ? (
-											/* Phase 2.3: when program scopes are set, we cannot
-												verify per-program coverage from the current data
-												shape. The audit (Sub-6) flagged the green "all
-												covered" check as misleading in that case. Show a
-												neutral "verify in Teaching Load" hint instead. */
 											<div className="flex items-start gap-3 text-amber-900">
 												<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
 												<div>
-													<p className="text-sm font-bold">All listed grades have assigned coverage.</p>
-													<p className="text-xs font-medium text-amber-800">This subject is scoped to specific programs. Verify per-program coverage in Teaching Load before generation.</p>
+													<p className="text-sm font-bold">All required sections have assigned teachers.</p>
+													<p className="text-xs font-medium text-amber-800">This subject is scoped to specific programs. Review section coverage in Teaching Load before generation.</p>
 												</div>
 											</div>
 										) : (
 											<div className="flex items-start gap-3 text-emerald-900">
 												<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
 												<div>
-													<p className="text-sm font-bold">All listed grades have assigned coverage.</p>
+													<p className="text-sm font-bold">All required sections have assigned teachers.</p>
 												</div>
 											</div>
 										)}
@@ -1086,7 +1089,7 @@ stats={subjectStats}
 											<Badge key={scope} variant="outline" className="bg-white text-slate-700 shadow-none" aria-label={programFullLabel(scope)}>{programFullLabel(scope)}</Badge>
 										))}
 									</div>
-									<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="inline-flex">
+									<Link to={`/teaching-load?view=subjects&subjectId=${coverageSubject.id}&filter=missing-coverage`} className="inline-flex">
 										<Button size="sm" variant="outline" className="gap-2">
 											Open in Teaching Load
 											<ChevronRight className="size-3.5" />

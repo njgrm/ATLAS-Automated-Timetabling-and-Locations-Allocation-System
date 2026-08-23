@@ -1,1 +1,0 @@
-import{t as e}from"./CampusMap-DPo2X4Ih.js";export{e as CampusMap};

@@ -984,12 +984,12 @@ test('Phase 2.3: Coverage drawer distinguishes fetch failure from empty coverage
 	assert.match(subjects, /coverageSubject\.preferredRoomType !== 'CLASSROOM'/);
 	assert.match(subjects, /coverageSubject\.requiredFeatures\.length > 0/);
 	assert.match(subjects, /Resource requirements/);
-	// Coverage gaps title replaces "Uncovered scope" (which ignored program scopes).
+	// Section coverage title replaces "Uncovered scope" (which ignored program scopes).
 	assert.doesNotMatch(subjects, />Uncovered scope</);
-	assert.match(subjects, /Coverage gaps/);
-	// The misleading green-check is replaced by a verify-in-Teaching-Load hint
+	assert.match(subjects, /Section coverage/);
+	// The green-check is replaced by a verify-in-Teaching-Load hint
 	// when program scopes are set.
-	assert.match(subjects, /Verify per-program coverage in Teaching Load/);
+	assert.match(subjects, /Review section coverage in Teaching Load/);
 });
 
 test('Phase 2.4: Subjects table exposes Teacher coverage column and accessible sort headers', () => {

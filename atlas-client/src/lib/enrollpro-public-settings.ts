@@ -1,11 +1,22 @@
 import { fetchAtlasRuntimeContext, fetchPublicSettings } from './settings';
 
-const ACTIVE_SCHOOL_YEAR_CACHE_KEY = 'atlas:active-school-year-context:v1';
+const ACTIVE_SCHOOL_YEAR_CACHE_KEY = 'atlas:active-school-year-context:v2';
 const ACTIVE_SCHOOL_YEAR_MAX_AGE_MS = 10 * 60 * 1000;
 
 type ActiveSchoolYearCacheRecord = {
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
+	activeTerm: {
+		source: string;
+		reachable: boolean;
+		verified: boolean;
+		activeTerm: string | null;
+		termIndex: number | null;
+		schoolYearId: number | null;
+		matchedSchoolYear: boolean | null;
+		code: string | null;
+		message: string;
+	} | null;
 	cachedAt: string;
 };
 
@@ -17,6 +28,17 @@ export type ActiveSchoolYearContext = {
 	source: ActiveSchoolYearContextSource;
 	stale: boolean;
 	cachedAt: string;
+	activeTerm: {
+		source: string;
+		reachable: boolean;
+		verified: boolean;
+		activeTerm: string | null;
+		termIndex: number | null;
+		schoolYearId: number | null;
+		matchedSchoolYear: boolean | null;
+		code: string | null;
+		message: string;
+	} | null;
 };
 
 type PromotionOptions = {
@@ -73,7 +95,11 @@ function readCachedActiveSchoolYear(): ActiveSchoolYearCacheRecord | null {
 	}
 }
 
-export function cacheActiveSchoolYearContext(activeSchoolYearId: number | null | undefined, activeSchoolYearLabel?: string | null): void {
+export function cacheActiveSchoolYearContext(
+	activeSchoolYearId: number | null | undefined,
+	activeSchoolYearLabel?: string | null,
+	activeTerm?: ActiveSchoolYearContext['activeTerm'],
+): void {
 	if (!activeSchoolYearId || Number.isNaN(activeSchoolYearId)) {
 		return;
 	}
@@ -81,6 +107,7 @@ export function cacheActiveSchoolYearContext(activeSchoolYearId: number | null |
 	const payload: ActiveSchoolYearCacheRecord = {
 		activeSchoolYearId,
 		activeSchoolYearLabel: activeSchoolYearLabel ?? null,
+		activeTerm: activeTerm ?? null,
 		cachedAt: new Date().toISOString(),
 	};
 	activeSchoolYearMemory = payload;
@@ -139,6 +166,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 			source: 'cache',
 			stale: !hasFreshCache,
 			cachedAt: cached.cachedAt,
+			activeTerm: cached.activeTerm ?? null,
 		};
 	}
 
@@ -149,6 +177,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 			source: 'cache',
 			stale: false,
 			cachedAt: cached.cachedAt,
+			activeTerm: cached.activeTerm ?? null,
 		};
 	}
 
@@ -176,7 +205,11 @@ async function _fetchRuntimeContext(
 	try {
 		const runtimeContext = await fetchAtlasRuntimeContext();
 		if (runtimeContext?.activeSchoolYearId) {
-			cacheActiveSchoolYearContext(runtimeContext.activeSchoolYearId, runtimeContext.activeSchoolYearLabel ?? null);
+			cacheActiveSchoolYearContext(
+				runtimeContext.activeSchoolYearId,
+				runtimeContext.activeSchoolYearLabel ?? null,
+				runtimeContext.activeTerm ?? null,
+			);
 			const updated = readCachedActiveSchoolYear();
 
 			return {
@@ -185,6 +218,7 @@ async function _fetchRuntimeContext(
 				source: runtimeContext.source ?? 'atlas-persisted',
 				stale: runtimeContext.stale,
 				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
+				activeTerm: runtimeContext.activeTerm ?? null,
 			};
 		}
 	} catch (error) {
@@ -203,6 +237,7 @@ async function _fetchRuntimeContext(
 			source: 'cache',
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
+			activeTerm: cachedFallback.activeTerm ?? null,
 		};
 	}
 
@@ -221,6 +256,7 @@ async function _fetchRuntimeContext(
 			source: 'enrollpro',
 			stale: false,
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
+			activeTerm: null,
 		};
 	} catch (error) {
 		if (!allowStaleOnError || !cachedFallback) {
@@ -233,6 +269,7 @@ async function _fetchRuntimeContext(
 			source: 'cache',
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
+			activeTerm: cachedFallback.activeTerm ?? null,
 		};
 	}
 }

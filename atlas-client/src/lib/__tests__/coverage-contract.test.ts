@@ -68,7 +68,8 @@ test('useDashboardData overrides unassignedSubjectCount from coverage', () => {
 	const hook = source('src/hooks/useDashboardData.ts');
 	// Primary path: fetches coverage after readiness summary
 	assert.match(hook, /fetchSubjectCoverageSummary\(summary\.activeSchoolYearId\)/);
-	assert.match(hook, /countSubjectsWithMissingCoverage\(coverage\)/);
+	assert.match(hook, /coverage\.rows\.filter\(\(r\) => r\.uncoveredSectionCount > 0\)/);
+	assert.match(hook, /setMissingCoverageSubjectIds\(missingIds\)/);
 	// Legacy path: also fetches coverage
 	assert.match(hook, /fetchSubjectCoverageSummary\(context\.activeSchoolYearId\)/);
 });

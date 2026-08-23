@@ -68,6 +68,7 @@ export type DashboardData = {
 	facultyCount: number | null;
 	sectionCount: number | null;
 	unassignedSubjectCount: number | null;
+	missingCoverageSubjectIds: number[] | null;
 	teachingRoomCount: number;
 	totalRoomCount: number;
 	buildingSetupStatus: BuildingSetupStatus;
@@ -98,6 +99,7 @@ export function useDashboardData(): DashboardData {
 	const [facultyCount, setFacultyCount] = useState<number | null>(null);
 	const [sectionCount, setSectionCount] = useState<number | null>(null);
 	const [unassignedSubjectCount, setUnassignedSubjectCount] = useState<number | null>(null);
+	const [missingCoverageSubjectIds, setMissingCoverageSubjectIds] = useState<number[] | null>(null);
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
@@ -155,7 +157,9 @@ export function useDashboardData(): DashboardData {
 							fetchSubjectCoverageSummary(context.activeSchoolYearId)
 								.then((coverage) => {
 									if (!cancelled) {
-										setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
+										const missingIds = coverage.rows.filter((r) => r.uncoveredSectionCount > 0).map((r) => r.subjectId);
+										setUnassignedSubjectCount(missingIds.length);
+										setMissingCoverageSubjectIds(missingIds);
 									}
 								})
 								.catch(() => { /* keep legacy stats value as degraded fallback */ });
@@ -227,7 +231,9 @@ export function useDashboardData(): DashboardData {
 					fetchSubjectCoverageSummary(summary.activeSchoolYearId)
 						.then((coverage) => {
 							if (!cancelled) {
-								setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
+								const missingIds = coverage.rows.filter((r) => r.uncoveredSectionCount > 0).map((r) => r.subjectId);
+								setUnassignedSubjectCount(missingIds.length);
+								setMissingCoverageSubjectIds(missingIds);
 							}
 						})
 						.catch(() => { /* keep readiness-summary value as degraded fallback */ });
@@ -317,6 +323,7 @@ export function useDashboardData(): DashboardData {
 		facultyCount,
 		sectionCount,
 		unassignedSubjectCount,
+		missingCoverageSubjectIds,
 		teachingRoomCount,
 		totalRoomCount,
 		buildingSetupStatus,

@@ -146,6 +146,17 @@ export interface AtlasRuntimeContext {
 			lastFailureSummary: string | null;
 		} | null;
 	};
+	activeTerm?: {
+		source: 'enrollpro-verified' | 'enrollpro-unreachable' | 'enrollpro-contract-drift' | 'atlas-unverified';
+		reachable: boolean;
+		verified: boolean;
+		activeTerm: string | null;
+		termIndex: number | null;
+		schoolYearId: number | null;
+		matchedSchoolYear: boolean | null;
+		code: string | null;
+		message: string;
+	};
 }
 
 export interface RolloverStatus {

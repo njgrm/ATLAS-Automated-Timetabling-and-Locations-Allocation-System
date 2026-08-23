@@ -1,0 +1,1 @@
+import{t as e}from"./api-BIyR5HtK.js";var t=1;async function n(n){let{data:r}=await e.get(`/faculty-assignments/coverage/summary`,{params:{schoolId:t,schoolYearId:n}});return r}export{n as t};

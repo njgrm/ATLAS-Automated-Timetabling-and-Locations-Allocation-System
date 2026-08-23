@@ -137,6 +137,7 @@ export function AppShell() {
 	const [schoolName, setSchoolName] = useState(() => readShellBrandingCache()?.schoolName ?? DEFAULT_SHELL_SCHOOL_NAME);
 	const [logoUrl, setLogoUrl] = useState<string | null>(() => readShellBrandingCache()?.logoUrl ?? null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
+	const [activeTermLabel, setActiveTermLabel] = useState<string | null>(null);
 	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
 	const runtimeYearRef = useRef<{ id: number | null; label: string | null }>({ id: null, label: null });
@@ -237,6 +238,7 @@ export function AppShell() {
 				};
 				setSelectedYearId(context.activeSchoolYearId);
 				if (context.activeSchoolYearLabel) setActiveYearLabel(context.activeSchoolYearLabel);
+				if (context.activeTerm?.activeTerm) setActiveTermLabel(context.activeTerm.activeTerm);
 			})
 			.catch(() => {});
 	}, []);
@@ -432,6 +434,14 @@ export function AppShell() {
 
 							<div className='ml-auto flex items-center gap-2'>
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
+								{activeTermLabel && (
+									<Badge
+										variant='outline'
+										className='h-7 px-2 text-[0.65rem] border-primary/20 bg-primary/5 text-primary hidden sm:inline-flex'
+									>
+										Active Term: {activeTermLabel}
+									</Badge>
+								)}
 								<SchoolYearSwitcher
 									schoolYears={schoolYears}
 									selectedYearId={selectedYearId}

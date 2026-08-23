@@ -20,6 +20,7 @@ type UseTeachingLoadRepairQueueParams = {
 	onSelectFaculty: (facultyId: number) => void;
 	onSave: () => void;
 	onShowUnassigned: () => void;
+	onShowSubjectCoverage: () => void;
 	onShowTeachersWithoutLoad: () => void;
 	onShowOverloaded: () => void;
 	onShowPlaceholder: () => void;
@@ -47,6 +48,7 @@ export function useTeachingLoadRepairQueue({
 	onSelectFaculty,
 	onSave,
 	onShowUnassigned,
+	onShowSubjectCoverage,
 	onShowTeachersWithoutLoad,
 	onShowOverloaded,
 	onShowPlaceholder,
@@ -98,9 +100,9 @@ export function useTeachingLoadRepairQueue({
 				id: 'missing-load',
 				kind: 'missing-load',
 				title: 'Assign teachers to open classes',
-				description: 'Some section-subject pairs do not have a teacher assigned yet. Start with the section view.',
+				description: 'Some subject-section pairs still need a teacher. Review subject coverage to see exactly which sections are uncovered.',
 				status: `${coverageUnassigned} section-subject ${coverageUnassigned === 1 ? 'pair needs' : 'pairs need'} a teacher.`,
-				actionLabel: 'Open open classes',
+				actionLabel: 'Review subject coverage',
 				disabledReason: isReadOnlyMode ? writeBlockedReason : null,
 				countLabel: `${coverageUnassigned} open`,
 			});
@@ -168,6 +170,8 @@ export function useTeachingLoadRepairQueue({
 	]);
 
 	const routedRepairId = useMemo(() => {
+		const viewParam = searchParams.get('view');
+		if (viewParam === 'subjects') return 'missing-load';
 		if (!selectedId) {
 			if (teacherRepairIntent === 'review-placeholders') return repairQueueItems.find((item) => item.kind === 'placeholder')?.id ?? null;
 			return null;
@@ -176,12 +180,15 @@ export function useTeachingLoadRepairQueue({
 		if (teacherRepairIntent === 'over-cap') return `over-cap-${selectedId}`;
 		if (teacherRepairIntent === 'review-placeholders') return `placeholder-${selectedId}`;
 		return null;
-	}, [repairQueueItems, selectedId, teacherRepairIntent]);
+	}, [repairQueueItems, selectedId, teacherRepairIntent, searchParams]);
 
 	const updateRepairRoute = useCallback((item: TeachingLoadRepairQueueItem) => {
 		const next = new URLSearchParams(searchParams);
 		if (item.facultyId) next.set('facultyId', String(item.facultyId));
-		if (item.kind === 'teacher-missing-load' || item.kind === 'missing-load') next.set('task', 'missing-load');
+		if (item.kind === 'missing-load') {
+			next.set('view', 'subjects');
+			next.delete('task');
+		} else if (item.kind === 'teacher-missing-load') next.set('task', 'missing-load');
 		else if (item.kind === 'over-cap') next.set('task', 'over-cap');
 		else if (item.kind === 'placeholder') next.set('task', 'review-placeholders');
 		else next.delete('task');
@@ -193,7 +200,7 @@ export function useTeachingLoadRepairQueue({
 		updateRepairRoute(item);
 		if (item.facultyId) onSelectFaculty(item.facultyId);
 		if (item.kind === 'save-draft') return onSave();
-		if (item.kind === 'missing-load') onShowUnassigned();
+		if (item.kind === 'missing-load') onShowSubjectCoverage();
 		else if (item.kind === 'teacher-missing-load') onShowTeachersWithoutLoad();
 		else if (item.kind === 'over-cap') onShowOverloaded();
 		else if (item.kind === 'placeholder') onShowPlaceholder();
@@ -207,6 +214,7 @@ export function useTeachingLoadRepairQueue({
 		onShowPlaceholder,
 		onShowTeachersWithoutLoad,
 		onShowUnassigned,
+		onShowSubjectCoverage,
 		setAdvancedGridVisible,
 		updateRepairRoute,
 	]);
