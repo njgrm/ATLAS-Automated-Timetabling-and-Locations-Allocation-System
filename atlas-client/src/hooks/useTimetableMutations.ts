@@ -6,6 +6,7 @@ import atlasApi from '@/lib/api';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
+import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type {
 	CommitResult,
 	DraftBoardState,
@@ -123,6 +124,7 @@ export type PreGenPendingPlacement = {
 
 type UseTimetableMutationsInput = {
 	schoolYearId: number | null;
+	schoolYearContext: ActiveSchoolYearContext | null;
 	roomRequestSummary: RoomPreferenceSummaryResponse | null;
 	requestStatusFilter: 'ALL' | RoomPreferenceStatus;
 	requestDecisionFilter: 'ALL' | RoomPreferenceDecisionStatus;
@@ -311,6 +313,7 @@ export type TimetableMutationState = {
 export function useTimetableMutations(input: UseTimetableMutationsInput): TimetableMutationState {
 	const {
 		schoolYearId,
+		schoolYearContext,
 		roomRequestSummary,
 		requestStatusFilter,
 		requestDecisionFilter,
@@ -861,6 +864,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!apiBase) return false;
 		setCommitLoading(true);
 		try {
+			// Non-active term warning: check if the entry being edited has a different termIndex
+			if (proposal.entryId && draft?.entries) {
+				const targetEntry = draft.entries.find((e: any) => e.entryId === proposal.entryId);
+				if (targetEntry?.termIndex != null) {
+					const activeTermIndex = schoolYearContext?.activeTerm?.termIndex;
+					if (activeTermIndex != null && targetEntry.termIndex !== activeTermIndex) {
+						toast.warning(`Editing a Term ${targetEntry.termIndex} session. The active term is Term ${activeTermIndex}.`);
+					}
+				}
+			}
 			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/commit`, {
 				proposal,
 				expectedVersion: runVersion,
@@ -891,7 +904,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setPendingCommitProposal(null);
 			setDragItem(null);
 		}
-	}, [apiBase, runVersion, schoolYearId, runIdNumeric, setCommitLoading, setViolationReport, fetchEditHistory, setPreviewResult, setSoftConfirmWarnings, setShowSoftConfirm, setPendingCommitProposal, setDragItem, setDraft]);
+	}, [apiBase, runVersion, schoolYearId, runIdNumeric, setCommitLoading, setViolationReport, fetchEditHistory, setPreviewResult, setSoftConfirmWarnings, setShowSoftConfirm, setPendingCommitProposal, setDragItem, setDraft, schoolYearContext]);
 
 	const previewTeachingLoadRepair = useCallback(async (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal): Promise<TeachingLoadRepairPreviewResult | null> => {
 		if (!teachingLoadRepairBase || changes.length === 0) return null;

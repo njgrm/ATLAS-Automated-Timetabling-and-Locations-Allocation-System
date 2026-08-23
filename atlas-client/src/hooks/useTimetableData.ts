@@ -232,6 +232,7 @@ type UseTimetableDataInput = {
 	setViewMode: React.Dispatch<React.SetStateAction<'section' | 'faculty' | 'room'>>;
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
+	termFilter: 'all' | 1 | 2 | 3;
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
 	unassignedReasonFilter: UnassignedReason | 'all';
@@ -378,6 +379,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		setViewMode,
 		programFilter,
 		entryKindFilter,
+		termFilter,
 		leftTab,
 		setLeftTab,
 		unassignedReasonFilter,
@@ -967,9 +969,17 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const filteredDraftEntries = useMemo(() => {
 		return activeGridEntriesBase.filter((entry) => {
 			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
-			return matchesProgramFilter(programType, programFilter) && matchesEntryKindFilter(entry.entryKind, entryKindFilter);
+			if (!matchesProgramFilter(programType, programFilter)) return false;
+			if (!matchesEntryKindFilter(entry.entryKind, entryKindFilter)) return false;
+			if (termFilter !== 'all') {
+				const entryTermIndex = entry.termIndex ?? null;
+				// Entries without termIndex are visible in all-term review only
+				if (entryTermIndex === null) return false;
+				if (entryTermIndex !== termFilter) return false;
+			}
+			return true;
 		});
-	}, [activeGridEntriesBase, entryKindFilter, programFilter, sectionMap]);
+	}, [activeGridEntriesBase, entryKindFilter, programFilter, termFilter, sectionMap]);
 
 	const programKindFilteredUnassignedItems = useMemo(() => {
 		return (draft?.unassignedItems ?? []).filter((item) => {

@@ -126,6 +126,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		entryKindFilter,
 		setEntryKindFilter,
 		ENTRY_KIND_FILTER_OPTIONS,
+		termFilter,
+		setTermFilter,
+		activeTermIndex,
 		violations,
 		severityFilter,
 		setSeverityFilter,
@@ -937,6 +940,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				entryKindFilter={entryKindFilter}
 				onEntryKindFilterChange={(value) => setEntryKindFilter(value as EntryKindFilter)}
 				entryKindFilterOptions={ENTRY_KIND_FILTER_OPTIONS}
+				termFilter={termFilter}
+				onTermFilterChange={setTermFilter}
+				activeTermIndex={activeTermIndex}
 			>
 				<div className="flex items-center gap-1">
 					<Button

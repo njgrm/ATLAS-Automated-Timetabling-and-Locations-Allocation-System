@@ -30,6 +30,9 @@ interface TimetableToolbarProps {
 	entryKindFilter: string;
 	onEntryKindFilterChange: (value: string) => void;
 	entryKindFilterOptions: ReadonlyArray<Option>;
+	termFilter: 'all' | 1 | 2 | 3;
+	onTermFilterChange: (value: 'all' | 1 | 2 | 3) => void;
+	activeTermIndex: number | null;
 	children?: ReactNode;
 }
 
@@ -47,8 +50,17 @@ export function TimetableToolbar({
 	entryKindFilter,
 	onEntryKindFilterChange,
 	entryKindFilterOptions,
+	termFilter,
+	onTermFilterChange,
+	activeTermIndex,
 	children,
 }: TimetableToolbarProps) {
+	const TERM_OPTIONS: Option[] = [
+		{ value: 'all', label: 'All terms' },
+		{ value: '1', label: 'T1' },
+		{ value: '2', label: 'T2' },
+		{ value: '3', label: 'T3' },
+	];
 	return (
 		<div className="flex items-center gap-2 overflow-x-auto px-4 pb-1.5 xl:flex-wrap [@media(max-height:500px)]:hidden" data-tutorial="grid-controls">
 			<Select value={viewMode} onValueChange={onViewModeChange}>
@@ -74,6 +86,22 @@ export function TimetableToolbar({
 					items: group.ids.map((id) => ({ value: String(id), label: pivotLabel(id) })),
 				}))}
 			/>
+
+			<Select value={String(termFilter)} onValueChange={(v) => onTermFilterChange(v === 'all' ? 'all' : Number(v) as 1 | 2 | 3)}>
+				<SelectTrigger className="h-7 w-28 shrink-0 text-xs" data-testid="timetable-term-filter">
+					<SelectValue placeholder="Term" />
+				</SelectTrigger>
+				<SelectContent>
+					{TERM_OPTIONS.map((option) => (
+						<SelectItem key={option.value} value={option.value}>
+							{option.label}
+							{activeTermIndex !== null && option.value === String(activeTermIndex) && (
+								<span className="ml-1 text-[0.6rem] text-muted-foreground">(active)</span>
+							)}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 
 			<Popover>
 				<PopoverTrigger asChild>

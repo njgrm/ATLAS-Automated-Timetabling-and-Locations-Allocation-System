@@ -113,6 +113,9 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	showFullDay: boolean;
 	setShowFullDay: (value: boolean) => void;
 	hiddenRowCount: number;
+	termFilter: 'all' | 1 | 2 | 3;
+	setTermFilter: (value: 'all' | 1 | 2 | 3) => void;
+	activeTermIndex: number | null;
 	collaborationConnected?: boolean;
 	presence?: any[];
 	remoteSelections?: Record<string, any>;
