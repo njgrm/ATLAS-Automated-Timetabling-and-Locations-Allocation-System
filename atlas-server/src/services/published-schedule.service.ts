@@ -23,6 +23,7 @@ type PublishedRunSource = {
 
 type PublishedScheduleReadOptions = {
 	requestedDate?: string | Date | null;
+	termIndex?: number | 'active';
 };
 
 type RevisionCandidate = {
@@ -527,7 +528,50 @@ export async function getPublishedSchedulePayload(
 		roomIds
 	);
 
-	const entries = filteredEntries.map((entry) => {
+	// Term filtering: apply after references are loaded
+	let termScope: 'all' | 'explicit' | 'active' = 'all';
+	let resolvedTermIndex: number | null = null;
+	let activeTermVerified = false;
+	let entriesToMap = filteredEntries;
+
+	if (options?.termIndex !== undefined) {
+		const requestedTerm = options.termIndex;
+
+		if (requestedTerm === 'active') {
+			try {
+				const { fetchEnrollProActiveTerm } = await import('./active-term-adapter.service.js');
+				const activeTermResult = await fetchEnrollProActiveTerm();
+				if (activeTermResult.verified && activeTermResult.termIndex !== null) {
+					resolvedTermIndex = activeTermResult.termIndex;
+					activeTermVerified = true;
+					termScope = 'active';
+				} else {
+					throw err(501, 'TERM_FILTER_NOT_READY', 'Active term cannot be verified. Use explicit termIndex (1, 2, 3) or omit termIndex for all-term read.');
+				}
+			} catch (e: any) {
+				if (e.statusCode === 501) throw e;
+				throw err(501, 'TERM_FILTER_NOT_READY', 'Active term verification failed. Use explicit termIndex (1, 2, 3) or omit termIndex for all-term read.');
+			}
+		} else {
+			resolvedTermIndex = requestedTerm;
+			termScope = 'explicit';
+		}
+
+		const termFiltered = filteredEntries.filter((entry) => {
+			const entryTermIndex = (entry as any).termIndex;
+			if (entryTermIndex == null) return false;
+			return entryTermIndex === resolvedTermIndex;
+		});
+
+		const hasMissingTermIndex = filteredEntries.some((entry) => (entry as any).termIndex == null);
+		if (hasMissingTermIndex && termFiltered.length === 0) {
+			throw err(501, 'TERM_FILTER_NOT_READY', 'Some entries lack reliable termIndex. Term-filtered reads are not available until all entries have termIndex.');
+		}
+
+		entriesToMap = termFiltered;
+	}
+
+	const entries = entriesToMap.map((entry) => {
 		const subject = references.subjectById.get(entry.subjectId);
 		const room = references.roomById.get(entry.roomId);
 		const section = references.sectionById.get(entry.sectionId);
@@ -596,7 +640,12 @@ export async function getPublishedSchedulePayload(
 			.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 
 	return {
-		source: resolved.source,
+		source: {
+			...resolved.source,
+			termScope,
+			termIndex: resolvedTermIndex,
+			activeTermVerified,
+		},
 		timeSlots,
 		specialEvents: buildSpecialEventsPayload(policy, mappedPublishedSpecialEvents),
 		entries,

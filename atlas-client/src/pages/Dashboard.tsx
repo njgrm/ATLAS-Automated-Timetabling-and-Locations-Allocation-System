@@ -243,7 +243,7 @@ export default function Dashboard() {
 	const {
 		loading, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
-		totalRoomCount, activeSchoolYearLabel, latestRunStatus, violationCount,
+		totalRoomCount, activeSchoolYearLabel, activeTerm, latestRunStatus, violationCount,
 		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard,
 	} = useDashboardData();
 
@@ -308,6 +308,14 @@ export default function Dashboard() {
 							<p className='mt-1 text-sm text-muted-foreground'>Build, review, and publish the school timetable.</p>
 						</div>
 						<div className='flex flex-wrap items-center gap-1.5'>
+							{activeTerm?.activeTerm && (
+								<Badge
+									className='border-primary/20 bg-primary/5 text-primary font-semibold gap-1.5 px-2.5 py-1.5 rounded-full'
+									data-testid='dashboard-active-term'
+								>
+									Active Term: {activeTerm.activeTerm}
+								</Badge>
+							)}
 							{/* Source state chip with popover */}
 							<Popover>
 								<PopoverTrigger asChild>

@@ -46,7 +46,31 @@ async function loadExportContext(options) {
     }
     const summary = run.summary;
     const displaySlots = summary?.timetableDisplaySlots ?? [];
-    const entries = (run.draftEntries ?? []);
+    let entries = (run.draftEntries ?? []);
+    // Term filtering for export
+    if (options.termIndex !== undefined) {
+        let resolvedTermIndex;
+        if (options.termIndex === 'active') {
+            try {
+                const { fetchEnrollProActiveTerm } = await import('./active-term-adapter.service.js');
+                const activeTermResult = await fetchEnrollProActiveTerm();
+                if (!activeTermResult.verified || activeTermResult.termIndex === null) {
+                    throw new Error('TERM_FILTER_NOT_READY');
+                }
+                resolvedTermIndex = activeTermResult.termIndex;
+            }
+            catch {
+                throw new Error('TERM_FILTER_NOT_READY');
+            }
+        }
+        else {
+            resolvedTermIndex = options.termIndex;
+        }
+        entries = entries.filter((entry) => {
+            const entryTermIndex = entry.termIndex;
+            return entryTermIndex != null && entryTermIndex === resolvedTermIndex;
+        });
+    }
     // Collect unique room IDs from entries
     const roomIds = [...new Set(entries.map((e) => e.roomId).filter((id) => id != null && id > 0))];
     // Load all reference data in parallel

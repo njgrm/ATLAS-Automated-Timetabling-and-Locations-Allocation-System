@@ -5,6 +5,7 @@ type ExportOptions = {
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;
+	termIndex?: number | 'active';
 };
 
 type TimeSlot = {
@@ -93,7 +94,32 @@ async function loadExportContext(options: ExportOptions): Promise<ExportContext>
 
 	const summary = run.summary as Record<string, unknown> | null;
 	const displaySlots = (summary?.timetableDisplaySlots as TimeSlot[] | undefined) ?? [];
-	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
+	let entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
+
+	// Term filtering for export
+	if (options.termIndex !== undefined) {
+		let resolvedTermIndex: number;
+
+		if (options.termIndex === 'active') {
+			try {
+				const { fetchEnrollProActiveTerm } = await import('./active-term-adapter.service.js');
+				const activeTermResult = await fetchEnrollProActiveTerm();
+				if (!activeTermResult.verified || activeTermResult.termIndex === null) {
+					throw new Error('TERM_FILTER_NOT_READY');
+				}
+				resolvedTermIndex = activeTermResult.termIndex;
+			} catch {
+				throw new Error('TERM_FILTER_NOT_READY');
+			}
+		} else {
+			resolvedTermIndex = options.termIndex;
+		}
+
+		entries = entries.filter((entry) => {
+			const entryTermIndex = (entry as any).termIndex;
+			return entryTermIndex != null && entryTermIndex === resolvedTermIndex;
+		});
+	}
 
 	// Collect unique room IDs from entries
 	const roomIds = [...new Set(entries.map((e) => e.roomId).filter((id): id is number => id != null && id > 0))];

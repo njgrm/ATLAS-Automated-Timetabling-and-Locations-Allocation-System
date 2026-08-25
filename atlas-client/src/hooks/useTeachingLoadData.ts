@@ -62,6 +62,7 @@ export function useTeachingLoadData() {
 	const [splitBrainLoading, setSplitBrainLoading] = useState(false);
 	const [splitBrainApplyLoading, setSplitBrainApplyLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
+	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [selectedId, setSelectedId] = useState<number | null>(() => {
@@ -143,6 +144,7 @@ export function useTeachingLoadData() {
 			});
 			schoolYearId = schoolYearContext.activeSchoolYearId;
 			yearContextSource = schoolYearContext.source;
+			setActiveTermIndex(schoolYearContext.activeTerm?.termIndex ?? null);
 
 			if (!forceRefresh) {
 				const cachedSummary = getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
@@ -451,6 +453,7 @@ export function useTeachingLoadData() {
 		splitBrainApplyLoading,
 		setSplitBrainApplyLoading,
 		activeSchoolYearId,
+		activeTermIndex,
 		loading,
 		saving,
 		setSaving,

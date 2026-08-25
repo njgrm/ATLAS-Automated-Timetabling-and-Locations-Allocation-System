@@ -29,7 +29,19 @@ function readStringQuery(raw) {
 function readScheduleOptions(req) {
     return {
         requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
+        termIndex: parseTermIndexQuery(req.query.termIndex),
     };
+}
+function parseTermIndexQuery(raw) {
+    if (raw == null)
+        return undefined;
+    const value = String(raw).trim().toLowerCase();
+    if (value === 'active')
+        return 'active';
+    const n = Number(value);
+    if (n === 1 || n === 2 || n === 3)
+        return n;
+    return undefined;
 }
 async function resolveActiveSchoolYearId(schoolId) {
     const mirror = await prisma.enrollProSchoolYearMirror.findFirst({

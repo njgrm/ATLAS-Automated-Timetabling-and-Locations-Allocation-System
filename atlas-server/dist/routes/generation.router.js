@@ -535,7 +535,19 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/export/summary-teacher-schedule
             res.status(400).json({ code: 'INVALID_PARAM', message: runId });
             return;
         }
-        const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId });
+        const termIndexRaw = req.query.termIndex;
+        let termIndex;
+        if (termIndexRaw != null) {
+            const val = String(termIndexRaw).trim().toLowerCase();
+            if (val === 'active')
+                termIndex = 'active';
+            else {
+                const n = Number(val);
+                if (n === 1 || n === 2 || n === 3)
+                    termIndex = n;
+            }
+        }
+        const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId, termIndex });
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="summary-teacher-schedule.xlsx"`);
         res.send(buffer);
@@ -575,7 +587,19 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/export/class-program.xlsx', aut
             res.status(400).json({ code: 'INVALID_PARAM', message: runId });
             return;
         }
-        const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId });
+        const termIndexRaw = req.query.termIndex;
+        let termIndex;
+        if (termIndexRaw != null) {
+            const val = String(termIndexRaw).trim().toLowerCase();
+            if (val === 'active')
+                termIndex = 'active';
+            else {
+                const n = Number(val);
+                if (n === 1 || n === 2 || n === 3)
+                    termIndex = n;
+            }
+        }
+        const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex });
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="class-program.xlsx"`);
         res.send(buffer);

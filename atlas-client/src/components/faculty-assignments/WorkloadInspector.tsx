@@ -27,6 +27,7 @@ type WorkloadInspectorProps = {
 	previewLoadHours: number;
 	isReadOnlyMode: boolean;
 	writeBlockedReason?: string | null;
+	activeTermIndex?: number | null;
 	onToggleCanTeachOutsideDepartment?: (checked: boolean) => void;
 	onClose?: () => void;
 };
@@ -46,6 +47,7 @@ export function WorkloadInspector({
 	previewLoadHours,
 	isReadOnlyMode,
 	writeBlockedReason,
+	activeTermIndex,
 	onToggleCanTeachOutsideDepartment,
 	onClose
 }: WorkloadInspectorProps) {
@@ -269,30 +271,36 @@ export function WorkloadInspector({
 										</div>
 									</div>
 
-									<div className="grid grid-cols-3 gap-2">
-										{[1, 2, 3].map((term) => {
-											const bucket = family.termBuckets.find(b => b.termRank === term);
-											const isPeak = bucket?.isPeakTerm ?? false;
-											return (
-												<div
-													key={term}
-													className={cn(
-														"rounded-lg border p-2 flex flex-col items-center gap-0.5 transition-all",
-														isPeak 
-															? "border-sky-300 bg-white ring-2 ring-sky-300/10 shadow-sm" 
-															: "border-sky-100 bg-sky-50/50 opacity-60"
-													)}
-												>
-													<span className={cn("text-xs font-semibold uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
-														T{term}
-													</span>
-													<div className={cn("text-xs font-semibold tabular-nums leading-none", isPeak ? "text-sky-800" : "text-sky-700/60")}>
-														{bucket ? `${(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h` : '0.0h'}
-													</div>
+								<div className="grid grid-cols-3 gap-2">
+									{[1, 2, 3].map((term) => {
+										const bucket = family.termBuckets.find(b => b.termRank === term);
+										const isPeak = bucket?.isPeakTerm ?? false;
+										const isActive = activeTermIndex === term;
+										return (
+											<div
+												key={term}
+												className={cn(
+													"rounded-lg border p-2 flex flex-col items-center gap-0.5 transition-all",
+													isActive && isPeak
+														? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+														: isPeak
+														? "border-sky-300 bg-white ring-2 ring-sky-300/10 shadow-sm" 
+														: isActive
+														? "border-primary/40 bg-primary/5"
+														: "border-sky-100 bg-sky-50/50 opacity-60"
+												)}
+											>
+												<span className={cn("text-xs font-semibold uppercase tracking-widest", isActive ? "text-primary" : isPeak ? "text-sky-900" : "text-sky-700/60")}>
+													T{term}
+													{isActive && <span className="ml-0.5 text-[0.5rem] font-bold">(active)</span>}
+												</span>
+												<div className={cn("text-xs font-semibold tabular-nums leading-none", isActive ? "text-foreground" : isPeak ? "text-sky-800" : "text-sky-700/60")}>
+													{bucket ? `${(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h` : '0.0h'}
 												</div>
-											);
-										})}
-									</div>
+											</div>
+										);
+									})}
+								</div>
 								</div>
 							))}
 						</div>

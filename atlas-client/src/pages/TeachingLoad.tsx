@@ -1055,6 +1055,7 @@ export default function TeachingLoad() {
 								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}
+								activeTermIndex={data.activeTermIndex}
 								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
@@ -1119,6 +1120,7 @@ export default function TeachingLoad() {
 								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}
+								activeTermIndex={data.activeTermIndex}
 								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>

@@ -3014,3 +3014,141 @@
 [client] [2m5:16:02 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/notifications/1/2/events?accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjM3MCwicm9sZSI6Im9mZmljZXIiLCJtdXN0Q2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJhdXRoU291cmNlIjoibG9jYWwiLCJzY2hvb2xJZCI6MSwiYWNjb3VudElkIjozNzAsImZhY3VsdHlJZCI6bnVsbCwiZW1haWwiOiJlbnJvbGxwcm8tMTIzNDUwMUBhdGxhcy5sb2NhbCIsImVtcGxveWVlSWQiOiIxMjM0NTAxIiwiYWNjb3VudE5hbWUiOiIxMjM0NTAxIiwiaWF0IjoxNzg3MzYzMzg4LCJleHAiOjE3ODczOTIxODh9.jgS9F9Z8GzVYqexfNpzMbdOk63l3JPBsyj38NtnYpRo[39m
 [client] Error: read ECONNRESET
 [client]     at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+[client] [2m5:41:06 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m5:41:19 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/WorkspaceToolbar.tsx[22m
+[client] [2m5:41:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:41:54 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:41:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:42:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:43:28 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m5:43:36 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m5:44:37 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m5:44:45 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m5:45:08 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:47:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:47:19 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:48:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:48:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m5:48:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m5:49:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m6:11:38 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeachingLoad.tsx, /src/index.css[22m
+[client] [2m6:12:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/SubjectCoverageMode.tsx[22m
+[client] [2m6:12:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/SubjectCoverageMode.tsx[22m
+[client] [2m6:12:41 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/SubjectCoverageMode.tsx[22m
+[client] [2m6:12:59 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/faculty-assignments/SubjectCoverageMode.tsx[22m
+[client] [2m6:13:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/TeachingLoad.tsx[22m
+[client] [2m6:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:23:18 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:23:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:23:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:23:50 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:24:12 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:24:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:24:56 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:25:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:25:45 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:25:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:26:11 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:26:37 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:26:45 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/subjects/SubjectRow.tsx[22m
+[client] [2m6:26:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/subjects/SubjectRow.tsx[22m
+[client] [2m6:27:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/subjects/SubjectRow.tsx[22m
+[client] [2m6:27:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/subjects/SubjectRow.tsx[22m
+[client] [2m6:28:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/subjects/SubjectRow.tsx[22m
+[client] [2m6:28:57 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/subjects/SubjectRow.tsx[22m
+[client] [2m6:29:58 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:33:41 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m6:42:41 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Subjects.tsx, /src/index.css[22m
+[client] [2m6:44:01 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m6:44:01 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /uploads/3db6bf36-cf71-4442-a8c7-3da5ac9d6b8c.png[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m6:44:21 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m6:44:33 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/Dashboard.tsx[22m
+[client] [2m6:44:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/Dashboard.tsx[22m
+[client] [2m6:45:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/Dashboard.tsx[22m
+[client] [2m6:45:12 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/Dashboard.tsx[22m
+[client] [2m6:45:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/Dashboard.tsx[22m
+[client] [2m6:46:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Dashboard.tsx, /src/index.css[22m
+[client] [2m6:46:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Dashboard.tsx, /src/index.css[22m
+[client] [2m6:46:45 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/Dashboard.tsx, /src/index.css[22m
+[client] [2m6:47:57 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /uploads/3db6bf36-cf71-4442-a8c7-3da5ac9d6b8c.png[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:07:26 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:07:30 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/runtime/context?schoolId=1[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:07:38 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/runtime/context?schoolId=1[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:08:09 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:08:40 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:08:40 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m7:46:02 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/health[39m
+[client] Error: connect ECONNREFUSED 127.0.0.1:5001
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m8:26:50 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m8:26:50 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /uploads/3db6bf36-cf71-4442-a8c7-3da5ac9d6b8c.png[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m8:27:10 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/settings/public[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m8:42:57 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /uploads/3db6bf36-cf71-4442-a8c7-3da5ac9d6b8c.png[39m
+[client] Error: connect ETIMEDOUT 100.120.169.123:5002
+[client]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)
+[client] [2m10:50:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/lib/settings.ts[22m
+[client] [2m10:50:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:50:49 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:50:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:51:05 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:51:13 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:51:22 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:51:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:51:45 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:52:15 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/AppShell.tsx, /src/components/timetable/ScheduleReviewWorkspace.tsx, /src/pages/TeachingLoad.tsx, /src/pages/Faculty.tsx, /src/pages/Dashboard.tsx, /src/components/dashboard/CampusReadinessCard.tsx, /src/components/RoomScheduleOverlay.tsx, /src/pages/Sections.tsx, /src/pages/Subjects.tsx, /src/components/campus-map/CampusMapOverview.tsx, /src/pages/RoomSchedules.tsx[22m
+[client] [2m10:52:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AppShell.tsx, /src/index.css[22m
+[client] [2m10:52:49 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AppShell.tsx, /src/index.css[22m
+[client] [2m10:53:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AppShell.tsx, /src/index.css[22m
+[client] [2m11:15:54 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:16:42 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:17:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:18:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:18:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:18:18 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:18:32 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableToolbar.tsx[22m
+[client] [2m11:18:48 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableToolbar.tsx[22m
+[client] [2m11:19:07 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/TimetableToolbar.tsx[22m
+[client] [2m11:19:15 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:19:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:20:26 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceHeader.tsx[22m
+[client] [2m11:20:35 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceHeader.tsx[22m
+[client] [2m11:21:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:22:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:22:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:22:36 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:23:19 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m11:24:18 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m12:33:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m12:34:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m12:34:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspace.tsx[22m
+[client] [2m12:34:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceHeader.tsx[22m
+[client] [2m12:34:38 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/timetable/ScheduleReviewWorkspaceHeader.tsx[22m
+[client] The request id "D:\ATLAS\atlas-client\.env" is outside of Vite serving allow list.

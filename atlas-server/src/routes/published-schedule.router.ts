@@ -39,7 +39,17 @@ function readStringQuery(raw: unknown): string | undefined {
 function readScheduleOptions(req: Request) {
 	return {
 		requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
+		termIndex: parseTermIndexQuery(req.query.termIndex),
 	};
+}
+
+function parseTermIndexQuery(raw: unknown): number | 'active' | undefined {
+	if (raw == null) return undefined;
+	const value = String(raw).trim().toLowerCase();
+	if (value === 'active') return 'active';
+	const n = Number(value);
+	if (n === 1 || n === 2 || n === 3) return n;
+	return undefined;
 }
 
 async function resolveActiveSchoolYearId(schoolId: number): Promise<number | null> {

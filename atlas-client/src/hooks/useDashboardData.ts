@@ -75,6 +75,7 @@ export type DashboardData = {
 	dataSource: 'live' | 'cached' | 'none';
 	activeSchoolYearId: number | null;
 	activeSchoolYearLabel: string | null;
+	activeTerm: { activeTerm: string | null; termIndex: number | null } | null;
 	latestRunStatus: LatestRunStatus;
 	latestRunId: number | null;
 	violationCount: number | null;
@@ -103,6 +104,7 @@ export function useDashboardData(): DashboardData {
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
+	const [activeTerm, setActiveTerm] = useState<{ activeTerm: string | null; termIndex: number | null } | null>(null);
 	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus>('NONE');
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
 	const [violationCount, setViolationCount] = useState<number | null>(null);
@@ -152,6 +154,9 @@ export function useDashboardData(): DashboardData {
 						setReadinessResolvedAt(context.cachedAt);
 						setActiveSchoolYearId(context.activeSchoolYearId ?? null);
 						setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
+						if (context.activeTerm?.activeTerm) {
+							setActiveTerm({ activeTerm: context.activeTerm.activeTerm, termIndex: context.activeTerm.termIndex });
+						}
 						// Override unassignedSubjectCount with subject-section coverage truth
 						if (context.activeSchoolYearId) {
 							fetchSubjectCoverageSummary(context.activeSchoolYearId)
@@ -330,6 +335,7 @@ export function useDashboardData(): DashboardData {
 		dataSource,
 		activeSchoolYearId,
 		activeSchoolYearLabel,
+		activeTerm,
 		latestRunStatus,
 		latestRunId,
 		violationCount,

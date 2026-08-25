@@ -1,5 +1,6 @@
 type PublishedScheduleReadOptions = {
     requestedDate?: string | Date | null;
+    termIndex?: number | 'active';
 };
 export declare function getPublishedSchedulePayload(schoolId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions, filter?: {
     sectionId?: number;
@@ -7,6 +8,9 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
     roomId?: number;
 }, activeSchoolYearId?: number | null): Promise<{
     source: {
+        termScope: "all" | "active" | "explicit";
+        termIndex: number | null;
+        activeTermVerified: boolean;
         runId: number;
         schoolId: number;
         schoolYearId: number;
@@ -79,6 +83,9 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
 }>;
 export declare function getPublishedSectionSchedule(schoolId: number, sectionId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     source: {
+        termScope: "all" | "active" | "explicit";
+        termIndex: number | null;
+        activeTermVerified: boolean;
         runId: number;
         schoolId: number;
         schoolYearId: number;
@@ -151,6 +158,9 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
 }>;
 export declare function getPublishedFacultySchedule(schoolId: number, facultyId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     source: {
+        termScope: "all" | "active" | "explicit";
+        termIndex: number | null;
+        activeTermVerified: boolean;
         runId: number;
         schoolId: number;
         schoolYearId: number;
@@ -223,6 +233,9 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
 }>;
 export declare function getPublishedRoomSchedule(schoolId: number, roomId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     source: {
+        termScope: "all" | "active" | "explicit";
+        termIndex: number | null;
+        activeTermVerified: boolean;
         runId: number;
         schoolId: number;
         schoolYearId: number;
@@ -295,6 +308,9 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
 }>;
 export declare function getPublishedFacultyScheduleByExternalId(schoolId: number, externalFacultyId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     source: {
+        termScope: "all" | "active" | "explicit";
+        termIndex: number | null;
+        activeTermVerified: boolean;
         runId: number;
         schoolId: number;
         schoolYearId: number;
