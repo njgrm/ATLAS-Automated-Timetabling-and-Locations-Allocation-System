@@ -76,6 +76,9 @@ export type DashboardData = {
 	activeSchoolYearId: number | null;
 	activeSchoolYearLabel: string | null;
 	activeTerm: { activeTerm: string | null; termIndex: number | null } | null;
+	activeTermPublished: boolean | null;
+	activeTermUnassignedCount: number | null;
+	activeTermHardViolationCount: number | null;
 	latestRunStatus: LatestRunStatus;
 	latestRunId: number | null;
 	violationCount: number | null;
@@ -105,6 +108,9 @@ export function useDashboardData(): DashboardData {
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
 	const [activeTerm, setActiveTerm] = useState<{ activeTerm: string | null; termIndex: number | null } | null>(null);
+	const [activeTermPublished, setActiveTermPublished] = useState<boolean | null>(null);
+	const [activeTermUnassignedCount, setActiveTermUnassignedCount] = useState<number | null>(null);
+	const [activeTermHardViolationCount, setActiveTermHardViolationCount] = useState<number | null>(null);
 	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus>('NONE');
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
 	const [violationCount, setViolationCount] = useState<number | null>(null);
@@ -156,6 +162,27 @@ export function useDashboardData(): DashboardData {
 						setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
 						if (context.activeTerm?.activeTerm) {
 							setActiveTerm({ activeTerm: context.activeTerm.activeTerm, termIndex: context.activeTerm.termIndex });
+							// Fetch current-term readiness data
+							const termIdx = context.activeTerm.termIndex;
+							const syIdForTerm = context.activeSchoolYearId;
+							if (termIdx && syIdForTerm) {
+								// Check if current term has published schedule
+								atlasApi.get<{ source?: { termScope?: string } }>(`/schools/${DEFAULT_SCHOOL_ID}/schedules/published`, { params: { termIndex: termIdx } })
+									.then((r) => {
+										if (!cancelled) setActiveTermPublished(r.data?.source?.termScope === 'explicit' || r.data?.source?.termScope === 'active');
+									})
+									.catch(() => { if (!cancelled) setActiveTermPublished(false); });
+								// Fetch current-term violations
+								atlasApi.get<{ violations?: unknown[]; totalCount?: number }>(`/generation/${DEFAULT_SCHOOL_ID}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex: termIdx } })
+									.then((r) => {
+										if (cancelled) return;
+										const total = typeof r.data.totalCount === 'number'
+											? r.data.totalCount
+											: Array.isArray(r.data.violations) ? r.data.violations.length : null;
+										setActiveTermHardViolationCount(total);
+									})
+									.catch(() => { if (!cancelled) setActiveTermHardViolationCount(null); });
+							}
 						}
 						// Override unassignedSubjectCount with subject-section coverage truth
 						if (context.activeSchoolYearId) {
@@ -336,6 +363,9 @@ export function useDashboardData(): DashboardData {
 		activeSchoolYearId,
 		activeSchoolYearLabel,
 		activeTerm,
+		activeTermPublished,
+		activeTermUnassignedCount,
+		activeTermHardViolationCount,
 		latestRunStatus,
 		latestRunId,
 		violationCount,

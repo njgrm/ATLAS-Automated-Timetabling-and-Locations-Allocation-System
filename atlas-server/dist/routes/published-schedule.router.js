@@ -27,9 +27,11 @@ function readStringQuery(raw) {
     return value.length > 0 ? value : undefined;
 }
 function readScheduleOptions(req) {
+    const termIndex = parseTermIndexQuery(req.query.termIndex);
     return {
         requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
-        termIndex: parseTermIndexQuery(req.query.termIndex),
+        termIndex: termIndex === 'INVALID' ? undefined : termIndex,
+        invalidTermIndex: termIndex === 'INVALID',
     };
 }
 function parseTermIndexQuery(raw) {
@@ -41,7 +43,7 @@ function parseTermIndexQuery(raw) {
     const n = Number(value);
     if (n === 1 || n === 2 || n === 3)
         return n;
-    return undefined;
+    return 'INVALID';
 }
 async function resolveActiveSchoolYearId(schoolId) {
     const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
@@ -73,8 +75,16 @@ router.get('/schools/:schoolId/schedules/published', async (req, res, next) => {
             return;
         }
         const activeSchoolYearId = activeMirror.enrollProSchoolYearId;
+        const scheduleOptions = readScheduleOptions(req);
+        if (scheduleOptions.invalidTermIndex) {
+            res.status(400).json({
+                code: 'INVALID_TERM_INDEX',
+                message: 'termIndex must be 1, 2, 3, or "active".',
+            });
+            return;
+        }
         try {
-            const payload = await getPublishedSchedulePayload(schoolId, activeSchoolYearId, readScheduleOptions(req));
+            const payload = await getPublishedSchedulePayload(schoolId, activeSchoolYearId, scheduleOptions);
             res.json(payload);
         }
         catch (serviceError) {

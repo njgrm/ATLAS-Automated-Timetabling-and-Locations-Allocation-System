@@ -454,8 +454,9 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId, option
                 return false;
             return entryTermIndex === resolvedTermIndex;
         });
+        // Strict check: if ANY entries lack termIndex, reject the term-filtered read
         const hasMissingTermIndex = filteredEntries.some((entry) => entry.termIndex == null);
-        if (hasMissingTermIndex && termFiltered.length === 0) {
+        if (hasMissingTermIndex) {
             throw err(501, 'TERM_FILTER_NOT_READY', 'Some entries lack reliable termIndex. Term-filtered reads are not available until all entries have termIndex.');
         }
         entriesToMap = termFiltered;

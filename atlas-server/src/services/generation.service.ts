@@ -1239,6 +1239,7 @@ export async function triggerGenerationRun(
 				hardViolationCount: summary.hardViolationCount,
 				softViolationCount: mergedValidationResult.violations.filter((violation) => violation.severity === 'SOFT').length,
 				roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+				termCounts: summary.termCounts ?? null,
 			},
 		});
 
@@ -1740,6 +1741,7 @@ export async function publishRun(
 			publishedBy: actorId,
 			softViolationCount,
 			acknowledgeSoftViolations,
+			termCounts: summary.termCounts ?? null,
 		},
 	});
 

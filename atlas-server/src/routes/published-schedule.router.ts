@@ -37,19 +37,21 @@ function readStringQuery(raw: unknown): string | undefined {
 }
 
 function readScheduleOptions(req: Request) {
+	const termIndex = parseTermIndexQuery(req.query.termIndex);
 	return {
 		requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
-		termIndex: parseTermIndexQuery(req.query.termIndex),
+		termIndex: termIndex === 'INVALID' ? undefined : termIndex,
+		invalidTermIndex: termIndex === 'INVALID',
 	};
 }
 
-function parseTermIndexQuery(raw: unknown): number | 'active' | undefined {
+function parseTermIndexQuery(raw: unknown): number | 'active' | 'INVALID' | undefined {
 	if (raw == null) return undefined;
 	const value = String(raw).trim().toLowerCase();
 	if (value === 'active') return 'active';
 	const n = Number(value);
 	if (n === 1 || n === 2 || n === 3) return n;
-	return undefined;
+	return 'INVALID';
 }
 
 async function resolveActiveSchoolYearId(schoolId: number): Promise<number | null> {
@@ -86,8 +88,16 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 		}
 
 		const activeSchoolYearId = activeMirror.enrollProSchoolYearId;
+		const scheduleOptions = readScheduleOptions(req);
+		if (scheduleOptions.invalidTermIndex) {
+			res.status(400).json({
+				code: 'INVALID_TERM_INDEX',
+				message: 'termIndex must be 1, 2, 3, or "active".',
+			});
+			return;
+		}
 		try {
-			const payload = await getPublishedSchedulePayload(schoolId, activeSchoolYearId, readScheduleOptions(req));
+			const payload = await getPublishedSchedulePayload(schoolId, activeSchoolYearId, scheduleOptions);
 			res.json(payload);
 		} catch (serviceError: any) {
 			// Transform PUBLISHED_RUN_NOT_FOUND into a current-year-specific message

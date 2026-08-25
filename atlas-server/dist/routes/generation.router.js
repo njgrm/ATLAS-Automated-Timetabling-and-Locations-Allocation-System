@@ -545,11 +545,16 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/export/summary-teacher-schedule
                 const n = Number(val);
                 if (n === 1 || n === 2 || n === 3)
                     termIndex = n;
+                else {
+                    res.status(400).json({ code: 'INVALID_TERM_INDEX', message: 'termIndex must be 1, 2, 3, or "active".' });
+                    return;
+                }
             }
         }
         const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId, termIndex });
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="summary-teacher-schedule.xlsx"`);
+        const termSuffix = termIndex != null ? `-term${termIndex === 'active' ? '-active' : termIndex}` : '';
+        res.setHeader('Content-Disposition', `attachment; filename="summary-teacher-schedule${termSuffix}.xlsx"`);
         res.send(buffer);
     }
     catch (e) {
@@ -559,6 +564,10 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/export/summary-teacher-schedule
         }
         if (e?.message === 'RUN_NOT_COMPLETED') {
             res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+            return;
+        }
+        if (e?.message === 'TERM_FILTER_NOT_READY') {
+            res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified or entries lack reliable termIndex.' });
             return;
         }
         next(e);
@@ -597,11 +606,16 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/export/class-program.xlsx', aut
                 const n = Number(val);
                 if (n === 1 || n === 2 || n === 3)
                     termIndex = n;
+                else {
+                    res.status(400).json({ code: 'INVALID_TERM_INDEX', message: 'termIndex must be 1, 2, 3, or "active".' });
+                    return;
+                }
             }
         }
         const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex });
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="class-program.xlsx"`);
+        const termSuffix = termIndex != null ? `-term${termIndex === 'active' ? '-active' : termIndex}` : '';
+        res.setHeader('Content-Disposition', `attachment; filename="class-program${termSuffix}.xlsx"`);
         res.send(buffer);
     }
     catch (e) {
@@ -611,6 +625,10 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/export/class-program.xlsx', aut
         }
         if (e?.message === 'RUN_NOT_COMPLETED') {
             res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+            return;
+        }
+        if (e?.message === 'TERM_FILTER_NOT_READY') {
+            res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified or entries lack reliable termIndex.' });
             return;
         }
         next(e);
