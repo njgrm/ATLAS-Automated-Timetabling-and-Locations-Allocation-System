@@ -1252,9 +1252,18 @@ export async function commitManualEditBatch(
 			batchSize: proposals.length,
 			affectedTermIndices: (() => {
 				const terms = new Set<number>();
-				for (const entry of newEntries) {
-					const termIndex = (entry as any).termIndex;
-					if (typeof termIndex === 'number') terms.add(termIndex);
+				for (const edit of applied) {
+					// Include terms from before and after entries
+					if (edit.beforeEntry && typeof (edit.beforeEntry as any).termIndex === 'number') {
+						terms.add((edit.beforeEntry as any).termIndex);
+					}
+					if (edit.afterEntry && typeof (edit.afterEntry as any).termIndex === 'number') {
+						terms.add((edit.afterEntry as any).termIndex);
+					}
+					// Include term from removed unassigned item
+					if (edit.removedUnassigned && typeof (edit.removedUnassigned as any).termIndex === 'number') {
+						terms.add((edit.removedUnassigned as any).termIndex);
+					}
 				}
 				return terms.size > 0 ? [...terms].sort() : null;
 			})(),

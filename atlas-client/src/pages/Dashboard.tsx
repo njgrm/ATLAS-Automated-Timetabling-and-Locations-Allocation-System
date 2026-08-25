@@ -340,10 +340,14 @@ export default function Dashboard() {
 													<span className='text-rose-600 font-semibold'>{activeTermHardViolationCount}</span>
 												</div>
 											)}
-											{activeTermUnassignedCount !== null && activeTermUnassignedCount > 0 && (
+											{activeTermUnassignedCount !== null && (
 												<div className='flex items-center justify-between text-xs'>
 													<span className='text-muted-foreground'>Unassigned sessions</span>
-													<span className='text-amber-600 font-semibold'>{activeTermUnassignedCount}</span>
+													{activeTermUnassignedCount > 0 ? (
+														<span className='text-amber-600 font-semibold'>{activeTermUnassignedCount}</span>
+													) : (
+														<span className='text-emerald-600 font-semibold'>None</span>
+													)}
 												</div>
 											)}
 										</div>

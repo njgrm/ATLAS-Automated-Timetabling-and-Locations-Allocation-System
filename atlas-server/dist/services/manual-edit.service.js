@@ -991,10 +991,18 @@ export async function commitManualEditBatch(runId, schoolId, schoolYearId, actor
             batchSize: proposals.length,
             affectedTermIndices: (() => {
                 const terms = new Set();
-                for (const entry of newEntries) {
-                    const termIndex = entry.termIndex;
-                    if (typeof termIndex === 'number')
-                        terms.add(termIndex);
+                for (const edit of applied) {
+                    // Include terms from before and after entries
+                    if (edit.beforeEntry && typeof edit.beforeEntry.termIndex === 'number') {
+                        terms.add(edit.beforeEntry.termIndex);
+                    }
+                    if (edit.afterEntry && typeof edit.afterEntry.termIndex === 'number') {
+                        terms.add(edit.afterEntry.termIndex);
+                    }
+                    // Include term from removed unassigned item
+                    if (edit.removedUnassigned && typeof edit.removedUnassigned.termIndex === 'number') {
+                        terms.add(edit.removedUnassigned.termIndex);
+                    }
                 }
                 return terms.size > 0 ? [...terms].sort() : null;
             })(),
