@@ -1090,6 +1090,7 @@ export async function commitManualEdit(
 			editId: editRecord.id,
 			editType: proposal.editType,
 			entryId: proposal.entryId ?? afterEntry?.entryId,
+			termIndex: afterEntry?.termIndex ?? null,
 		},
 	});
 
@@ -1437,6 +1438,7 @@ export async function revertLastEdit(
 		metadata: {
 			revertedEditId: lastEdit.id,
 			newEditId: editRecord.id,
+			termIndex: (beforePayload as any)?.termIndex ?? null,
 		},
 	});
 

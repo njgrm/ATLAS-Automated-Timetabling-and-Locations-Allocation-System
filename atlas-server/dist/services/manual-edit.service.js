@@ -854,6 +854,7 @@ export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, p
             editId: editRecord.id,
             editType: proposal.editType,
             entryId: proposal.entryId ?? afterEntry?.entryId,
+            termIndex: afterEntry?.termIndex ?? null,
         },
     });
     const draftReport = {
@@ -1161,6 +1162,7 @@ export async function revertLastEdit(runId, schoolId, schoolYearId, actorId) {
         metadata: {
             revertedEditId: lastEdit.id,
             newEditId: editRecord.id,
+            termIndex: beforePayload?.termIndex ?? null,
         },
     });
     const draftReport = {

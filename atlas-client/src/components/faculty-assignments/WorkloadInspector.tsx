@@ -303,9 +303,36 @@ export function WorkloadInspector({
 								</div>
 								</div>
 							))}
-						</div>
-					</section>
-				)}
+								</div>
+							</section>
+						)}
+
+						{/* Current-Term Overload Indicator */}
+						{activeTermIndex != null && rotationTermBreakdown.length > 0 && (() => {
+							// Find current term's total load across all families
+							let currentTermMinutes = 0;
+							for (const family of rotationTermBreakdown) {
+								const bucket = family.termBuckets.find(b => b.termRank === activeTermIndex);
+								if (bucket) currentTermMinutes += bucket.creditedMinutesPerWeek;
+							}
+							const currentTermHours = currentTermMinutes / 60;
+							const STANDARD_WEEKLY_HOURS = 30;
+							const isOverStandard = currentTermHours > STANDARD_WEEKLY_HOURS;
+							if (!isOverStandard) return null;
+							return (
+								<div className="p-3 rounded-xl border border-amber-200 bg-amber-50/70">
+									<div className="flex items-center gap-2">
+										<AlertTriangle className="size-4 text-amber-600" />
+										<span className="text-xs font-semibold uppercase tracking-widest text-amber-800">
+											Term {activeTermIndex} Overload
+										</span>
+									</div>
+									<p className="mt-1 text-xs text-amber-700">
+										Current term load is {currentTermHours.toFixed(1)}h, exceeding the {STANDARD_WEEKLY_HOURS}h standard.
+									</p>
+								</div>
+							);
+						})()}
 
 				{/* Guidance */}
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">

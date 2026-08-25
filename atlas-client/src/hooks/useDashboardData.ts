@@ -182,6 +182,19 @@ export function useDashboardData(): DashboardData {
 										setActiveTermHardViolationCount(total);
 									})
 									.catch(() => { if (!cancelled) setActiveTermHardViolationCount(null); });
+								// Fetch current-term unassigned count from latest run
+								atlasApi.get<{ entries?: Array<{ termIndex?: number }>; unassignedItems?: Array<{ termIndex?: number }> }>(`/generation/${DEFAULT_SCHOOL_ID}/${syIdForTerm}/runs/latest`)
+									.then((r) => {
+										if (cancelled) return;
+										const unassigned = r.data.unassignedItems;
+										if (Array.isArray(unassigned)) {
+											const termUnassigned = unassigned.filter((item) => item.termIndex === termIdx);
+											setActiveTermUnassignedCount(termUnassigned.length);
+										} else {
+											setActiveTermUnassignedCount(null);
+										}
+									})
+									.catch(() => { if (!cancelled) setActiveTermUnassignedCount(null); });
 							}
 						}
 						// Override unassignedSubjectCount with subject-section coverage truth

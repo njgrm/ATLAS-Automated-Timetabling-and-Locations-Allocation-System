@@ -193,6 +193,7 @@ export async function createPublishedScheduleRevision(input, options) {
     });
     // Fire notification event after successful commit
     const affectedFacultyIdsSet = new Set();
+    const affectedTerms = new Set();
     for (const change of changes) {
         if (typeof change.previous.facultyId === 'number') {
             affectedFacultyIdsSet.add(change.previous.facultyId);
@@ -200,8 +201,14 @@ export async function createPublishedScheduleRevision(input, options) {
         if (typeof change.next.facultyId === 'number') {
             affectedFacultyIdsSet.add(change.next.facultyId);
         }
+        // Collect affected terms from entry metadata
+        if (typeof change.previous.termIndex === 'number')
+            affectedTerms.add(change.previous.termIndex);
+        if (typeof change.next.termIndex === 'number')
+            affectedTerms.add(change.next.termIndex);
     }
     const affectedFacultyIds = [...affectedFacultyIdsSet];
+    const affectedTermIndices = [...affectedTerms].sort();
     publishPublishedScheduleEvent({
         type: 'SCHEDULE_REVISED',
         schoolId: input.schoolId,
@@ -214,6 +221,7 @@ export async function createPublishedScheduleRevision(input, options) {
             reason,
             affectedFacultyIds,
             changeCount: changes.length,
+            affectedTermIndices: affectedTermIndices.length > 0 ? affectedTermIndices : null,
         },
     });
     return result;
