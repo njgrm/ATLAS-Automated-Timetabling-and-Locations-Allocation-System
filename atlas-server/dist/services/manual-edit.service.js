@@ -989,6 +989,15 @@ export async function commitManualEditBatch(runId, schoolId, schoolYearId, actor
         metadata: {
             editIds: editRecords.map((edit) => edit.id),
             batchSize: proposals.length,
+            affectedTermIndices: (() => {
+                const terms = new Set();
+                for (const entry of newEntries) {
+                    const termIndex = entry.termIndex;
+                    if (typeof termIndex === 'number')
+                        terms.add(termIndex);
+                }
+                return terms.size > 0 ? [...terms].sort() : null;
+            })(),
         },
     });
     const draftReport = {
@@ -1542,6 +1551,17 @@ export async function swapManualEntries(runId, schoolId, schoolYearId, actorId, 
             strategy,
             entryIdA,
             entryIdB,
+            affectedTermIndices: (() => {
+                const terms = new Set();
+                for (const entry of newEntries) {
+                    if (entry.entryId === entryIdA || entry.entryId === entryIdB) {
+                        const termIndex = entry.termIndex;
+                        if (typeof termIndex === 'number')
+                            terms.add(termIndex);
+                    }
+                }
+                return terms.size > 0 ? [...terms].sort() : null;
+            })(),
         },
     });
     const draftReport = {

@@ -183,10 +183,10 @@ export function useDashboardData(): DashboardData {
 									})
 									.catch(() => { if (!cancelled) setActiveTermHardViolationCount(null); });
 								// Fetch current-term unassigned count from latest run
-								atlasApi.get<{ entries?: Array<{ termIndex?: number }>; unassignedItems?: Array<{ termIndex?: number }> }>(`/generation/${DEFAULT_SCHOOL_ID}/${syIdForTerm}/runs/latest`)
+								atlasApi.get<{ run?: { unassignedItems?: Array<{ termIndex?: number }> } }>(`/generation/${DEFAULT_SCHOOL_ID}/${syIdForTerm}/runs/latest`)
 									.then((r) => {
 										if (cancelled) return;
-										const unassigned = r.data.unassignedItems;
+										const unassigned = r.data.run?.unassignedItems;
 										if (Array.isArray(unassigned)) {
 											const termUnassigned = unassigned.filter((item) => item.termIndex === termIdx);
 											setActiveTermUnassignedCount(termUnassigned.length);
