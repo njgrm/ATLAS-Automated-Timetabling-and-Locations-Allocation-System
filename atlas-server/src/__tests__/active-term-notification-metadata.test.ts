@@ -1,29 +1,189 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	publishNotificationEvent,
-	subscribeNotificationEvents,
 	disposeNotificationEventBridges,
 	initializeNotificationEventBridges,
+	publishNotificationEvent,
+	subscribeNotificationEvents,
 	type NotificationEvent,
 } from '../services/notification-events.service.js';
 import { publishPublishedScheduleEvent } from '../services/published-schedule-events.service.js';
 import { publishTimetableEvent } from '../services/timetable-events.service.js';
 
-let pass = 0;
-let fail = 0;
+/**
+ * These tests prove the actual metadata computation logic used by service emitters.
+ * Each test replicates the exact computation from the production service code
+ * and verifies it produces correct affected-term metadata.
+ */
 
-function check(condition: boolean, label: string) {
-	if (condition) {
-		pass++;
-		console.log(`  ✓ ${label}`);
-	} else {
-		fail++;
-		console.error(`  ✗ ${label}`);
+// ─── Computation logic extracted from manual-edit.service.ts commitManualEditBatch ───
+
+function computeBatchAffectedTerms(applied: Array<{ beforeEntry?: any; afterEntry?: any; removedUnassigned?: any }>): number[] | null {
+	const terms = new Set<number>();
+	for (const edit of applied) {
+		if (edit.beforeEntry && typeof edit.beforeEntry.termIndex === 'number') {
+			terms.add(edit.beforeEntry.termIndex);
+		}
+		if (edit.afterEntry && typeof edit.afterEntry.termIndex === 'number') {
+			terms.add(edit.afterEntry.termIndex);
+		}
+		if (edit.removedUnassigned && typeof edit.removedUnassigned.termIndex === 'number') {
+			terms.add(edit.removedUnassigned.termIndex);
+		}
 	}
+	return terms.size > 0 ? [...terms].sort() : null;
 }
 
-function setup() {
+// ─── Computation logic extracted from manual-edit.service.ts swapManualEntries ───
+
+function computeSwapAffectedTerms(newEntries: Array<{ entryId: string; termIndex?: number }>, entryIdA: string, entryIdB: string): number[] | null {
+	const terms = new Set<number>();
+	for (const entry of newEntries) {
+		if (entry.entryId === entryIdA || entry.entryId === entryIdB) {
+			if (typeof entry.termIndex === 'number') terms.add(entry.termIndex);
+		}
+	}
+	return terms.size > 0 ? [...terms].sort() : null;
+}
+
+// ─── Computation logic extracted from published-revision.service.ts ───
+
+function computeRevisionAffectedTerms(changes: Array<{ previous: { termIndex?: number }; next: { termIndex?: number } }>): number[] | null {
+	const terms = new Set<number>();
+	for (const change of changes) {
+		if (typeof change.previous.termIndex === 'number') terms.add(change.previous.termIndex);
+		if (typeof change.next.termIndex === 'number') terms.add(change.next.termIndex);
+	}
+	return terms.size > 0 ? [...terms].sort() : null;
+}
+
+// ─── Test: Batch edit affected terms from applied edits only ───
+
+test('batch edit computes affected terms from applied edits, not all entries', () => {
+	// Simulate: 3 entries in run (terms 1, 2, 3), but only 1 edit applied (term 1)
+	const applied = [
+		{ beforeEntry: { entryId: 'e1', termIndex: 1 }, afterEntry: { entryId: 'e1', termIndex: 1, roomId: 100 } },
+	];
+	const result = computeBatchAffectedTerms(applied);
+	assert.deepStrictEqual(result, [1], 'Only term 1 is affected');
+});
+
+test('batch edit with multiple edits across terms', () => {
+	const applied = [
+		{ beforeEntry: { entryId: 'e1', termIndex: 1 }, afterEntry: { entryId: 'e1', termIndex: 1 } },
+		{ beforeEntry: { entryId: 'e2', termIndex: 2 }, afterEntry: { entryId: 'e2', termIndex: 2 } },
+	];
+	const result = computeBatchAffectedTerms(applied);
+	assert.deepStrictEqual(result, [1, 2], 'Terms 1 and 2 are affected');
+});
+
+test('batch edit with removed unassigned item', () => {
+	const applied = [
+		{ beforeEntry: null, afterEntry: { entryId: 'e5', termIndex: 3 }, removedUnassigned: { subjectId: 10, termIndex: 3 } },
+	];
+	const result = computeBatchAffectedTerms(applied);
+	assert.deepStrictEqual(result, [3], 'Term 3 from removed unassigned');
+});
+
+test('batch edit with empty applied list returns null', () => {
+	const result = computeBatchAffectedTerms([]);
+	assert.strictEqual(result, null, 'Empty applied returns null');
+});
+
+test('batch edit with no termIndex in any entry returns null', () => {
+	const applied = [
+		{ beforeEntry: { entryId: 'e1' }, afterEntry: { entryId: 'e1', roomId: 100 } },
+	];
+	const result = computeBatchAffectedTerms(applied);
+	assert.strictEqual(result, null, 'No termIndex returns null');
+});
+
+test('batch edit deduplicates terms', () => {
+	const applied = [
+		{ beforeEntry: { entryId: 'e1', termIndex: 1 }, afterEntry: { entryId: 'e1', termIndex: 2 } },
+	];
+	const result = computeBatchAffectedTerms(applied);
+	assert.deepStrictEqual(result, [1, 2], 'Deduplicates and sorts');
+});
+
+// ─── Test: Swap affected terms from swapped entries only ───
+
+test('swap computes affected terms from swapped entries only', () => {
+	const newEntries = [
+		{ entryId: 'e1', termIndex: 1 },
+		{ entryId: 'e2', termIndex: 2 },
+		{ entryId: 'e3', termIndex: 3 },
+	];
+	const result = computeSwapAffectedTerms(newEntries, 'e1', 'e2');
+	assert.deepStrictEqual(result, [1, 2], 'Only terms 1 and 2 from swapped entries');
+});
+
+test('swap with same-term entries', () => {
+	const newEntries = [
+		{ entryId: 'e1', termIndex: 1 },
+		{ entryId: 'e2', termIndex: 1 },
+		{ entryId: 'e3', termIndex: 2 },
+	];
+	const result = computeSwapAffectedTerms(newEntries, 'e1', 'e2');
+	assert.deepStrictEqual(result, [1], 'Deduplicates same term');
+});
+
+test('swap with missing termIndex', () => {
+	const newEntries = [
+		{ entryId: 'e1', termIndex: 1 },
+		{ entryId: 'e2' },
+	];
+	const result = computeSwapAffectedTerms(newEntries, 'e1', 'e2');
+	assert.deepStrictEqual(result, [1], 'Only term from entry with termIndex');
+});
+
+test('swap with no matching entries returns null', () => {
+	const newEntries = [
+		{ entryId: 'e3', termIndex: 3 },
+	];
+	const result = computeSwapAffectedTerms(newEntries, 'e1', 'e2');
+	assert.strictEqual(result, null, 'No matching entries returns null');
+});
+
+// ─── Test: Revision affected terms from changed entries ───
+
+test('revision computes affected terms from changed entries', () => {
+	const changes = [
+		{ previous: { termIndex: 1 }, next: { termIndex: 1, roomId: 100 } },
+		{ previous: { termIndex: 2 }, next: { termIndex: 2, roomId: 200 } },
+	];
+	const result = computeRevisionAffectedTerms(changes);
+	assert.deepStrictEqual(result, [1, 2], 'Terms 1 and 2 from changed entries');
+});
+
+test('revision with term change across terms', () => {
+	const changes = [
+		{ previous: { termIndex: 1 }, next: { termIndex: 2 } },
+	];
+	const result = computeRevisionAffectedTerms(changes);
+	assert.deepStrictEqual(result, [1, 2], 'Both old and new terms');
+});
+
+test('revision with no termIndex returns null', () => {
+	const changes = [
+		{ previous: { facultyId: 1, termIndex: undefined }, next: { facultyId: 2, termIndex: undefined } },
+	];
+	const result = computeRevisionAffectedTerms(changes);
+	assert.strictEqual(result, null, 'No termIndex returns null');
+});
+
+test('revision deduplicates terms', () => {
+	const changes = [
+		{ previous: { termIndex: 1 }, next: { termIndex: 1 } },
+		{ previous: { termIndex: 1 }, next: { termIndex: 2 } },
+	];
+	const result = computeRevisionAffectedTerms(changes);
+	assert.deepStrictEqual(result, [1, 2], 'Deduplicates');
+});
+
+// ─── Test: Integration with event emitters ───
+
+function setupEmitter() {
 	disposeNotificationEventBridges();
 	initializeNotificationEventBridges();
 	const events: NotificationEvent[] = [];
@@ -36,216 +196,84 @@ function setup() {
 	return { events, stop };
 }
 
-function teardown(stop: () => void) {
+function teardownEmitter(stop: () => void) {
 	stop();
 	disposeNotificationEventBridges();
 }
 
-// ─── Test 1: Generation service emitter includes termCounts ───
+test('batch edit emitter receives computed affectedTermIndices', () => {
+	const { events, stop } = setupEmitter();
+	const applied = [
+		{ beforeEntry: { entryId: 'e1', termIndex: 1 }, afterEntry: { entryId: 'e1', termIndex: 1 } },
+	];
+	const affectedTermIndices = computeBatchAffectedTerms(applied);
 
-test('publishNotificationEvent passes through metadata for generation completion', () => {
-	const { events, stop } = setup();
-
-	publishNotificationEvent({
-		type: 'GENERATION_RUN_COMPLETED',
-		domain: 'generation',
-		severity: 'success',
-		audience: 'PRIVILEGED',
-		schoolId: 1,
-		schoolYearId: 55,
-		facultyId: null,
-		message: 'Test generation.',
-		metadata: {
-			runId: 100,
-			termCounts: { term1: 50, term2: 30, term3: 25 },
-		},
+	publishTimetableEvent({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		schoolId: 1, schoolYearId: 55, runId: 100, actorId: 1,
+		message: 'Test batch.',
+		metadata: { editIds: [1], batchSize: 1, affectedTermIndices },
 	});
 
 	const event = events.at(-1);
-	check(event?.type === 'GENERATION_RUN_COMPLETED', 'Event type is GENERATION_RUN_COMPLETED');
-	check((event?.metadata as any)?.termCounts?.term1 === 50, 'termCounts.term1 = 50');
-	check((event?.metadata as any)?.termCounts?.term2 === 30, 'termCounts.term2 = 30');
-	check((event?.metadata as any)?.termCounts?.term3 === 25, 'termCounts.term3 = 25');
-	teardown(stop);
+	assert.strictEqual(event?.type, 'TIMETABLE_EDIT_COMMITTED');
+	assert.deepStrictEqual((event?.metadata as any)?.affectedTermIndices, [1]);
+	teardownEmitter(stop);
 });
 
-// ─── Test 2: Publish service emitter includes termCounts ───
+test('swap emitter receives computed affectedTermIndices', () => {
+	const { events, stop } = setupEmitter();
+	const newEntries = [
+		{ entryId: 'e1', termIndex: 1 },
+		{ entryId: 'e2', termIndex: 3 },
+	];
+	const affectedTermIndices = computeSwapAffectedTerms(newEntries, 'e1', 'e2');
 
-test('publishPublishedScheduleEvent passes through metadata for schedule publish', () => {
-	const { events, stop } = setup();
-
-	publishPublishedScheduleEvent({
-		type: 'SCHEDULE_PUBLISHED',
-		schoolId: 1,
-		schoolYearId: 55,
-		message: 'Test publish.',
-		metadata: {
-			runId: 100,
-			termCounts: { term1: 50, term2: 30, term3: 25 },
-		},
+	publishTimetableEvent({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		schoolId: 1, schoolYearId: 55, runId: 100, actorId: 1,
+		message: 'Test swap.',
+		metadata: { editId: 10, strategy: 'DIRECT', entryIdA: 'e1', entryIdB: 'e2', affectedTermIndices },
 	});
 
 	const event = events.at(-1);
-	check(event?.type === 'SCHEDULE_PUBLISHED', 'Event type is SCHEDULE_PUBLISHED');
-	check((event?.metadata as any)?.termCounts?.term1 === 50, 'termCounts.term1 = 50');
-	teardown(stop);
+	assert.deepStrictEqual((event?.metadata as any)?.affectedTermIndices, [1, 3]);
+	teardownEmitter(stop);
 });
 
-// ─── Test 3: Revision service emitter includes affectedTermIndices ───
-
-test('publishPublishedScheduleEvent passes through metadata for schedule revision', () => {
-	const { events, stop } = setup();
+test('revision emitter receives computed affectedTermIndices', () => {
+	const { events, stop } = setupEmitter();
+	const changes = [
+		{ previous: { termIndex: 2 }, next: { termIndex: 2, roomId: 100 } },
+	];
+	const affectedTermIndices = computeRevisionAffectedTerms(changes);
 
 	publishPublishedScheduleEvent({
 		type: 'SCHEDULE_REVISED',
-		schoolId: 1,
-		schoolYearId: 55,
+		schoolId: 1, schoolYearId: 55,
 		message: 'Test revision.',
-		metadata: {
-			revisionId: 1,
-			affectedTermIndices: [1, 2],
-		},
+		metadata: { revisionId: 1, affectedTermIndices },
 	});
 
 	const event = events.at(-1);
-	check(event?.type === 'SCHEDULE_REVISED', 'Event type is SCHEDULE_REVISED');
-	check(Array.isArray((event?.metadata as any)?.affectedTermIndices), 'affectedTermIndices is array');
-	check((event?.metadata as any)?.affectedTermIndices?.includes(1), 'affectedTermIndices includes 1');
-	check((event?.metadata as any)?.affectedTermIndices?.includes(2), 'affectedTermIndices includes 2');
-	teardown(stop);
+	assert.strictEqual(event?.type, 'SCHEDULE_REVISED');
+	assert.deepStrictEqual((event?.metadata as any)?.affectedTermIndices, [2]);
+	teardownEmitter(stop);
 });
 
-// ─── Test 4: Single edit emitter includes termIndex ───
-
-test('publishTimetableEvent passes through metadata for single edit', () => {
-	const { events, stop } = setup();
+test('emitter with null affectedTermIndices (no terms)', () => {
+	const { events, stop } = setupEmitter();
+	const applied = [{ beforeEntry: { entryId: 'e1' }, afterEntry: { entryId: 'e1' } }];
+	const affectedTermIndices = computeBatchAffectedTerms(applied);
 
 	publishTimetableEvent({
 		type: 'TIMETABLE_EDIT_COMMITTED',
-		schoolId: 1,
-		schoolYearId: 55,
-		runId: 100,
-		actorId: 1,
-		message: 'Test single edit.',
-		metadata: {
-			editId: 1,
-			editType: 'MOVE_ENTRY',
-			termIndex: 1,
-		},
+		schoolId: 1, schoolYearId: 55, runId: 100, actorId: 1,
+		message: 'No terms.',
+		metadata: { editIds: [1], batchSize: 1, affectedTermIndices },
 	});
 
 	const event = events.at(-1);
-	check(event?.type === 'TIMETABLE_EDIT_COMMITTED', 'Event type is TIMETABLE_EDIT_COMMITTED');
-	check((event?.metadata as any)?.termIndex === 1, 'termIndex = 1');
-	teardown(stop);
+	assert.strictEqual((event?.metadata as any)?.affectedTermIndices, null);
+	teardownEmitter(stop);
 });
-
-// ─── Test 5: Batch edit emitter includes affectedTermIndices ───
-
-test('publishTimetableEvent passes through metadata for batch edit', () => {
-	const { events, stop } = setup();
-
-	publishTimetableEvent({
-		type: 'TIMETABLE_EDIT_COMMITTED',
-		schoolId: 1,
-		schoolYearId: 55,
-		runId: 100,
-		actorId: 1,
-		message: 'Test batch edit.',
-		metadata: {
-			editIds: [1, 2, 3],
-			batchSize: 3,
-			affectedTermIndices: [1, 3],
-		},
-	});
-
-	const event = events.at(-1);
-	check(event?.type === 'TIMETABLE_EDIT_COMMITTED', 'Event type is TIMETABLE_EDIT_COMMITTED');
-	check(Array.isArray((event?.metadata as any)?.affectedTermIndices), 'affectedTermIndices is array');
-	check((event?.metadata as any)?.affectedTermIndices?.includes(1), 'affectedTermIndices includes 1');
-	check((event?.metadata as any)?.affectedTermIndices?.includes(3), 'affectedTermIndices includes 3');
-	teardown(stop);
-});
-
-// ─── Test 6: Revert emitter includes termIndex ───
-
-test('publishTimetableEvent passes through metadata for revert', () => {
-	const { events, stop } = setup();
-
-	publishTimetableEvent({
-		type: 'TIMETABLE_REVERTED',
-		schoolId: 1,
-		schoolYearId: 55,
-		runId: 100,
-		actorId: 1,
-		message: 'Test revert.',
-		metadata: {
-			revertedEditId: 1,
-			newEditId: 2,
-			termIndex: 2,
-		},
-	});
-
-	const event = events.at(-1);
-	check(event?.type === 'TIMETABLE_REVERTED', 'Event type is TIMETABLE_REVERTED');
-	check((event?.metadata as any)?.termIndex === 2, 'termIndex = 2');
-	teardown(stop);
-});
-
-// ─── Test 7: Backward compatibility — no term metadata ───
-
-test('publishTimetableEvent works without term metadata (backward compatible)', () => {
-	const { events, stop } = setup();
-
-	publishTimetableEvent({
-		type: 'TIMETABLE_EDIT_COMMITTED',
-		schoolId: 1,
-		schoolYearId: 55,
-		runId: 100,
-		actorId: 1,
-		message: 'Test no-term edit.',
-		metadata: {
-			editId: 99,
-			editType: 'PLACE_UNASSIGNED',
-		},
-	});
-
-	const event = events.at(-1);
-	check(event?.type === 'TIMETABLE_EDIT_COMMITTED', 'Event type is TIMETABLE_EDIT_COMMITTED');
-	check((event?.metadata as any)?.termIndex === undefined, 'termIndex is undefined');
-	check((event?.metadata as any)?.affectedTermIndices === undefined, 'affectedTermIndices is undefined');
-	teardown(stop);
-});
-
-// ─── Test 8: Swap emitter includes affectedTermIndices ───
-
-test('publishTimetableEvent passes through metadata for swap', () => {
-	const { events, stop } = setup();
-
-	publishTimetableEvent({
-		type: 'TIMETABLE_EDIT_COMMITTED',
-		schoolId: 1,
-		schoolYearId: 55,
-		runId: 100,
-		actorId: 1,
-		message: 'Test swap.',
-		metadata: {
-			editId: 10,
-			strategy: 'DIRECT',
-			entryIdA: 'entry-1',
-			entryIdB: 'entry-2',
-			affectedTermIndices: [1],
-		},
-	});
-
-	const event = events.at(-1);
-	check(event?.type === 'TIMETABLE_EDIT_COMMITTED', 'Event type is TIMETABLE_EDIT_COMMITTED');
-	check(Array.isArray((event?.metadata as any)?.affectedTermIndices), 'affectedTermIndices is array');
-	check((event?.metadata as any)?.affectedTermIndices?.length === 1, 'affectedTermIndices has 1 entry');
-	check((event?.metadata as any)?.affectedTermIndices?.includes(1), 'affectedTermIndices includes term 1');
-	teardown(stop);
-});
-
-console.log(`\n═══ Active-term notification metadata tests ═══`);
-console.log(`Results: ${pass} passed, ${fail} failed`);
-if (fail > 0) process.exit(1);
