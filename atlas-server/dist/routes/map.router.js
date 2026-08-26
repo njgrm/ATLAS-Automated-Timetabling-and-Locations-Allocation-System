@@ -7,6 +7,13 @@ import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as mapService from '../services/map.service.js';
 const router = Router();
 const BUILDING_SHORT_CODE_MAX = 20;
+const VALID_GRADE_LEVELS = new Set([7, 8, 9, 10]);
+function normalizeGradeScope(raw) {
+    if (!Array.isArray(raw))
+        return [];
+    const unique = [...new Set(raw.map(Number).filter((n) => VALID_GRADE_LEVELS.has(n)))];
+    return unique.sort((a, b) => a - b);
+}
 // Configure multer for campus image uploads
 const storage = multer.diskStorage({
     destination: path.resolve(import.meta.dirname, '../../uploads'),
@@ -45,7 +52,7 @@ router.post('/schools/:schoolId/buildings', authenticate, requirePrivilegedRole,
         res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
         return;
     }
-    const { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode } = req.body;
+    const { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode, gradeScope } = req.body;
     if (!name || x == null || y == null || width == null || height == null || !color) {
         res.status(400).json({ code: 'MISSING_FIELDS', message: 'name, x, y, width, height, color are required.' });
         return;
@@ -54,7 +61,16 @@ router.post('/schools/:schoolId/buildings', authenticate, requirePrivilegedRole,
         res.status(400).json({ code: 'INVALID_SHORT_CODE', message: `shortCode must be ${BUILDING_SHORT_CODE_MAX} characters or fewer.` });
         return;
     }
-    const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode });
+    if (gradeScope !== undefined && gradeScope !== null) {
+        const rawArr = Array.isArray(gradeScope) ? gradeScope : [gradeScope];
+        const invalid = rawArr.filter((v) => !VALID_GRADE_LEVELS.has(Number(v)));
+        if (invalid.length > 0) {
+            res.status(400).json({ code: 'INVALID_GRADE_SCOPE', message: `Invalid grade levels: ${invalid.join(', ')}. Allowed: 7, 8, 9, 10.` });
+            return;
+        }
+    }
+    const normalizedGradeScope = normalizeGradeScope(gradeScope);
+    const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode, gradeScope: normalizedGradeScope });
     res.status(201).json({ building });
 });
 // Auth required: update a building
@@ -67,6 +83,15 @@ router.patch('/buildings/:id', authenticate, requirePrivilegedRole, async (req, 
     if (typeof req.body?.shortCode === 'string' && req.body.shortCode.length > BUILDING_SHORT_CODE_MAX) {
         res.status(400).json({ code: 'INVALID_SHORT_CODE', message: `shortCode must be ${BUILDING_SHORT_CODE_MAX} characters or fewer.` });
         return;
+    }
+    if (req.body?.gradeScope !== undefined && req.body.gradeScope !== null) {
+        const rawArr = Array.isArray(req.body.gradeScope) ? req.body.gradeScope : [req.body.gradeScope];
+        const invalid = rawArr.filter((v) => !VALID_GRADE_LEVELS.has(Number(v)));
+        if (invalid.length > 0) {
+            res.status(400).json({ code: 'INVALID_GRADE_SCOPE', message: `Invalid grade levels: ${invalid.join(', ')}. Allowed: 7, 8, 9, 10.` });
+            return;
+        }
+        req.body.gradeScope = normalizeGradeScope(req.body.gradeScope);
     }
     const building = await mapService.updateBuilding(id, req.body);
     res.json({ building });

@@ -40,6 +40,7 @@ export async function upsertBuilding(schoolId, data) {
             rotation: data.rotation ?? 0,
             floorCount: data.floorCount ?? 1,
             isTeachingBuilding: data.isTeachingBuilding ?? true,
+            gradeScope: data.gradeScope ?? [],
             schoolId,
         },
         include: { rooms: { orderBy: [{ floor: 'asc' }, { floorPosition: 'asc' }] } },

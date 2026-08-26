@@ -239,6 +239,7 @@ export function CampusMapEditor({
 				color: COLORS[buildings.length % COLORS.length],
 				floorCount: 1,
 				isTeachingBuilding: true,
+				gradeScope: [],
 				rooms: [],
 				dirty: true,
 				isNew: true,
@@ -451,6 +452,7 @@ export function CampusMapEditor({
 					rotation: building.rotation ?? 0,
 					floorCount: building.floorCount ?? 1,
 					isTeachingBuilding: building.isTeachingBuilding ?? true,
+					gradeScope: building.gradeScope ?? [],
 				};
 
 				if (building.isNew) {

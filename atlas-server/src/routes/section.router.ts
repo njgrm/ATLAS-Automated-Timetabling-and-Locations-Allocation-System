@@ -7,6 +7,7 @@ import * as assignmentService from '../services/faculty-assignment.service.js';
 import { syncSectionsFromExternal } from '../services/section.service.js';
 import { sectionSourceMode, fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
+import { computeAutoAssign } from '../services/home-room-auto-assign.service.js';
 
 const router = Router();
 
@@ -212,6 +213,39 @@ router.put('/home-rooms/:schoolYearId', authenticate, requirePrivilegedRole, asy
 
 		const result = await sectionService.updateSectionHomeRooms(schoolId, schoolYearId, assignments);
 		res.json({ updated: result.updated });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// POST /sections/home-rooms/:schoolYearId/auto-assign
+router.post('/home-rooms/:schoolYearId/auto-assign', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolYearId = Number(req.params.schoolYearId);
+		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
+			return;
+		}
+
+		const schoolId = Number(req.body?.schoolId);
+		if (!Number.isInteger(schoolId) || schoolId <= 0) {
+			res.status(400).json({ code: 'INVALID_BODY', message: 'schoolId is required and must be a positive integer.' });
+			return;
+		}
+
+		const mode = req.body?.mode === 'apply' ? 'apply' : 'preview';
+		const overwriteExisting = req.body?.overwriteExisting === true;
+		const allowCrossGradeFallback = req.body?.allowCrossGradeFallback === true;
+
+		const result = await computeAutoAssign({
+			schoolId,
+			schoolYearId,
+			mode,
+			overwriteExisting,
+			allowCrossGradeFallback,
+		});
+
+		res.json(result);
 	} catch (err) {
 		next(err);
 	}

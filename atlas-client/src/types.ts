@@ -34,6 +34,7 @@ export type Building = {
 	color: string;
 	floorCount: number;
 	isTeachingBuilding: boolean;
+	gradeScope: number[];
 	rooms: Room[];
 };
 

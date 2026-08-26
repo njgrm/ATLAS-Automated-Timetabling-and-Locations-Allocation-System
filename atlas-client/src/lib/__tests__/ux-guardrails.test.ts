@@ -836,7 +836,32 @@ test('Phase 1.1: Sections page renders a start-here banner when sections need a 
 	assert.match(sections, /const sectionsNeedingRooms = state\.status === 'ok' \? Math\.max\(0, state\.data\.totalSections - assignedCount\) : 0/);
 	// Banner rendered when count > 0; data-testid present for Playwright.
 	assert.match(sections, /data-testid="sections-start-here-banner"/);
-	assert.match(sections, /Use the "Choose home room" control on each row\./);
+	assert.match(sections, /Use "Auto-assign rooms" or the "Choose home room" control on each row\./);
+});
+
+test('Home-room auto-assign: Sections page imports and renders HomeRoomAutoAssignDialog', () => {
+	const sections = source('src/pages/Sections.tsx');
+	assert.match(sections, /import.*HomeRoomAutoAssignDialog.*from/);
+	assert.match(sections, /HomeRoomAutoAssignDialog/);
+	assert.match(sections, /autoAssignOpen/);
+});
+
+test('Home-room auto-assign: dialog uses shared UI primitives, not native controls', () => {
+	const dialog = source('src/components/sections/HomeRoomAutoAssignDialog.tsx');
+	// Must use shared Dialog primitives
+	assert.ok(dialog.includes('Dialog'), 'Dialog must use shared Dialog primitive');
+	assert.ok(dialog.includes('Switch'), 'Dialog must use shared Switch primitive');
+	assert.ok(dialog.includes('Badge'), 'Dialog must use shared Badge primitive');
+	assert.ok(dialog.includes('ScrollArea'), 'Dialog must use shared ScrollArea primitive');
+	// Must not use native <select>
+	assert.ok(!dialog.includes('<select'), 'Dialog must not use native <select>');
+});
+
+test('Home-room auto-assign: dialog gates apply behind preview', () => {
+	const dialog = source('src/components/sections/HomeRoomAutoAssignDialog.tsx');
+	assert.ok(dialog.includes("'preview'"), 'Dialog must support preview mode');
+	assert.ok(dialog.includes("'apply'"), 'Dialog must support apply mode');
+	assert.ok(dialog.includes('!result'), 'Apply must be gated behind result');
 });
 
 test('Phase 1.1+1.4: SectionRoomPicker exposes an ARIA combobox pattern (aria-controls, aria-haspopup, listbox/option roles)', () => {

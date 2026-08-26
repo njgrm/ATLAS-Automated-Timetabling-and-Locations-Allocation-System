@@ -30,6 +30,7 @@ export declare function getBuildingsBySchool(schoolId: number): Promise<({
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
+    gradeScope: number[];
 })[]>;
 export declare function getBuilding(id: number): Promise<({
     rooms: {
@@ -63,6 +64,7 @@ export declare function getBuilding(id: number): Promise<({
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
+    gradeScope: number[];
 }) | null>;
 export declare function upsertBuilding(schoolId: number, data: {
     name: string;
@@ -75,6 +77,7 @@ export declare function upsertBuilding(schoolId: number, data: {
     floorCount?: number;
     isTeachingBuilding?: boolean;
     shortCode?: string;
+    gradeScope?: number[];
 }): Promise<{
     rooms: {
         id: number;
@@ -107,6 +110,7 @@ export declare function upsertBuilding(schoolId: number, data: {
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
+    gradeScope: number[];
 }>;
 export declare function updateBuilding(id: number, data: Partial<{
     name: string;
@@ -119,6 +123,7 @@ export declare function updateBuilding(id: number, data: Partial<{
     floorCount: number;
     isTeachingBuilding: boolean;
     shortCode: string;
+    gradeScope: number[];
 }>): Promise<{
     rooms: {
         id: number;
@@ -151,6 +156,7 @@ export declare function updateBuilding(id: number, data: Partial<{
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
+    gradeScope: number[];
 }>;
 export declare function deleteBuilding(id: number): Promise<{
     id: number;
@@ -167,6 +173,7 @@ export declare function deleteBuilding(id: number): Promise<{
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
+    gradeScope: number[];
 }>;
 export declare function addRoom(buildingId: number, data: {
     name: string;

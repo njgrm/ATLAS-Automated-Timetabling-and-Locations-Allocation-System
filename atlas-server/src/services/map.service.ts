@@ -39,7 +39,7 @@ export async function getBuilding(id: number) {
 
 export async function upsertBuilding(
 	schoolId: number,
-	data: { name: string; x: number; y: number; width: number; height: number; color: string; rotation?: number; floorCount?: number; isTeachingBuilding?: boolean; shortCode?: string },
+	data: { name: string; x: number; y: number; width: number; height: number; color: string; rotation?: number; floorCount?: number; isTeachingBuilding?: boolean; shortCode?: string; gradeScope?: number[] },
 ) {
 	return prisma.building.create({
 		data: {
@@ -53,6 +53,7 @@ export async function upsertBuilding(
 			rotation: data.rotation ?? 0,
 			floorCount: data.floorCount ?? 1,
 			isTeachingBuilding: data.isTeachingBuilding ?? true,
+			gradeScope: data.gradeScope ?? [],
 			schoolId,
 		},
 		include: { rooms: { orderBy: [{ floor: 'asc' }, { floorPosition: 'asc' }] } },
@@ -61,7 +62,7 @@ export async function upsertBuilding(
 
 export async function updateBuilding(
 	id: number,
-	data: Partial<{ name: string; x: number; y: number; width: number; height: number; color: string; rotation: number; floorCount: number; isTeachingBuilding: boolean; shortCode: string }>,
+	data: Partial<{ name: string; x: number; y: number; width: number; height: number; color: string; rotation: number; floorCount: number; isTeachingBuilding: boolean; shortCode: string; gradeScope: number[] }>,
 ) {
 	if (data.floorCount !== undefined) {
 		const highestAssignedFloor = await prisma.room.aggregate({

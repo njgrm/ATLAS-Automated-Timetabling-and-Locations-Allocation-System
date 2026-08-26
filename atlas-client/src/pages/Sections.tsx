@@ -15,6 +15,7 @@ import {
 	MapPin,
 	WifiOff,
 	CheckCircle2,
+	Wand2,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -48,6 +49,7 @@ import { SectionRoomPicker, type RoomOption as HomeRoomOption } from '@/componen
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
+import { HomeRoomAutoAssignDialog } from '@/components/sections/HomeRoomAutoAssignDialog';
 import { cn } from '@/lib/utils';
 import { programShortLabel, programFullLabel, gradeCompact } from '@/lib/deped-glossary';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
@@ -175,6 +177,7 @@ export default function Sections() {
 	const [showFilters, setShowFilters] = useState(false);
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
 	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
+	const [autoAssignOpen, setAutoAssignOpen] = useState(false);
 	const [buildings, setBuildings] = useState<Building[]>([]);
 
 	// Drilldown
@@ -866,11 +869,20 @@ export default function Sections() {
 				</Button>
 			)}
 			primaryActions={(
-				<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="gap-2 shadow-sm font-bold">
-					<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
-					<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
-					<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
-				</Button>
+				<div className="flex gap-2">
+					{activeSchoolYearId && state.status === 'ok' && sectionsNeedingRooms > 0 && (
+						<Button variant="default" size="sm" onClick={() => setAutoAssignOpen(true)} className="gap-2 shadow-sm font-bold">
+							<Wand2 className="size-4" />
+							<span className="hidden sm:inline">Auto-assign rooms</span>
+							<span className="sm:hidden">Auto</span>
+						</Button>
+					)}
+					<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="gap-2 shadow-sm font-bold">
+						<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
+						<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
+						<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
+					</Button>
+				</div>
 			)}
 			toolbar={(
 				<AdminSearchFilterToolbar
@@ -977,7 +989,7 @@ export default function Sections() {
 				>
 					<MapPin className="size-4 shrink-0" />
 					<span className="flex-1 font-semibold">
-						{sectionsNeedingRooms} {sectionsNeedingRooms === 1 ? 'section needs' : 'sections need'} a home room. Use the "Choose home room" control on each row.
+						{sectionsNeedingRooms} {sectionsNeedingRooms === 1 ? 'section needs' : 'sections need'} a home room. Use "Auto-assign rooms" or the "Choose home room" control on each row.
 					</span>
 				</div>
 			) : null}
@@ -1073,6 +1085,16 @@ export default function Sections() {
 					<SwapConfirmationModal open={pendingAssignment.type === 'swap'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { const { section, roomId } = pendingAssignment; if (state.status !== 'ok') return; const displaced = state.data.sections.find(s => s.homeRoomId === roomId); void performHomeRoomUpdate(section, roomId, displaced ? { sectionId: displaced.id, homeRoomId: section.homeRoomId ?? null } : undefined); setPendingAssignment(null); }} sourceSectionName={pendingAssignment.section.name} targetRoomName={pendingAssignment.targetRoomName ?? ''} displacedSectionName={pendingAssignment.displacedSection ?? ''} currentRoomName={pendingAssignment.currentRoomName} isSaving={savingMirrorId !== null} />
 					<UnassignConfirmationModal open={pendingAssignment.type === 'unassign'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { void performHomeRoomUpdate(pendingAssignment.section, null); setPendingAssignment(null); }} sectionName={pendingAssignment.section.name} currentRoomName={pendingAssignment.currentRoomName ?? ''} isSaving={savingMirrorId !== null} />
 				</>
+			)}
+
+			{activeSchoolYearId && (
+				<HomeRoomAutoAssignDialog
+					open={autoAssignOpen}
+					onOpenChange={setAutoAssignOpen}
+					schoolId={DEFAULT_SCHOOL_ID}
+					schoolYearId={activeSchoolYearId}
+					onApplied={() => void fetchSections({ forceRefresh: true })}
+				/>
 			)}
 		</AdminWorkspaceFrame>
 	);
