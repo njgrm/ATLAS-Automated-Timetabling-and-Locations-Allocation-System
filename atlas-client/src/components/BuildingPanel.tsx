@@ -39,6 +39,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/ui/switch';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/ui/tooltip';
 import { CALM_BUILDING_SWATCHES } from '@/components/campus-map/campusMapPalette';
+import { BuildingGradeScopeControl } from '@/components/campus-map/BuildingGradeScopeControl';
+import { BuildingPlacementFields } from '@/components/campus-map/BuildingPlacementFields';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 type RoomEditForm = {
@@ -394,61 +396,13 @@ export function BuildingPanel({
 						</div>
 
 						{/* Advanced placement (collapsed by default) */}
-						<Accordion type="single" collapsible className="rounded-xl border border-slate-100 bg-slate-50 px-3">
-							<AccordionItem value="placement" className="border-0">
-								<AccordionTrigger className="text-[0.72rem] font-semibold text-slate-500 hover:no-underline">
-									Advanced placement
-								</AccordionTrigger>
-								<AccordionContent className="grid grid-cols-2 gap-2 pb-3">
-								<div>
-									<label className="text-[0.68rem] font-semibold text-slate-500">
-										X
-									</label>
-									<Input
-										type="number"
-										value={Math.round(building.x)}
-										onChange={(e) => onUpdate({ x: Number(e.target.value), dirty: true })}
-										className="mt-1"
-									/>
-								</div>
-								<div>
-									<label className="text-[0.68rem] font-semibold text-slate-500">
-										Y
-									</label>
-									<Input
-										type="number"
-										value={Math.round(building.y)}
-										onChange={(e) => onUpdate({ y: Number(e.target.value), dirty: true })}
-										className="mt-1"
-									/>
-								</div>
-								<div>
-									<label className="text-[0.68rem] font-semibold text-slate-500">
-										Width
-									</label>
-									<Input
-										type="number"
-										min={60}
-										value={Math.round(building.width)}
-										onChange={(e) => onUpdate({ width: Math.max(60, Number(e.target.value)), dirty: true })}
-										className="mt-1"
-									/>
-								</div>
-								<div>
-									<label className="text-[0.68rem] font-semibold text-slate-500">
-										Height
-									</label>
-									<Input
-										type="number"
-										min={40}
-										value={Math.round(building.height)}
-										onChange={(e) => onUpdate({ height: Math.max(40, Number(e.target.value)), dirty: true })}
-										className="mt-1"
-									/>
-								</div>
-								</AccordionContent>
-							</AccordionItem>
-						</Accordion>
+						<BuildingPlacementFields
+							x={building.x}
+							y={building.y}
+							width={building.width}
+							height={building.height}
+							onUpdate={onUpdate}
+						/>
 
 						{/* Floor count */}
 						<div>
@@ -491,51 +445,10 @@ export function BuildingPanel({
 
 						{/* Grade scope */}
 						{building.isTeachingBuilding !== false && (
-							<div>
-								<label className="text-[0.72rem] font-semibold text-slate-500">
-									Grade scope
-								</label>
-								<p className="mt-0.5 mb-1.5 text-[0.6875rem] text-muted-foreground">
-									Which grades can use rooms in this building.
-								</p>
-								<div className="flex flex-wrap gap-1.5">
-									{[
-										{ value: 7, label: 'G7', color: 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' },
-										{ value: 8, label: 'G8', color: 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-200' },
-										{ value: 9, label: 'G9', color: 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200' },
-										{ value: 10, label: 'G10', color: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200' },
-									].map((g) => {
-										const selected = (building.gradeScope ?? []).includes(g.value);
-										return (
-											<Button
-												key={g.value}
-												type="button"
-												variant="outline"
-												size="sm"
-												className={`h-7 text-xs font-medium border transition-all ${
-													selected
-														? g.color + ' border-current'
-														: 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'
-												}`}
-												onClick={() => {
-													const current = building.gradeScope ?? [];
-													const next = selected
-														? current.filter((v) => v !== g.value)
-														: [...current, g.value].sort((a, b) => a - b);
-													onUpdate({ gradeScope: next, dirty: true });
-												}}
-											>
-												{g.label}
-											</Button>
-										);
-									})}
-								</div>
-								{(!building.gradeScope || building.gradeScope.length === 0) && (
-									<p className="mt-1 text-[0.6875rem] text-muted-foreground">
-										Any grade (building is open to all grades)
-									</p>
-								)}
-							</div>
+							<BuildingGradeScopeControl
+								gradeScope={building.gradeScope ?? []}
+								onGradeScopeChange={(next) => onUpdate({ gradeScope: next, dirty: true })}
+							/>
 						)}
 					</>
 				)}

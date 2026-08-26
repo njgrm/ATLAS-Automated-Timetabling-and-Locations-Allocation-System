@@ -2,7 +2,6 @@
 .github/
 .cursor/
 AGENTS.md
-CHANGELOG.md
 projectIntro.md
 # Local tooling configs
 .vscode/mcp.json
@@ -11,8 +10,15 @@ reminders.md
 phasePlan.md
 requirements-phase1-ux.md
 questions.md
-docs/
 qa-artifacts/
+
+# Generated build output
+atlas-client/dist/
+atlas-server/dist/
+
+# Server logs
+atlas-server/server.log
+atlas-server/server.err
 
 # Dependency locks not required for this planning-only phase
 package-lock.json

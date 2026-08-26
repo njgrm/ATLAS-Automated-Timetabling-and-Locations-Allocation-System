@@ -50,6 +50,7 @@ type SectionRow = {
 	gradeLevelId: number;
 	gradeLevelName: string;
 	homeRoomId: number | null;
+	enrolledCount: number;
 };
 
 type RoomRow = {
@@ -95,7 +96,7 @@ function sortKey(section: SectionRow, room: RoomRow, matchScore: number) {
 export async function computeAutoAssign(options: AutoAssignOptions): Promise<AutoAssignResult> {
 	const { schoolId, schoolYearId, mode, overwriteExisting = false, allowCrossGradeFallback = false } = options;
 
-	// Fetch sections
+	// Fetch sections (include enrolledCount for capacity checks)
 	const sectionRows = await prisma.sectionMirror.findMany({
 		where: { schoolId, schoolYearId, isStale: false },
 		select: {
@@ -105,6 +106,7 @@ export async function computeAutoAssign(options: AutoAssignOptions): Promise<Aut
 			gradeLevelId: true,
 			gradeLevelName: true,
 			homeRoomId: true,
+			enrolledCount: true,
 		},
 		orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
 	});
@@ -188,6 +190,14 @@ export async function computeAutoAssign(options: AutoAssignOptions): Promise<Aut
 				// matchScore === 0 means cross-grade (non-matching scope)
 				return allowCrossGradeFallback;
 			})
+			.filter((entry) => {
+				// Capacity check: skip rooms with known capacity smaller than enrolled count
+				// Rooms with capacity=null are treated as unknown and remain eligible
+				if (entry.room.capacity != null && entry.room.capacity < section.enrolledCount) {
+					return false;
+				}
+				return true;
+			})
 			.sort((a, b) => {
 				const scoreDiff = b.matchScore - a.matchScore;
 				if (scoreDiff !== 0) return scoreDiff;
@@ -205,11 +215,23 @@ export async function computeAutoAssign(options: AutoAssignOptions): Promise<Aut
 			});
 
 		if (eligible.length === 0) {
+			// Determine dominant skip reason from unassigned rooms
+			const unassigned = rooms.filter((r) => !assignedRoomIds.has(r.id));
 			let reason = 'NO_ELIGIBLE_ROOM';
-			// Check if there are rooms but none match grade
-			const anyRoomExists = rooms.some((r) => !assignedRoomIds.has(r.id));
-			if (anyRoomExists && !allowCrossGradeFallback) {
-				reason = 'NO_GRADE_MATCHING_ROOM';
+			if (unassigned.length > 0) {
+				const hasCapacityRoom = unassigned.some(
+					(r) => r.capacity == null || r.capacity >= section.enrolledCount,
+				);
+				if (!hasCapacityRoom) {
+					reason = 'ROOM_CAPACITY_TOO_SMALL';
+				} else if (!allowCrossGradeFallback) {
+					const hasGradeMatch = unassigned.some((r) =>
+						r.buildingGradeScope.length === 0 || r.buildingGradeScope.includes(sectionGrade),
+					);
+					if (!hasGradeMatch) {
+						reason = 'NO_GRADE_MATCHING_ROOM';
+					}
+				}
 			}
 			skipped.push({
 				sectionId: section.externalId,

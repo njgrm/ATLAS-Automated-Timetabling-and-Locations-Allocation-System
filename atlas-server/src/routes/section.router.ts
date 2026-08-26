@@ -233,9 +233,29 @@ router.post('/home-rooms/:schoolYearId/auto-assign', authenticate, requirePrivil
 			return;
 		}
 
-		const mode = req.body?.mode === 'apply' ? 'apply' : 'preview';
-		const overwriteExisting = req.body?.overwriteExisting === true;
-		const allowCrossGradeFallback = req.body?.allowCrossGradeFallback === true;
+		// Validate mode
+		const rawMode = req.body?.mode;
+		if (rawMode !== undefined && rawMode !== null && rawMode !== 'preview' && rawMode !== 'apply') {
+			res.status(400).json({ code: 'INVALID_BODY', message: 'mode must be "preview" or "apply" when provided.' });
+			return;
+		}
+		const mode = rawMode === 'apply' ? 'apply' : 'preview';
+
+		// Validate overwriteExisting
+		const rawOverwrite = req.body?.overwriteExisting;
+		if (rawOverwrite !== undefined && rawOverwrite !== null && typeof rawOverwrite !== 'boolean') {
+			res.status(400).json({ code: 'INVALID_BODY', message: 'overwriteExisting must be a boolean when provided.' });
+			return;
+		}
+		const overwriteExisting = rawOverwrite === true;
+
+		// Validate allowCrossGradeFallback
+		const rawFallback = req.body?.allowCrossGradeFallback;
+		if (rawFallback !== undefined && rawFallback !== null && typeof rawFallback !== 'boolean') {
+			res.status(400).json({ code: 'INVALID_BODY', message: 'allowCrossGradeFallback must be a boolean when provided.' });
+			return;
+		}
+		const allowCrossGradeFallback = rawFallback === true;
 
 		const result = await computeAutoAssign({
 			schoolId,

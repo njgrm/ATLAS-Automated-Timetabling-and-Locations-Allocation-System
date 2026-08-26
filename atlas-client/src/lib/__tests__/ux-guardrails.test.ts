@@ -69,12 +69,12 @@ test('high-risk scheduler pages keep the primary task obvious and expert control
 
 test('setup pages expose attention-first filters in plain language', () => {
 	const subjects = source('src/pages/Subjects.tsx');
-	const sections = source('src/pages/Sections.tsx');
+	const toolbar = source('src/components/sections/SectionsFilterToolbar.tsx');
 	const faculty = source('src/pages/Faculty.tsx');
 
 	assert.match(subjects, /Missing teacher coverage/);
 	assert.match(subjects, /Room-constrained subjects/);
-	assert.match(sections, /Needs a home room/);
+	assert.match(toolbar, /Needs a home room/);
 	assert.match(faculty, /Needs teaching load/);
 });
 
@@ -822,21 +822,21 @@ test('Phase 1.5: Sections table exposes aria-sort, accessible sort labels, and t
 });
 
 test('Phase 1.7: program filter shows the full program labels in a plain legend (no hover dependency)', () => {
-	const sections = source('src/pages/Sections.tsx');
-	// The SelectItem renders the short label (e.g. "STE") and the legend
-	// below renders the full label via the Phase 0A.1 glossary.
-	assert.match(sections, /programShortLabel\(p\)/);
-	assert.match(sections, /data-testid="program-code-legend"/);
-	assert.match(sections, /\$\{programShortLabel\(p\)\} = \$\{programFullLabel\(p\)\}/);
+	// The filter toolbar was extracted to SectionsFilterToolbar; check there.
+	const toolbar = source('src/components/sections/SectionsFilterToolbar.tsx');
+	assert.ok(toolbar.includes('programShortLabel'), 'Toolbar uses programShortLabel');
+	assert.match(toolbar, /data-testid="program-code-legend"/);
+	assert.ok(toolbar.includes('programFullLabel'), 'Toolbar uses programFullLabel for legend');
 });
 
 test('Phase 1.1: Sections page renders a start-here banner when sections need a home room', () => {
 	const sections = source('src/pages/Sections.tsx');
 	// Top-level sectionsNeedingRooms derivation (not nested inside sectionStats).
 	assert.match(sections, /const sectionsNeedingRooms = state\.status === 'ok' \? Math\.max\(0, state\.data\.totalSections - assignedCount\) : 0/);
-	// Banner rendered when count > 0; data-testid present for Playwright.
-	assert.match(sections, /data-testid="sections-start-here-banner"/);
-	assert.match(sections, /Use "Auto-assign rooms" or the "Choose home room" control on each row\./);
+	// Banner rendered via SectionsHomeRoomActions; data-testid present for Playwright.
+	const actions = source('src/components/sections/SectionsHomeRoomActions.tsx');
+	assert.match(actions, /data-testid="sections-start-here-banner"/);
+	assert.match(actions, /Use "Auto-assign rooms" or the "Choose home room" control on each row\./);
 });
 
 test('Home-room auto-assign: Sections page imports and renders HomeRoomAutoAssignDialog', () => {

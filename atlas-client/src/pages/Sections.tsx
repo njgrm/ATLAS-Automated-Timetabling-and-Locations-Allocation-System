@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
 	ArrowDown,
@@ -12,10 +11,8 @@ import {
 	ChevronsLeft,
 	ChevronsRight,
 	Map as MapIcon,
-	MapPin,
 	WifiOff,
 	CheckCircle2,
-	Wand2,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -50,8 +47,10 @@ import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
 import { HomeRoomAutoAssignDialog } from '@/components/sections/HomeRoomAutoAssignDialog';
+import { SectionsHomeRoomActions } from '@/components/sections/SectionsHomeRoomActions';
+import { SectionMobileCard } from '@/components/sections/SectionMobileCard';
+import { SectionsFilterToolbar } from '@/components/sections/SectionsFilterToolbar';
 import { cn } from '@/lib/utils';
-import { programShortLabel, programFullLabel, gradeCompact } from '@/lib/deped-glossary';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -60,13 +59,6 @@ import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard'
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 const HOME_ROOM_QUEUE_CACHE_PREFIX = 'atlas:sections-home-room-queue:v1';
-
-const GRADE_COLORS: Record<string, string> = {
-	'7':  'bg-green-100/80 text-green-700',
-	'8':  'bg-yellow-100/80 text-yellow-700',
-	'9':  'bg-red-100/80 text-red-700',
-	'10': 'bg-blue-100/80 text-blue-700',
-};
 
 /* ─── Types ─── */
 type SortField = 'name' | 'gradeLevelId' | 'enrolledCount' | 'maxCapacity' | 'fill';
@@ -676,86 +668,6 @@ export default function Sections() {
 			</th>
 		);
 	};
-	const SectionMobileCard = ({ section }: { section: SectionDetail }) => {
-		const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
-		const gKey = gradeKey(section.gradeLevelName);
-		const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
-		// Phase 0C.1 audit fix: mobile fill pill uses the same neutral slate
-		// scale as the desktop pill (red is reserved for G9 grade meaning).
-		const fillTone = fill >= 95
-			? 'border-slate-800 bg-slate-800 text-white'
-			: fill >= 85
-			? 'border-amber-500 bg-amber-500 text-white'
-			: fill >= 70
-			? 'border-emerald-600 bg-emerald-600 text-white'
-			: 'border-slate-200 bg-slate-50 text-slate-700';
-
-		return (
-			<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="section-mobile-card">
-				<div className="flex items-start justify-between gap-3">
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge className={cn('h-6 rounded-full border-0 text-xs font-bold', GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground')}>
-								{gradeCompact(Number(gKey))}
-							</Badge>
-							{section.isSpecialProgram && section.programCode && (
-								<Badge variant="outline" className="h-6 rounded-full bg-white text-xs font-bold">
-									{section.programCode}
-								</Badge>
-							)}
-						</div>
-						<h3 className="mt-2 truncate text-base font-bold text-foreground">{section.name}</h3>
-						<p className="mt-0.5 text-xs font-medium text-muted-foreground">
-							{section.isSpecialProgram ? section.programName : 'Regular Program'}
-						</p>
-					</div>
-					<Badge variant="outline" className={cn('h-7 shrink-0 rounded-full px-2 text-xs font-bold', fillTone)}>
-						{fill}% full
-					</Badge>
-				</div>
-
-				<div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-						<p className="font-bold uppercase tracking-widest text-muted-foreground">Enrolled</p>
-						<p className="mt-1 text-sm font-bold text-foreground">{section.enrolledCount} / {section.maxCapacity}</p>
-					</div>
-					<div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-						<p className="font-bold uppercase tracking-widest text-muted-foreground">Home room</p>
-						<p className={cn('mt-1 truncate text-sm font-bold', selectedRoom ? 'text-emerald-700' : 'text-amber-700')}>
-							{selectedRoom ? selectedRoom.name : 'Needs room'}
-						</p>
-					</div>
-				</div>
-
-				<div className="mt-3 space-y-1.5">
-					<SectionRoomPicker
-						sectionId={section.id}
-						sectionName={section.name}
-						value={section.homeRoomId ?? null}
-						options={homeRoomOptions}
-						onSelect={(roomId) => handleHomeRoomChange(section, roomId)}
-						disabled={isReadOnlyMode}
-						isSaving={savingMirrorId === section.id}
-						schoolId={DEFAULT_SCHOOL_ID}
-						roomOccupancy={roomOccupancyMap}
-					/>
-					<p className={cn('flex items-center gap-1.5 text-xs font-semibold', selectedRoom ? 'text-emerald-700' : 'text-amber-700')}>
-						{selectedRoom ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
-						{selectedRoom ? `Ready in ${selectedRoom.buildingName}` : isReadOnlyMode ? 'Needs home room. Edits are paused.' : 'Choose a home room first.'}
-					</p>
-				</div>
-
-				<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
-					<Button type="button" size="sm" variant="outline" className="h-11 flex-1 font-bold" onClick={() => setDetailTarget(section)}>
-						View details
-					</Button>
-					<Button asChild size="sm" className="h-11 flex-1 font-bold">
-						<Link to={`/teaching-load?sectionId=${section.id}`}>Teaching Load</Link>
-					</Button>
-				</div>
-			</div>
-		);
-	};
 
 	const availableGrades = useMemo(() => {
 		if (state.status !== 'ok') return [];
@@ -868,22 +780,18 @@ export default function Sections() {
 					<span className="sm:hidden">Rooms</span>
 				</Button>
 			)}
-			primaryActions={(
-				<div className="flex gap-2">
-					{activeSchoolYearId && state.status === 'ok' && sectionsNeedingRooms > 0 && (
-						<Button variant="default" size="sm" onClick={() => setAutoAssignOpen(true)} className="gap-2 shadow-sm font-bold">
-							<Wand2 className="size-4" />
-							<span className="hidden sm:inline">Auto-assign rooms</span>
-							<span className="sm:hidden">Auto</span>
-						</Button>
-					)}
-					<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="gap-2 shadow-sm font-bold">
-						<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
-						<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
-						<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
-					</Button>
-				</div>
-			)}
+			primaryActions={
+				<SectionsHomeRoomActions
+					canAutoAssign={!!activeSchoolYearId && state.status === 'ok' && sectionsNeedingRooms > 0}
+					sectionsNeedingRooms={sectionsNeedingRooms}
+					syncing={syncing}
+					syncingQueuedEdits={syncingQueuedEdits}
+					stateStatus={state.status}
+					isOnline={isOnline}
+					onAutoAssign={() => setAutoAssignOpen(true)}
+					onSync={handleSync}
+				/>
+			}
 			toolbar={(
 				<AdminSearchFilterToolbar
 					searchValue={searchQuery}
@@ -893,55 +801,17 @@ export default function Sections() {
 					onToggleFilters={() => setShowFilters(!showFilters)}
 					hasActiveFilters={hasActiveFilters}
 				>
-					<div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3">
-							<Select value={gradeFilter} onValueChange={setGradeFilter}>
-								<SelectTrigger className="h-10 text-sm">
-									<SelectValue placeholder="All Grades" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All Grades</SelectItem>
-									{availableGrades.map(g => (
-										<SelectItem key={g} value={g}>Grade {g}</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-														<Select value={programFilter} onValueChange={setProgramFilter}>
-								<SelectTrigger className="h-10 text-sm">
-									<SelectValue placeholder="All Programs" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All Programs</SelectItem>
-									<SelectItem value="REGULAR">Regular Program</SelectItem>
-									{availablePrograms.map(p => (
-										// Phase 1.7: render the program short label via the
-										// Phase 0A.1 glossary; the full label appears in the
-										// legend below so older users always know what each
-										// code means without hover.
-										<SelectItem key={p} value={p}>{programShortLabel(p)}</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<Select value={homeRoomFilter} onValueChange={(value) => setHomeRoomFilter(value as typeof homeRoomFilter)}>
-								<SelectTrigger className="h-10 text-sm">
-									<SelectValue placeholder="All home-room states" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All home-room states</SelectItem>
-									<SelectItem value="missing">Needs a home room</SelectItem>
-									<SelectItem value="assigned">Home room assigned</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-						{/* Phase 1.7: plain-language program-code legend so older users always know what each acronym means. */}
-						{availablePrograms.length > 0 ? (
-							<p className="text-xs text-muted-foreground" data-testid="program-code-legend">
-								<span className="font-semibold">Program codes:</span>{' '}
-								{availablePrograms
-									.map((p) => `${programShortLabel(p)} = ${programFullLabel(p)}`)
-									.join('; ')}
-							</p>
-						) : null}
-				</AdminSearchFilterToolbar>
+					<SectionsFilterToolbar
+						gradeFilter={gradeFilter}
+						onGradeFilterChange={setGradeFilter}
+						availableGrades={availableGrades}
+						programFilter={programFilter}
+						onProgramFilterChange={setProgramFilter}
+						availablePrograms={availablePrograms}
+						homeRoomFilter={homeRoomFilter}
+						onHomeRoomFilterChange={(value) => setHomeRoomFilter(value as typeof homeRoomFilter)}
+					/>
+			</AdminSearchFilterToolbar>
 			)}
 		>
 
@@ -979,21 +849,6 @@ export default function Sections() {
 			</div>
 		)}
 
-			{/* Phase 1.1: "start here" banner above the table. Tells the scheduler
-				where to click to fulfill the "Need rooms" readiness chip. */}
-			{state.status === 'ok' && state.data.sections.length > 0 && sectionsNeedingRooms > 0 ? (
-				<div
-					role="status"
-					data-testid="sections-start-here-banner"
-					className="shrink-0 mx-4 mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm text-primary shadow-sm lg:mx-5"
-				>
-					<MapPin className="size-4 shrink-0" />
-					<span className="flex-1 font-semibold">
-						{sectionsNeedingRooms} {sectionsNeedingRooms === 1 ? 'section needs' : 'sections need'} a home room. Use "Auto-assign rooms" or the "Choose home room" control on each row.
-					</span>
-				</div>
-			) : null}
-
 			<AdminTableShell
 				footer={state.status === 'ok' && state.data.sections.length > 0 ? (
 					<div className="flex items-center justify-between gap-3">
@@ -1020,7 +875,7 @@ export default function Sections() {
 									/>
 								</div>
 							) : (
-								paged.map((section) => <SectionMobileCard key={section.id} section={section} />)
+								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={DEFAULT_SCHOOL_ID} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} />)
 							)}
 						</div>
 						<table className="hidden w-full text-sm md:table">

@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "timestamp": "2026-05-12T15:37:54.636Z",
+    "schoolId": 1,
+    "schoolYearId": 1,
+    "runCount": 1,
+    "actorId": 1,
+    "sectionSourceMode": "auto"
+  },
+  "runs": [
+    {
+      "runId": 16,
+      "status": "COMPLETED",
+      "durationMs": 183845,
+      "error": null,
+      "assignedCount": 1160,
+      "unassignedCount": 1752,
+      "hardViolationCount": 497,
+      "policyBlockedCount": 236251,
+      "classesProcessed": 2912,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "ROOM_FEATURE_MISMATCH": 0,
+        "SECTION_TIME_CONFLICT": 0,
+        "ROOM_CAPACITY_EXCEEDED": 0,
+        "SECTION_OVERCOMPRESSED": 0,
+        "SESSION_PATTERN_VIOLATED": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_EXCESSIVE_IDLE_GAP": 147,
+        "FACULTY_LATE_END_PREFERENCE": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 497,
+        "FACULTY_EARLY_START_PREFERENCE": 0,
+        "FACULTY_DAILY_STANDARD_EXCEEDED": 48,
+        "FACULTY_EXCESSIVE_TRAVEL_DISTANCE": 175,
+        "FACULTY_INSUFFICIENT_DAILY_VACANT": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0,
+        "FACULTY_EXCESSIVE_BUILDING_TRANSITIONS": 1,
+        "FACULTY_INSUFFICIENT_TRANSITION_BUFFER": 0
+      }
+    }
+  ],
+  "stats": {
+    "runCount": 1,
+    "successCount": 1,
+    "failCount": 0,
+    "durations": {
+      "p50": 183845,
+      "p95": 183845,
+      "max": 183845,
+      "min": 183845,
+      "mean": 183845
+    },
+    "assignedCount": {
+      "min": 1160,
+      "max": 1160,
+      "mean": 1160
+    },
+    "unassignedCount": {
+      "min": 1752,
+      "max": 1752,
+      "mean": 1752
+    },
+    "hardViolationCount": {
+      "min": 497,
+      "max": 497,
+      "mean": 497
+    },
+    "policyBlockedCount": {
+      "min": 236251,
+      "max": 236251,
+      "mean": 236251
+    }
+  },
+  "guardrails": {
+    "allRunsSucceeded": true,
+    "hardViolationsStable": true,
+    "maxDurationUnder60s": false,
+    "overallPass": false
+  }
+}
