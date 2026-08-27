@@ -900,6 +900,60 @@ function TimetableSimpleHeaderImpl({
 										Teacher leaving / Reassign load
 									</DropdownMenuItem>
 								</div>
+								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
+									<DropdownMenuLabel className="px-0 py-0 text-xs">Help</DropdownMenuLabel>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setTutorialOpen(true); }}
+									>
+										<BookOpen className="size-3.5" aria-hidden="true" />
+										Tutorial
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
+									>
+										<Info className="size-3.5" aria-hidden="true" />
+										Status key
+									</DropdownMenuItem>
+									<DropdownMenuItem asChild className="h-9 gap-2 text-xs">
+										<Link to="/timetabling/how-it-works">
+											<HelpCircle className="size-3.5" aria-hidden="true" />
+											How this works
+										</Link>
+									</DropdownMenuItem>
+								</div>
+								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
+									<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
+										<ListChecks className="size-3.5" aria-hidden="true" />
+										Review issues
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										disabled={context.generating || context.loading || !context.schoolYearId}
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.handleTriggerGenerate(); }}
+									>
+										<Play className="size-3.5" aria-hidden="true" />
+										Generate schedule
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										disabled={context.editHistoryCount === 0}
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.setShowEditHistory(true); }}
+									>
+										<History className="size-3.5" aria-hidden="true" />
+										Edit history
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); onLayoutModeChange('advanced'); }}
+										data-testid="timetable-layout-toggle"
+									>
+										<Settings2 className="size-3.5" aria-hidden="true" />
+										Advanced view
+									</DropdownMenuItem>
+								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-schedule-data">
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Schedule data</DropdownMenuLabel>
 									<Select value={context.selectedRunId} onValueChange={context.handleRunChange} disabled={context.runs.length === 0 || context.centerView === 'pre-generation'}>
@@ -954,60 +1008,6 @@ function TimetableSimpleHeaderImpl({
 											</DropdownMenuItem>
 										)}
 									</div>
-								</div>
-								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
-									<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
-										<ListChecks className="size-3.5" aria-hidden="true" />
-										Review issues
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										disabled={context.generating || context.loading || !context.schoolYearId}
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.handleTriggerGenerate(); }}
-									>
-										<Play className="size-3.5" aria-hidden="true" />
-										Generate schedule
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										disabled={context.editHistoryCount === 0}
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.setShowEditHistory(true); }}
-									>
-										<History className="size-3.5" aria-hidden="true" />
-										Edit history
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); onLayoutModeChange('advanced'); }}
-										data-testid="timetable-layout-toggle"
-									>
-										<Settings2 className="size-3.5" aria-hidden="true" />
-										Advanced view
-									</DropdownMenuItem>
-								</div>
-								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
-									<DropdownMenuLabel className="px-0 py-0 text-xs">Help</DropdownMenuLabel>
-								<DropdownMenuItem
-									className="h-9 gap-2 text-xs"
-									onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setTutorialOpen(true); }}
-								>
-									<BookOpen className="size-3.5" aria-hidden="true" />
-									Tutorial
-								</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
-									>
-										<Info className="size-3.5" aria-hidden="true" />
-										Status key
-									</DropdownMenuItem>
-									<DropdownMenuItem asChild className="h-9 gap-2 text-xs">
-										<Link to="/timetabling/how-it-works">
-											<HelpCircle className="size-3.5" aria-hidden="true" />
-											How this works
-										</Link>
-									</DropdownMenuItem>
 								</div>
 							</div>
 						</DropdownMenuContent>
