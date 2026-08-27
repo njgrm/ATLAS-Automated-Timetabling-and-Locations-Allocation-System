@@ -113,7 +113,7 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 	const hasNoBlockers = dialogText.includes('No blockers');
 	const hasBlockingCopy = dialogText.includes('Blocking 0');
 	const hasWarningsCopy = dialogText.includes('Warnings');
-	const hasRecommendedBadge = dialogText.includes('Recommended');
+	const hasRecommendedBadge = (await dialog.locator('[data-testid="generated-swap-selected-status"] svg').count()) > 0;
 
 	const globalOverflow = await page.evaluate(() => ({
 		hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,

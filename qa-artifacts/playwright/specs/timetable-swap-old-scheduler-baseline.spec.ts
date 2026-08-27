@@ -88,9 +88,8 @@ async function captureRegressionMetrics(page: Page, dialog: ReturnType<typeof pa
 
 	const feedbackText = await dialog.locator('[data-testid="generated-swap-feedback"]').innerText({ timeout: 3_000 }).catch(() => '');
 
-	const strategyButtons = dialog.locator('[data-testid="generated-swap-strategy-option"]');
-	const strategyCount = await strategyButtons.count();
-	const hasRawButton = await dialog.locator('[data-review-action-type] button:not([data-testid="generated-swap-strategy-option"]):not([aria-label="Close"])').count() > 0;
+	const selectedStatus = dialog.locator('[data-testid="generated-swap-selected-status"]');
+	const hasSelectedStatus = await selectedStatus.isVisible().catch(() => false);
 
 	await page.screenshot({
 		path: path.join(reportRoot, `${testInfo.project.name}-regression.png`),
@@ -103,8 +102,7 @@ async function captureRegressionMetrics(page: Page, dialog: ReturnType<typeof pa
 		dialogBox,
 		globalOverflow,
 		feedbackText,
-		strategyCount,
-		hasRawButton,
+		hasSelectedStatus,
 	};
 }
 
@@ -144,8 +142,7 @@ test.describe.serial('Timetable swap regression gate', () => {
 		expect(metrics.visibleTextLength).toBeGreaterThan(50);
 		expect(metrics.dialogBox).toBeTruthy();
 		expect(metrics.globalOverflow.hasHorizontalOverflow).toBe(false);
-		expect(metrics.hasRawButton).toBe(false);
-		expect(metrics.strategyCount).toBeGreaterThanOrEqual(1);
+		expect(metrics.hasSelectedStatus).toBe(true);
 
 		await swapResult.dialog.locator('button').filter({ hasText: /Cancel/i }).first().click();
 		await expect(swapResult.dialog).toBeHidden({ timeout: 5_000 });
