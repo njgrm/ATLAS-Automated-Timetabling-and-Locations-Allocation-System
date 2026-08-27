@@ -336,8 +336,7 @@ function SimpleFiltersContent({ context }: { context: ScheduleReviewWorkspaceHea
 	);
 }
 
-function SimpleTutorialControl() {
-	const [open, setOpen] = useState(false);
+function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
 	const [stepIndex, setStepIndex] = useState(0);
 	const step = SIMPLE_TUTORIAL_STEPS[stepIndex];
 	const StepIcon = step.icon;
@@ -356,7 +355,7 @@ function SimpleTutorialControl() {
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={setOpen}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogTrigger asChild>
 				<Button
 					type="button"
@@ -402,7 +401,7 @@ function SimpleTutorialControl() {
 					</div>
 				</div>
 				<DialogFooter className="gap-2 sm:gap-0">
-					<Button type="button" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+					<Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
 					<Button
 						type="button"
 						variant="outline"
@@ -415,7 +414,7 @@ function SimpleTutorialControl() {
 					<Button
 						type="button"
 						onClick={() => {
-							if (isLast) setOpen(false);
+							if (isLast) onOpenChange(false);
 							else setStepIndex((value) => Math.min(SIMPLE_TUTORIAL_STEPS.length - 1, value + 1));
 						}}
 						data-testid="timetable-simple-tutorial-next"
@@ -507,6 +506,7 @@ function TimetableSimpleHeaderImpl({
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
+	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
@@ -734,7 +734,7 @@ function TimetableSimpleHeaderImpl({
 						onViewModeChange={handleViewModeChange}
 						onEntityChange={handleEntityChange}
 					/>
-					<SimpleTutorialControl />
+					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} />
 					{(() => {
 						const mobileLabel = !hasGeneratedRun && !context.isPreGenerationWorkspace
 							? 'Generate'
@@ -988,13 +988,13 @@ function TimetableSimpleHeaderImpl({
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Help</DropdownMenuLabel>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); }}
-									>
-										<BookOpen className="size-3.5" aria-hidden="true" />
-										Tutorial
-									</DropdownMenuItem>
+								<DropdownMenuItem
+									className="h-9 gap-2 text-xs"
+									onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setTutorialOpen(true); }}
+								>
+									<BookOpen className="size-3.5" aria-hidden="true" />
+									Tutorial
+								</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
 										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
