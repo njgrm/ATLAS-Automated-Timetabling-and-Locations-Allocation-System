@@ -1,5 +1,5 @@
 import { useRef, type RefObject } from 'react';
-import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, Lock, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowRightLeft, CheckCircle2, ExternalLink, Loader2, Lock, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion } from 'lucide-react';
 
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 import { formatTime } from '@/lib/utils';
@@ -121,6 +121,31 @@ function ReadOnlyField({ label, value, blocker }: { label: string; value: string
 			{blocker ? <p className="mt-1 text-xs">{blocker}</p> : null}
 		</div>
 	);
+}
+
+function getSelectedStrategyPreview(
+	regularSwapPreview: {
+		directPreview: PreviewLike;
+		autoFixBlockingPreview: PreviewLike;
+		autoFixSourcePreview: PreviewLike;
+	} | null,
+	strategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null,
+): { preview: PreviewLike; label: string } | null {
+	if (!regularSwapPreview || !strategy) return null;
+	if (strategy === 'DIRECT_SWAP') return { preview: regularSwapPreview.directPreview, label: 'Direct swap' };
+	if (strategy === 'AUTO_FIX_MOVE_BLOCKING') return { preview: regularSwapPreview.autoFixBlockingPreview, label: 'Move blocking session' };
+	if (strategy === 'AUTO_FIX_MOVE_SOURCE') return { preview: regularSwapPreview.autoFixSourcePreview, label: 'Move selected session' };
+	return null;
+}
+
+function strategyUnavailableReason(
+	preview: PreviewLike,
+	recommendedStrategy: string | null,
+	strategyKey: string,
+): string | null {
+	if (preview) return null;
+	if (recommendedStrategy === 'BLOCKED') return 'No safe swap found';
+	return 'Not available for this pair';
 }
 
 function feedbackClass(tone: 'good' | 'bad' | 'warn' | 'neutral') {
@@ -381,14 +406,14 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 			<Dialog open={showPreGenConfirm} onOpenChange={(open) => { if (!open) closePlacement(); }}>
 				<DialogContent
-					className="w-[calc(100vw-2rem)] max-w-xl gap-0 overflow-hidden p-0"
+					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[90vh]"
 					data-testid="draft-placement-review-dialog"
 					onOpenAutoFocus={focusCancelButton(draftPlacementCancelRef)}
 				>
 					<DialogHeader className="border-b border-border px-4 py-3">
-						<DialogTitle>Review draft placement</DialogTitle>
+						<DialogTitle>Place this class?</DialogTitle>
 						<DialogDescription>
-							{sourceLabel} - {slotLabel}. Teaching Load owns class ownership; this step only reviews placement readiness.
+							{sourceLabel} at {slotLabel}. Teaching Load owns class ownership; this step only reviews placement readiness.
 						</DialogDescription>
 					</DialogHeader>
 					<div role="status" aria-live="polite" data-testid="draft-placement-preview-status" className="sr-only">
@@ -400,31 +425,29 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Draft placement preview is ready.'
 									: 'Draft placement review opened.'}
 					</div>
-					<div className="px-4 py-3">
+					<div className="flex-1 min-h-0 overflow-auto px-4 py-3">
 						<ReviewActionSheet type="draft-placement">
 							<ReviewActionSection title="What changes" description="This draft session is anchored to the selected slot after review.">
-						<div className="flex flex-wrap gap-1.5" aria-label="Draft placement steps">
-							<StepPill label="1. Owner" state={confirmFacultyId ? 'done' : 'active'} />
-							<StepPill label="2. Room source" state={confirmRoomId ? 'done' : confirmFacultyId ? 'active' : 'waiting'} />
-							<StepPill label="3. Slot" state={preGenConfirmCtx ? 'done' : 'waiting'} />
-							<StepPill label="4. Conflicts" state={confirmPreview ? 'done' : confirmPreviewLoading ? 'active' : 'waiting'} />
-							<StepPill label="5. Save" state={draftPlacementSaveState.key === 'ready' ? 'active' : 'waiting'} />
-						</div>
 						<div className="grid gap-2 sm:grid-cols-2">
-							<ReadOnlyField
-								label="Teaching Load owner"
-								value={ownerLabel}
-								blocker={!confirmFacultyId ? 'Fix the owner in Teaching Load before placing this session.' : undefined}
-							/>
-							<ReadOnlyField
-								label="Suggested room"
-								value={roomLabel}
-								blocker={!confirmRoomId ? 'Fix room setup or room readiness before placing this session.' : undefined}
-							/>
+							<div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5">
+								<ArrowRight className="mt-0.5 size-4 shrink-0 text-primary" />
+								<div>
+									<p className="text-sm font-semibold">{sourceLabel}</p>
+									<p className="text-xs text-muted-foreground">{slotLabel}</p>
+								</div>
+							</div>
+							<div className="flex items-start gap-2 rounded-md border border-border p-2.5">
+								<div className="mt-0.5 size-4 shrink-0" />
+								<div>
+									<p className="text-xs font-semibold text-muted-foreground">Teaching Load owner</p>
+									<p className="text-sm font-medium text-foreground">{ownerLabel}</p>
+									{!confirmFacultyId && <p className="mt-1 text-xs text-red-600">Fix the owner in Teaching Load before placing this session.</p>}
+								</div>
+							</div>
 						</div>
 						{generatedRoomOptions.length > 0 ? (
-							<div className="rounded-md border border-border bg-muted/20 p-2.5 text-xs">
-								<p className="font-semibold text-foreground">Room source</p>
+							<div className="mt-2 rounded-md border border-border bg-muted/20 p-2.5 text-xs">
+								<p className="font-semibold text-foreground">Suggested room</p>
 								<p className="mt-1 text-xs text-muted-foreground">
 									Choose only the room for this draft anchor. Teaching Load still owns the teacher.
 								</p>
@@ -436,72 +459,58 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									triggerClassName="mt-2 h-10 text-xs"
 									className="w-80 max-w-full"
 								/>
+								{!confirmRoomId && <p className="mt-1 text-xs text-red-600">Fix room setup or room readiness before placing this session.</p>}
 							</div>
 						) : null}
-
-						<ReadOnlyField label="Target slot" value={slotLabel} />
 							</ReviewActionSection>
-
-						<ReviewActionSection
-							title="Blocks"
-							tone={
-								confirmPreviewError || (confirmPreview && confirmPreview.hardViolations.length > 0)
-									? 'bad'
-									: confirmDisplacedPlacement
-										? 'warn'
-										: confirmPreview
-											? 'good'
-											: 'neutral'
-							}
-						>
-							{confirmDisplacedPlacement ? (
-								<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-									<p className="font-semibold">This slot is occupied.</p>
-									<p className="mt-1">Review the visual switch before replacing anything.</p>
-									<Button className="mt-2" size="sm" variant="outline" onClick={() => openSwapPrompt()}>
-										Review switch
-									</Button>
-								</div>
-							) : null}
-							{confirmPreviewLoading ? (
-								<p className="flex items-center gap-2 text-xs text-muted-foreground">
-									<Loader2 className="size-4 animate-spin" />
-									Checking placement...
-								</p>
-							) : null}
-							{confirmPreviewError ? (
-								<p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{confirmPreviewError}</p>
-							) : null}
-							{confirmPreview && confirmPreview.hardViolations.length === 0 ? (
-								<p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-									<CheckCircle2 className="size-4 shrink-0" />
-									No blocking conflicts for this owner, room, and slot.
-								</p>
-							) : null}
-							{confirmPreview && confirmPreview.hardViolations.length > 0 ? (
-								<p className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
-									<AlertTriangle className="mt-0.5 size-4 shrink-0" />
-									This placement is blocked. Use another slot or repair the source data before saving.
-								</p>
-							) : null}
-							{confirmPreview ? conflictSummary(confirmPreview) : conflictGuidance()}
-						</ReviewActionSection>
-							<ReviewActionSection title="Warnings" tone={confirmPreview && confirmPreview.softViolations.length > 0 ? 'warn' : 'neutral'}>
-						{confirmPreview && confirmPreview.softViolations.length > 0 ? (
-							<label className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-								<Checkbox checked={confirmAllowDailyOverride} onCheckedChange={(value) => setConfirmAllowDailyOverride(value === true)} />
-								<span>I reviewed the workload and schedule warnings.</span>
-							</label>
-						) : <p className="text-xs text-muted-foreground">No workload warning is active yet.</p>}
-							</ReviewActionSection>
-							<ReviewActionSection title="After save">
-								<p className="text-xs text-muted-foreground">
-									ATLAS saves the draft placement only after this review and keeps class ownership in Teaching Load.
-								</p>
-							</ReviewActionSection>
+							{(() => {
+								const hardCount = confirmPreview?.hardViolations.length ?? 0;
+								const softCount = confirmPreview?.softViolations.length ?? 0;
+								const isBlocked = confirmPreviewError || hardCount > 0;
+								const isOccupied = confirmDisplacedPlacement;
+								const statusTone = isBlocked ? 'bad' : isOccupied ? 'warn' : confirmPreview ? 'good' : 'neutral';
+								return (
+									<ReviewActionSection title="Placement status" tone={statusTone}>
+										<div className="grid grid-cols-2 gap-2">
+											<FigureCard label="Blocking" value={confirmPreviewLoading ? '...' : hardCount} tone={hardCount > 0 ? 'bad' : 'good'} />
+											<FigureCard label="Warnings" value={confirmPreviewLoading ? '...' : softCount} tone={softCount > 0 ? 'warn' : 'good'} />
+										</div>
+										{confirmPreviewLoading && (
+											<p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+												<Loader2 className="size-4 animate-spin" />Checking placement...
+											</p>
+										)}
+										{confirmPreviewError && (
+											<p className="mt-2 flex items-center gap-2 text-xs text-red-700">
+												<AlertTriangle className="size-4 shrink-0" />{confirmPreviewError}
+											</p>
+										)}
+										{!confirmPreviewLoading && !confirmPreviewError && hardCount === 0 && confirmPreview && (
+											<p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
+												<CheckCircle2 className="size-3.5 shrink-0" />No blocking conflicts for this owner, room, and slot.
+											</p>
+										)}
+										{isOccupied && (
+											<div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+												<p className="font-semibold">This slot is occupied.</p>
+												<p className="mt-1">Review the visual switch before replacing anything.</p>
+												<Button className="mt-2" size="sm" variant="outline" onClick={() => openSwapPrompt()}>
+													Review switch
+												</Button>
+											</div>
+										)}
+										{confirmPreview && confirmPreview.softViolations.length > 0 && (
+											<label className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+												<Checkbox checked={confirmAllowDailyOverride} onCheckedChange={(value) => setConfirmAllowDailyOverride(value === true)} />
+												<span>I reviewed the workload and schedule warnings.</span>
+											</label>
+										)}
+									</ReviewActionSection>
+								);
+							})()}
 						</ReviewActionSheet>
 					</div>
-					<DialogFooter className="flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
+					<DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
 						<p
 							className={`min-w-0 flex-1 rounded-md border px-2.5 py-2 text-xs ${feedbackClass(draftPlacementSaveState.tone)}`}
 							data-testid="draft-placement-save-reason"
@@ -524,7 +533,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 			<Dialog open={showSwapConfirm} onOpenChange={(open) => { if (!open) closeDraftSwap(); }}>
 				<DialogContent
-					className="w-[calc(100vw-2rem)] max-w-xl gap-0 overflow-hidden p-0"
+					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[90vh]"
 					data-testid="draft-swap-review-dialog"
 					onOpenAutoFocus={focusCancelButton(draftSwapCancelRef)}
 				>
@@ -541,47 +550,63 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Draft switch preview is ready.'
 									: 'Draft switch review opened.'}
 					</div>
-					<div className="px-4 py-3">
+					<div className="flex-1 min-h-0 overflow-auto px-4 py-3">
 						<ReviewActionSheet type="draft-swap">
 							<ReviewActionSection title="What changes" description="The selected draft session and occupied slot are resolved as one reviewed switch.">
-						{swapPreview?.loading ? <p className="flex items-center gap-2"><Loader2 className="size-4 animate-spin" />Checking both placements...</p> : null}
-						{swapPreview?.error ? <p className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{swapPreview.error}</p> : null}
-						{swapAction ? (
+						{swapPreview?.loading && (
+							<p className="flex items-center gap-2 text-xs text-muted-foreground">
+								<Loader2 className="size-4 animate-spin" />Checking both placements...
+							</p>
+						)}
+						{swapPreview?.error && (
+							<p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{swapPreview.error}</p>
+						)}
+						{swapAction && (
 							<div className="grid gap-2 sm:grid-cols-2">
-								<div className="rounded-md border border-primary/20 bg-primary/5 p-3">
-									<p className="font-semibold text-foreground">{swapSourceLabel}</p>
-									<div className="mt-2 flex items-center gap-2 text-muted-foreground">
-										<span>New slot</span>
-										<ArrowRight className="size-3.5" />
-										<span className="font-medium text-foreground">{swapTargetLabel}</span>
+								<div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5">
+									<ArrowRight className="mt-0.5 size-4 shrink-0 text-primary" />
+									<div>
+										<p className="text-sm font-semibold">{swapSourceLabel}</p>
+										<p className="text-xs text-muted-foreground">{swapTargetLabel}</p>
+										<p className="text-xs text-muted-foreground">Owner {formatFacultyInitials(swapAction.target.facultyId)} &middot; Room {roomLabelShort(swapAction.target.roomId)}</p>
 									</div>
-									<p className="mt-1 text-muted-foreground">Owner {formatFacultyInitials(swapAction.target.facultyId)} - Room {roomLabelShort(swapAction.target.roomId)}</p>
 								</div>
-								<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
-									<p className="font-semibold">{displacedLabel}</p>
-									<div className="mt-2 flex items-center gap-2">
-										<span>Next step</span>
-										<ArrowRight className="size-3.5" />
-										<span className="font-medium">{displacedNextLabel}</span>
+								<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
+									<ArrowRight className="mt-0.5 size-4 shrink-0 text-amber-600" />
+									<div>
+										<p className="text-sm font-semibold">{displacedLabel}</p>
+										<p className="text-xs text-muted-foreground">{displacedNextLabel}</p>
+										<p className="text-xs text-muted-foreground">No owner selection in this switch.</p>
 									</div>
-									<p className="mt-1">No owner selection happens in this switch.</p>
 								</div>
 							</div>
-						) : null}
+						)}
 							</ReviewActionSection>
-							<ReviewActionSection title="Blocks" tone={swapPreview?.error ? 'bad' : 'neutral'}>
-								{conflictSummary(swapPreview?.sourcePreview, 'Incoming session')}
-								{conflictSummary(swapPreview?.displacedPreview, 'Displaced session')}
-							</ReviewActionSection>
-							<ReviewActionSection title="Warnings" tone={(swapPreview?.sourcePreview?.softViolations.length ?? 0) + (swapPreview?.displacedPreview?.softViolations.length ?? 0) > 0 ? 'warn' : 'neutral'}>
-								<p className="text-xs text-muted-foreground">Warnings are reviewed here before saving the switch.</p>
-							</ReviewActionSection>
-							<ReviewActionSection title="After save">
-								<p className="text-xs text-muted-foreground">ATLAS saves the switch only after confirmation. No teacher assignment happens in timetable.</p>
-							</ReviewActionSection>
+							{(() => {
+								const sourceHard = swapPreview?.sourcePreview?.hardViolations.length ?? 0;
+								const sourceSoft = swapPreview?.sourcePreview?.softViolations.length ?? 0;
+								const displacedHard = swapPreview?.displacedPreview?.hardViolations.length ?? 0;
+								const displacedSoft = swapPreview?.displacedPreview?.softViolations.length ?? 0;
+								const totalHard = sourceHard + displacedHard;
+								const totalSoft = sourceSoft + displacedSoft;
+								const statusTone = swapPreview?.error ? 'bad' : totalHard > 0 ? 'bad' : totalSoft > 0 ? 'warn' : 'good';
+								return (
+									<ReviewActionSection title="Switch status" tone={statusTone}>
+										<div className="grid grid-cols-2 gap-2">
+											<FigureCard label="Blocking" value={swapPreview?.loading ? '...' : totalHard} tone={totalHard > 0 ? 'bad' : 'good'} />
+											<FigureCard label="Warnings" value={swapPreview?.loading ? '...' : totalSoft} tone={totalSoft > 0 ? 'warn' : 'good'} />
+										</div>
+										{!swapPreview?.loading && !swapPreview?.error && totalHard === 0 && (
+											<p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
+												<CheckCircle2 className="size-3.5 shrink-0" />No blocking conflicts for this switch.
+											</p>
+										)}
+									</ReviewActionSection>
+								);
+							})()}
 						</ReviewActionSheet>
 					</div>
-					<DialogFooter className="flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
+					<DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
 						<p
 							className={`min-w-0 flex-1 rounded-md border px-2.5 py-2 text-xs ${feedbackClass(
 								swapSaving || swapPreview?.loading ? 'neutral' : swapPreview?.error ? 'bad' : 'good',
@@ -609,14 +634,14 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 			<Dialog open={Boolean(regularSwapPending)} onOpenChange={(open) => { if (!open) closeGeneratedSwap(); }}>
 				<DialogContent
-					className="w-[calc(100vw-2rem)] max-w-xl gap-0 overflow-hidden p-0"
+					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[90vh]"
 					data-testid="generated-swap-review-dialog"
 					onOpenAutoFocus={focusCancelButton(generatedSwapCancelRef)}
 				>
 					<DialogHeader className="border-b border-border px-4 py-3">
-						<DialogTitle>Review occupied-slot swap</DialogTitle>
+						<DialogTitle>Swap these two classes?</DialogTitle>
 						<DialogDescription>
-							{regularSwapPending ? `${subjectLabel(regularSwapPending.entryA.subjectId)} for ${sectionLabel(regularSwapPending.entryA.sectionId)} will exchange times with ${subjectLabel(regularSwapPending.entryB.subjectId)} for ${sectionLabel(regularSwapPending.entryB.sectionId)}.` : ''}
+							{regularSwapPending ? `${subjectLabel(regularSwapPending.entryA.subjectId)} for ${sectionLabel(regularSwapPending.entryA.sectionId)} exchanges times with ${subjectLabel(regularSwapPending.entryB.subjectId)} for ${sectionLabel(regularSwapPending.entryB.sectionId)}.` : ''}
 						</DialogDescription>
 					</DialogHeader>
 					<div role="status" aria-live="polite" data-testid="generated-swap-preview-status" className="sr-only">
@@ -628,7 +653,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Occupied-slot swap preview is ready.'
 									: 'Occupied-slot swap review opened.'}
 					</div>
-					<div className="px-4 py-3">
+					<div className="flex-1 min-h-0 overflow-auto px-4 py-3">
 						<ReviewActionSheet type="generated-swap">
 					{regularSwapPreview?.loading ? (
 						<p className="flex items-center gap-2 text-xs"><Loader2 className="size-4 animate-spin" />Checking options...</p>
@@ -636,51 +661,108 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 						<p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{regularSwapPreview.error}</p>
 					) : regularSwapPending && regularSwapPreview ? (
 						<>
-							<ReviewActionSection title="What changes" description="The two occupied sessions exchange slots after the selected safe option is confirmed.">
-							<div className="grid gap-2 text-xs sm:grid-cols-2">
-								<div className="rounded-md border p-3">
-									<p className="font-semibold">{subjectLabel(regularSwapPending.entryA.subjectId)} - {sectionLabel(regularSwapPending.entryA.sectionId)}</p>
-									<p className="mt-1 text-muted-foreground">{regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}-{formatTime(regularSwapPending.entryA.endTime)}</p>
+							<ReviewActionSection title="What changes" description="These two classes swap times after you confirm. Teacher ownership remains sourced from Teaching Load.">
+							<div className="grid gap-2 sm:grid-cols-2">
+								<div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5">
+									<ArrowRightLeft className="mt-0.5 size-4 shrink-0 text-primary" />
+									<div>
+										<p className="text-sm font-semibold">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
+										<p className="text-xs text-muted-foreground">{sectionLabel(regularSwapPending.entryA.sectionId)} &middot; {regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}-{formatTime(regularSwapPending.entryA.endTime)}</p>
+									</div>
 								</div>
-								<div className="rounded-md border p-3">
-									<p className="font-semibold">{subjectLabel(regularSwapPending.entryB.subjectId)} - {sectionLabel(regularSwapPending.entryB.sectionId)}</p>
-									<p className="mt-1 text-muted-foreground">{regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}-{formatTime(regularSwapPending.entryB.endTime)}</p>
+								<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
+									<ArrowRightLeft className="mt-0.5 size-4 shrink-0 text-amber-600" />
+									<div>
+										<p className="text-sm font-semibold">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
+										<p className="text-xs text-muted-foreground">{sectionLabel(regularSwapPending.entryB.sectionId)} &middot; {regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}-{formatTime(regularSwapPending.entryB.endTime)}</p>
+									</div>
 								</div>
 							</div>
 							</ReviewActionSection>
-							<ReviewActionSection title="Swap options" description="Choose the safest option. Advanced repair options stay secondary.">
-							<div className="grid gap-2">
-								<Button className="h-auto w-full justify-between gap-3 p-3 text-left" variant={regularSwapStrategy === 'DIRECT_SWAP' ? 'default' : 'outline'} disabled={(regularSwapPreview.directPreview?.hardViolations.length ?? 0) > 0} onClick={() => setRegularSwapStrategy('DIRECT_SWAP')}>
-									<span>Direct swap</span>
-									<span className="text-xs">Blocking {regularSwapPreview.directPreview?.hardViolations.length ?? '-'} - Warnings {regularSwapPreview.directPreview?.softViolations.length ?? '-'}</span>
-								</Button>
-								<Button className="h-auto w-full justify-between gap-3 p-3 text-left" variant={regularSwapStrategy === 'AUTO_FIX_MOVE_BLOCKING' ? 'default' : 'outline'} disabled={!regularSwapPreview.autoFixBlockingPreview} onClick={() => setRegularSwapStrategy('AUTO_FIX_MOVE_BLOCKING')}>
-									<span>Move blocking session</span>
-									<span className="text-xs">Blocking {regularSwapPreview.autoFixBlockingPreview?.hardViolations.length ?? '-'} - Warnings {regularSwapPreview.autoFixBlockingPreview?.softViolations.length ?? '-'}</span>
-								</Button>
-								<Button className="h-auto w-full justify-between gap-3 p-3 text-left" variant={regularSwapStrategy === 'AUTO_FIX_MOVE_SOURCE' ? 'default' : 'outline'} disabled={!regularSwapPreview.autoFixSourcePreview} onClick={() => setRegularSwapStrategy('AUTO_FIX_MOVE_SOURCE')}>
-									<span>Move selected session</span>
-									<span className="text-xs">Blocking {regularSwapPreview.autoFixSourcePreview?.hardViolations.length ?? '-'} - Warnings {regularSwapPreview.autoFixSourcePreview?.softViolations.length ?? '-'}</span>
-								</Button>
-							</div>
-							</ReviewActionSection>
-							<ReviewActionSection title="Blocks" tone={(regularSwapPreview.directPreview?.hardViolations.length ?? 0) > 0 ? 'bad' : 'good'}>
-								{conflictSummary(regularSwapPreview.directPreview, 'Direct swap')}
-							</ReviewActionSection>
-							<ReviewActionSection title="Warnings" tone={(regularSwapPreview.directPreview?.softViolations.length ?? 0) > 0 ? 'warn' : 'neutral'}>
-								<p className="text-xs text-muted-foreground">Warnings are shown in each option so schedulers can choose with confidence.</p>
-							</ReviewActionSection>
-							<ReviewActionSection title="After save">
-								<p className="text-xs text-muted-foreground">ATLAS saves only the selected swap option. Teacher ownership remains sourced from Teaching Load.</p>
-							</ReviewActionSection>
+							{regularSwapPreview.recommendedStrategy === 'BLOCKED' ? (
+								<ReviewActionSection title="Blocked" tone="bad">
+									<p className="text-sm font-medium text-red-800">No safe swap option available for this pair.</p>
+									<div className="mt-2 grid grid-cols-2 gap-2">
+										<FigureCard label="Blocking" value={regularSwapPreview.directPreview?.hardViolations.length ?? 0} tone="bad" />
+										<FigureCard label="Warnings" value={regularSwapPreview.directPreview?.softViolations.length ?? 0} tone="warn" />
+									</div>
+									<div className="mt-3 flex flex-wrap gap-2">
+										<Button size="sm" variant="outline" onClick={closeGeneratedSwap}>
+											<ArrowRightLeft className="size-3.5" />Choose another class
+										</Button>
+										<Button size="sm" variant="outline" onClick={closeGeneratedSwap}>
+											<ExternalLink className="size-3.5" />Review blockers
+										</Button>
+										<Button size="sm" variant="outline" onClick={closeGeneratedSwap}>
+											<AlertTriangle className="size-3.5" />Try manual move
+										</Button>
+									</div>
+								</ReviewActionSection>
+							) : (
+								<>
+								<ReviewActionSection title="Swap options" description="Choose the safest option.">
+								<div className="grid gap-1.5">
+									{(['DIRECT_SWAP', 'AUTO_FIX_MOVE_BLOCKING', 'AUTO_FIX_MOVE_SOURCE'] as const).map((key) => {
+										const isRecommended = regularSwapPreview.recommendedStrategy === key;
+										const preview = key === 'DIRECT_SWAP' ? regularSwapPreview.directPreview : key === 'AUTO_FIX_MOVE_BLOCKING' ? regularSwapPreview.autoFixBlockingPreview : regularSwapPreview.autoFixSourcePreview;
+										const isDisabled = !preview;
+										const hardCount = preview?.hardViolations.length ?? 0;
+										const softCount = preview?.softViolations.length ?? 0;
+										const label = key === 'DIRECT_SWAP' ? 'Direct swap' : key === 'AUTO_FIX_MOVE_BLOCKING' ? 'Move blocking session' : 'Move selected session';
+										const unavailableReason = strategyUnavailableReason(preview, regularSwapPreview.recommendedStrategy, key);
+										return (
+											<button
+												key={key}
+												className={`h-auto min-h-[44px] w-full justify-between gap-2 rounded-md border p-2.5 text-left text-sm ${regularSwapStrategy === key ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border bg-background hover:bg-muted/50'} ${isDisabled ? 'opacity-60' : ''}`}
+												disabled={isDisabled}
+												onClick={() => setRegularSwapStrategy(key)}
+											>
+												<span className="flex items-center gap-1.5">
+													{isRecommended && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-700"><ShieldCheck className="size-3" />Recommended</span>}
+													{isDisabled && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem] font-medium text-slate-500"><ShieldOff className="size-3" />Unavailable</span>}
+													<span>{label}</span>
+												</span>
+												<span className="text-xs text-muted-foreground">
+													{isDisabled && unavailableReason ? unavailableReason : `Blocking ${hardCount} \u2022 Warnings ${softCount}`}
+												</span>
+											</button>
+										);
+									})}
+								</div>
+								</ReviewActionSection>
+								{(() => {
+									const selected = getSelectedStrategyPreview(regularSwapPreview, regularSwapStrategy);
+									if (!selected?.preview) return null;
+									const hard = selected.preview.hardViolations.length;
+									const soft = selected.preview.softViolations.length;
+									return (
+										<ReviewActionSection
+											title={`${selected.label} status`}
+											tone={hard > 0 ? 'bad' : soft > 0 ? 'warn' : 'good'}
+										>
+											<div className="grid grid-cols-2 gap-2">
+												<FigureCard label="Blocking" value={hard} tone={hard > 0 ? 'bad' : 'good'} />
+												<FigureCard label="Warnings" value={soft} tone={soft > 0 ? 'warn' : 'good'} />
+											</div>
+											{hard === 0 && (
+												<p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
+													<CheckCircle2 className="size-3.5 shrink-0" />
+													No blocking conflicts for this option.
+												</p>
+											)}
+										</ReviewActionSection>
+									);
+								})()}
+								</>
+							)}
 						</>
 					) : null}
 						</ReviewActionSheet>
 					</div>
-					<DialogFooter className="flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
+					<DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
 						<p
 							className={`min-w-0 flex-1 rounded-md border px-2.5 py-2 text-xs ${feedbackClass(
-								regularSwapSaving || regularSwapPreview?.loading ? 'neutral' : regularSwapPreview?.error ? 'bad' : regularSwapStrategy ? 'good' : 'warn',
+								regularSwapSaving || regularSwapPreview?.loading ? 'neutral' : regularSwapPreview?.error ? 'bad' : regularSwapPreview?.recommendedStrategy === 'BLOCKED' ? 'bad' : regularSwapStrategy ? 'good' : 'warn',
 							)}`}
 							data-testid="generated-swap-feedback"
 							role="status"
@@ -692,15 +774,21 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Checking swap options.'
 									: regularSwapPreview?.error
 										? `${regularSwapPreview.error} Choose another class pair or cancel without saving.`
-										: regularSwapStrategy
-											? 'Ready to swap. ATLAS will save only the selected option.'
-											: 'Choose a safe swap option before saving.'}
+										: regularSwapPreview?.recommendedStrategy === 'BLOCKED'
+											? 'This swap is blocked. Choose another class or try a manual move.'
+											: regularSwapStrategy
+												? 'Ready to swap. ATLAS will save only the selected option.'
+												: 'Choose a safe swap option before saving.'}
 						</p>
-						<Button ref={generatedSwapCancelRef} variant="outline" onClick={closeGeneratedSwap}>Cancel</Button>
-						<Button disabled={regularSwapSaving || !regularSwapStrategy} onClick={() => void executeRegularSwap()}>
-							{regularSwapSaving ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-							Swap sessions
+						<Button ref={generatedSwapCancelRef} variant="outline" onClick={closeGeneratedSwap}>
+							{regularSwapPreview?.recommendedStrategy === 'BLOCKED' ? 'Cancel safely' : 'Cancel'}
 						</Button>
+						{regularSwapPreview?.recommendedStrategy !== 'BLOCKED' && (
+							<Button disabled={regularSwapSaving || !regularSwapStrategy} onClick={() => void executeRegularSwap()}>
+								{regularSwapSaving ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+								Swap sessions
+							</Button>
+						)}
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

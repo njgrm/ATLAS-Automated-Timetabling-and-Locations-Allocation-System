@@ -9,7 +9,7 @@ type ReviewActionSheetProps = {
 };
 
 type ReviewActionSectionProps = {
-	title: 'What changes' | 'Blocks' | 'Warnings' | 'After save' | 'Room source' | 'Swap options';
+	title: 'What changes' | 'Blocks' | 'Warnings' | 'After save' | 'Room source' | 'Swap options' | 'Blocked' | `${string} status`;
 	description?: string;
 	children: ReactNode;
 	tone?: 'neutral' | 'good' | 'warn' | 'bad';
@@ -27,7 +27,7 @@ export function ReviewActionSheet({ type, children, className }: ReviewActionShe
 		<div
 			data-testid="review-action-sheet"
 			data-review-action-type={type}
-			className={cn('grid max-h-[65svh] gap-3 overflow-y-auto pr-1 text-xs sm:max-h-[68vh]', className)}
+			className={cn('grid gap-3 text-xs', className)}
 		>
 			{children}
 		</div>
