@@ -1109,7 +1109,7 @@ function TimetableSimpleHeaderImpl({
 							type="button"
 							variant="outline"
 							size="sm"
-							className="h-7 gap-1.5 px-3 text-xs sm:h-8 sm:text-sm"
+							className="h-10 gap-1.5 px-3 text-xs sm:text-sm"
 							disabled={context.newDraftLoading || !context.schoolYearId}
 							onClick={() => void startTask('plan-draft')}
 							data-testid="timetable-empty-start-draft-action"
@@ -1121,7 +1121,7 @@ function TimetableSimpleHeaderImpl({
 						<Button
 							type="button"
 							size="sm"
-							className="h-7 gap-1.5 px-3 text-xs sm:h-8 sm:text-sm"
+							className="h-10 gap-1.5 px-3 text-xs sm:text-sm"
 							disabled={context.generating || context.loading || !context.schoolYearId}
 							onClick={context.handleTriggerGenerate}
 							data-testid="timetable-empty-generate-action"
@@ -1148,7 +1148,7 @@ function TimetableSimpleHeaderImpl({
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
 								{activeTask ? activeTaskDefinition.label : recommendedTask.label}
 							</p>
-							<p className="sr-only">{activeTaskDefinition.helper}</p>
+							<p className="hidden text-xs text-muted-foreground sm:block">{activeTaskDefinition.helper}</p>
 						</div>
 					</div>
 
@@ -1180,7 +1180,7 @@ function TimetableSimpleHeaderImpl({
 						<Button
 							asChild
 							size="sm"
-							className="h-7 min-w-28 gap-1.5 px-3 text-xs sm:h-8 sm:min-w-32 sm:text-sm"
+							className="h-10 min-w-28 gap-1.5 px-3 text-xs sm:text-sm"
 							disabled={activeTaskDefinition.disabled}
 							data-testid="timetable-simple-primary-action"
 						>
@@ -1193,7 +1193,7 @@ function TimetableSimpleHeaderImpl({
 						<Button
 							type="button"
 							size="sm"
-							className="h-7 min-w-28 gap-1.5 px-3 text-xs sm:h-8 sm:min-w-32 sm:text-sm"
+							className="h-10 min-w-28 gap-1.5 px-3 text-xs sm:text-sm"
 							disabled={activeTaskDefinition.disabled}
 							onClick={() => void startTask(activeTaskDefinition.id)}
 							data-testid="timetable-simple-primary-action"

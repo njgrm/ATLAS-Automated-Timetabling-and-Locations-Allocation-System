@@ -1384,13 +1384,10 @@ test('old-scheduler: primary Simple actions must use h-10 or h-11, not h-7 or h-
 	// Primary task action buttons should not use h-7 or h-8
 	// The h-7/h-8 classes appear on Button elements in the Simple header
 	// These are the primary action buttons that should be h-10 or h-11
-	// Known issue: lines 1112, 1124, 1183, 1196 use h-7 for primary actions
-	// This guard catches the risk; fix in Prompt 02 (next action guidance)
 	const h7Matches = header.match(/className="h-7[^"]*"/g) ?? [];
 	// Filter out non-primary controls (select triggers, etc.)
 	const primaryH7 = h7Matches.filter((m) => !m.includes('Select') && !m.includes('select'));
-	// Document the known issue count for the regression baseline
-	assert.ok(primaryH7.length > 0, `Found ${primaryH7.length} primary actions using h-7 - will be fixed in Prompt 02`);
+	assert.strictEqual(primaryH7.length, 0, 'Primary Simple actions must not use h-7');
 });
 
 test('old-scheduler: timetable-foolproof-help must not be hidden as sr-only in visible Advanced task strip', () => {
