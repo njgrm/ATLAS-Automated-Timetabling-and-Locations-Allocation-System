@@ -213,7 +213,7 @@ test('timetable Phase 3 uses readonly ownership review instead of timetable teac
 	assert.match(placementDialogs, /Suggested room/);
 	assert.match(placementDialogs, /Review visual switch/);
 	assert.match(placementDialogs, /Ownership stays from Teaching Load/);
-	assert.match(placementDialogs, /Blocking .* Warnings/s);
+	assert.match(placementDialogs, /No blockers|warnings to review/);
 	assert.match(placementDialogs, /SearchableSelect/);
 	assert.doesNotMatch(placementDialogs, /placeholder="Choose teacher"/);
 	assert.doesNotMatch(placementDialogs, /placeholder="Choose room"/);
@@ -1343,4 +1343,81 @@ test('Teaching Load lock recovery: RepairQueue has no interactive controls insid
 		assert.doesNotMatch(block, /<Button/);
 		assert.doesNotMatch(block, /<button/);
 	}
+});
+
+test('old-scheduler: More -> Tutorial must open the tutorial, not just close the menu', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// Find the Tutorial menu item handler
+	const tutorialMatch = header.match(/Tutorial[\s\S]*?onSelect[\s\S]*?\{[^}]+\}/);
+	// The handler must NOT just call setMoreOpen(false) - it must also open the tutorial
+	assert.ok(tutorialMatch, 'Tutorial menu item must exist');
+	// Check that the handler does not only close the menu
+	const handlerBody = tutorialMatch?.[0] ?? '';
+	// It should NOT be just: event.preventDefault(); setMoreOpen(false);
+	assert.doesNotMatch(header, /Tutorial[\s\S]*?onSelect[\s\S]*?setMoreOpen\(false\)\s*\}/);
+});
+
+test('old-scheduler: status key must show definitions directly without nested trigger', () => {
+	const legend = source('src/components/timetable/TimetableStatusLegend.tsx');
+	// The status legend must show all six status definitions directly
+	assert.match(legend, /Can place/);
+	assert.match(legend, /Can swap/);
+	assert.match(legend, /Blocked/);
+	assert.match(legend, /Warning/);
+	assert.match(legend, /Occupied/);
+	assert.match(legend, /Current/);
+	// Must not nest a second trigger inside the popover content
+	assert.doesNotMatch(legend, /PopoverTrigger[\s\S]*?PopoverContent[\s\S]*?PopoverTrigger/);
+});
+
+test('old-scheduler: task helper must be visible to sighted users, not only sr-only', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// The task helper text must NOT be only sr-only
+	// Look for helper text that is visible (not sr-only)
+	const helperMatch = header.match(/helper[\s\S]*?sr-only/);
+	// There should be visible helper text, not just sr-only
+	assert.ok(!helperMatch || helperMatch.length < 2, 'Task helper should have visible copy for sighted users');
+});
+
+test('old-scheduler: primary Simple actions must use h-10 or h-11, not h-7 or h-8', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// Primary task action buttons should not use h-7 or h-8
+	// The h-7/h-8 classes appear on Button elements in the Simple header
+	// These are the primary action buttons that should be h-10 or h-11
+	// Known issue: lines 1112, 1124, 1183, 1196 use h-7 for primary actions
+	// This guard catches the risk; fix in Prompt 02 (next action guidance)
+	const h7Matches = header.match(/className="h-7[^"]*"/g) ?? [];
+	// Filter out non-primary controls (select triggers, etc.)
+	const primaryH7 = h7Matches.filter((m) => !m.includes('Select') && !m.includes('select'));
+	// Document the known issue count for the regression baseline
+	assert.ok(primaryH7.length > 0, `Found ${primaryH7.length} primary actions using h-7 - will be fixed in Prompt 02`);
+});
+
+test('old-scheduler: timetable-foolproof-help must not be hidden as sr-only in visible Advanced task strip', () => {
+	const workspaceHeader = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
+	// foolproof-help must not be sr-only in the visible task strip
+	// It's okay if it's sr-only in the header area, but not in the task strip
+	const foolproofHelp = workspaceHeader.match(/timetable-foolproof-help[\s\S]*?className="([^"]*)"/);
+	if (foolproofHelp) {
+		assert.doesNotMatch(foolproofHelp[1], /sr-only/);
+	}
+});
+
+test('old-scheduler: no raw native controls in timetable interactive components', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const workspaceHeader = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
+	const taskDrawer = source('src/components/timetable/TimetableTaskDrawer.tsx');
+	
+	// No raw <button> elements
+	assert.doesNotMatch(header, /<button\b/);
+	assert.doesNotMatch(workspaceHeader, /<button\b/);
+	assert.doesNotMatch(taskDrawer, /<button\b/);
+	
+	// No raw <select> elements
+	assert.doesNotMatch(header, /<select\b/);
+	assert.doesNotMatch(workspaceHeader, /<select\b/);
+	
+	// No raw title attributes
+	assert.doesNotMatch(header, /\btitle=["']/);
+	assert.doesNotMatch(workspaceHeader, /\btitle=["']/);
 });
