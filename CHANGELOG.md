@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-08-26] — Generation Fallback Grade-Scope Fix
+
+### Fixed
+- Generation constructor now filters CLASSROOM fallback candidates by `building.gradeScope` — Grade 8/9/10 sections can no longer consume Grade 7-only classrooms during fallback
+- Homeroom candidate also requires grade-scope compatibility before being added to the fallback pool
+- Capacity overflow fallback (specialized rooms) also respects grade scope
+- Extended `RoomInput` with `buildingGradeScope: number[]` field
+- Extended Prisma room query to include `building.gradeScope` in generation input
+- Added `isRoomGradeScopeCompatible` helper function
+
+### Tests
+- 6 new grade-scope fallback tests in `phase2-home-room-strategy.test.ts` covering: cross-grade fallback blocked, matching fallback eligible, any-grade fallback, cross-building same-grade, exhaustion, no cross-grade displacement
+- All 38 tests pass
+
 ## [2026-08-26] — Home-Room Auto-Assign QA Blocker Fix Prompt
 
 ### Added

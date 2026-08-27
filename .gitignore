@@ -2,6 +2,7 @@
 .github/
 .cursor/
 AGENTS.md
+CHANGELOG.md
 projectIntro.md
 # Local tooling configs
 .vscode/mcp.json
@@ -10,6 +11,7 @@ reminders.md
 phasePlan.md
 requirements-phase1-ux.md
 questions.md
+docs/
 qa-artifacts/
 
 # Generated build output

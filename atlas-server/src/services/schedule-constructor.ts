@@ -120,6 +120,7 @@ export interface RoomInput {
 	capacity: number | null;
 	buildingId?: number | null;
 	buildingZoneId?: string | null;
+	buildingGradeScope?: number[];
 	features?: string[];
 }
 
@@ -127,6 +128,13 @@ function intersectCandidateLists(candidateLists: number[][]): number[] {
 	if (candidateLists.length === 0) return [];
 	const [first, ...rest] = candidateLists;
 	return first.filter((candidateId) => rest.every((list) => list.includes(candidateId)));
+}
+
+/** A room is grade-scope compatible if its building scope is empty (any grade) or includes the section grade. */
+function isRoomGradeScopeCompatible(room: RoomInput, sectionGradeLevel: number): boolean {
+	const scope = room.buildingGradeScope;
+	if (!scope || scope.length === 0) return true;
+	return scope.includes(sectionGradeLevel);
 }
 
 export interface PreferenceSlotInput {
@@ -1661,7 +1669,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				let broaderStandardRooms: RoomInput[] = [];
 
 				if (!isSpecializedDemand) {
-					compatibleRooms = compatibleRooms.filter((room) => room.type === 'CLASSROOM' && !room.isSharedFacility);
+					compatibleRooms = compatibleRooms.filter(
+						(room) => room.type === 'CLASSROOM' && !room.isSharedFacility && isRoomGradeScopeCompatible(room, item.gradeLevel),
+					);
 
 					if (preferredHomeRoomId != null) {
 						const isSameZoneRoom = (room: RoomInput): boolean => {
@@ -1680,7 +1690,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							.slice(0, MAX_CROSS_BUILDING_FALLBACK_ROOMS);
 						sawCrossBuildingFallbackOptions = broaderStandardRooms.length > 0;
 
-						const homeRoomAllowed = preferredHomeRoom != null && preferredHomeRoom.type === 'CLASSROOM' && !preferredHomeRoom.isSharedFacility;
+						const homeRoomAllowed = preferredHomeRoom != null
+							&& preferredHomeRoom.type === 'CLASSROOM'
+							&& !preferredHomeRoom.isSharedFacility
+							&& isRoomGradeScopeCompatible(preferredHomeRoom, item.gradeLevel);
 						const homeRoomCandidate = homeRoomAllowed ? [preferredHomeRoom] : [];
 						compatibleRooms = [...homeRoomCandidate, ...sameZoneStandardRooms, ...broaderStandardRooms];
 
@@ -1700,6 +1713,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							.filter((room) => !room.isSharedFacility)
 							.filter((room) => room.type !== 'CLASSROOM')
 							.filter((room) => room.capacity == null || room.capacity >= item.enrolledCount)
+							.filter((room) => isRoomGradeScopeCompatible(room, item.gradeLevel))
 							.sort((left, right) => {
 								const leftZoneMatch = preferredZone != null && (left.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;
 								const rightZoneMatch = preferredZone != null && (right.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;

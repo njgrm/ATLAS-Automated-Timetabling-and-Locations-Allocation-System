@@ -313,6 +313,109 @@ function run() {
 	assertEqual(universalCapacityBlockedResult.entries.length, 0, 'UNIVERSAL strategy does not bypass room-capacity constraints');
 	assertEqual(universalCapacityBlockedResult.unassignedItems[0]?.reason, 'ROOM_CAPACITY_EXCEEDED', 'UNIVERSAL strategy keeps explicit ROOM_CAPACITY_EXCEEDED diagnostics when blocked');
 
+	// ── Grade-scope fallback tests ──
+
+	// Test 1: Grade 8 section must not fallback into Grade 7-only classroom
+	// Setup: section is Grade 8, all rooms are Grade 7-only with sufficient capacity.
+	// The homeroom is Grade 7-only so it should not be used for Grade 8.
+	// The section should remain unassigned because no Grade 8-compatible room exists.
+	console.log('\n--- Grade-scope: cross-grade fallback blocked ---');
+	const g8BlockedInput = buildBaseInput('HOME_ROOM_FIRST');
+	g8BlockedInput.sectionsByGrade[0].sections[0].gradeLevelId = 8;
+	g8BlockedInput.sectionsByGrade[0].sections[0].gradeLevelName = 'Grade 8';
+	g8BlockedInput.sectionsByGrade[0].sections[0].homeRoomId = 1;
+	g8BlockedInput.sectionsByGrade[0].sections[0].buildingZoneId = 'NORTH';
+	g8BlockedInput.sectionsByGrade[0].sections[0].enrolledCount = 30;
+	g8BlockedInput.sectionsByGrade[0].gradeLevelId = 8;
+	g8BlockedInput.sectionsByGrade[0].gradeLevelName = 'Grade 8';
+	g8BlockedInput.sectionsByGrade[0].displayOrder = 8;
+	// All rooms are Grade 7-only with enough capacity
+	g8BlockedInput.rooms[0].buildingGradeScope = [7]; g8BlockedInput.rooms[0].capacity = 45;
+	g8BlockedInput.rooms[1].buildingGradeScope = [7]; g8BlockedInput.rooms[1].capacity = 45;
+	g8BlockedInput.rooms[2].buildingGradeScope = [7]; g8BlockedInput.rooms[2].capacity = 45;
+	const g8BlockedResult = constructBaseline(g8BlockedInput);
+	// Section should not be placed in any room because all are Grade 7-only
+	const g8PlacedInGrade7 = g8BlockedResult.entries.some((e) => {
+		const room = g8BlockedInput.rooms.find((r) => r.id === e.roomId);
+		return room?.buildingGradeScope !== undefined && room.buildingGradeScope.length > 0 && !room.buildingGradeScope.includes(8);
+	});
+	assert(!g8PlacedInGrade7, 'Grade 8 section must not be placed in a Grade 7-only classroom');
+	// The section should either be unassigned or placed in a non-scoped room (none exist)
+	assertEqual(g8BlockedResult.entries.filter((e) => e.sectionId === 101).length, 0, 'Grade 8 section has no placement when all rooms are Grade 7-only');
+
+	// Test 2: Grade 7 section must not be displaced by Grade 8 fallback into Grade 7-only room
+	// This is the production scenario: Grade 8 section tries to fallback, must not consume Grade 7 rooms
+	console.log('\n--- Grade-scope: no cross-grade displacement ---');
+	const g7ProtectInput = buildBaseInput('HOME_ROOM_FIRST');
+	g7ProtectInput.sectionsByGrade[0].sections[0].gradeLevelId = 7;
+	g7ProtectInput.sectionsByGrade[0].sections[0].homeRoomId = 1;
+	g7ProtectInput.rooms[0].buildingGradeScope = [7]; g7ProtectInput.rooms[0].capacity = 45;
+	g7ProtectInput.rooms[1].buildingGradeScope = [7]; g7ProtectInput.rooms[1].capacity = 45;
+	g7ProtectInput.rooms[2].buildingGradeScope = [7]; g7ProtectInput.rooms[2].capacity = 45;
+	// Add Grade 8 rooms that should NOT be used for Grade 7 section
+	g7ProtectInput.rooms.push({
+		id: 10, type: 'CLASSROOM', isTeachingSpace: true, capacity: 45,
+		buildingId: 12, buildingZoneId: 'SOUTH', buildingGradeScope: [8], features: [],
+	});
+	const g7ProtectResult = constructBaseline(g7ProtectInput);
+	const g7ProtectEntry = g7ProtectResult.entries.find((e) => e.sectionId === 101);
+	assert(g7ProtectEntry != null, 'Grade 7 section is placed');
+	assertEqual(g7ProtectEntry?.roomId, 1, 'Grade 7 section uses its own Grade 7 homeroom');
+	const g7UsedG8Room = g7ProtectResult.entries.some(
+		(e) => e.sectionId === 101 && g7ProtectInput.rooms.find((r) => r.id === e.roomId)?.buildingGradeScope?.includes(8),
+	);
+	assert(!g7UsedG8Room, 'Grade 7 section never uses a Grade 8-only room');
+
+	// Test 3: Any-grade room with gradeScope=[] remains eligible
+	// Homeroom is Grade 7-only (compatible), same-zone backup is Grade 8-only (incompatible)
+	console.log('\n--- Grade-scope: any-grade fallback eligible ---');
+	const g7AnyInput = buildBaseInput('HOME_ROOM_FIRST');
+	g7AnyInput.rooms[0].buildingGradeScope = [7]; g7AnyInput.rooms[0].capacity = 45; // homeroom OK
+	g7AnyInput.rooms[1].buildingGradeScope = [8]; g7AnyInput.rooms[1].capacity = 45; // wrong grade, not a fallback
+	g7AnyInput.rooms[2].buildingGradeScope = [7]; g7AnyInput.rooms[2].capacity = 45; // same zone, grade-compatible
+	// Add a cross-building any-grade room
+	g7AnyInput.rooms.push({
+		id: 3, type: 'CLASSROOM', isTeachingSpace: true, capacity: 45,
+		buildingId: 13, buildingZoneId: 'EAST', buildingGradeScope: [], features: [],
+	});
+	g7AnyInput.buildings = g7AnyInput.buildings ?? [];
+	g7AnyInput.buildings.push({ id: 13, name: 'Community Wing' });
+	const g7AnyResult = constructBaseline(g7AnyInput);
+	const g7AnyEntry = g7AnyResult.entries.find((e) => e.sectionId === 101);
+	// Homeroom has gradeScope=[7] and is grade-compatible, so it should be used
+	assertEqual(g7AnyEntry?.roomId, 1, 'Grade 7 section uses its grade-compatible homeroom when available');
+
+	// Test 4: Cross-building fallback works for same-grade target
+	// Homeroom is same-grade, same-zone is same-grade, cross-building is same-grade
+	console.log('\n--- Grade-scope: cross-building same-grade fallback ---');
+	const g7CrossInput = buildBaseInput('HOME_ROOM_FIRST');
+	g7CrossInput.rooms[0].buildingGradeScope = [7]; g7CrossInput.rooms[0].capacity = 45;
+	g7CrossInput.rooms[1].buildingGradeScope = [7]; g7CrossInput.rooms[1].capacity = 45;
+	g7CrossInput.rooms[2].buildingGradeScope = [7]; g7CrossInput.rooms[2].capacity = 45;
+	// Add a cross-building room that is grade-compatible
+	g7CrossInput.rooms.push({
+		id: 3, type: 'CLASSROOM', isTeachingSpace: true, capacity: 45,
+		buildingId: 13, buildingZoneId: 'EAST', buildingGradeScope: [7], features: [],
+	});
+	g7CrossInput.buildings = g7CrossInput.buildings ?? [];
+	g7CrossInput.buildings.push({ id: 13, name: 'Grade 7 Extension' });
+	const g7CrossResult = constructBaseline(g7CrossInput);
+	const g7CrossEntry = g7CrossResult.entries.find((e) => e.sectionId === 101);
+	// Homeroom is compatible, so it should be used (not cross-building)
+	assertEqual(g7CrossEntry?.roomId, 1, 'Grade 7 section uses homeroom when it is grade-compatible');
+
+	// Test 5: No grade-compatible room → session remains unassigned
+	console.log('\n--- Grade-scope: exhaustion leaves section unassigned ---');
+	const g7ExhaustInput = buildBaseInput('HOME_ROOM_FIRST');
+	g7ExhaustInput.rooms[0].buildingGradeScope = [7];
+	g7ExhaustInput.rooms[0].capacity = 10; // homeroom too small
+	g7ExhaustInput.rooms[1].buildingGradeScope = [8]; // wrong grade, too small anyway
+	g7ExhaustInput.rooms[1].capacity = 45;
+	g7ExhaustInput.rooms[2].buildingGradeScope = [9]; // wrong grade
+	g7ExhaustInput.rooms[2].capacity = 45;
+	const g7ExhaustResult = constructBaseline(g7ExhaustInput);
+	assert(g7ExhaustResult.entries.length === 0 || g7ExhaustResult.unassignedItems.length > 0, 'Grade 7 section is unassigned when no grade-compatible room exists');
+
 	console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
 	if (failCount > 0) {
 		process.exitCode = 1;

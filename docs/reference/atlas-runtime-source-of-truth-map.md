@@ -68,6 +68,7 @@ Current persisted state:
 - Building grade scope: `gradeScope Int[]` field on `Building` model (added 2026-08-26); `[]` = any grade, `[7]` = Grade 7 only, etc.
 - Home-room auto-assign: `POST /api/v1/sections/home-rooms/:schoolYearId/auto-assign` endpoint (added 2026-08-26); supports preview/apply modes, respects building grade scope, preserves existing assignments by default.
 - Sections page: auto-assign button visible when sections need rooms; dialog shows preview, allows overwrite/cross-grade options, applies after operator confirmation.
+- Generation room fallback: `RoomInput.buildingGradeScope` field feeds into `schedule-constructor.ts`; CLASSROOM fallback candidates (same-zone, cross-building, and capacity overflow) are filtered by `buildingGradeScope`; `[]` = any grade; homeroom candidate also requires grade-scope compatibility.
 
 Current generator snapshot:
  Latest completed run summary now shows `runId=94`, `assignedCount=2704`, `unassignedCount=150`, `hardViolationCount=630`

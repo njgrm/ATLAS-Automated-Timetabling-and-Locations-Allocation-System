@@ -788,7 +788,7 @@ export async function triggerGenerationRun(
 					isTeachingSpace: true,
 					building: { schoolId, isTeachingBuilding: true },
 				},
-				select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, buildingId: true, buildingZoneId: true },
+				select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, buildingId: true, buildingZoneId: true, building: { select: { gradeScope: true } } },
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
@@ -833,6 +833,12 @@ export async function triggerGenerationRun(
 				orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
 			}),
 		]);
+
+		// Flatten building gradeScope into room objects for the constructor
+		const roomsWithGradeScope = rooms.map((r) => ({
+			...r,
+			buildingGradeScope: r.building?.gradeScope ?? [],
+		}));
 
 		const cohorts = await prisma.instructionalCohort.findMany({
 			where: { schoolId, schoolYearId, isActive: true },
@@ -946,7 +952,7 @@ export async function triggerGenerationRun(
 				department: member.department,
 			})),
 			facultySubjects,
-			rooms,
+			rooms: roomsWithGradeScope,
 			preferences: preferences.map((p) => ({
 				facultyId: p.facultyId,
 				status: p.status,

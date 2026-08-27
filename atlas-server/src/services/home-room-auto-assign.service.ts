@@ -10,6 +10,8 @@ export type AutoAssignOptions = {
 	mode: AutoAssignMode;
 	overwriteExisting?: boolean;
 	allowCrossGradeFallback?: boolean;
+	/** Optional Prisma client override for testing. */
+	prisma?: typeof prisma;
 };
 
 export type AutoAssignResult = {
@@ -95,9 +97,10 @@ function sortKey(section: SectionRow, room: RoomRow, matchScore: number) {
 
 export async function computeAutoAssign(options: AutoAssignOptions): Promise<AutoAssignResult> {
 	const { schoolId, schoolYearId, mode, overwriteExisting = false, allowCrossGradeFallback = false } = options;
+	const db = options.prisma ?? prisma;
 
 	// Fetch sections (include enrolledCount for capacity checks)
-	const sectionRows = await prisma.sectionMirror.findMany({
+	const sectionRows = await db.sectionMirror.findMany({
 		where: { schoolId, schoolYearId, isStale: false },
 		select: {
 			id: true,
@@ -112,7 +115,7 @@ export async function computeAutoAssign(options: AutoAssignOptions): Promise<Aut
 	});
 
 	// Fetch eligible rooms (teaching space in teaching buildings)
-	const roomRows = await prisma.room.findMany({
+	const roomRows = await db.room.findMany({
 		where: {
 			isTeachingSpace: true,
 			building: { schoolId, isTeachingBuilding: true },
@@ -277,7 +280,7 @@ export async function computeAutoAssign(options: AutoAssignOptions): Promise<Aut
 	// Apply if mode is 'apply'
 	if (mode === 'apply' && assignments.length > 0) {
 		let applied = 0;
-		await prisma.$transaction(async (tx) => {
+		await db.$transaction(async (tx) => {
 			for (const assignment of assignments) {
 				const mirror = await tx.sectionMirror.findFirst({
 					where: { externalId: assignment.sectionId, schoolId, schoolYearId },
