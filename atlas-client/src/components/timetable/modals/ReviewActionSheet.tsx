@@ -9,7 +9,7 @@ type ReviewActionSheetProps = {
 };
 
 type ReviewActionSectionProps = {
-	title: 'What changes' | 'Blocks' | 'Warnings' | 'After save' | 'Room source' | 'Swap options' | 'Blocked' | `${string} status`;
+	title: 'What changes' | 'Blocks' | 'Warnings' | 'After save' | 'Room source' | 'Swap options' | 'Choose option' | 'Blocked' | `${string} status`;
 	description?: string;
 	children: ReactNode;
 	tone?: 'neutral' | 'good' | 'warn' | 'bad';

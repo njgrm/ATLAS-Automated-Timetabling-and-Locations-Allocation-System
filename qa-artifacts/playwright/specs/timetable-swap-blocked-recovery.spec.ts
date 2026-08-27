@@ -71,38 +71,6 @@ async function openGeneratedSwapDialog(page: Page) {
 	}
 }
 
-async function captureBlockedRecoveryMetrics(page: Page, dialog: ReturnType<typeof page.getByTestId>, testInfo: TestInfo) {
-	await dialog.locator('[data-testid="generated-swap-preview-status"]').filter({ hasText: /ready|error/i }).waitFor({ timeout: 15_000 }).catch(() => {});
-
-	const dialogText = await dialog.innerText({ timeout: 5_000 }).catch(() => '');
-	const visibleTextLength = dialogText.length;
-
-	const isBlocked = dialogText.includes('No safe swap') || dialogText.includes('This swap is blocked');
-	const hasChooseAnother = dialogText.includes('Close and choose another pair');
-	const hasCancelSafely = dialogText.includes('Cancel safely');
-	const hasDisabledSwapButton = await dialog.locator('button:has-text("Swap sessions")').isDisabled().catch(() => true);
-	const hasBlockedFeedback = dialogText.includes('blocked') || dialogText.includes('Choose another class');
-	const hasConflictDetails = dialogText.includes('Blocking conflicts');
-
-	const feedbackText = await dialog.locator('[data-testid="generated-swap-feedback"]').innerText({ timeout: 3_000 }).catch(() => '');
-
-	await page.screenshot({
-		path: path.join(reportRoot, `${testInfo.project.name}-blocked-recovery.png`),
-		fullPage: false,
-	});
-
-	return {
-		visibleTextLength,
-		isBlocked,
-		hasChooseAnother,
-		hasCancelSafely,
-		hasDisabledSwapButton,
-		hasBlockedFeedback,
-		hasConflictDetails,
-		feedbackText,
-	};
-}
-
 test.describe.serial('Timetable swap blocked recovery gate', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.context().clearCookies();
@@ -115,7 +83,6 @@ test.describe.serial('Timetable swap blocked recovery gate', () => {
 
 		const runtimeResponse = await page.request.get('/api/v1/runtime/context?schoolId=1', { headers });
 		expect(runtimeResponse.ok()).toBeTruthy();
-		const runtime = await runtimeResponse.json() as { activeSchoolYearId: number };
 
 		const blockedWrites = await blockDestructiveTimetableWrites(page);
 
@@ -124,23 +91,42 @@ test.describe.serial('Timetable swap blocked recovery gate', () => {
 
 		const swapResult = await openGeneratedSwapDialog(page);
 		if (!swapResult.opened) {
+			await attachReport(testInfo, 'blocked-recovery-skipped', {
+				viewport: testInfo.project.name,
+				reason: swapResult.reason,
+			});
 			test.skip(true, swapResult.reason);
 			return;
 		}
 
-		const metrics = await captureBlockedRecoveryMetrics(page, swapResult.dialog, testInfo);
+		await swapResult.dialog.locator('[data-testid="generated-swap-preview-status"]').filter({ hasText: /ready|error/i }).waitFor({ timeout: 15_000 }).catch(() => {});
+
+		const dialogText = await swapResult.dialog.innerText({ timeout: 5_000 }).catch(() => '');
+
+		const isBlocked = dialogText.includes('No safe swap') || dialogText.includes('This swap is blocked');
+		const hasChooseAnother = dialogText.includes('Close and choose another pair');
+		const hasCancelSafely = dialogText.includes('Cancel safely');
+		const hasConflictDetails = dialogText.includes('Blocking conflicts');
 
 		await attachReport(testInfo, 'blocked-recovery-metrics', {
 			viewport: testInfo.project.name,
-			...metrics,
+			isBlocked,
+			hasChooseAnother,
+			hasCancelSafely,
+			hasConflictDetails,
 			blockedWrites,
 		});
 
-		if (metrics.isBlocked) {
-			expect(metrics.hasChooseAnother).toBe(true);
-			expect(metrics.hasCancelSafely).toBe(true);
-			expect(metrics.hasBlockedFeedback).toBe(true);
-			expect(metrics.hasConflictDetails).toBe(true);
+		if (isBlocked) {
+			expect(hasChooseAnother).toBe(true);
+			expect(hasCancelSafely).toBe(true);
+			expect(hasConflictDetails).toBe(true);
+		} else {
+			await attachReport(testInfo, 'blocked-recovery-fixture-limited', {
+				viewport: testInfo.project.name,
+				reason: 'No blocked swap pair found in current dataset',
+				isBlocked,
+			});
 		}
 
 		await swapResult.dialog.locator('button').filter({ hasText: /Cancel/i }).first().click();

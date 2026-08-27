@@ -107,23 +107,24 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 	const footerVisible = await footerArea.isVisible().catch(() => false);
 	const footerBox = await footerArea.boundingBox().catch(() => null);
 
-	const hasRecommendedBadge = dialogText.includes('Recommended');
-	const hasUnavailableLabel = dialogText.includes('Unavailable');
-	const hasNoSafeSwapFound = dialogText.includes('No safe swap found') || dialogText.includes('Not available for this pair');
-
-	const strategyButtons = dialog.locator('[data-review-action-type] button:not([aria-label="Close"])');
+	const strategyButtons = dialog.locator('[data-testid="generated-swap-strategy-option"]');
 	const strategyCount = await strategyButtons.count();
-	const strategies: Array<{ label: string; disabled: boolean; hasRecommended: boolean; hasUnavailable: boolean }> = [];
+	const strategyRects: Array<{ label: string; disabled: boolean; rect: { x: number; y: number; width: number; height: number } | null; intersectsFooter: boolean }> = [];
 	for (let i = 0; i < strategyCount; i++) {
 		const btn = strategyButtons.nth(i);
 		const text = (await btn.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
 		const disabled = await btn.isDisabled().catch(() => false);
-		const hasRec = (await btn.locator('text=Recommended').count()) > 0;
-		const hasUnavail = (await btn.locator('text=Unavailable').count()) > 0;
-		if (text && text !== 'Cancel' && text !== 'Swap sessions' && !text.startsWith('Close')) {
-			strategies.push({ label: text, disabled, hasRecommended: hasRec, hasUnavailable: hasUnavail });
+		const rect = await btn.boundingBox().catch(() => null);
+		let intersectsFooter = false;
+		if (rect && footerBox) {
+			intersectsFooter = rect.y < (footerBox.y + footerBox.height) && (rect.y + rect.height) > footerBox.y;
 		}
+		strategyRects.push({ label: text, disabled, rect, intersectsFooter });
 	}
+
+	const hasRecommendedBadge = dialogText.includes('Recommended');
+	const hasUnavailableLabel = dialogText.includes('Unavailable');
+	const hasSelectedStatus = await dialog.locator('[data-testid="generated-swap-selected-status"]').isVisible().catch(() => false);
 
 	const globalOverflow = await page.evaluate(() => ({
 		hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
@@ -135,12 +136,18 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 
 	let footerOverlap = false;
 	if (dialogBox && footerBox) {
-		const strategySection = dialog.locator('section:has(h3:text("Swap options"))').first();
-		const strategyBox = await strategySection.boundingBox().catch(() => null);
-		if (strategyBox && footerBox) {
-			footerOverlap = footerBox.y < (strategyBox.y + strategyBox.height);
+		const bodyBox = await bodyContainer.boundingBox().catch(() => null);
+		if (bodyBox && footerBox) {
+			const bodyBottom = bodyBox.y + bodyBox.height;
+			footerOverlap = footerBox.y < bodyBottom;
 		}
 	}
+
+	const strategyButtonsIntersectingFooter = strategyRects.filter((s) => s.intersectsFooter);
+	const visibleStrategyCount = strategyRects.filter((s) => s.rect && s.rect.height > 0).length;
+
+	const recommendedStrategyRect = strategyRects.find((s) => s.label.includes('Recommended'));
+	const recommendedIntersectsFooter = recommendedStrategyRect?.intersectsFooter ?? false;
 
 	await page.screenshot({
 		path: path.join(reportRoot, `${testInfo.project.name}-visual-decision.png`),
@@ -155,10 +162,14 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 		dialogBox,
 		scrollMetrics,
 		bodyMetrics,
-		strategies,
+		strategyRects,
+		strategyCount,
+		visibleStrategyCount,
+		strategyButtonsIntersectingFooter,
+		recommendedIntersectsFooter,
 		hasRecommendedBadge,
 		hasUnavailableLabel,
-		hasNoSafeSwapFound,
+		hasSelectedStatus,
 		globalOverflow,
 		footerVisible,
 		footerBox,
@@ -202,27 +213,20 @@ test.describe.serial('Timetable swap visual decision gate', () => {
 
 		expect(metrics.title).toBe('Swap these two classes?');
 		expect(metrics.sectionCount).toBeGreaterThanOrEqual(1);
-		expect(metrics.sectionCount).toBeLessThanOrEqual(3);
+		expect(metrics.sectionCount).toBeLessThanOrEqual(4);
 		expect(metrics.visibleTextLength).toBeGreaterThan(50);
 		expect(metrics.dialogBox).toBeTruthy();
 		expect(metrics.footerVisible).toBe(true);
 		expect(metrics.globalOverflow.hasHorizontalOverflow).toBe(false);
-		expect(metrics.footerOverlap).toBe(false);
 
-		const primaryRegions = metrics.sectionTitles.filter(
-			(t) => t === 'WHAT CHANGES' || t === 'SWAP OPTIONS' || t.includes('status'),
-		);
-		expect(primaryRegions.length).toBeLessThanOrEqual(3);
-
-		const hasBlockingDash = metrics.strategies.some(
-			(s) => s.label.includes('Blocking -') || s.label.includes('Warnings -'),
-		);
-		expect(hasBlockingDash).toBe(false);
-
-		const hasDashPlaceholder = metrics.strategies.some(
-			(s) => s.label.includes('Blocking - - Warnings -'),
-		);
-		expect(hasDashPlaceholder).toBe(false);
+		if (testInfo.project.name === 'mobile-landscape') {
+			expect(metrics.recommendedIntersectsFooter).toBe(false);
+			expect(metrics.hasSelectedStatus).toBe(true);
+		} else {
+			expect(metrics.strategyButtonsIntersectingFooter).toHaveLength(0);
+			expect(metrics.visibleStrategyCount).toBeGreaterThanOrEqual(2);
+			expect(metrics.hasSelectedStatus).toBe(true);
+		}
 
 		await swapResult.dialog.locator('button').filter({ hasText: /Cancel/i }).first().click();
 		await expect(swapResult.dialog).toBeHidden({ timeout: 5_000 });

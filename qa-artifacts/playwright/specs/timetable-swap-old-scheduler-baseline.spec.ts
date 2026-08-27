@@ -115,7 +115,7 @@ async function captureRegressionMetrics(page: Page, dialog: ReturnType<typeof pa
 
 	const feedbackText = await dialog.locator('[data-testid="generated-swap-feedback"]').innerText({ timeout: 3_000 }).catch(() => '');
 
-	const hasRawButton = await dialog.locator('[data-review-action-type] button:not([role])').count() > 0;
+	const hasRawButton = await dialog.locator('[data-review-action-type] button:not([data-testid="generated-swap-strategy-option"]):not([aria-label="Close"])').count() > 0;
 
 	await page.screenshot({
 		path: path.join(reportRoot, `${testInfo.project.name}-regression.png`),

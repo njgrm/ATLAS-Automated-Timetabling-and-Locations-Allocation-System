@@ -634,13 +634,13 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 
 			<Dialog open={Boolean(regularSwapPending)} onOpenChange={(open) => { if (!open) closeGeneratedSwap(); }}>
 				<DialogContent
-					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[85vh] sm:max-h-[90vh]"
+					className="w-[calc(100vw-2rem)] max-w-xl flex flex-col gap-0 overflow-hidden p-0 max-h-[80vh] sm:max-h-[85vh] md:max-h-[90vh] !overflow-y-visible"
 					data-testid="generated-swap-review-dialog"
 					onOpenAutoFocus={focusCancelButton(generatedSwapCancelRef)}
 				>
-					<DialogHeader className="shrink-0 border-b border-border px-4 py-2 sm:py-3">
-						<DialogTitle className="text-base sm:text-lg">Swap these two classes?</DialogTitle>
-						<DialogDescription className="text-xs sm:text-sm">
+					<DialogHeader className="shrink-0 border-b border-border px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2">
+						<DialogTitle className="text-xs sm:text-sm md:text-base lg:text-lg">Swap these two classes?</DialogTitle>
+						<DialogDescription className="text-[0.6rem] sm:text-[0.65rem] md:text-xs lg:text-sm">
 							{regularSwapPending ? `${subjectLabel(regularSwapPending.entryA.subjectId)} for ${sectionLabel(regularSwapPending.entryA.sectionId)} exchanges times with ${subjectLabel(regularSwapPending.entryB.subjectId)} for ${sectionLabel(regularSwapPending.entryB.sectionId)}.` : ''}
 						</DialogDescription>
 					</DialogHeader>
@@ -653,7 +653,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Occupied-slot swap preview is ready.'
 									: 'Occupied-slot swap review opened.'}
 					</div>
-					<div className="flex-1 min-h-0 overflow-auto px-3 py-2 sm:px-4 sm:py-3">
+					<div className="flex-1 min-h-0 overflow-auto px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3">
 						<ReviewActionSheet type="generated-swap">
 					{regularSwapPreview?.loading ? (
 						<p className="flex items-center gap-2 text-xs"><Loader2 className="size-4 animate-spin" />Checking options...</p>
@@ -662,34 +662,33 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 					) : regularSwapPending && regularSwapPreview ? (
 						<>
 							<ReviewActionSection title="What changes" description="These two classes swap times after you confirm. Teacher ownership remains sourced from Teaching Load.">
-							<div className="grid gap-1.5 sm:grid-cols-2">
-								<div className="flex items-start gap-1.5 rounded-md border border-primary/20 bg-primary/5 p-2">
-									<ArrowRightLeft className="mt-0.5 size-3.5 shrink-0 text-primary" />
-									<div>
-										<p className="text-xs sm:text-sm font-semibold">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
-										<p className="text-[0.65rem] sm:text-xs text-muted-foreground">{sectionLabel(regularSwapPending.entryA.sectionId)} &middot; {regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}-{formatTime(regularSwapPending.entryA.endTime)}</p>
-									</div>
-								</div>
-								<div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2">
-									<ArrowRightLeft className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-									<div>
-										<p className="text-xs sm:text-sm font-semibold">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
-										<p className="text-[0.65rem] sm:text-xs text-muted-foreground">{sectionLabel(regularSwapPending.entryB.sectionId)} &middot; {regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}-{formatTime(regularSwapPending.entryB.endTime)}</p>
-									</div>
-								</div>
+							<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.55rem] sm:text-[0.6rem] md:text-xs">
+								<span className="inline-flex items-center gap-0.5 rounded border border-primary/20 bg-primary/5 px-1 py-0.5">
+									<ArrowRightLeft className="size-2 sm:size-2.5 shrink-0 text-primary" />
+									<span className="font-semibold truncate max-w-[120px] sm:max-w-[160px]">{subjectLabel(regularSwapPending.entryA.subjectId)}</span>
+									<span className="text-muted-foreground">{sectionLabel(regularSwapPending.entryA.sectionId)}</span>
+									<span className="text-muted-foreground">{regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}</span>
+								</span>
+								<span className="text-muted-foreground">&harr;</span>
+								<span className="inline-flex items-center gap-0.5 rounded border border-amber-200 bg-amber-50 px-1 py-0.5">
+									<ArrowRightLeft className="size-2 sm:size-2.5 shrink-0 text-amber-600" />
+									<span className="font-semibold truncate max-w-[120px] sm:max-w-[160px]">{subjectLabel(regularSwapPending.entryB.subjectId)}</span>
+									<span className="text-muted-foreground">{sectionLabel(regularSwapPending.entryB.sectionId)}</span>
+									<span className="text-muted-foreground">{regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}</span>
+								</span>
 							</div>
 							</ReviewActionSection>
 							{regularSwapPreview.recommendedStrategy === 'BLOCKED' ? (
 								<ReviewActionSection title="Blocked" tone="bad">
-									<p className="text-sm font-medium text-red-800">No safe swap option available for this pair.</p>
-									<div className="mt-2 grid grid-cols-2 gap-2">
+									<p className="text-xs sm:text-sm font-medium text-red-800">No safe swap option available for this pair.</p>
+									<div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:mt-2 sm:gap-2">
 										<FigureCard label="Blocking" value={regularSwapPreview.directPreview?.hardViolations.length ?? 0} tone="bad" />
 										<FigureCard label="Warnings" value={regularSwapPreview.directPreview?.softViolations.length ?? 0} tone="warn" />
 									</div>
 									{regularSwapPreview.directPreview && regularSwapPreview.directPreview.hardViolations.length > 0 && (
-										<div className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+										<div className="mt-1.5 rounded-md border border-red-200 bg-red-50 p-1.5 sm:mt-2 sm:p-2 text-[0.65rem] sm:text-xs text-red-800">
 											<p className="font-semibold">Blocking conflicts:</p>
-											<ul className="mt-1 list-disc list-inside">
+											<ul className="mt-0.5 list-disc list-inside">
 												{regularSwapPreview.directPreview.hardViolations.slice(0, 3).map((v: any, i: number) => (
 													<li key={i}>{v.code || v.humanTitle || 'Hard conflict'}</li>
 												))}
@@ -699,16 +698,16 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 											</ul>
 										</div>
 									)}
-									<div className="mt-3 flex flex-wrap gap-2">
+									<div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
 										<Button size="sm" variant="outline" onClick={closeGeneratedSwap}>
-											<ArrowRightLeft className="size-3.5" />Close and choose another pair
+											<ArrowRightLeft className="size-3 sm:size-3.5" />Close and choose another pair
 										</Button>
 									</div>
 								</ReviewActionSection>
 							) : (
 								<>
-								<ReviewActionSection title="Swap options" description="Choose the safest option.">
-								<div className="grid gap-1">
+								<ReviewActionSection title="Choose option" description="Select the safest swap strategy.">
+								<div className="grid gap-1 sm:gap-1.5">
 									{(['DIRECT_SWAP', 'AUTO_FIX_MOVE_BLOCKING', 'AUTO_FIX_MOVE_SOURCE'] as const).map((key) => {
 										const isRecommended = regularSwapPreview.recommendedStrategy === key;
 										const preview = key === 'DIRECT_SWAP' ? regularSwapPreview.directPreview : key === 'AUTO_FIX_MOVE_BLOCKING' ? regularSwapPreview.autoFixBlockingPreview : regularSwapPreview.autoFixSourcePreview;
@@ -717,21 +716,25 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 										const softCount = preview?.softViolations.length ?? 0;
 										const label = key === 'DIRECT_SWAP' ? 'Direct swap' : key === 'AUTO_FIX_MOVE_BLOCKING' ? 'Move blocking session' : 'Move selected session';
 										const unavailableReason = strategyUnavailableReason(preview, regularSwapPreview.recommendedStrategy, key);
+										const isSelected = regularSwapStrategy === key;
+										const selectedHard = isSelected ? hardCount : null;
+										const selectedSoft = isSelected ? softCount : null;
 										return (
 											<Button
 												key={key}
-												variant={regularSwapStrategy === key ? 'default' : 'outline'}
-												className={`h-auto min-h-[40px] sm:min-h-[44px] w-full justify-between gap-2 p-2 sm:p-2.5 text-left text-xs sm:text-sm ${isDisabled ? 'opacity-60' : ''}`}
+												data-testid="generated-swap-strategy-option"
+												variant={isSelected ? 'default' : 'outline'}
+												className={`h-auto min-h-[28px] sm:min-h-[32px] md:min-h-[36px] lg:min-h-[40px] w-full justify-between gap-0.5 sm:gap-1 md:gap-1.5 p-1 sm:p-1 md:p-1.5 lg:p-2 text-left text-[0.55rem] sm:text-[0.6rem] md:text-[0.65rem] lg:text-xs ${isDisabled ? 'opacity-60' : ''}`}
 												disabled={isDisabled}
 												onClick={() => setRegularSwapStrategy(key)}
-												aria-pressed={regularSwapStrategy === key}
+												aria-pressed={isSelected}
 											>
-												<span className="flex items-center gap-1 sm:gap-1.5">
-													{isRecommended && <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[0.6rem] sm:text-[0.65rem] font-semibold text-emerald-700"><ShieldCheck className="size-2.5 sm:size-3" />Recommended</span>}
-													{isDisabled && <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[0.6rem] sm:text-[0.65rem] font-medium text-slate-500"><ShieldOff className="size-2.5 sm:size-3" />Unavailable</span>}
+												<span className="flex items-center gap-0.5 sm:gap-0.5 md:gap-1">
+													{isRecommended && <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1 py-0.5 text-[0.45rem] sm:text-[0.5rem] md:text-[0.55rem] lg:text-[0.6rem] font-semibold text-emerald-700"><ShieldCheck className="size-1.5 sm:size-2 md:size-2.5 lg:size-3" />Recommended</span>}
+													{isDisabled && <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-1 py-0.5 text-[0.45rem] sm:text-[0.5rem] md:text-[0.55rem] lg:text-[0.6rem] font-medium text-slate-500"><ShieldOff className="size-1.5 sm:size-2 md:size-2.5 lg:size-3" />Unavailable</span>}
 													<span>{label}</span>
 												</span>
-												<span className="text-[0.65rem] sm:text-xs text-muted-foreground">
+												<span className="text-[0.45rem] sm:text-[0.5rem] md:text-[0.55rem] lg:text-xs text-muted-foreground whitespace-nowrap">
 													{isDisabled && unavailableReason ? unavailableReason : `Blocking ${hardCount} \u2022 Warnings ${softCount}`}
 												</span>
 											</Button>
@@ -745,21 +748,14 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									const hard = selected.preview.hardViolations.length;
 									const soft = selected.preview.softViolations.length;
 									return (
-										<ReviewActionSection
-											title={`${selected.label} status`}
-											tone={hard > 0 ? 'bad' : soft > 0 ? 'warn' : 'good'}
+										<div
+											data-testid="generated-swap-selected-status"
+											className={`flex items-center justify-between gap-1 rounded border px-1 py-0.5 text-[0.45rem] sm:text-[0.5rem] md:text-[0.55rem] lg:text-xs ${hard > 0 ? 'border-red-200 bg-red-50 text-red-800' : soft > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}
 										>
-											<div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-												<FigureCard label="Blocking" value={hard} tone={hard > 0 ? 'bad' : 'good'} />
-												<FigureCard label="Warnings" value={soft} tone={soft > 0 ? 'warn' : 'good'} />
-											</div>
-											{hard === 0 && (
-												<p className="mt-1.5 sm:mt-2 flex items-center gap-1.5 text-[0.65rem] sm:text-xs text-emerald-700">
-													<CheckCircle2 className="size-3 sm:size-3.5 shrink-0" />
-													No blocking conflicts for this option.
-												</p>
-											)}
-										</ReviewActionSection>
+											<span className="font-semibold">{selected.label}:</span>
+											<span>{hard}B, {soft}W</span>
+											{hard === 0 && <CheckCircle2 className="size-1.5 sm:size-2 shrink-0" />}
+										</div>
 									);
 								})()}
 								</>
@@ -768,9 +764,9 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 					) : null}
 						</ReviewActionSheet>
 					</div>
-					<DialogFooter className="shrink-0 flex-col items-stretch gap-1.5 sm:gap-2 border-t border-border px-3 py-2 sm:px-4 sm:py-3 sm:flex-row sm:items-center">
+					<DialogFooter className="flex-none flex flex-col items-stretch gap-0.5 sm:gap-1 border-t border-border px-2 py-1 sm:px-2.5 sm:py-1.5 md:px-3 md:py-2 sm:flex-row sm:items-center">
 						<p
-							className={`min-w-0 flex-1 rounded-md border px-2 py-1.5 sm:px-2.5 sm:py-2 text-[0.65rem] sm:text-xs ${feedbackClass(
+							className={`min-w-0 flex-1 rounded border px-1 py-0.5 sm:px-1.5 sm:py-1 md:px-2 md:py-1.5 text-[0.45rem] sm:text-[0.5rem] md:text-[0.55rem] lg:text-xs ${feedbackClass(
 								regularSwapSaving || regularSwapPreview?.loading ? 'neutral' : regularSwapPreview?.error ? 'bad' : regularSwapPreview?.recommendedStrategy === 'BLOCKED' ? 'bad' : regularSwapStrategy ? 'good' : 'warn',
 							)}`}
 							data-testid="generated-swap-feedback"
@@ -778,24 +774,24 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 							aria-live="polite"
 						>
 							{regularSwapSaving
-								? 'Saving the swap now.'
+								? 'Saving...'
 								: regularSwapPreview?.loading
-									? 'Checking swap options.'
+									? 'Checking...'
 									: regularSwapPreview?.error
-										? `${regularSwapPreview.error} Choose another class pair or cancel without saving.`
+										? 'Error. Cancel or try another pair.'
 										: regularSwapPreview?.recommendedStrategy === 'BLOCKED'
-											? 'This swap is blocked. Choose another class or try a manual move.'
+											? 'Blocked.'
 											: regularSwapStrategy
-												? 'Ready to swap. ATLAS will save only the selected option.'
-												: 'Choose a safe swap option before saving.'}
+												? 'Ready.'
+												: 'Choose an option.'}
 						</p>
-						<Button ref={generatedSwapCancelRef} variant="outline" size="sm" onClick={closeGeneratedSwap}>
+						<Button ref={generatedSwapCancelRef} variant="outline" size="sm" className="min-h-[28px] sm:min-h-[32px] md:min-h-[36px]" onClick={closeGeneratedSwap}>
 							{regularSwapPreview?.recommendedStrategy === 'BLOCKED' ? 'Cancel safely' : 'Cancel'}
 						</Button>
 						{regularSwapPreview?.recommendedStrategy !== 'BLOCKED' && (
-							<Button size="sm" disabled={regularSwapSaving || !regularSwapStrategy} onClick={() => void executeRegularSwap()}>
-								{regularSwapSaving ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-								Swap sessions
+							<Button size="sm" className="min-h-[28px] sm:min-h-[32px] md:min-h-[36px]" disabled={regularSwapSaving || !regularSwapStrategy} onClick={() => void executeRegularSwap()}>
+								{regularSwapSaving ? <Loader2 className="size-2.5 sm:size-3 animate-spin" /> : <RefreshCw className="size-2.5 sm:size-3" />}
+								Swap
 							</Button>
 						)}
 					</DialogFooter>
