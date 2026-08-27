@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-08-27] — AIMS/SMART Term-Aware API Context
+
+### Added
+- Added `docs/reference/aims-smart-term-aware-api-context-2026-08-27.md` as a consolidated handoff for AIMS and SMART term-aware integration.
+- Documented active-term runtime context, published schedule `termIndex` filtering, workbook export filtering, term-scoped violations, and affected-term notification metadata.
+- Added explicit term-aware rotating subject guidance for `SCIENCE` and TLE rotation families, including Teaching Load fields and peak-term crediting rules.
+
+### Changed
+- Clarified that legacy `/schedules/published/:termId` routes are compatibility-only and new consumers must use explicit school-year routes plus `?termIndex=...`.
+
+### Decisions Made
+- AIMS and SMART should treat EnrollPro active term as runtime current-state context and ATLAS entry `termIndex` as durable schedule truth.
+- Consumers should use `termIndex=active` only when ATLAS can verify EnrollPro active term, otherwise fall back to explicit numeric terms or all-term reads.
+
+### Open Questions
+- Whether this consolidated handoff should replace or be cross-linked from the existing AIMS published schedule guide and SMART rollover endpoint guide.
+
 ## [2026-08-26] — Generation Fallback Grade-Scope Fix
 
 ### Fixed
