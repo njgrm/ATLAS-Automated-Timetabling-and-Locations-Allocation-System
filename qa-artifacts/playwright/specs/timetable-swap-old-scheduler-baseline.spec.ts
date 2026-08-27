@@ -78,34 +78,7 @@ async function captureRegressionMetrics(page: Page, dialog: ReturnType<typeof pa
 	const dialogText = await dialog.innerText({ timeout: 5_000 }).catch(() => '');
 	const visibleTextLength = dialogText.length;
 
-	const sectionEls = dialog.locator('section');
-	const sectionCount = await sectionEls.count();
-	const sectionTitles: string[] = [];
-	for (let i = 0; i < sectionCount; i++) {
-		const heading = sectionEls.nth(i).locator('h3').first();
-		const t = await heading.innerText().catch(() => '');
-		if (t) sectionTitles.push(t);
-	}
-
 	const dialogBox = await dialog.boundingBox().catch(() => null);
-
-	const scrollContainer = dialog.locator('[data-review-action-type]').first();
-	const scrollMetrics = await scrollContainer.evaluate((el) => ({
-		scrollHeight: el.scrollHeight,
-		clientHeight: el.clientHeight,
-		requiresScroll: el.scrollHeight > el.clientHeight + 4,
-	})).catch(() => ({ scrollHeight: 0, clientHeight: 0, requiresScroll: false }));
-
-	const bodyContainer = dialog.locator('.flex-1.min-h-0.overflow-auto').first();
-	const bodyMetrics = await bodyContainer.evaluate((el) => ({
-		scrollHeight: el.scrollHeight,
-		clientHeight: el.clientHeight,
-		requiresScroll: el.scrollHeight > el.clientHeight + 4,
-	})).catch(() => ({ scrollHeight: 0, clientHeight: 0, requiresScroll: false }));
-
-	const footerArea = dialog.locator('[class*="border-t"]').last();
-	const footerVisible = await footerArea.isVisible().catch(() => false);
-	const footerBox = await footerArea.boundingBox().catch(() => null);
 
 	const globalOverflow = await page.evaluate(() => ({
 		hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
@@ -115,6 +88,8 @@ async function captureRegressionMetrics(page: Page, dialog: ReturnType<typeof pa
 
 	const feedbackText = await dialog.locator('[data-testid="generated-swap-feedback"]').innerText({ timeout: 3_000 }).catch(() => '');
 
+	const strategyButtons = dialog.locator('[data-testid="generated-swap-strategy-option"]');
+	const strategyCount = await strategyButtons.count();
 	const hasRawButton = await dialog.locator('[data-review-action-type] button:not([data-testid="generated-swap-strategy-option"]):not([aria-label="Close"])').count() > 0;
 
 	await page.screenshot({
@@ -124,16 +99,11 @@ async function captureRegressionMetrics(page: Page, dialog: ReturnType<typeof pa
 
 	return {
 		title,
-		sectionCount,
-		sectionTitles,
 		visibleTextLength,
 		dialogBox,
-		scrollMetrics,
-		bodyMetrics,
 		globalOverflow,
-		footerVisible,
-		footerBox,
 		feedbackText,
+		strategyCount,
 		hasRawButton,
 	};
 }
@@ -150,7 +120,6 @@ test.describe.serial('Timetable swap regression gate', () => {
 
 		const runtimeResponse = await page.request.get('/api/v1/runtime/context?schoolId=1', { headers });
 		expect(runtimeResponse.ok()).toBeTruthy();
-		const runtime = await runtimeResponse.json() as { activeSchoolYearId: number };
 
 		const blockedWrites = await blockDestructiveTimetableWrites(page);
 
@@ -172,13 +141,11 @@ test.describe.serial('Timetable swap regression gate', () => {
 		});
 
 		expect(metrics.title).toBe('Swap these two classes?');
-		expect(metrics.sectionCount).toBeGreaterThanOrEqual(1);
-		expect(metrics.sectionCount).toBeLessThanOrEqual(3);
 		expect(metrics.visibleTextLength).toBeGreaterThan(50);
 		expect(metrics.dialogBox).toBeTruthy();
-		expect(metrics.footerVisible).toBe(true);
 		expect(metrics.globalOverflow.hasHorizontalOverflow).toBe(false);
 		expect(metrics.hasRawButton).toBe(false);
+		expect(metrics.strategyCount).toBeGreaterThanOrEqual(1);
 
 		await swapResult.dialog.locator('button').filter({ hasText: /Cancel/i }).first().click();
 		await expect(swapResult.dialog).toBeHidden({ timeout: 5_000 });

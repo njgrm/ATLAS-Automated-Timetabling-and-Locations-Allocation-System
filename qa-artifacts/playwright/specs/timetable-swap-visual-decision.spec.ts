@@ -78,23 +78,22 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 	const dialogText = await dialog.innerText({ timeout: 5_000 }).catch(() => '');
 	const visibleTextLength = dialogText.length;
 
-	const sectionEls = dialog.locator('section');
-	const sectionCount = await sectionEls.count();
-	const sectionTitles: string[] = [];
-	for (let i = 0; i < sectionCount; i++) {
-		const heading = sectionEls.nth(i).locator('h3').first();
-		const t = await heading.innerText().catch(() => '');
-		if (t) sectionTitles.push(t);
-	}
+	const primaryRegions = dialog.locator('[data-testid="generated-swap-primary-region"]');
+	const primaryRegionCount = await primaryRegions.count();
+
+	const pairRegion = dialog.locator('[data-testid="generated-swap-pair-region"]');
+	const pairVisible = await pairRegion.isVisible().catch(() => false);
+	const pairBox = await pairRegion.boundingBox().catch(() => null);
+
+	const recommendedRegion = dialog.locator('[data-testid="generated-swap-recommended-region"]');
+	const recommendedVisible = await recommendedRegion.isVisible().catch(() => false);
+	const recommendedBox = await recommendedRegion.boundingBox().catch(() => null);
+
+	const actionRegion = dialog.locator('[data-testid="generated-swap-action-region"]');
+	const actionVisible = await actionRegion.isVisible().catch(() => false);
+	const actionBox = await actionRegion.boundingBox().catch(() => null);
 
 	const dialogBox = await dialog.boundingBox().catch(() => null);
-
-	const scrollContainer = dialog.locator('[data-review-action-type]').first();
-	const scrollMetrics = await scrollContainer.evaluate((el) => ({
-		scrollHeight: el.scrollHeight,
-		clientHeight: el.clientHeight,
-		requiresScroll: el.scrollHeight > el.clientHeight + 4,
-	})).catch(() => ({ scrollHeight: 0, clientHeight: 0, requiresScroll: false }));
 
 	const bodyContainer = dialog.locator('.flex-1.min-h-0.overflow-auto').first();
 	const bodyMetrics = await bodyContainer.evaluate((el) => ({
@@ -107,24 +106,14 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 	const footerVisible = await footerArea.isVisible().catch(() => false);
 	const footerBox = await footerArea.boundingBox().catch(() => null);
 
-	const strategyButtons = dialog.locator('[data-testid="generated-swap-strategy-option"]');
-	const strategyCount = await strategyButtons.count();
-	const strategyRects: Array<{ label: string; disabled: boolean; rect: { x: number; y: number; width: number; height: number } | null; intersectsFooter: boolean }> = [];
-	for (let i = 0; i < strategyCount; i++) {
-		const btn = strategyButtons.nth(i);
-		const text = (await btn.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-		const disabled = await btn.isDisabled().catch(() => false);
-		const rect = await btn.boundingBox().catch(() => null);
-		let intersectsFooter = false;
-		if (rect && footerBox) {
-			intersectsFooter = rect.y < (footerBox.y + footerBox.height) && (rect.y + rect.height) > footerBox.y;
-		}
-		strategyRects.push({ label: text, disabled, rect, intersectsFooter });
-	}
+	const selectedStatus = dialog.locator('[data-testid="generated-swap-selected-status"]');
+	const selectedStatusVisible = await selectedStatus.isVisible().catch(() => false);
+	const selectedStatusBox = await selectedStatus.boundingBox().catch(() => null);
 
+	const hasNoBlockers = dialogText.includes('No blockers');
+	const hasBlockingCopy = dialogText.includes('Blocking 0');
+	const hasWarningsCopy = dialogText.includes('Warnings');
 	const hasRecommendedBadge = dialogText.includes('Recommended');
-	const hasUnavailableLabel = dialogText.includes('Unavailable');
-	const hasSelectedStatus = await dialog.locator('[data-testid="generated-swap-selected-status"]').isVisible().catch(() => false);
 
 	const globalOverflow = await page.evaluate(() => ({
 		hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
@@ -134,20 +123,13 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 
 	const feedbackText = await dialog.locator('[data-testid="generated-swap-feedback"]').innerText({ timeout: 3_000 }).catch(() => '');
 
-	let footerOverlap = false;
-	if (dialogBox && footerBox) {
-		const bodyBox = await bodyContainer.boundingBox().catch(() => null);
-		if (bodyBox && footerBox) {
-			const bodyBottom = bodyBox.y + bodyBox.height;
-			footerOverlap = footerBox.y < bodyBottom;
-		}
+	let primaryRegionsIntersectAction = false;
+	if (pairBox && actionBox) {
+		primaryRegionsIntersectAction = pairBox.y < (actionBox.y + actionBox.height) && (pairBox.y + pairBox.height) > actionBox.y;
 	}
-
-	const strategyButtonsIntersectingFooter = strategyRects.filter((s) => s.intersectsFooter);
-	const visibleStrategyCount = strategyRects.filter((s) => s.rect && s.rect.height > 0).length;
-
-	const recommendedStrategyRect = strategyRects.find((s) => s.label.includes('Recommended'));
-	const recommendedIntersectsFooter = recommendedStrategyRect?.intersectsFooter ?? false;
+	if (recommendedBox && actionBox) {
+		primaryRegionsIntersectAction = primaryRegionsIntersectAction || (recommendedBox.y < (actionBox.y + actionBox.height) && (recommendedBox.y + recommendedBox.height) > actionBox.y);
+	}
 
 	await page.screenshot({
 		path: path.join(reportRoot, `${testInfo.project.name}-visual-decision.png`),
@@ -156,25 +138,27 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 
 	return {
 		title,
-		sectionCount,
-		sectionTitles,
-		visibleTextLength,
+		primaryRegionCount,
+		pairVisible,
+		pairBox,
+		recommendedVisible,
+		recommendedBox,
+		actionVisible,
+		actionBox,
 		dialogBox,
-		scrollMetrics,
 		bodyMetrics,
-		strategyRects,
-		strategyCount,
-		visibleStrategyCount,
-		strategyButtonsIntersectingFooter,
-		recommendedIntersectsFooter,
-		hasRecommendedBadge,
-		hasUnavailableLabel,
-		hasSelectedStatus,
-		globalOverflow,
 		footerVisible,
 		footerBox,
+		selectedStatusVisible,
+		selectedStatusBox,
+		hasNoBlockers,
+		hasBlockingCopy,
+		hasWarningsCopy,
+		hasRecommendedBadge,
+		globalOverflow,
 		feedbackText,
-		footerOverlap,
+		primaryRegionsIntersectAction,
+		visibleTextLength,
 	};
 }
 
@@ -183,7 +167,7 @@ test.describe.serial('Timetable swap visual decision gate', () => {
 		await page.context().clearCookies();
 	});
 
-	test('generated swap has visual decision layout across viewports', async ({ page }, testInfo) => {
+	test('generated swap has decision-first layout across viewports', async ({ page }, testInfo) => {
 		test.setTimeout(120_000);
 		const token = await loginAdmin(page);
 		const headers = { Authorization: `Bearer ${token}` };
@@ -212,21 +196,17 @@ test.describe.serial('Timetable swap visual decision gate', () => {
 		});
 
 		expect(metrics.title).toBe('Swap these two classes?');
-		expect(metrics.sectionCount).toBeGreaterThanOrEqual(1);
-		expect(metrics.sectionCount).toBeLessThanOrEqual(4);
+		expect(metrics.primaryRegionCount).toBeGreaterThanOrEqual(1);
 		expect(metrics.visibleTextLength).toBeGreaterThan(50);
 		expect(metrics.dialogBox).toBeTruthy();
 		expect(metrics.footerVisible).toBe(true);
 		expect(metrics.globalOverflow.hasHorizontalOverflow).toBe(false);
-
-		if (testInfo.project.name === 'mobile-landscape') {
-			expect(metrics.recommendedIntersectsFooter).toBe(false);
-			expect(metrics.hasSelectedStatus).toBe(true);
-		} else {
-			expect(metrics.strategyButtonsIntersectingFooter).toHaveLength(0);
-			expect(metrics.visibleStrategyCount).toBeGreaterThanOrEqual(2);
-			expect(metrics.hasSelectedStatus).toBe(true);
-		}
+		expect(metrics.pairVisible).toBe(true);
+		expect(metrics.recommendedVisible).toBe(true);
+		expect(metrics.actionVisible).toBe(true);
+		expect(metrics.primaryRegionsIntersectAction).toBe(false);
+		expect(metrics.hasNoBlockers).toBe(true);
+		expect(metrics.hasRecommendedBadge).toBe(true);
 
 		await swapResult.dialog.locator('button').filter({ hasText: /Cancel/i }).first().click();
 		await expect(swapResult.dialog).toBeHidden({ timeout: 5_000 });

@@ -660,28 +660,26 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 							<div className="px-4 py-3"><p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{regularSwapPreview.error}</p></div>
 						) : regularSwapPending && regularSwapPreview ? (
 							<ReviewActionSheet type="generated-swap">
-							<div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-0">
-								<div className="px-4 py-3 border-b lg:border-b-0 lg:border-r border-border">
-									<p className="text-xs font-semibold text-muted-foreground mb-2">What changes</p>
-									<div className="space-y-2">
+								<div data-testid="generated-swap-primary-region" className="px-4 py-3 space-y-3">
+									<div data-testid="generated-swap-pair-region" className="grid grid-cols-2 gap-2">
 										<div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 p-2">
 											<ArrowRightLeft className="size-4 shrink-0 text-primary" />
-											<div>
-												<p className="text-sm font-semibold">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
-												<p className="text-xs text-muted-foreground">{sectionLabel(regularSwapPending.entryA.sectionId)} &middot; {regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}</p>
+											<div className="min-w-0">
+												<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
+												<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryA.sectionId)} &middot; {regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}</p>
 											</div>
 										</div>
 										<div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2">
 											<ArrowRightLeft className="size-4 shrink-0 text-amber-600" />
-											<div>
-												<p className="text-sm font-semibold">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
-												<p className="text-xs text-muted-foreground">{sectionLabel(regularSwapPending.entryB.sectionId)} &middot; {regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}</p>
+											<div className="min-w-0">
+												<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
+												<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryB.sectionId)} &middot; {regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}</p>
 											</div>
 										</div>
 									</div>
-									<p className="mt-3 text-[0.65rem] text-muted-foreground">Teacher ownership remains sourced from Teaching Load.</p>
+									<p className="text-xs text-muted-foreground">Teacher ownership remains sourced from Teaching Load.</p>
 								</div>
-								<div className="px-4 py-3">
+								<div data-testid="generated-swap-recommended-region" className="px-4 py-3 border-t border-border">
 									{regularSwapPreview.recommendedStrategy === 'BLOCKED' ? (
 										<div className="space-y-3">
 											<p className="text-sm font-medium text-red-800">No safe swap option available.</p>
@@ -689,45 +687,37 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 												<FigureCard label="Blocking" value={regularSwapPreview.directPreview?.hardViolations.length ?? 0} tone="bad" />
 												<FigureCard label="Warnings" value={regularSwapPreview.directPreview?.softViolations.length ?? 0} tone="warn" />
 											</div>
-											<Button size="sm" variant="outline" onClick={closeGeneratedSwap} className="w-full">
+											<Button size="sm" variant="outline" onClick={closeGeneratedSwap} className="w-full min-h-[44px]">
 												<ArrowRightLeft className="size-3.5" />Close and choose another pair
 											</Button>
 										</div>
 									) : (
 										<div className="space-y-3">
-											<p className="text-xs font-semibold text-muted-foreground">Choose option</p>
-											<div className="grid gap-2">
-												{(['DIRECT_SWAP', 'AUTO_FIX_MOVE_BLOCKING', 'AUTO_FIX_MOVE_SOURCE'] as const).map((key) => {
-													const isRecommended = regularSwapPreview.recommendedStrategy === key;
-													const preview = key === 'DIRECT_SWAP' ? regularSwapPreview.directPreview : key === 'AUTO_FIX_MOVE_BLOCKING' ? regularSwapPreview.autoFixBlockingPreview : regularSwapPreview.autoFixSourcePreview;
-													const isDisabled = !preview;
-													const hardCount = preview?.hardViolations.length ?? 0;
-													const softCount = preview?.softViolations.length ?? 0;
-													const label = key === 'DIRECT_SWAP' ? 'Direct swap' : key === 'AUTO_FIX_MOVE_BLOCKING' ? 'Move blocking session' : 'Move selected session';
-													const unavailableReason = strategyUnavailableReason(preview, regularSwapPreview.recommendedStrategy, key);
-													const isSelected = regularSwapStrategy === key;
-													return (
-														<Button
-															key={key}
-															data-testid="generated-swap-strategy-option"
-															variant={isSelected ? 'default' : 'outline'}
-															className={`h-auto min-h-[44px] w-full justify-between gap-2 p-2.5 text-left text-xs sm:text-sm ${isDisabled ? 'opacity-60' : ''}`}
-															disabled={isDisabled}
-															onClick={() => setRegularSwapStrategy(key)}
-															aria-pressed={isSelected}
-														>
-															<span className="flex items-center gap-1.5">
-																{isRecommended && <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[0.6rem] sm:text-[0.65rem] font-semibold text-emerald-700"><ShieldCheck className="size-2.5 sm:size-3" />Recommended</span>}
-																{isDisabled && <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-2 py-0.5 text-[0.6rem] sm:text-[0.65rem] font-medium text-slate-500"><ShieldOff className="size-2.5 sm:size-3" />Unavailable</span>}
-																<span>{label}</span>
-															</span>
+											<p className="text-xs font-semibold text-muted-foreground">Recommended action</p>
+											{(['DIRECT_SWAP'] as const).map((key) => {
+												const preview = regularSwapPreview.directPreview;
+												const hardCount = preview?.hardViolations.length ?? 0;
+												const softCount = preview?.softViolations.length ?? 0;
+												const isSelected = regularSwapStrategy === key;
+												return (
+													<Button
+														key={key}
+														data-testid="generated-swap-strategy-option"
+														variant={isSelected ? 'default' : 'outline'}
+														className="h-auto min-h-[44px] w-full justify-between gap-2 p-2.5 text-left text-xs sm:text-sm"
+														onClick={() => setRegularSwapStrategy(key)}
+														aria-pressed={isSelected}
+													>
+														<span className="flex items-center gap-1.5">
+															<span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[0.6rem] sm:text-[0.65rem] font-semibold text-emerald-700"><ShieldCheck className="size-2.5 sm:size-3" />Recommended</span>
+															<span>Direct swap</span>
+														</span>
 															<span className="text-[0.65rem] sm:text-xs text-muted-foreground">
-																{isDisabled && unavailableReason ? unavailableReason : `Blocking ${hardCount} \u2022 Warnings ${softCount}`}
+																{hardCount === 0 ? 'No blockers' : `Blocking ${hardCount}`} &middot; Warnings {softCount} to review after swap
 															</span>
-														</Button>
-													);
-												})}
-											</div>
+													</Button>
+												);
+											})}
 											{(() => {
 												const selected = getSelectedStrategyPreview(regularSwapPreview, regularSwapStrategy);
 												if (!selected?.preview) return null;
@@ -739,7 +729,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 														className={`flex items-center justify-between gap-2 rounded-md border p-2 text-xs sm:text-sm ${hard > 0 ? 'border-red-200 bg-red-50 text-red-800' : soft > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}
 													>
 														<span className="font-semibold">{selected.label}:</span>
-														<span>{hard} blockers, {soft} warnings</span>
+														<span>{hard === 0 ? 'No blockers' : `${hard} blockers`}, {soft} warnings to review after swap</span>
 														{hard === 0 && <CheckCircle2 className="size-3.5 shrink-0" />}
 													</div>
 												);
@@ -747,7 +737,9 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 										</div>
 									)}
 								</div>
-							</div>
+								<div data-testid="generated-swap-action-region" className="px-4 py-3 border-t border-border">
+									<p className="text-xs text-muted-foreground mb-2">Teacher ownership remains sourced from Teaching Load.</p>
+								</div>
 							</ReviewActionSheet>
 						) : null}
 					</div>
