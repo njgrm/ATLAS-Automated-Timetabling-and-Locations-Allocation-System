@@ -114,7 +114,7 @@ test.describe.serial('Timetable simplification Phase 3 gates', () => {
 		await entries.nth(0).click();
 		await entries.nth(1).click();
 
-		const switchDialog = page.getByRole('dialog').filter({ hasText: /Review occupied-slot swap/i });
+		const switchDialog = page.getByRole('dialog').filter({ hasText: /Swap these two classes\?/i });
 		await expect(switchDialog).toBeVisible({ timeout: 20_000 });
 		await expect(switchDialog).toContainText(/Direct swap|Move blocking session|Move selected session/i);
 		await expect(switchDialog).toContainText(/Blocking/i);

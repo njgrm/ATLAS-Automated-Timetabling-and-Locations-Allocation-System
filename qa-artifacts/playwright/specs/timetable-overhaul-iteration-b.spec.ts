@@ -153,7 +153,7 @@ test.describe.serial('Timetable overhaul Iteration B placement and swap contract
 		await expect(entries.nth(1)).toBeVisible({ timeout: 20_000 });
 		await entries.nth(1).click();
 
-		const dialog = page.getByRole('dialog').filter({ hasText: /Review occupied-slot swap/i });
+		const dialog = page.getByRole('dialog').filter({ hasText: /Swap these two classes\?/i });
 		await expect(dialog).toBeVisible({ timeout: 20_000 });
 		await expect(dialog.getByRole('button', { name: /Swap sessions/i })).toBeVisible({ timeout: 10_000 });
 		await expect(dialog.getByText(/Assign teacher and room|Choose teacher|Choose room|Apply repair/i)).toHaveCount(0);

@@ -287,7 +287,7 @@ test.describe.serial('Older-user session validation — Codex browser proxy', ()
 			await expect(entries.nth(0)).toBeVisible({ timeout: 20_000 });
 			await entries.nth(0).click();
 			await entries.nth(1).click();
-			const dialog = page.getByRole('dialog').filter({ hasText: /Review occupied-slot swap/i });
+			const dialog = page.getByRole('dialog').filter({ hasText: /Swap these two classes\?/i });
 			await expect(dialog).toBeVisible({ timeout: 20_000 });
 			const text = await dialog.innerText();
 			const beforeTab = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute('aria-label') ?? (document.activeElement as HTMLElement | null)?.textContent?.trim().slice(0, 80) ?? null);

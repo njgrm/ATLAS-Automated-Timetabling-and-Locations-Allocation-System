@@ -116,9 +116,9 @@ test.describe.serial('Timetable finalization grid overflow', () => {
 		const hiddenRow = sheet.locator(`[data-testid="timetable-cell-overflow-entry"][data-timetable-entry-id="${hiddenEntryId}"]`).first();
 		await clickOverflowAction(page, hiddenRow, /Swap/i);
 
-		const swapDialog = page.getByRole('dialog').filter({ hasText: /Review occupied-slot swap/i });
+		const swapDialog = page.getByRole('dialog').filter({ hasText: /Swap these two classes\?/i });
 		await expect(swapDialog).toBeVisible({ timeout: 15_000 });
-		await expect(swapDialog).toContainText(/exchange times/i);
+		await expect(swapDialog).toContainText(/exchanges times/i);
 		await assertNoGlobalOverflow(page);
 	});
 

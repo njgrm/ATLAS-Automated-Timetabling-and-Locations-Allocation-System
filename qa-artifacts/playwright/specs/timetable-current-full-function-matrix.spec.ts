@@ -137,7 +137,7 @@ test.describe('Timetable current full-function matrix', () => {
 		await placement.dialog!.getByRole('button', { name: /^Cancel$/i }).click();
 
 		const swap = await openOccupiedSwapReview(page);
-		await expect(swap.dialog).toContainText(/Swap sessions|Review occupied-slot swap/i);
+		await expect(swap.dialog).toContainText(/Swap these two classes\?/i);
 		await expect(swap.dialog.getByTestId('generated-swap-feedback')).toBeVisible();
 		await assertNoObsoleteAssignmentModal(page);
 		await swap.dialog.getByRole('button', { name: /^Cancel$/i }).click();

@@ -111,8 +111,7 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 	const selectedStatusBox = await selectedStatus.boundingBox().catch(() => null);
 
 	const hasNoBlockers = dialogText.includes('No blockers');
-	const hasBlockingCopy = dialogText.includes('Blocking 0');
-	const hasWarningsCopy = dialogText.includes('Warnings');
+	const hasPlainLanguageWarnings = dialogText.includes('warnings to review');
 	const hasRecommendedBadge = (await dialog.locator('[data-testid="generated-swap-selected-status"] svg').count()) > 0;
 
 	const globalOverflow = await page.evaluate(() => ({
@@ -152,8 +151,7 @@ async function captureVisualDecisionMetrics(page: Page, dialog: ReturnType<typeo
 		selectedStatusVisible,
 		selectedStatusBox,
 		hasNoBlockers,
-		hasBlockingCopy,
-		hasWarningsCopy,
+		hasPlainLanguageWarnings,
 		hasRecommendedBadge,
 		globalOverflow,
 		feedbackText,
@@ -206,6 +204,7 @@ test.describe.serial('Timetable swap visual decision gate', () => {
 		expect(metrics.actionVisible).toBe(true);
 		expect(metrics.primaryRegionsIntersectAction).toBe(false);
 		expect(metrics.hasNoBlockers).toBe(true);
+		expect(metrics.hasPlainLanguageWarnings).toBe(true);
 		expect(metrics.hasRecommendedBadge).toBe(true);
 
 		await swapResult.dialog.locator('button').filter({ hasText: /Cancel/i }).first().click();

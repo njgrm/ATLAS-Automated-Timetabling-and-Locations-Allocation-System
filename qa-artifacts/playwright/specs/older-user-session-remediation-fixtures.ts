@@ -232,7 +232,7 @@ export async function openOccupiedSwapReview(page: Page): Promise<{ dialog: Loca
 	const invokingIdentity = `phase-0-swap-${Date.now()}`;
 	await entries.nth(1).evaluate((element, value) => element.setAttribute('data-phase-0-focus-id', value), invokingIdentity);
 	await entries.nth(1).click();
-	const dialog = page.getByRole('dialog').filter({ hasText: /Review occupied-slot swap/i });
+	const dialog = page.getByRole('dialog').filter({ hasText: /Swap these two classes\?/i });
 	await expect(dialog).toBeVisible({ timeout: 20_000 });
 	return { dialog, invokingIdentity };
 }

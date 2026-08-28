@@ -100,7 +100,7 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await expect(page.getByTestId('timetable-status-legend')).toContainText(/Blocked = fix first/i);
 		await page.getByTestId('timetable-task-switch').click();
 		await expect(help).toContainText(/Switch:/i);
-		await expect(help).toContainText(/Review occupied-slot swap/i);
+		await expect(help).toContainText(/Swap these two classes\?/i);
 		await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
 		await expect(help).toContainText(/Draft mode/i);
 		await expect(help).toContainText(/Review draft placement/i);
@@ -152,7 +152,7 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await page.keyboard.press('Enter');
 		await entries.nth(1).focus();
 		await page.keyboard.press('Enter');
-		const swapDialog = page.getByRole('dialog').filter({ hasText: /Review occupied-slot swap/i });
+		const swapDialog = page.getByRole('dialog').filter({ hasText: /Swap these two classes\?/i });
 		await expect(swapDialog).toBeVisible({ timeout: 20_000 });
 		await expect(swapDialog.getByRole('button', { name: /Direct swap|Move blocking session|Move selected session/i }).first()).toBeVisible({ timeout: 20_000 });
 		await page.keyboard.press('Escape');

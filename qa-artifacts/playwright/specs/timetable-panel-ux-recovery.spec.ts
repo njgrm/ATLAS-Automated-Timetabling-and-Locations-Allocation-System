@@ -265,7 +265,7 @@ test.describe.serial('Timetable panel UX recovery', () => {
 				await page.keyboard.press('Escape');
 			}
 			const swap = await openOccupiedSwapReview(page);
-			await expect(swap.dialog).toContainText(/Review occupied-slot swap/i);
+			await expect(swap.dialog).toContainText(/Swap these two classes\?/i);
 			await page.keyboard.press('Escape');
 
 			await openTimetableAdvanced(page);
