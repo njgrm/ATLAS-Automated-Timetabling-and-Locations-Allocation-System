@@ -25,6 +25,7 @@ export type ActiveSchoolYearContextSource = 'atlas-persisted' | 'enrollpro-verif
 export type ActiveSchoolYearContext = {
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
+	schoolId: number;
 	source: ActiveSchoolYearContextSource;
 	stale: boolean;
 	cachedAt: string;
@@ -163,6 +164,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
+			schoolId: 1, // Default from cache; runtime context will correct on refresh
 			source: 'cache',
 			stale: !hasFreshCache,
 			cachedAt: cached.cachedAt,
@@ -174,6 +176,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
+			schoolId: 1, // Default from cache; runtime context will correct on refresh
 			source: 'cache',
 			stale: false,
 			cachedAt: cached.cachedAt,
@@ -215,6 +218,7 @@ async function _fetchRuntimeContext(
 			return {
 				activeSchoolYearId: runtimeContext.activeSchoolYearId,
 				activeSchoolYearLabel: runtimeContext.activeSchoolYearLabel ?? null,
+				schoolId: runtimeContext.schoolId,
 				source: runtimeContext.source ?? 'atlas-persisted',
 				stale: runtimeContext.stale,
 				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
@@ -234,6 +238,7 @@ async function _fetchRuntimeContext(
 		return {
 			activeSchoolYearId: cachedFallback.activeSchoolYearId,
 			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
+			schoolId: 1, // Default for cache fallback; runtime context will correct on next refresh
 			source: 'cache',
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
@@ -253,6 +258,7 @@ async function _fetchRuntimeContext(
 		return {
 			activeSchoolYearId: settings.activeSchoolYearId,
 			activeSchoolYearLabel: settings.activeSchoolYearLabel ?? null,
+			schoolId: 1, // Default for EnrollPro fallback; runtime context will correct on next refresh
 			source: 'enrollpro',
 			stale: false,
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
@@ -266,6 +272,7 @@ async function _fetchRuntimeContext(
 		return {
 			activeSchoolYearId: cachedFallback.activeSchoolYearId,
 			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
+			schoolId: 1, // Default for stale fallback; runtime context will correct on next refresh
 			source: 'cache',
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,

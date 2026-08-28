@@ -51,6 +51,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	handleRunChange: (value: string) => void;
 	runs: Array<{ id: number; createdAt: string; durationMs?: number | null; status?: string }>;
 	schoolYearContext: ActiveSchoolYearContext | null;
+	schoolId: number;
 	centerView: string;
 	newDraftLoading: boolean;
 	schoolYearId: number | null;

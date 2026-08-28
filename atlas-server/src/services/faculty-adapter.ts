@@ -22,6 +22,14 @@ export interface ExternalFaculty {
 	// Wave 3.5: Adviser mapping
 	advisedSectionId?: number | null;
 	advisedSectionName?: string | null;
+	// Official teacher profile fields (teacher-program DOCX export)
+	plantillaPosition?: string | null;
+	designationTitle?: string | null;
+	undergraduateDegree?: string | null;
+	postgraduateDegree?: string | null;
+	majorSpecialization?: string | null;
+	minorSpecialization?: string | null;
+	ancillaryRoles?: string[];
 }
 
 export interface FacultyFetchResult {
@@ -106,6 +114,14 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 			ancillaryHoursPerWeek?: number | null;
 			advisorySectionId?: number | null;
 			advisorySectionName?: string | null;
+			// Official teacher profile fields
+			plantillaPosition?: string | null;
+			designationTitle?: string | null;
+			undergraduateDegree?: string | null;
+			postgraduateDegree?: string | null;
+			majorSpecialization?: string | null;
+			minorSpecialization?: string | null;
+			ancillaryRoles?: string[];
 		};
 
 		type FacultyFeedPage = {
@@ -179,6 +195,14 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				contactInfo: t.email ?? t.contactNumber ?? null,
 				advisedSectionId: t.advisorySectionId ?? null,
 				advisedSectionName: t.advisorySectionName ?? null,
+				// Official teacher profile fields for DOCX export
+				plantillaPosition: t.plantillaPosition ?? null,
+				designationTitle: t.designationTitle ?? null,
+				undergraduateDegree: t.undergraduateDegree ?? null,
+				postgraduateDegree: t.postgraduateDegree ?? null,
+				majorSpecialization: t.majorSpecialization ?? null,
+				minorSpecialization: t.minorSpecialization ?? null,
+				ancillaryRoles: t.ancillaryRoles ?? [],
 				};
 			});
 

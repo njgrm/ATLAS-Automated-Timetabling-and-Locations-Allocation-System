@@ -28,6 +28,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
+import { getPreferredAccessToken } from '@/lib/auth';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -508,6 +509,8 @@ function TimetableSimpleHeaderImpl({
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
+	const [teacherProgramExporting, setTeacherProgramExporting] = useState(false);
+	const [teacherProgramExportError, setTeacherProgramExportError] = useState<string | null>(null);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
@@ -570,12 +573,12 @@ function TimetableSimpleHeaderImpl({
 		const runId = context.draft?.runId ?? context.activeGeneratedRunId;
 		if (!runId || !context.schoolYearId) return;
 		try {
-			const schoolId = 1;
+			const token = getPreferredAccessToken();
 			const response = await fetch(
-				`/api/v1/generation/${schoolId}/${context.schoolYearId}/runs/${runId}/export/summary-teacher-schedule.xlsx`,
+				`/api/v1/generation/${context.schoolId}/${context.schoolYearId}/runs/${runId}/export/summary-teacher-schedule.xlsx`,
 				{
 					headers: {
-						Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+						Authorization: `Bearer ${token ?? ''}`,
 					},
 				},
 			);
@@ -589,6 +592,40 @@ function TimetableSimpleHeaderImpl({
 			URL.revokeObjectURL(url);
 		} catch {
 			// Export failed silently - user can retry
+		}
+	};
+
+	const handleExportTeacherProgram = async () => {
+		const runId = context.draft?.runId ?? context.activeGeneratedRunId;
+		const facultyId = context.viewMode === 'faculty' ? context.entityFilter : null;
+		if (!runId || !context.schoolYearId || !facultyId || !context.schoolId) return;
+		setTeacherProgramExportError(null);
+		try {
+			setTeacherProgramExporting(true);
+			const token = getPreferredAccessToken();
+			const response = await fetch(
+				`/api/v1/generation/${context.schoolId}/${context.schoolYearId}/runs/${runId}/export/teacher-program.docx?facultyId=${encodeURIComponent(facultyId)}`,
+				{
+					headers: {
+						Authorization: `Bearer ${token ?? ''}`,
+					},
+				},
+			);
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({ message: 'Export failed' }));
+				throw new Error(err.message ?? 'Export failed');
+			}
+			const blob = await response.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `teacher-program-${facultyId}.docx`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			setTeacherProgramExportError(err instanceof Error ? err.message : 'Export failed');
+		} finally {
+			setTeacherProgramExporting(false);
 		}
 	};
 
@@ -911,7 +948,7 @@ function TimetableSimpleHeaderImpl({
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setStatusKeyOpen(true); }}
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
 									>
 										<Info className="size-3.5" aria-hidden="true" />
 										Status key
@@ -1007,6 +1044,25 @@ function TimetableSimpleHeaderImpl({
 												Export workbook
 											</DropdownMenuItem>
 										)}
+										{hasGeneratedRun && context.viewMode === 'faculty' && context.entityFilter && (
+											<DropdownMenuItem
+												className="h-9 gap-2 text-xs"
+												data-testid="timetable-simple-export-teacher-program"
+												disabled={teacherProgramExporting}
+												onSelect={(event) => {
+													event.preventDefault();
+													setMoreOpen(false);
+													void handleExportTeacherProgram();
+												}}
+											>
+												{teacherProgramExporting ? (
+													<Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+												) : (
+													<Download className="size-3.5" aria-hidden="true" />
+												)}
+												Export teacher program
+											</DropdownMenuItem>
+										)}
 									</div>
 								</div>
 							</div>
@@ -1014,6 +1070,22 @@ function TimetableSimpleHeaderImpl({
 					</DropdownMenu>
 				</div>
 			</div>
+
+			{teacherProgramExportError && (
+				<div className="flex items-center gap-1.5 px-3 py-1 bg-red-50 border-t border-red-200" data-testid="timetable-teacher-program-export-error">
+					<AlertTriangle className="size-3.5 text-red-600 shrink-0" aria-hidden="true" />
+					<span className="text-xs text-red-700">{teacherProgramExportError}</span>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="h-5 px-1 text-xs text-red-600 hover:text-red-800"
+						onClick={() => setTeacherProgramExportError(null)}
+					>
+						Dismiss
+					</Button>
+				</div>
+			)}
 
 			{/* Secondary row: hidden-row status controls (only when applicable) */}
 			{(context.policyAlignmentWarning || context.hiddenRowCount > 0) && (

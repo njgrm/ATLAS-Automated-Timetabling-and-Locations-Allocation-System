@@ -89,6 +89,14 @@ contactInfo: string | null;
 advisedSectionId: number | null;
 advisedSectionName: string | null;
 isStale: boolean;
+// Official teacher profile fields
+plantillaPosition: string | null;
+designationTitle: string | null;
+undergraduateDegree: string | null;
+postgraduateDegree: string | null;
+majorSpecialization: string | null;
+minorSpecialization: string | null;
+ancillaryRoles: string[];
 }
 
 function normalizeIdentityPart(value: string | null | undefined): string {
@@ -303,41 +311,57 @@ fetchedAt: snapshot.fetchedAt,
 
 function toExternalComparable(faculty: ExternalFaculty) {
 return {
-employeeId: faculty.employeeId ?? null,
-firstName: faculty.firstName,
-lastName: faculty.lastName,
-department: faculty.department ?? null,
-specialization: faculty.specialization ?? null,
-employmentStatus: faculty.employmentStatus ?? 'PERMANENT',
-isClassAdviser: faculty.isClassAdviser ?? false,
-advisoryEquivalentHours: faculty.advisoryEquivalentHours ?? (faculty.isClassAdviser ? 5 : 0),
-canTeachOutsideDepartment: faculty.canTeachOutsideDepartment ?? false,
+	employeeId: faculty.employeeId ?? null,
+	firstName: faculty.firstName,
+	lastName: faculty.lastName,
+	department: faculty.department ?? null,
+	specialization: faculty.specialization ?? null,
+	employmentStatus: faculty.employmentStatus ?? 'PERMANENT',
+	isClassAdviser: faculty.isClassAdviser ?? false,
+	advisoryEquivalentHours: faculty.advisoryEquivalentHours ?? (faculty.isClassAdviser ? 5 : 0),
+	canTeachOutsideDepartment: faculty.canTeachOutsideDepartment ?? false,
 	ancillaryMinutesPerWeek: faculty.ancillaryMinutesPerWeek ?? null,
 	ancillaryLoadSource: Number.isFinite(Number(faculty.ancillaryMinutesPerWeek)) ? 'HR' : 'NONE',
-contactInfo: faculty.contactInfo ?? null,
-advisedSectionId: faculty.advisedSectionId ?? null,
-advisedSectionName: faculty.advisedSectionName ?? null,
+	contactInfo: faculty.contactInfo ?? null,
+	advisedSectionId: faculty.advisedSectionId ?? null,
+	advisedSectionName: faculty.advisedSectionName ?? null,
+	// Official teacher profile fields
+	plantillaPosition: faculty.plantillaPosition ?? null,
+	designationTitle: faculty.designationTitle ?? null,
+	undergraduateDegree: faculty.undergraduateDegree ?? null,
+	postgraduateDegree: faculty.postgraduateDegree ?? null,
+	majorSpecialization: faculty.majorSpecialization ?? null,
+	minorSpecialization: faculty.minorSpecialization ?? null,
+	ancillaryRoles: faculty.ancillaryRoles ?? [],
 };
 }
 
 function isMirrorEquivalent(local: LocalMirrorComparable, external: ExternalFaculty): boolean {
 const normalized = toExternalComparable(external);
 return (
-local.employeeId === normalized.employeeId
-&& local.firstName === normalized.firstName
-&& local.lastName === normalized.lastName
-&& local.department === normalized.department
-&& local.specialization === normalized.specialization
-&& local.employmentStatus === normalized.employmentStatus
-&& local.isClassAdviser === normalized.isClassAdviser
-&& local.advisoryEquivalentHours === normalized.advisoryEquivalentHours
-&& local.canTeachOutsideDepartment === normalized.canTeachOutsideDepartment
+	local.employeeId === normalized.employeeId
+	&& local.firstName === normalized.firstName
+	&& local.lastName === normalized.lastName
+	&& local.department === normalized.department
+	&& local.specialization === normalized.specialization
+	&& local.employmentStatus === normalized.employmentStatus
+	&& local.isClassAdviser === normalized.isClassAdviser
+	&& local.advisoryEquivalentHours === normalized.advisoryEquivalentHours
+	&& local.canTeachOutsideDepartment === normalized.canTeachOutsideDepartment
 	&& (local.ancillaryMinutesPerWeek ?? null) === (normalized.ancillaryMinutesPerWeek ?? null)
 	&& (local.ancillaryLoadSource ?? 'NONE') === (normalized.ancillaryLoadSource ?? 'NONE')
-&& local.contactInfo === normalized.contactInfo
-&& local.advisedSectionId === normalized.advisedSectionId
-&& local.advisedSectionName === normalized.advisedSectionName
-&& local.isStale === false
+	&& local.contactInfo === normalized.contactInfo
+	&& local.advisedSectionId === normalized.advisedSectionId
+	&& local.advisedSectionName === normalized.advisedSectionName
+	&& local.isStale === false
+	// Official teacher profile fields
+	&& (local.plantillaPosition ?? null) === normalized.plantillaPosition
+	&& (local.designationTitle ?? null) === normalized.designationTitle
+	&& (local.undergraduateDegree ?? null) === normalized.undergraduateDegree
+	&& (local.postgraduateDegree ?? null) === normalized.postgraduateDegree
+	&& (local.majorSpecialization ?? null) === normalized.majorSpecialization
+	&& (local.minorSpecialization ?? null) === normalized.minorSpecialization
+	&& JSON.stringify(local.ancillaryRoles ?? []) === JSON.stringify(normalized.ancillaryRoles)
 );
 }
 
@@ -514,26 +538,34 @@ const external = deduped.canonical;
 const externalIds = new Set(external.map((f) => f.id));
 
 const localTeachers = await prisma.facultyMirror.findMany({
-where: { schoolId },
-select: {
-id: true,
-externalId: true,
+	where: { schoolId },
+	select: {
+		id: true,
+		externalId: true,
 			employeeId: true,
-firstName: true,
-lastName: true,
-department: true,
-specialization: true,
-employmentStatus: true,
-isClassAdviser: true,
-advisoryEquivalentHours: true,
-ancillaryMinutesPerWeek: true,
-ancillaryLoadSource: true,
-canTeachOutsideDepartment: true,
-contactInfo: true,
-advisedSectionId: true,
-advisedSectionName: true,
-isStale: true,
-},
+	firstName: true,
+	lastName: true,
+	department: true,
+	specialization: true,
+	employmentStatus: true,
+	isClassAdviser: true,
+	advisoryEquivalentHours: true,
+	ancillaryMinutesPerWeek: true,
+	ancillaryLoadSource: true,
+	canTeachOutsideDepartment: true,
+	contactInfo: true,
+	advisedSectionId: true,
+	advisedSectionName: true,
+	isStale: true,
+	// Official teacher profile fields
+	plantillaPosition: true,
+	designationTitle: true,
+	undergraduateDegree: true,
+	postgraduateDegree: true,
+	majorSpecialization: true,
+	minorSpecialization: true,
+	ancillaryRoles: true,
+	},
 });
 
 const localByExternalId = new Map(localTeachers.map((teacher) => [teacher.externalId, teacher]));
@@ -560,25 +592,33 @@ for (const f of external) {
 		: (existingLocal?.ancillaryLoadSource === 'LOCAL' ? 'LOCAL' : 'NONE');
 
 const mirrorUpdateData = {
-externalId: f.id,
-employeeId: f.employeeId ?? null,
-firstName: f.firstName,
-lastName: f.lastName,
-department: f.department,
-specialization: f.specialization ?? null,
-employmentStatus: f.employmentStatus ?? 'PERMANENT',
-isClassAdviser: f.isClassAdviser ?? false,
-advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
-ancillaryMinutesPerWeek: nextAncillaryMinutes,
-ancillaryLoadSource: nextAncillarySource,
-canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
-contactInfo: f.contactInfo,
-advisedSectionId: f.advisedSectionId ?? null,
-advisedSectionName: f.advisedSectionName ?? null,
-lastSyncedAt: new Date(),
-isStale: false,
-staleReason: null,
-staleAt: null,
+	externalId: f.id,
+	employeeId: f.employeeId ?? null,
+	firstName: f.firstName,
+	lastName: f.lastName,
+	department: f.department,
+	specialization: f.specialization ?? null,
+	employmentStatus: f.employmentStatus ?? 'PERMANENT',
+	isClassAdviser: f.isClassAdviser ?? false,
+	advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
+	ancillaryMinutesPerWeek: nextAncillaryMinutes,
+	ancillaryLoadSource: nextAncillarySource,
+	canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
+	contactInfo: f.contactInfo,
+	advisedSectionId: f.advisedSectionId ?? null,
+	advisedSectionName: f.advisedSectionName ?? null,
+	lastSyncedAt: new Date(),
+	isStale: false,
+	staleReason: null,
+	staleAt: null,
+	// Official teacher profile fields
+	plantillaPosition: f.plantillaPosition ?? null,
+	designationTitle: f.designationTitle ?? null,
+	undergraduateDegree: f.undergraduateDegree ?? null,
+	postgraduateDegree: f.postgraduateDegree ?? null,
+	majorSpecialization: f.majorSpecialization ?? null,
+	minorSpecialization: f.minorSpecialization ?? null,
+	ancillaryRoles: f.ancillaryRoles ?? [],
 };
 
 const upserted = existingLocal
@@ -586,30 +626,38 @@ const upserted = existingLocal
 where: { id: existingLocal.id },
 data: mirrorUpdateData,
 })
-: await prisma.facultyMirror.create({
-data: {
-externalId: f.id,
-schoolId,
-employeeId: f.employeeId ?? null,
-firstName: f.firstName,
-lastName: f.lastName,
-department: f.department,
-specialization: f.specialization ?? null,
-employmentStatus: f.employmentStatus ?? 'PERMANENT',
-isClassAdviser: f.isClassAdviser ?? false,
-advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
-ancillaryMinutesPerWeek: nextAncillaryMinutes,
-ancillaryLoadSource: nextAncillarySource,
-canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
-contactInfo: f.contactInfo,
-advisedSectionId: f.advisedSectionId ?? null,
-advisedSectionName: f.advisedSectionName ?? null,
-isPlaceholder: false,
-isActiveForScheduling: true,
-maxHoursPerWeek: 30,
-lastSyncedAt: new Date(),
-isStale: false,
-},
+	: await prisma.facultyMirror.create({
+	data: {
+		externalId: f.id,
+		schoolId,
+		employeeId: f.employeeId ?? null,
+		firstName: f.firstName,
+		lastName: f.lastName,
+		department: f.department,
+		specialization: f.specialization ?? null,
+		employmentStatus: f.employmentStatus ?? 'PERMANENT',
+		isClassAdviser: f.isClassAdviser ?? false,
+		advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
+		ancillaryMinutesPerWeek: nextAncillaryMinutes,
+		ancillaryLoadSource: nextAncillarySource,
+		canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
+		contactInfo: f.contactInfo,
+		advisedSectionId: f.advisedSectionId ?? null,
+		advisedSectionName: f.advisedSectionName ?? null,
+		isPlaceholder: false,
+		isActiveForScheduling: true,
+		maxHoursPerWeek: 30,
+		lastSyncedAt: new Date(),
+		isStale: false,
+		// Official teacher profile fields
+		plantillaPosition: f.plantillaPosition ?? null,
+		designationTitle: f.designationTitle ?? null,
+		undergraduateDegree: f.undergraduateDegree ?? null,
+		postgraduateDegree: f.postgraduateDegree ?? null,
+		majorSpecialization: f.majorSpecialization ?? null,
+		minorSpecialization: f.minorSpecialization ?? null,
+		ancillaryRoles: f.ancillaryRoles ?? [],
+	},
 });
 canonicalLocalIdByExternalId.set(f.id, upserted.id);
 retainedLocalIds.add(upserted.id);

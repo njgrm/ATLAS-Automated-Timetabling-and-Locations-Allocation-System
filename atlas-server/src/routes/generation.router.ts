@@ -4,6 +4,8 @@ import { authenticate } from '../middleware/authenticate.js';
 import * as genService from '../services/generation.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
+import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
+import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
 
 const router = Router();
 
@@ -610,6 +612,68 @@ router.get(
 			}
 			if (e?.message === 'TERM_FILTER_NOT_READY') {
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified or entries lack reliable termIndex.' });
+				return;
+			}
+			next(e);
+		}
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/runs/:runId/export/teacher-program.docx ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/teacher-program.docx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export teacher programs.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			const facultyId = positiveInt(req.query.facultyId, 'facultyId');
+			if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
+
+			const shape = await buildTeacherProgramExportShape({
+				schoolId,
+				schoolYearId,
+				runId,
+				facultyId,
+			});
+
+			const docxBuffer = await generateTeacherProgramDocx(shape);
+
+			const safeName = shape.teacher.fullName.replace(/[^a-zA-Z0-9]/g, '_');
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+			res.setHeader('Content-Disposition', `attachment; filename="Teacher_Program_${safeName}.docx"`);
+			res.send(docxBuffer);
+		} catch (e: any) {
+			if (e?.message === 'FACULTY_NOT_FOUND') {
+				res.status(404).json({ code: 'FACULTY_NOT_FOUND', message: 'Faculty member not found.' });
+				return;
+			}
+			if (e?.message === 'RUN_NOT_FOUND') {
+				res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Generation run not found.' });
+				return;
+			}
+			if (e?.message === 'RUN_NOT_COMPLETED') {
+				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			// Published schedule resolution errors from getPublishedFacultySchedule
+			if (e?.code === 'PUBLISHED_RUN_NOT_FOUND') {
+				res.status(404).json({ code: 'PUBLISHED_RUN_NOT_FOUND', message: 'No published schedule is available for export.' });
+				return;
+			}
+			if (e?.statusCode === 404 && e?.code) {
+				res.status(404).json({ code: e.code, message: e.message ?? 'Published schedule resolution failed.' });
 				return;
 			}
 			next(e);
