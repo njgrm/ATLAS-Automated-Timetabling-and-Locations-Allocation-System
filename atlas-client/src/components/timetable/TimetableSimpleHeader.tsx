@@ -911,7 +911,7 @@ function TimetableSimpleHeaderImpl({
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
+										onSelect={(event) => { event.preventDefault(); setStatusKeyOpen(true); }}
 									>
 										<Info className="size-3.5" aria-hidden="true" />
 										Status key
