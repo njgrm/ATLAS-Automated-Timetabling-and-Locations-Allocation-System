@@ -285,7 +285,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const ActiveTaskIcon = activeTask.icon;
 	const foolproofHelp = isPreGenerationWorkspace
 		? 'Draft mode: choose a draft queue item, then tap or click a grid slot. Review draft placement opens before anything is saved. Switch: select one placed draft session, then another occupied slot.'
-		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class to open Review occupied-slot swap. Draft: use Plan before generating for draft anchors.';
+		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class. The Swap these two classes? review opens before saving. Draft: use Plan before generating for draft anchors.';
 	const sourceContext = context.schoolYearContext;
 	const sourceLabel = !sourceContext
 		? 'Checking source'

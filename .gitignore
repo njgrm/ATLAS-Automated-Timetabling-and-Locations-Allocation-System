@@ -1,33 +1,38 @@
 # Private planning/customization artifacts
-.github/
+.agents/
+.codex/
 .cursor/
 AGENTS.md
-CHANGELOG.md
 projectIntro.md
 # Local tooling configs
-.vscode/mcp.json
+.gemini/
+.qodo/
+.tours/
+.vscode/
+.venv/
 projectUpdate.md
 reminders.md
-phasePlan.md
 requirements-phase1-ux.md
 questions.md
-docs/
-qa-artifacts/
 
 # Generated build output
 atlas-client/dist/
 atlas-server/dist/
+atlas-server/dist-rollover-check/
+**/node_modules/
+**/test-results/
+*.tsbuildinfo
 
 # Server logs
+*.log
 atlas-server/server.log
 atlas-server/server.err
+atlas-dev*.log
 
-# Dependency locks not required for this planning-only phase
-package-lock.json
-
+# Local/generated dependencies and sibling apps
 EnrollPro/
-
 node_modules/
+.npm-cache/
 
 .env*
 !.env.example
@@ -35,3 +40,25 @@ node_modules/
 office-files/
 
 ~$CLASS-PROGRAM-SY-2025-2026-GRADE-8.xlsx
+
+# QA and Playwright generated artifacts
+test-results/
+trace-temp/
+qa-artifacts/**
+!qa-artifacts/
+!qa-artifacts/login-ui-parity-check.mjs
+!qa-artifacts/wave4-teaching-load-precision.test.ts
+!qa-artifacts/playwright/
+!qa-artifacts/playwright/README.md
+!qa-artifacts/playwright/specs/
+!qa-artifacts/playwright/specs/**
+atlas-client/qa-artifacts/
+
+# Root-level throwaway outputs
+/*.png
+/*.log
+/*-output.txt
+/build-output.txt
+/debug_extract.txt
+/test6_output.txt
+/audit_tl.html

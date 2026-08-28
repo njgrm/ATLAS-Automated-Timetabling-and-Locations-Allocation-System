@@ -1,9 +1,0 @@
-{
-  "status": "FAIL",
-  "failures": [
-    {
-      "scenario": "preview_failure",
-      "status": "FAIL"
-    }
-  ]
-}

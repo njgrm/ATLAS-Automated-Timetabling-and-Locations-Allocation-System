@@ -1,6 +1,0 @@
-{
-  "status": "PASS",
-  "feedbackVisible": true,
-  "blockedCommitRequests": [],
-  "mutationSafety": "All non-preview generation writes were intercepted and aborted."
-}

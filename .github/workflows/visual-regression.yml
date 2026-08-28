@@ -1,0 +1,60 @@
+name: visual-regression
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      assert_snapshots:
+        description: "Run snapshot assertions (requires committed baselines)"
+        required: false
+        default: "false"
+      target_roles:
+        description: "Comma-separated roles to test (guest,faculty,admin)"
+        required: false
+        default: "guest"
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:5174
+      PLAYWRIGHT_TARGET_ROLES: ${{ github.event.inputs.target_roles || 'guest' }}
+      PLAYWRIGHT_ASSERT_SNAPSHOTS: ${{ github.event.inputs.assert_snapshots == 'true' && '1' || '0' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm --prefix atlas-client ci
+
+      - name: Install Playwright browser
+        run: npm run test:visual:install
+
+      - name: Start client
+        run: npm --prefix atlas-client run dev -- --host 127.0.0.1 --port 5174 > /tmp/atlas-client.log 2>&1 &
+
+      - name: Wait for client
+        run: npx wait-on http://127.0.0.1:5174
+
+      - name: Run visual matrix
+        run: npm run test:visual:ci
+
+      - name: Upload visual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-artifacts
+          path: |
+            qa-artifacts/playwright/report
+            qa-artifacts/playwright/results
+            qa-artifacts/screenshots/visual-regression
+            /tmp/atlas-client.log

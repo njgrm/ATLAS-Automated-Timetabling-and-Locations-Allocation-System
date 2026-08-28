@@ -274,7 +274,8 @@ test('timetable Phase 5 foolproofing keeps persistent help, large task targets, 
 	assert.match(statusLegend, /Occupied = already scheduled/);
 	assert.match(statusLegend, /Current = selected session location/);
 	assert.match(header, /Review draft placement/);
-	assert.match(header, /Review occupied-slot swap/);
+	assert.match(header, /Swap these two classes\?/);
+	assert.doesNotMatch(header, new RegExp(['Review occupied-slot', 'swap'].join(' ')));
 	assert.match(header, /data-testid="timetable-visible-undo"/);
 	assert.match(workspace, /role="status"/);
 	assert.match(workspace, /aria-live="polite"/);

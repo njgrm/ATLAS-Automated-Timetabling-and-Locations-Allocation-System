@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "timestamp": "2026-04-02T05:52:29.906Z",
+    "schoolId": 1,
+    "schoolYearId": 1,
+    "runCount": 5,
+    "actorId": 1
+  },
+  "runs": [
+    {
+      "runId": 21,
+      "status": "FAILED",
+      "durationMs": 34,
+      "assignedCount": 0,
+      "unassignedCount": 0,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 0,
+      "classesProcessed": 0
+    },
+    {
+      "runId": 22,
+      "status": "FAILED",
+      "durationMs": 4,
+      "assignedCount": 0,
+      "unassignedCount": 0,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 0,
+      "classesProcessed": 0
+    },
+    {
+      "runId": 23,
+      "status": "FAILED",
+      "durationMs": 5,
+      "assignedCount": 0,
+      "unassignedCount": 0,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 0,
+      "classesProcessed": 0
+    },
+    {
+      "runId": 24,
+      "status": "FAILED",
+      "durationMs": 7,
+      "assignedCount": 0,
+      "unassignedCount": 0,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 0,
+      "classesProcessed": 0
+    },
+    {
+      "runId": 25,
+      "status": "FAILED",
+      "durationMs": 8,
+      "assignedCount": 0,
+      "unassignedCount": 0,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 0,
+      "classesProcessed": 0
+    }
+  ],
+  "stats": {
+    "runCount": 5,
+    "successCount": 0,
+    "failCount": 5,
+    "durations": {
+      "p50": 0,
+      "p95": 0,
+      "max": 0,
+      "min": 0,
+      "mean": 0
+    },
+    "assignedCount": {
+      "min": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "unassignedCount": {
+      "min": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "hardViolationCount": {
+      "min": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "policyBlockedCount": {
+      "min": 0,
+      "max": 0,
+      "mean": 0
+    }
+  },
+  "guardrails": {
+    "allRunsSucceeded": false,
+    "hardViolationsStable": true,
+    "maxDurationUnder60s": true,
+    "overallPass": false
+  }
+}

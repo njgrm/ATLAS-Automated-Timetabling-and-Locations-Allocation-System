@@ -1,9 +1,0 @@
-{
-  "status": "FAIL",
-  "failures": [
-    {
-      "scenario": "touch_place",
-      "status": "FAIL"
-    }
-  ]
-}

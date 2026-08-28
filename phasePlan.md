@@ -324,7 +324,7 @@ PHASE 8+: Teacher X & Concurrency (✅ CLOSED)
 
 - [x] Refactor Phase 1d gates all PASS (see evidence log 2026-05-16)
 - [x] Generation output schema includes `termIndex` (1, 2, or 3) — confirmed in generation.service.ts
-- [x] API documentation updated with term-aware contracts (ATLAS-PUBLIC-API.md)
+- [x] API documentation updated with term-aware contracts (`docs/guides/ATLAS-PUBLIC-API.md`)
 - [ ] Phase 5 design document completed (using tri-sem model)
 
 ---

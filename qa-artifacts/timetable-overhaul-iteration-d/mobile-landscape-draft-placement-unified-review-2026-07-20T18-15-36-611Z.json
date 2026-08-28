@@ -1,4 +1,0 @@
-{
-  "dialogText": "Review draft placement\n\nFIL - Mabini - MONDAY 6:00 AM-6:45 AM. Teaching Load owns class ownership; this step only reviews placement readiness.\n\nWHAT CHANGES\n\nThis draft session is anchored to the selected slot after review.\n\n1. Owner\n2. Room source\n3. Slot\n4. Conflicts\n5. Save\n\nTeaching Load owner\n\nNo Teaching Load owner found\n\nSuggested room\n\nNo compatible room found\n\nFix room setup or room readiness before placing this session.\n\nTarget slot\n\nMONDAY 6:00 AM-6:45 AM\n\nBLOCKS\n\nConflict check\n\nBLOCKING:\n\n—\n\nWARNINGS:\n\n—\n\nBlocking means ATLAS found a hard conflict that must be fixed before save.\nWarnings are soft issues to review; they never rely on color alone.\nWARNINGS\n\nNo workload warning is active yet.\n\nAFTER SAVE\n\nATLAS saves the draft placement only after this review and keeps class ownership in Teaching Load.\n\nCancel\nSave placement\nClose",
-  "blockedWrites": []
-}

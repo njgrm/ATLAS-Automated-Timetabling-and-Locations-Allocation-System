@@ -1,4 +1,0 @@
-{
-  "simpleText": "Using saved ATLAS data\n76 blockers\n\nPlace unresolved\n\nChoose one unresolved session, then choose a green slot on the grid. No dragging required.\n\nStart placing",
-  "advancedText": "NEXT TASK\n\nReview schedule\n\nReview schedule\n76 blocked\nPlace unassigned\n99+ to place\nSwitch sessions\nDraft planner\nReview room requests\n\nNo precision dragging required. Start with hard blockers before publishing.\nPlace: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class to open Review occupied-slot swap. Draft: use Plan before generating for draft anchors.\n\nStatus key\nCan place = empty slot. Can swap = occupied slot to review. Blocked = fix first. Warning = review before saving. Occupied = already scheduled. Current = selected session location."
-}
