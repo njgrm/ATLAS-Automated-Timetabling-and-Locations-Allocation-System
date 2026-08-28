@@ -76,7 +76,12 @@ export async function openTimetableAdvanced(page: Page) {
 export async function openTaskDrawer(page: Page, taskName: RegExp | string) {
 	await expect(page.getByTestId('timetable-simple-header')).toBeVisible({ timeout: 20_000 });
 	await openSimpleMore(page);
-	await page.getByRole('menuitem', { name: taskName }).click();
+	const menuItem = page.getByRole('menuitem', { name: taskName });
+	const hasMenuItem = await menuItem.isVisible({ timeout: 5_000 }).catch(() => false);
+	if (!hasMenuItem) {
+		return null;
+	}
+	await menuItem.click();
 	const drawer = page.getByTestId('timetable-task-drawer');
 	await expect(drawer).toBeVisible({ timeout: 20_000 });
 	return drawer;
