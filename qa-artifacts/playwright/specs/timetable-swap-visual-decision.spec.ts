@@ -196,7 +196,7 @@ test.describe.serial('Timetable swap visual decision gate', () => {
 		});
 
 		expect(metrics.title).toBe('Swap these two classes?');
-		expect(metrics.primaryRegionCount).toBeGreaterThanOrEqual(1);
+		expect(metrics.primaryRegionCount).toBe(3);
 		expect(metrics.visibleTextLength).toBeGreaterThan(50);
 		expect(metrics.dialogBox).toBeTruthy();
 		expect(metrics.footerVisible).toBe(true);
