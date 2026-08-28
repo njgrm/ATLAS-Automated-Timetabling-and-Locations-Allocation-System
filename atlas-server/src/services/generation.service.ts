@@ -1443,14 +1443,24 @@ export async function getPerformanceFixtureSource(schoolId: number, schoolYearId
 		take: 50,
 		select: { id: true, summary: true, createdAt: true },
 	});
-	const source = candidates.find((candidate) => {
+	// First try to find a zero-hard-violation run (ideal case)
+	const idealSource = candidates.find((candidate) => {
 		const summary = asSummaryRecord(candidate.summary);
 		return !hasPublishedMarkers(summary) && Number(summary.hardViolationCount ?? 0) === 0;
 	});
-	if (!source) {
-		throw err(404, 'NO_FIXTURE_SOURCE', 'No completed, unpublished, zero-hard-violation run is available for performance verification.');
+	if (idealSource) {
+		return { id: idealSource.id, createdAt: idealSource.createdAt.toISOString() };
 	}
-	return { id: source.id, createdAt: source.createdAt.toISOString() };
+	// Fallback: allow runs with hard violations if they have enough entries for teacher reassignment
+	const fallbackSource = candidates.find((candidate) => {
+		const summary = asSummaryRecord(candidate.summary);
+		const entryCount = Number(summary.assignedCount ?? 0);
+		return !hasPublishedMarkers(summary) && entryCount >= 10;
+	});
+	if (fallbackSource) {
+		return { id: fallbackSource.id, createdAt: fallbackSource.createdAt.toISOString() };
+	}
+	throw err(404, 'NO_FIXTURE_SOURCE', 'No completed, unpublished run with enough entries is available for performance verification.');
 }
 
 type PerformanceFixturePurpose = 'PERFORMANCE' | 'TEACHER_DEPARTURE';
