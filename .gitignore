@@ -1,8 +1,13 @@
 # Private planning/customization artifacts
+.github/
 .agents/
 .codex/
 .cursor/
 AGENTS.md
+ATLAS_AGENT_KI.md
+CHANGELOG.md
+GEMINI.md
+phasePlan.md
 projectIntro.md
 # Local tooling configs
 .gemini/
@@ -14,6 +19,14 @@ projectUpdate.md
 reminders.md
 requirements-phase1-ux.md
 questions.md
+
+# Local documentation, reference material, and external tool checkouts
+api/
+docs/
+mcp-servers/
+SMART/
+SSE-PLAN/
+stakeholderFiles/
 
 # Generated build output
 atlas-client/dist/
@@ -44,15 +57,15 @@ office-files/
 # QA and Playwright generated artifacts
 test-results/
 trace-temp/
-qa-artifacts/**
-!qa-artifacts/
-!qa-artifacts/login-ui-parity-check.mjs
-!qa-artifacts/wave4-teaching-load-precision.test.ts
-!qa-artifacts/playwright/
-!qa-artifacts/playwright/README.md
-!qa-artifacts/playwright/specs/
-!qa-artifacts/playwright/specs/**
+qa-artifacts/
 atlas-client/qa-artifacts/
+atlas-client/test-results/
+
+# Local-only tests
+**/__tests__/
+*.test.*
+*.spec.*
+playwright.config.*
 
 # Root-level throwaway outputs
 /*.png

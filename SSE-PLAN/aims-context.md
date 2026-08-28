@@ -1,4 +1,0 @@
-# AIMS Vibecoding Context
-**Role:** Core Learning Management, Quiz Generation, and Mastery Analytics.
-
-"I am working on the **AIMS** (Automated Intervention and Mastery System) subsystem, which is our core LMS and mastery analytics engine. AIMS sits at the final stage of our data waterfall; it depends on **EnrollPro** for identity/section data and **ATLAS** for teaching load and schedule mapping. I need to implement a 'Real-time Mastery Stream' using **SSE**. AIMS should subscribe to the shared Tailscale Redis bus to listen for events from EnrollPro (e.g., student section changes) and ATLAS (e.g., schedule or teaching load changes). When these events arrive, AIMS must update the student's learning dashboard or the teacher's intervention panel instantly without a manual refresh. Please help me integrate this SSE broadcast logic into my existing course management and student submission modules so that the 'vibe' of the system is truly real-time and distributed."

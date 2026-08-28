@@ -1,4 +1,0 @@
-# SMART Vibecoding Context
-**Role:** Consumer of Schedule and Enrollment data for Grading.
-
-"I am working on the **SMART** subsystem, which handles classrecords and student grades. SMART is at the end of our data waterfall; it relies on **EnrollPro** for student/section data and **ATLAS** for the teacher's current class schedules. I need to implement a 'Reactive Data Consumer' using **SSE**. SMART should maintain a persistent connection to our Tailscale Redis bus to listen for updates from both upstream services. When a student's section changes in EnrollPro or a schedule is modified in ATLAS, SMART needs to receive that event and immediately push an update to the teacher's grading dashboard via an SSE stream. I want this to be seamless—the UI should reflect the new class list or schedule the moment it changes elsewhere in the tailnet."

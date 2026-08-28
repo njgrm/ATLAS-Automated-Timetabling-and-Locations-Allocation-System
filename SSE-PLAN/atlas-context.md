@@ -1,4 +1,0 @@
-# ATLAS Vibecoding Context
-**Role:** Source of Truth for Teaching Loads and Schedules.
-
-"I am working on the **ATLAS** subsystem, which manages teaching loads and master schedules. We are in a distributed environment using Tailscale where ATLAS relies on **EnrollPro** for identity and authentication. I need to set up a 'Real-time Sync Listener.' Specifically, I want to implement a background service that 'listens' to a Redis Pub/Sub channel hosted on the Tailnet for identity changes from EnrollPro. Furthermore, ATLAS must become a 'Publisher' itself; whenever a schedule or teaching load is updated here, it should emit an event to the shared bus so that the **SMART** classrecord module can update instantly. I also need an **SSE endpoint** to push these external events directly to my local React frontend to ensure the schedule view is always live."
