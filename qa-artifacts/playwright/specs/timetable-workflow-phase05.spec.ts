@@ -101,9 +101,9 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await page.getByTestId('timetable-task-switch').click();
 		await expect(help).toContainText(/Switch:/i);
 		await expect(help).toContainText(/Swap these two classes\?/i);
-		await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
+		await page.getByRole('button', { name: /Plan draft|Opening draft/i }).click();
 		await expect(help).toContainText(/Draft mode/i);
-		await expect(help).toContainText(/Review draft placement/i);
+		await expect(help).toContainText(/Place this class\?/i);
 
 		const scrollMetrics = await page.evaluate(() => {
 			const root = document.scrollingElement ?? document.documentElement;
@@ -157,7 +157,7 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await expect(swapDialog.getByRole('button', { name: /Direct swap|Move blocking session|Move selected session/i }).first()).toBeVisible({ timeout: 20_000 });
 		await page.keyboard.press('Escape');
 
-		await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
+		await page.getByRole('button', { name: /Plan draft|Opening draft/i }).click();
 		await expect(page.getByText(/Pre-Generation Draft/i).first()).toBeVisible({ timeout: 10_000 });
 		const draftQueueItem = page.locator('#panel-unassigned [role="button"]').first();
 		await expect(draftQueueItem).toBeVisible({ timeout: 10_000 });
@@ -169,7 +169,7 @@ test.describe.serial('Timetable Phase 5 older-user accessibility and foolproofin
 		await expect(draftTargetCell).toBeVisible({ timeout: 10_000 });
 		await draftTargetCell.focus();
 		await page.keyboard.press('Enter');
-		const draftDialog = page.getByRole('dialog').filter({ hasText: /Review draft placement/i });
+		const draftDialog = page.getByRole('dialog').filter({ hasText: /Place this class\?/i });
 		await expect(draftDialog).toBeVisible({ timeout: 15_000 });
 		await expect(draftDialog).toContainText(/Blocking:/i);
 		await expect(draftDialog).toContainText(/Warnings:/i);

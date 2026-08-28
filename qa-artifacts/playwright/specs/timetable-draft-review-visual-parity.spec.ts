@@ -79,7 +79,7 @@ test.describe.serial('Timetable draft review visual parity', () => {
 
 		await openTimetableSimple(page);
 		await openSimpleMore(page);
-		const draftMenuItem = page.getByRole('menuitem', { name: /Plan before generating|Draft planner/i });
+		const draftMenuItem = page.getByRole('menuitem', { name: /Plan draft|Draft planner/i });
 		await expect(draftMenuItem).toBeVisible({ timeout: 5_000 });
 		await draftMenuItem.click();
 
@@ -132,7 +132,7 @@ test.describe.serial('Timetable draft review visual parity', () => {
 		}
 
 		const dialogText = await dialog.innerText({ timeout: 5_000 }).catch(() => '');
-		const hasTitle = dialogText.includes('Place this class') || dialogText.includes('Review draft placement');
+		const hasTitle = dialogText.includes('Place this class');
 		const hasOwner = dialogText.includes('Teaching Load owner');
 		const hasRoom = dialogText.includes('Suggested room') || dialogText.includes('Room source');
 		const hasSlot = dialogText.includes('Target slot') || dialogText.includes('slot');

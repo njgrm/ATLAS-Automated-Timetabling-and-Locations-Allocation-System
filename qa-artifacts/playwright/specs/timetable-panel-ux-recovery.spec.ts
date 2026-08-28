@@ -269,7 +269,7 @@ test.describe.serial('Timetable panel UX recovery', () => {
 			await page.keyboard.press('Escape');
 
 			await openTimetableAdvanced(page);
-			await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
+			await page.getByRole('button', { name: /Plan draft|Opening draft/i }).click();
 			await expect(page.getByText(/Pre-Generation Draft|Start with Pre-Generation Draft|Pre-generation draft is empty/i).first()).toBeVisible({ timeout: 20_000 });
 		} finally {
 			if (!reverted) {

@@ -67,7 +67,7 @@ test.describe('UX Audit Screenshots', () => {
             await page.keyboard.press('Escape');
         }
 
-        const draftButton = page.getByRole('button', { name: /Plan before generating|Opening draft/i });
+        const draftButton = page.getByRole('button', { name: /Plan draft|Opening draft/i });
         if (await draftButton.count() > 0) {
             await draftButton.click();
             await expect(page.getByText(/Pre-Generation Draft/i).first()).toBeVisible({ timeout: 10000 });

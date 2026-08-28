@@ -149,7 +149,7 @@ test.describe('Timetable current full-function matrix', () => {
 	test('draft planning from More exposes tray and draft placement feedback', async ({ page }) => {
 		await installReadOnlyGenerationGuard(page);
 		const dialog = await openDraftPlacementReview(page);
-		await expect(dialog).toContainText(/Review draft placement/i);
+		await expect(dialog).toContainText(/Place this class\?/i);
 		await expect(dialog.getByTestId('draft-placement-feedback')).toBeVisible();
 		await expect(dialog.getByTestId('draft-placement-save-reason')).toContainText(/Ready|Fix|Choose|Waiting|blocked|outside|inside|time window/i);
 		await assertNoObsoleteAssignmentModal(page);

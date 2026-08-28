@@ -59,7 +59,7 @@ async function blockDestructiveTimetableWrites(page: Page) {
 
 async function openDraftWorkspace(page: Page) {
 	await openTimetable(page);
-	await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
+	await page.getByRole('button', { name: /Plan draft|Opening draft/i }).click();
 	await expect(page.getByText(/Pre-Generation Draft/i).first()).toBeVisible({ timeout: 10_000 });
 	await expect(page.locator('table[aria-label="Timetable"]')).toBeVisible({ timeout: 10_000 });
 }
@@ -86,7 +86,7 @@ test.describe.serial('Timetable simplification Phase 3 gates', () => {
 		await expect(emptyTargetCell).toBeVisible({ timeout: 10_000 });
 		await emptyTargetCell.click();
 
-		const dialog = page.getByRole('dialog').filter({ hasText: /Review draft placement/i });
+		const dialog = page.getByRole('dialog').filter({ hasText: /Place this class\?/i });
 		await expect(dialog).toBeVisible({ timeout: 15_000 });
 		await expect(dialog).toContainText(/Teaching Load owner/i);
 		await expect(dialog).toContainText(/Suggested room/i);

@@ -64,7 +64,7 @@ async function openPlanDraft(page: Page) {
 		return;
 	}
 	await page.getByRole('button', { name: /^More$/i }).click();
-	await page.getByRole('button', { name: /Plan before generating/i }).click();
+	await page.getByRole('button', { name: /Plan draft/i }).click();
 }
 
 test.describe.serial('Timetable Phase 2 draft placement recovery gates', () => {
@@ -116,7 +116,7 @@ test.describe.serial('Timetable Phase 2 draft placement recovery gates', () => {
 		await expect(emptyTargetCell).toBeVisible({ timeout: 10_000 });
 		await emptyTargetCell.click();
 
-		const placementDialog = page.getByRole('dialog').filter({ hasText: /Review draft placement/i });
+		const placementDialog = page.getByRole('dialog').filter({ hasText: /Place this class\?/i });
 		await expect(placementDialog).toBeVisible({ timeout: 15_000 });
 		await expect(placementDialog).toContainText(/1\. Owner/i);
 		await expect(placementDialog).toContainText(/2\. Room source/i);

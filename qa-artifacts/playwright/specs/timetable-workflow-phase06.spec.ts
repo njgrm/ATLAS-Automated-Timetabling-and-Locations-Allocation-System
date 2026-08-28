@@ -154,7 +154,7 @@ test.describe.serial('Timetable Phase 6 release gate', () => {
 		const blockedWrites = await blockDestructiveTimetableWrites(page);
 		await openTimetable(page);
 
-		await page.getByRole('button', { name: /Plan before generating|Opening draft/i }).click();
+		await page.getByRole('button', { name: /Plan draft|Opening draft/i }).click();
 		await expect(page.getByText(/Pre-Generation Draft/i).first()).toBeVisible({ timeout: 10_000 });
 		const draftQueueItem = page.locator('#panel-unassigned [role="button"]').first();
 		await expect(draftQueueItem).toBeVisible({ timeout: 10_000 });

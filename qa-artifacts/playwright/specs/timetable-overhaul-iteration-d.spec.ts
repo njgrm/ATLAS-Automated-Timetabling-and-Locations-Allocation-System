@@ -153,7 +153,7 @@ test.describe.serial('Timetable overhaul Iteration D unified review and performa
 		test.setTimeout(120_000);
 		const blockedWrites = await blockDestructiveTimetableWrites(page);
 		await openTimetable(page);
-		await openTaskDrawer(page, /Plan before generating/i);
+		await openTaskDrawer(page, /Plan draft/i);
 		await expect(page.locator('#panel-unassigned').getByText(/Pre-Generation Draft/i).first()).toBeVisible({ timeout: 15_000 });
 		const draftQueueItem = page.locator('#panel-unassigned [role="button"]').first();
 		await expect(draftQueueItem).toBeVisible({ timeout: 15_000 });
@@ -162,7 +162,7 @@ test.describe.serial('Timetable overhaul Iteration D unified review and performa
 		await expect(cell).toBeVisible({ timeout: 15_000 });
 		await cell.click({ position: { x: 8, y: 8 } });
 
-		const dialog = page.getByRole('dialog').filter({ hasText: /Review draft placement/i });
+		const dialog = page.getByRole('dialog').filter({ hasText: /Place this class\?/i });
 		await expect(dialog).toBeVisible({ timeout: 20_000 });
 		await expectUnifiedReview(page, 'draft-placement');
 		await expect(dialog.getByRole('button', { name: /Save placement/i })).toBeVisible({ timeout: 10_000 });
