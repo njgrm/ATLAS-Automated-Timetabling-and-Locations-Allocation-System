@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 
-import type { AuthPayload } from '../middleware/authenticate.js';
+import { extractSseToken, type AuthPayload } from '../middleware/authenticate.js';
 import { hasPrivilegedRole } from '../middleware/authorize.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import {
@@ -21,9 +21,7 @@ function positiveInt(raw: unknown, name: string): number | string {
 
 function resolveSseUser(req: Request): AuthPayload | null {
 	if (req.user) return req.user;
-	const header = req.headers.authorization;
-	const queryToken = typeof req.query.accessToken === 'string' ? req.query.accessToken : null;
-	const token = header?.startsWith('Bearer ') ? header.slice(7) : queryToken ?? req.cookies?.atlasAuthToken;
+	const token = extractSseToken(req);
 	if (!token) return null;
 	const secret = process.env.JWT_SECRET;
 	if (!secret) return null;

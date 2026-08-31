@@ -1,11 +1,13 @@
 import ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
+import { resolveClassProgramSlots, normalizeGradeLevelSync } from './class-program-slot.service.js';
 
 type ExportOptions = {
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;
 	termIndex?: number | 'active';
+	specializationVisibility?: 'hidden' | 'visible';
 };
 
 type TimeSlot = {
@@ -67,6 +69,21 @@ function getBreakLabel(eventName: string | undefined): string {
 function formatRoomLabel(room: RoomInfo | undefined): string {
 	if (!room) return '';
 	return `${room.buildingName} / ${room.name}`;
+}
+
+function resolveSectionGradeLevel(section: { gradeLevelId: number; gradeLevelName?: string | null }): number {
+	const fromName = section.gradeLevelName?.match(/Grade\s+(\d+)/i);
+	if (fromName) return parseInt(fromName[1], 10);
+	return normalizeGradeLevelSync(section.gradeLevelId);
+}
+
+function isSpecializationSubject(subject: { name?: string | null; code?: string | null } | undefined): boolean {
+	const code = (subject?.code ?? '').trim().toUpperCase();
+	const name = (subject?.name ?? '').trim().toUpperCase();
+	return code.includes('_SPEC')
+		|| code.includes('SPECIALIZATION')
+		|| name.includes('SPECIALIZATION')
+		|| name.startsWith('SPECIAL PROGRAM ');
 }
 
 async function loadExportContext(options: ExportOptions): Promise<ExportContext> {
@@ -190,8 +207,8 @@ function buildEntryGrid(
 	subjectMap: Map<number, { id: number; name: string; code: string }>,
 	facultyMap: Map<number, { id: number; lastName: string | null; firstName: string | null }>,
 	roomMap: Map<number, RoomInfo>,
-): Map<string, { teacher: string; subject: string; room: string }> {
-	const grid = new Map<string, { teacher: string; subject: string; room: string }>();
+): Map<string, { teacher: string; subject: string; room: string; isSpecialization: boolean }> {
+	const grid = new Map<string, { teacher: string; subject: string; room: string; isSpecialization: boolean }>();
 	for (const entry of entries) {
 		const key = `${entry.sectionId}-${entry.startTime}-${entry.endTime}`;
 		if (grid.has(key)) continue;
@@ -202,6 +219,7 @@ function buildEntryGrid(
 			teacher: fac?.lastName ? (fac.firstName ? `${fac.lastName}, ${fac.firstName}` : fac.lastName) : 'Unassigned',
 			subject: subj?.name ?? subj?.code ?? `Subject #${entry.subjectId}`,
 			room: formatRoomLabel(room),
+			isSpecialization: isSpecializationSubject(subj),
 		});
 	}
 	return grid;
@@ -346,27 +364,25 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 
 export async function exportClassProgramWorkbook(options: ExportOptions): Promise<Buffer> {
 	const ctx = await loadExportContext(options);
-
-	const allSlots = [...ctx.displaySlots].sort((a, b) => a.startTime.localeCompare(b.startTime));
-	const periodSlots = allSlots.filter((s) => !s.isSpecialEvent);
-	const breakSlots = allSlots.filter((s) => s.isSpecialEvent);
+	const visibility = options.specializationVisibility ?? 'hidden';
 
 	const sections = await prisma.sectionMirror.findMany({
 		where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
-		select: { id: true, externalId: true, name: true, gradeLevelId: true },
+		select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
 	});
 
 	const sortedSections = [...sections].sort((a, b) => {
-		if (a.gradeLevelId !== b.gradeLevelId) return a.gradeLevelId - b.gradeLevelId;
+		const gradeA = resolveSectionGradeLevel(a);
+		const gradeB = resolveSectionGradeLevel(b);
+		if (gradeA !== gradeB) return gradeA - gradeB;
 		return a.name.localeCompare(b.name);
 	});
 
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
 
 	// Build section -> home room lookup for BLDG./RM. band
-	// Use the most common room from entries for each section as the "home room"
 	const sectionRoomMap = new Map<number, RoomInfo>();
-	const roomCounts = new Map<number, Map<number, number>>(); // sectionExternalId -> roomId -> count
+	const roomCounts = new Map<number, Map<number, number>>();
 	for (const entry of ctx.entries) {
 		if (!entry.roomId) continue;
 		const sec = sections.find((s) => s.externalId === entry.sectionId);
@@ -388,84 +404,113 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		if (room) sectionRoomMap.set(secExtId, room);
 	}
 
+	// Group sections by grade level for per-grade canonical slot rendering
+	const gradeGroups = new Map<number, typeof sortedSections>();
+	for (const sec of sortedSections) {
+		const actualGrade = resolveSectionGradeLevel(sec);
+		const arr = gradeGroups.get(actualGrade) ?? [];
+		arr.push(sec);
+		gradeGroups.set(actualGrade, arr);
+	}
+
 	const workbook = new ExcelJS.Workbook();
 	workbook.creator = 'ATLAS';
 
 	const MAX_SECTIONS = 7;
-	const bands: Array<typeof sortedSections> = [];
-	for (let i = 0; i < sortedSections.length; i += MAX_SECTIONS) {
-		bands.push(sortedSections.slice(i, i + MAX_SECTIONS));
-	}
 
-	const sheet = workbook.addWorksheet('CLASS PROGRAM');
-	addReportHeader(sheet, ctx, 'CLASS PROGRAM');
+	for (const [gradeLevel, gradeSections] of gradeGroups) {
+		let sheetRow = 1;
+		// Load canonical slots for this grade
+		const canonicalSlots = await resolveClassProgramSlots(options.schoolId, options.schoolYearId, gradeLevel);
+		const hasSpecialProgram = gradeSections.some(s => s.programType && s.programType !== 'REGULAR');
 
-	const orderedSlots = interleaveSlots(periodSlots, breakSlots);
+		// Build ordered slot list from canonical slots
+		const classSlots = canonicalSlots
+			.filter(s => s.rowKind === 'CLASS')
+			.filter(s => !(visibility === 'hidden' && hasSpecialProgram && s.subjectLabel === 'Specialization'));
+		const breakSlots = canonicalSlots
+			.filter(s => s.rowKind === 'BREAK' || s.rowKind === 'CONFLICT');
 
-	for (let bandIdx = 0; bandIdx < bands.length; bandIdx++) {
-		const band = bands[bandIdx];
-		// header(1) + meta(1) + blank(1) + section(1) + adviser(1) + bldg_rm(1) + data rows
-		const dataStartRow = 5 + bandIdx * (orderedSlots.reduce((sum, item) => sum + (item.type === 'break' ? 1 : 2), 0) + 4);
-		const startRow = bandIdx === 0 ? 5 : dataStartRow;
+		const orderedSlots = interleaveSlots(
+			classSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, isSpecialEvent: false })),
+			breakSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, isSpecialEvent: true, eventName: s.subjectLabel ?? undefined })),
+		);
 
-		// SECTION header
-		const secRow = sheet.getRow(startRow);
-		secRow.getCell(1).value = 'SECTION';
-		secRow.getCell(1).font = { bold: true };
-		band.forEach((sec, col) => {
-			secRow.getCell(col + 2).value = sec.name;
-			secRow.getCell(col + 2).font = { bold: true };
-		});
-
-		// ADVISER row
-		const advRow = sheet.getRow(startRow + 1);
-		advRow.getCell(1).value = 'ADVISER';
-		advRow.getCell(1).font = { bold: true };
-		band.forEach((sec, col) => {
-			advRow.getCell(col + 2).value = ctx.adviserMap.get(sec.externalId) ?? '';
-		});
-
-		// BLDG./RM. row
-		const bldgRow = sheet.getRow(startRow + 2);
-		bldgRow.getCell(1).value = 'BLDG./RM.';
-		bldgRow.getCell(1).font = { bold: true };
-		band.forEach((sec, col) => {
-			const room = sectionRoomMap.get(sec.externalId);
-			bldgRow.getCell(col + 2).value = formatRoomLabel(room);
-		});
-
-		let row = startRow + 3;
-		for (const item of orderedSlots) {
-			if (item.type === 'break') {
-				const label = getBreakLabel(item.slot.eventName);
-				const r = sheet.getRow(row);
-				r.getCell(1).value = label;
-				r.getCell(1).font = { bold: true };
-				band.forEach((_, col) => { r.getCell(col + 2).value = label; });
-				row++;
-			} else {
-				// Teacher row
-				const teacherRow = sheet.getRow(row);
-				teacherRow.getCell(1).value = `${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)}`;
-				band.forEach((sec, col) => {
-					const entry = entryGrid.get(`${sec.externalId}-${item.slot.startTime}-${item.slot.endTime}`);
-					teacherRow.getCell(col + 2).value = entry?.teacher ?? '';
-				});
-				row++;
-
-				// Subject row
-				const subjectRow = sheet.getRow(row);
-				subjectRow.getCell(1).value = '';
-				band.forEach((sec, col) => {
-					const entry = entryGrid.get(`${sec.externalId}-${item.slot.startTime}-${item.slot.endTime}`);
-					subjectRow.getCell(col + 2).value = entry?.subject ?? '';
-				});
-				row++;
-			}
+		// Band sections
+		const bands: Array<typeof gradeSections> = [];
+		for (let i = 0; i < gradeSections.length; i += MAX_SECTIONS) {
+			bands.push(gradeSections.slice(i, i + MAX_SECTIONS));
 		}
-	}
 
-	sheet.columns.forEach((col) => { col.width = 20; });
+		const sheetName = `Grade ${gradeLevel}`;
+		const sheet = workbook.addWorksheet(sheetName);
+		addReportHeader(sheet, ctx, `CLASS PROGRAM - Grade ${gradeLevel}`);
+
+		for (let bandIdx = 0; bandIdx < bands.length; bandIdx++) {
+			const band = bands[bandIdx];
+			const startRow = sheetRow === 1 ? 5 : sheetRow;
+
+			// SECTION header
+			const secRow = sheet.getRow(startRow);
+			secRow.getCell(1).value = 'SECTION';
+			secRow.getCell(1).font = { bold: true };
+			band.forEach((sec, col) => {
+				secRow.getCell(col + 2).value = sec.name;
+				secRow.getCell(col + 2).font = { bold: true };
+			});
+
+			// ADVISER row
+			const advRow = sheet.getRow(startRow + 1);
+			advRow.getCell(1).value = 'ADVISER';
+			advRow.getCell(1).font = { bold: true };
+			band.forEach((sec, col) => {
+				advRow.getCell(col + 2).value = ctx.adviserMap.get(sec.externalId) ?? '';
+			});
+
+			// BLDG./RM. row
+			const bldgRow = sheet.getRow(startRow + 2);
+			bldgRow.getCell(1).value = 'BLDG./RM.';
+			bldgRow.getCell(1).font = { bold: true };
+			band.forEach((sec, col) => {
+				const room = sectionRoomMap.get(sec.externalId);
+				bldgRow.getCell(col + 2).value = formatRoomLabel(room);
+			});
+
+			let row = startRow + 3;
+			for (const item of orderedSlots) {
+				if (item.type === 'break') {
+					const label = getBreakLabel(item.slot.eventName);
+					const r = sheet.getRow(row);
+					r.getCell(1).value = label;
+					r.getCell(1).font = { bold: true };
+					band.forEach((_, col) => { r.getCell(col + 2).value = label; });
+					row++;
+				} else {
+					// Teacher row
+					const teacherRow = sheet.getRow(row);
+					teacherRow.getCell(1).value = `${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)}`;
+					band.forEach((sec, col) => {
+						const entry = entryGrid.get(`${sec.externalId}-${item.slot.startTime}-${item.slot.endTime}`);
+						teacherRow.getCell(col + 2).value = visibility === 'hidden' && entry?.isSpecialization ? '' : entry?.teacher ?? '';
+					});
+					row++;
+
+					// Subject row
+					const subjectRow = sheet.getRow(row);
+					subjectRow.getCell(1).value = '';
+					band.forEach((sec, col) => {
+						const entry = entryGrid.get(`${sec.externalId}-${item.slot.startTime}-${item.slot.endTime}`);
+						subjectRow.getCell(col + 2).value = visibility === 'hidden' && entry?.isSpecialization ? '' : entry?.subject ?? '';
+					});
+					row++;
+				}
+			}
+
+			sheetRow = row + 1;
+		}
+
+		sheet.columns.forEach((col) => { col.width = 20; });
+	}
 
 	const buffer = await workbook.xlsx.writeBuffer();
 	return Buffer.from(buffer);

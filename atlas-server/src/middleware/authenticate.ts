@@ -23,12 +23,42 @@ declare global {
 	}
 }
 
-function extractBearerToken(req: Request): string | null {
+export function extractBearerToken(req: Request): string | null {
 	const header = req.headers.authorization;
 	if (!header?.startsWith('Bearer ')) {
 		return null;
 	}
 	return header.slice(7);
+}
+
+export function extractCookieValue(req: Request, name: string): string | null {
+	const cookieHeader = req.headers.cookie;
+	if (!cookieHeader) return null;
+	for (const part of cookieHeader.split(';')) {
+		const [rawKey, ...rawValueParts] = part.trim().split('=');
+		if (rawKey !== name) continue;
+		const rawValue = rawValueParts.join('=');
+		if (!rawValue) return null;
+		try {
+			return decodeURIComponent(rawValue);
+		} catch {
+			return rawValue;
+		}
+	}
+	return null;
+}
+
+export function extractAtlasAuthCookieToken(req: Request): string | null {
+	return extractCookieValue(req, 'atlasAuthToken');
+}
+
+export function extractSseToken(req: Request): string | null {
+	const bearer = extractBearerToken(req);
+	if (bearer) return bearer;
+	const cookieToken = extractAtlasAuthCookieToken(req);
+	if (cookieToken) return cookieToken;
+	const queryToken = typeof req.query.accessToken === 'string' ? req.query.accessToken : null;
+	return queryToken;
 }
 
 function isSystemTokenMatch(providedToken: string): boolean {

@@ -78,6 +78,7 @@ export function RolloverGuidanceCard({
 	const [applying, setApplying] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+	const [pendingReconfiguredIds, setPendingReconfiguredIds] = useState<number[] | null>(null);
 
 	const loadStatus = async (includeCounts = false) => {
 		setLoading(true);
@@ -125,10 +126,15 @@ export function RolloverGuidanceCard({
 		setDismissedKey(dismissStorageKey);
 	}
 
-	const canApply = status?.drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && status.conflicts.length === 0;
+	const canApply = (status?.drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && status.conflicts.length === 0) || Boolean(pendingReconfiguredIds);
 	const canPreviewReset = status?.drift.status === 'mapping-conflict' || status?.canResetDummyYear;
 	const isBlocking = status?.drift.status === 'atlas-stale' || status?.drift.status === 'mapping-conflict';
 	const isDismissed = Boolean(dismissedKey);
+	const automation = status?.automation;
+	const automationHealthy = automation?.enabled && automation?.lastResult === 'success' && (automation?.consecutiveFailures ?? 0) === 0;
+	const automationBackoff = automation?.enabled && (automation?.consecutiveFailures ?? 0) > 0;
+	const automationDisabled = automation && !automation.enabled;
+	const showManualSync = !automation?.enabled || automationBackoff || automation?.lastResult === 'failure' || automation?.lastResult === 'unreachable';
 	const icon = useMemo(() => {
 		if (status?.drift.status === 'aligned') return <CheckCircle2 className="h-4 w-4" />;
 		if (loading) return <Loader2 className="h-4 w-4 animate-spin" />;
@@ -149,22 +155,38 @@ export function RolloverGuidanceCard({
 		}
 	};
 
-	const handleApply = async () => {
+	const handleApply = async (acknowledgedIds?: number[]) => {
 		setApplying(true);
 		setError(null);
 		try {
-			const result = await applyRolloverSync(schoolId);
+			const result = await applyRolloverSync(schoolId, {
+				acknowledgeReconfiguredSectionIds: acknowledgedIds,
+			});
 			setStatus(result);
+			setPendingReconfiguredIds(null);
 			onStatus?.(result);
 			onApplied?.(result);
 			toast.success(`Synced ${result.enrollProActiveYear?.yearLabel ?? 'the active school year'} from EnrollPro.`);
 		} catch (err: any) {
+			const code = err?.response?.data?.code ?? err?.code;
 			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not sync the new school year.';
-			setError(message);
-			toast.error(message);
+			if (code === 'SECTION_RECONFIGURATION_REVIEW_REQUIRED') {
+				const details = err?.response?.data?.details ?? err?.details;
+				const unacknowledged = details?.unacknowledgedSections ?? [];
+				setPendingReconfiguredIds(unacknowledged.map((s: { externalId: number }) => s.externalId));
+				setError(message);
+			} else {
+				setError(message);
+				toast.error(message);
+			}
 		} finally {
 			setApplying(false);
 		}
+	};
+
+	const handleAcknowledgeAndApply = async () => {
+		if (!pendingReconfiguredIds) return;
+		await handleApply(pendingReconfiguredIds);
 	};
 
 	if (!loading && !status && !error) return null;
@@ -273,23 +295,61 @@ export function RolloverGuidanceCard({
 						{status ? driftNextStep(status.drift.status) : 'Waiting for EnrollPro school year status.'}
 					</p>
 					{error ? <p className="text-xs font-medium text-red-700">{error}</p> : null}
-					{status?.conflicts?.length ? (
-						<ul className="space-y-1 text-xs text-red-700">
-							{status.conflicts.slice(0, 3).map((conflict) => (
-								<li key={conflict.code}>{conflict.message}</li>
+				{status?.conflicts?.length ? (
+					<ul className="space-y-1 text-xs text-red-700">
+						{status.conflicts.slice(0, 3).map((conflict) => (
+							<li key={conflict.code}>{conflict.message}</li>
+						))}
+					</ul>
+				) : null}
+				{status?.reconfiguredSections?.length ? (
+					<div className="space-y-1 text-xs text-amber-700">
+						<p className="font-medium">{status.reconfiguredSections.length} section(s) changed name, grade, or program since the last sync:</p>
+						<ul className="ml-3 list-disc space-y-0.5">
+							{status.reconfiguredSections.slice(0, 5).map((s) => (
+								<li key={s.externalId}>
+									{s.sectionName}: {s.previousName !== s.newName ? `name "${s.previousName}" → "${s.newName}"` : ''}
+									{s.previousGradeLevelId !== s.newGradeLevelId ? ` grade ${s.previousGradeLevelId} → ${s.newGradeLevelId}` : ''}
+									{s.previousProgramType !== s.newProgramType ? ` program ${s.previousProgramType} → ${s.newProgramType}` : ''}
+								</li>
 							))}
 						</ul>
-					) : null}
+						{status.reconfiguredSections.length > 5 ? (
+							<p className="text-muted-foreground">...and {status.reconfiguredSections.length - 5} more</p>
+						) : null}
+					</div>
+				) : null}
+				{automation?.enabled ? (
+					<p className="text-xs text-slate-500">
+						{automationHealthy
+							? `Automatic year sync is on. Last checked ${automation.lastAttemptAt ? new Date(automation.lastAttemptAt).toLocaleString() : 'never'}.`
+							: automationBackoff
+								? `Automatic retry is waiting until ${automation.nextAttemptAt ? new Date(automation.nextAttemptAt).toLocaleString() : 'soon'} after ${automation.consecutiveFailures} failed attempt(s).`
+								: `Automatic year sync is running.`}
+					</p>
+				) : automationDisabled ? (
+					<p className="text-xs text-slate-500">Automatic year sync is off. Sync stays manual.</p>
+				) : null}
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
 					<Button type="button" variant="outline" size="sm" onClick={() => void handlePreview()} disabled={previewing || applying}>
 						{previewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
 						Preview
 					</Button>
-					{canApply && !canPreviewReset ? (
+					{pendingReconfiguredIds ? (
+						<Button type="button" size="sm" onClick={() => void handleAcknowledgeAndApply()} disabled={previewing || applying} data-testid="rollover-banner-acknowledge-and-sync">
+							{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+							Acknowledge &amp; Sync
+						</Button>
+					) : (showManualSync && canApply && !canPreviewReset) || (canApply && !canPreviewReset && !automation?.enabled) ? (
 						<Button type="button" size="sm" onClick={() => void handleApply()} disabled={previewing || applying} data-testid="rollover-banner-sync">
 							{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-							Sync from EnrollPro
+							Sync now
+						</Button>
+					) : canApply && !canPreviewReset ? (
+						<Button type="button" size="sm" onClick={() => void handleApply()} disabled={previewing || applying} data-testid="rollover-banner-sync">
+							{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+							Sync now
 						</Button>
 					) : null}
 					{/* Destructive reset is intentionally NOT exposed here. The "Open year setup" link routes to /admin/year-setup where the reset lives. */}

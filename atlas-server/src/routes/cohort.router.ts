@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as cohortService from '../services/cohort.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
 
@@ -69,7 +70,7 @@ router.post('/sync', authenticate, async (req: Request, res: Response, next: Nex
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
 			return;
 		}
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await cohortService.syncCohorts(schoolId, schoolYearId, authToken);
 		if (!result.synced) {
 			publishNotificationEvent({

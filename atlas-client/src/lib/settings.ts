@@ -171,6 +171,24 @@ export interface RolloverStatus {
 		settingsReachable: boolean;
 	};
 	conflicts: Array<{ code: string; message: string; details?: Record<string, unknown> }>;
+	reconfiguredSections: Array<{
+		externalId: number;
+		sectionName: string;
+		previousName: string | null;
+		previousGradeLevelId: number | null;
+		previousProgramType: string | null;
+		newName: string;
+		newGradeLevelId: number;
+		newProgramType: string;
+	}>;
+	automation?: {
+		enabled: boolean;
+		lastAttemptAt: string | null;
+		lastResult: string | null;
+		nextAttemptAt: string | null;
+		consecutiveFailures: number;
+		currentlyApplying: boolean;
+	} | null;
 	canResetDummyYear: boolean;
 	resetTargetSchoolYearId: number | null;
 	conflictingRecordCounts: RolloverDummyYearRecordCounts | null;
@@ -287,9 +305,9 @@ export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 	return data;
 }
 
-export async function fetchAtlasRuntimeContext(schoolId = 1): Promise<AtlasRuntimeContext> {
+export async function fetchAtlasRuntimeContext(schoolId = 1, verifyUpstream = false): Promise<AtlasRuntimeContext> {
 	const { data } = await atlasApi.get<AtlasRuntimeContext>('/runtime/context', {
-		params: { schoolId },
+		params: { schoolId, verifyUpstream: verifyUpstream ? 'true' : undefined },
 	});
 	return data;
 }
@@ -306,8 +324,11 @@ export async function previewRolloverSync(schoolId = 1): Promise<RolloverStatus>
 	return data;
 }
 
-export async function applyRolloverSync(schoolId = 1): Promise<RolloverApplyResult> {
-	const { data } = await atlasApi.post<RolloverApplyResult>('/runtime/rollover-sync/apply', { schoolId });
+export async function applyRolloverSync(schoolId = 1, options?: { acknowledgeReconfiguredSectionIds?: number[] }): Promise<RolloverApplyResult> {
+	const { data } = await atlasApi.post<RolloverApplyResult>('/runtime/rollover-sync/apply', {
+		schoolId,
+		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
+	});
 	return data;
 }
 

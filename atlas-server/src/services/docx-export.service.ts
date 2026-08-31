@@ -44,6 +44,8 @@ const DAY_LABELS: Record<string, string> = {
 	WEEKLY: 'Weekly',
 };
 
+const WEEKDAY_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+
 // ─── Helpers ───
 
 function cell(text: string, options?: {
@@ -147,9 +149,54 @@ export async function generateTeacherProgramDocx(
 	const dailyRows = rows.filter(r => r.day !== 'WEEKLY');
 	const weeklyRows = rows.filter(r => r.day === 'WEEKLY');
 
-	const scheduleDataRows = dailyRows.map((row) => {
+	// Weekday compaction: group identical teaching rows by timeSlot/label/gradeAndSection/room
+	// and render as "Monday to Friday" when all 5 weekdays are covered
+	function compactDayLabel(days: string[]): string {
+		const sorted = [...days].sort((a, b) => WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b));
+		if (sorted.length === 5 && sorted.every((d, i) => d === WEEKDAY_ORDER[i])) {
+			return 'Monday to Friday';
+		}
+		return sorted.map(d => DAY_LABELS[d] ?? d).join(', ');
+	}
+
+	// Build compaction groups for teaching rows only
+	const teachingGroups = new Map<string, { row: typeof dailyRows[0]; days: string[] }>();
+	const breakRows: typeof dailyRows = [];
+	for (const row of dailyRows) {
+		if (row.kind === 'TEACHING') {
+			const key = [row.timeSlot, row.minutes, row.label, row.gradeAndSection ?? '', row.room ?? ''].join('|||');
+			const existing = teachingGroups.get(key);
+			if (existing) {
+				existing.days.push(row.day);
+			} else {
+				teachingGroups.set(key, { row, days: [row.day] });
+			}
+		} else {
+			breakRows.push(row);
+		}
+	}
+
+	// Build compacted teaching rows
+	const compactedTeaching = [...teachingGroups.values()].map(({ row, days }) => ({
+		...row,
+		_dayLabel: compactDayLabel(days),
+	})).sort((a, b) => {
+		const dayDiff = WEEKDAY_ORDER.indexOf(a.day) - WEEKDAY_ORDER.indexOf(b.day);
+		if (dayDiff !== 0) return dayDiff;
+		return a.timeSlot.localeCompare(b.timeSlot);
+	});
+
+	// Merge compacted teaching + breaks, sorted by original day order
+	const compactedAll = [...compactedTeaching, ...breakRows].sort((a, b) => {
+		const dayDiff = WEEKDAY_ORDER.indexOf(a.day) - WEEKDAY_ORDER.indexOf(b.day);
+		if (dayDiff !== 0) return dayDiff;
+		return a.timeSlot.localeCompare(b.timeSlot);
+	});
+
+	const scheduleDataRows = compactedAll.map((row) => {
 		const isBreak = row.kind === 'BREAK';
 		const isSpecial = isBreak;
+		const dayLabel = ('_dayLabel' in row) ? (row as { _dayLabel: string })._dayLabel : (DAY_LABELS[row.day] ?? row.day);
 
 		return new TableRow({
 			children: [
@@ -163,7 +210,7 @@ export async function generateTeacherProgramDocx(
 					bold: isSpecial,
 				}),
 				cell(row.gradeAndSection ?? '', { width: 2000 }),
-				cell(DAY_LABELS[row.day] ?? row.day, { width: 1200 }),
+				cell(dayLabel, { width: 1200 }),
 				cell(row.room ?? '', { width: 1500 }),
 			],
 		});
@@ -310,19 +357,20 @@ export async function generateTeacherProgramDocx(
 
 	// ─── Signature Block ───
 	const signatureRows = [
-		['Teacher', teacher.fullName],
-		['School Head', ''],
-		['District Supervisor', ''],
-		['CID Chief', ''],
-		['ASDS', ''],
+		['Checked by:', 'Teacher', teacher.fullName],
+		['Noted:', 'School Head', ''],
+		['Recommending Approval:', 'District Supervisor', ''],
+		['', 'CID Chief', ''],
+		['', 'ASDS', ''],
 	];
 
 	const signatureTable = new Table({
-		rows: signatureRows.map(([role, name]) =>
+		rows: signatureRows.map(([action, role, name]) =>
 			new TableRow({
 				children: [
-					cell(role, { width: 2500, bold: true }),
-					cell(name || '________________________', { width: 3000 }),
+					cell(action, { width: 2000, bold: !!action }),
+					cell(role, { width: 2000, bold: true }),
+					cell(name || '________________________', { width: 2500 }),
 					cell('________________________', { width: 2500 }),
 				],
 			}),

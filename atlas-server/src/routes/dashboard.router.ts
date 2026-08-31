@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { getDashboardReadinessSummary } from '../services/dashboard-readiness.service.js';
 
 const router = Router();
@@ -30,10 +31,7 @@ async function handleDashboardReadinessSummary(req: Request, res: Response, next
 			return;
 		}
 
-		const authToken = req.headers.authorization?.startsWith('Bearer ')
-			? req.headers.authorization.slice(7)
-			: undefined;
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 		const summary = await getDashboardReadinessSummary({ schoolId, schoolYearId, authToken: upstreamAuthToken });
 		res.json(summary);
 	} catch (err) {

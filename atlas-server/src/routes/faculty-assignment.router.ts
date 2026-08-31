@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
 import {
@@ -83,8 +84,7 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
 			return;
 		}
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		let schoolYearId: number;
 		if (req.query.schoolYearId !== undefined) {
@@ -158,8 +158,7 @@ router.get('/coverage/summary', authenticateWithSystemToken, requirePrivilegedRo
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 		const coverage = await assignmentService.getActiveSubjectCoverageSummary(schoolId, schoolYearId, upstreamAuthToken);
 		res.json(coverage);
 	} catch (err) {
@@ -186,8 +185,7 @@ router.post('/coverage/repair', authenticateWithSystemToken, requirePrivilegedRo
 			? req.body.subjectCodes.filter((value: unknown): value is string => typeof value === 'string')
 			: undefined;
 		const apply = req.body.apply === true;
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		const result = await assignmentService.repairActiveSubjectCoverageWithPlaceholders({
 			schoolId,
@@ -223,8 +221,7 @@ router.post('/coverage/rebalance-special-programs', authenticateWithSystemToken,
 			? req.body.subjectCodes.filter((value: unknown): value is string => typeof value === 'string')
 			: undefined;
 		const apply = req.body.apply === true;
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		const result = await assignmentService.previewOrApplySpecialProgramRedistribution({
 			schoolId,
@@ -260,8 +257,7 @@ router.post('/coverage/recover-real-faculty', authenticateWithSystemToken, requi
 			? req.body.subjectCodes.filter((value: unknown): value is string => typeof value === 'string')
 			: undefined;
 		const apply = req.body.apply === true;
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		const result = await assignmentService.previewOrApplyRealFacultyRecovery({
 			schoolId,
@@ -308,7 +304,7 @@ router.post('/reset', authenticate, requirePrivilegedRole, async (req: Request, 
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await assignmentService.previewOrApplyTeachingLoadReset({
 			schoolId,
 			schoolYearId,
@@ -349,7 +345,7 @@ router.post('/integrity/reconcile', authenticate, requirePrivilegedRole, async (
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await assignmentService.previewOrApplyTeachingLoadTruthReconcile({
 			schoolId,
 			schoolYearId,
@@ -389,7 +385,7 @@ router.post('/integrity/reconcile-stale-ownership', authenticate, requirePrivile
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await assignmentService.previewOrApplyStaleOwnershipReconcile({
 			schoolId,
 			schoolYearId,

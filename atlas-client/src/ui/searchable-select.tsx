@@ -77,14 +77,14 @@ export function SearchableSelect({
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
-					className={cn('justify-between font-normal', triggerClassName)}
+					className={cn('min-w-[160px] justify-between font-normal', triggerClassName)}
 				>
 					<span className="truncate">{value ? selectedLabel : placeholder}</span>
 					<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				className={cn('max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0', className)}
+				className={cn('w-[var(--radix-popover-trigger-width)] min-w-[200px] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0', className)}
 				collisionPadding={8}
 				onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
 			>
@@ -96,43 +96,47 @@ export function SearchableSelect({
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						placeholder="Search…"
-						className="flex h-8 w-full bg-transparent py-1 text-xs outline-none placeholder:text-muted-foreground"
+						aria-label="Search schedule options"
+						className="flex h-9 w-full bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
 					/>
 				</div>
 				{/* List */}
-				<div className="max-h-[min(15rem,calc(var(--radix-popover-content-available-height)-2.25rem))] overflow-y-auto p-1">
+				<div className="max-h-[min(15rem,calc(var(--radix-popover-content-available-height)-2.5rem))] overflow-y-auto p-1">
 					{filtered.length === 0 && (
-						<p className="py-4 text-center text-xs text-muted-foreground">No results.</p>
+						<p className="py-4 text-center text-sm text-muted-foreground">No results.</p>
 					)}
 					{filtered.map((group) => (
 						<div key={group.label}>
 							{group.label && (
-								<div className="px-2 py-1 text-xs uppercase tracking-wider text-muted-foreground/70">
+								<div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
 									{group.label}
 								</div>
 							)}
 							{group.items.map((item) => (
-								<button
+								<Button
 									key={item.value}
 									type="button"
+									variant="ghost"
+									role="option"
+									aria-selected={value === item.value}
 									onClick={() => {
 										onValueChange(item.value);
 										setOpen(false);
 										setQuery('');
 									}}
 									className={cn(
-										'relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none hover:bg-accent hover:text-accent-foreground',
+										'relative flex h-auto min-h-10 w-full cursor-pointer select-none items-center justify-start rounded-md px-2.5 py-2 text-sm font-normal outline-none hover:bg-accent hover:text-accent-foreground',
 										value === item.value && 'bg-accent/50',
 									)}
 								>
 									<Check
 										className={cn(
-											'mr-1.5 size-3 shrink-0',
+											'mr-2 size-4 shrink-0',
 											value === item.value ? 'opacity-100' : 'opacity-0',
 										)}
 									/>
 									<span className="truncate">{item.label}</span>
-								</button>
+								</Button>
 							))}
 						</div>
 					))}

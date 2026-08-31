@@ -26,6 +26,7 @@ model School {
   facultyMirrors             FacultyMirror[]
   authAccounts               AtlasAuthAccount[]
   classTemplates             ClassTemplate[]
+  classProgramSlots          ClassProgramSlot[]
   specializationAliases      SpecializationAlias[]
   sectionMirrors             SectionMirror[]
   enrollProSchoolYearMirrors EnrollProSchoolYearMirror[]
@@ -1004,4 +1005,39 @@ model ClassTemplateSubject {
   @@index([templateId])
   @@index([subjectId])
   @@map("class_template_subjects")
+}
+
+/// Canonical class-program slot template — defines subject-by-timeslot assignments
+/// for grade/program-specific scheduling (e.g., Grade 9/10 afternoon frame).
+model ClassProgramSlot {
+  id             Int              @id @default(autoincrement())
+  schoolId       Int              @map("school_id")
+  schoolYearId   Int              @map("school_year_id")
+  gradeLevel     Int              @map("grade_level")
+  programType    ProgramType?     @map("program_type")
+  dayOfWeek      String?          @map("day_of_week") @db.VarChar(16)
+  startTime      String           @map("start_time") @db.VarChar(5)
+  endTime        String           @map("end_time") @db.VarChar(5)
+  rowKind        ClassProgramSlotKind @map("row_kind")
+  subjectFamily  String?          @map("subject_family") @db.VarChar(64)
+  subjectLabel   String?          @map("subject_label") @db.VarChar(128)
+  sourceLabel    String           @default("TEMPLATE") @map("source_label") @db.VarChar(64)
+  sourceNote     String?          @map("source_note")
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  school         School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, schoolYearId, gradeLevel, programType, dayOfWeek, startTime, rowKind], map: "uq_class_program_slot")
+  @@index([schoolId, schoolYearId, gradeLevel, programType])
+  @@map("class_program_slots")
+}
+
+enum ClassProgramSlotKind {
+  CLASS
+  BREAK
+  SPECIAL_EVENT
+  CONFLICT
+
+  @@map("class_program_slot_kind")
 }

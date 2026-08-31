@@ -111,7 +111,7 @@ export default function MySchedule() {
 		setLoading(true);
 		setCheckingForUpdates(true);
 		try {
-			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearContext = await resolveActiveSchoolYearContext({ forceRefresh: true, verifyUpstream: true, allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
@@ -143,7 +143,7 @@ export default function MySchedule() {
 			});
 
 			try {
-				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${DEFAULT_SCHOOL_ID}/schedules/published/${schoolYearId}/faculty/${resolvedFacultyId}`, {
+				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${DEFAULT_SCHOOL_ID}/school-years/${schoolYearId}/schedules/published/faculty/${resolvedFacultyId}`, {
 					params: { date: requestDate },
 				});
 				setSchedule(data);
@@ -167,6 +167,14 @@ export default function MySchedule() {
 					setUsingCachedSchedule(false);
 					setCachedScheduleAt(null);
 					setError('Your published schedule is not available yet. Please wait for the scheduler to publish.');
+					return;
+				}
+
+				if (responseData?.code === 'TERM_FILTER_NOT_READY') {
+					setSchedule(null);
+					setUsingCachedSchedule(false);
+					setCachedScheduleAt(null);
+					setError('Term data is not ready yet. Your published schedule will be available once the active term is confirmed by the enrollment system.');
 					return;
 				}
 
@@ -274,18 +282,18 @@ export default function MySchedule() {
 		return (
 			<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
 				<div className="flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6">
-					<Card className="rounded-2xl border-destructive/20">
-						<CardContent className="flex items-start gap-4 py-8">
-							<AlertCircle className="mt-1 size-6 text-destructive shrink-0" />
-							<div className="flex-1 min-w-0">
-								<p className="text-lg font-bold text-destructive">Official schedule unavailable</p>
-								<p className="mt-1 text-sm text-muted-foreground leading-relaxed">{error}</p>
-								<Button variant="outline" size="sm" className="mt-4 rounded-xl" onClick={() => void loadSchedule()}>
-									<RefreshCcw className="mr-2 size-4" /> Retry Loading
-								</Button>
+					<div className="mx-auto max-w-2xl">
+						<div className="rounded-2xl border border-destructive/20 bg-card px-6 py-8 text-center shadow-sm">
+							<div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+								<AlertCircle className="size-6" />
 							</div>
-						</CardContent>
-					</Card>
+							<p className="text-lg font-bold text-destructive">Schedule unavailable</p>
+							<p className="mt-2 text-sm leading-relaxed text-muted-foreground max-w-md mx-auto">{error}</p>
+							<Button variant="outline" size="sm" className="mt-5 h-9 rounded-xl" onClick={() => void loadSchedule()}>
+								<RefreshCcw className="mr-2 size-4" /> Retry
+							</Button>
+						</div>
+					</div>
 				</div>
 			</div>
 		);

@@ -215,9 +215,9 @@ export default function FacultyPreferences() {
 	useEffect(() => {
 		if (!activeSchoolYearId || !facultyId) return;
 		const token = getPreferredAccessToken();
-		const tokenParam = token ? `accessToken=${encodeURIComponent(token)}` : '';
-		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events${tokenParam ? '?' + tokenParam : ''}`;
-		const es = new EventSource(url);
+		if (!token) return;
+		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const es = new EventSource(url, { withCredentials: true });
 		sseRef.current = es;
 		es.onopen = () => {
 			setSseConnected(true);

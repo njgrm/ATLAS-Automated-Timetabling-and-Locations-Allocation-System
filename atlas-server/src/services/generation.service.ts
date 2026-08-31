@@ -311,6 +311,44 @@ function normalizeProgramType(programType?: string | null): string {
 
 function normalizeGradeLevel(value: number): number {
 	if (!Number.isFinite(value)) return value;
+
+	// If it's already a valid actual grade number (7-10), return as-is
+	if (value >= 7 && value <= 10) return value;
+
+	// EnrollPro internal grade_level_id -> actual grade number mapping
+	const ENROLLPRO_MAPPINGS: Record<number, number> = {
+		5: 7,
+		6: 8,
+		7: 9,
+		8: 10,
+	};
+
+	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
+
+	// If value >= 100, use modulo normalization
+	if (value >= 100) {
+		const normalized = value % 100;
+		if (normalized >= 1 && normalized <= 12) return normalized;
+	}
+
+	return value;
+}
+
+/**
+ * Normalize EnrollPro internal grade_level_id to actual grade number.
+ * Unlike normalizeGradeLevel, this ALWAYS maps internal IDs (5,6,7,8) to actual grades (7,8,9,10).
+ * Use this when you know the input is an internal EnrollPro ID, not an actual grade number.
+ */
+function normalizeInternalGradeId(value: number): number {
+	const ENROLLPRO_MAPPINGS: Record<number, number> = {
+		5: 7,
+		6: 8,
+		7: 9,
+		8: 10,
+	};
+
+	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
+	if (value >= 7 && value <= 10) return value;
 	if (value >= 100) {
 		const normalized = value % 100;
 		if (normalized >= 1 && normalized <= 12) return normalized;
@@ -323,6 +361,7 @@ function buildRunTimetableShapeContracts(input: {
 	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
 	templateProfiles: Array<{ programType: string; periodLengthMinutes: number; periodsPerDay: number }>;
 	policy: ConstructorInput['policy'];
+	canonicalSlots?: Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>>;
 }): TimetableShapeContract[] {
 	const templateByProgram = new Map(input.templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
 	const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 45, periodsPerDay: 10 };
@@ -341,15 +380,16 @@ function buildRunTimetableShapeContracts(input: {
 
 	const contracts: TimetableShapeContract[] = [];
 	for (const grade of input.sectionsByGrade) {
-		const normalizedGradeLevel = normalizeGradeLevel(grade.gradeLevelId);
+		// gradeLevelId is an internal EnrollPro ID, normalize to actual grade number
+		const normalizedGradeLevel = normalizeInternalGradeId(grade.gradeLevelId);
 		const programTypes = new Set<string>(['REGULAR']);
 		for (const section of grade.sections) {
 			programTypes.add(normalizeProgramType(section.programType));
 		}
 
 		for (const programType of programTypes) {
-			const window = input.gradeWindows.find((row) => normalizeGradeLevel(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === programType)
-				?? input.gradeWindows.find((row) => normalizeGradeLevel(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === 'ALL');
+			const window = input.gradeWindows.find((row) => normalizeInternalGradeId(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === programType)
+				?? input.gradeWindows.find((row) => normalizeInternalGradeId(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === 'ALL');
 			const template = templateByProgram.get(programType) ?? regularTemplate;
 			const periodLengthMinutes = effectivePeriodLengthMinutes || template.periodLengthMinutes;
 			const periodsPerDay = effectivePeriodsPerDay || template.periodsPerDay;
@@ -361,6 +401,7 @@ function buildRunTimetableShapeContracts(input: {
 				periodLengthMinutes,
 				periodsPerDay,
 				basePolicy: input.policy,
+				canonicalSlots: input.canonicalSlots?.get(`${normalizedGradeLevel}:${programType}`),
 			}));
 		}
 	}
@@ -892,6 +933,27 @@ export async function triggerGenerationRun(
 		for (const tp of templateProfiles) {
 			classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
 		}
+
+		// Load canonical class-program slots for grade/program-specific scheduling
+		const { resolveClassProgramSlots, normalizeInternalGradeId } = await import('./class-program-slot.service.js');
+		const canonicalSlotsByGradeProgram = new Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>>();
+		for (const grade of sectionsByGrade) {
+			// Normalize gradeLevelId to actual grade number (7, 8, 9, or 10)
+			// gradeLevelId is an internal EnrollPro ID, not an actual grade number
+			const actualGradeNumber = normalizeInternalGradeId(grade.gradeLevelId);
+			const programTypes = new Set<string>(['REGULAR']);
+			for (const section of grade.sections) {
+				programTypes.add(normalizeProgramType(section.programType));
+			}
+			for (const programType of programTypes) {
+				const allSlots = await resolveClassProgramSlots(schoolId, schoolYearId, actualGradeNumber, programType as any);
+				if (allSlots.length > 0) {
+					const key = `${actualGradeNumber}:${programType}`;
+					canonicalSlotsByGradeProgram.set(key, allSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, subjectFamily: s.subjectFamily, rowKind: s.rowKind })));
+				}
+			}
+		}
+
 		const timetableShapeContracts = buildRunTimetableShapeContracts({
 			sectionsByGrade,
 			gradeWindows: gradeWindows.map((gw) => ({
@@ -901,6 +963,7 @@ export async function triggerGenerationRun(
 				endTime: gw.endTime,
 			})),
 			templateProfiles,
+			canonicalSlots: canonicalSlotsByGradeProgram,
 			policy: {
 				periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes,
 				periodsPerDay: (policyRecord as typeof policyRecord & { periodsPerDay?: number }).periodsPerDay,

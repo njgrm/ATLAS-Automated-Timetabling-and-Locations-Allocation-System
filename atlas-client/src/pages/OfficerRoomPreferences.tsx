@@ -101,8 +101,8 @@ export default function OfficerRoomPreferences() {
 		const token = getPreferredAccessToken();
 		if (!token) return;
 
-		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events?accessToken=${encodeURIComponent(token)}`;
-		const source = new EventSource(streamUrl);
+		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const source = new EventSource(streamUrl, { withCredentials: true });
 
 		const queueRefresh = (event?: MessageEvent<string>) => {
 			if (event?.type === 'ROOM_REQUEST_SUBMITTED') {

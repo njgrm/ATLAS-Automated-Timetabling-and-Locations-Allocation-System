@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import * as facultyService from '../services/faculty.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
 
@@ -87,8 +88,7 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
 		let schoolYearId: number;

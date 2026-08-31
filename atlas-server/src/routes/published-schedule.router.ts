@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
+import { extractSseToken } from '../middleware/authenticate.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import {
 	getPublishedFacultySchedule,
@@ -518,13 +519,8 @@ router.get(
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 
-			// Auth: accept token from cookie or query param (EventSource compat)
-			let token: string | undefined =
-				req.cookies?.atlasAuthToken ?? req.query.accessToken as string | undefined;
-			if (!token) {
-				const authHeader = req.headers.authorization;
-				if (authHeader?.startsWith('Bearer ')) token = authHeader.slice(7);
-			}
+			// Auth: browser EventSource uses the ATLAS auth cookie; query token remains compatibility-only.
+			const token = extractSseToken(req);
 			if (!token) { res.status(401).json({ code: 'NO_TOKEN', message: 'Authentication required.' }); return; }
 
 			const secret = process.env.JWT_SECRET;

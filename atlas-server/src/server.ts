@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import app from './app.js';
 import { prisma } from './lib/prisma.js';
 import { registerRoomPreferenceCollaborationSocket } from './services/room-preference-collaboration.service.js';
+import { startRolloverAutomation, stopRolloverAutomation } from './services/rollover-automation.service.js';
 
 const PORT = Number(process.env.PORT) || 5001;
 const server = createServer(app);
@@ -56,8 +57,14 @@ server.listen(PORT,'0.0.0.0', async () => {
 		console.log(`[prisma] ✔ DB connected, ${count} school(s) found`);
 		// Schema diagnostic — non-blocking
 		await checkPolicySchema();
+		// Start automated rollover sync
+		startRolloverAutomation();
 	} catch (e: unknown) {
 		const err = e as { code?: string; message?: string };
 		console.error(`[prisma] ❌ Startup DB check failed: ${err.code} — ${err.message?.substring(0, 200)}`);
 	}
+});
+
+server.on('close', () => {
+	stopRolloverAutomation();
 });

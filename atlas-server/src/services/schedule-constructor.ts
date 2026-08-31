@@ -76,10 +76,27 @@ function normalizeSpecializationCode(value?: string | null): string {
 
 function normalizeGradeLevel(value: number): number {
 	if (!Number.isFinite(value)) return value;
+
+	// If it's already a valid actual grade number (7-10), return as-is
+	if (value >= 7 && value <= 10) return value;
+
+	// EnrollPro internal grade_level_id -> actual grade number mapping
+	// grade_level_id 5 = Grade 7, 6 = Grade 8, 7 = Grade 9, 8 = Grade 10
+	const ENROLLPRO_MAPPINGS: Record<number, number> = {
+		5: 7,
+		6: 8,
+		7: 9,
+		8: 10,
+	};
+
+	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
+
+	// If value >= 100, use modulo normalization
 	if (value >= 100) {
 		const normalized = value % 100;
 		if (normalized >= 1 && normalized <= 12) return normalized;
 	}
+
 	return value;
 }
 
@@ -345,6 +362,8 @@ export interface TimetableShapeContract {
 	periodsPerDay: number;
 	periodSlots: PeriodSlot[];
 	displaySlots: PeriodSlot[];
+	/** Canonical class-program slots for this grade/program (from stakeholder template) */
+	canonicalSlots?: Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>;
 }
 
 function normalizeProgramType(programType?: string | null): string {
@@ -359,6 +378,7 @@ export function buildTimetableShapeContract(input: {
 	periodLengthMinutes: number;
 	periodsPerDay: number;
 	basePolicy?: PolicyInput;
+	canonicalSlots?: Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>;
 }): TimetableShapeContract {
 	// Apply per-grade/program effective event resolution
 	const effectiveSpecialEvents = getEffectiveEvents(
@@ -406,6 +426,7 @@ export function buildTimetableShapeContract(input: {
 		periodsPerDay: input.periodsPerDay,
 		periodSlots,
 		displaySlots,
+		canonicalSlots: input.canonicalSlots,
 	};
 }
 
@@ -417,10 +438,27 @@ export function resolveTimetableShapeContract(
 	if (!contracts || contracts.length === 0) return undefined;
 	const normalizedProgramType = normalizeProgramType(programType);
 	const normalizedGradeLevel = normalizeGradeLevel(gradeLevel);
-	return contracts.find((contract) => normalizeGradeLevel(contract.gradeLevel) === normalizedGradeLevel && contract.programType === normalizedProgramType)
-		?? contracts.find((contract) => normalizeGradeLevel(contract.gradeLevel) === normalizedGradeLevel && contract.programType === 'REGULAR')
-		?? contracts.find((contract) => normalizeGradeLevel(contract.gradeLevel) === normalizedGradeLevel)
-		?? contracts[0];
+
+	// Try exact grade + program match first
+	const exactMatch = contracts.find(
+		(c) => normalizeGradeLevel(c.gradeLevel) === normalizedGradeLevel && c.programType === normalizedProgramType,
+	);
+	if (exactMatch) return exactMatch;
+
+	// Try grade + REGULAR fallback (same grade only)
+	const regularFallback = contracts.find(
+		(c) => normalizeGradeLevel(c.gradeLevel) === normalizedGradeLevel && c.programType === 'REGULAR',
+	);
+	if (regularFallback) return regularFallback;
+
+	// Try grade-only fallback (same grade only, any program)
+	const gradeFallback = contracts.find(
+		(c) => normalizeGradeLevel(c.gradeLevel) === normalizedGradeLevel,
+	);
+	if (gradeFallback) return gradeFallback;
+
+	// NO FALLBACK across grade levels — return undefined
+	return undefined;
 }
 
 export function buildUnionClassPeriodSlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[] {
@@ -433,6 +471,46 @@ export function buildUnionClassPeriodSlots(contracts: TimetableShapeContract[] |
 		}
 	}
 	return [...dedupe.values()].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+}
+
+/**
+ * Get preferred class slots for a section based on canonical class-program template.
+ * Returns canonical CLASS rows if available, otherwise returns the global period slots.
+ * Break, special-event, and conflict rows are never included as candidate class slots.
+ */
+export function getPreferredSlotsForSection(
+	contracts: TimetableShapeContract[] | undefined,
+	gradeLevel: number,
+	programType: string | null,
+): PeriodSlot[] {
+	if (!contracts || contracts.length === 0) return [];
+
+	// Find the contract for this grade/program
+	const normalizedGrade = normalizeGradeLevel(gradeLevel);
+	const normalizedProgram = normalizeProgramType(programType);
+	const contract = contracts.find(c =>
+		normalizeGradeLevel(c.gradeLevel) === normalizedGrade
+		&& c.programType === normalizedProgram
+	) ?? contracts.find(c =>
+		normalizeGradeLevel(c.gradeLevel) === normalizedGrade
+	);
+
+	if (!contract?.canonicalSlots || contract.canonicalSlots.length === 0) {
+		// No canonical slots — use global period slots
+		return buildUnionClassPeriodSlots(contracts);
+	}
+
+	// Use only CLASS rows from canonical slots as candidate class slots
+	const canonicalClassSlots = contract.canonicalSlots
+		.filter(s => s.rowKind === 'CLASS')
+		.map(s => ({ startTime: s.startTime, endTime: s.endTime }));
+
+	if (canonicalClassSlots.length === 0) {
+		// No CLASS rows in canonical template — fall back to global slots
+		return buildUnionClassPeriodSlots(contracts);
+	}
+
+	return canonicalClassSlots.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 }
 
 export function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[] {
@@ -981,6 +1059,40 @@ function buildPreferenceLookup(preferences: FacultyPreferenceInput[], periodSlot
 	return lookup;
 }
 
+type UnavailableTimeRange = { day: string; startTime: string; endTime: string };
+
+/**
+ * Build a time-range-based lookup for UNAVAILABLE faculty preferences.
+ * Used by canonical slot placement where period indices are not available.
+ * Keyed by facultyId → array of {day, startTime, endTime} for UNAVAILABLE slots.
+ */
+function buildUnavailableTimeRanges(preferences: FacultyPreferenceInput[]): Map<number, UnavailableTimeRange[]> {
+	const ranges = new Map<number, UnavailableTimeRange[]>();
+
+	// Group by faculty — prefer SUBMITTED over DRAFT
+	const byFaculty = new Map<number, FacultyPreferenceInput>();
+	for (const pref of preferences) {
+		const existing = byFaculty.get(pref.facultyId);
+		if (!existing || (pref.status === 'SUBMITTED' && existing.status !== 'SUBMITTED')) {
+			byFaculty.set(pref.facultyId, pref);
+		}
+	}
+
+	for (const [facultyId, pref] of byFaculty) {
+		const facultyRanges: UnavailableTimeRange[] = [];
+		for (const ts of pref.timeSlots) {
+			if (ts.preference === 'UNAVAILABLE') {
+				facultyRanges.push({ day: ts.day, startTime: ts.startTime, endTime: ts.endTime });
+			}
+		}
+		if (facultyRanges.length > 0) {
+			ranges.set(facultyId, facultyRanges);
+		}
+	}
+
+	return ranges;
+}
+
 // ─── Time helper ───
 
 function timeToMinutes(t: string): number {
@@ -1063,7 +1175,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return false;
 	}
 
-	function getQualifiedFacultyIds(item: DemandItem, day: string, slot: { startTime: string; endTime: string }, pi: number): { ids: number[], reason?: UnassignedItem['reason'] } {
+	function getQualifiedFacultyIds(item: DemandItem, day: string, slot: { startTime: string; endTime: string }, pi: number, unavailableTimeRanges?: Map<number, UnavailableTimeRange[]>): { ids: number[], reason?: UnassignedItem['reason'] } {
 		const subject = subjectMap.get(item.subjectId);
 		
 		// Priority 1: Explicit Assignments from qualifiedMap
@@ -1120,7 +1232,27 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			if (!isWithinLoadAndOccupancy(facId)) return false;
 
 			const facPrefs = prefLookup.get(facId);
-			if (facPrefs?.get(`${day}:${pi}`) === 'UNAVAILABLE') return false;
+			if (facPrefs) {
+				// Check by period index if available
+				if (pi >= 0 && facPrefs.get(`${day}:${pi}`) === 'UNAVAILABLE') return false;
+				// When pi is not available (canonical slots), check time-range overlap
+				if (pi < 0) {
+					const timeRanges = unavailableTimeRanges?.get(facId);
+					if (timeRanges) {
+						const slotStart = timeToMinutes(slot.startTime);
+						const slotEnd = timeToMinutes(slot.endTime);
+						for (const range of timeRanges) {
+							if (range.day !== day) continue;
+							const rangeStart = timeToMinutes(range.startTime);
+							const rangeEnd = timeToMinutes(range.endTime);
+							// Check overlap: slot overlaps range if slot starts before range ends AND slot ends after range starts
+							if (slotStart < rangeEnd && slotEnd > rangeStart) {
+								return false;
+							}
+						}
+					}
+				}
+			}
 
 			return true;
 		});
@@ -1208,6 +1340,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	// Preference lookup
 	const prefLookup = buildPreferenceLookup(preferences, FALLBACK_PERIOD_SLOTS);
+	const unavailableTimeRanges = buildUnavailableTimeRanges(preferences);
 
 	// Occupancy trackers
 	const facultyOcc = new OccupancyTracker();
@@ -1231,7 +1364,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Faculty daily teaching minutes tracker: "facultyId:day" → total minutes
 	const facultyDailyMinutes = new Map<string, number>();
 	// Faculty day placement tracker for consecutive check: "facultyId:day" → sorted period indices
-	const facultyDayPeriods = new Map<string, number[]>();
+	const facultyDayPeriods = new Map<string, Array<{ startTime: string; endTime: string; duration: number }>>();
 
 	// ─── Pre-place locked entries ───
 	// "sectionId:subjectId" → count of sessions already fulfilled by locks
@@ -1284,7 +1417,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			const dailyKey = `${lock.facultyId}:${lock.day}`;
 			facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + durationMinutes);
 			const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
-			dayPeriods.push(pi);
+			dayPeriods.push({ startTime: period.startTime, endTime: period.endTime, duration: durationMinutes });
 			facultyDayPeriods.set(dailyKey, dayPeriods);
 			roomOcc.mark(lock.roomId, lock.day, period.startTime, period.endTime);
 
@@ -1330,31 +1463,28 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	 * Check if placing a class at periodIdx for faculty on a given day
 	 * would exceed the consecutive teaching limit (without required break).
 	 */
-	function wouldExceedConsecutive(facId: number, day: string, periodIdx: number, duration: number): boolean {
+	function wouldExceedConsecutive(facId: number, day: string, startTime: string, endTime: string, duration: number): boolean {
 		if (!policy) return false;
 
 		const dayKey = `${facId}:${day}`;
 		const existing = facultyDayPeriods.get(dayKey) ?? [];
-		const allPeriods = [...existing, periodIdx].sort((a, b) => a - b);
+		// Build period list with start times for ordering
+		const allPeriods = [...existing.map(p => ({ startTime: p.startTime, endTime: p.endTime, duration: p.duration })),
+			{ startTime, endTime, duration }].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 
 		// Walk periods and compute consecutive blocks
 		let consecutive = 0;
 		for (let i = 0; i < allPeriods.length; i++) {
-			const pi = allPeriods[i];
-			const period = FALLBACK_PERIOD_SLOTS[pi];
-			const slotDuration = (pi === periodIdx)
-				? duration
-				: (period ? (timeToMinutes(period.endTime) - timeToMinutes(period.startTime)) : STANDARD_PERIOD_MINUTES);
+			const period = allPeriods[i];
+			const slotDuration = period.duration;
 
 			if (i === 0) {
 				consecutive = slotDuration;
 				continue;
 			}
 
-			const prevPi = allPeriods[i - 1];
-			const prevEnd = FALLBACK_PERIOD_SLOTS[prevPi].endTime;
-			const currStart = FALLBACK_PERIOD_SLOTS[pi].startTime;
-			const gapMinutes = timeToMinutes(currStart) - timeToMinutes(prevEnd);
+			const prevPeriod = allPeriods[i - 1];
+			const gapMinutes = timeToMinutes(period.startTime) - timeToMinutes(prevPeriod.endTime);
 
 			if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
 				consecutive += slotDuration;
@@ -1374,16 +1504,19 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	 * Check if placing a lab/workshop session at periodIdx for a section on a given day
 	 * would create consecutive lab sessions (when policy disallows it).
 	 */
-	function wouldCreateConsecutiveLab(sectionId: number, day: string, periodIdx: number, roomType: string): boolean {
+	function wouldCreateConsecutiveLab(sectionId: number, day: string, startTime: string, endTime: string, roomType: string): boolean {
 		if (allowConsecutiveLab) return false;
 		if (!LAB_ROOM_TYPES.has(roomType)) return false;
 
 		const dayKey = `${sectionId}:${day}`;
 		const existing = sectionDayLabPeriods.get(dayKey) ?? [];
+		const targetStart = timeToMinutes(startTime);
 
 		// Check if any existing lab period is adjacent to this one
-		for (const pi of existing) {
-			if (Math.abs(pi - periodIdx) === 1) return true;
+		for (const period of existing) {
+			const existingEnd = timeToMinutes(period.endTime);
+			const gap = Math.abs(targetStart - existingEnd);
+			if (gap <= 5) return true; // Adjacent or overlapping
 		}
 		return false;
 	}
@@ -1455,37 +1588,40 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const MAX_CROSS_BUILDING_FALLBACK_ROOMS = 8;
 
 	// Section-day placement tracker for consecutive lab check: "sectionId:day" → array of {periodIdx, isLab}
-	const sectionDayLabPeriods = new Map<string, number[]>();
+	const sectionDayLabPeriods = new Map<string, Array<{ startTime: string; endTime: string }>>();
 
-	function scoreFacultyForSlot(facultyId: number, day: string, periodIndex: number): number {
+	function scoreFacultyForSlot(facultyId: number, day: string, startTime: string): number {
 		const dayKey = `${facultyId}:${day}`;
-		const periods = [...(facultyDayPeriods.get(dayKey) ?? [])].sort((left, right) => left - right);
+		const periods = [...(facultyDayPeriods.get(dayKey) ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
 		if (periods.length === 0) {
 			// Slightly prefer using already-active teaching days for better packing.
 			return 1;
 		}
 
-		const nearestDistance = Math.min(...periods.map((existingPeriod) => Math.abs(existingPeriod - periodIndex)));
-		if (nearestDistance <= 1) return -1.5;
-		if (nearestDistance === 2) return -0.4;
-		if (nearestDistance >= 5) return 1.2;
+		const targetStart = timeToMinutes(startTime);
+		const nearestDistance = Math.min(...periods.map((existingPeriod) => Math.abs(targetStart - timeToMinutes(existingPeriod.startTime))));
+		if (nearestDistance <= 15) return -1.5;
+		if (nearestDistance <= 30) return -0.4;
+		if (nearestDistance >= 60) return 1.2;
 		return 0;
 	}
 
-	function scoreRoomForFacultyAtSlot(room: RoomInput, facultyId: number, day: string, periodIndex: number): number {
+	function scoreRoomForFacultyAtSlot(room: RoomInput, facultyId: number, day: string, startTime: string, endTime: string): number {
 		const dayKey = `${facultyId}:${day}`;
 		const periods = facultyDayPeriods.get(dayKey) ?? [];
 		if (periods.length === 0) return 0;
 
 		let score = 0;
 		const targetBuildingId = room.buildingId ?? null;
+		const targetStart = timeToMinutes(startTime);
 		for (const existingPeriod of periods) {
-			const distance = Math.abs(existingPeriod - periodIndex);
+			const distance = Math.abs(targetStart - timeToMinutes(existingPeriod.startTime));
 			if (distance > 2) continue;
 			const matchingEntry = entries.find((entry) =>
 				entry.facultyId === facultyId
 				&& entry.day === day
-				&& FALLBACK_PERIOD_SLOTS.findIndex((slot) => slot.startTime === entry.startTime && slot.endTime === entry.endTime) === existingPeriod,
+				&& entry.startTime === existingPeriod.startTime
+				&& entry.endTime === existingPeriod.endTime,
 			);
 			if (!matchingEntry) continue;
 			const existingRoom = roomById.get(matchingEntry.roomId);
@@ -1554,7 +1690,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			const shapeWeeklyCapacity = shapeContract.periodSlots.length * DAYS.length;
 			const shouldBypassShapeFilter = item.entryKind === 'SECTION' && sectionDemandSessions > shapeWeeklyCapacity;
 			if (!shouldBypassShapeFilter) {
-				const allowedSlotKeys = new Set(shapeContract.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+				// Use canonical CLASS slots if available, otherwise use shape contract period slots
+				const canonicalClassSlots = shapeContract.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
+				const allowedSlots = canonicalClassSlots && canonicalClassSlots.length > 0
+					? canonicalClassSlots
+					: shapeContract.periodSlots;
+				const allowedSlotKeys = new Set(allowedSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
 				gradeValidPeriods = gradeValidPeriods.filter((pi) => {
 					const slot = FALLBACK_PERIOD_SLOTS[pi];
 					return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
@@ -1602,11 +1743,30 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				: null;
 			const preferredZone = (item.buildingZoneId ?? preferredHomeRoom?.buildingZoneId ?? null)?.toUpperCase() ?? null;
 
-			// Build possible slot candidates first (deterministic scoring)
-			const possibleSlots: { day: string; pi: number; score: number }[] = [];
-			for (let di = 0; di < DAYS.length; di++) {
-				const day = DAYS[di];
+		// Build possible slot candidates (deterministic scoring)
+		// Use canonical CLASS rows directly when available, otherwise use FALLBACK_PERIOD_SLOTS
+		const canonicalClassSlots = shapeContract?.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
+		const useCanonicalSlots = canonicalClassSlots && canonicalClassSlots.length > 0;
 
+		const possibleSlots: { day: string; startTime: string; endTime: string; score: number; pi?: number }[] = [];
+		for (let di = 0; di < DAYS.length; di++) {
+			const day = DAYS[di];
+
+			if (useCanonicalSlots) {
+				// Use canonical CLASS rows directly as candidates
+				for (const canonicalSlot of canonicalClassSlots!) {
+					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, canonicalSlot.startTime, canonicalSlot.endTime))) continue;
+
+					let score = 1;
+					if (daysUsedForPair.has(day)) score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
+					if (preferredHomeRoom != null) {
+						if (roomOcc.isOccupied(preferredHomeRoom.id, day, canonicalSlot.startTime, canonicalSlot.endTime)) score += 2;
+						else score -= 0.5;
+					}
+					possibleSlots.push({ day, startTime: canonicalSlot.startTime, endTime: canonicalSlot.endTime, score });
+				}
+			} else {
+				// Fall back to legacy FALLBACK_PERIOD_SLOTS
 				for (const pi of gradeValidPeriods) {
 					const slot = FALLBACK_PERIOD_SLOTS[pi];
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime))) continue;
@@ -1617,9 +1777,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						if (roomOcc.isOccupied(preferredHomeRoom.id, day, slot.startTime, slot.endTime)) score += 2;
 						else score -= 0.5;
 					}
-					possibleSlots.push({ day, pi, score });
+					possibleSlots.push({ day, startTime: slot.startTime, endTime: slot.endTime, score, pi });
 				}
 			}
+		}
 
 			if (possibleSlots.length === 0 && preferredHomeRoomId != null) {
 				sawNoValidPeriodInPolicyWindow = true;
@@ -1629,25 +1790,24 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				if (a.score !== b.score) return a.score - b.score;
 				const dayDiff = DAYS.indexOf(a.day as typeof DAYS[number]) - DAYS.indexOf(b.day as typeof DAYS[number]);
 				if (dayDiff !== 0) return dayDiff;
-				return a.pi - b.pi;
+				return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
 			});
 
 			for (const slotCandidate of possibleSlots) {
 				if (placed) break;
 
-				const slot = FALLBACK_PERIOD_SLOTS[slotCandidate.pi];
+				const slot = { startTime: slotCandidate.startTime, endTime: slotCandidate.endTime };
 				const isModularUnified = Boolean(item.modularGroupId);
+				// For canonical slots, use a simplified faculty lookup without pi index
 				const { ids: rawCandidates, reason: qReason } = isModularUnified
 					? { ids: [0] as number[], reason: undefined }
-					: getQualifiedFacultyIds(item, slotCandidate.day, slot, slotCandidate.pi);
+					: getQualifiedFacultyIds(item, slotCandidate.day, slot, -1, unavailableTimeRanges);
 				const candidates = isModularUnified
 					? rawCandidates
 					: [...rawCandidates].sort((left, right) => {
 						const leftLoad = facultyLoad.get(left) ?? 0;
 						const rightLoad = facultyLoad.get(right) ?? 0;
 						if (leftLoad !== rightLoad) return leftLoad - rightLoad;
-						const scoreDiff = scoreFacultyForSlot(left, slotCandidate.day, slotCandidate.pi) - scoreFacultyForSlot(right, slotCandidate.day, slotCandidate.pi);
-						if (scoreDiff !== 0) return scoreDiff;
 						return left - right;
 					});
 
@@ -1758,7 +1918,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 						if (
 							placementSemantics?.enforceConsecutiveBreakAsHard === true
-							&& wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)
+							&& wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.startTime, slotCandidate.endTime, item.durationPerSession)
 						) {
 							sessionFailureReasons.add('NO_AVAILABLE_SLOT');
 							sawConsecutiveHardLimit = true;
@@ -1772,8 +1932,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					const sortedRooms = isModularUnified
 						? compatibleRooms
 						: [...compatibleRooms].sort((left, right) => {
-							const scoreDiff = scoreRoomForFacultyAtSlot(left, facId, slotCandidate.day, slotCandidate.pi)
-								- scoreRoomForFacultyAtSlot(right, facId, slotCandidate.day, slotCandidate.pi);
+							const scoreDiff = scoreRoomForFacultyAtSlot(left, facId, slotCandidate.day, slotCandidate.startTime, slotCandidate.endTime)
+								- scoreRoomForFacultyAtSlot(right, facId, slotCandidate.day, slotCandidate.startTime, slotCandidate.endTime);
 							if (scoreDiff !== 0) return scoreDiff;
 							const baseOrderDiff = (roomBaseOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER)
 								- (roomBaseOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER);
@@ -1810,7 +1970,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							if (!subject.requiredFeatures.every((feature) => roomFeatures.has(feature))) continue;
 						}
 
-						if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, slotCandidate.day, slotCandidate.pi, room.type))) continue;
+						if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, slotCandidate.day, slotCandidate.startTime, slotCandidate.endTime, room.type))) continue;
 
 						if (preferredHomeRoomId != null && room.id !== preferredHomeRoomId) {
 							if (sameZoneStandardRooms.some((sameZoneRoom) => sameZoneRoom.id === room.id)) {
@@ -1898,7 +2058,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							const dailyKey = `${facId}:${slotCandidate.day}`;
 							facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + item.durationPerSession);
 							const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
-							dayPeriods.push(slotCandidate.pi);
+							// Store with startTime/endTime for constraint checks
+							dayPeriods.push({ startTime: slotCandidate.startTime, endTime: slotCandidate.endTime, duration: item.durationPerSession });
 							facultyDayPeriods.set(dailyKey, dayPeriods);
 						}
 
@@ -1909,7 +2070,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							for (const sectionId of getDemandSectionIds(item)) {
 								const labKey = `${sectionId}:${slotCandidate.day}`;
 								const labPeriods = sectionDayLabPeriods.get(labKey) ?? [];
-								labPeriods.push(slotCandidate.pi);
+								labPeriods.push({ startTime: slotCandidate.startTime, endTime: slotCandidate.endTime });
 								sectionDayLabPeriods.set(labKey, labPeriods);
 							}
 						}

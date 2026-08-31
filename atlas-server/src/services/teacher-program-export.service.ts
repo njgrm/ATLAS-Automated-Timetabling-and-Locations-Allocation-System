@@ -210,14 +210,30 @@ export async function buildTeacherProgramExportShape(params: {
 	}
 
 	// 7. Load section mirrors for grade/section labels
+	// Run entries carry EnrollPro section IDs (externalId), not ATLAS local IDs.
+	// Query both externalId and id to resolve all possible matches.
 	const sectionIds = [...new Set(facultyEntries.map(e => e.sectionId).filter((id): id is number => id != null))];
 	const sections = sectionIds.length > 0
 		? await prisma.sectionMirror.findMany({
-			where: { id: { in: sectionIds }, schoolId, schoolYearId },
-			select: { id: true, name: true, gradeLevelName: true },
+			where: { OR: [
+				{ externalId: { in: sectionIds }, schoolId, schoolYearId },
+				{ id: { in: sectionIds }, schoolId, schoolYearId },
+			] },
+			select: { id: true, externalId: true, name: true, gradeLevelName: true },
 		})
 		: [];
-	const sectionMap = new Map(sections.map(s => [s.id, s]));
+	// Build lookup maps: by externalId (primary) and by local id (fallback)
+	const sectionByExternalId = new Map(sections.filter(s => s.externalId != null).map(s => [s.externalId, s]));
+	const sectionByLocalId = new Map(sections.map(s => [s.id, s]));
+	function resolveSection(sectionId: number | null): { name: string; gradeLevelName: string } | null {
+		if (sectionId == null) return null;
+		// Prefer externalId match (run entries carry EnrollPro IDs)
+		const byExternal = sectionByExternalId.get(sectionId);
+		if (byExternal) return byExternal;
+		// Fallback to local id match
+		const byLocal = sectionByLocalId.get(sectionId);
+		return byLocal ?? null;
+	}
 
 	// 8. Build rows
 	const rows: TeacherProgramWorkloadRow[] = [];
@@ -245,7 +261,7 @@ export async function buildTeacherProgramExportShape(params: {
 	// 8b. Teaching entries
 	for (const entry of facultyEntries) {
 		const subject = entry.subjectId ? subjectMap.get(entry.subjectId) : null;
-		const section = entry.sectionId ? sectionMap.get(entry.sectionId) : null;
+		const section = resolveSection(entry.sectionId);
 		const room = entry.roomId ? roomMap.get(entry.roomId) : null;
 
 		const gradeSection = section
@@ -294,6 +310,15 @@ export async function buildTeacherProgramExportShape(params: {
 		if (ancillaryRoles.length === 0) {
 			warnings.push('Ancillary minutes exist but no role labels were provided.');
 		}
+	}
+
+	// Warn if no timed ancillary source exists (stakeholder-style main-table ancillary cannot be produced)
+	const hasTimedAncillary = facultyEntries.some(e => {
+		const subject = e.subjectId ? subjectMap.get(e.subjectId) : null;
+		return subject && ancillaryRoles.some(r => subject.name?.toLowerCase().includes(r.toLowerCase()));
+	});
+	if (ancillaryMinutesPerWeek > 0 && !hasTimedAncillary) {
+		warnings.push('Ancillary credit is weekly-only; no timed ancillary source exists for stakeholder-style main-table rendering.');
 	}
 
 	// 8d. Advisory duty — weekly credited work from adviser assignment

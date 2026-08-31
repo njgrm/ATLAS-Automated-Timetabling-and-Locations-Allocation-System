@@ -2,7 +2,6 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
-	CalendarDays,
 	CalendarX,
 	DoorOpen,
 	Info,
@@ -15,8 +14,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { formatTime } from '@/lib/utils';
-import { pivotDraftToView, type PivotEntityKind } from '@/lib/schedule-pivot';
+import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -25,28 +23,14 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
 import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
-import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import { ScheduleTimetableGrid } from '@/components/room-schedules/ScheduleTimetableGrid';
+import { ScheduleMobileCards } from '@/components/room-schedules/ScheduleMobileCards';
+import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export';
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
-import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, DraftReport } from '@/types';
-
-type SectionInfo = { name: string; gradeLevel: number | null };
-
-// ─── Constants ───
+import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
+import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
 
 const DEFAULT_SCHOOL_ID = 1;
-
-const DAY_SHORT: Record<string, string> = {
-	MONDAY: 'Mon',
-	TUESDAY: 'Tue',
-	WEDNESDAY: 'Wed',
-	THURSDAY: 'Thu',
-	FRIDAY: 'Fri',
-};
-
-// ─── Types ───
-
-type SourceMode = 'latest' | 'run';
-type ViewMode = 'rooms' | 'teachers' | 'sections';
 
 const MODE_COPY: Record<ViewMode, { label: string; description: string; emptyTitle: string; emptyBody: string; icon: typeof DoorOpen }> = {
 	rooms: {
@@ -72,6 +56,8 @@ const MODE_COPY: Record<ViewMode, { label: string; description: string; emptyTit
 	},
 };
 
+type SourceMode = 'latest' | 'run';
+
 type FetchState =
 	| { status: 'idle' }
 	| { status: 'loading' }
@@ -79,14 +65,11 @@ type FetchState =
 	| { status: 'empty'; message: string }
 	| { status: 'error'; message: string };
 
-// ─── Page ───
-
 export default function RoomSchedules() {
 	const [searchParams] = useSearchParams();
 	const queryRoomId = searchParams.get('roomId');
 	const querySource = searchParams.get('source');
 
-	/* Lookup data */
 	const [rooms, setRooms] = useState<(Room & { buildingName: string })[]>([]);
 	const [facultyList, setFacultyList] = useState<FacultyMirror[]>([]);
 	const [sectionList, setSectionList] = useState<{ id: number; name: string; gradeLevelName: string }[]>([]);
@@ -97,7 +80,6 @@ export default function RoomSchedules() {
 	const [roomsLoading, setRoomsLoading] = useState(true);
 	const [lookupError, setLookupError] = useState(false);
 
-	/* Selections */
 	const [viewMode, setViewMode] = useState<ViewMode>('rooms');
 	const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
@@ -107,27 +89,21 @@ export default function RoomSchedules() {
 	const [presentationMode, setPresentationMode] = useState<'schedule' | 'occupancy'>('schedule');
 	const [templateVariant, setTemplateVariant] = useState<'11x6' | '13x6'>('11x6');
 
-	/* Schedule data */
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
-
-	/* Conflict inspector */
 	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
 
-	/* Derive a name-only sectionMap for legacy consumers that don't need grade info. */
 	const sectionNameMap = useMemo(() => {
 		const m = new Map<number, string>();
 		for (const [id, info] of sectionMap) m.set(id, info.name);
 		return m;
 	}, [sectionMap]);
 
-	/* Derive a roomMap (id -> label) for non-room views */
 	const roomMap = useMemo(() => {
 		const m = new Map<number, string>();
 		for (const r of rooms) m.set(r.id, r.name);
 		return m;
 	}, [rooms]);
 
-	/* Current selection id based on viewMode */
 	const selectedEntityId =
 		viewMode === 'rooms' ? selectedRoomId
 			: viewMode === 'teachers' ? selectedTeacherId
@@ -137,7 +113,6 @@ export default function RoomSchedules() {
 			: viewMode === 'teachers' ? setSelectedTeacherId
 				: setSelectedSectionId;
 
-	/* Load lookup data on mount */
 	useEffect(() => {
 		(async () => {
 			try {
@@ -153,14 +128,13 @@ export default function RoomSchedules() {
 
 				setSchoolYearId(activeSchoolYearId);
 
-				// Fetch section names
 				if (activeSchoolYearId) {
 					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
 						.then((r) => {
 							const secMap = new Map<number, SectionInfo>();
 							const list: { id: number; name: string; gradeLevelName: string }[] = [];
 							for (const s of r.data.sections) {
-								const grade = parseGradeFromSectionName(s.gradeLevelName) ?? parseGradeFromSectionName(s.name);
+								const grade = s.gradeLevelName ? Number(s.gradeLevelName.replace(/\D/g, '')) || null : null;
 								secMap.set(s.id, { name: s.name, gradeLevel: grade });
 								list.push({ id: s.id, name: s.name, gradeLevelName: s.gradeLevelName });
 							}
@@ -179,7 +153,6 @@ export default function RoomSchedules() {
 				allRooms.sort((a, b) => a.name.localeCompare(b.name));
 				setRooms(allRooms);
 
-				// Auto-select room from query param
 				if (queryRoomId && allRooms.some((r) => String(r.id) === queryRoomId)) {
 					setSelectedRoomId(queryRoomId);
 				}
@@ -206,8 +179,6 @@ export default function RoomSchedules() {
 		})();
 	}, []);
 
-	/* Fetch room schedule */
-	/* Debounced runId — avoids request spam while typing */
 	const [debouncedRunId, setDebouncedRunId] = useState('');
 	const debounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 	useEffect(() => {
@@ -215,24 +186,15 @@ export default function RoomSchedules() {
 		return () => clearTimeout(debounceTimer.current);
 	}, [runIdInput]);
 
-	/* Derived: is the current source config valid for fetching? */
 	const isRunIdValid = sourceMode === 'latest' || (sourceMode === 'run' && /^[1-9]\d*$/.test(debouncedRunId));
 	const runIdHasValidationError = sourceMode === 'run' && runIdInput.trim().length > 0 && !/^[1-9]\d*$/.test(runIdInput.trim());
 	const runIdMissing = sourceMode === 'run' && runIdInput.trim().length === 0;
 	const selectedModeCopy = MODE_COPY[viewMode];
 	const SelectedModeIcon = selectedModeCopy.icon;
-	const sourceSummary = state.status === 'ok'
-		? `${sourceMode === 'latest' ? 'Latest completed run' : 'Run ID'} #${state.data.source.runId} · ${state.data.source.status}`
-		: sourceMode === 'latest'
-			? 'Latest means the newest completed generation run.'
-			: runIdInput.trim()
-				? `Run ID ${runIdInput.trim()} is used for troubleshooting a specific generation run.`
-				: 'Run ID means inspect a specific generation run for troubleshooting.';
 
 	const fetchSchedule = useCallback(async () => {
 		if (!selectedEntityId || !schoolYearId) return;
 
-		// Client-side guard: prevent 400 for missing/invalid runId
 		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
 			setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
 			return;
@@ -249,7 +211,6 @@ export default function RoomSchedules() {
 				);
 				setState({ status: 'ok', data });
 			} else {
-				// Teachers / Sections: pivot the latest (or specific run) timetable client-side
 				const url = sourceMode === 'latest'
 					? `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/latest/timetable`
 					: `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${debouncedRunId}/timetable`;
@@ -289,7 +250,6 @@ export default function RoomSchedules() {
 		}
 	}, [viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap]);
 
-	/* Auto-fetch when selection, view mode, source mode, or valid runId changes */
 	useEffect(() => {
 		if (!selectedEntityId || !schoolYearId) return;
 		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
@@ -301,18 +261,16 @@ export default function RoomSchedules() {
 		fetchSchedule();
 	}, [selectedEntityId, schoolYearId, sourceMode, debouncedRunId, fetchSchedule]);
 
-	/* Reset state when switching view modes if no current selection */
 	useEffect(() => {
 		if (!selectedEntityId) {
 			setState({ status: 'idle' });
 		}
 	}, [viewMode, selectedEntityId]);
 
-	/* Grouped rooms for searchable selector */
 	const roomGroups = useMemo(() => {
 		const byBuilding = new Map<string, { value: string; label: string }[]>();
 		for (const r of rooms) {
-				const key = r.buildingName || 'Building not listed';
+			const key = r.buildingName || 'Building not listed';
 			const list = byBuilding.get(key) ?? [];
 			list.push({ value: String(r.id), label: `${r.name} (F${r.floor})` });
 			byBuilding.set(key, list);
@@ -322,7 +280,6 @@ export default function RoomSchedules() {
 			.map(([label, items]) => ({ label, items }));
 	}, [rooms]);
 
-	/* Grouped teachers by department */
 	const teacherGroups = useMemo(() => {
 		const byDept = new Map<string, { value: string; label: string }[]>();
 		const sorted = [...facultyList].sort(
@@ -331,10 +288,7 @@ export default function RoomSchedules() {
 		for (const f of sorted) {
 			const key = f.department || 'Unassigned';
 			const list = byDept.get(key) ?? [];
-			list.push({
-				value: String(f.id),
-				label: `${f.lastName}, ${f.firstName}`,
-			});
+			list.push({ value: String(f.id), label: `${f.lastName}, ${f.firstName}` });
 			byDept.set(key, list);
 		}
 		return Array.from(byDept.entries())
@@ -342,7 +296,6 @@ export default function RoomSchedules() {
 			.map(([label, items]) => ({ label, items }));
 	}, [facultyList]);
 
-	/* Grouped sections by grade level */
 	const sectionGroups = useMemo(() => {
 		const byGrade = new Map<string, { value: string; label: string }[]>();
 		const sorted = [...sectionList].sort(
@@ -359,14 +312,9 @@ export default function RoomSchedules() {
 			.map(([label, items]) => ({ label, items }));
 	}, [sectionList]);
 
-	/* Active selector config */
 	const activeSelector = useMemo(() => {
-		if (viewMode === 'rooms') {
-			return { groups: roomGroups, placeholder: 'Select room…' };
-		}
-		if (viewMode === 'teachers') {
-			return { groups: teacherGroups, placeholder: 'Select teacher…' };
-		}
+		if (viewMode === 'rooms') return { groups: roomGroups, placeholder: 'Select room…' };
+		if (viewMode === 'teachers') return { groups: teacherGroups, placeholder: 'Select teacher…' };
 		return { groups: sectionGroups, placeholder: 'Select section…' };
 	}, [viewMode, roomGroups, teacherGroups, sectionGroups]);
 	const activeSelectorCount = activeSelector.groups.reduce((count, group) => count + group.items.length, 0);
@@ -374,10 +322,42 @@ export default function RoomSchedules() {
 		? 'Loading schedule references.'
 		: lookupError
 			? 'Schedule references are unavailable right now.'
-		: activeSelectorCount === 0
-			? `No ${selectedModeCopy.label.toLowerCase()} are available yet.`
-			: `${activeSelectorCount} ${selectedModeCopy.label.toLowerCase()} available.`;
-	const scheduleSourceState = roomsLoading ? 'checking-source' : state.status === 'ok' ? 'verified-live' : 'saved-data';
+			: activeSelectorCount === 0
+				? `No ${selectedModeCopy.label.toLowerCase()} are available yet.`
+				: `${activeSelectorCount} ${selectedModeCopy.label.toLowerCase()} available.`;
+
+	const selectedName = useMemo(() => {
+		if (viewMode === 'rooms') {
+			const r = rooms.find((x) => String(x.id) === selectedEntityId);
+			return r?.name ?? 'room';
+		}
+		if (viewMode === 'teachers') {
+			const f = facultyList.find((x) => String(x.id) === selectedEntityId);
+			return f ? `${f.lastName}_${f.firstName}` : 'teacher';
+		}
+		const s = sectionList.find((x) => String(x.id) === selectedEntityId);
+		return s?.name ?? 'section';
+	}, [viewMode, selectedEntityId, rooms, facultyList, sectionList]);
+
+	const handleExport = useCallback(() => {
+		if (state.status !== 'ok') return;
+		exportScheduleToCsv(state.data, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap);
+	}, [state, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap]);
+
+	const conflictHandler = useCallback((day: string, dayLabel: string, startTime: string, endTime: string, entries: Parameters<NonNullable<Parameters<typeof ScheduleTimetableGrid>[0]['onConflictClick']>>[4]) => {
+		if (state.status !== 'ok') return;
+		setConflictData({
+			day,
+			dayLabel,
+			startTime,
+			endTime,
+			roomName: state.data.room.name,
+			roomId: viewMode === 'rooms' ? Number(selectedEntityId) : 0,
+			runId: state.data.source.runId ?? 0,
+			runStatus: state.data.source.status,
+			entries,
+		});
+	}, [state, viewMode, selectedEntityId]);
 
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
@@ -386,28 +366,17 @@ export default function RoomSchedules() {
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-2">
 							<h1 className="text-lg font-bold text-slate-900 sm:text-xl">Schedules</h1>
-							<Badge variant="outline" className="h-6 rounded-full border-primary/15 bg-primary/5 text-[0.65rem] font-bold text-primary">Review and publish</Badge>
+							<SmartSourceStatusChip
+								label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
+								tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
+								testId="schedules-readiness-chip"
+							/>
 						</div>
-						<p className="mt-0.5 hidden max-w-2xl truncate text-xs font-medium text-slate-500 md:block">
-							Browse the latest room, teacher, and section schedules.
-						</p>
 					</div>
 					<div className="flex flex-wrap items-center justify-end gap-2">
-						<div className="rounded-lg border border-primary/10 bg-primary/5 px-2.5 py-1.5" data-source-state={scheduleSourceState} data-testid="schedules-source-status">
-							<div className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-slate-500">
-								<CalendarDays className="size-4 text-primary" />
-								Source
-							</div>
-							<p className="mt-0.5 max-w-sm truncate text-xs font-bold text-slate-900">{sourceSummary}</p>
-						</div>
-						<SmartSourceStatusChip
-							label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
-							tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}
-							testId="schedules-readiness-chip"
-						/>
 						<SmartHelpTrigger
 							title="How to browse schedules"
-							description="Use this page to inspect the published or latest generated schedule by room, teacher, or section."
+							description="Use this page to inspect the latest generated schedule by room, teacher, or section."
 							steps={[
 								{ title: 'Choose a view', body: 'Pick Rooms, Teachers, or Sections depending on what you need to inspect.', target: 'View buttons' },
 								{ title: 'Pick one schedule', body: 'Use the searchable selector to choose the exact room, teacher, or section.', target: 'Schedule selector' },
@@ -415,6 +384,38 @@ export default function RoomSchedules() {
 								{ title: 'Use expert tools only when needed', body: 'Run ID and occupancy preview are for troubleshooting.', target: 'Expert tools' },
 							]}
 						/>
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button type="button" variant="outline" size="sm" className="h-10 gap-2 bg-white" data-testid="schedules-tools-trigger">
+									<Wrench className="size-4" />
+									<span className="hidden sm:inline">Tools</span>
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent align="end" className="w-80 space-y-3 p-4">
+								<div>
+									<p className="text-sm font-semibold text-slate-900">Inspect a specific generation run</p>
+									<p className="mt-1 text-xs leading-relaxed text-slate-500">Keep Latest selected for normal work. Use a Run ID only when troubleshooting a known historical run.</p>
+								</div>
+								<div className="flex gap-2">
+									<Button type="button" onClick={() => setSourceMode('latest')} variant={sourceMode === 'latest' ? 'default' : 'outline'} size="sm">Latest</Button>
+									<Button type="button" onClick={() => setSourceMode('run')} variant={sourceMode === 'run' ? 'default' : 'outline'} size="sm">Run ID</Button>
+								</div>
+								{sourceMode === 'run' && (
+									<div className="space-y-1.5">
+										<Input
+											type="number"
+											min={1}
+											placeholder="Run ID"
+											value={runIdInput}
+											onChange={(event) => setRunIdInput(event.target.value)}
+											aria-label="Generation run ID"
+											aria-invalid={runIdHasValidationError}
+										/>
+										{runIdHasValidationError && <p className="text-xs font-medium text-destructive">Use a whole number above 0.</p>}
+									</div>
+								)}
+							</PopoverContent>
+						</Popover>
 					</div>
 				</header>
 
@@ -431,7 +432,7 @@ export default function RoomSchedules() {
 									setViewMode(mode);
 									if (mode !== 'rooms' || presentationMode === 'occupancy') setPresentationMode('schedule');
 								}}
-								className={`h-8 shrink-0 justify-start gap-2 rounded-lg px-2.5 text-left shadow-sm ${viewMode === mode ? '' : 'border-primary/10 bg-white text-slate-700 hover:border-primary/30'}`}
+								className={`h-10 shrink-0 justify-start gap-2 rounded-lg px-3 text-left shadow-sm ${viewMode === mode ? '' : 'border-primary/10 bg-white text-slate-700 hover:border-primary/30'}`}
 							>
 								<Icon className="size-4 shrink-0" />
 								<span className="min-w-0">
@@ -442,112 +443,65 @@ export default function RoomSchedules() {
 					})}
 				</div>
 			</div>
-			{/* ── Toolbar row ── */}
-			<div className="shrink-0 px-3 pt-1.5 pb-1.5 flex items-center gap-2 flex-wrap lg:px-5">
-				<div className="hidden items-center gap-2 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-sm md:flex">
-					<SelectedModeIcon className="size-4 text-primary" />
-					<div>
-						<p className="text-xs font-semibold text-slate-900">Browsing {selectedModeCopy.label.toLowerCase()}</p>
-						<p className="text-xs text-slate-500">{selectedModeCopy.description}</p>
+
+			<div className="shrink-0 px-3 pt-2 pb-2 flex flex-col gap-2 lg:px-5">
+				<div className="flex flex-wrap items-center gap-2">
+					<div className="min-w-0 flex-1" style={{ minWidth: 'clamp(160px, 40vw, 100%)' }} data-testid="schedule-browser-selector">
+						{roomsLoading ? (
+							<Skeleton className="h-10 w-full rounded-xl" />
+						) : (
+							<SearchableSelect
+								value={selectedEntityId}
+								onValueChange={setSelectedEntityId}
+								groups={activeSelector.groups}
+								placeholder={activeSelector.placeholder}
+								triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"
+							/>
+						)}
+						<p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+							<Info className="size-3 text-primary" />
+							{selectorStatus}
+						</p>
+					</div>
+
+					<div className="flex items-center gap-1.5 shrink-0">
+						{viewMode === 'rooms' && (
+							<Button
+								variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
+								size="sm"
+								className="h-10 px-3 text-xs"
+								onClick={() => setPresentationMode(presentationMode === 'occupancy' ? 'schedule' : 'occupancy')}
+							>
+								{presentationMode === 'occupancy' ? 'Schedule' : 'Occupancy'}
+							</Button>
+						)}
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={fetchSchedule}
+							disabled={!selectedEntityId || state.status === 'loading' || !isRunIdValid || runIdHasValidationError || runIdMissing}
+							className="h-10 shrink-0 shadow-sm"
+						>
+							<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
+							Refresh
+						</Button>
 					</div>
 				</div>
+				<Button
+					variant="default"
+					size="sm"
+					onClick={handleExport}
+					disabled={state.status !== 'ok'}
+					className="h-10 w-full shrink-0 shadow-sm text-xs"
+					data-testid="schedules-export-current-view"
+				>
+					Export CSV
+				</Button>
+			</div>
 
-				{/* Entity selector (rooms / teachers / sections) */}
-				<div className="min-w-0 flex-1 md:max-w-xl" data-testid="schedule-browser-selector">
-					{roomsLoading ? (
-						<Skeleton className="h-10 w-full rounded-xl" />
-					) : (
-						<SearchableSelect
-							value={selectedEntityId}
-							onValueChange={setSelectedEntityId}
-							groups={activeSelector.groups}
-							placeholder={activeSelector.placeholder}
-							triggerClassName="h-9 text-sm w-full rounded-xl bg-white shadow-sm"
-						/>
-					)}
-					<p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-						<Info className="size-3 text-primary" />
-						{selectorStatus}
-					</p>
-				</div>
-
-				{/* Source pill toggles */}
-				<div className="flex flex-wrap items-start gap-1.5 rounded-xl border border-slate-100 bg-white px-2 py-2 shadow-sm">
-					<Button
-						variant={presentationMode === 'schedule' ? 'default' : 'outline'}
-						size="sm"
-						className="h-8 px-3 text-xs"
-						onClick={() => setPresentationMode('schedule')}
-					>
-						Schedule
-					</Button>
-					{viewMode === 'rooms' && (
-						<Button
-							variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
-							size="sm"
-							className="h-8 px-3 text-xs"
-							onClick={() => setPresentationMode('occupancy')}
-						>
-							Occupancy Preview
-						</Button>
-					)}
-					{viewMode === 'rooms' && presentationMode === 'occupancy' && (
-						<div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1">
-							<Button
-								variant={templateVariant === '11x6' ? 'default' : 'outline'}
-								size="sm"
-								className="h-7 px-2.5 text-xs"
-								onClick={() => setTemplateVariant('11x6')}
-							>
-								11x6
-							</Button>
-							<Button
-								variant={templateVariant === '13x6' ? 'default' : 'outline'}
-								size="sm"
-								className="h-7 px-2.5 text-xs"
-								onClick={() => setTemplateVariant('13x6')}
-							>
-								13x6
-							</Button>
-						</div>
-					)}
-					<Popover>
-						<PopoverTrigger asChild>
-							<Button type="button" variant="outline" size="sm" className="gap-2 bg-white">
-								<Wrench className="size-4" />
-								Expert tools
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent align="end" className="w-80 space-y-3 p-4">
-							<div>
-								<p className="text-sm font-semibold text-slate-900">Inspect a specific generation run</p>
-								<p className="mt-1 text-xs leading-relaxed text-slate-500">Keep Latest selected for normal work. Use a Run ID only when troubleshooting a known historical run.</p>
-							</div>
-							<div className="flex gap-2">
-								<Button type="button" onClick={() => setSourceMode('latest')} variant={sourceMode === 'latest' ? 'default' : 'outline'} size="sm">Latest</Button>
-								<Button type="button" onClick={() => setSourceMode('run')} variant={sourceMode === 'run' ? 'default' : 'outline'} size="sm">Run ID</Button>
-							</div>
-							{sourceMode === 'run' && (
-								<div className="space-y-1.5">
-									<Input
-										type="number"
-										min={1}
-										placeholder="Run ID"
-										value={runIdInput}
-										onChange={(event) => setRunIdInput(event.target.value)}
-										aria-label="Generation run ID"
-										aria-invalid={runIdHasValidationError}
-									/>
-									{runIdHasValidationError && <p className="text-xs font-medium text-destructive">Use a whole number above 0.</p>}
-								</div>
-							)}
-						</PopoverContent>
-					</Popover>
-				</div>
-
-				{/* Inline stat banner */}
-				{state.status === 'ok' && (
-					<div className="flex items-center gap-4 text-sm bg-card border border-border rounded-md px-4 py-1.5 shadow-sm overflow-x-auto whitespace-nowrap scrollbar-none">
+			{state.status === 'ok' && (
+				<div className="shrink-0 px-3 lg:px-5 pb-1">
+					<div className="flex items-center gap-3 text-sm bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm overflow-x-auto whitespace-nowrap scrollbar-none">
 						<span className="font-semibold text-foreground">
 							Utilization: <span className="text-muted-foreground font-normal">{state.data.summary.utilizationPercent}%</span>
 						</span>
@@ -571,22 +525,18 @@ export default function RoomSchedules() {
 							Run #{state.data.source.runId} · {state.data.source.status}
 						</span>
 					</div>
-				)}
+				</div>
+			)}
 
-				{/* Refresh */}
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={fetchSchedule}
-					disabled={!selectedEntityId || state.status === 'loading' || !isRunIdValid || runIdHasValidationError || runIdMissing}
-					className="h-8 ml-auto shrink-0 shadow-sm"
-				>
-					<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
-					Refresh
-				</Button>
-			</div>
+			{viewMode === 'rooms' && presentationMode === 'occupancy' && (
+				<div className="shrink-0 px-3 lg:px-5 pb-1">
+					<div className="flex items-center gap-1.5">
+						<Button variant={templateVariant === '11x6' ? 'default' : 'outline'} size="sm" className="h-10 px-3 text-xs" onClick={() => setTemplateVariant('11x6')}>11x6</Button>
+						<Button variant={templateVariant === '13x6' ? 'default' : 'outline'} size="sm" className="h-10 px-3 text-xs" onClick={() => setTemplateVariant('13x6')}>13x6</Button>
+					</div>
+				</div>
+			)}
 
-			{/* ── Main content ── */}
 			<div className="flex-1 min-h-0 overflow-auto px-4 pb-4 pt-2 lg:px-5">
 				{state.status === 'idle' && (
 					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-white p-8 text-center text-muted-foreground shadow-soft">
@@ -643,28 +593,30 @@ export default function RoomSchedules() {
 				)}
 
 				{state.status === 'ok' && presentationMode === 'schedule' && (
-					<TimetableGrid
-						view={state.data}
-						viewMode={viewMode}
-						subjectMap={subjectMap}
-						facultyMap={facultyMap}
-						sectionMap={sectionMap}
-						roomMap={roomMap}
-						onConflictClick={(day, dayLabel, startTime, endTime, entries) => {
-							const contextLabel = state.data.room.name;
-							setConflictData({
-								day,
-								dayLabel,
-								startTime,
-								endTime,
-								roomName: contextLabel,
-								roomId: viewMode === 'rooms' ? Number(selectedEntityId) : 0,
-								runId: state.data.source.runId ?? 0,
-								runStatus: state.data.source.status,
-								entries,
-							});
-						}}
-					/>
+					<>
+						<div className="hidden lg:block">
+							<ScheduleTimetableGrid
+								view={state.data}
+								viewMode={viewMode}
+								subjectMap={subjectMap}
+								facultyMap={facultyMap}
+								sectionMap={sectionMap}
+								roomMap={roomMap}
+								onConflictClick={conflictHandler}
+							/>
+						</div>
+						<div className="lg:hidden">
+							<ScheduleMobileCards
+								view={state.data}
+								viewMode={viewMode}
+								subjectMap={subjectMap}
+								facultyMap={facultyMap}
+								sectionMap={sectionMap}
+								roomMap={roomMap}
+								onConflictClick={conflictHandler}
+							/>
+						</div>
+					</>
 				)}
 
 				{state.status === 'ok' && presentationMode === 'occupancy' && viewMode === 'rooms' && (
@@ -679,7 +631,6 @@ export default function RoomSchedules() {
 				)}
 			</div>
 
-			{/* Conflict Inspector Sheet */}
 			<ConflictInspectorSheet
 				open={!!conflictData}
 				data={conflictData}
@@ -688,258 +639,6 @@ export default function RoomSchedules() {
 				facultyMap={facultyMap}
 				sectionMap={sectionNameMap}
 			/>
-		</div>
-	);
-}
-
-// ─── Timetable grid with rowSpan logic ───
-
-type CellRender = {
-	entries: RoomScheduleEntry[];
-	conflict: boolean;
-	rowSpan: number;
-} | null; // null = cell is covered by a rowSpan from above
-
-function computeSpanData(view: RoomScheduleView): CellRender[][] {
-	const { grid, days } = view;
-	const rowCount = grid.length;
-	const dayCount = days.length;
-
-	// result[rowIdx][dayIdx]
-	const result: CellRender[][] = Array.from({ length: rowCount }, () =>
-		Array(dayCount).fill(null) as CellRender[],
-	);
-
-	for (let dayIdx = 0; dayIdx < dayCount; dayIdx++) {
-		let skipUntilRow = -1;
-
-		for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
-			// Already covered by a span from above
-			if (rowIdx < skipUntilRow) {
-				result[rowIdx][dayIdx] = null;
-				continue;
-			}
-
-			const cell = grid[rowIdx].cells[dayIdx];
-
-			if (!cell.occupied) {
-				result[rowIdx][dayIdx] = { entries: [], conflict: false, rowSpan: 1 };
-				continue;
-			}
-
-			// Determine rowSpan: how many consecutive rows share the exact same entries?
-			const entryIds = new Set(cell.entries.map((e) => e.entryId));
-			let span = 1;
-
-			for (let nextRow = rowIdx + 1; nextRow < rowCount; nextRow++) {
-				const nextCell = grid[nextRow].cells[dayIdx];
-				if (!nextCell.occupied) break;
-				const nextIds = nextCell.entries.map((e) => e.entryId);
-				if (nextIds.length !== entryIds.size) break;
-				if (!nextIds.every((id) => entryIds.has(id))) break;
-				span++;
-			}
-
-			result[rowIdx][dayIdx] = {
-				entries: cell.entries,
-				conflict: cell.conflict,
-				rowSpan: span,
-			};
-
-			if (span > 1) skipUntilRow = rowIdx + span;
-		}
-	}
-
-	return result;
-}
-
-function TimetableGrid({
-	view,
-	viewMode,
-	subjectMap,
-	facultyMap,
-	sectionMap,
-	roomMap,
-	onConflictClick,
-}: {
-	view: RoomScheduleView;
-	viewMode: ViewMode;
-	subjectMap: Map<number, string>;
-	facultyMap: Map<number, string>;
-	sectionMap: Map<number, SectionInfo>;
-	roomMap: Map<number, string>;
-	onConflictClick?: (day: string, dayLabel: string, startTime: string, endTime: string, entries: RoomScheduleEntry[]) => void;
-}) {
-	const spanData = useMemo(() => computeSpanData(view), [view]);
-
-	return (
-		<table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-			<colgroup>
-				<col className="w-24" />
-				{view.days.map((d) => (
-					<col key={d} />
-				))}
-			</colgroup>
-			<thead className="sticky top-0 z-10 bg-background">
-				<tr>
-					<th className="sticky left-0 z-20 bg-background border-b-2 border-r px-2 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-						Time
-					</th>
-					{view.days.map((d) => (
-						<th
-							key={d}
-							className="border-b-2 px-2 py-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-						>
-							{DAY_SHORT[d] ?? d}
-						</th>
-					))}
-				</tr>
-			</thead>
-			<tbody>
-				{view.grid.map((row, rowIdx) => (
-						<tr key={rowIdx}>
-							{/* Sticky time column */}
-							<td className="sticky left-0 z-5 bg-background border-r border-b px-2 py-3 align-middle w-24">
-								{row.timeSlot.eventLabel ? (
-									<div className="text-xs font-bold text-foreground">
-										{row.timeSlot.eventLabel}
-									</div>
-								) : (
-									<div className="text-xs font-semibold text-foreground">
-										{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
-									</div>
-								)}
-							</td>
-
-							{/* Day cells */}
-							{spanData[rowIdx].map((cellData, dayIdx) => {
-								if (cellData === null) return null; // covered by rowSpan above
-
-								if (cellData.entries.length === 0) {
-									return (
-										<td
-											key={dayIdx}
-											rowSpan={cellData.rowSpan}
-											className="border-b border-r last:border-r-0 px-1 py-1"
-										/>
-									);
-								}
-
-								const firstGrade = cellData.entries.length > 0
-									? sectionMap.get(cellData.entries[0].sectionId)?.gradeLevel ?? null
-									: null;
-								let baseCellClass = 'bg-primary/5 border-primary/20';
-								if (firstGrade === 7) baseCellClass = 'bg-green-50 border-green-200';
-								else if (firstGrade === 8) baseCellClass = 'bg-yellow-50 border-yellow-200';
-								else if (firstGrade === 9) baseCellClass = 'bg-red-50 border-red-200';
-								else if (firstGrade === 10) baseCellClass = 'bg-blue-50 border-blue-200';
-
-								return (
-									<td
-										key={dayIdx}
-										rowSpan={cellData.rowSpan}
-										className={`border-b border-r last:border-r-0 px-1 py-0.5 align-top transition-colors ${
-											cellData.conflict
-												? 'bg-red-50 border-red-200 cursor-pointer hover:bg-red-100'
-												: baseCellClass
-										}`}
-										onClick={cellData.conflict && onConflictClick ? () => {
-											const timeSlot = view.grid[rowIdx].timeSlot;
-											onConflictClick(
-												view.days[dayIdx],
-												DAY_SHORT[view.days[dayIdx]] ?? view.days[dayIdx],
-												timeSlot.startTime,
-												timeSlot.endTime,
-												cellData.entries,
-											);
-										} : undefined}
-									>
-										{cellData.entries.map((entry) => (
-											<EntryCell
-												key={entry.entryId}
-												entry={entry}
-												viewMode={viewMode}
-												subjectMap={subjectMap}
-												facultyMap={facultyMap}
-												sectionMap={sectionMap}
-												roomMap={roomMap}
-											/>
-										))}
-										{cellData.conflict && (
-											<Badge
-												variant="destructive"
-												className="mt-0.5 text-xs px-1 py-0 cursor-pointer hover:bg-red-700 transition-colors"
-												role="button"
-												tabIndex={0}
-												aria-label="Inspect conflict"
-											>
-												<AlertTriangle className="mr-0.5 size-2.5" />
-												Conflict — Click to inspect
-											</Badge>
-										)}
-									</td>
-								);
-							})}
-						</tr>
-				))}
-			</tbody>
-		</table>
-	);
-}
-
-function EntryCell({
-	entry,
-	viewMode,
-	subjectMap,
-	facultyMap,
-	sectionMap,
-	roomMap,
-}: {
-	entry: RoomScheduleEntry;
-	viewMode: ViewMode;
-	subjectMap: Map<number, string>;
-	facultyMap: Map<number, string>;
-	sectionMap: Map<number, SectionInfo>;
-	roomMap: Map<number, string>;
-}) {
-	const sectionInfo = sectionMap.get(entry.sectionId);
-	const sectionLabel = sectionInfo?.name ?? 'Section not listed';
-	const facultyLabel = entry.facultyId != null
-		? (facultyMap.get(entry.facultyId) ?? 'Teacher not listed')
-		: 'Unassigned teacher';
-	const roomLabel = entry.roomId != null
-		? (roomMap.get(entry.roomId) ?? 'Room not listed')
-		: '—';
-
-	return (
-		<div className="px-1.5 py-1 text-xs leading-snug">
-			<div className="font-semibold text-foreground truncate">
-				{entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? 'Subject not listed'}
-			</div>
-			{viewMode === 'rooms' && (
-				<>
-					<div className="flex items-center gap-1 min-w-0">
-						<GradeLevelBadge grade={sectionInfo?.gradeLevel ?? null} size="xs" />
-						<span className="text-muted-foreground truncate">{sectionLabel}</span>
-					</div>
-					<div className="text-muted-foreground/80 truncate">{facultyLabel}</div>
-				</>
-			)}
-			{viewMode === 'teachers' && (
-				<>
-					<div className="flex items-center gap-1 min-w-0">
-						<GradeLevelBadge grade={sectionInfo?.gradeLevel ?? null} size="xs" />
-						<span className="text-muted-foreground truncate">{sectionLabel}</span>
-					</div>
-					<div className="text-muted-foreground/80 truncate">{roomLabel}</div>
-				</>
-			)}
-			{viewMode === 'sections' && (
-				<>
-					<div className="text-muted-foreground truncate">{facultyLabel}</div>
-					<div className="text-muted-foreground/80 truncate">{roomLabel}</div>
-				</>
-			)}
 		</div>
 	);
 }

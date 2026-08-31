@@ -1,22 +1,19 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
 import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
+import { generateClassProgramMatrix, validateSpecializationVisibility } from '../services/class-program-matrix.service.js';
 
 const router = Router();
 
 // ─── Helpers ───
 
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
-
-function getAuthToken(req: Request): string | undefined {
-	const header = req.headers.authorization;
-	return header?.startsWith('Bearer ') ? header.slice(7) : undefined;
-}
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
@@ -51,7 +48,7 @@ router.post(
 				res.status(400).json({ code: 'INVALID_PARAM', message: 'roomerStrategy must be UNIVERSAL or HOME_ROOM_FIRST when provided.' });
 				return;
 			}
-			const authToken = getAuthToken(req);
+			const authToken = getUpstreamAuthToken(req);
 
 			const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, {
 				ignoreRoomRequestGate,
@@ -596,7 +593,19 @@ router.get(
 				}
 			}
 
-			const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex });
+			const specializationVisibilityRaw = req.query.specializationVisibility as string | undefined;
+			let specializationVisibility: 'hidden' | 'visible' | undefined;
+			if (specializationVisibilityRaw != null) {
+				const val = specializationVisibilityRaw.toLowerCase().trim();
+				if (val === 'hidden' || val === 'visible') {
+					specializationVisibility = val;
+				} else {
+					res.status(400).json({ code: 'INVALID_SPECIALIZATION_VISIBILITY', message: 'specializationVisibility must be "hidden" or "visible".' });
+					return;
+				}
+			}
+
+			const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, specializationVisibility });
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 			const termSuffix = termIndex != null ? `-term${termIndex === 'active' ? '-active' : termIndex}` : '';
 			res.setHeader('Content-Disposition', `attachment; filename="class-program${termSuffix}.xlsx"`);
@@ -676,6 +685,51 @@ router.get(
 				res.status(404).json({ code: e.code, message: e.message ?? 'Published schedule resolution failed.' });
 				return;
 			}
+			next(e);
+		}
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/class-program-matrix — grade-level class-program output ───
+
+router.get(
+	'/:schoolId/:schoolYearId/class-program-matrix',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can access class-program matrix.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			const gradeLevel = positiveInt(req.query.gradeLevel, 'gradeLevel');
+			if (typeof gradeLevel === 'string') { res.status(400).json({ code: 'INVALID_GRADE_LEVEL', message: 'gradeLevel must be a positive integer (7, 8, 9, or 10).' }); return; }
+			if (gradeLevel < 7 || gradeLevel > 10) {
+				res.status(400).json({ code: 'INVALID_GRADE_LEVEL', message: 'gradeLevel must be 7, 8, 9, or 10.' });
+				return;
+			}
+
+			const visibility = validateSpecializationVisibility(req.query.specializationVisibility as string | undefined);
+			if (visibility === null) {
+				res.status(400).json({ code: 'INVALID_SPECIALIZATION_VISIBILITY', message: 'specializationVisibility must be "hidden" or "visible".' });
+				return;
+			}
+
+			const matrix = await generateClassProgramMatrix({
+				schoolId,
+				schoolYearId,
+				gradeLevel,
+				visibility,
+			});
+
+			res.json({ data: matrix });
+		} catch (e) {
 			next(e);
 		}
 	},

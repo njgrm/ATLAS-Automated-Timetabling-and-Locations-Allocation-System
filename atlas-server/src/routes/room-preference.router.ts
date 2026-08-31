@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import type { RoomPreferenceDecisionStatus, RoomPreferenceStatus, RoomRequestAppealStatus } from '@prisma/client';
 import jwt from 'jsonwebtoken';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, extractSseToken } from '../middleware/authenticate.js';
 import type { AuthPayload } from '../middleware/authenticate.js';
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
@@ -57,9 +57,7 @@ async function resolveRequestingFacultyId(req: Request, schoolId: number, school
 
 function resolveSseUser(req: Request): AuthPayload | null {
 	if (req.user) return req.user;
-	const header = req.headers.authorization;
-	const queryToken = typeof req.query.accessToken === 'string' ? req.query.accessToken : null;
-	const token = header?.startsWith('Bearer ') ? header.slice(7) : queryToken;
+	const token = extractSseToken(req);
 	if (!token) return null;
 	const secret = process.env.JWT_SECRET;
 	if (!secret) return null;

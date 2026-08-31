@@ -1,5 +1,7 @@
 export const ATLAS_BRIDGE_TOKEN_KEY = 'atlas_bridge_token';
 export const ATLAS_LOCAL_TOKEN_KEY = 'atlas_local_token';
+const ATLAS_AUTH_COOKIE_NAME = 'atlasAuthToken';
+const ATLAS_AUTH_COOKIE_PATH = '/api/v1';
 
 export type AuthSource = 'bridge' | 'local';
 
@@ -58,13 +60,43 @@ function removeLocalStorage(key: string): void {
 	}
 }
 
+function hasDocumentCookie(): boolean {
+	return typeof document !== 'undefined' && typeof document.cookie === 'string';
+}
+
+function secureCookieAttribute(): string {
+	try {
+		return window.location.protocol === 'https:' ? '; Secure' : '';
+	} catch {
+		return '';
+	}
+}
+
+function writeAtlasAuthCookie(token: string, remember: boolean): void {
+	if (!hasDocumentCookie()) return;
+	const maxAge = remember ? '; Max-Age=2592000' : '';
+	document.cookie = `${ATLAS_AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; Path=${ATLAS_AUTH_COOKIE_PATH}; SameSite=Lax${maxAge}${secureCookieAttribute()}`;
+}
+
+export function clearAtlasAuthCookie(): void {
+	if (!hasDocumentCookie()) return;
+	const expires = '; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0';
+	const secure = secureCookieAttribute();
+	document.cookie = `${ATLAS_AUTH_COOKIE_NAME}=; Path=${ATLAS_AUTH_COOKIE_PATH}; SameSite=Lax${expires}${secure}`;
+	document.cookie = `${ATLAS_AUTH_COOKIE_NAME}=; Path=/; SameSite=Lax${expires}${secure}`;
+}
+
 export function getLocalToken(): string | null {
 	const sessionToken = readSessionStorage(ATLAS_LOCAL_TOKEN_KEY);
-	if (sessionToken) return sessionToken;
+	if (sessionToken) {
+		writeAtlasAuthCookie(sessionToken, Boolean(readLocalStorage(ATLAS_LOCAL_TOKEN_KEY)));
+		return sessionToken;
+	}
 
 	const rememberedToken = readLocalStorage(ATLAS_LOCAL_TOKEN_KEY);
 	if (rememberedToken) {
 		writeSessionStorage(ATLAS_LOCAL_TOKEN_KEY, rememberedToken);
+		writeAtlasAuthCookie(rememberedToken, true);
 		return rememberedToken;
 	}
 
@@ -72,7 +104,9 @@ export function getLocalToken(): string | null {
 }
 
 export function getBridgeToken(): string | null {
-	return readSessionStorage(ATLAS_BRIDGE_TOKEN_KEY);
+	const token = readSessionStorage(ATLAS_BRIDGE_TOKEN_KEY);
+	if (token) writeAtlasAuthCookie(token, false);
+	return token;
 }
 
 export function getPreferredAccessToken(): string | null {
@@ -81,6 +115,7 @@ export function getPreferredAccessToken(): string | null {
 
 export function setLocalToken(token: string, remember = false): void {
 	writeSessionStorage(ATLAS_LOCAL_TOKEN_KEY, token);
+	writeAtlasAuthCookie(token, remember);
 	if (remember) {
 		writeLocalStorage(ATLAS_LOCAL_TOKEN_KEY, token);
 	} else {
@@ -88,13 +123,20 @@ export function setLocalToken(token: string, remember = false): void {
 	}
 }
 
+export function setBridgeToken(token: string): void {
+	writeSessionStorage(ATLAS_BRIDGE_TOKEN_KEY, token);
+	writeAtlasAuthCookie(token, false);
+}
+
 export function clearLocalToken(): void {
 	removeSessionStorage(ATLAS_LOCAL_TOKEN_KEY);
 	removeLocalStorage(ATLAS_LOCAL_TOKEN_KEY);
+	clearAtlasAuthCookie();
 }
 
 export function clearBridgeToken(): void {
 	removeSessionStorage(ATLAS_BRIDGE_TOKEN_KEY);
+	clearAtlasAuthCookie();
 }
 
 export function clearUserRoleCache(): void {

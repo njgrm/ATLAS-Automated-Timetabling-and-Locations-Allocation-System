@@ -1,10 +1,10 @@
-import { ATLAS_BRIDGE_TOKEN_KEY } from './auth';
+import { ATLAS_BRIDGE_TOKEN_KEY, setBridgeToken } from './auth';
 
 export function captureBridgeToken(): string | null {
 	const url = new URL(window.location.href);
 	const urlToken = url.searchParams.get('bridgeToken');
 	if (urlToken) {
-		sessionStorage.setItem(ATLAS_BRIDGE_TOKEN_KEY, urlToken);
+		setBridgeToken(urlToken);
 		// Clean URL without reload
 		url.searchParams.delete('bridgeToken');
 		url.searchParams.delete('from');

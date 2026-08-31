@@ -191,7 +191,7 @@ export async function syncSectionsFromExternal(
 	schoolId: number,
 	schoolYearId: number,
 	authToken?: string
-): Promise<{ synced: boolean; count: number; removed: number; source: 'enrollpro'; fetchedAt: Date }> {
+): Promise<{ synced: boolean; count: number; removed: number; skipped: number; source: 'enrollpro'; fetchedAt: Date }> {
 	let result: SectionFetchResult;
 	try {
 		result = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
@@ -202,11 +202,30 @@ export async function syncSectionsFromExternal(
 	}
 
 	const externalSections = result.gradeLevels.flatMap(gl => gl.sections);
-	const externalIds = new Set(externalSections.map(s => s.id));
+	const validSections: typeof externalSections = [];
+	let skipped = 0;
+
+	for (const gl of result.gradeLevels) {
+		for (const s of gl.sections) {
+			const hasValidId = typeof s.id === 'number' && s.id > 0;
+			const hasValidName = typeof s.name === 'string' && s.name.trim().length > 0;
+			const hasValidGrade = typeof gl.gradeLevelId === 'number' && gl.gradeLevelId > 0;
+			const hasValidProgram = typeof s.programType === 'string' && s.programType.trim().length > 0;
+
+			if (!hasValidId || !hasValidName || !hasValidGrade || !hasValidProgram) {
+				skipped += 1;
+				continue;
+			}
+			validSections.push(s);
+		}
+	}
+
+	const externalIds = new Set(validSections.map(s => s.id));
 
 	// Upsert into mirror
 	for (const gl of result.gradeLevels) {
-		for (const s of gl.sections) {
+		const validGlSections = gl.sections.filter(s => externalIds.has(s.id));
+		for (const s of validGlSections) {
 			await prisma.sectionMirror.upsert({
 				where: {
 					schoolId_schoolYearId_externalId: {
@@ -268,8 +287,9 @@ export async function syncSectionsFromExternal(
 
 	return {
 		synced: true,
-		count: externalSections.length,
+		count: validSections.length,
 		removed: deletedCount,
+		skipped,
 		source: 'enrollpro',
 		fetchedAt: result.fetchedAt,
 	};

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as subjectService from '../services/subject.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
@@ -225,7 +226,7 @@ router.post('/sync-offerings', authenticate, requirePrivilegedRole, async (req: 
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const report = await subjectService.syncSubjectContractFromProgramOfferings(schoolId, schoolYearId, authToken);
 		publishNotificationEvent({
 			type: 'SUBJECT_OFFERINGS_SYNC_COMPLETED',

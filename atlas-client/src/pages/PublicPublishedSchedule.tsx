@@ -212,6 +212,16 @@ export default function PublicPublishedSchedule() {
 				return;
 			}
 
+			if (responseData?.code === 'TERM_FILTER_NOT_READY') {
+				setPayload(null);
+				setSourceMode('none');
+				setSavedAt(null);
+				setSavedIsStale(false);
+				setError('Term data is not ready yet. The published schedule will be available once the active term is confirmed by the enrollment system.');
+				setLoading(false);
+				return;
+			}
+
 			setPayload(null);
 			setSourceMode('none');
 			setSavedAt(null);
@@ -426,12 +436,23 @@ export default function PublicPublishedSchedule() {
 			<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
 				<div className="flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6">
 					<div className="mx-auto w-full max-w-4xl">
-						<Card className="rounded-2xl border-border/70">
-							<CardContent className="py-10">
-								<p className="text-lg font-semibold">No official schedule has been published yet</p>
-								<p className="mt-2 text-sm text-muted-foreground">Once the school publishes the term schedule, you will see your class timetable here.</p>
-							</CardContent>
-						</Card>
+						<div className="rounded-2xl border border-border/70 bg-card px-6 py-10 text-center shadow-sm">
+							<div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+								<Search className="size-7" />
+							</div>
+							<p className="text-lg font-bold text-foreground">No official schedule published yet</p>
+							<p className="mt-2 text-sm leading-relaxed text-muted-foreground max-w-md mx-auto">
+								The school has not published a schedule for this term yet. Once published, you can find your class timetable here.
+							</p>
+							<div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+								<Button variant="default" size="sm" className="h-9 rounded-xl" onClick={() => void loadPublishedSchedule()}>
+									<RefreshCcw className="mr-2 size-4" /> Check for schedule
+								</Button>
+								<Button variant="outline" size="sm" className="h-9 rounded-xl" asChild>
+									<a href="/login">Staff sign in</a>
+								</Button>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>

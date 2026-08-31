@@ -205,7 +205,7 @@ export function SmartHelpTrigger({
 	return (
 		<Dialog>
 			<DialogTrigger asChild>
-				<Button type="button" variant="outline" size="sm" className={cn('h-9 rounded-xl px-3', className)} data-testid="smart-help-trigger">
+				<Button type="button" variant="outline" size="sm" className={cn('h-10 rounded-xl px-3', className)} data-testid="smart-help-trigger">
 					<HelpCircle className="mr-1.5 size-4" />
 					{triggerLabel}
 				</Button>
@@ -257,7 +257,7 @@ export function SmartMoreMenu({ groups }: { groups: SmartMoreGroup[] }) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button type="button" variant="outline" size="sm" className="h-9 rounded-xl px-3" data-testid="smart-more-menu-trigger">
+				<Button type="button" variant="outline" size="sm" className="h-10 rounded-xl px-3" data-testid="smart-more-menu-trigger">
 					<MoreHorizontal className="mr-1.5 size-4" />
 					More
 				</Button>

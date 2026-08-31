@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { syncFacultyFromExternal, type FacultySyncMode } from './faculty.service.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
 import { syncSectionsFromExternal } from './section.service.js';
-import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
+import { fetchEnrollProActiveSchoolYear, normalizeProgramMetadata } from './section-adapter.js';
 
 type DriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
 type RolloverAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR';
@@ -39,6 +39,17 @@ export type RolloverConflict = {
 	code: string;
 	message: string;
 	details?: Record<string, unknown>;
+};
+
+export type ReconfiguredSection = {
+	externalId: number;
+	sectionName: string;
+	previousName: string | null;
+	previousGradeLevelId: number | null;
+	previousProgramType: string | null;
+	newName: string;
+	newGradeLevelId: number;
+	newProgramType: string;
 };
 
 export type RolloverDummyYearRecordCounts = {
@@ -94,6 +105,7 @@ export type RolloverStatusResult = {
 	} | null;
 	counts?: RolloverFeedCounts;
 	conflicts: RolloverConflict[];
+	reconfiguredSections: ReconfiguredSection[];
 	canResetDummyYear: boolean;
 	resetTargetSchoolYearId: number | null;
 	conflictingRecordCounts: RolloverDummyYearRecordCounts | null;
@@ -129,6 +141,7 @@ const SCHOOL_YEAR_ENDPOINT = '/integration/v1/school-year';
 const SECTION_ENDPOINT = '/integration/v1/sections';
 const FACULTY_ENDPOINTS = ['/integration/v1/faculty', '/integration/v1/default/faculty'];
 const PUBLIC_SETTINGS_ENDPOINT = '/settings/public';
+const HEALTH_ENDPOINT = '/integration/v1/health';
 const DUMMY_YEAR_RESET_CONFIRMATION_TEXT = 'RESET_DUMMY_SCHOOL_YEAR_1';
 
 function serviceError(
@@ -148,6 +161,33 @@ function serviceError(
 function authHeaders(authToken?: string): Record<string, string> | undefined {
 	const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 	return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
+export type EnrollProHealthResult = {
+	reachable: boolean;
+	statusCode?: number;
+	message?: string;
+	durationMs: number;
+};
+
+export async function fetchEnrollProIntegrationHealth(authToken?: string): Promise<EnrollProHealthResult> {
+	const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
+	const start = Date.now();
+	try {
+		const res = await fetch(`${baseUrl}${HEALTH_ENDPOINT}`, {
+			headers: authHeaders(authToken),
+			signal: AbortSignal.timeout(5000),
+		});
+		const durationMs = Date.now() - start;
+		if (!res.ok) {
+			return { reachable: false, statusCode: res.status, message: `HTTP ${res.status}`, durationMs };
+		}
+		return { reachable: true, statusCode: res.status, durationMs };
+	} catch (error) {
+		const durationMs = Date.now() - start;
+		const message = error instanceof Error ? error.message : String(error);
+		return { reachable: false, message: message.slice(0, 200), durationMs };
+	}
 }
 
 async function fetchJson(path: string, authToken?: string): Promise<unknown> {
@@ -227,7 +267,7 @@ export async function fetchSectionExternalIds(authToken?: string): Promise<Set<n
 	return rowExternalIds(rows);
 }
 
-async function fetchRolloverCounts(authToken?: string): Promise<RolloverFeedCounts & { sectionExternalIds: Set<number>; sources: Record<string, string> }> {
+async function fetchRolloverCounts(authToken?: string): Promise<RolloverFeedCounts & { sectionExternalIds: Set<number>; sectionRows: unknown[]; sources: Record<string, string> }> {
 	const [sections, faculty, settings] = await Promise.allSettled([
 		fetchPaginatedRows([SECTION_ENDPOINT], authToken),
 		fetchPaginatedRows(FACULTY_ENDPOINTS, authToken),
@@ -242,6 +282,7 @@ async function fetchRolloverCounts(authToken?: string): Promise<RolloverFeedCoun
 		facultyCount: faculty.value.rows.length,
 		settingsReachable: settings.status === 'fulfilled',
 		sectionExternalIds: rowExternalIds(sections.value.rows),
+		sectionRows: sections.value.rows,
 		sources: {
 			sections: sections.value.sourcePath,
 			faculty: faculty.value.sourcePath,
@@ -359,6 +400,46 @@ export async function findMappingConflicts(
 	}
 
 	return conflicts;
+}
+
+export async function detectReconfiguredSections(
+	schoolId: number,
+	schoolYearId: number,
+	upstreamSections: Array<{ id: number; name: string; gradeLevelId: number; programType: string }>,
+): Promise<ReconfiguredSection[]> {
+	const existingSections = await prisma.sectionMirror.findMany({
+		where: { schoolId, schoolYearId },
+		select: { externalId: true, name: true, gradeLevelId: true, programType: true },
+		take: 500,
+	});
+	const existingByExternalId = new Map(
+		existingSections.map((s) => [s.externalId, s]),
+	);
+
+	const reconfigured: ReconfiguredSection[] = [];
+	for (const upstream of upstreamSections) {
+		const existing = existingByExternalId.get(upstream.id);
+		if (!existing) continue;
+
+		const nameChanged = existing.name !== upstream.name;
+		const gradeChanged = existing.gradeLevelId !== upstream.gradeLevelId;
+		const programChanged = existing.programType !== upstream.programType;
+
+		if (nameChanged || gradeChanged || programChanged) {
+			reconfigured.push({
+				externalId: upstream.id,
+				sectionName: upstream.name,
+				previousName: existing.name,
+				previousGradeLevelId: existing.gradeLevelId,
+				previousProgramType: existing.programType,
+				newName: upstream.name,
+				newGradeLevelId: upstream.gradeLevelId,
+				newProgramType: upstream.programType,
+			});
+		}
+	}
+
+	return reconfigured;
 }
 
 async function getLatestAtlasSchoolYearId(schoolId: number): Promise<number | null> {
@@ -572,6 +653,48 @@ export async function getRolloverStatus(
 	options?: { includeCounts?: boolean; atlasSchoolYearId?: number | null },
 ): Promise<RolloverStatusResult> {
 	const atlasSchoolYearId = options?.atlasSchoolYearId ?? await getLatestAtlasSchoolYearId(schoolId);
+
+	const health = await fetchEnrollProIntegrationHealth(authToken);
+	if (!health.reachable) {
+		const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId, isActive: true },
+			orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+		});
+		const drift: ActiveYearDriftState = {
+			status: 'enrollpro-unreachable',
+			message: `EnrollPro integration health check failed (${health.message ?? `HTTP ${health.statusCode}`}). ATLAS will keep using saved setup data.`,
+			recommendedAction: 'RETRY_ENROLLPRO',
+			atlasSchoolYearId,
+			enrollProSchoolYearId: null,
+			enrollProSchoolYearLabel: null,
+			mirrorSyncedAt: mirror?.lastSyncedAt?.toISOString() ?? null,
+		};
+		return {
+			schoolId,
+			atlasSchoolYearId,
+			enrollProActiveYear: null,
+			drift,
+			mirror: mirror ? {
+				enrollProSchoolYearId: mirror.enrollProSchoolYearId,
+				yearLabel: mirror.yearLabel,
+				isActive: mirror.isActive,
+				lastVerifiedAt: mirror.lastVerifiedAt?.toISOString() ?? null,
+				lastSyncedAt: mirror.lastSyncedAt?.toISOString() ?? null,
+				facultyCount: mirror.facultyCount,
+				sectionCount: mirror.sectionCount,
+				syncStatus: mirror.syncStatus,
+				lastFailureSummary: mirror.lastFailureSummary,
+			} : null,
+			conflicts: [],
+			reconfiguredSections: [],
+			canResetDummyYear: false,
+			resetTargetSchoolYearId: null,
+			conflictingRecordCounts: null,
+			teachingLoadResetRequired: false,
+			publishedResetBlocked: false,
+		};
+	}
+
 	const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
 	const mirror = upstreamYear
 		? await prisma.enrollProSchoolYearMirror.findUnique({
@@ -581,6 +704,7 @@ export async function getRolloverStatus(
 
 	let counts: RolloverFeedCounts | undefined;
 	let conflicts: RolloverConflict[] = [];
+	let reconfiguredSections: ReconfiguredSection[] = [];
 	let publishedResetBlocked = false;
 	if (upstreamYear && options?.includeCounts) {
 		const feedCounts = await fetchRolloverCounts(authToken);
@@ -590,6 +714,23 @@ export async function getRolloverStatus(
 			settingsReachable: feedCounts.settingsReachable,
 		};
 		conflicts = await findMappingConflicts(schoolId, upstreamYear, feedCounts.sectionExternalIds);
+
+		if (conflicts.length === 0 && feedCounts.sectionRows.length > 0) {
+			const upstreamSections = feedCounts.sectionRows
+				.map((row) => {
+					const r = row as Record<string, unknown>;
+					const grade = r.gradeLevel as Record<string, unknown> | undefined;
+					const id = Number(r.id);
+					const name = String(r.name ?? '');
+					const gradeLevelId = Number(grade?.id ?? grade?.displayOrder ?? 0);
+					const rawProgramType = String(r.programType ?? '');
+					if (!id || !name || !gradeLevelId || !rawProgramType) return null;
+					const normalized = normalizeProgramMetadata(rawProgramType);
+					return { id, name, gradeLevelId, programType: normalized.programType as string };
+				})
+				.filter((s): s is { id: number; name: string; gradeLevelId: number; programType: string } => s !== null);
+			reconfiguredSections = await detectReconfiguredSections(schoolId, upstreamYear.id, upstreamSections);
+		}
 	} else if (upstreamYear) {
 		conflicts = await findMappingConflicts(schoolId, upstreamYear);
 	}
@@ -627,6 +768,7 @@ export async function getRolloverStatus(
 		} : null,
 		...(counts ? { counts } : {}),
 		conflicts,
+		reconfiguredSections,
 		canResetDummyYear: resetPreview.canResetDummyYear,
 		resetTargetSchoolYearId: resetPreview.targetSchoolYearId,
 		conflictingRecordCounts: resetPreview.counts,
@@ -642,8 +784,9 @@ export async function previewRolloverSync(schoolId: number, authToken?: string):
 export async function applyRolloverSync(
 	schoolId: number,
 	authToken?: string,
-	options?: { facultyMode?: FacultySyncMode },
+	options?: { facultyMode?: FacultySyncMode; actorId?: number; acknowledgeReconfiguredSectionIds?: number[]; initiatedBy?: 'user' | 'system' },
 ): Promise<RolloverApplyResult> {
+	const startedAt = Date.now();
 	const preview = await previewRolloverSync(schoolId, authToken);
 	if (!preview.enrollProActiveYear) {
 		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro active school year could not be verified. Try again when EnrollPro is reachable.', {
@@ -657,9 +800,30 @@ export async function applyRolloverSync(
 		});
 	}
 
+	const acknowledgedIds = new Set(options?.acknowledgeReconfiguredSectionIds ?? []);
+	const unacknowledged = preview.reconfiguredSections.filter((s) => !acknowledgedIds.has(s.externalId));
+	if (unacknowledged.length > 0) {
+		throw serviceError(409, 'SECTION_RECONFIGURATION_REVIEW_REQUIRED', `${unacknowledged.length} section(s) were renamed, re-graded, or re-programmed since the last sync. Review and acknowledge the changes before syncing.`, {
+			actionHint: 'Preview the rollover, review the reconfigured sections, then apply with the acknowledged section IDs.',
+			details: {
+				unacknowledgedSections: unacknowledged.map((s) => ({
+					externalId: s.externalId,
+					sectionName: s.sectionName,
+					previousName: s.previousName,
+					previousGradeLevelId: s.previousGradeLevelId,
+					previousProgramType: s.previousProgramType,
+					newName: s.newName,
+					newGradeLevelId: s.newGradeLevelId,
+					newProgramType: s.newProgramType,
+				})),
+			},
+		});
+	}
+
 	const activeYear = preview.enrollProActiveYear;
 	let facultySync: Awaited<ReturnType<typeof syncFacultyFromExternal>> | null = null;
 	let sectionSync: Awaited<ReturnType<typeof syncSectionsFromExternal>> | null = null;
+	let failedPhase: string | null = null;
 	try {
 		facultySync = await syncFacultyFromExternal(schoolId, activeYear.id, authToken, {
 			mode: options?.facultyMode ?? 'reconcile',
@@ -671,9 +835,12 @@ export async function applyRolloverSync(
 		sectionSync = await syncSectionsFromExternal(schoolId, activeYear.id, authToken);
 		const completedFacultySync = facultySync;
 		const completedSectionSync = sectionSync;
+		failedPhase = 'policy';
 		await getOrCreatePolicy(schoolId, activeYear.id);
 
+		failedPhase = 'mirror-commit';
 		const syncedAt = new Date();
+		const completedAt = Date.now();
 		await prisma.$transaction(async (tx) => {
 			await tx.enrollProSchoolYearMirror.updateMany({
 				where: { schoolId, isActive: true, enrollProSchoolYearId: { not: activeYear.id } },
@@ -693,10 +860,16 @@ export async function applyRolloverSync(
 					lastFailureSummary: null,
 					lastSyncMetadata: {
 						sectionsRemovedForSameYear: completedSectionSync.removed,
+						sectionSkippedCount: completedSectionSync.skipped,
 						facultyStaleCount: completedFacultySync.staleCount,
 						facultyDeactivatedCount: completedFacultySync.deactivatedCount,
+						facultySkippedCount: completedFacultySync.reconciliation.skipped,
 						settingsReachable: preview.counts?.settingsReachable ?? null,
 						teachingLoadAutoCopied: false,
+						sourceGeneratedAt: completedSectionSync.fetchedAt.toISOString(),
+						completedAt: new Date(completedAt).toISOString(),
+						durationMs: completedAt - startedAt,
+						initiatedBy: options?.initiatedBy ?? 'user',
 					},
 				},
 				create: {
@@ -712,25 +885,70 @@ export async function applyRolloverSync(
 					syncStatus: 'setup-review-required',
 					lastSyncMetadata: {
 						sectionsRemovedForSameYear: completedSectionSync.removed,
+						sectionSkippedCount: completedSectionSync.skipped,
 						facultyStaleCount: completedFacultySync.staleCount,
 						facultyDeactivatedCount: completedFacultySync.deactivatedCount,
+						facultySkippedCount: completedFacultySync.reconciliation.skipped,
 						settingsReachable: preview.counts?.settingsReachable ?? null,
 						teachingLoadAutoCopied: false,
+						sourceGeneratedAt: completedSectionSync.fetchedAt.toISOString(),
+						completedAt: new Date(completedAt).toISOString(),
+						durationMs: completedAt - startedAt,
+						initiatedBy: options?.initiatedBy ?? 'user',
 					},
 				},
 			});
 		});
+
+		await prisma.auditLog.create({
+			data: {
+				schoolId,
+				schoolYearId: activeYear.id,
+				action: 'ROLLOVER_SYNC_APPLIED',
+				actorId: options?.actorId ?? 0,
+				targetIds: [activeYear.id],
+				metadata: {
+					sectionCount: completedSectionSync.count,
+					sectionSkippedCount: completedSectionSync.skipped,
+					sectionRemovedCount: completedSectionSync.removed,
+					facultyActiveCount: completedFacultySync.activeCount,
+					facultySkippedCount: completedFacultySync.reconciliation.skipped,
+					facultyStaleCount: completedFacultySync.staleCount,
+					facultyDeactivatedCount: completedFacultySync.deactivatedCount,
+					acknowledgedReconfiguredSectionIds: Array.from(acknowledgedIds),
+					reconfiguredSectionCount: preview.reconfiguredSections.length,
+					sourceGeneratedAt: completedSectionSync.fetchedAt.toISOString(),
+					completedAt: new Date(completedAt).toISOString(),
+					durationMs: completedAt - startedAt,
+					initiatedBy: options?.initiatedBy ?? 'user',
+				},
+			},
+		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
+		const failedAt = Date.now();
+
+		const existingMirror = await prisma.enrollProSchoolYearMirror.findUnique({
+			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: activeYear.id } },
+			select: { isActive: true },
+		});
+		const preserveActive = existingMirror?.isActive ?? false;
+
 		await prisma.enrollProSchoolYearMirror.upsert({
 			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: activeYear.id } },
 			update: {
 				yearLabel: activeYear.yearLabel,
-				isActive: false,
+				isActive: preserveActive,
 				lastVerifiedAt: new Date(),
 				sourceEndpoint: SCHOOL_YEAR_ENDPOINT,
 				syncStatus: 'failed',
 				lastFailureSummary: message.slice(0, 500),
+				lastSyncMetadata: {
+					failedPhase,
+					failedAt: new Date(failedAt).toISOString(),
+					durationMs: failedAt - startedAt,
+					initiatedBy: options?.initiatedBy ?? 'user',
+				},
 			},
 			create: {
 				schoolId,
@@ -741,8 +959,33 @@ export async function applyRolloverSync(
 				sourceEndpoint: SCHOOL_YEAR_ENDPOINT,
 				syncStatus: 'failed',
 				lastFailureSummary: message.slice(0, 500),
+				lastSyncMetadata: {
+					failedPhase,
+					failedAt: new Date(failedAt).toISOString(),
+					durationMs: failedAt - startedAt,
+					initiatedBy: options?.initiatedBy ?? 'user',
+				},
 			},
 		});
+
+		await prisma.auditLog.create({
+			data: {
+				schoolId,
+				schoolYearId: activeYear.id,
+				action: 'ROLLOVER_SYNC_FAILED',
+				actorId: options?.actorId ?? 0,
+				targetIds: [activeYear.id],
+				metadata: {
+					failedPhase,
+					errorMessage: message.slice(0, 500),
+					sourceGeneratedAt: sectionSync?.fetchedAt?.toISOString() ?? null,
+					failedAt: new Date(failedAt).toISOString(),
+					durationMs: failedAt - startedAt,
+					initiatedBy: options?.initiatedBy ?? 'user',
+				},
+			},
+		});
+
 		throw error;
 	}
 

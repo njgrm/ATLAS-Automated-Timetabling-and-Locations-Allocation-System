@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { getFacultyPortalDashboard } from '../services/faculty-portal.service.js';
 
@@ -32,7 +33,7 @@ router.get('/:schoolId/:schoolYearId/dashboard', authenticate, async (req: Reque
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const dashboard = await getFacultyPortalDashboard({ schoolId, schoolYearId, facultyId: identity.faculty.id, authToken });
 		res.json({
 			faculty: {

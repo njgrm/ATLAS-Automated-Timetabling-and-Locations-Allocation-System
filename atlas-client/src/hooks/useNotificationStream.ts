@@ -82,12 +82,14 @@ export function useNotificationStream(params: {
 		if (!token) return;
 
 		const apiBase = import.meta.env.VITE_ATLAS_API ?? '/api/v1';
-		const search = new URLSearchParams({ accessToken: token });
+		const search = new URLSearchParams();
 		if (lastEventIdRef.current) {
 			search.set('lastEventId', String(lastEventIdRef.current));
 		}
+		const query = search.toString();
 		const source = new EventSource(
-			`${apiBase}/notifications/${params.schoolId}/${params.schoolYearId}/events?${search.toString()}`,
+			`${apiBase}/notifications/${params.schoolId}/${params.schoolYearId}/events${query ? `?${query}` : ''}`,
+			{ withCredentials: true },
 		);
 
 		const handleNotification = (raw: MessageEvent<string>) => {

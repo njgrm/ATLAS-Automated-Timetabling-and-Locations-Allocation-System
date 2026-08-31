@@ -45,6 +45,7 @@ export type ActiveSchoolYearContext = {
 type PromotionOptions = {
 	allowStaleOnError?: boolean;
 	allowEnrollProFallback?: boolean;
+	verifyUpstream?: boolean;
 };
 
 export function isUpstreamBackedSchoolYearSource(source: ActiveSchoolYearContextSource): boolean {
@@ -136,6 +137,8 @@ export async function resolveActiveSchoolYearContext(options?: {
 	preferCache?: boolean;
 	/** Fire background re-verification and update the cache without blocking the caller. */
 	backgroundRefresh?: boolean;
+	/** Force ATLAS runtime context to verify live EnrollPro upstream before resolving. */
+	verifyUpstream?: boolean;
 	allowStaleOnError?: boolean;
 	maxAgeMs?: number;
 	allowEnrollProFallback?: boolean;
@@ -143,6 +146,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 	const forceRefresh = options?.forceRefresh === true;
 	const preferCache = options?.preferCache === true;
 	const backgroundRefresh = options?.backgroundRefresh === true;
+	const verifyUpstream = options?.verifyUpstream === true;
 	const allowStaleOnError = options?.allowStaleOnError !== false;
 	const maxAgeMs = options?.maxAgeMs ?? ACTIVE_SCHOOL_YEAR_MAX_AGE_MS;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
@@ -156,7 +160,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 		if (backgroundRefresh) {
 			// Fire-and-forget — deduplicate so rapid mounts don't stack requests.
 			if (!_inflight) {
-				_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached)
+				_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
 					.finally(() => { _inflight = null; });
 				void _inflight;
 			}
@@ -189,7 +193,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 	if (_inflight && !forceRefresh) {
 		return _inflight;
 	}
-	const promise = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached);
+	const promise = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream);
 	if (!forceRefresh) {
 		_inflight = promise.finally(() => { _inflight = null; });
 		return _inflight;
@@ -201,12 +205,13 @@ async function _fetchRuntimeContext(
 	allowEnrollProFallback: boolean,
 	allowStaleOnError: boolean,
 	cachedFallback: ActiveSchoolYearCacheRecord | null,
+	verifyUpstream: boolean,
 ): Promise<ActiveSchoolYearContext> {
 
 	let runtimeContextError: unknown = null;
 
 	try {
-		const runtimeContext = await fetchAtlasRuntimeContext();
+		const runtimeContext = await fetchAtlasRuntimeContext(1, verifyUpstream);
 		if (runtimeContext?.activeSchoolYearId) {
 			cacheActiveSchoolYearContext(
 				runtimeContext.activeSchoolYearId,
@@ -284,13 +289,14 @@ async function _fetchRuntimeContext(
 export function promoteActiveSchoolYearContext(options?: PromotionOptions): Promise<ActiveSchoolYearContext> {
 	const allowStaleOnError = options?.allowStaleOnError !== false;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
+	const verifyUpstream = options?.verifyUpstream === true;
 	const cached = readCachedActiveSchoolYear();
 
 	if (_inflight) {
 		return _inflight;
 	}
 
-	_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached)
+	_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
 		.finally(() => { _inflight = null; });
 
 	return _inflight;

@@ -86,7 +86,7 @@ export function OccupancyTemplatePreview({
 				<span className="text-border">•</span>
 				<span>{view.summary.entryCount} occupied sessions</span>
 				{header}
-				<Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={onPrint}>
+				<Button variant="outline" size="sm" className="ml-auto h-10 text-xs" onClick={onPrint}>
 					Print / Save PDF
 				</Button>
 			</div>

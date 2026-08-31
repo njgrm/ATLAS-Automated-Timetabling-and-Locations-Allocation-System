@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticateWithSystemToken } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { resolveRuntimeContext } from '../services/runtime-context.service.js';
 import {
 	applyRolloverSync,
@@ -9,6 +10,7 @@ import {
 	resetDummyYearAndApplyRollover,
 } from '../services/enrollpro-rollover.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
+import { getAutomationStatus, withSchoolLock } from '../services/rollover-automation.service.js';
 
 const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
@@ -19,14 +21,6 @@ function parseSchoolId(raw: unknown): number | string {
 		return 'schoolId must be a positive integer.';
 	}
 	return schoolId;
-}
-
-function getUpstreamAuthToken(req: Request, enabled = true): string | undefined {
-	if (!enabled) return undefined;
-	const authToken = req.headers.authorization?.startsWith('Bearer ')
-		? req.headers.authorization.slice(7)
-		: undefined;
-	return req.user?.authSource === 'bridge' ? authToken : undefined;
 }
 
 function isPrivilegedRole(role: unknown): boolean {
@@ -69,7 +63,15 @@ router.get('/rollover-status', authenticateWithSystemToken, async (req: Request,
 		}
 		const includeCounts = req.query.includeCounts === 'true' || req.query.includeCounts === '1';
 		const status = await getRolloverStatus(schoolId, getUpstreamAuthToken(req), { includeCounts });
-		res.json(status);
+		const automation = getAutomationStatus();
+		const schoolAutomation = automation.schools.find((s) => s.schoolId === schoolId) ?? null;
+		res.json({
+			...status,
+			automation: {
+				enabled: automation.enabled,
+				...schoolAutomation,
+			},
+		});
 	} catch (err) {
 		next(err);
 	}
@@ -100,7 +102,12 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Req
 			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
 			return;
 		}
-		const result = await applyRolloverSync(schoolId, getUpstreamAuthToken(req));
+		const result = await withSchoolLock(schoolId, () => applyRolloverSync(schoolId, getUpstreamAuthToken(req), {
+			actorId: req.user?.userId ?? 0,
+			acknowledgeReconfiguredSectionIds: Array.isArray(req.body?.acknowledgeReconfiguredSectionIds)
+				? req.body.acknowledgeReconfiguredSectionIds
+				: undefined,
+		}));
 		const schoolYearId = Number(result.enrollProActiveYear?.id ?? 1);
 		publishNotificationEvent({
 			type: 'ROLLOVER_SYNC_COMPLETED',
@@ -135,13 +142,13 @@ router.post('/rollover-sync/reset-dummy-year', authenticateWithSystemToken, asyn
 			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
 			return;
 		}
-		const result = await resetDummyYearAndApplyRollover({
+		const result = await withSchoolLock(schoolId, () => resetDummyYearAndApplyRollover({
 			schoolId,
 			actorId: req.user?.userId ?? 0,
 			authToken: getUpstreamAuthToken(req),
 			confirmReset: req.body?.confirmReset === true,
 			confirmationText: typeof req.body?.confirmationText === 'string' ? req.body.confirmationText : undefined,
-		});
+		}));
 		const schoolYearId = Number(result.enrollProActiveYear?.id ?? result.rolloverApply?.enrollProActiveYear?.id ?? result.resetTargetSchoolYearId ?? 1);
 		publishNotificationEvent({
 			type: result.resetApplied ? 'DUMMY_YEAR_RESET_COMPLETED' : 'DUMMY_YEAR_RESET_PREVIEWED',

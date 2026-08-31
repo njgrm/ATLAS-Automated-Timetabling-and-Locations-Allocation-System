@@ -522,8 +522,8 @@ export default function FacultyRoomPreferences() {
 		const token = getPreferredAccessToken();
 		if (!token) return;
 
-		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events?accessToken=${encodeURIComponent(token)}`;
-		const source = new EventSource(streamUrl);
+		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const source = new EventSource(streamUrl, { withCredentials: true });
 
 		source.onmessage = () => {
 			// No default events are emitted; typed events are used below.

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
+import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
@@ -31,7 +32,7 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required and must be a positive integer.' });
 			return;
 		}
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const summary = await sectionService.getSectionSummary(schoolYearId, schoolId, authToken);
 		res.json({ ...summary, sourceMode: sectionSourceMode });
 	} catch (err: any) {
@@ -66,8 +67,7 @@ router.get('/assigned-classes', authenticateWithSystemToken, requirePrivilegedRo
 		}
 
 		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 		const payload = await assignmentService.getSectionAssignedClassesIndex(schoolId, schoolYearId, upstreamAuthToken, {
 			includeDiagnostics,
 		});
@@ -93,8 +93,7 @@ router.get('/:sectionId/assigned-classes', authenticateWithSystemToken, requireP
 		}
 
 		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 		const payload = await assignmentService.getSectionAssignedClasses(sectionId, schoolYearId, upstreamAuthToken, {
 			includeDiagnostics,
 		});
@@ -122,8 +121,7 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
-		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
 		let schoolYearId: number;
@@ -288,7 +286,7 @@ router.post('/special-program-placement/overlay', authenticate, requirePrivilege
 				return;
 			}
 		} else {
-			const authToken = req.headers.authorization?.slice(7);
+			const authToken = getUpstreamAuthToken(req);
 			const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
 			schoolYearId = activeYear?.id ?? 1;
 		}
