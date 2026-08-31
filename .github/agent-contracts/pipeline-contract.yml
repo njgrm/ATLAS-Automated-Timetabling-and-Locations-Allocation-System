@@ -1,0 +1,86 @@
+version: 1
+control_plane:
+  source_of_truth: github
+  task_flow:
+    - issue
+    - builder_pr
+    - reviewer_gate
+    - ui_polish
+    - human_review
+
+roles:
+  builder:
+    actor_labels:
+      - agent:builder
+    actor_assignees:
+      - copilot
+      - copilot-swe-agent[bot]
+    responsibilities:
+      - implement_issue_scope_only
+      - open_or_update_draft_pr
+    forbidden_paths:
+      - .github/workflows/**
+  reviewer:
+    actor_labels:
+      - agent:review
+    actor_assignees:
+      - codex
+      - codex-review[bot]
+    responsibilities:
+      - review_pr_diff
+      - enforce_contract_rules
+      - publish_structured_findings
+    approval_requires:
+      - no_blocker_findings
+  polisher:
+    actor_labels:
+      - agent:ui-polish
+    actor_assignees:
+      - gemini
+      - gemini-ui-polish[bot]
+    responsibilities:
+      - polish_ui_only
+    allowed_paths:
+      - atlas-client/src/**
+      - atlas-client/public/**
+
+handoff:
+  review_comment_schema:
+    fields:
+      - finding_id
+      - severity
+      - rule
+      - file
+      - line
+      - summary
+      - required_fix
+    severities:
+      - blocker
+      - warning
+      - info
+  approval_criteria:
+    - codex_review_gate_success
+    - gemini_ui_polish_success_when_frontend_changed
+    - at_least_one_human_approval
+  commit_message_conventions:
+    builder: "feat|fix|refactor|chore(scope): summary"
+    reviewer: "review: codex automated findings"
+    polisher: "style: ui polish pass"
+
+safety:
+  idempotency:
+    ignore_actors:
+      - github-actions[bot]
+      - codex-review[bot]
+      - gemini-ui-polish[bot]
+    avoid_retrigger_labels:
+      - agent:reviewed
+      - agent:ui-polished
+  concurrency:
+    scope: pull_request
+    cancel_in_progress: true
+  secrets_policy:
+    source: github_actions_secrets_only
+    required:
+      - OPENAI_API_KEY
+      - GEMINI_API_KEY
