@@ -12,6 +12,7 @@ import {
 	previewArchiveAndSync,
 	previewRolloverSync,
 	previewTestYearRecovery,
+	scaffoldTestYearRecoveryMirror,
 	resetDummyYearAndApplyRollover,
 } from '../services/enrollpro-rollover.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
@@ -116,8 +117,40 @@ router.post('/rollover-recovery/mark-test-data', authenticateWithSystemToken, as
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
 			return;
 		}
-		await markSchoolYearAsTestData(schoolId, schoolYearId, req.user?.userId ?? 0);
-		res.json({ marked: true, schoolId, schoolYearId });
+		const markResult = await markSchoolYearAsTestData(schoolId, schoolYearId, req.user?.userId ?? 0);
+		res.json({ marked: true, schoolId, schoolYearId, alreadyMarked: markResult.alreadyMarked });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// ─── RR-15C: privileged recovery-scaffold for legacy fixtures without a mirror ───
+
+router.post('/rollover-recovery/scaffold', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		if (!isPrivilegedRole(req.user?.role)) {
+			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can scaffold recovery state for a school year.' });
+			return;
+		}
+		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
+		if (typeof schoolId === 'string') {
+			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+			return;
+		}
+		const rawYear = req.body?.schoolYearId;
+		const schoolYearId = rawYear === undefined || rawYear === null ? undefined : Number(rawYear);
+		if (schoolYearId !== undefined && (!Number.isInteger(schoolYearId) || schoolYearId <= 0)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer when provided.' });
+			return;
+		}
+		const result = await withSchoolLock(schoolId, () => scaffoldTestYearRecoveryMirror({
+			schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken: getUpstreamAuthToken(req),
+			acknowledgePublished: req.body?.acknowledgePublished === true,
+		}));
+		res.json(result);
 	} catch (err) {
 		next(err);
 	}
@@ -156,36 +189,10 @@ router.post('/rollover-recovery/apply', authenticateWithSystemToken, async (req:
 			confirmationText: typeof req.body?.confirmationText === 'string' ? req.body.confirmationText : undefined,
 			acknowledgePublished: req.body?.acknowledgePublished === true,
 		}));
-		const schoolYearId = Number(result.preview.enrollProActiveYear?.id ?? result.sync?.enrollProActiveYear?.id ?? 0);
-		publishNotificationEvent({
-			type: result.cleared ? 'TEST_YEAR_RECOVERY_COMPLETED' : 'TEST_YEAR_RECOVERY_PREVIEWED',
-			domain: 'integration',
-			severity: result.cleared ? 'warning' : 'info',
-			audience: 'PRIVILEGED',
-			schoolId,
-			schoolYearId,
-			facultyId: null,
-			message: result.cleared
-				? `Test-year data cleared for school year #${schoolYearId} and EnrollPro sync applied.`
-				: 'Test-year recovery preview is ready.',
-			metadata: {
-				classification: result.preview.classification,
-				cleared: result.cleared,
-				artifactCounts: result.preview.artifactCounts,
-			},
-		});
-		const teachingLoadCycle = await getOrCreateTeachingLoadCycleSource(schoolId, schoolYearId);
-		publishNotificationEvent({
-			type: 'TEACHING_LOAD_CHANGED',
-			domain: 'integration',
-			severity: 'info',
-			audience: 'PRIVILEGED',
-			schoolId,
-			schoolYearId,
-			facultyId: null,
-			message: 'Teaching Load annual cycle is ready after rollover.',
-			metadata: { state: teachingLoadCycle.state, version: teachingLoadCycle.version, updatedAt: teachingLoadCycle.updatedAt },
-		});
+		// RR-15: the recovery service is lifecycle-complete — it publishes the
+		// lifecycle notifications itself (cleanup, sync, archive, Teaching Load
+		// cycle) so this route stays transport-only and direct service callers
+		// (including rollover automation) get identical behavior.
 		res.json(result);
 	} catch (err) {
 		next(err);

@@ -18,11 +18,15 @@ import {
 	archiveAndSyncActiveYear,
 	archiveSchoolYear,
 	classifyRecoveryState,
+	serviceError,
 	fetchEnrollProIntegrationHealth,
+	findPendingArchiveRecoveryMarker,
+	getTestDataRecoveryConfirmation,
 	isArchiveResolvableConflict,
 	previewRolloverSync,
 	previewTestYearRecovery,
 	type RolloverStatusResult,
+	type TestYearRecoveryResult,
 } from './enrollpro-rollover.service.js';
 import { publishNotificationEvent } from './notification-events.service.js';
 
@@ -51,7 +55,7 @@ type RolloverAutomationDependencies = {
 export type SchoolAutomationState = {
 	schoolId: number;
 	lastAttemptAt: Date | null;
-	lastResult: 'success' | 'failure' | 'skipped' | 'unreachable' | 'conflict' | 'reconfigure-pending' | null;
+	lastResult: 'success' | 'failure' | 'skipped' | 'unreachable' | 'conflict' | 'reconfigure-pending' | 'partial-success' | null;
 	nextAttemptAt: Date;
 	consecutiveFailures: number;
 	currentlyApplying: boolean;
@@ -135,7 +139,7 @@ export async function tickRolloverAutomation(
 	schoolId: number,
 	dependencies: RolloverAutomationDependencies = {},
 ): Promise<{
-	action: 'applied' | 'skipped' | 'unreachable' | 'conflict' | 'reconfigure-pending' | 'error';
+	action: 'applied' | 'skipped' | 'unreachable' | 'conflict' | 'reconfigure-pending' | 'archive-pending' | 'error';
 	detail?: string;
 	state: SchoolAutomationState;
 }> {
@@ -172,6 +176,74 @@ export async function tickRolloverAutomation(
 
 		const preview = await previewRollover(schoolId);
 
+		// RR-15A: pending archive completion. A recovery whose synchronization
+		// already committed (marker cleared=true, syncApplied=true) but whose
+		// superseded-year archival is still pending (archivesApplied=false)
+		// must be completed even though the drift is now ALIGNED. This branch
+		// runs before the aligned-skip check and before any new destructive
+		// test-mode recovery. The retry executes archival ONLY — never
+		// destructive cleanup and never rollover synchronization. Markers for
+		// any other school or year, and markers whose sync never committed,
+		// never qualify (findPendingArchiveRecoveryMarker enforces this).
+		const pendingArchive = preview.enrollProActiveYear?.id != null
+			? await findPendingArchiveRecoveryMarker(schoolId, preview.enrollProActiveYear.id)
+			: null;
+		if (pendingArchive) {
+			try {
+				const recoveryResult = await applyTestRecovery({
+					schoolId,
+					actorId: 0,
+					confirmClear: true,
+					confirmationText: getTestDataRecoveryConfirmation(pendingArchive.schoolYearId),
+					acknowledgePublished: false,
+				});
+				const partialSuccess = (recoveryResult as Partial<TestYearRecoveryResult> | undefined)?.partialSuccess === true;
+				if (partialSuccess) {
+					state.lastResult = 'partial-success';
+					state.consecutiveFailures += 1;
+					state.nextAttemptAt = new Date(Date.now() + computeNextBackoff(state.consecutiveFailures));
+					// The recovery service already emitted the partial-success
+					// notification; do not claim completion and keep the
+					// marker retryable.
+					return { action: 'archive-pending', detail: 'Archival still pending after automated retry', state };
+				}
+				state.lastResult = 'success';
+				state.consecutiveFailures = 0;
+				state.nextAttemptAt = new Date(Date.now() + TICK_INTERVAL_MS);
+				state.lastNotifiedState = null;
+				const resumedResult = recoveryResult as Partial<TestYearRecoveryResult> | undefined;
+				const archivedYears = (resumedResult?.archivedYears ?? []).map((year) => ({
+					schoolYearId: year.schoolYearId,
+					yearLabel: year.yearLabel,
+				}));
+				publishNotification({
+					type: 'ROLLOVER_AUTO_SYNC_COMPLETED',
+					domain: 'integration',
+					severity: 'success',
+					audience: 'PRIVILEGED',
+					schoolId,
+					schoolYearId: preview.enrollProActiveYear?.id ?? 0,
+					facultyId: null,
+					message: `Automated retry completed pending archival for ${preview.enrollProActiveYear?.yearLabel ?? 'active year'}.`,
+					metadata: {
+						schoolYearId: preview.enrollProActiveYear?.id,
+						yearLabel: preview.enrollProActiveYear?.yearLabel,
+						archivedYears,
+						initiatedBy: 'system',
+						archiveRetry: true,
+					},
+				});
+				return { action: 'applied', detail: 'Completed pending archival', state };
+			} catch (error) {
+				const msg = error instanceof Error ? error.message : String(error);
+				state.consecutiveFailures += 1;
+				state.lastResult = 'failure';
+				state.nextAttemptAt = new Date(Date.now() + computeNextBackoff(state.consecutiveFailures));
+				notifyOnce(schoolId, state, 'ROLLOVER_ATTENTION_REQUIRED', `Automated archival retry failed (marker remains pending): ${msg.slice(0, 200)}`, 'error');
+				return { action: 'error', detail: msg.slice(0, 200), state };
+			}
+		}
+
 		// A section ID collision always produces mapping-conflict, so this must
 		// happen before the clean atlas-stale-only rollover path below.
 		if (canAutoRecoverMarkedTestCollision(preview, testModeEnabled)) {
@@ -181,14 +253,33 @@ export async function tickRolloverAutomation(
 				state.consecutiveFailures = 0;
 				state.nextAttemptAt = new Date(Date.now() + TICK_INTERVAL_MS);
 				try {
-					await applyTestRecovery({
+					const recoveryResult = await applyTestRecovery({
 						schoolId,
 						actorId: 0,
 						confirmClear: true,
 						confirmationText: classification.confirmationText,
 						acknowledgePublished: false,
 					});
+					const partialSuccess = (recoveryResult as Partial<TestYearRecoveryResult> | undefined)?.partialSuccess === true;
+					if (partialSuccess) {
+						// RR-15A: synchronization committed but archival is
+						// pending. Do NOT record complete success and do NOT
+						// emit a completion notification — the recovery
+						// service emitted the partial-success notification and
+						// the durable marker stays retryable. Backoff governs
+						// when the pending-marker branch retries archival.
+						state.lastResult = 'partial-success';
+						state.consecutiveFailures += 1;
+						state.nextAttemptAt = new Date(Date.now() + computeNextBackoff(state.consecutiveFailures));
+						return {
+							action: 'archive-pending',
+							detail: 'Test-mode auto-cleared conflicting data; superseded-year archival pending',
+							state,
+						};
+					}
 					state.lastResult = 'success';
+					state.consecutiveFailures = 0;
+					state.nextAttemptAt = new Date(Date.now() + TICK_INTERVAL_MS);
 					state.lastNotifiedState = null;
 					publishNotification({
 						type: 'ROLLOVER_AUTO_SYNC_COMPLETED',
@@ -421,19 +512,42 @@ export function isTestModeEnabled(): boolean {
 	return TEST_MODE_ENABLED;
 }
 
+/**
+ * RR-15C: mark a school year as test data.
+ *
+ * Truthful marking: the exact (schoolId, enrollProSchoolYearId) mirror must
+ * exist. When it does not, a typed `404 SCHOOL_YEAR_MIRROR_NOT_FOUND` is
+ * returned and NO `TEST_DATA_MARKED` audit is written — the operation can no
+ * longer silently succeed. Legacy fixtures without a mirror must use the
+ * separate privileged recovery-scaffold operation first. Repeated marking of
+ * an already marked year is idempotent and never duplicates the audit row.
+ */
 export async function markSchoolYearAsTestData(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
-): Promise<void> {
-	await prisma.enrollProSchoolYearMirror.updateMany({
-		where: { schoolId, enrollProSchoolYearId: schoolYearId },
+): Promise<{ marked: boolean; alreadyMarked: boolean }> {
+	const mirror = await prisma.enrollProSchoolYearMirror.findUnique({
+		where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
+		select: { id: true, yearLabel: true, lastSyncMetadata: true },
+	});
+	if (!mirror) {
+		throw serviceError(404, 'SCHOOL_YEAR_MIRROR_NOT_FOUND', `No ATLAS mirror exists for school year #${schoolYearId}. Test-data marking requires an existing year mirror.`, {
+			actionHint: 'If this is a legacy fixture with target-year artifacts but no mirror, run the privileged recovery-scaffold operation first, then mark again.',
+		});
+	}
+
+	const metadata = mirror.lastSyncMetadata as Record<string, unknown> | null;
+	if (metadata?.testDataMarked === true) {
+		// Idempotent re-mark: end state is already marked; no duplicate audit.
+		return { marked: true, alreadyMarked: true };
+	}
+
+	await prisma.enrollProSchoolYearMirror.update({
+		where: { id: mirror.id },
 		data: {
 			lastSyncMetadata: {
-				...(await prisma.enrollProSchoolYearMirror.findUnique({
-					where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
-					select: { lastSyncMetadata: true },
-				}))?.lastSyncMetadata as Record<string, unknown> ?? {},
+				...(metadata ?? {}),
 				testDataMarked: true,
 				testDataMarkedAt: new Date().toISOString(),
 				testDataMarkedBy: actorId,
@@ -450,9 +564,27 @@ export async function markSchoolYearAsTestData(
 			metadata: {
 				source: 'enrollpro-rollover',
 				initiatedBy: 'user',
+				actorId,
+				yearLabel: mirror.yearLabel,
 			},
 		},
 	});
+	publishNotificationEvent({
+		type: 'TEST_DATA_YEAR_MARKED',
+		domain: 'integration',
+		severity: 'warning',
+		audience: 'PRIVILEGED',
+		schoolId,
+		schoolYearId,
+		facultyId: null,
+		message: `School year ${mirror.yearLabel} (#${schoolYearId}) was marked as test data.`,
+		metadata: {
+			initiatedBy: 'user',
+			actorId,
+			yearLabel: mirror.yearLabel,
+		},
+	});
+	return { marked: true, alreadyMarked: false };
 }
 
 export function getAutomationStatus(): {

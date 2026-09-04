@@ -1,15 +1,17 @@
 import { prisma } from '../lib/prisma.js';
+import type { Prisma } from '@prisma/client';
 import { syncFacultyFromExternal, type FacultySyncMode } from './faculty.service.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
 import { syncSectionsFromExternal } from './section.service.js';
 import { fetchEnrollProActiveSchoolYear, normalizeProgramMetadata } from './section-adapter.js';
 import { publishNotificationEvent } from './notification-events.service.js';
 import { ensureCanonicalClassProgramSlots } from './class-program-slot.service.js';
+import { ensureTeachingLoadCycle, serializeTeachingLoadCycle, type TeachingLoadCycleSource } from './teaching-load-cycle.service.js';
 
 type DriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
 type RolloverAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR' | 'RUN_ARCHIVE_AND_SYNC';
 
-type RolloverServiceError = Error & {
+export type RolloverServiceError = Error & {
 	statusCode: number;
 	code: string;
 	actionHint?: string;
@@ -214,7 +216,7 @@ const PUBLIC_SETTINGS_ENDPOINT = '/settings/public';
 const HEALTH_ENDPOINT = '/integration/v1/health';
 const DUMMY_YEAR_RESET_CONFIRMATION_TEXT = 'RESET_DUMMY_SCHOOL_YEAR_1';
 
-function serviceError(
+export function serviceError(
 	statusCode: number,
 	code: string,
 	message: string,
@@ -1838,13 +1840,180 @@ export type TestYearRecoveryInput = {
 	confirmClear?: boolean;
 	confirmationText?: string;
 	acknowledgePublished?: boolean;
+	initiatedBy?: 'user' | 'system';
+	/** Test-only fault injection: throws inside the cleanup transaction to prove atomic rollback. */
+	failCleanupTxForTest?: boolean;
 };
 
 export type TestYearRecoveryResult = {
 	preview: RecoveryClassifierResult;
 	cleared: boolean;
+	/**
+	 * RR-15A: true ONLY when applyRolloverSync() executed inside this
+	 * invocation. Fresh and resumed-after-clear runs report true;
+	 * resumed-after-sync runs report false with `sync: null` because the
+	 * synchronization already committed in an earlier invocation.
+	 */
+	syncExecuted: boolean;
 	sync: RolloverApplyResult | null;
+	previousActiveSchoolYearId: number | null;
+	archivedYears: Array<ArchiveSchoolYearResult>;
+	archiveFailed: boolean;
+	archiveError?: string;
+	partialSuccess: boolean;
+	teachingLoadCycle: TeachingLoadCycleSource | null;
+	/** RR-15 resumability: how this run completed the recovery lifecycle. */
+	resumePath?: 'fresh' | 'resumed-after-clear' | 'resumed-after-sync';
 };
+
+/**
+ * RR-15 phase marker for test-data recovery. The marker lives in the
+ * TEST_YEAR_RECOVERY_CLEANUP audit row so a crash or failure between phases
+ * leaves a durable, retryable record (same discipline as the DUMMY_YEAR_RESET
+ * marker). Phases:
+ *  - cleared: the destructive cleanup transaction committed;
+ *  - syncApplied: applyRolloverSync committed (mirror activated, cycle created);
+ *  - archivesApplied: every superseded year was archived (or none remained).
+ */
+type TestYearRecoveryMarker = {
+	auditId: number;
+	phases: { cleared: boolean; syncApplied: boolean; archivesApplied: boolean };
+	previousActiveSchoolYearId: number | null;
+	/** Cleanup artifact counts captured by the original destructive run. */
+	artifactCounts: RolloverDummyYearRecordCounts | null;
+};
+
+async function findTestYearRecoveryMarker(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<TestYearRecoveryMarker | null> {
+	const prior = await prisma.auditLog.findFirst({
+		where: { schoolId, schoolYearId, action: 'TEST_YEAR_RECOVERY_CLEANUP' },
+		orderBy: { id: 'desc' },
+		select: { id: true, metadata: true },
+	});
+	if (!prior) return null;
+	const metadata = (prior.metadata ?? {}) as Record<string, unknown>;
+	const phases = metadata?.phases as { cleared?: boolean; syncApplied?: boolean; archivesApplied?: boolean } | undefined;
+	if (!phases || typeof phases !== 'object' || phases.cleared !== true) return null;
+	return {
+		auditId: prior.id,
+		phases: {
+			cleared: phases.cleared === true,
+			syncApplied: phases.syncApplied === true,
+			archivesApplied: phases.archivesApplied === true,
+		},
+		previousActiveSchoolYearId: Number(metadata?.previousActiveSchoolYearId ?? 0) > 0
+			? Number(metadata.previousActiveSchoolYearId)
+			: null,
+		artifactCounts: (metadata?.deletedCounts as RolloverDummyYearRecordCounts | undefined) ?? null,
+	};
+}
+
+/**
+ * RR-15A: archive-only completion markers. Automation inspects these BEFORE
+ * the ordinary aligned-skip path so a recovery whose synchronization already
+ * committed (marker cleared=true, syncApplied=true) but whose archival is
+ * still pending (archivesApplied !== true) is completed without rerunning
+ * destructive cleanup or synchronization.
+ *
+ * Safety: only markers for the school's own rows whose target year equals the
+ * verified EnrollPro ACTIVE year qualify; cleared-only markers (sync never
+ * committed) never qualify for archive-only retry.
+ */
+export type PendingArchiveRecoveryMarker = {
+	auditId: number;
+	schoolId: number;
+	schoolYearId: number;
+	phases: { cleared: boolean; syncApplied: boolean; archivesApplied: boolean };
+	previousActiveSchoolYearId: number | null;
+};
+
+export async function findPendingArchiveRecoveryMarker(
+	schoolId: number,
+	activeEnrollProYearId?: number | null,
+): Promise<PendingArchiveRecoveryMarker | null> {
+	const candidates = await prisma.auditLog.findMany({
+		where: { schoolId, action: 'TEST_YEAR_RECOVERY_CLEANUP' },
+		orderBy: { id: 'desc' },
+		select: { id: true, schoolYearId: true, metadata: true },
+	});
+	for (const candidate of candidates) {
+		const metadata = (candidate.metadata ?? {}) as Record<string, unknown>;
+		const phases = metadata?.phases as { cleared?: boolean; syncApplied?: boolean; archivesApplied?: boolean } | undefined;
+		if (!phases || typeof phases !== 'object') continue;
+		if (phases.cleared !== true || phases.syncApplied !== true) continue;
+		if (phases.archivesApplied === true) continue;
+		if (candidate.schoolYearId == null) continue;
+		if (activeEnrollProYearId != null && candidate.schoolYearId !== activeEnrollProYearId) continue;
+		return {
+			auditId: candidate.id,
+			schoolId,
+			schoolYearId: candidate.schoolYearId,
+			phases: {
+				cleared: true,
+				syncApplied: true,
+				archivesApplied: false,
+			},
+			previousActiveSchoolYearId: Number(metadata?.previousActiveSchoolYearId ?? 0) > 0
+				? Number(metadata.previousActiveSchoolYearId)
+				: null,
+		};
+	}
+	return null;
+}
+
+async function updateTestYearRecoveryMarker(auditId: number, patch: Record<string, unknown>): Promise<void> {
+	const current = await prisma.auditLog.findUnique({ where: { id: auditId }, select: { metadata: true } });
+	const baseMetadata = (current?.metadata as unknown as Record<string, unknown> | null | undefined) ?? {};
+	await prisma.auditLog.update({
+		where: { id: auditId },
+		data: {
+			metadata: {
+				...baseMetadata,
+				...patch,
+			} as unknown as Prisma.InputJsonValue,
+		},
+	});
+}
+
+/**
+ * RR-15B: archive every non-archived superseded year after a successful
+ * recovery sync, reusing the existing non-destructive `archiveSchoolYear()`.
+ * Runs for all candidates even when one fails so the maximum amount of the
+ * lifecycle completes; the caller reports partial success when any fail.
+ */
+async function archiveSupersededYearsForRecovery(
+	schoolId: number,
+	activeYear: { id: number; yearLabel: string },
+	options: { actorId: number; initiatedBy: 'user' | 'system'; authToken?: string },
+): Promise<{ archivedYears: Array<ArchiveSchoolYearResult>; failed: boolean; error?: string }> {
+	const candidates = await prisma.enrollProSchoolYearMirror.findMany({
+		where: { schoolId, isArchived: false, enrollProSchoolYearId: { not: activeYear.id } },
+		orderBy: { enrollProSchoolYearId: 'asc' },
+		select: { enrollProSchoolYearId: true },
+	});
+	const archivedYears: Array<ArchiveSchoolYearResult> = [];
+	let firstError: string | undefined;
+	for (const candidate of candidates) {
+		try {
+			archivedYears.push(await archiveSchoolYear({
+				schoolId,
+				schoolYearId: candidate.enrollProSchoolYearId,
+				actorId: options.actorId,
+				authToken: options.authToken,
+				reason: `Superseded by test-data recovery rollover to ${activeYear.yearLabel}`,
+				initiatedBy: options.initiatedBy,
+				suppressNotification: false,
+			}));
+		} catch (error) {
+			if (firstError === undefined) {
+				firstError = error instanceof Error ? error.message : String(error);
+			}
+		}
+	}
+	return { archivedYears, failed: firstError !== undefined, error: firstError };
+}
 
 export async function previewTestYearRecovery(
 	schoolId: number,
@@ -1854,12 +2023,98 @@ export async function previewTestYearRecovery(
 	return classifyRecoveryState(schoolId, status);
 }
 
+/**
+ * RR-15A: feed-free classifier preview for resumed recovery runs. Built from
+ * the persisted active mirror only (no health/school-year/sections/faculty
+ * fetches) so a resumed-after-sync run provably makes zero adapter calls.
+ * Honest classification: aligned when the active mirror is the upstream year.
+ */
+async function composeResumedRecoveryPreview(
+	schoolId: number,
+	upstreamYear: EnrollProYearInfo,
+): Promise<RecoveryClassifierResult> {
+	const activeMirror = await prisma.enrollProSchoolYearMirror.findFirst({
+		where: { schoolId, isActive: true },
+		orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+		select: { enrollProSchoolYearId: true },
+	});
+	const atlasSchoolYearId = activeMirror?.enrollProSchoolYearId ?? null;
+	const aligned = atlasSchoolYearId === upstreamYear.id;
+	const status: RolloverStatusResult = {
+		schoolId,
+		atlasSchoolYearId,
+		enrollProActiveYear: upstreamYear,
+		drift: {
+			status: aligned ? 'aligned' : 'atlas-stale',
+			message: aligned ? `ATLAS is aligned with EnrollPro ${upstreamYear.yearLabel}.` : 'ATLAS is not aligned with the EnrollPro active year.',
+			recommendedAction: aligned ? 'NONE' : 'RUN_ROLLOVER_SYNC',
+			atlasSchoolYearId,
+			enrollProSchoolYearId: upstreamYear.id,
+			enrollProSchoolYearLabel: upstreamYear.yearLabel,
+			mirrorSyncedAt: null,
+		},
+		mirror: null,
+		conflicts: [],
+		reconfiguredSections: [],
+		canResetDummyYear: false,
+		resetTargetSchoolYearId: null,
+		conflictingRecordCounts: null,
+		teachingLoadResetRequired: false,
+		publishedResetBlocked: false,
+		testDataMarked: false,
+	};
+	return classifyRecoveryState(schoolId, status);
+}
+
+/**
+ * RR-15A recovery state machine:
+ *
+ *   fresh               → cleanup → sync → cycle verify → archive → notify
+ *   resumed-after-clear → (cleanup already committed) sync → cycle verify →
+ *                         archive → notify
+ *   resumed-after-sync  → verify committed sync state (typed errors on
+ *                         mismatch) → archive → notify. NEVER reruns
+ *                         applyRolloverSync(); result.syncExecuted=false and
+ *                         result.sync=null for this path.
+ *
+ * Each phase is explicit and the marker (cleared / syncApplied /
+ * archivesApplied) is the durable record of how far the lifecycle got.
+ */
 export async function applyTestYearRecovery(
 	input: TestYearRecoveryInput,
 ): Promise<TestYearRecoveryResult> {
-	const preview = await previewTestYearRecovery(input.schoolId, input.authToken);
+	const initiatedBy = input.initiatedBy ?? (input.actorId > 0 ? 'user' : 'system');
 
-	if (preview.classification !== 'TEST_DATA_RECOVERY_AVAILABLE') {
+	// Cheap upstream gate: the EnrollPro ACTIVE year is what every path keys
+	// on. Resume paths must NOT run the heavy preview (health + school-year +
+	// sections + faculty + settings feeds) because resumed-after-sync is
+	// archive-only and must make zero synchronization/adapter calls.
+	const upstreamYear = await fetchEnrollProActiveSchoolYear(input.authToken);
+	if (!upstreamYear) {
+		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro active school year could not be verified.', {
+			actionHint: 'Check EnrollPro connection, then try again.',
+		});
+	}
+	const targetYearId = upstreamYear.id;
+
+	// RR-15 resumability: a prior run that committed cleanup but crashed before
+	// sync (cleared:true, syncApplied:false) resumes at the sync; a prior run
+	// that synced but could not archive (syncApplied:true, archivesApplied:
+	// false) resumes at the archive step only. Both skip the classification
+	// gate because the aligned state after a partial recovery no longer
+	// classifies as TEST_DATA_RECOVERY_AVAILABLE.
+	const marker = await findTestYearRecoveryMarker(input.schoolId, targetYearId);
+	const resumeAfterClear = marker !== null && marker.phases.cleared === true && marker.phases.syncApplied !== true;
+	const resumeAfterSync = marker !== null && marker.phases.syncApplied === true && marker.phases.archivesApplied !== true;
+
+	// Resumed paths use a lightweight classifier preview composed from the
+	// persisted active mirror (NO feed fetches). Only the fresh path needs
+	// the full preview (classification gate + artifact counts for cleanup).
+	const preview = resumeAfterClear || resumeAfterSync
+		? await composeResumedRecoveryPreview(input.schoolId, upstreamYear)
+		: await previewTestYearRecovery(input.schoolId, input.authToken);
+
+	if (!resumeAfterSync && !resumeAfterClear && preview.classification !== 'TEST_DATA_RECOVERY_AVAILABLE') {
 		throw serviceError(409, 'RECOVERY_NOT_AVAILABLE', `Test-data recovery is not available. Current classification: ${preview.classification}`, {
 			actionHint: 'Review the rollover status and conflict classification first.',
 			details: { classification: preview.classification, conflictCode: preview.conflictCode },
@@ -1867,11 +2122,20 @@ export async function applyTestYearRecovery(
 	}
 
 	if (!input.confirmClear) {
-		return { preview, cleared: false, sync: null };
+		return {
+			preview,
+			cleared: false,
+			syncExecuted: false,
+			sync: null,
+			previousActiveSchoolYearId: preview.atlasSchoolYearId,
+			archivedYears: [],
+			archiveFailed: false,
+			partialSuccess: false,
+			teachingLoadCycle: null,
+		};
 	}
 
-	const schoolYearId = preview.enrollProActiveYear?.id;
-	const requiredConfirmation = getTestDataRecoveryConfirmation(schoolYearId ?? null);
+	const requiredConfirmation = getTestDataRecoveryConfirmation(targetYearId);
 	if (input.confirmationText !== requiredConfirmation) {
 		throw serviceError(400, 'CONFIRMATION_REQUIRED', `confirmationText="${requiredConfirmation}" is required to clear test data.`, {
 			actionHint: 'Enter the exact confirmation phrase shown in the recovery preview.',
@@ -1884,63 +2148,344 @@ export async function applyTestYearRecovery(
 		});
 	}
 
-	if (!schoolYearId) {
-		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro active school year could not be verified.', {
-			actionHint: 'Check EnrollPro connection, then try again.',
+	const activeYear = upstreamYear;
+
+	// ── Phase 0 (resumed-after-sync only): verify the committed sync state ──
+	// The marker says synchronization committed; the persisted state must
+	// agree (active target mirror, upstream label, Teaching Load cycle,
+	// sole-active-year invariant). On disagreement, return a typed
+	// RECOVERY_STATE_MISMATCH instead of silently rerunning synchronization.
+	if (resumeAfterSync) {
+		await assertRecoverySyncCommittedState(input.schoolId, targetYearId, activeYear, marker!);
+	}
+
+	// ── Phase 1: destructive cleanup (fresh runs only) ──
+	let markerAuditId: number;
+	let sync: RolloverApplyResult | null = null;
+	let syncExecuted = false;
+	if (!resumeAfterSync) {
+		try {
+			if (resumeAfterClear) {
+				markerAuditId = marker!.auditId;
+			} else {
+				markerAuditId = await clearTestYearArtifactsAndRecordMarker(input, targetYearId, activeYear, preview, initiatedBy);
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			publishNotificationEvent({
+				type: 'TEST_YEAR_RECOVERY_FAILED',
+				domain: 'integration',
+				severity: 'error',
+				audience: 'PRIVILEGED',
+				schoolId: input.schoolId,
+				schoolYearId: targetYearId,
+				facultyId: null,
+				message: `Test-data recovery cleanup failed: ${message.slice(0, 200)}`,
+				metadata: { phase: 'cleanup', initiatedBy, actorId: input.actorId },
+			});
+			throw error;
+		}
+
+		// ── Phase 2: standard rollover synchronization (fresh + resumed-after-clear) ──
+		try {
+			sync = await applyRolloverSync(input.schoolId, input.authToken, {
+				actorId: input.actorId,
+				initiatedBy,
+			});
+			syncExecuted = true;
+			await updateTestYearRecoveryMarker(markerAuditId, {
+				phases: { cleared: true, syncApplied: true, archivesApplied: false },
+				syncEvidence: {
+					enrollProActiveYear: { id: activeYear.id, yearLabel: activeYear.yearLabel },
+					sectionCount: sync.sync.sections?.count ?? null,
+					facultyActiveCount: sync.sync.faculty?.activeCount ?? null,
+					policyReady: sync.sync.policyReady,
+					canonicalTemplatesSeeded: sync.sync.canonicalTemplatesSeeded,
+				},
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			await prisma.auditLog.create({
+				data: {
+					schoolId: input.schoolId,
+					schoolYearId: targetYearId,
+					action: 'TEST_YEAR_RECOVERY_SYNC_FAILED',
+					actorId: input.actorId,
+					targetIds: [targetYearId],
+					metadata: {
+						errorMessage: message.slice(0, 500),
+						initiatedBy,
+						phases: { cleared: true, syncApplied: false, archivesApplied: false },
+					},
+				},
+			});
+			publishNotificationEvent({
+				type: 'TEST_YEAR_RECOVERY_FAILED',
+				domain: 'integration',
+				severity: 'error',
+				audience: 'PRIVILEGED',
+				schoolId: input.schoolId,
+				schoolYearId: targetYearId,
+				facultyId: null,
+				message: `Test-data recovery sync failed after cleanup: ${message.slice(0, 200)}`,
+				metadata: { phase: 'sync', initiatedBy, actorId: input.actorId },
+			});
+			throw error;
+		}
+	} else {
+		markerAuditId = marker!.auditId;
+	}
+
+	// ── Phase 3: Teaching Load annual cycle ──
+	// Fresh / resumed-after-clear: the sync created the cycle (EMPTY v1);
+	// normalize through the annual-contract service and announce it.
+	// Resumed-after-sync: cycle existence was already verified in Phase 0 and
+	// it is unchanged by an archive-only retry, so no event is re-emitted.
+	let teachingLoadCycle: TeachingLoadCycleSource | null = null;
+	if (syncExecuted) {
+		const cycleRow = await ensureTeachingLoadCycle(input.schoolId, targetYearId);
+		teachingLoadCycle = serializeTeachingLoadCycle(cycleRow);
+		publishNotificationEvent({
+			type: 'TEACHING_LOAD_CHANGED',
+			domain: 'integration',
+			severity: 'info',
+			audience: 'PRIVILEGED',
+			schoolId: input.schoolId,
+			schoolYearId: targetYearId,
+			facultyId: null,
+			message: 'Teaching Load annual cycle is ready after rollover.',
+			metadata: {
+				state: teachingLoadCycle.state,
+				version: teachingLoadCycle.version,
+				updatedAt: teachingLoadCycle.updatedAt,
+				initiatedBy,
+				actorId: input.actorId,
+			},
+		});
+	} else if (resumeAfterSync) {
+		const cycleRow = await prisma.teachingLoadCycle.findUnique({
+			where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: targetYearId } },
+		});
+		// Phase 0 already verified existence; the read supplies the payload.
+		teachingLoadCycle = cycleRow ? serializeTeachingLoadCycle(cycleRow) : null;
+	}
+
+	// ── Phase 4: archive superseded years (non-destructive) ──
+	const archiveOutcome = await archiveSupersededYearsForRecovery(input.schoolId, activeYear, {
+		actorId: input.actorId,
+		initiatedBy,
+		authToken: input.authToken,
+	});
+	await updateTestYearRecoveryMarker(markerAuditId, {
+		phases: {
+			cleared: true,
+			syncApplied: true,
+			archivesApplied: !archiveOutcome.failed,
+		},
+		archiveEvidence: {
+			archivedYears: archiveOutcome.archivedYears.map((year) => ({
+				schoolYearId: year.schoolYearId,
+				yearLabel: year.yearLabel,
+				alreadyArchived: year.alreadyArchived,
+			})),
+			...(archiveOutcome.error !== undefined ? { archiveError: archiveOutcome.error.slice(0, 500) } : {}),
+		},
+		completedAt: new Date().toISOString(),
+		resumePath: resumeAfterClear ? 'resumed-after-clear' : resumeAfterSync ? 'resumed-after-sync' : 'fresh',
+		...(resumeAfterSync ? { archiveOnlyCompletion: true } : {}),
+	});
+
+	// ── Phase 5: completion notification ──
+	const resumePath = resumeAfterClear ? 'resumed-after-clear' : resumeAfterSync ? 'resumed-after-sync' : 'fresh';
+	const commonEventFields = {
+		domain: 'integration' as const,
+		audience: 'PRIVILEGED' as const,
+		schoolId: input.schoolId,
+		schoolYearId: targetYearId,
+		facultyId: null,
+		initiatedBy,
+		actorId: input.actorId,
+	};
+	const outcomeMetadata = {
+		cleared: true,
+		syncExecuted,
+		archiveFailed: archiveOutcome.failed,
+		archivedYears: archiveOutcome.archivedYears.map((year) => ({ schoolYearId: year.schoolYearId, yearLabel: year.yearLabel })),
+		previousActiveSchoolYearId: marker?.previousActiveSchoolYearId ?? preview.atlasSchoolYearId,
+		// Resume paths compose a feed-free preview, so original cleanup counts
+		// come from the durable marker captured during the destructive run.
+		artifactCounts: marker?.artifactCounts ?? preview.artifactCounts,
+		teachingLoadCycle: teachingLoadCycle ? { state: teachingLoadCycle.state, version: teachingLoadCycle.version } : null,
+		resumePath,
+	};
+
+	if (archiveOutcome.failed) {
+		publishNotificationEvent({
+			...commonEventFields,
+			type: 'TEST_YEAR_RECOVERY_PARTIAL_SUCCESS',
+			severity: 'warning',
+			message: resumeAfterSync
+				? `Archival of superseded school years is still pending after the recovery retry for ${activeYear.yearLabel}.`
+				: `Test-year data cleared and ${activeYear.yearLabel} synced, but archiving superseded school years failed. Retry recovery to complete archival.`,
+			metadata: {
+				...outcomeMetadata,
+				archiveError: archiveOutcome.error?.slice(0, 300),
+				archiveEvidence: archiveOutcome.archivedYears.map((year) => ({ schoolYearId: year.schoolYearId, yearLabel: year.yearLabel })),
+			},
+		});
+	} else {
+		publishNotificationEvent({
+			...commonEventFields,
+			type: 'TEST_YEAR_RECOVERY_COMPLETED',
+			severity: 'warning',
+			message: resumeAfterSync
+				? `Pending archival completed for ${activeYear.yearLabel} after recovery.`
+				: `Test-year data cleared for school year #${targetYearId} and EnrollPro sync applied.${archiveOutcome.archivedYears.length > 0 ? ` Archived ${archiveOutcome.archivedYears.length} superseded school year(s) as read-only history.` : ''}`,
+			metadata: outcomeMetadata,
 		});
 	}
 
-	await prisma.$transaction(async (tx) => {
+	return {
+		preview,
+		cleared: true,
+		syncExecuted,
+		sync,
+		previousActiveSchoolYearId: marker?.previousActiveSchoolYearId ?? preview.atlasSchoolYearId,
+		archivedYears: archiveOutcome.archivedYears,
+		archiveFailed: archiveOutcome.failed,
+		archiveError: archiveOutcome.error,
+		partialSuccess: archiveOutcome.failed,
+		teachingLoadCycle,
+		resumePath,
+	};
+}
+
+/**
+ * RR-15A: verify that the persisted state matches a marker that claims
+ * syncApplied=true. Any disagreement raises a typed `RECOVERY_STATE_MISMATCH`
+ * instead of silently rerunning the synchronization:
+ *  - the target-year mirror exists, is active, and carries the upstream label;
+ *  - the target year is the ONLY active year mirror;
+ *  - the target-year TeachingLoadCycle exists.
+ */
+async function assertRecoverySyncCommittedState(
+	schoolId: number,
+	targetYearId: number,
+	activeYear: EnrollProYearInfo,
+	marker: TestYearRecoveryMarker,
+): Promise<void> {
+	const mismatch = (reason: string) => serviceError(
+		409,
+		'RECOVERY_STATE_MISMATCH',
+		`Recovery marker for school year #${targetYearId} records syncApplied=true, but ${reason}. Refusing to rerun synchronization silently.`,
+		{
+			actionHint: 'Restore the committed recovery state or archive the marker after an explicit operator decision.',
+			details: { schoolYearId: targetYearId, markerAuditId: marker.auditId, reason },
+		},
+	);
+
+	const mirror = await prisma.enrollProSchoolYearMirror.findUnique({
+		where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: targetYearId } },
+		select: { isActive: true, yearLabel: true },
+	});
+	if (!mirror) throw mismatch('no target-year mirror exists');
+	if (!mirror.isActive) throw mismatch('the target-year mirror is not active');
+	if (mirror.yearLabel !== activeYear.yearLabel) {
+		throw mismatch(`the target-year mirror label (${mirror.yearLabel}) differs from EnrollPro (${activeYear.yearLabel})`);
+	}
+	const otherActive = await prisma.enrollProSchoolYearMirror.findFirst({
+		where: { schoolId, isActive: true, enrollProSchoolYearId: { not: targetYearId } },
+		select: { enrollProSchoolYearId: true },
+	});
+	if (otherActive) throw mismatch(`another school year (#${otherActive.enrollProSchoolYearId}) is still active`);
+	const cycle = await prisma.teachingLoadCycle.findUnique({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId: targetYearId } },
+		select: { id: true },
+	});
+	if (!cycle) throw mismatch('the target-year TeachingLoadCycle is missing');
+}
+
+/**
+ * Destructive phase of test-data recovery: deletes only the preview-approved
+ * target-year artifacts and creates the durable phase-marker audit row in the
+ * SAME transaction. The target-year TeachingLoadCycle is deleted here as part
+ * of the fixture purge — `applyRolloverSync()` recreates it fresh (EMPTY v1)
+ * and recovery never deletes it after synchronization commits. Target-year
+ * AUDIT rows are never deleted (RR-15A): the scaffold/marking/prior-marker
+ * authorization chain survives as forensic history.
+ */
+async function clearTestYearArtifactsAndRecordMarker(
+	input: TestYearRecoveryInput,
+	schoolYearId: number,
+	activeYear: EnrollProYearInfo,
+	preview: RecoveryClassifierResult,
+	initiatedBy: 'user' | 'system',
+): Promise<number> {
+	const schoolId = input.schoolId;
+	return prisma.$transaction(async (tx) => {
 		const generationRunIds = (await tx.generationRun.findMany({
-			where: { schoolId: input.schoolId, schoolYearId },
+			where: { schoolId, schoolYearId },
 			select: { id: true },
 		})).map((run) => run.id);
 		const preferenceIds = (await tx.facultyPreference.findMany({
-			where: { schoolId: input.schoolId, schoolYearId },
+			where: { schoolId, schoolYearId },
 			select: { id: true },
 		})).map((preference) => preference.id);
 		const appealIds = (await tx.roomRequestAppeal.findMany({
-			where: { schoolId: input.schoolId, schoolYearId },
+			where: { schoolId, schoolYearId },
 			select: { id: true },
 		})).map((appeal) => appeal.id);
 
 		if (appealIds.length > 0) {
 			await tx.roomRequestAppealHistory.deleteMany({ where: { appealId: { in: appealIds } } });
 		}
-		await tx.roomRequestAppeal.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.facultyRoomPreference.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+		await tx.roomRequestAppeal.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.facultyRoomPreference.deleteMany({ where: { schoolId, schoolYearId } });
 
 		if (preferenceIds.length > 0) {
 			await tx.preferenceReview.deleteMany({ where: { preferenceId: { in: preferenceIds } } });
 			await tx.preferenceTimeSlot.deleteMany({ where: { preferenceId: { in: preferenceIds } } });
 		}
-		await tx.facultyPreference.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+		await tx.facultyPreference.deleteMany({ where: { schoolId, schoolYearId } });
 
-		await tx.lockedSessionAction.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.lockedSession.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.gradeShiftWindow.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.facultySnapshot.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.sectionSnapshot.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.instructionalCohort.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.schedulingPolicy.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.sectionMirror.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+		await tx.lockedSessionAction.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.lockedSession.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.gradeShiftWindow.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.facultySnapshot.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.sectionSnapshot.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.instructionalCohort.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.schedulingPolicy.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.sectionMirror.deleteMany({ where: { schoolId, schoolYearId } });
 
-		await tx.subjectSectionOwnership.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.facultySubject.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
-		await tx.teachingLoadCycle.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+		// Test-only fault injection: throws AFTER several deletes so what is
+		// proven is the transactional rollback of partial cleanup work.
+		if (input.failCleanupTxForTest === true) {
+			throw serviceError(500, 'TEST_YEAR_CLEANUP_SIMULATED', 'simulated cleanup transaction failure', {
+				details: { phase: 'cleanup' },
+			});
+		}
 
-		await tx.auditLog.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+		await tx.subjectSectionOwnership.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.facultySubject.deleteMany({ where: { schoolId, schoolYearId } });
+		await tx.teachingLoadCycle.deleteMany({ where: { schoolId, schoolYearId } });
+
+		// RR-15A: audit preservation. Cleanup NEVER deletes target-year audit
+		// logs. The authorization and provenance chain (scaffold, marking,
+		// prior cleanup markers, prior sync failures, security events) is
+		// retained as forensic history; the cleanup marker records how many
+		// year-scoped audit rows were preserved.
+		const preservedAuditLogCount = await tx.auditLog.count({ where: { schoolId, schoolYearId } });
 		if (generationRunIds.length > 0) {
-			await tx.manualScheduleEdit.deleteMany({ where: { schoolId: input.schoolId, schoolYearId, runId: { in: generationRunIds } } });
+			await tx.manualScheduleEdit.deleteMany({ where: { schoolId, schoolYearId, runId: { in: generationRunIds } } });
 			await tx.followUpFlag.deleteMany({ where: { runId: { in: generationRunIds } } });
 		} else {
-			await tx.manualScheduleEdit.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+			await tx.manualScheduleEdit.deleteMany({ where: { schoolId, schoolYearId } });
 		}
-		await tx.generationRun.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } });
+		await tx.generationRun.deleteMany({ where: { schoolId, schoolYearId } });
 
-		await tx.auditLog.create({
+		const marker = await tx.auditLog.create({
 			data: {
-				schoolId: input.schoolId,
+				schoolId,
 				schoolYearId,
 				action: 'TEST_YEAR_RECOVERY_CLEANUP',
 				actorId: input.actorId,
@@ -1949,38 +2494,189 @@ export async function applyTestYearRecovery(
 					source: 'enrollpro-rollover',
 					deletedCounts: preview.artifactCounts,
 					teachingLoadReset: true,
-					enrollProActiveYear: preview.enrollProActiveYear,
-					initiatedBy: 'user',
+					enrollProActiveYear: { id: activeYear.id, yearLabel: activeYear.yearLabel },
+					initiatedBy,
+					previousActiveSchoolYearId: preview.atlasSchoolYearId,
+					// RR-15A: audit chain is preserved (scaffold, marking,
+					// prior recovery markers/failures); nothing year-scoped is
+					// deleted. Legacy fixture audit rows are marked superseded
+					// by this cleanup record instead of removed.
+					auditPreservation: { preserved: true, preservedAuditLogCount },
+					// RR-15 phase marker: `cleared` commits with this
+					// transaction; `syncApplied` and `archivesApplied` flip
+					// only after each later phase succeeds. A crash between
+					// phases leaves a resumable marker.
+					phases: { cleared: true, syncApplied: false, archivesApplied: false },
 				},
 			},
+			select: { id: true },
 		});
+		return marker.id;
 	});
+}
 
-	let sync: RolloverApplyResult | null = null;
-	try {
-		sync = await applyRolloverSync(input.schoolId, input.authToken, { initiatedBy: 'user' });
-		await prisma.$transaction([
-			prisma.subjectSectionOwnership.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } }),
-			prisma.facultySubject.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } }),
-			prisma.teachingLoadCycle.deleteMany({ where: { schoolId: input.schoolId, schoolYearId } }),
-		]);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		await prisma.auditLog.create({
-			data: {
-				schoolId: input.schoolId,
-				schoolYearId,
-				action: 'TEST_YEAR_RECOVERY_SYNC_FAILED',
-				actorId: input.actorId,
-				targetIds: [schoolYearId],
-				metadata: {
-					errorMessage: message.slice(0, 500),
-					initiatedBy: 'user',
-				},
-			},
+// ─── RR-15C: recovery scaffold for legacy fixtures without a year mirror ───
+
+export type RecoveryMirrorScaffoldResult = {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	mirrorId: number;
+	alreadyScaffolded: boolean;
+};
+
+export type RecoveryMirrorScaffoldInput = {
+	schoolId: number;
+	actorId: number;
+	authToken?: string;
+	/** Optional explicit target; must equal the EnrollPro ACTIVE year. */
+	schoolYearId?: number;
+	acknowledgePublished?: boolean;
+	initiatedBy?: 'user' | 'system';
+};
+
+/**
+ * Privileged recovery-scaffold operation for legacy fixtures that have
+ * target-year artifacts but no `EnrollProSchoolYearMirror` row (the mirror
+ * model postdates those fixtures). Creates ONE inactive mirror row with the
+ * upstream label and a recovery-specific pending status so the guarded
+ * mark-test-data + recovery flow can operate. Never activates the year,
+ * never deletes artifacts, never overwrites an existing mirror's metadata,
+ * and is idempotent (a repeat call returns the existing scaffold without a
+ * duplicate audit or event).
+ */
+export async function scaffoldTestYearRecoveryMirror(
+	input: RecoveryMirrorScaffoldInput,
+): Promise<RecoveryMirrorScaffoldResult> {
+	const initiatedBy = input.initiatedBy ?? (input.actorId > 0 ? 'user' : 'system');
+	const health = await fetchEnrollProIntegrationHealth(input.authToken);
+	if (!health.reachable) {
+		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro is unreachable. Cannot verify the active school year, so recovery scaffolding was not applied.', {
+			actionHint: 'Wait for EnrollPro to become reachable, then scaffold again.',
 		});
-		throw error;
+	}
+	const activeYear = await fetchEnrollProActiveSchoolYear(input.authToken);
+	if (!activeYear) {
+		throw serviceError(503, 'ENROLLPRO_UNAVAILABLE', 'EnrollPro active school year could not be verified. Recovery scaffolding was not applied.', {
+			actionHint: 'Wait for EnrollPro to become reachable, then scaffold again.',
+		});
+	}
+	if (input.schoolYearId != null && input.schoolYearId !== activeYear.id) {
+		throw serviceError(409, 'ACTIVE_YEAR_MISMATCH', `Recovery scaffolding targets the EnrollPro active year only. Requested year #${input.schoolYearId} is not the active year #${activeYear.id} (${activeYear.yearLabel}).`, {
+			actionHint: 'Scaffold the EnrollPro active year so recovery can classify its artifacts.',
+			details: { requestedSchoolYearId: input.schoolYearId, activeYear },
+		});
 	}
 
-	return { preview, cleared: true, sync };
+	const counts = await countDummyYearRecords(input.schoolId, activeYear.id);
+	const artifactsExist = counts.sectionMirrors > 0 || counts.generationRuns > 0 || counts.schedulingPolicies > 0;
+	if (!artifactsExist) {
+		throw serviceError(409, 'NO_RECOVERY_ARTIFACTS', `No ATLAS artifacts exist for the EnrollPro active year #${activeYear.id}. Nothing to scaffold.`, {
+			actionHint: 'Recovery scaffolding is only needed when legacy target-year artifacts exist without a year mirror.',
+			details: { artifactCounts: counts },
+		});
+	}
+	const publishedBlocked = counts.publishedGenerationRuns > 0 || counts.publishedScheduleRevisions > 0;
+	if (publishedBlocked && input.acknowledgePublished !== true) {
+		throw serviceError(409, 'PUBLISHED_ACKNOWLEDGEMENT_REQUIRED', 'Published schedule artifacts exist for this school year. Scaffolding requires explicit acknowledgement.', {
+			actionHint: 'Set acknowledgePublished=true to confirm you understand published artifacts will be handled by the recovery apply policy.',
+			details: {
+				publishedGenerationRuns: counts.publishedGenerationRuns,
+				publishedScheduleRevisions: counts.publishedScheduleRevisions,
+			},
+		});
+	}
+
+	const existing = await prisma.enrollProSchoolYearMirror.findUnique({
+		where: { schoolId_enrollProSchoolYearId: { schoolId: input.schoolId, enrollProSchoolYearId: activeYear.id } },
+		select: { id: true, yearLabel: true, isActive: true, syncStatus: true, lastSyncMetadata: true },
+	});
+	if (existing) {
+		const metadata = existing.lastSyncMetadata as Record<string, unknown> | null;
+		const isPriorScaffold = metadata?.scaffoldedForTestDataRecovery === true
+			&& existing.isActive === false
+			&& existing.syncStatus === 'recovery-pending'
+			&& existing.yearLabel === activeYear.yearLabel;
+		if (isPriorScaffold) {
+			// Idempotent: repeat scaffold of the same fixture returns the
+			// existing scaffold without a duplicate audit or event.
+			return {
+				schoolId: input.schoolId,
+				schoolYearId: activeYear.id,
+				yearLabel: existing.yearLabel,
+				mirrorId: existing.id,
+				alreadyScaffolded: true,
+			};
+		}
+		throw serviceError(409, 'MIRROR_ALREADY_EXISTS', `A year mirror already exists for school year #${activeYear.id} (${existing.yearLabel}). Recovery scaffolding is only for fixtures without a mirror.`, {
+			actionHint: existing.syncStatus === 'recovery-pending'
+				? 'The mirror already carries recovery state; mark it as test data to continue.'
+				: 'Use the mark-test-data operation when a normal mirror already exists.',
+			details: { mirrorId: existing.id, syncStatus: existing.syncStatus, isActive: existing.isActive },
+		});
+	}
+
+	const now = new Date();
+	const mirror = await prisma.enrollProSchoolYearMirror.create({
+		data: {
+			schoolId: input.schoolId,
+			enrollProSchoolYearId: activeYear.id,
+			yearLabel: activeYear.yearLabel,
+			isActive: false,
+			isArchived: false,
+			sourceEndpoint: SCHOOL_YEAR_ENDPOINT,
+			facultyCount: 0,
+			sectionCount: 0,
+			syncStatus: 'recovery-pending',
+			lastSyncMetadata: {
+				scaffoldedForTestDataRecovery: true,
+				scaffoldedAt: now.toISOString(),
+				scaffoldedBy: input.actorId,
+				initiatedBy,
+			},
+		},
+		select: { id: true, yearLabel: true },
+	});
+
+	await prisma.auditLog.create({
+		data: {
+			schoolId: input.schoolId,
+			schoolYearId: activeYear.id,
+			action: 'RECOVERY_YEAR_MIRROR_SCAFFOLDED',
+			actorId: input.actorId,
+			targetIds: [mirror.id],
+			metadata: {
+				source: 'enrollpro-rollover',
+				initiatedBy,
+				yearLabel: activeYear.yearLabel,
+				isActive: false,
+				reason: 'legacy fixture predates the year-mirror model; inactive marker row only (no fixture data attached)',
+			},
+		},
+	});
+
+	publishNotificationEvent({
+		type: 'TEST_YEAR_RECOVERY_MIRROR_SCAFFOLDED',
+		domain: 'integration',
+		severity: 'info',
+		audience: 'PRIVILEGED',
+		schoolId: input.schoolId,
+		schoolYearId: activeYear.id,
+		facultyId: null,
+		message: `Recovery scaffold mirror created for ${activeYear.yearLabel} (#${activeYear.id}). Mark it as test data to continue.`,
+		metadata: {
+			mirrorId: mirror.id,
+			yearLabel: activeYear.yearLabel,
+			initiatedBy,
+			actorId: input.actorId,
+		},
+	});
+
+	return {
+		schoolId: input.schoolId,
+		schoolYearId: activeYear.id,
+		yearLabel: mirror.yearLabel,
+		mirrorId: mirror.id,
+		alreadyScaffolded: false,
+	};
 }
