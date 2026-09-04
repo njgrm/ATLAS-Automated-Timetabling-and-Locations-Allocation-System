@@ -1,0 +1,46 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ Health endpoint failure produces enrollpro-unreachable ════
+  ✓ Health check reports unreachable — expected false, got false
+  ✓ Health check includes error message
+  ✓ Preview returns enrollpro-unreachable when health fails — expected enrollpro-unreachable, got enrollpro-unreachable
+  ✓ Preview returns no active year when health fails — expected null, got null
+  ✓ School-year NOT hit when health fails — expected 0, got 0
+  ✓ Sections NOT hit when health fails — expected 0, got 0
+  ✓ Faculty NOT hit when health fails — expected 0, got 0
+
+════ Health success but school-year failure reports unreachable ════
+  ✓ Health check reports reachable — expected true, got true
+  ✓ Preview returns enrollpro-unreachable when school-year fails — expected enrollpro-unreachable, got enrollpro-unreachable
+  ✓ Health endpoint was hit
+  ✓ School-year endpoint was attempted — expected 1, got 1
+
+════ Health endpoint response timing is recorded ════
+  ✓ Health check reachable — expected true, got true
+  ✓ durationMs recorded (got 3)
+  ✓ statusCode recorded as 200 — expected 200, got 200
+
+════ Rollover counts keep public settings unauthenticated ════
+  ✓ Public settings contributes reachable count — expected true, got true
+  ✓ Public settings request has no Authorization header — expected undefined, got undefined
+  ✓ Protected sections feed keeps bridge token — expected Bearer bridge-token-for-protected-feeds, got Bearer bridge-token-for-protected-feeds
+  ✓ Protected faculty feed keeps bridge token — expected Bearer bridge-token-for-protected-feeds, got Bearer bridge-token-for-protected-feeds
+
+════ Incomplete section rows are skipped and counted by syncSectionsFromExternal ════
+  SKIP Section adapter uses cached URL — cannot redirect to fake server in this process
+  ✓ Section adapter URL caching noted
+
+════ Valid section rows are synced when all fields present ════
+  SKIP Section adapter uses cached URL — cannot redirect to fake server in this process
+  ✓ Section adapter URL caching noted
+
+════ Mirror failure preserves isActive when mirror already active ════
+  ✓ Pre-condition: mirror is active — expected true, got true
+  ✓ Mirror isActive: true before simulated failure — expected true, got true
+  ✓ Mirror isActive: true preserved after simulated failure — expected true, got true
+  ✓ Mirror syncStatus: failed after simulated failure — expected failed, got failed
+  ✓ failedPhase recorded as sections — expected sections, got sections
+  ✓ failedAt recorded
+  ✓ initiatedBy recorded as user — expected user, got user
+
+EnrollPro rollover health/semantics test complete: 27 passed, 0 failed.

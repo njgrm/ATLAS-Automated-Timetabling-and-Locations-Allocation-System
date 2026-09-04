@@ -1,0 +1,5 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+[ATLAS] Server listening on http://localhost:5001
+[prisma] ✔ DB connected, 1 school(s) found
+[prisma] ✔ scheduling_policies schema verified
+[rollover-automation] Starting (interval=300000ms, maxBackoff=1800000ms)

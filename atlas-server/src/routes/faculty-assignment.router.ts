@@ -7,6 +7,7 @@ import * as assignmentService from '../services/faculty-assignment.service.js';
 import {
 	autoFill,
 	COVERAGE_MODES,
+	previewOrApplyOverCapRebalance,
 	previewOrApplyTeachingLoadSplitBrainReconcile,
 	type CoverageMode,
 } from '../services/teaching-load-automation.service.js';
@@ -16,6 +17,9 @@ import {
 	createTeachingLoadSuggestionProposal,
 } from '../services/teaching-load-suggestion-proposal.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { publishNotificationEvent } from '../services/notification-events.service.js';
+import { prisma } from '../lib/prisma.js';
+import { getOrCreateTeachingLoadCycleSource, getTeachingLoadCycle } from '../services/teaching-load-cycle.service.js';
 
 const router = Router();
 
@@ -41,6 +45,32 @@ function parsePositiveQueryInteger(value: unknown): number | undefined {
 	return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
 }
 
+async function publishTeachingLoadCycleChanged(schoolId: number, schoolYearId: number, message: string): Promise<void> {
+	const source = await getOrCreateTeachingLoadCycleSource(schoolId, schoolYearId);
+	publishNotificationEvent({
+		type: 'TEACHING_LOAD_CHANGED',
+		domain: 'integration',
+		severity: 'info',
+		audience: 'PRIVILEGED',
+		schoolId,
+		schoolYearId,
+		facultyId: null,
+		message,
+		metadata: { schoolYearId, state: source.state, version: source.version, updatedAt: source.updatedAt },
+	});
+}
+
+async function rejectUnscopedHistoricalTeachingLoad(schoolId: number, schoolYearId: number, explicitlyRequested: boolean, res: Response): Promise<boolean> {
+	if (!explicitlyRequested) return false;
+	const cycle = await getTeachingLoadCycle(schoolId, schoolYearId);
+	if (cycle) return false;
+	res.status(404).json({
+		code: 'TEACHING_LOAD_CYCLE_NOT_FOUND',
+		message: 'This school year has no annual Teaching Load cycle. Legacy unscoped assignments are not available as historical truth.',
+	});
+	return true;
+}
+
 function parseSummaryListOptions(req: Request): { requested: boolean; options: assignmentService.AssignmentSummaryListOptions } {
 	const query = typeof req.query.query === 'string' ? req.query.query : undefined;
 	const scheduling = typeof req.query.scheduling === 'string' ? req.query.scheduling : undefined;
@@ -50,6 +80,10 @@ function parseSummaryListOptions(req: Request): { requested: boolean; options: a
 	const sortDir = typeof req.query.sortDir === 'string' ? req.query.sortDir : undefined;
 	const page = parsePositiveQueryInteger(req.query.page);
 	const pageSize = parsePositiveQueryInteger(req.query.pageSize);
+	const gradeLevelRaw = typeof req.query.gradeLevel === 'string' && req.query.gradeLevel.trim() !== ''
+		? Number(req.query.gradeLevel)
+		: undefined;
+	const gradeLevel = gradeLevelRaw != null && Number.isFinite(gradeLevelRaw) ? gradeLevelRaw : undefined;
 	const requested = [
 		req.query.page,
 		req.query.pageSize,
@@ -57,6 +91,7 @@ function parseSummaryListOptions(req: Request): { requested: boolean; options: a
 		req.query.scheduling,
 		req.query.assignment,
 		req.query.department,
+		req.query.gradeLevel,
 		req.query.sortField,
 		req.query.sortDir,
 	].some((value) => value !== undefined);
@@ -70,6 +105,7 @@ function parseSummaryListOptions(req: Request): { requested: boolean; options: a
 			scheduling: scheduling as assignmentService.AssignmentSummarySchedulingFilter | undefined,
 			assignment: assignment as assignmentService.AssignmentSummaryAssignmentFilter | undefined,
 			department,
+			gradeLevel,
 			sortField: sortField as assignmentService.AssignmentSummarySortField | undefined,
 			sortDir: sortDir as assignmentService.AssignmentSummarySortDir | undefined,
 		},
@@ -87,7 +123,8 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 		const upstreamAuthToken = getUpstreamAuthToken(req);
 
 		let schoolYearId: number;
-		if (req.query.schoolYearId !== undefined) {
+		const explicitlyRequestedSchoolYear = req.query.schoolYearId !== undefined;
+		if (explicitlyRequestedSchoolYear) {
 			schoolYearId = Number(req.query.schoolYearId);
 			if (!schoolYearId || Number.isNaN(schoolYearId)) {
 				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a valid number when provided.' });
@@ -102,7 +139,10 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 				});
 				return;
 			}
-			schoolYearId = activeYear.id;
+			 schoolYearId = activeYear.id;
+		}
+		if (await rejectUnscopedHistoricalTeachingLoad(schoolId, schoolYearId, explicitlyRequestedSchoolYear, res)) {
+			return;
 		}
 
 		const { requested: listRequested, options: listOptions } = parseSummaryListOptions(req);
@@ -136,6 +176,7 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 			ownershipIndex: summary.ownershipIndex,
 			coverageTotals: summary.coverageTotals,
 			integrityDiagnostics: summary.integrityDiagnostics,
+			source: summary.source,
 			schoolYearId,
 			fetchedAt,
 		});
@@ -266,6 +307,46 @@ router.post('/coverage/recover-real-faculty', authenticateWithSystemToken, requi
 			authToken: upstreamAuthToken,
 			subjectCodes,
 			apply,
+		});
+
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/coverage/rebalance-over-cap
+// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean, confirmApply?: boolean }
+router.post('/coverage/rebalance-over-cap', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const previewOnly = req.body.previewOnly !== false;
+		const confirmApply = req.body.confirmApply === true;
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (!previewOnly && !confirmApply) {
+			res.status(400).json({
+				code: 'CONFIRMATION_REQUIRED',
+				message: 'confirmApply=true is required to apply over-cap rebalance.',
+			});
+			return;
+		}
+
+		const authToken = getUpstreamAuthToken(req);
+		const result = await previewOrApplyOverCapRebalance({
+			schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken,
+			previewOnly,
 		});
 
 		res.json(result);
@@ -424,8 +505,15 @@ router.post('/integrity/reconcile-split-brain', authenticate, requirePrivilegedR
 			});
 			return;
 		}
+		if (!previewOnly) {
+			res.status(409).json({
+				code: 'ANNUAL_SCOPE_RECONCILE_RETIRED',
+				message: 'The combined split-brain reconciliation path is retired. Resolve only the affected current-year ownership rows.',
+			});
+			return;
+		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await previewOrApplyTeachingLoadSplitBrainReconcile({
 			schoolId,
 			schoolYearId,
@@ -560,7 +648,7 @@ router.post('/suggestion-proposals', authenticate, requirePrivilegedRole, async 
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await createTeachingLoadSuggestionProposal({
 			schoolId,
 			schoolYearId,
@@ -569,6 +657,44 @@ router.post('/suggestion-proposals', authenticate, requirePrivilegedRole, async 
 			coverageMode: coverageMode ?? undefined,
 		});
 		res.status(201).json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /faculty-assignments/effective?schoolId=X&schoolYearId=Y
+// Lean annual contract for AIMS and SMART. Legacy unscoped records are never returned.
+router.get('/effective', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		const upstreamAuthToken = getUpstreamAuthToken(req);
+		const explicitlyRequestedSchoolYear = req.query.schoolYearId !== undefined;
+		let schoolYearId = Number(req.query.schoolYearId);
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
+			if (!activeYear?.id) {
+				res.status(400).json({ code: 'ACTIVE_SCHOOL_YEAR_UNAVAILABLE', message: 'Unable to resolve active school year from EnrollPro. Provide schoolYearId explicitly.' });
+				return;
+			}
+			schoolYearId = activeYear.id;
+		}
+		if (await rejectUnscopedHistoricalTeachingLoad(schoolId, schoolYearId, explicitlyRequestedSchoolYear, res)) {
+			return;
+		}
+		const effective = await assignmentService.getEffectiveTeachingLoad(schoolId, schoolYearId, upstreamAuthToken);
+		const activeMirror = await prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId, enrollProSchoolYearId: schoolYearId, isActive: true },
+			select: { id: true },
+		});
+		res.json({
+			source: { ...effective.source, isActiveSchoolYear: activeMirror !== null },
+			assignments: effective.assignments,
+			coverageTotals: effective.coverageTotals,
+		});
 	} catch (err) {
 		next(err);
 	}
@@ -584,7 +710,7 @@ router.post('/suggestion-proposals/:proposalId/apply', authenticate, requirePriv
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await applyTeachingLoadSuggestionProposal({
 			proposalId,
 			actorId: req.user?.userId ?? 0,
@@ -626,7 +752,7 @@ router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Reque
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required.' });
 			return;
 		}
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const assignments = await assignmentService.getAssignmentsByFaculty(facultyId, schoolYearId, authToken);
 		if (!assignments) {
 			res.status(404).json({ code: 'NOT_FOUND', message: 'Faculty not found.' });
@@ -652,7 +778,7 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req: Reque
 			return;
 		}
 		const assignedBy = req.user!.userId;
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await assignmentService.setAssignments(
 			facultyId,
 			Number(schoolId),
@@ -672,6 +798,17 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req: Reque
 			return;
 		}
 		const updated = await assignmentService.getAssignmentsByFaculty(facultyId, Number(schoolYearId), authToken);
+		publishNotificationEvent({
+			type: 'TEACHING_LOAD_CHANGED',
+			domain: 'integration',
+			severity: 'info',
+			audience: 'PRIVILEGED',
+			schoolId: Number(schoolId),
+			schoolYearId: Number(schoolYearId),
+			facultyId: null,
+			message: 'Teaching Load assignments changed.',
+			metadata: { facultyId, version: result.version },
+		});
 		res.json({ version: result.version, assignments: updated?.assignments ?? [] });
 	} catch (err) {
 		next(err);
@@ -704,8 +841,11 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req: Reque
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly, coverageMode: coverageMode ?? undefined });
+		if (!previewOnly) {
+			await publishTeachingLoadCycleChanged(schoolId, schoolYearId, 'Teaching Load auto-fill updated the annual assignment cycle.');
+		}
 		res.json(result);
 	} catch (err) {
 		next(err);
@@ -737,7 +877,7 @@ router.post('/report/staffing-needs', authenticate, requirePrivilegedRole, async
 			return;
 		}
 
-		const authToken = req.headers.authorization?.slice(7);
+		const authToken = getUpstreamAuthToken(req);
 		const result = await autoFill(schoolId, schoolYearId, authToken, {
 			previewOnly: true,
 			staffingOnly: true,

@@ -18,6 +18,7 @@ import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-polic
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
+import { assertUndoHead } from './timetable-undo-contract.js';
 
 // ─── Helpers ───
 
@@ -193,7 +194,7 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 			select: { id: true, maxHoursPerWeek: true },
 		}),
 		prisma.facultySubject.findMany({
-			where: { schoolId },
+			where: { schoolId, schoolYearId },
 			select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 		}),
 		prisma.room.findMany({
@@ -1298,18 +1299,31 @@ export async function revertLastEdit(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
+	operationId: number,
+	expectedVersion: number,
 ): Promise<CommitResult> {
 	const run = await prisma.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	// Find the last non-REVERT edit for this run
-	const lastEdit = await prisma.manualScheduleEdit.findFirst({
-		where: { runId, schoolId, schoolYearId, editType: { not: 'REVERT' } },
-		orderBy: { createdAt: 'desc' },
+	const [lastEdit, headEdit, priorRevert] = await Promise.all([
+		prisma.manualScheduleEdit.findFirst({ where: { id: operationId, runId, schoolId, schoolYearId, editType: { not: 'REVERT' } } }),
+		prisma.manualScheduleEdit.findFirst({ where: { runId, schoolId, schoolYearId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
+		prisma.manualScheduleEdit.findFirst({
+			where: { runId, schoolId, schoolYearId, editType: 'REVERT', validationSummary: { path: ['revertedEditId'], equals: operationId } },
+		}),
+	]);
+	assertUndoHead({
+		requestedOperationId: operationId,
+		expectedVersion,
+		currentVersion: run.version,
+		headOperationId: headEdit?.id ?? null,
+		requestingActorId: actorId,
+		operationActorId: lastEdit?.actorId ?? null,
+		alreadyReverted: priorRevert != null,
 	});
-	if (!lastEdit) throw err(400, 'NOTHING_TO_REVERT', 'No manual edits to revert.');
+	if (!lastEdit) throw err(409, 'UNDO_CONFLICT', 'Schedule changed—review latest');
 
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
 	const unassigned = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
@@ -1320,7 +1334,7 @@ export async function revertLastEdit(
 	if (isPerformanceFixtureRun(run) && (lastEdit.validationSummary as Record<string, unknown> | null)?.performanceFixtureNoop === true) {
 		const newVersion = run.version + 1;
 		const [updatedRun, editRecord] = await prisma.$transaction([
-			prisma.generationRun.update({ where: { id: runId }, data: { version: newVersion } }),
+			prisma.generationRun.update({ where: { id: runId, version: expectedVersion }, data: { version: newVersion } }),
 			prisma.manualScheduleEdit.create({
 				data: {
 					runId,
@@ -1408,7 +1422,7 @@ export async function revertLastEdit(
 
 	const [updatedRun, editRecord] = await prisma.$transaction([
 		prisma.generationRun.update({
-			where: { id: runId },
+			where: { id: runId, version: expectedVersion },
 			data: {
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],

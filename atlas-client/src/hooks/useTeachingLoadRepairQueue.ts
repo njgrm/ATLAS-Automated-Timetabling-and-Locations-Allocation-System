@@ -184,14 +184,25 @@ export function useTeachingLoadRepairQueue({
 
 	const updateRepairRoute = useCallback((item: TeachingLoadRepairQueueItem) => {
 		const next = new URLSearchParams(searchParams);
+
+		// Clear all mutually exclusive parameters first
+		next.delete('view');
+		next.delete('task');
+		next.delete('facultyId');
+		next.delete('sectionId');
+		next.delete('subjectId');
+
+		// Set the parameters appropriate for this repair item
 		if (item.facultyId) next.set('facultyId', String(item.facultyId));
 		if (item.kind === 'missing-load') {
 			next.set('view', 'subjects');
-			next.delete('task');
-		} else if (item.kind === 'teacher-missing-load') next.set('task', 'missing-load');
-		else if (item.kind === 'over-cap') next.set('task', 'over-cap');
-		else if (item.kind === 'placeholder') next.set('task', 'review-placeholders');
-		else next.delete('task');
+		} else if (item.kind === 'teacher-missing-load') {
+			next.set('task', 'missing-load');
+		} else if (item.kind === 'over-cap') {
+			next.set('task', 'over-cap');
+		} else if (item.kind === 'placeholder') {
+			next.set('task', 'review-placeholders');
+		}
 		setSearchParams(next, { replace: true });
 	}, [searchParams, setSearchParams]);
 

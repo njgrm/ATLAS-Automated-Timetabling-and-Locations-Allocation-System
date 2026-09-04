@@ -3,6 +3,35 @@ import { parseDraftPlacementId } from '@/lib/timetable-utils';
 
 type EntryLike = Pick<ScheduledEntry, 'entryId' | 'sectionId' | 'subjectId' | 'day' | 'startTime' | 'endTime' | 'entryKind' | 'cohortCode' | 'facultyId' | 'roomId'>;
 
+type TimetableSlotLike = Pick<ScheduledEntry, 'day' | 'startTime' | 'endTime'>;
+
+export type TimetableDropTarget = {
+	day: string;
+	startTime: string;
+	endTime: string;
+};
+
+export function isSameTimetableSlot(source: TimetableSlotLike, target: TimetableSlotLike): boolean {
+	return source.day === target.day
+		&& source.startTime === target.startTime
+		&& source.endTime === target.endTime;
+}
+
+export function resolveTimetableDropTarget(input: {
+	pointerUpCell?: TimetableDropTarget | null;
+	explicit?: Partial<TimetableDropTarget> | null;
+	finalPointerCell?: TimetableDropTarget | null;
+	lastOverCell?: TimetableDropTarget | null;
+	targetEntry?: TimetableDropTarget | null;
+}): TimetableDropTarget | null {
+	if ('pointerUpCell' in input) return input.pointerUpCell ?? null;
+	const day = input.explicit?.day ?? input.finalPointerCell?.day ?? input.lastOverCell?.day ?? input.targetEntry?.day;
+	const startTime = input.explicit?.startTime ?? input.finalPointerCell?.startTime ?? input.lastOverCell?.startTime ?? input.targetEntry?.startTime;
+	const endTime = input.explicit?.endTime ?? input.finalPointerCell?.endTime ?? input.lastOverCell?.endTime ?? input.targetEntry?.endTime;
+
+	return day && startTime && endTime ? { day, startTime, endTime } : null;
+}
+
 export function resolveDraftPlacementFromEntry(
 	entry: EntryLike,
 	placements: DraftPlacement[] | undefined,

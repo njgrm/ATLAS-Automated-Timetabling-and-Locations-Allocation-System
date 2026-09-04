@@ -151,13 +151,14 @@ return { canonical, duplicateExternalToCanonicalExternal };
 async function mergeFacultyAssignmentRecords(
 tx: any,
 schoolId: number,
+	schoolYearId: number,
 sourceFacultyId: number,
 targetFacultyId: number,
 ): Promise<number> {
 if (sourceFacultyId === targetFacultyId) return 0;
 
 const sourceSubjects = await tx.facultySubject.findMany({
-where: { schoolId, facultyId: sourceFacultyId },
+where: { schoolId, schoolYearId, facultyId: sourceFacultyId },
 select: {
 id: true,
 subjectId: true,
@@ -172,9 +173,10 @@ let transferredSections = 0;
 for (const sourceSubject of sourceSubjects) {
 let targetSubject = await tx.facultySubject.findUnique({
 where: {
-facultyId_subjectId: {
+facultyId_subjectId_schoolYearId: {
 facultyId: targetFacultyId,
 subjectId: sourceSubject.subjectId,
+	schoolYearId,
 },
 },
 select: { id: true, sectionIds: true, gradeLevels: true },
@@ -186,6 +188,7 @@ data: {
 facultyId: targetFacultyId,
 subjectId: sourceSubject.subjectId,
 schoolId,
+	schoolYearId,
 sectionIds: [],
 gradeLevels: [],
 assignedBy: sourceSubject.assignedBy,
@@ -197,6 +200,7 @@ select: { id: true, sectionIds: true, gradeLevels: true },
 const sourceOwnedRows = await tx.subjectSectionOwnership.findMany({
 where: {
 schoolId,
+	schoolYearId,
 facultyId: sourceFacultyId,
 subjectId: sourceSubject.subjectId,
 },
@@ -226,6 +230,7 @@ throw error;
 const targetOwnedSections = await tx.subjectSectionOwnership.findMany({
 where: {
 schoolId,
+	schoolYearId,
 facultyId: targetFacultyId,
 subjectId: sourceSubject.subjectId,
 },
@@ -252,7 +257,7 @@ gradeLevels: mergedGradeLevels,
 });
 }
 
-await tx.facultySubject.deleteMany({ where: { schoolId, facultyId: sourceFacultyId } });
+await tx.facultySubject.deleteMany({ where: { schoolId, schoolYearId, facultyId: sourceFacultyId } });
 
 return transferredSections;
 }
@@ -455,7 +460,7 @@ sectionDisplayOrderById.set(section.id, gradeLevel.displayOrder);
 }
 
 const assignments = await prisma.facultySubject.findMany({
-where: { schoolId },
+where: { schoolId, schoolYearId },
 select: { id: true, sectionIds: true, gradeLevels: true },
 });
 
@@ -673,7 +678,7 @@ for (const duplicateLocal of duplicateLocals) {
 if (duplicateLocal.id === canonicalLocalId) continue;
 
 await prisma.$transaction(async (tx) => {
-await mergeFacultyAssignmentRecords(tx, schoolId, duplicateLocal.id, canonicalLocalId);
+await mergeFacultyAssignmentRecords(tx, schoolId, schoolYearId, duplicateLocal.id, canonicalLocalId);
 await tx.facultyMirror.update({
 where: { id: duplicateLocal.id },
 data: {
@@ -712,7 +717,7 @@ const shouldCarryOver = local.isStale || !local.employeeId;
 if (!shouldCarryOver) continue;
 
 await prisma.$transaction(async (tx) => {
-await mergeFacultyAssignmentRecords(tx, schoolId, local.id, canonicalLocalId);
+await mergeFacultyAssignmentRecords(tx, schoolId, schoolYearId, local.id, canonicalLocalId);
 });
 
 mergedFacultyIds.add(local.id);

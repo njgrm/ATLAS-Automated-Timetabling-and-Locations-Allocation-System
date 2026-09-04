@@ -527,7 +527,10 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		// EnrollPro returns the active school year's sections by default.
 		// This feed is paginated (default limit=50), so collect every page.
-		const url = `${this.baseUrl}/integration/v1/sections`;
+		// Base URL resolves per call (mirrors the faculty adapter) so tests
+		// can point ENROLLPRO_API at a fake upstream after import.
+		const baseUrl = process.env.ENROLLPRO_API ?? this.baseUrl;
+		const url = `${baseUrl}/integration/v1/sections`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 

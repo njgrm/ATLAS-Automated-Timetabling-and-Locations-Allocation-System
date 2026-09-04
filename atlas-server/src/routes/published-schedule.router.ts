@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
 import { extractSseToken } from '../middleware/authenticate.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
+import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
 import {
 	getPublishedFacultySchedule,
 	getPublishedFacultyScheduleByExternalId,
@@ -557,13 +558,14 @@ router.get(
 			const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;
 
 			res.setHeader('Content-Type', 'text/event-stream');
-			res.setHeader('Cache-Control', 'no-cache');
+			res.setHeader('Cache-Control', 'no-cache, no-transform');
 			res.setHeader('Connection', 'keep-alive');
 			res.setHeader('X-Accel-Buffering', 'no');
 			res.flushHeaders();
+			attachSseErrorGuard(res);
 
 			const send = (event: import('../services/published-schedule-events.service.js').PublishedScheduleEvent) => {
-				res.write(`id: ${event.id}\nevent: published-schedule\ndata: ${JSON.stringify(event)}\n\n`);
+				sseWrite(res, `id: ${event.id}\nevent: published-schedule\ndata: ${JSON.stringify(event)}\n\n`);
 			};
 
 			// Replay missed events
@@ -574,8 +576,8 @@ router.get(
 
 			const unsub = subscribePublishedScheduleEvents({ schoolId, schoolYearId, facultyId: scopeFacultyId, send });
 
-			const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15_000);
-			req.on('close', () => { unsub(); clearInterval(heartbeat); });
+			const heartbeat = setInterval(() => sseWrite(res, ': heartbeat\n\n'), 15_000);
+			registerSseCleanup(req, res, () => { unsub(); clearInterval(heartbeat); });
 		} catch (e) { next(e); }
 	},
 );

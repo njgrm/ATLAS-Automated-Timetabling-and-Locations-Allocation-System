@@ -1,0 +1,42 @@
+
+> atlas-server@0.1.0 test:notifications
+> tsx src/__tests__/notification-events.test.ts
+
+
+═══ Unified notification event service ═══
+  ✓ Officer receives privileged generation notification — expected GENERATION_RUN_COMPLETED, got GENERATION_RUN_COMPLETED
+  ✓ Faculty does not receive privileged generation notification
+  ✓ Affected faculty receives faculty-scoped notification — expected ROOM_REQUEST_REVIEWED, got ROOM_REQUEST_REVIEWED
+  ✓ Unaffected faculty does not receive faculty-scoped notification
+  ✓ Officer receives bridged published schedule notification — expected SCHEDULE_PUBLISHED, got SCHEDULE_PUBLISHED
+  ✓ Faculty receives global published schedule notification — expected SCHEDULE_PUBLISHED, got SCHEDULE_PUBLISHED
+  ✓ Other faculty receives global published schedule notification — expected SCHEDULE_PUBLISHED, got SCHEDULE_PUBLISHED
+  ✓ Affected faculty receives bridged revision notification — expected SCHEDULE_REVISED, got SCHEDULE_REVISED
+  ✓ Unaffected faculty does not receive bridged revision notification — expected SCHEDULE_PUBLISHED, got SCHEDULE_PUBLISHED
+  ✓ Replay includes missed faculty revision
+  ✓ Replay excludes privileged notification for faculty
+
+═══ Notification term metadata ═══
+  ✓ Generation event received — expected GENERATION_RUN_COMPLETED, got GENERATION_RUN_COMPLETED
+  ✓ Generation metadata has termCounts.term1 — expected 50, got 50
+  ✓ Generation metadata has termCounts.term2 — expected 30, got 30
+  ✓ Generation metadata has termCounts.term3 — expected 25, got 25
+  ✓ Publish event received — expected SCHEDULE_PUBLISHED, got SCHEDULE_PUBLISHED
+  ✓ Publish metadata has termCounts.term1 — expected 50, got 50
+  ✓ Revision event received — expected SCHEDULE_REVISED, got SCHEDULE_REVISED
+  ✓ Revision metadata has affectedTermIndices array — expected true, got true
+  ✓ Revision metadata includes term 1 — expected true, got true
+  ✓ Revision metadata includes term 2 — expected true, got true
+  ✓ Single edit event received — expected TIMETABLE_EDIT_COMMITTED, got TIMETABLE_EDIT_COMMITTED
+  ✓ Single edit metadata has termIndex=1 — expected 1, got 1
+  ✓ Batch edit event received — expected TIMETABLE_EDIT_COMMITTED, got TIMETABLE_EDIT_COMMITTED
+  ✓ Batch edit metadata has affectedTermIndices array — expected true, got true
+  ✓ Batch edit metadata includes term 1 — expected true, got true
+  ✓ Batch edit metadata includes term 3 — expected true, got true
+  ✓ Revert event received — expected TIMETABLE_REVERTED, got TIMETABLE_REVERTED
+  ✓ Revert metadata has termIndex=2 — expected 2, got 2
+  ✓ No-term edit event received — expected TIMETABLE_EDIT_COMMITTED, got TIMETABLE_EDIT_COMMITTED
+  ✓ No-term edit metadata has termIndex=undefined — expected undefined, got undefined
+  ✓ No-term edit metadata has affectedTermIndices=undefined — expected undefined, got undefined
+
+Summary: 32 passed, 0 failed

@@ -1,0 +1,22 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ getUpstreamAuthToken unit cases ════
+  ✓ Bridge user forwards bearer token — expected bridge-token-abc, got bridge-token-abc
+  ✓ Local user returns undefined — expected undefined, got undefined
+  ✓ System user returns undefined — expected undefined, got undefined
+  ✓ Missing user returns undefined — expected undefined, got undefined
+  ✓ Bridge user with no token returns undefined — expected undefined, got undefined
+  ✓ Disabled flag returns undefined — expected undefined, got undefined
+
+════ Rollover counts settings probe carries no auth ════
+  ✓ settingsReachable is true against fake server — expected true, got true
+  ✓ Settings endpoint was hit
+  ✓ Settings request has no Authorization header
+
+════ Local session generation trigger detects drift via service token ════
+  ✓ Preview detects drift when fake server has different year — expected atlas-stale, got atlas-stale
+
+════ Local user token is never forwarded upstream ════
+  ✓ Settings request has no auth
+
+Upstream token forwarding test complete: 11 passed, 0 failed.

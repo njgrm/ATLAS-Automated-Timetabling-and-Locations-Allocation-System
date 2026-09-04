@@ -1,58 +1,65 @@
 import { Wand2, MapPin, RefreshCw } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { Badge } from '@/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 
 type SectionsHomeRoomActionsProps = {
 	canAutoAssign: boolean;
-	sectionsNeedingRooms: number;
 	syncing: boolean;
 	syncingQueuedEdits: boolean;
 	stateStatus: string;
 	isOnline: boolean;
+	sectionsNeedingRooms: number;
 	onAutoAssign: () => void;
 	onSync: () => void;
 };
 
 export function SectionsHomeRoomActions({
 	canAutoAssign,
-	sectionsNeedingRooms,
 	syncing,
 	syncingQueuedEdits,
 	stateStatus,
 	isOnline,
+	sectionsNeedingRooms,
 	onAutoAssign,
 	onSync,
 }: SectionsHomeRoomActionsProps) {
 	return (
-		<>
-			{/* Primary actions */}
-			<div className="flex gap-2">
-				{canAutoAssign && (
-					<Button variant="default" size="sm" onClick={onAutoAssign} className="gap-2 shadow-sm font-bold">
-						<Wand2 className="size-4" />
-						<span className="hidden sm:inline">Auto-assign rooms</span>
-						<span className="sm:hidden">Auto</span>
-					</Button>
-				)}
-				<Button variant="outline" size="sm" onClick={onSync} disabled={syncing || syncingQueuedEdits || stateStatus === 'loading' || !isOnline} className="gap-2 shadow-sm font-bold">
-					<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
-					<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
-					<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
+		<div className="flex shrink-0 items-center gap-2">
+			{canAutoAssign && (
+				<Button variant="default" size="sm" onClick={onAutoAssign} className="gap-2 shadow-sm font-bold">
+					<Wand2 className="size-4" />
+					<span className="hidden sm:inline">Auto-assign rooms</span>
+					<span className="sm:hidden">Auto</span>
 				</Button>
-			</div>
-
-			{/* Start-here banner */}
-			{sectionsNeedingRooms > 0 ? (
-				<div
-					role="status"
-					data-testid="sections-start-here-banner"
-					className="shrink-0 mx-4 mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm text-primary shadow-sm lg:mx-5"
-				>
-					<MapPin className="size-4 shrink-0" />
-					<span className="flex-1 font-semibold">
-						{sectionsNeedingRooms} {sectionsNeedingRooms === 1 ? 'section needs' : 'sections need'} a home room. Use "Auto-assign rooms" or the "Choose home room" control on each row.
-					</span>
-				</div>
-			) : null}
-		</>
+			)}
+			{sectionsNeedingRooms > 0 && (
+				<Popover>
+					<PopoverTrigger asChild>
+						<Badge
+							variant="outline"
+							className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer gap-1.5 px-2.5 py-1 rounded-full font-semibold shadow-sm"
+							data-testid="sections-start-here-banner"
+							onClick={onAutoAssign}
+						>
+							<MapPin className="size-3" />
+							<span className="hidden sm:inline">{sectionsNeedingRooms} need{sectionsNeedingRooms === 1 ? 's' : ''} rooms</span>
+							<span className="sm:hidden">{sectionsNeedingRooms}</span>
+						</Badge>
+					</PopoverTrigger>
+					<PopoverContent align="start" className="w-72 rounded-xl p-3 text-sm">
+						<p className="font-semibold text-slate-900">Sections needing home rooms</p>
+						<p className="mt-1 text-xs leading-relaxed text-slate-600">
+							Use &quot;Auto-assign rooms&quot; or the &quot;Choose home room&quot; control on each row.
+						</p>
+					</PopoverContent>
+				</Popover>
+			)}
+			<Button variant="outline" size="sm" onClick={onSync} disabled={syncing || syncingQueuedEdits || stateStatus === 'loading' || !isOnline} className="gap-2 shadow-sm font-bold">
+				<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
+				<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
+				<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
+			</Button>
+		</div>
 	);
 }

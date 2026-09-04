@@ -1,0 +1,65 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ ENROLLPRO_UNREACHABLE classification ════
+  ✓ Classifies as ENROLLPRO_UNREACHABLE — expected ENROLLPRO_UNREACHABLE, got ENROLLPRO_UNREACHABLE
+  ✓ Cannot clear test data when unreachable — expected false, got false
+  ✓ Message mentions unreachable
+
+════ AUTO_ROLLOVER_READY classification ════
+  ✓ Classifies as AUTO_ROLLOVER_READY — expected AUTO_ROLLOVER_READY, got AUTO_ROLLOVER_READY
+  ✓ Cannot clear when aligned — expected false, got false
+
+════ ATLAS_STALE classification ════
+  ✓ Classifies clean atlas-stale rollover as AUTO_ROLLOVER_READY — expected AUTO_ROLLOVER_READY, got AUTO_ROLLOVER_READY
+
+════ Dynamic recovery confirmation ════
+  ✓ Confirmation includes target school-year ID — expected CLEAR_TEST_DATA_AND_SYNC_5, got CLEAR_TEST_DATA_AND_SYNC_5
+  ✓ Unavailable target uses safe non-applicable confirmation — expected CLEAR_TEST_DATA_AND_SYNC_UNAVAILABLE, got CLEAR_TEST_DATA_AND_SYNC_UNAVAILABLE
+
+════ MANUAL_RECONFIGURE_REQUIRED classification ════
+  ✓ Classifies as MANUAL_RECONFIGURE_REQUIRED — expected MANUAL_RECONFIGURE_REQUIRED, got MANUAL_RECONFIGURE_REQUIRED
+  ✓ Cannot clear when reconfigure required — expected false, got false
+  ✓ Message mentions reconfigured section count
+
+════ TEST_DATA_RECOVERY_AVAILABLE classification ════
+  ✓ Classifies as TEST_DATA_RECOVERY_AVAILABLE — expected TEST_DATA_RECOVERY_AVAILABLE, got TEST_DATA_RECOVERY_AVAILABLE
+  ✓ Can clear test data — expected true, got true
+  ✓ Conflict code is SECTION_ID_COLLISION — expected SECTION_ID_COLLISION, got SECTION_ID_COLLISION
+  ✓ Artifact counts are present
+  ✓ Message mentions target year
+
+════ TEST_DATA_RECOVERY_BLOCKED classification ════
+  ✓ Classifies as TEST_DATA_RECOVERY_BLOCKED — expected TEST_DATA_RECOVERY_BLOCKED, got TEST_DATA_RECOVERY_BLOCKED
+  ✓ Cannot clear when no artifacts — expected false, got false
+
+════ MANUAL_MAPPING_CONFLICT_REQUIRED for non-SECTION_ID_COLLISION ════
+  ✓ Classifies as MANUAL_MAPPING_CONFLICT_REQUIRED — expected MANUAL_MAPPING_CONFLICT_REQUIRED, got MANUAL_MAPPING_CONFLICT_REQUIRED
+  ✓ Cannot clear non-SECTION_ID_COLLISION conflicts — expected false, got false
+
+════ Published data blocker ════
+  ✓ Still classified as recoverable — expected TEST_DATA_RECOVERY_AVAILABLE, got TEST_DATA_RECOVERY_AVAILABLE
+  ✓ Has blockers
+  ✓ Published data blocker present
+
+════ Live classifier against real status ════
+  ✓ Valid classification: AUTO_ROLLOVER_READY
+  ✓ Message is non-empty
+  ✓ Confirmation text matches target year — expected CLEAR_TEST_DATA_AND_SYNC_5, got CLEAR_TEST_DATA_AND_SYNC_5
+  Live state: AUTO_ROLLOVER_READY — ATLAS is aligned with EnrollPro. No action needed.
+
+════ previewTestYearRecovery returns classifier data ════
+  ✓ Valid classification: AUTO_ROLLOVER_READY
+  ✓ Confirmation text matches target year — expected CLEAR_TEST_DATA_AND_SYNC_5, got CLEAR_TEST_DATA_AND_SYNC_5
+  ✓ Message is non-empty
+
+════ Recovery classifier rejects non-SECTION_ID_COLLISION ════
+  ✓ Non-section collisions remain manual — expected MANUAL_MAPPING_CONFLICT_REQUIRED, got MANUAL_MAPPING_CONFLICT_REQUIRED
+  ✓ Non-section collisions cannot be cleared — expected false, got false
+
+════ applyTestYearRecovery rejects wrong confirmation text ════
+  SKIP Cannot test wrong confirmation when classification is AUTO_ROLLOVER_READY
+
+════ applyTestYearRecovery preview-only mode ════
+  ✓ Throws when classification is not TEST_DATA_RECOVERY_AVAILABLE
+
+Recovery classifier test complete: 32 passed, 0 failed.

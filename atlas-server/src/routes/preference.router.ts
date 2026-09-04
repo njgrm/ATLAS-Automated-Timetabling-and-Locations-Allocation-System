@@ -9,6 +9,7 @@ import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-iden
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
 import type { DayOfWeek, TimeSlotPreference } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
 
 const router = Router();
 
@@ -477,13 +478,14 @@ router.get(
 			const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;
 
 			res.setHeader('Content-Type', 'text/event-stream');
-			res.setHeader('Cache-Control', 'no-cache');
+			res.setHeader('Cache-Control', 'no-cache, no-transform');
 			res.setHeader('Connection', 'keep-alive');
 			res.setHeader('X-Accel-Buffering', 'no');
 			res.flushHeaders();
+			attachSseErrorGuard(res);
 
 			const send = (event: import('../services/preference-events.service.js').PreferenceEvent) => {
-				res.write(`id: ${event.id}\nevent: preference\ndata: ${JSON.stringify(event)}\n\n`);
+				sseWrite(res, `id: ${event.id}\nevent: preference\ndata: ${JSON.stringify(event)}\n\n`);
 			};
 
 			// Replay missed events
@@ -494,8 +496,8 @@ router.get(
 
 			const unsub = subscribePreferenceEvents({ schoolId, schoolYearId, facultyId: scopeFacultyId, send });
 
-			const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15_000);
-			req.on('close', () => { unsub(); clearInterval(heartbeat); });
+			const heartbeat = setInterval(() => sseWrite(res, ': heartbeat\n\n'), 15_000);
+			registerSseCleanup(req, res, () => { unsub(); clearInterval(heartbeat); });
 		} catch (e) { next(e); }
 	},
 );

@@ -10,7 +10,7 @@ import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { AlertCircle, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, RefreshCw, UserRoundX } from 'lucide-react';
+import { AlertCircle, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ScheduledEntry } from '@/types';
 
@@ -220,6 +220,39 @@ export default function ScheduleReviewWorkspace() {
 					{state.inlineActionStatus.message}
 				</div>
 			) : null}
+			{state.lastAutoSaveUndo ? (
+				<div
+					role="status"
+					aria-live="polite"
+					data-testid="timetable-auto-save-undo-strip"
+					className="border-b border-emerald-400/40 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+				>
+					<div className="flex items-center justify-between gap-2">
+						<p className="truncate">
+							<span className="font-semibold">{state.lastAutoSaveUndo.subjectLabel}</span>
+							{' '}saved to {state.lastAutoSaveUndo.day} {state.lastAutoSaveUndo.startTime}–{state.lastAutoSaveUndo.endTime}
+							{state.lastAutoSaveUndo.roomLabel ? ` · ${state.lastAutoSaveUndo.roomLabel}` : ''}
+						</p>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-11 shrink-0 gap-1.5 text-sm"
+							data-testid="timetable-auto-save-undo"
+							onClick={async () => {
+								const ok = await state.revertEditById(state.lastAutoSaveUndo!.editId, state.lastAutoSaveUndo!.newVersion);
+								if (ok) {
+									state.setLastAutoSaveUndo(null);
+									state.setInlineActionStatus({ tone: 'success', message: 'Edit reverted.' });
+								}
+							}}
+						>
+							<Undo2 className="size-4" aria-hidden="true" />
+							Undo
+						</Button>
+					</div>
+				</div>
+			) : null}
 			{state.selectedEntry ? (
 				<div
 					role="status"
@@ -258,7 +291,7 @@ export default function ScheduleReviewWorkspace() {
 							<DropdownMenuContent align="end" className="w-56">
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null); }} data-testid="teacher-departure-selected-action">
 									<UserRoundX className="mr-2 size-3.5" aria-hidden="true" />
-									Reassign teacher
+									Change teacher
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); startMoveSelectedEntry(); }}>
 									<Move className="mr-2 size-3.5" aria-hidden="true" />
@@ -297,6 +330,17 @@ export default function ScheduleReviewWorkspace() {
 						onSetRepairOrigin={setRepairOrigin}
 						readinessSheetOpen={readinessSheetOpen}
 						onReadinessSheetOpenChange={setReadinessSheetOpen}
+						swapClassTimesMode={state.swapClassTimesMode}
+						onSwapClassTimesStart={() => {
+							state.setSwapClassTimesMode('select-first');
+							state.setSwapClassAEntryId(null);
+							state.setSwapClassBEntryId(null);
+						}}
+						onSwapClassTimesCancel={() => {
+							state.setSwapClassTimesMode(null);
+							state.setSwapClassAEntryId(null);
+							state.setSwapClassBEntryId(null);
+						}}
 					/>
 				) : (
 					<div className="relative shrink-0">

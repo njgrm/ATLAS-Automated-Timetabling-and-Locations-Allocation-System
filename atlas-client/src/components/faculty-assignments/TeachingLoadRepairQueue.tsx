@@ -150,7 +150,7 @@ export function TeachingLoadRepairQueue({
 								<ClipboardCheck className="size-4" />
 								<span className="max-w-24 truncate sm:max-w-none">{saving ? 'Saving...' : currentItem.actionLabel}</span>
 							</Button>
-							<Button type="button" variant="outline" size="sm" className="hidden h-8 px-2 font-semibold sm:inline-flex" onClick={() => setDetailsItem(currentItem)}>
+							<Button type="button" variant="outline" size="sm" className="h-10 px-2 font-semibold sm:h-8" onClick={() => setDetailsItem(currentItem)}>
 								Details
 							</Button>
 						{/* Phase 4.2: Skip is visible at sm+ breakpoints. Hidden on mobile to prevent crowding. */}

@@ -1,0 +1,59 @@
+{
+  "viewport": "mobile-portrait",
+  "title": "Swap these two classes?",
+  "sectionCount": 3,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "SWAP OPTIONS",
+    "DIRECT SWAP STATUS"
+  ],
+  "visibleTextLength": 846,
+  "dialogBox": {
+    "x": 16,
+    "y": 42.203125,
+    "width": 358,
+    "height": 759.59375
+  },
+  "scrollMetrics": {
+    "scrollHeight": 675,
+    "clientHeight": 675,
+    "requiresScroll": false
+  },
+  "strategies": [
+    {
+      "label": "Recommended Direct swap Blocking 0 • Warnings 890",
+      "disabled": false,
+      "hasRecommended": true,
+      "hasUnavailable": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "hasRecommended": false,
+      "hasUnavailable": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "hasRecommended": false,
+      "hasUnavailable": true
+    }
+  ],
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasNoSafeSwapFound": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 390,
+    "docClientWidth": 390
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 33,
+    "y": 744.796875,
+    "width": 324,
+    "height": 44
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "blockedWrites": []
+}

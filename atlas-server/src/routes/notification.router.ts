@@ -10,6 +10,7 @@ import {
 	subscribeNotificationEvents,
 	type NotificationEvent,
 } from '../services/notification-events.service.js';
+import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
 
 const router = Router();
 
@@ -74,12 +75,13 @@ router.get('/:schoolId/:schoolYearId/events', async (req: Request, res: Response
 		res.setHeader('Connection', 'keep-alive');
 		res.setHeader('X-Accel-Buffering', 'no');
 		res.flushHeaders();
-		res.write('retry: 2000\n\n');
+		attachSseErrorGuard(res);
+		sseWrite(res, 'retry: 2000\n\n');
 
 		const send = (event: NotificationEvent) => {
-			res.write(`id: ${event.id}\n`);
-			res.write(`event: ${event.type}\n`);
-			res.write(`data: ${JSON.stringify(event)}\n\n`);
+			sseWrite(res, `id: ${event.id}\n`);
+			sseWrite(res, `event: ${event.type}\n`);
+			sseWrite(res, `data: ${JSON.stringify(event)}\n\n`);
 		};
 
 		const lastIdRaw = req.header('last-event-id') ?? (typeof req.query.lastEventId === 'string' ? req.query.lastEventId : undefined);
@@ -91,10 +93,10 @@ router.get('/:schoolId/:schoolYearId/events', async (req: Request, res: Response
 
 		const unsubscribe = subscribeNotificationEvents({ schoolId, schoolYearId, facultyId: facultyScope, send });
 		const heartbeat = setInterval(() => {
-			res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+			sseWrite(res, `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
 		}, 15000);
 
-		req.on('close', () => {
+		registerSseCleanup(req, res, () => {
 			clearInterval(heartbeat);
 			unsubscribe();
 		});

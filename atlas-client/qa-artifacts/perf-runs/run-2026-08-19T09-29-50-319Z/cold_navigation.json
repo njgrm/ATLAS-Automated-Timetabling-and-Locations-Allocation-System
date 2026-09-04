@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 1305.8444999999997,
+  "metrics": {
+    "navigation": {
+      "duration": 199.69999999552965,
+      "domInteractive": 26.5,
+      "responseEnd": 21
+    },
+    "jsTransferBytes": 6794124,
+    "jsDecodedBytes": 6751824,
+    "jsFileCount": 141,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 5.5,
+        "baseDuration": 5.200000002980232,
+        "timestamp": 1787131794012
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.7000000029802322,
+        "baseDuration": 2.5,
+        "timestamp": 1787131794027
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 2.5,
+        "timestamp": 1787131794037
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.5,
+        "baseDuration": 1.5,
+        "timestamp": 1787131794097
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 1.5,
+        "timestamp": 1787131794111
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 7.9000000059604645,
+        "baseDuration": 6.700000010430813,
+        "timestamp": 1787131794164
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 13.300000004470348,
+        "baseDuration": 9.400000020861626,
+        "timestamp": 1787131794206
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 9.400000020861626,
+        "timestamp": 1787131794216
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.2000000029802322,
+        "baseDuration": 8.200000032782555,
+        "timestamp": 1787131794253
+      }
+    ]
+  }
+}

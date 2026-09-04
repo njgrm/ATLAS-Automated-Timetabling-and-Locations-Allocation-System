@@ -1,0 +1,55 @@
+{
+  "viewport": "desktop",
+  "activeSchoolYearId": 2,
+  "assignedCount": 830,
+  "entryCount": 830,
+  "title": "Swap these two classes?",
+  "sectionCount": 3,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "SWAP OPTIONS",
+    "DIRECT SWAP STATUS"
+  ],
+  "visibleTextLength": 718,
+  "dialogBox": {
+    "x": 395,
+    "y": 38.40625,
+    "width": 576,
+    "height": 691.1875
+  },
+  "scrollMetrics": {
+    "scrollHeight": 576,
+    "clientHeight": 576,
+    "requiresScroll": false
+  },
+  "strategies": [
+    {
+      "label": "Recommended Direct swap Blocking 0 • Warnings 890",
+      "disabled": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true
+    }
+  ],
+  "hasRecommendedBadge": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 1366,
+    "docClientWidth": 1366
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 820.578125,
+    "y": 675.59375,
+    "width": 133.421875,
+    "height": 32
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "statusText": "Occupied-slot swap preview is ready.",
+  "blockedWrites": []
+}

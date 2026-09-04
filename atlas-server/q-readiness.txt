@@ -1,0 +1,53 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ Rollover preview contract ════
+  ✓ EnrollPro active school year is reachable
+  ✓ EnrollPro active year label is readable (got "2027-2028")
+  ✓ Rollover drift is aligned
+  ✓ EnrollPro section feed reports >= 1 section (got 20) — expected >= 1, got 20
+  ✓ EnrollPro faculty feed reports >= 1 faculty (got 23) — expected >= 1, got 23
+  ✓ Rollover preview performs no local writes — expected {"sectionMirrors":20,"facultyMirrors":23,"generationRuns":0,"schedulingPolicies":1,"facultySubjects":0,"ownerships":0,"auditLogs":6,"mirrors":1,"teachingLoadSuggestions":1}, got {"sectionMirrors":20,"facultyMirrors":23,"generationRuns":0,"schedulingPolicies":1,"facultySubjects":0,"ownerships":0,"auditLogs":6,"mirrors":1,"teachingLoadSuggestions":1}
+
+════ EnrollPro field-level drift contract ════
+  ✓ EnrollPro school-year feed exposes a positive numeric id
+  ✓ EnrollPro school-year feed exposes a readable year label
+  ✓ EnrollPro section feed exposes row data for field drift checks — expected >= 1, got 3
+  ✓ EnrollPro section row exposes a positive section id
+  ✓ EnrollPro section row exposes a section name
+  ✓ EnrollPro section row exposes a program type
+  ✓ EnrollPro section row exposes grade identity
+  ✓ EnrollPro section row exposes capacity or enrollment count
+  ✓ EnrollPro faculty feed exposes row data for field drift checks — expected >= 1, got 23
+  ✓ EnrollPro faculty row exposes a positive faculty id
+  ✓ EnrollPro faculty row exposes a readable faculty name
+  ✓ EnrollPro faculty row exposes active scheduling status
+  ✓ EnrollPro faculty row exposes department or specialization fields
+  SKIP EnrollPro /settings/public unreachable or auth-gated — settings field checks skipped
+  ✓ Optional subject-offerings probe is classified without blocking ATLAS — got HTTP 404
+
+════ Current-year mirror and empty Teaching Load contract ════
+  ✓ ATLAS mirrors all 20 current-year sections reported by EnrollPro — expected 20, got 20
+  ✓ ATLAS has at least 1 active faculty mirror (feed reports 23, mirror has 23) — expected >= 1, got 23
+  ✓ ATLAS has a current-year scheduling policy baseline — expected >= 1, got 1
+  ✓ ATLAS has a valid generation run count for the active year — expected >= 0, got 0
+  ✓ Teaching Load faculty-subject ownership starts empty — expected 0, got 0
+  ✓ Teaching Load section ownership starts empty — expected 0, got 0
+
+════ Reset and generation guards ════
+  ✓ Dummy reset apply requires the exact confirmation phrase — expected CONFIRMATION_REQUIRED, got CONFIRMATION_REQUIRED
+  ✓ Stale-year generation is blocked by EnrollPro active-year drift — expected ACTIVE_YEAR_DRIFT, got ACTIVE_YEAR_DRIFT
+  ✓ Current-year generation is blocked until Teaching Load is reviewed (canonical ownership is empty) — expected TEACHING_LOAD_REVIEW_REQUIRED, got TEACHING_LOAD_REVIEW_REQUIRED
+
+════ Simulated EnrollPro next-year rollover ════
+  ✓ Simulated EnrollPro rollover exposes next canonical schoolYearId=999999 — expected 999999, got 999999
+  ✓ Simulated EnrollPro rollover exposes readable 2099-2100 label — expected 2099-2100, got 2099-2100
+  ✓ ATLAS reports atlas-stale when EnrollPro has rolled to the next year — expected atlas-stale, got atlas-stale
+  ✓ Next-year drift recommends rollover sync — expected RUN_ROLLOVER_SYNC, got RUN_ROLLOVER_SYNC
+  ✓ Simulated next-year section feed is counted from live-shaped EnrollPro data — expected 1, got 1
+  ✓ Simulated next-year faculty feed is counted from live-shaped EnrollPro data — expected 1, got 1
+  ✓ Simulated next-year rollover preview performs no local writes — expected {"sectionMirrors":0,"facultyMirrors":23,"generationRuns":0,"schedulingPolicies":0,"facultySubjects":0,"ownerships":0,"auditLogs":0,"mirrors":0,"teachingLoadSuggestions":0}, got {"sectionMirrors":0,"facultyMirrors":23,"generationRuns":0,"schedulingPolicies":0,"facultySubjects":0,"ownerships":0,"auditLogs":0,"mirrors":0,"teachingLoadSuggestions":0}
+  ✓ Generation against the old active year is blocked after simulated EnrollPro rollover — expected ACTIVE_YEAR_DRIFT, got ACTIVE_YEAR_DRIFT
+
+SKIP Reversible setup-to-generation fixture: set ATLAS_RUN_LIVE_MUTATION_FIXTURES=true only in an isolated database.
+
+EnrollPro rollover readiness test complete: 37 passed, 0 failed.

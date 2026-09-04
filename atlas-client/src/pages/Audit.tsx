@@ -616,7 +616,6 @@ export default function Audit() {
 				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 					<div>
 						<p className="text-xs font-semibold uppercase tracking-wider text-primary">Review and publish</p>
-						<h1 className="mt-1 text-3xl font-bold text-slate-900">Audit readiness report</h1>
 						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
 							See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.
 						</p>

@@ -127,7 +127,9 @@ export default function HowItWorks() {
 						<Lightbulb className="size-5 text-primary" />
 					</div>
 					<div>
-						<h1 className="text-lg font-bold text-foreground">How Timetabling Works</h1>
+						<span className="text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider">
+							How Timetabling Works
+						</span>
 						<p className="text-xs text-muted-foreground">
 							A plain-language guide to how ATLAS generates, scores, and publishes your schedule.
 						</p>

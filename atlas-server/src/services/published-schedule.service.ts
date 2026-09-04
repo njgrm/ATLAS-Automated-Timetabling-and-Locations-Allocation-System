@@ -362,6 +362,7 @@ async function loadReferenceMaps(
 			? prisma.subjectSectionOwnership.findMany({
 				where: {
 					schoolId,
+					schoolYearId,
 					sectionId: { in: sectionIds },
 					subjectId: { in: subjectIds },
 					OR: [

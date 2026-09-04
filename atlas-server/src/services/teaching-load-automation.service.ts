@@ -39,6 +39,7 @@ import {
 	previewOrApplyStaleOwnershipReconcile,
 	repairActiveSubjectCoverageWithPlaceholders,
 } from './faculty-assignment.service.js';
+import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
@@ -324,6 +325,10 @@ interface FacultyRow {
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
 	isPlaceholder: boolean;
+	isClassAdviser: boolean;
+	advisoryEquivalentHours: number;
+	ancillaryMinutesPerWeek: number | null;
+	advisedSectionId: number | null;
 }
 
 interface UnresolvedPair {
@@ -374,14 +379,19 @@ async function fetchSectionsForAutoFill(
 /**
  * Convert maxHoursPerWeek to minutes/week for capacity calculations.
  * FacultyMirror.maxHoursPerWeek stores the limit in hours (default 30).
+ *
+ * When nonTeachingMinutes is provided, the cap is reduced by advisory + ancillary
+ * credits so the auto-fill's capacity gate matches the roster's policyCreditedHours
+ * semantics (credited load = teaching + advisory + ancillary).
  */
-function resolveRealFacultyCapMinutes(faculty: FacultyRow, mode: CoverageMode): number {
-	if (mode === REAL_ONLY_STANDARD_MODE) {
-		return Math.min(Math.max(0, faculty.maxHoursPerWeek * 60), STANDARD_CAP_MIN);
+function resolveRealFacultyCapMinutes(faculty: FacultyRow, mode: CoverageMode, nonTeachingMinutes?: number): number {
+	const rawCap = mode === REAL_ONLY_STANDARD_MODE
+		? Math.min(Math.max(0, faculty.maxHoursPerWeek * 60), STANDARD_CAP_MIN)
+		: HARD_CAP_MIN;
+	if (nonTeachingMinutes != null && nonTeachingMinutes > 0) {
+		return Math.max(0, rawCap - nonTeachingMinutes);
 	}
-
-	// Hard-cap modes explicitly allow up to 40h/week policy-credited load.
-	return HARD_CAP_MIN;
+	return rawCap;
 }
 
 function resolveRealCoverageMode(coverageMode: CoverageMode): CoverageMode {
@@ -467,12 +477,22 @@ function estimateCapacityLaneDeltaMinutes(
 		return laneIncrease;
 	}
 
+	// Rotation-family capacity fix (TL-01 Fix A): sections within the SAME
+	// family and SAME term run CONCURRENTLY in the timetable (the constructor
+	// schedules each section's sessions inside that section's term window),
+	// so same-term lane minutes must ADD UP, not collapse to a peak. Only
+	// DISTINCT terms of the same family rotate against each other. Billing
+	// the peak alone let one teacher absorb dozens of same-term rotation
+	// sections while staying "under cap" (the 2026-09-02 PAOLO/FRANCIS 114h
+	// incident: 29 TLE sections across 3 same-term subjects billed ~30h).
 	const termTotals = ledger.rotationFamilyTermTotals.get(descriptor.family) ?? new Map<number, number>();
-	const termTotalBefore = termTotals.get(descriptor.termKey) ?? 0;
-	const peakBefore = getFamilyPeakMinutes(termTotals);
-	const termTotalAfter = termTotalBefore + laneIncrease;
-	const peakAfter = Math.max(peakBefore, termTotalAfter);
-	return Math.max(0, peakAfter - peakBefore);
+	const termTotalAfter = (termTotals.get(descriptor.termKey) ?? 0) + laneIncrease;
+	const otherTermTotals = Array.from(termTotals.entries())
+		.filter(([termKey]) => termKey !== descriptor.termKey)
+		.map(([, minutes]) => minutes);
+	const concurrentPeakAfter = Math.max(termTotalAfter, ...(otherTermTotals.length > 0 ? otherTermTotals : [0]));
+	const concurrentPeakBefore = getFamilyPeakMinutes(termTotals);
+	return Math.max(0, concurrentPeakAfter - concurrentPeakBefore);
 }
 
 function estimateProjectedRotationFamilyPeakMinutes(
@@ -547,6 +567,18 @@ export function __testEstimateCapacityLaneDeltaMinutes(
 ): number {
 	const ledger = createCapacityLedgerFromLanes(lanes);
 	return estimateCapacityLaneDeltaMinutes(ledger, laneKey, nextLaneMinutes);
+}
+
+export function __testResolveEffectiveCapMinutes(
+	maxHoursPerWeek: number,
+	mode: CoverageMode,
+	nonTeachingMinutes: number,
+): number {
+	return resolveRealFacultyCapMinutes(
+		{ id: 0, firstName: '', lastName: '', department: null, specialization: null, canTeachOutsideDepartment: false, maxHoursPerWeek, isPlaceholder: false, isClassAdviser: false, advisoryEquivalentHours: 0, ancillaryMinutesPerWeek: null, advisedSectionId: null },
+		mode,
+		nonTeachingMinutes,
+	);
 }
 
 function resolveCapacityRotationFamily(
@@ -632,6 +664,7 @@ function buildStaffingReport(
 	faculty: FacultyRow[],
 	capacityUsed: Map<number, number>,
 	coverageMode: CoverageMode = REAL_ONLY_STANDARD_MODE,
+	nonTeachingMinutesByFaculty?: Map<number, number>,
 ): StaffingReport {
 	const effectiveCoverageMode = resolveRealCoverageMode(coverageMode);
 	const rawByDepartment = new Map<string, { count: number; missingMinutesPerWeek: number }>();
@@ -700,7 +733,8 @@ function buildStaffingReport(
 	const facultyDepartmentCode = new Map<number, string | null>();
 	const facultyDepartmentLabel = new Map<number, string>();
 	for (const member of faculty) {
-		const spareMinutes = Math.max(0, resolveRealFacultyCapMinutes(member, effectiveCoverageMode) - (capacityUsed.get(member.id) ?? 0));
+		const nonTeachingMinutes = nonTeachingMinutesByFaculty?.get(member.id) ?? 0;
+		const spareMinutes = Math.max(0, resolveRealFacultyCapMinutes(member, effectiveCoverageMode, nonTeachingMinutes) - (capacityUsed.get(member.id) ?? 0));
 		facultySpareMinutes.set(member.id, spareMinutes);
 		facultyDepartmentCode.set(member.id, normalizeDepartmentCode(member.department));
 		facultyDepartmentLabel.set(member.id, formatDepartmentLabel(member.department));
@@ -1120,6 +1154,7 @@ function findBestCandidateForMode(
 	subjectAssignmentCountByFacultyId?: Map<number, number>,
 	rotationLaneAssignmentCountByFacultyId?: Map<number, number>,
 	rotationFamilyAssignmentCountByFacultyId?: Map<number, number>,
+	nonTeachingMinutesByFaculty?: Map<number, number>,
 ): FacultyRow | null {
 	const candidates: Array<{
 		faculty: FacultyRow;
@@ -1147,7 +1182,8 @@ function findBestCandidateForMode(
 		const ledger = capacityLedgersByFaculty.get(member.id) ?? createEmptyCapacityLedger();
 		const used = capacityUsed.get(member.id) ?? 0;
 		const deltaMinutes = estimateCapacityLaneDeltaMinutes(ledger, laneKey, subjectMinutes);
-		const limit = resolveRealFacultyCapMinutes(member, realCoverageMode);
+		const nonTeachingMinutes = nonTeachingMinutesByFaculty?.get(member.id) ?? 0;
+		const limit = resolveRealFacultyCapMinutes(member, realCoverageMode, nonTeachingMinutes);
 		if (used + deltaMinutes > limit) continue;
 
 		const tier = resolveQualificationTier(member, subjectRow, aliasesByCanonical);
@@ -1193,6 +1229,7 @@ function simulateRealFacultyCoverage(input: {
 	candidatePairs: UnresolvedPair[];
 	baseCapacityLedgersByFaculty: Map<number, CapacityLedger>;
 	aliasesByCanonical: Map<string, Set<string>>;
+	nonTeachingMinutesByFaculty?: Map<number, number>;
 }): CoverageSimulationResult {
 	const capacityLedgersByFaculty = cloneCapacityLedgers(input.baseCapacityLedgersByFaculty);
 	const capacityUsed = new Map<number, number>();
@@ -1277,6 +1314,7 @@ function simulateRealFacultyCoverage(input: {
 				subjectAssignmentCountByFacultyId,
 				rotationLaneAssignmentCountByFacultyId,
 				rotationFamilyAssignmentCountByFacultyId,
+				input.nonTeachingMinutesByFaculty,
 			);
 			if (!candidate) {
 				unresolvedPairs.push(pair);
@@ -1306,7 +1344,7 @@ function simulateRealFacultyCoverage(input: {
 		rowsClosedByRealFaculty,
 		unresolvedPairs,
 		capacityUsed,
-		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode),
+		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode, input.nonTeachingMinutesByFaculty),
 	};
 }
 
@@ -1486,6 +1524,10 @@ export async function autoFill(
 			canTeachOutsideDepartment: true,
 			maxHoursPerWeek: true,
 			isPlaceholder: true,
+			isClassAdviser: true,
+			advisoryEquivalentHours: true,
+			ancillaryMinutesPerWeek: true,
+			advisedSectionId: true,
 		},
 	});
 	const activeFacultyIds = faculty.map((member) => member.id);
@@ -1510,6 +1552,7 @@ export async function autoFill(
 	const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
 		where: {
 			schoolId,
+			schoolYearId,
 			sectionId: { in: allSectionIds },
 			facultyId: { in: activeFacultyIds },
 		},
@@ -1541,7 +1584,19 @@ export async function autoFill(
 	);
 	const preserved = resolvedPairs.size;
 
-	const realOwnershipRows = existingOwnerships.filter((ownership) => realFacultyIds.includes(ownership.facultyId));
+	// HG is covered by the adviser's advisory credit (advisoryEquivalentHours)
+	// and must NOT consume teaching-capacity budget — exclude HG ownership rows
+	// from the capacity ledgers to avoid double-counting advisory duty.
+	const hgSubjectForCapacity = await prisma.subject.findFirst({
+		where: { schoolId, code: 'HG' },
+		select: { id: true },
+	});
+	const hgSubjectIdForCapacity = hgSubjectForCapacity?.id ?? null;
+	const nonHgOwnershipRows = hgSubjectIdForCapacity == null
+		? existingOwnerships
+		: existingOwnerships.filter((o) => o.subjectId !== hgSubjectIdForCapacity);
+
+	const realOwnershipRows = nonHgOwnershipRows.filter((ownership) => realFacultyIds.includes(ownership.facultyId));
 	const {
 		capacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
 		capacityUsed: baseRealCapacityUsed,
@@ -1574,6 +1629,32 @@ export async function autoFill(
 					`HG advisory missing for ${adviser.firstName} ${adviser.lastName} (section ${adviser.advisedSectionId}). Run faculty sync to repair.`,
 				);
 			}
+		}
+	}
+
+	// ─── Step 2b: Compute non-teaching credit minutes per faculty ────────────
+	// Credited-load semantics: the cap applies to CREDITED load (teaching +
+	// advisory + ancillary). Advisory and ancillary are non-teaching credits
+	// that reduce the available teaching budget. HG (Homeroom Guidance) is
+	// covered BY the advisory credit — the adviser's 5h advisoryEquivalentHours
+	// already accounts for it, so HG minutes are excluded from the capacity
+	// ledgers entirely (see the nonHgOwnershipRows filter above) to avoid
+	// double-counting advisory duty against both teaching budget and credit.
+	const currentYearSectionIdSet = new Set(allSectionIds);
+	const nonTeachingMinutesByFaculty = new Map<number, number>();
+	for (const member of faculty) {
+		if (member.isPlaceholder) continue;
+		const isValidAdviser =
+			member.isClassAdviser &&
+			member.advisedSectionId != null &&
+			currentYearSectionIdSet.has(member.advisedSectionId);
+		const advisoryMinutes = isValidAdviser
+			? Math.max(0, Math.round((member.advisoryEquivalentHours ?? 0) * 60))
+			: 0;
+		const ancillaryMinutes = Math.max(0, Math.round(member.ancillaryMinutesPerWeek ?? 0));
+		const total = advisoryMinutes + ancillaryMinutes;
+		if (total > 0) {
+			nonTeachingMinutesByFaculty.set(member.id, total);
 		}
 	}
 
@@ -1671,6 +1752,7 @@ export async function autoFill(
 		candidatePairs: realCoverageQueue,
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
 		aliasesByCanonical,
+		nonTeachingMinutesByFaculty,
 	});
 	const hardCapSimulation = simulateRealFacultyCoverage({
 		coverageMode: REAL_ONLY_HARD_CAP_MODE,
@@ -1678,6 +1760,7 @@ export async function autoFill(
 		candidatePairs: realCoverageQueue,
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
 		aliasesByCanonical,
+		nonTeachingMinutesByFaculty,
 	});
 
 	const staffingTruth = buildStaffingTruthComparison({
@@ -1693,7 +1776,7 @@ export async function autoFill(
 		? standardSimulation
 		: hardCapSimulation;
 	const selectedStaffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
-		? buildStaffingReport([], realFaculty, hardCapSimulation.capacityUsed, REAL_ONLY_HARD_CAP_MODE)
+		? buildStaffingReport([], realFaculty, hardCapSimulation.capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty)
 		: selectedSimulation.staffingReport;
 	const selectedUnresolvedForMode = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
 		? 0
@@ -1799,6 +1882,8 @@ export async function autoFill(
 				aliasesByCanonical,
 				subjectAssignmentCountByFacultyId,
 				rotationLaneAssignmentCountByFacultyId,
+				undefined,
+				nonTeachingMinutesByFaculty,
 			);
 			if (!candidate) {
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
@@ -1832,7 +1917,7 @@ export async function autoFill(
 
 					// Upsert FacultySubject — merge with existing if present (non-HG, so no advisory concern)
 					const existingFs = await tx.facultySubject.findUnique({
-						where: { facultyId_subjectId: { facultyId, subjectId } },
+					where: { facultyId_subjectId_schoolYearId: { facultyId, subjectId, schoolYearId } },
 						select: { id: true, sectionIds: true, gradeLevels: true },
 					});
 
@@ -1843,9 +1928,10 @@ export async function autoFill(
 					} else {
 						const fs = await tx.facultySubject.create({
 							data: {
-								facultyId,
-								subjectId,
-								schoolId,
+							facultyId,
+							subjectId,
+							schoolId,
+							schoolYearId,
 								gradeLevels: [],
 								sectionIds: [],
 								assignedBy: 0, // system
@@ -1858,6 +1944,7 @@ export async function autoFill(
 					const insertResult = await tx.subjectSectionOwnership.createMany({
 						data: sectionIdsArr.map((sectionId) => ({
 							schoolId,
+							schoolYearId,
 							facultySubjectId,
 							facultyId,
 							subjectId,
@@ -1868,7 +1955,7 @@ export async function autoFill(
 					});
 
 					const finalOwnedSections = await tx.subjectSectionOwnership.findMany({
-						where: { schoolId, facultyId, subjectId },
+						where: { schoolId, schoolYearId, facultyId, subjectId },
 						select: { sectionId: true },
 					});
 					const finalSectionIds = finalOwnedSections.map((row) => row.sectionId).sort((left, right) => left - right);
@@ -1895,6 +1982,7 @@ export async function autoFill(
 				}
 			}
 		});
+		await refreshTeachingLoadCycle(schoolId, schoolYearId);
 	}
 
 	let teacherXResolution: AutoFillResult['teacherXResolution'] | undefined;
@@ -1947,17 +2035,44 @@ export async function autoFill(
 	const uniqueTeachersAffected = affectedTeacherIds.size + teacherXPlaceholderTeacherCount;
 	const finalUnresolved = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X' ? 0 : selectedUnresolvedForMode;
 	const staffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
-		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE)
+		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE, nonTeachingMinutesByFaculty)
 		: selectedStaffingReport;
 
 	// ─── Build suggestedRows preview from the actual assignment plan ──────
 	const suggestedRows: SuggestedRowPreview[] = [];
+
+	// Detect over-cap faculty from existing ownerships (Fix B).
+	// A faculty is over-cap when their credited teaching load + non-teaching
+	// credits exceed their maxHoursPerWeek cap.
+	const overCapFacultyById = new Map<number, { overMinutes: number; facultyName: string }>();
+	for (const member of faculty) {
+		if (member.isPlaceholder) continue;
+		const teachingMinutes = capacityUsed.get(member.id) ?? 0;
+		const nonTeachingMinutes = nonTeachingMinutesByFaculty.get(member.id) ?? 0;
+		const totalCreditedMinutes = teachingMinutes + nonTeachingMinutes;
+		const capMinutes = Math.max(0, member.maxHoursPerWeek * 60);
+		if (totalCreditedMinutes > capMinutes) {
+			overCapFacultyById.set(member.id, {
+				overMinutes: totalCreditedMinutes - capMinutes,
+				facultyName: `${member.lastName}, ${member.firstName}`,
+			});
+		}
+	}
+	if (overCapFacultyById.size > 0) {
+		for (const [facultyId, info] of overCapFacultyById) {
+			const overHours = Math.round((info.overMinutes / 60) * 10) / 10;
+			warnings.push(
+				`Teacher already over cap: ${info.facultyName} exceeds max by ${overHours}h/week (${Math.round(info.overMinutes)} min). Existing assignments preserved — use rebalance to redistribute.`,
+			);
+		}
+	}
 
 	// 1. KEPT_EXISTING: existing ownerships that were already resolved
 	for (const ownership of existingOwnerships) {
 		const sectionMeta_ = sectionMeta.get(ownership.sectionId);
 		const subjectRow_ = subjects.find((s) => s.id === ownership.subjectId);
 		const facultyMember = faculty.find((m) => m.id === ownership.facultyId);
+		const overCapInfo = overCapFacultyById.get(ownership.facultyId);
 		suggestedRows.push({
 			subjectId: ownership.subjectId,
 			subjectCode: subjectRow_?.code ?? `Subject #${ownership.subjectId}`,
@@ -1967,7 +2082,9 @@ export async function autoFill(
 			facultyId: ownership.facultyId,
 			facultyName: facultyMember ? `${facultyMember.lastName}, ${facultyMember.firstName}` : `Faculty #${ownership.facultyId}`,
 			assignmentType: 'KEPT_EXISTING',
-			warning: null,
+			warning: overCapInfo
+				? `Teacher already over cap by ${Math.round((overCapInfo.overMinutes / 60) * 10) / 10}h`
+				: null,
 		});
 	}
 
@@ -2286,5 +2403,486 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(
 			},
 		},
 		specialProgramApprovalQueue,
+	};
+}
+
+// ─── Over-Cap Rebalance (Fix C) ─────────────────────────────────────────────
+
+export interface OverCapRebalanceInput {
+	schoolId: number;
+	schoolYearId: number;
+	actorId: number;
+	authToken?: string;
+	previewOnly?: boolean;
+}
+
+export interface OverCapRebalanceMove {
+	ownershipId: number;
+	facultySubjectId: number;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sectionId: number;
+	sectionName: string;
+	fromFacultyId: number;
+	fromFacultyName: string;
+	toFacultyId: number;
+	toFacultyName: string;
+	minutes: number;
+}
+
+export interface OverCapRebalanceFacultyDetail {
+	facultyId: number;
+	facultyName: string;
+	teachingMinutes: number;
+	nonTeachingMinutes: number;
+	totalCreditedMinutes: number;
+	capMinutes: number;
+	overMinutes: number;
+}
+
+export interface OverCapRebalanceResult {
+	applied: boolean;
+	schoolId: number;
+	schoolYearId: number;
+	overCapFaculty: OverCapRebalanceFacultyDetail[];
+	proposedMoves: OverCapRebalanceMove[];
+	movesApplied: number;
+	ownershipRowsMoved: number;
+	facultySubjectRowsUpdated: number;
+	facultyMirrorVersionsBumped: number;
+}
+
+export async function previewOrApplyOverCapRebalance(
+	input: OverCapRebalanceInput,
+): Promise<OverCapRebalanceResult> {
+	const apply = input.previewOnly === false;
+
+	const sectionResult = await fetchSectionsForRuntimeControls(input.schoolId, input.schoolYearId, {
+		authToken: input.authToken,
+		preferLocalEvidenceFirst: true,
+	});
+	const allSectionIds: number[] = [];
+	for (const grade of sectionResult.gradeLevels) {
+		for (const section of grade.sections) {
+			if (section.id > 0) allSectionIds.push(section.id);
+		}
+	}
+	if (allSectionIds.length === 0) {
+		return {
+			applied: false,
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			overCapFaculty: [],
+			proposedMoves: [],
+			movesApplied: 0,
+			ownershipRowsMoved: 0,
+			facultySubjectRowsUpdated: 0,
+			facultyMirrorVersionsBumped: 0,
+		};
+	}
+
+	// Fix D: Run stale-ownership reconciliation before capacity computation
+	// so stale rows don't pollute the over-cap detection.
+	await previewOrApplyStaleOwnershipReconcile({
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		actorId: input.actorId,
+		authToken: input.authToken,
+		previewOnly: !apply,
+	});
+
+	const [faculty, subjects, existingOwnerships] = await Promise.all([
+		prisma.facultyMirror.findMany({
+			where: { schoolId: input.schoolId, isStale: false, isActiveForScheduling: true },
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				department: true,
+				specialization: true,
+				canTeachOutsideDepartment: true,
+				maxHoursPerWeek: true,
+				isPlaceholder: true,
+				isClassAdviser: true,
+				advisoryEquivalentHours: true,
+				ancillaryMinutesPerWeek: true,
+				advisedSectionId: true,
+			},
+		}),
+		prisma.subject.findMany({
+			where: { schoolId: input.schoolId, isActive: true, code: { not: HG_SUBJECT_CODE } },
+			select: {
+				id: true,
+				code: true,
+				name: true,
+				rotationFamily: true,
+				gradeLevels: true,
+				programScopes: true,
+				minMinutesPerWeek: true,
+				modularGroupId: true,
+				modularOrder: true,
+				termGroupId: true,
+				termCount: true,
+				ownerDepartment: true,
+				requiredFeatures: true,
+				allowedSpecializations: true,
+			},
+		}),
+		prisma.subjectSectionOwnership.findMany({
+			where: {
+				schoolId: input.schoolId,
+				schoolYearId: input.schoolYearId,
+				sectionId: { in: allSectionIds },
+			},
+			select: {
+				id: true,
+				subjectId: true,
+				sectionId: true,
+				facultyId: true,
+				facultySubjectId: true,
+				facultySubject: {
+					select: {
+						assignedBy: true,
+						subject: {
+							select: {
+								id: true,
+								code: true,
+								modularGroupId: true,
+								modularOrder: true,
+								termGroupId: true,
+								termCount: true,
+								rotationFamily: true,
+								minMinutesPerWeek: true,
+							},
+						},
+					},
+				},
+			},
+		}),
+	]);
+
+	const realFaculty = faculty.filter((m) => !m.isPlaceholder);
+	const currentYearSectionIdSet = new Set(allSectionIds);
+	const subjectById = new Map(subjects.map((s) => [s.id, s]));
+
+	// Compute non-teaching minutes per faculty
+	const nonTeachingMinutesByFaculty = new Map<number, number>();
+	for (const member of faculty) {
+		if (member.isPlaceholder) continue;
+		const isValidAdviser =
+			member.isClassAdviser &&
+			member.advisedSectionId != null &&
+			currentYearSectionIdSet.has(member.advisedSectionId);
+		const advisoryMinutes = isValidAdviser
+			? Math.max(0, Math.round((member.advisoryEquivalentHours ?? 0) * 60))
+			: 0;
+		const ancillaryMinutes = Math.max(0, Math.round(member.ancillaryMinutesPerWeek ?? 0));
+		const total = advisoryMinutes + ancillaryMinutes;
+		if (total > 0) nonTeachingMinutesByFaculty.set(member.id, total);
+	}
+
+	// Build capacity tracking from existing ownerships.
+	// HG is covered by the advisory credit — exclude HG rows from the capacity
+	// ledger so advisory duty is not double-counted (same rule as the auto-fill path).
+	const hgSubjectForRebalance = await prisma.subject.findFirst({
+		where: { schoolId: input.schoolId, code: 'HG' },
+		select: { id: true },
+	});
+	const hgSubjectIdForRebalance = hgSubjectForRebalance?.id ?? null;
+	const nonHgRowsForRebalance = hgSubjectIdForRebalance == null
+		? existingOwnerships
+		: existingOwnerships.filter((o) => o.subjectId !== hgSubjectIdForRebalance);
+	const realOwnershipRows = nonHgRowsForRebalance.filter((o) => realFaculty.some((f) => f.id === o.facultyId));
+	const { capacityUsed } = buildInitialCapacityTracking(realOwnershipRows as ExistingOwnershipRow[]);
+
+	// Detect over-cap faculty
+	const overCapFaculty: OverCapRebalanceFacultyDetail[] = [];
+	for (const member of realFaculty) {
+		const teachingMinutes = capacityUsed.get(member.id) ?? 0;
+		const nonTeachingMinutes = nonTeachingMinutesByFaculty.get(member.id) ?? 0;
+		const totalCreditedMinutes = teachingMinutes + nonTeachingMinutes;
+		const capMinutes = Math.max(0, member.maxHoursPerWeek * 60);
+		if (totalCreditedMinutes > capMinutes) {
+			overCapFaculty.push({
+				facultyId: member.id,
+				facultyName: `${member.lastName}, ${member.firstName}`,
+				teachingMinutes,
+				nonTeachingMinutes,
+				totalCreditedMinutes,
+				capMinutes,
+				overMinutes: totalCreditedMinutes - capMinutes,
+			});
+		}
+	}
+	overCapFaculty.sort((a, b) => b.overMinutes - a.overMinutes);
+
+	if (overCapFaculty.length === 0) {
+		return {
+			applied: false,
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			overCapFaculty: [],
+			proposedMoves: [],
+			movesApplied: 0,
+			ownershipRowsMoved: 0,
+			facultySubjectRowsUpdated: 0,
+			facultyMirrorVersionsBumped: 0,
+		};
+	}
+
+	// Build aliases for qualification checks
+	const aliases = await prisma.specializationAlias.findMany({
+		where: { schoolId: input.schoolId },
+		select: { canonical: true, alias: true },
+	});
+	const aliasesByCanonical = new Map<string, Set<string>>();
+	for (const alias of aliases) {
+		const canonKey = alias.canonical.trim().toLowerCase();
+		const aliasSet = aliasesByCanonical.get(canonKey) ?? new Set<string>();
+		aliasSet.add(alias.alias.trim().toLowerCase());
+		aliasesByCanonical.set(canonKey, aliasSet);
+	}
+
+	// Build section name map
+	const sectionNameMap = new Map<number, string>();
+	for (const grade of sectionResult.gradeLevels) {
+		for (const section of grade.sections) {
+			if (section.id > 0) sectionNameMap.set(section.id, section.name);
+		}
+	}
+
+	// Build a mutable capacity map for simulating moves
+	const simCapacityUsed = new Map<number, number>(capacityUsed);
+	const simNonTeaching = new Map<number, number>(nonTeachingMinutesByFaculty);
+
+	const proposedMoves: OverCapRebalanceMove[] = [];
+
+	// For each over-cap faculty, propose moves to bring them under cap
+	for (const overFaculty of overCapFaculty) {
+		const ownerships = existingOwnerships.filter((o) => o.facultyId === overFaculty.facultyId);
+		// Sort by minutes descending (move biggest loads first)
+		const ownershipsWithMinutes = ownerships
+			.map((o) => {
+				const subject = subjectById.get(o.subjectId);
+				return { ownership: o, minutes: subject ? Math.max(0, Number(subject.minMinutesPerWeek) || 0) : 0 };
+			})
+			.filter((entry) => entry.minutes > 0)
+			.sort((a, b) => b.minutes - a.minutes);
+
+		let remainingOverMinutes = overFaculty.overMinutes;
+
+		for (const { ownership, minutes } of ownershipsWithMinutes) {
+			if (remainingOverMinutes <= 0) break;
+
+			const subject = subjectById.get(ownership.subjectId);
+			if (!subject) continue;
+
+			// Skip HG/advisory ownerships
+			if (subject.code.toUpperCase() === HG_SUBJECT_CODE) continue;
+
+			// Find best receiver
+			let bestReceiver: typeof realFaculty[number] | null = null;
+			let bestTier = Infinity;
+			let bestSpareMinutes = -1;
+
+			for (const candidate of realFaculty) {
+				if (candidate.id === overFaculty.facultyId) continue;
+				if (candidate.isPlaceholder) continue;
+
+				const tier = resolveQualificationTier(candidate, subject, aliasesByCanonical);
+				if (tier == null) continue;
+
+				const candidateTeaching = simCapacityUsed.get(candidate.id) ?? 0;
+				const candidateNonTeaching = simNonTeaching.get(candidate.id) ?? 0;
+				const candidateCap = resolveRealFacultyCapMinutes(candidate, REAL_ONLY_STANDARD_MODE, candidateNonTeaching);
+				const spareMinutes = candidateCap - candidateTeaching;
+				if (spareMinutes < minutes) continue;
+
+				if (tier < bestTier || (tier === bestTier && spareMinutes > bestSpareMinutes)) {
+					bestReceiver = candidate;
+					bestTier = tier;
+					bestSpareMinutes = spareMinutes;
+				}
+			}
+
+			if (bestReceiver) {
+				proposedMoves.push({
+					ownershipId: ownership.id,
+					facultySubjectId: ownership.facultySubjectId,
+					subjectId: ownership.subjectId,
+					subjectCode: subject.code,
+					subjectName: subject.name,
+					sectionId: ownership.sectionId,
+					sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+					fromFacultyId: overFaculty.facultyId,
+					fromFacultyName: overFaculty.facultyName,
+					toFacultyId: bestReceiver.id,
+					toFacultyName: `${bestReceiver.lastName}, ${bestReceiver.firstName}`,
+					minutes,
+				});
+
+				// Update simulation
+				simCapacityUsed.set(overFaculty.facultyId, (simCapacityUsed.get(overFaculty.facultyId) ?? 0) - minutes);
+				simCapacityUsed.set(bestReceiver.id, (simCapacityUsed.get(bestReceiver.id) ?? 0) + minutes);
+				remainingOverMinutes -= minutes;
+			}
+		}
+	}
+
+	if (!apply || proposedMoves.length === 0) {
+		return {
+			applied: false,
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			overCapFaculty,
+			proposedMoves,
+			movesApplied: 0,
+			ownershipRowsMoved: 0,
+			facultySubjectRowsUpdated: 0,
+			facultyMirrorVersionsBumped: 0,
+		};
+	}
+
+	// Apply moves transactionally
+	let ownershipRowsMoved = 0;
+	let facultySubjectRowsUpdated = 0;
+	let facultyMirrorVersionsBumped = 0;
+	const affectedFacultyIds = new Set<number>();
+
+	await prisma.$transaction(async (tx) => {
+		// Group moves by (fromFacultyId, facultySubjectId) for sectionIds recomputation
+		const movesByFromFs = new Map<number, OverCapRebalanceMove[]>();
+		for (const move of proposedMoves) {
+			const key = move.facultySubjectId;
+			const arr = movesByFromFs.get(key) ?? [];
+			arr.push(move);
+			movesByFromFs.set(key, arr);
+		}
+
+		// Group moves by (toFacultyId, subjectId) for receiver FacultySubject upsert
+		const movesByToFacultySubject = new Map<string, OverCapRebalanceMove[]>();
+		for (const move of proposedMoves) {
+			const key = `${move.toFacultyId}:${move.subjectId}`;
+			const arr = movesByToFacultySubject.get(key) ?? [];
+			arr.push(move);
+			movesByToFacultySubject.set(key, arr);
+		}
+
+		// Step 1: Upsert receiver FacultySubject rows and resolve real facultySubjectIds
+		// (must run BEFORE ownership updates — facultySubjectId has an FK constraint
+		// and cannot hold a temporary value)
+		const receiverFacultySubjectIdByMove = new Map<number, number>();
+		for (const [key, moves] of movesByToFacultySubject) {
+			const [toFacultyIdStr, subjectIdStr] = key.split(':');
+			const toFacultyId = Number(toFacultyIdStr);
+			const subjectId = Number(subjectIdStr);
+			const sectionIds = moves.map((m) => m.sectionId);
+
+			// Upsert FacultySubject for receiver
+			const existingFs = await tx.facultySubject.findUnique({
+				where: { facultyId_subjectId_schoolYearId: { facultyId: toFacultyId, subjectId, schoolYearId: input.schoolYearId } },
+				select: { id: true, sectionIds: true },
+			});
+
+			let facultySubjectId: number;
+			if (existingFs) {
+				facultySubjectId = existingFs.id;
+				const mergedSections = [...new Set([...existingFs.sectionIds, ...sectionIds])].sort((a, b) => a - b);
+				await tx.facultySubject.update({
+					where: { id: facultySubjectId },
+					data: { sectionIds: mergedSections },
+				});
+			} else {
+				const fs = await tx.facultySubject.create({
+					data: {
+						facultyId: toFacultyId,
+						subjectId,
+						schoolId: input.schoolId,
+						schoolYearId: input.schoolYearId,
+						gradeLevels: [],
+						sectionIds,
+						assignedBy: 0,
+					},
+					select: { id: true },
+				});
+				facultySubjectId = fs.id;
+			}
+
+			for (const move of moves) {
+				receiverFacultySubjectIdByMove.set(move.ownershipId, facultySubjectId);
+			}
+			facultySubjectRowsUpdated += 1;
+		}
+
+		// Step 2: Update ownership rows — reassign to the receiver with the real facultySubjectId
+		for (const move of proposedMoves) {
+			const receiverFacultySubjectId = receiverFacultySubjectIdByMove.get(move.ownershipId);
+			if (receiverFacultySubjectId == null) continue;
+			await tx.subjectSectionOwnership.update({
+				where: { id: move.ownershipId },
+				data: { facultyId: move.toFacultyId, facultySubjectId: receiverFacultySubjectId },
+			});
+			ownershipRowsMoved += 1;
+			affectedFacultyIds.add(move.fromFacultyId);
+			affectedFacultyIds.add(move.toFacultyId);
+		}
+
+		// Step 3: Update sectionIds on sender FacultySubject rows
+		for (const [fsId, moves] of movesByFromFs) {
+			const fs = await tx.facultySubject.findUnique({
+				where: { id: fsId },
+				select: { sectionIds: true },
+			});
+			if (!fs) continue;
+			const movedSectionIds = new Set(moves.map((m) => m.sectionId));
+			const remainingSections = fs.sectionIds.filter((sid) => !movedSectionIds.has(sid));
+			if (remainingSections.length === 0) {
+				await tx.facultySubject.delete({ where: { id: fsId } });
+			} else {
+				await tx.facultySubject.update({
+					where: { id: fsId },
+					data: { sectionIds: remainingSections.sort((a, b) => a - b) },
+				});
+			}
+			facultySubjectRowsUpdated += 1;
+		}
+
+		// Step 4: Audit log
+		await tx.auditLog.create({
+			data: {
+				schoolId: input.schoolId,
+				schoolYearId: input.schoolYearId,
+				action: 'TEACHING_LOAD_REBALANCE',
+				actorId: input.actorId,
+				targetIds: proposedMoves.map((m) => m.ownershipId),
+				metadata: {
+					moveCount: proposedMoves.length,
+					overCapFacultyCount: overCapFaculty.length,
+					moves: proposedMoves.map((m) => ({
+						ownershipId: m.ownershipId,
+						subjectId: m.subjectId,
+						sectionId: m.sectionId,
+						fromFacultyId: m.fromFacultyId,
+						toFacultyId: m.toFacultyId,
+						minutes: m.minutes,
+					})),
+				} as object,
+			},
+		});
+	});
+
+	await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
+
+	return {
+		applied: true,
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		overCapFaculty,
+		proposedMoves,
+		movesApplied: proposedMoves.length,
+		ownershipRowsMoved,
+		facultySubjectRowsUpdated,
+		facultyMirrorVersionsBumped,
 	};
 }

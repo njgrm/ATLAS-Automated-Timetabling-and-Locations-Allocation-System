@@ -1,0 +1,5 @@
+﻿[prisma] Γ£ö DATABASE_URL protocol looks correct
+[ATLAS] Server listening on http://localhost:5099
+[prisma] Γ£ö DB connected, 1 school(s) found
+[prisma] Γ£ö scheduling_policies schema verified
+[rollover-automation] Starting (interval=300000ms, maxBackoff=1800000ms)

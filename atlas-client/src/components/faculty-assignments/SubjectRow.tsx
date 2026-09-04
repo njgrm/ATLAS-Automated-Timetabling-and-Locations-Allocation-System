@@ -39,8 +39,6 @@ export type SubjectRowProps = {
 	activeFacultyIds?: Set<number>;
 	selectedFacultySpecialization?: string | null;
 	resolveSectionHoverDeltaMinutes?: (subject: Subject, sectionId: number) => number;
-	quarantined?: boolean;
-	quarantineLabel?: string | null;
 	completedSectionIds?: Set<number>;
 };
 
@@ -114,8 +112,6 @@ export const SubjectRow = memo(({
 	activeFacultyIds = new Set(),
 	selectedFacultySpecialization = null,
 	resolveSectionHoverDeltaMinutes,
-	quarantined = false,
-	quarantineLabel = null,
 	completedSectionIds = new Set(),
 }: SubjectRowProps) => {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
@@ -229,10 +225,6 @@ export const SubjectRow = memo(({
 	}, [selectedSectionIds, subject.id, onSetSections, selectableSectionIds]);
 
 	const handleToggleAll = useCallback(() => {
-		if (quarantined) {
-			toast.error(quarantineLabel ?? 'Assignments temporarily locked while data review finishes');
-			return;
-		}
 		if (selectedCount > 0) {
 			onSetSections(subject.id, []);
 			return;
@@ -253,13 +245,9 @@ export const SubjectRow = memo(({
 		}
 
 		onSetSections(subject.id, selectedWithinCap);
-	}, [quarantined, quarantineLabel, selectedCount, subject.id, subject.minMinutesPerWeek, onSetSections, selectableSectionIds, remainingCapacityMinutes]);
+	}, [selectedCount, subject.id, subject.minMinutesPerWeek, onSetSections, selectableSectionIds, remainingCapacityMinutes]);
 
 	const toggleSection = useCallback((sectionId: number) => {
-		if (quarantined) {
-			toast.error(quarantineLabel ?? 'Assignments temporarily locked while data review finishes');
-			return;
-		}
 		if (selectedSectionIds.has(sectionId)) {
 			onSetSections(
 				subject.id,
@@ -274,7 +262,7 @@ export const SubjectRow = memo(({
 			return;
 		}
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
-	}, [quarantined, quarantineLabel, selectedSectionIds, subject.id, onSetSections, effectiveOwnershipMap, selectedFacultyId, activeFacultyIds]);
+	}, [selectedSectionIds, subject.id, onSetSections, effectiveOwnershipMap, selectedFacultyId, activeFacultyIds]);
 
 	const rotationLaneKey = resolveRotationLaneKey(subject);
 	const rotationTermLabel = resolveRotationTermLabel(subject);
@@ -301,31 +289,26 @@ export const SubjectRow = memo(({
 						<div className="flex items-center gap-2">
 							<span className="font-bold text-foreground truncate">{subject.name}</span>
 							{/* Phase 4.7: cap simultaneous badges. Only the highest-priority
-								alert renders inline (Quarantined > Two-teachers-owner >
+								alert renders inline (Two-teachers-owner >
 								Outside dept > Rotating > Requires specialization). Every
 								other signal moves into the AccessibleInfo summary next to
 								the name. */}
-							{quarantined && (
-								<Badge variant="outline" className="text-xs font-bold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
-									Editing locked
-								</Badge>
-							)}
-							{!quarantined && hasHardConflict && (
+							{hasHardConflict && (
 								<Badge variant="outline" className="text-xs font-bold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
 									Owner conflict
 								</Badge>
 							)}
-							{!quarantined && !hasHardConflict && isOutsideDepartment && (
+							{!hasHardConflict && isOutsideDepartment && (
 								<Badge variant="outline" className="text-xs font-bold bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
 									Outside department
 								</Badge>
 							)}
-							{!quarantined && !hasHardConflict && !isOutsideDepartment && isRotationFamily && (
+							{!hasHardConflict && !isOutsideDepartment && isRotationFamily && (
 								<Badge variant="outline" className="text-xs font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
 									Rotating
 								</Badge>
 							)}
-							{!quarantined && !hasHardConflict && !isOutsideDepartment && !isRotationFamily && isSpecializationSlot && (
+							{!hasHardConflict && !isOutsideDepartment && !isRotationFamily && isSpecializationSlot && (
 								<Badge variant="outline" className="text-xs font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-5 px-1.5 shadow-none">
 									Needs specialization
 								</Badge>
@@ -376,7 +359,7 @@ export const SubjectRow = memo(({
 							variant="outline"
 							size="sm"
 							onClick={handleToggleAll}
-							disabled={disabled || sections.length === 0 || quarantined}
+							disabled={disabled || sections.length === 0}
 							className="h-8 px-4 text-xs font-bold uppercase tracking-tight shadow-sm"
 						>
 							{selectedCount > 0 ? 'Unassign All' : 'Select All Eligible'}
@@ -384,6 +367,8 @@ export const SubjectRow = memo(({
 						<Button
 							variant="ghost"
 							size="icon"
+							aria-label={Object.values(openGrades).some(v => v) ? 'Collapse all grade groups' : 'Expand all grade groups'}
+							aria-expanded={Object.values(openGrades).some(v => v)}
 							className={`h-9 w-9 rounded-full transition-all ${Object.values(openGrades).some(v => v) ? 'bg-muted shadow-inner' : 'hover:bg-muted/50'}`}
 							onClick={() => {
 								const anyOpen = Object.values(openGrades).some(v => v);
@@ -414,13 +399,25 @@ export const SubjectRow = memo(({
 							return (
 								<div key={gradeLevel} className="group/grade">
 									<div 
-										className={`flex items-center justify-between px-5 py-2.5 transition-colors cursor-pointer select-none ${isOpen ? 'bg-muted/20 border-b border-border/30' : 'hover:bg-muted/10'}`}
+										role="button"
+										tabIndex={0}
+										aria-expanded={isOpen}
+										className={`flex items-center justify-between px-5 py-2.5 transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${isOpen ? 'bg-muted/20 border-b border-border/30' : 'hover:bg-muted/10'}`}
 										onClick={() =>
 											setOpenGrades((current) => ({
 												...current,
 												[gradeLevel]: !isOpen,
 											}))
 										}
+										onKeyDown={(event) => {
+											if (event.key === 'Enter' || event.key === ' ') {
+												event.preventDefault();
+												setOpenGrades((current) => ({
+													...current,
+													[gradeLevel]: !isOpen,
+												}));
+											}
+										}}
 									>
 										<div className="flex items-center gap-3">
 											{isOpen ? <ChevronDown className="size-4 text-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
@@ -439,7 +436,7 @@ export const SubjectRow = memo(({
 												type="button"
 												variant="ghost"
 												size="xs"
-												disabled={disabled || quarantined}
+											disabled={disabled}
 												onClick={(e) => {
 													e.stopPropagation();
 													handleToggleGrade(gradeLevel, gradeSections);
@@ -470,8 +467,7 @@ export const SubjectRow = memo(({
 														const isPendingOther = Boolean(isOwnedByOther && owner?.isPending);
 														const isSavedOther = Boolean(isOwnedByOther && !owner?.isPending);
 														
-														// Block if hard conflict or quarantined
-														const blocked = !isSelected && (isHardConflict || quarantined);
+													const blocked = !isSelected && isHardConflict;
 														const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
 														const isClickable = !disabled && !isSystemAssignedSection && (!blocked || isOwnedByOther);
 
@@ -509,7 +505,7 @@ export const SubjectRow = memo(({
 																tabIndex={isClickable ? 0 : undefined}
 																aria-pressed={isClickable ? isSelected : undefined}
 																aria-label={isClickable
-																	? `$<span className="truncate shrink">{section.name}</span>${isSelected ? ' - assigned to this teacher' : ' - not assigned'}`
+																	? `${section.name}${isSelected ? ' - assigned to this teacher' : ' - not assigned'}`
 																	: undefined}
 																onClick={handleClick}
 																onKeyDown={(event) => {
@@ -551,7 +547,7 @@ export const SubjectRow = memo(({
 																		<Checkbox
 																			checked={isSelected}
 																			onCheckedChange={handleClick}
-																			disabled={disabled || quarantined || isSystemAssignedSection || isHardConflict}
+																			disabled={disabled || isSystemAssignedSection || isHardConflict}
 																			tabIndex={-1}
 																			aria-hidden="true"
 																			className={cn(

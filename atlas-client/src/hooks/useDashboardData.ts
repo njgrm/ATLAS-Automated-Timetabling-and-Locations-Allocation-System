@@ -82,6 +82,9 @@ export type DashboardData = {
 	latestRunStatus: LatestRunStatus;
 	latestRunId: number | null;
 	violationCount: number | null;
+	assignedCount: number | null;
+	unassignedCount: number | null;
+	hardViolationCount: number | null;
 	lifecyclePhase: LifecyclePhase;
 	readinessSourceState: DashboardReadinessSourceState;
 	readinessSourceMessage: string;
@@ -114,6 +117,9 @@ export function useDashboardData(): DashboardData {
 	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus>('NONE');
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
 	const [violationCount, setViolationCount] = useState<number | null>(null);
+	const [assignedCount, setAssignedCount] = useState<number | null>(null);
+	const [unassignedCount, setUnassignedCount] = useState<number | null>(null);
+	const [hardViolationCount, setHardViolationCount] = useState<number | null>(null);
 	const [summaryTeachingRoomCount, setSummaryTeachingRoomCount] = useState<number | null>(null);
 	const [summaryTotalRoomCount, setSummaryTotalRoomCount] = useState<number | null>(null);
 	const [summaryBuildingSetupStatus, setSummaryBuildingSetupStatus] = useState<BuildingSetupStatus | null>(null);
@@ -216,7 +222,7 @@ export function useDashboardData(): DashboardData {
 							.then((r) => { if (!cancelled) setSectionCount(r.data.totalSections); })
 							.catch(() => { if (!cancelled) setSectionCount(null); });
 						// Latest generation run
-						atlasApi.get<{ run: { id: number; status: string } | null }>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs/latest`)
+						atlasApi.get<{ run: { id: number; status: string; summary?: { assignedCount?: number; unassignedCount?: number; hardViolationCount?: number } } | null }>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs/latest`)
 							.then((r) => {
 								if (cancelled) return;
 								const run = r.data.run;
@@ -227,6 +233,12 @@ export function useDashboardData(): DashboardData {
 								else if (s === 'IN_PROGRESS' || s === 'RUNNING' || s === 'PENDING') setLatestRunStatus('IN_PROGRESS');
 								else if (s === 'FAILED' || s === 'ERROR') setLatestRunStatus('FAILED');
 								else setLatestRunStatus('NONE');
+								// Extract summary fields for run health donut
+								if (run.summary) {
+									setAssignedCount(run.summary.assignedCount ?? null);
+									setUnassignedCount(run.summary.unassignedCount ?? null);
+									setHardViolationCount(run.summary.hardViolationCount ?? null);
+								}
 							})
 							.catch(() => { if (!cancelled) { setLatestRunStatus('NONE'); setLatestRunId(null); } });
 						// Latest violations
@@ -382,6 +394,9 @@ export function useDashboardData(): DashboardData {
 		latestRunStatus,
 		latestRunId,
 		violationCount,
+		assignedCount,
+		unassignedCount,
+		hardViolationCount,
 		lifecyclePhase,
 		readinessSourceState,
 		readinessSourceMessage,

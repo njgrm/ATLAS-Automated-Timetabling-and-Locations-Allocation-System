@@ -4,11 +4,12 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
-import { resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
+import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type {
 	CommitResult,
+	DraftBoardMutationResult,
 	DraftBoardState,
 	DraftPlacement,
 	DraftPlacementCommitResult,
@@ -224,6 +225,7 @@ type UseTimetableMutationsInput = {
 	autoPreviewRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
 
 	setEditHistory: React.Dispatch<React.SetStateAction<ManualEditRecord[]>>;
+	editHistory: ManualEditRecord[];
 	setDraft: React.Dispatch<React.SetStateAction<DraftReport | null>>;
 	setPreviewLoading: React.Dispatch<React.SetStateAction<boolean>>;
 	setPreviewResult: React.Dispatch<React.SetStateAction<PreviewResult | null>>;
@@ -266,11 +268,13 @@ export type TimetableMutationState = {
 	fetchEditHistory: () => Promise<void>;
 	previewEdit: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
 	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<boolean>;
+	commitEditWithMeta: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	previewTeachingLoadRepair: (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	revertLastEdit: () => Promise<void>;
+	revertEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
 	choosePreGenFaculty: (item: DraftQueueItem) => number;
 	choosePreGenRoom: (item: DraftQueueItem) => number;
 	buildPreGenPendingPlacement: (
@@ -303,7 +307,7 @@ export type TimetableMutationState = {
 	setRegularSwapStrategy: React.Dispatch<React.SetStateAction<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>>;
 	unassignDraftPlacement: (placementId: number) => Promise<void>;
 	getDraggedDraftPlacementId: (source: any) => number | null;
-	commitPreGenPending: () => Promise<void>;
+	commitPreGenPending: () => Promise<DraftPlacementCommitResult | null>;
 	/** Swap preview results loaded when swap confirm dialog opens (Fix C) */
 	swapPreview: SwapPreviewState | null;
 	regularSwapPreview: RegularSwapPreviewState | null;
@@ -394,6 +398,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setConfirmSaving,
 		autoPreviewRef,
 		setEditHistory,
+		editHistory,
 		setPreviewLoading,
 		setPreviewResult,
 		setCommitLoading,
@@ -733,9 +738,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return;
 		}
 		try {
-			const { data } = await atlasApi.post<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`);
-			setDraftBoard(data);
-			setDraftBoardSummary(data.counts);
+			const { data } = await atlasApi.post<DraftBoardMutationResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`);
+			setDraftBoard(data.board);
+			setDraftBoardSummary(data.board.counts);
 			toast.success('Draft planning reset. Choose an unassigned session, then choose a timetable slot.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -860,8 +865,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [apiBase, runVersion, setPreviewLoading, setPreviewResult]);
 
-	const commitEdit = useCallback(async (proposal: ManualEditProposal, allowSoftOverride = false): Promise<boolean> => {
-		if (!apiBase) return false;
+	const commitEditWithMeta = useCallback(async (proposal: ManualEditProposal, allowSoftOverride = false): Promise<CommitResult | null> => {
+		if (!apiBase) return null;
 		setCommitLoading(true);
 		try {
 			// Non-active term warning: check if the entry being edited has a different termIndex
@@ -890,12 +895,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				if (data.warnings.length > 0) toast.warning(`Edit applied with ${data.warnings.length} soft warning(s).`);
 				else toast.success('Edit applied successfully.');
 			}
-			return true;
+			return data;
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Commit failed.');
 			if (msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) toast.error('Version conflict - someone else edited this run. Please refresh.');
 			else toast.error(msg);
-			return false;
+			return null;
 		} finally {
 			setCommitLoading(false);
 			setPreviewResult(null);
@@ -905,6 +910,39 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setDragItem(null);
 		}
 	}, [apiBase, runVersion, schoolYearId, runIdNumeric, setCommitLoading, setViolationReport, fetchEditHistory, setPreviewResult, setSoftConfirmWarnings, setShowSoftConfirm, setPendingCommitProposal, setDragItem, setDraft, schoolYearContext]);
+
+	const commitEdit = useCallback(async (proposal: ManualEditProposal, allowSoftOverride = false): Promise<boolean> => {
+		const result = await commitEditWithMeta(proposal, allowSoftOverride);
+		return result != null;
+	}, [commitEditWithMeta]);
+
+	// Operation-bound Undo: takes the exact operation ID and expected resulting version
+	// (not "latest edit"). Atomic compare-and-swap on the server. Rejects stale/intervening
+	// edits with UNDO_CONFLICT without mutation.
+	const revertEditById = useCallback(async (operationId: number, expectedVersion: number): Promise<boolean> => {
+		if (!apiBase) return false;
+		setRevertLoading(true);
+		try {
+			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/revert`, {
+				operationId,
+				expectedVersion,
+			});
+			setDraft(data.draft);
+			if (schoolYearId && runIdNumeric) {
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				setViolationReport(violRes.data);
+			}
+			await fetchEditHistory();
+			toast.success('Edit reverted.');
+			return true;
+		} catch (e: unknown) {
+			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+			toast.error(payload?.code === 'UNDO_CONFLICT' ? 'Schedule changed—review latest' : (payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.')));
+			return false;
+		} finally {
+			setRevertLoading(false);
+		}
+	}, [apiBase, schoolYearId, runIdNumeric, setRevertLoading, setViolationReport, fetchEditHistory, setDraft]);
 
 	const previewTeachingLoadRepair = useCallback(async (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal): Promise<TeachingLoadRepairPreviewResult | null> => {
 		if (!teachingLoadRepairBase || changes.length === 0) return null;
@@ -996,10 +1034,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	}, [commitTeachingLoadRepair, draft?.entries]);
 
 	const revertLastEdit = useCallback(async () => {
-		if (!apiBase) return;
+		if (!apiBase || !draft || editHistory.length === 0) return;
 		setRevertLoading(true);
 		try {
-			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/revert`);
+			const operationId = editHistory[0].id;
+			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/revert`, {
+				operationId,
+				expectedVersion: draft.version,
+			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
 				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
@@ -1008,12 +1050,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			toast.success('Last edit reverted.');
 		} catch (e: unknown) {
-			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Revert failed.');
-			toast.error(msg);
+			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+			toast.error(payload?.code === 'UNDO_CONFLICT' ? 'Schedule changed—review latest' : (payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.')));
 		} finally {
 			setRevertLoading(false);
 		}
-	}, [apiBase, schoolYearId, runIdNumeric, setRevertLoading, setViolationReport, fetchEditHistory, setDraft]);
+	}, [apiBase, draft, editHistory, schoolYearId, runIdNumeric, setRevertLoading, setViolationReport, fetchEditHistory, setDraft]);
 
 	const choosePreGenFaculty = useCallback((item: DraftQueueItem) => {
 		const contextFacultyId = viewMode === 'faculty' ? Number(entityFilter) : 0;
@@ -1241,6 +1283,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	) => {
 		if (!schoolYearId) return;
 		const sourcePlacementId = source.type === 'draftPlacement' ? source.placement.id : undefined;
+		if (source.type === 'draftPlacement' && isSameTimetableSlot(source.placement, { day, startTime, endTime })) {
+			setPreGenPending(null);
+			setPreGenPreview(null);
+			setPreGenPreviewError(null);
+			setInlineActionStatus({ tone: 'success', message: 'Session is already in this slot.' });
+			return;
+		}
 		const slotDisplacement = resolvePreGenSlotDisplacement(
 			draftBoard?.placements ?? [],
 			{ day, startTime, endTime },
@@ -1339,6 +1388,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setConfirmAllowSoftOverride,
 		setConfirmAllowDailyOverride,
 		setShowPreGenConfirm,
+		setInlineActionStatus,
 	]);
 
 	const runConfirmPreview = useCallback(async () => {
@@ -1491,7 +1541,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				else toast.success('Sessions switched slots.');
 			} else {
 				// 'to-queue': source is a queue item — displaced returns to unassigned
-				await atlasApi.delete<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${swapAction.displaced.id}`);
 				const sourceBody = buildPreGenPendingPlacement(
 					swapAction.source,
 					swapAction.target.day,
@@ -1501,8 +1550,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					swapAction.target.roomId,
 				);
 				const { data } = await atlasApi.post<DraftPlacementCommitResult>(
-					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
-					sourceBody,
+					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/replace`,
+					{
+						displacedPlacementId: swapAction.displaced.id,
+						displacedExpectedVersion: swapAction.displaced.version,
+						placement: sourceBody,
+					},
 				);
 				setDraftBoard(data.board);
 				setDraftBoardSummary(data.board.counts);
@@ -1598,9 +1651,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId) return;
 		setDeletingPlacementId(placementId);
 		try {
-			const { data } = await atlasApi.delete<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${placementId}`);
-			setDraftBoard(data);
-			setDraftBoardSummary(data.counts);
+			const { data } = await atlasApi.delete<DraftBoardMutationResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${placementId}`);
+			setDraftBoard(data.board);
+			setDraftBoardSummary(data.board.counts);
 			setSelectedEntry(null);
 			setPreGenKbSource(null);
 			setKbSelectedSource(null);
@@ -1620,8 +1673,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		return null;
 	}, []);
 
-	const commitPreGenPending = useCallback(async () => {
-		if (!schoolYearId || !preGenPending) return;
+	const commitPreGenPending = useCallback(async (): Promise<DraftPlacementCommitResult | null> => {
+		if (!schoolYearId || !preGenPending) return null;
 		setPreGenSaving(true);
 		try {
 			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, preGenPending);
@@ -1638,9 +1691,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					: 'Draft placement saved. The draft grid was updated.',
 			});
 			toast.success(preGenPending.placementId ? 'Draft placement updated.' : 'Draft placement saved.');
+			return data;
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(message ?? 'Unable to save pre-generation placement.');
+			return null;
 		} finally {
 			setPreGenSaving(false);
 		}
@@ -1671,11 +1726,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		fetchEditHistory,
 		previewEdit,
 		commitEdit,
+		commitEditWithMeta,
 		previewEditBatch,
 		commitEditBatch,
 		previewTeachingLoadRepair,
 		commitTeachingLoadRepair,
 		revertLastEdit,
+		revertEditById,
 		choosePreGenFaculty,
 		choosePreGenRoom,
 		buildPreGenPendingPlacement,

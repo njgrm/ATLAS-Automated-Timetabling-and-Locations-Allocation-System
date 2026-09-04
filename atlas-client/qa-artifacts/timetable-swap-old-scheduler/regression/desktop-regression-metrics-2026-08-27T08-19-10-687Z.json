@@ -1,0 +1,42 @@
+{
+  "viewport": "desktop",
+  "title": "Swap these two classes?",
+  "sectionCount": 3,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "SWAP OPTIONS",
+    "DIRECT SWAP STATUS"
+  ],
+  "visibleTextLength": 718,
+  "dialogBox": {
+    "x": 395,
+    "y": 45,
+    "width": 576,
+    "height": 678
+  },
+  "scrollMetrics": {
+    "scrollHeight": 498,
+    "clientHeight": 498,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 522,
+    "clientHeight": 522,
+    "requiresScroll": false
+  },
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 1366,
+    "docClientWidth": 1366
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 832.25,
+    "y": 665,
+    "width": 121.75,
+    "height": 40
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "hasRawButton": false,
+  "blockedWrites": []
+}

@@ -43,9 +43,9 @@ export function TeachingLoadDraftActionBar({
 					<Undo2 className="size-4" />
 					<span className="hidden sm:inline">Undo last</span>
 				</Button>
-				<Button type="button" variant="outline" size="sm" className="hidden h-9 font-bold sm:inline-flex" onClick={onDiscard} disabled={activeDraftCount === 0 || saving || isReadOnlyMode}>
-					Discard draft
-				</Button>
+			<Button type="button" variant="outline" size="sm" className="h-8 font-bold sm:h-9" onClick={onDiscard} disabled={activeDraftCount === 0 || saving || isReadOnlyMode}>
+				Discard draft
+			</Button>
 				<Button type="button" size="sm" className="h-8 gap-1.5 px-2 font-bold sm:h-9 sm:gap-2 sm:px-3" onClick={onSave} disabled={saveDisabled}>
 					<Save className="size-4" />
 					{saving ? 'Saving...' : activeDraftCount > 0 ? `Save ${activeDraftCount}` : 'Save'}

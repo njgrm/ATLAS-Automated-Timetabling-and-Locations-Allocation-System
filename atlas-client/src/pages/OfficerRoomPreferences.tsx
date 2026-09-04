@@ -368,7 +368,9 @@ export default function OfficerRoomPreferences() {
 			<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
 				<div className='flex flex-wrap items-center gap-3'>
 					<div>
-						<h1 className='text-2xl font-semibold tracking-tight'>Scheduler Room Request Queue</h1>
+						<span className='text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider'>
+							Scheduler Room Request Queue
+						</span>
 						<p className='text-sm text-muted-foreground'>Review teacher room requests against the draft timetable before committing room changes into the active run.</p>
 					</div>
 					<Button variant='outline' size='sm' className='ml-auto' onClick={() => activeSchoolYearId && void loadSummary(activeSchoolYearId, statusFilter, decisionFilter)}>

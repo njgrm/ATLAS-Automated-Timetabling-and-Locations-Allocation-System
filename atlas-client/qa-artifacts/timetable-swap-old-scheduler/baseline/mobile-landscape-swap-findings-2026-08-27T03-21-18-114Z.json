@@ -1,0 +1,26 @@
+{
+  "sectionCount": 3,
+  "visibleTextLength": 718,
+  "scrollRequiresScroll": false,
+  "scrollHeight": 576,
+  "clientHeight": 576,
+  "strategies": [
+    {
+      "label": "Recommended Direct swap Blocking 0 • Warnings 890",
+      "disabled": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true
+    }
+  ],
+  "hasRecommendedBadge": true,
+  "hasBlockingDashPlaceholder": false,
+  "footerVisible": true,
+  "globalHorizontalOverflow": false,
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option."
+}

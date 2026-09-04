@@ -67,6 +67,17 @@ atlas-client/test-results/
 *.spec.*
 playwright.config.*
 
+# Durable Teaching Load remediation regressions
+!atlas-client/src/hooks/__tests__/
+!atlas-client/src/hooks/__tests__/useTeachingLoadRouteIntent.test.ts
+!qa-artifacts/
+qa-artifacts/*
+!qa-artifacts/playwright/
+qa-artifacts/playwright/*
+!qa-artifacts/playwright/specs/
+qa-artifacts/playwright/specs/*
+!qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts
+
 # Root-level throwaway outputs
 /*.png
 /*.log

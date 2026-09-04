@@ -29,6 +29,7 @@ import {
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-workspace/AdminDataTable';
 import {
 	FacultyAssignedClassesCell,
+	FacultyAssignedGradeChips,
 	getFacultyLoadPresentation,
 	FacultyIdentityCell,
 	FacultyLoadStateBadge,
@@ -38,6 +39,7 @@ import {
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
 import { departmentLabel } from '@/lib/deped-glossary';
+import { GRADE_OPTIONS } from '@/lib/subject-constants';
 import {
 	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
@@ -186,6 +188,7 @@ export default function Faculty() {
 	const [schedulingFilter, setSchedulingFilter] = useState<'all' | 'active' | 'excluded'>('all');
 	const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [attentionFilter, setAttentionFilter] = useState<TeacherAttentionFilter>('all');
 
 	const fetchFaculty = useCallback(async (options?: { forceRefresh?: boolean }) => {
@@ -235,12 +238,13 @@ export default function Faculty() {
 							schoolYearId,
 							page,
 							pageSize,
-							query: searchQuery.trim() || undefined,
-							scheduling: schedulingFilter,
-							assignment: assignmentFilter,
-							department: departmentFilter !== 'all' ? departmentFilter : undefined,
-							sortField,
-							sortDir,
+						query: searchQuery.trim() || undefined,
+						scheduling: schedulingFilter,
+						assignment: assignmentFilter,
+						department: departmentFilter !== 'all' ? departmentFilter : undefined,
+						gradeLevel: gradeLevelFilter !== 'all' ? gradeLevelFilter : undefined,
+						sortField,
+						sortDir,
 						},
 					}),
 				{ attempts: 2, delayMs: 400 },
@@ -324,7 +328,7 @@ export default function Faculty() {
 			setRefreshing(false);
 			setLoading(false);
 		}
-	}, [assignmentFilter, departmentFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
+	}, [assignmentFilter, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
 
 	useEffect(() => {
 		void fetchFaculty({});
@@ -423,6 +427,7 @@ export default function Faculty() {
 		else if (assignmentFilter === 'unassigned') list = list.filter((f) => (f.subjectCount ?? 0) === 0);
 
 		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
+		if (gradeLevelFilter !== 'all') list = list.filter((f) => (f.assignedGradeLevels ?? []).includes(gradeLevelFilter));
 		if (attentionFilter === 'needs-load') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.subjectCount ?? 0) === 0);
 		if (attentionFilter === 'over-cap') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.policyCreditedHours ?? 0) > f.maxHoursPerWeek);
 		if (attentionFilter === 'no-active-load') list = list.filter((f) => f.isActiveForScheduling && !f.isPlaceholder && (f.sectionCount ?? 0) === 0);
@@ -445,10 +450,10 @@ export default function Faculty() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [faculty, serverPagination, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, attentionFilter, sortField, sortDir, page, pageSize]);
+	}, [faculty, serverPagination, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, gradeLevelFilter, attentionFilter, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, attentionFilter, pageSize, sortField, sortDir]);
+	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, gradeLevelFilter, attentionFilter, pageSize, sortField, sortDir]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -457,7 +462,15 @@ export default function Faculty() {
 
 	const tablePage = serverPagination?.page ?? page;
 	const tablePageSize = serverPagination?.pageSize ?? pageSize;
-	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all' || attentionFilter !== 'all';
+	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all' || gradeLevelFilter !== 'all' || attentionFilter !== 'all';
+
+	const clearAllFilters = useCallback(() => {
+		setSchedulingFilter('all');
+		setAssignmentFilter('all');
+		setDepartmentFilter('all');
+		setGradeLevelFilter('all');
+		setAttentionFilter('all');
+	}, []);
 
 	const teacherColumns = useMemo<AdminDataTableColumn<FacultySummary, SortField>[]>(() => [
 		{
@@ -491,10 +504,13 @@ export default function Faculty() {
 			sortKey: 'subjects',
 			cellClassName: 'min-w-28',
 			render: (teacher) => (
-				<FacultyAssignedClassesCell
-					faculty={teacher}
-					onClick={() => setProfileTarget(teacher)}
-				/>
+				<div className="flex flex-col gap-1">
+					<FacultyAssignedClassesCell
+						faculty={teacher}
+						onClick={() => setProfileTarget(teacher)}
+					/>
+					<FacultyAssignedGradeChips faculty={teacher} />
+				</div>
 			),
 		},
 	], []);
@@ -670,27 +686,38 @@ return (
 								<SelectItem value="unassigned">Needs teaching load</SelectItem>
 							</SelectContent>
 						</Select>
-						{departments.length > 0 && (
-							<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-								<SelectTrigger className="h-10 w-44 text-sm bg-background">
-									<SelectValue placeholder="All Departments" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All Departments</SelectItem>
-									{departments.map((d) => <SelectItem key={d} value={d}>{departmentLabel(d)}</SelectItem>)}
-								</SelectContent>
-							</Select>
-						)}
-						{hasActiveFilters && (
-							<Button
-								variant="ghost"
-								size="sm"
-								className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
-								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); setAttentionFilter('all'); }}
-							>
-								Reset filters
-							</Button>
-						)}
+					{departments.length > 0 && (
+						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
+							<SelectTrigger className="h-10 w-44 text-sm bg-background">
+								<SelectValue placeholder="All Departments" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Departments</SelectItem>
+								{departments.map((d) => <SelectItem key={d} value={d}>{departmentLabel(d)}</SelectItem>)}
+							</SelectContent>
+						</Select>
+					)}
+					<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
+						<SelectTrigger className="h-10 w-36 text-sm bg-background" data-testid="teachers-grade-filter">
+							<SelectValue placeholder="Grade taught" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All grades</SelectItem>
+							{GRADE_OPTIONS.map((g) => (
+								<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					{hasActiveFilters && (
+						<Button
+							variant="ghost"
+							size="sm"
+							className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
+							onClick={clearAllFilters}
+						>
+							Reset filters
+						</Button>
+					)}
 				</AdminSearchFilterToolbar>
 			)}
 		>
@@ -826,7 +853,14 @@ return (
 				noResultsState={{
 					icon: <Users className="size-8" />,
 					title: 'No matches found.',
-					description: 'Clear a filter or search another teacher name or department.',
+					description: gradeLevelFilter !== 'all'
+						? `No teachers with assigned classes in Grade ${gradeLevelFilter}. Clear a filter or search another teacher name or department.`
+						: 'Clear a filter or search another teacher name or department.',
+					action: hasActiveFilters ? (
+						<Button size="sm" onClick={clearAllFilters} className="font-bold shadow-sm" data-testid="teachers-clear-filters">
+							Reset filters
+						</Button>
+					) : undefined,
 				}}
 				errorState={error && faculty.length === 0 ? {
 					icon: <AlertTriangle className="size-8" />,

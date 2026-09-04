@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "durationMs": 1141.2114000000001,
+  "metrics": {
+    "navigation": {
+      "duration": 179.89999999850988,
+      "domInteractive": 28.399999998509884,
+      "responseEnd": 23
+    },
+    "jsTransferBytes": 6794124,
+    "jsDecodedBytes": 6751824,
+    "jsFileCount": 141,
+    "profilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 4.399999998509884,
+        "baseDuration": 3.899999998509884,
+        "timestamp": 1787132578201
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 2.2000000029802322,
+        "baseDuration": 2.2000000029802322,
+        "timestamp": 1787132578218
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 2.2000000029802322,
+        "timestamp": 1787132578226
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.6000000014901161,
+        "baseDuration": 1.6000000014901161,
+        "timestamp": 1787132578282
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 1.6000000014901161,
+        "timestamp": 1787132578293
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 13.699999995529652,
+        "baseDuration": 12,
+        "timestamp": 1787132578356
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 11.50000000745058,
+        "baseDuration": 8.300000011920929,
+        "timestamp": 1787132578401
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 8.300000011920929,
+        "timestamp": 1787132578409
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.7999999970197678,
+        "baseDuration": 8.300000011920929,
+        "timestamp": 1787132578467
+      }
+    ]
+  }
+}

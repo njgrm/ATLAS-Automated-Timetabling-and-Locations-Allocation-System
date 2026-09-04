@@ -1,0 +1,41 @@
+{
+  "viewport": "desktop",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 655,
+  "dialogBox": {
+    "x": 395,
+    "y": 88.3125,
+    "width": 576,
+    "height": 591.375
+  },
+  "scrollMetrics": {
+    "scrollHeight": 421,
+    "clientHeight": 421,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 445,
+    "clientHeight": 445,
+    "requiresScroll": false
+  },
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 1366,
+    "docClientWidth": 1366
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 885.09375,
+    "y": 626.6875,
+    "width": 68.90625,
+    "height": 40
+  },
+  "feedbackText": "Ready to swap.",
+  "hasRawButton": false,
+  "blockedWrites": []
+}

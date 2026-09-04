@@ -1,0 +1,95 @@
+{
+  "viewport": "mobile-landscape",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 577,
+  "dialogBox": {
+    "x": 134,
+    "y": 19.5,
+    "width": 576,
+    "height": 351
+  },
+  "scrollMetrics": {
+    "scrollHeight": 424,
+    "clientHeight": 424,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 448,
+    "clientHeight": 274,
+    "requiresScroll": true
+  },
+  "strategyRects": [
+    {
+      "label": "Recommended Direct swap Blocking 0 • Warnings 890",
+      "disabled": false,
+      "rect": {
+        "x": 164,
+        "y": 324,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": true
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 374,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": false
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 424,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": false
+    }
+  ],
+  "strategyCount": 3,
+  "visibleStrategyCount": 3,
+  "strategyButtonsIntersectingFooter": [
+    {
+      "label": "Recommended Direct swap Blocking 0 • Warnings 890",
+      "disabled": false,
+      "rect": {
+        "x": 164,
+        "y": 324,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": true
+    }
+  ],
+  "recommendedIntersectsFooter": true,
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasSelectedStatus": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 844,
+    "docClientWidth": 844
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 164,
+    "y": 324,
+    "width": 516,
+    "height": 44
+  },
+  "feedbackText": "",
+  "footerOverlap": true,
+  "blockedWrites": []
+}

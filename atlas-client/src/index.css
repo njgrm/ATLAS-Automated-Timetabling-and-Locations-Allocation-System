@@ -1,11 +1,16 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import '@fontsource-variable/instrument-sans';
+@import '@fontsource-variable/inter';
+@import '@fontsource/poppins/400.css';
+@import '@fontsource/poppins/500.css';
+@import '@fontsource/poppins/600.css';
+@import '@fontsource/poppins/700.css';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-heading: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
 	--animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-modal-out: modal-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -98,13 +103,14 @@
 }
 
 @theme inline {
-	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
-	--font-weight-normal: 500;
-	--font-weight-medium: 550;
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-heading: 'Poppins', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
-	--font-weight-bold: 650;
-	--font-weight-extrabold: 750;
-	--font-weight-black: 800;
+	--font-weight-bold: 700;
+	--font-weight-extrabold: 800;
+	--font-weight-black: 900;
 
 	--color-background: hsl(var(--background));
 	--color-foreground: hsl(var(--foreground));
@@ -162,8 +168,19 @@
 		@apply font-sans;
 	}
 	h1, h2, h3, h4, h5, h6 {
-		letter-spacing: 0;
+		font-family: var(--font-heading);
+		font-weight: 600;
+		letter-spacing: -0.025em;
 		line-height: 1.25;
+	}
+	h1 {
+		font-size: clamp(1.5rem, 2.5vw, 2rem);
+	}
+	h2 {
+		font-size: clamp(1.25rem, 2vw, 1.75rem);
+	}
+	h3 {
+		font-size: clamp(1.125rem, 1.75vw, 1.5rem);
 	}
 	:focus-visible {
 		outline: 3px solid hsl(var(--ring) / 0.7);
@@ -210,6 +227,9 @@
 	.shadow-primary-sm {
 		box-shadow: 0 4px 14px -3px hsl(var(--primary) / 0.28);
 	}
+	.shadow-primary-glow-soft {
+		box-shadow: 0 6px 20px -4px hsl(var(--primary) / 0.2);
+	}
 	.animate-fade-in {
 		animation: fade-in 0.3s ease-out forwards;
 	}
@@ -233,6 +253,52 @@
 	}
 	.scrollbar-thin::-webkit-scrollbar-thumb:hover {
 		background: hsl(var(--primary) / 0.8);
+	}
+
+	/* ─── Interaction utilities (SMART-aligned, token-driven) ─── */
+
+	/* Card hover lift: layered soft shadow + hover translate. Reduced-motion: no translate. */
+	.card-hover-lift {
+		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		box-shadow: var(--shadow-sm);
+	}
+	.card-hover-lift:hover {
+		transform: translateY(-4px);
+		box-shadow: var(--shadow-lg);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.card-hover-lift:hover {
+			transform: none;
+		}
+	}
+
+	/* Table header gradient: sticky gradient background for thead. */
+	.thead-gradient {
+		background: linear-gradient(180deg, hsl(var(--muted)) 0%, hsl(var(--muted) / 0.6) 100%);
+	}
+
+	/* Table row hover tint: subtle primary tint on hover. */
+	.row-hover-tint {
+		transition: background-color 0.15s ease;
+	}
+	.row-hover-tint:hover {
+		background-color: hsl(var(--primary) / 0.03);
+	}
+
+	/* Skeleton shimmer: background-position sweep for loading states. Reduced-motion: static. */
+	@keyframes skeleton-shimmer {
+		0% { background-position: -200% 0; }
+		100% { background-position: 200% 0; }
+	}
+	.skeleton-shimmer {
+		background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted) / 0.6) 50%, hsl(var(--muted)) 75%);
+		background-size: 200% 100%;
+		animation: skeleton-shimmer 1.5s ease-in-out infinite;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.skeleton-shimmer {
+			animation: none;
+		}
 	}
 }
 

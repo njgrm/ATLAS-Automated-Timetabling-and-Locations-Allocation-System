@@ -1,0 +1,11 @@
+{
+  "viewport": "desktop",
+  "visibleTextLength": 718,
+  "isBlocked": false,
+  "hasManualActions": false,
+  "hasCancelSafely": false,
+  "hasDisabledSwapButton": false,
+  "hasBlockedFeedback": false,
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "blockedWrites": []
+}

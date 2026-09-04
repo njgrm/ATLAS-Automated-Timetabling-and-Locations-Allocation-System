@@ -172,7 +172,7 @@ export function AdminWorkspaceFrame({
 				className="shrink-0 border-b bg-background/85 px-4 py-1.5 backdrop-blur-md lg:px-5"
 				data-testid="admin-command-header"
 			>
-				<div className="flex min-w-0 items-center justify-between gap-2" data-testid="setup-compact-command-header">
+				<div className="flex min-w-0 flex-wrap items-center justify-between gap-2" data-testid="setup-compact-command-header">
 					<div className="flex min-w-0 items-center gap-2">
 						<h1 className="shrink-0 text-lg font-bold text-slate-900 lg:text-xl">{title}</h1>
 						<AdminSourceStateChip state={sourceState} copy={sourceCopy} lastVerified={lastVerified} />

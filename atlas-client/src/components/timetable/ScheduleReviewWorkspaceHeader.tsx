@@ -10,10 +10,13 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { QuickPlaceSummaryModal } from '@/components/timetable/QuickPlaceSummaryModal';
+import {
+	SetupImpactDialog,
+	SyncTimetableConfirmDialog,
+} from '@/components/timetable/ScheduleReviewWorkspaceDialogs';
 import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -285,7 +288,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const ActiveTaskIcon = activeTask.icon;
 	const foolproofHelp = isPreGenerationWorkspace
 		? 'Draft mode: choose a draft queue item, then tap or click a grid slot. Review draft placement opens before anything is saved. Switch: select one placed draft session, then another occupied slot.'
-		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class. The Swap these two classes? review opens before saving. Draft: use Plan before generating for draft anchors.';
+		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class. The Swap class times review opens before saving. Draft: use Plan before generating for draft anchors.';
 	const sourceContext = context.schoolYearContext;
 	const sourceLabel = !sourceContext
 		? 'Checking source'
@@ -857,61 +860,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				</div>
 			)}
 
-			<Dialog open={showImpactPreview} onOpenChange={setShowImpactPreview}>
-				<DialogContent className="sm:max-w-md">
-					<DialogHeader>
-							<DialogTitle>{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</DialogTitle>
-						<DialogDescription>
-							{inputState?.status === 'STALE'
-								? 'This draft was not changed automatically. Review the changed setup areas, then choose manual repair or regenerate when ready.'
-								: 'This draft can still be reviewed, but ATLAS cannot prove whether its setup inputs match the latest data.'}
-						</DialogDescription>
-					</DialogHeader>
-					<div className="rounded-lg border border-border bg-muted/30 p-3">
-						<p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Changed setup areas</p>
-						<div className="flex flex-wrap gap-2">
-							{changedDomainLabels.map((label) => (
-								<Badge key={label} variant="outline" className="bg-background text-xs font-semibold">
-									{label}
-								</Badge>
-							))}
-						</div>
-					</div>
-					<p className="text-xs leading-relaxed text-muted-foreground">{inputState?.actionHint}</p>
-					<DialogFooter>
-						<Button variant="outline" size="sm" onClick={() => setShowImpactPreview(false)}>Close</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
-				<DialogContent className="sm:max-w-md">
-					<DialogHeader>
-						<DialogTitle>Sync Timetable with Setup</DialogTitle>
-						<DialogDescription className="space-y-2">
-							<span>This will update the timetable draft to match live setup changes:</span>
-							<ul className="list-disc list-inside text-xs space-y-1">
-								<li>Sync scheduled classes with current teacher assignments.</li>
-								<li>Import newly created sections or subjects into the unassigned queue.</li>
-								<li>Remove entries for deleted sections or subjects.</li>
-								<li>Re-evaluate policy violations.</li>
-							</ul>
-							<p className="text-xs font-semibold text-amber-600">
-								Manual slot swaps and pins will be preserved, but new conflicts may be highlighted.
-							</p>
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button variant="outline" size="sm" onClick={() => setShowSyncConfirm(false)} disabled={syncing}>
-							Cancel
-						</Button>
-						<Button variant="default" size="sm" onClick={handleSyncSetup} disabled={syncing}>
-							{syncing ? <Loader2 className="size-3 mr-1.5 animate-spin" /> : <RefreshCw className="size-3 mr-1.5" />}
-							Sync Now
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<SyncTimetableConfirmDialog
+				open={showSyncConfirm}
+				onOpenChange={setShowSyncConfirm}
+				syncing={syncing}
+				onSyncNow={handleSyncSetup}
+			/>
+			<SetupImpactDialog
+				open={showImpactPreview}
+				onOpenChange={setShowImpactPreview}
+				inputState={inputState}
+				changedDomainLabels={changedDomainLabels}
+			/>
 
 			<TimetableToolbar
 				viewMode={viewMode}

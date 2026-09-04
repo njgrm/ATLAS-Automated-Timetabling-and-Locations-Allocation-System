@@ -60,7 +60,6 @@ export function useTeachingLoadData() {
 	const [integrityDiagnostics, setIntegrityDiagnostics] = useState<TeachingLoadIntegrityDiagnostics | null>(null);
 	const [splitBrainIncident, setSplitBrainIncident] = useState<TeachingLoadSplitBrainReconcileResult | null>(null);
 	const [splitBrainLoading, setSplitBrainLoading] = useState(false);
-	const [splitBrainApplyLoading, setSplitBrainApplyLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -100,13 +99,12 @@ export function useTeachingLoadData() {
 	);
 	const hasSettledRuntimeSource = dataSource === 'live' || dataSource === 'cached';
 	const degradedWriteEnabled = isOnline && dataSource === 'cached' && hasLocalWriteEvidence;
-	// Writable whenever we have a verified year and are online, unless explicitly quarantined
+	// Integrity diagnostics remain review guidance; they never freeze the whole
+	// workspace because editing is the operator's path to resolve affected rows.
 	const canPersistAssignments = isOnline && Boolean(activeSchoolYearId) && (dataSource === 'live' || hasLocalWriteEvidence);
 	const canRunStaffingNeeds = isOnline && hasSettledRuntimeSource && Boolean(activeSchoolYearId);
 	const canRunGlobalReset = isOnline && dataSource === 'live' && Boolean(activeSchoolYearId);
-	const splitBrainQuarantineRequired = splitBrainIncident?.quarantine.required === true && splitBrainIncident?.quarantine.severity !== 'WARNING';
-	const splitBrainReasonLabel = splitBrainIncident?.quarantine.message ?? 'Assignments temporarily locked while data review finishes';
-	const isReadOnlyMode = !canPersistAssignments || splitBrainQuarantineRequired;
+	const isReadOnlyMode = !canPersistAssignments;
 
 	const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
 
@@ -295,15 +293,25 @@ export function useTeachingLoadData() {
 		};
 	}, []);
 
+	// NOTE: URL intent (facultyId, sectionId, subjectId) is now applied once
+	// per navigation entry by useTeachingLoadRouteIntent in TeachingLoad.tsx.
+	// This hook only initializes from URL on first mount and falls back to
+	// the first faculty member when no valid selection exists.
+
+	// Initialize selectedId from URL on first mount only
 	useEffect(() => {
 		const queryValue = searchParams.get('facultyId');
 		if (queryValue) {
 			const parsed = Number(queryValue);
-			if (!Number.isNaN(parsed) && faculty.some(m => m.id === parsed)) {
+			if (!Number.isNaN(parsed)) {
 				setSelectedId(parsed);
 				return;
 			}
 		}
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Fall back to first faculty when selection is invalid and faculty list is loaded
+	useEffect(() => {
 		if (faculty.length === 0) {
 			setSelectedId(null);
 			return;
@@ -311,17 +319,7 @@ export function useTeachingLoadData() {
 		if (selectedId == null || !faculty.some((member) => member.id === selectedId)) {
 			setSelectedId(faculty[0].id);
 		}
-	}, [faculty, searchParams, selectedId]);
-
-	useEffect(() => {
-		const subjectValue = searchParams.get('subjectId');
-		const nextSubjectId = subjectValue ? Number(subjectValue) : null;
-		setSubjectFocusId(nextSubjectId != null && !Number.isNaN(nextSubjectId) ? nextSubjectId : null);
-
-		const sectionValue = searchParams.get('sectionId');
-		const nextSectionId = sectionValue ? Number(sectionValue) : null;
-		setSectionFocusId(nextSectionId != null && !Number.isNaN(nextSectionId) ? nextSectionId : null);
-	}, [searchParams]);
+	}, [faculty, selectedId]);
 
 	const allKnownSections = useMemo(() => {
 		return [...(sectionSummary?.sections ?? [])].sort(
@@ -450,8 +448,6 @@ export function useTeachingLoadData() {
 		integrityDiagnostics,
 		splitBrainIncident,
 		splitBrainLoading,
-		splitBrainApplyLoading,
-		setSplitBrainApplyLoading,
 		activeSchoolYearId,
 		activeTermIndex,
 		loading,
@@ -477,8 +473,6 @@ export function useTeachingLoadData() {
 		canPersistAssignments,
 		canRunStaffingNeeds,
 		canRunGlobalReset,
-		splitBrainQuarantineRequired,
-		splitBrainReasonLabel,
 		isReadOnlyMode,
 		activeFacultyIds,
 		allKnownSections,

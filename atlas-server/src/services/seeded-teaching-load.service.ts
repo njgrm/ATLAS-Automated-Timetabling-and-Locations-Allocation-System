@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { buildSectionRosterIndex } from './faculty-assignment-scope.service.js';
 import { sectionAdapter, type ExternalSection, type SectionsByGrade } from './section-adapter.js';
 import { ensureDefaultSubjects } from './subject.service.js';
+import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
 type SeedableFaculty = {
 	id: number;
@@ -404,7 +405,7 @@ function printSeedDiagnostics(diagnostics: SeededTeachingLoadDiagnostics) {
 export async function collectSeededTeachingLoadDiagnostics(input: Pick<SeedTeachingLoadBaselineInput, 'schoolId' | 'schoolYearId' | 'authToken' | 'gradeLevels'>): Promise<SeededTeachingLoadDiagnostics> {
 	const { sections, faculty, subjects, aliasToCanonical } = await loadSeedInputs(input);
 	const assignments = await prisma.facultySubject.findMany({
-		where: { schoolId: input.schoolId },
+		where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId },
 		select: {
 			facultyId: true,
 			subjectId: true,
@@ -588,17 +589,20 @@ export async function seedTeachingLoadBaseline(input: SeedTeachingLoadBaselineIn
 		facultyId: entry.facultyId,
 		subjectId: entry.subjectId,
 		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
 		gradeLevels: [...entry.gradeLevels].sort((left, right) => left - right),
 		sectionIds: [...entry.sectionIds].sort((left, right) => left - right),
 		assignedBy: input.assignedBy,
 	}));
 
 	await prisma.$transaction(async (tx) => {
-		await tx.facultySubject.deleteMany({ where: { schoolId: input.schoolId } });
+		await tx.subjectSectionOwnership.deleteMany({ where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } });
+		await tx.facultySubject.deleteMany({ where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } });
 		if (rows.length > 0) {
 			await tx.facultySubject.createMany({ data: rows });
 		}
 	});
+	await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
 
 	const diagnostics = await collectSeededTeachingLoadDiagnostics(input);
 	printSeedDiagnostics(diagnostics);

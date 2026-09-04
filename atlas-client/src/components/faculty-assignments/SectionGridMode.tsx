@@ -11,7 +11,6 @@ import {
 	Users,
 	UserPlus,
 	RotateCcw,
-	Save,
 	X,
 	Check,
 	UserCheck,
@@ -222,21 +221,7 @@ export function SectionGridMode({
 						</Select>
 					</div>
 
-					{hasDraft && (
-						<div className="flex items-center gap-2 bg-sky-50 border border-sky-200 px-3 py-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-right-2">
-							<span className="text-xs font-semibold uppercase text-sky-700 tracking-widest mr-2">Pending Changes</span>
-							<Button 
-								size="sm" 
-								onClick={onSave} 
-								disabled={saving || isReadOnlyMode}
-								className="h-8 px-4 text-xs font-semibold uppercase tracking-widest gap-2 bg-sky-600 hover:bg-sky-700 shadow-md ring-2 ring-sky-600/20"
-							>
-								<Save className="size-3.5" />
-								{saving ? 'Saving...' : 'Save All'}
-							</Button>
-						</div>
-					)}
-				</div>
+					</div>
 			</div>
 
 			<div className="flex-1 overflow-auto p-3 space-y-2 no-scrollbar lg:p-4">
@@ -256,7 +241,7 @@ export function SectionGridMode({
 					const isExpanded = selectedSectionId === row.section.id;
 					
 					return (
-						<div 
+						<div
 							key={row.section.id}
 							data-section-id={row.section.id}
 							data-testid="teaching-load-section-row"
@@ -266,10 +251,19 @@ export function SectionGridMode({
 								row.isCompleted && !isExpanded && "opacity-75"
 							)}
 						>
-							<div 
-								className="flex items-center gap-4 p-3 cursor-pointer select-none"
-								onClick={() => handleRowClick(row.section.id)}
-							>
+						<div
+							role="button"
+							tabIndex={0}
+							aria-expanded={isExpanded}
+							className="flex items-center gap-4 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+							onClick={() => handleRowClick(row.section.id)}
+							onKeyDown={(event) => {
+								if (event.key === 'Enter' || event.key === ' ') {
+									event.preventDefault();
+									handleRowClick(row.section.id);
+								}
+							}}
+						>
 								<div className={cn(
 									"flex size-10 shrink-0 items-center justify-center rounded-lg border shadow-sm",
 									row.isCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"

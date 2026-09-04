@@ -1,0 +1,12 @@
+{
+  "viewport": "mobile-portrait",
+  "visibleTextLength": 718,
+  "isBlocked": false,
+  "hasChooseAnother": false,
+  "hasCancelSafely": false,
+  "hasDisabledSwapButton": false,
+  "hasBlockedFeedback": false,
+  "hasConflictDetails": false,
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "blockedWrites": []
+}

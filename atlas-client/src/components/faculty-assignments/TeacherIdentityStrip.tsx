@@ -1,6 +1,5 @@
 import { 
 	Star, 
-	AlertTriangle, 
 	Info, 
 	Layers, 
 	Undo2, 
@@ -23,7 +22,6 @@ import { StackedWorkloadBar } from './StackedWorkloadBar';
 type TeacherIdentityStripProps = {
 	selected: FacultySummary;
 	advisedSectionMeta: { gradeLevel: number; sectionName: string } | null;
-	splitBrainQuarantineRequired: boolean;
 	loadProfile: LoadProfile;
 	rotationOvercountHours: number;
 	rotationSheetOpen: boolean;
@@ -54,7 +52,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 export function TeacherIdentityStrip({
 	selected,
 	advisedSectionMeta,
-	splitBrainQuarantineRequired,
 	loadProfile,
 	rotationOvercountHours,
 	rotationSheetOpen,
@@ -105,13 +102,7 @@ export function TeacherIdentityStrip({
 			</div>
 
 			<div className="flex items-center gap-3">
-				{splitBrainQuarantineRequired ? (
-					<div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-1.5 text-xs font-bold uppercase tracking-tight text-rose-800">
-						<AlertTriangle className="size-3.5" />
-						<span>Load details unavailable until review completes</span>
-					</div>
-				) : (
-					<div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
+				<div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
 						<div className="flex flex-col items-center">
 							<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Credited Weekly Load</span>
 							<div className="flex items-center gap-2">
@@ -397,8 +388,7 @@ export function TeacherIdentityStrip({
 								</div>
 							</PopoverContent>
 						</Popover>
-					</div>
-				)}
+				</div>
 
 				<div className="flex items-center gap-2 border-l border-border/50 pl-3">
 					<div className="flex items-center bg-background rounded-lg border border-border/60 p-0.5 shadow-inner">

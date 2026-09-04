@@ -1,0 +1,41 @@
+{
+  "viewport": "mobile-portrait",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 578,
+  "dialogBox": {
+    "x": 16,
+    "y": 148.140625,
+    "width": 358,
+    "height": 547.71875
+  },
+  "scrollMetrics": {
+    "scrollHeight": 371,
+    "clientHeight": 371,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 383,
+    "clientHeight": 383,
+    "requiresScroll": false
+  },
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 390,
+    "docClientWidth": 390
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 25,
+    "y": 646.859375,
+    "width": 340,
+    "height": 44
+  },
+  "feedbackText": "Ready.",
+  "hasRawButton": false,
+  "blockedWrites": []
+}

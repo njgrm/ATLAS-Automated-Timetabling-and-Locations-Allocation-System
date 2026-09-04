@@ -9,6 +9,7 @@ import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-iden
 import * as roomPreferenceService from '../services/room-preference.service.js';
 import { hasPrivilegedRole } from '../middleware/authorize.js';
 import { getRoomPreferenceEventsSince, subscribeRoomPreferenceEvents } from '../services/room-preference-events.service.js';
+import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
 
 const router = Router();
 
@@ -484,13 +485,14 @@ router.get(
 			res.setHeader('Connection', 'keep-alive');
 			res.setHeader('X-Accel-Buffering', 'no');
 			res.flushHeaders();
+			attachSseErrorGuard(res);
 
-			res.write('retry: 2000\n\n');
+			sseWrite(res, 'retry: 2000\n\n');
 
 			const sendEvent = (event: ReturnType<typeof getRoomPreferenceEventsSince>[number]) => {
-				res.write(`id: ${event.id}\n`);
-				res.write(`event: ${event.type}\n`);
-				res.write(`data: ${JSON.stringify(event)}\n\n`);
+				sseWrite(res, `id: ${event.id}\n`);
+				sseWrite(res, `event: ${event.type}\n`);
+				sseWrite(res, `data: ${JSON.stringify(event)}\n\n`);
 			};
 
 			const lastEventIdHeader = req.header('last-event-id');
@@ -507,7 +509,7 @@ router.get(
 			}
 
 			const heartbeat = setInterval(() => {
-				res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+				sseWrite(res, `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
 			}, 15000);
 
 			const unsubscribe = subscribeRoomPreferenceEvents({
@@ -517,7 +519,7 @@ router.get(
 				send: sendEvent,
 			});
 
-			req.on('close', () => {
+			registerSseCleanup(req, res, () => {
 				clearInterval(heartbeat);
 				unsubscribe();
 			});

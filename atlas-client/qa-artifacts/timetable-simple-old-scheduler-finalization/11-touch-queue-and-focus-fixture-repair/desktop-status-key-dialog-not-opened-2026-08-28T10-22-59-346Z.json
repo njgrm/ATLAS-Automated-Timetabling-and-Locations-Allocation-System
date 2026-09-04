@@ -1,0 +1,8 @@
+{
+  "reason": "Status key dialog did not open after clicking menu item",
+  "rootOverflow": {
+    "scrollWidth": 1366,
+    "clientWidth": 1366,
+    "hasHorizontalOverflow": false
+  }
+}

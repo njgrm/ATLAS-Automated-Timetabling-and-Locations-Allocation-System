@@ -63,9 +63,13 @@ import {
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
+import { resolveActorSchoolId } from '@/lib/settings';
 
 
-const DEFAULT_SCHOOL_ID = 1;
+// Prompt 01A: school scope comes from the authenticated actor (server-enforced
+// on mutations). This constant is a display-only fallback for public catalog
+// reads before the actor scope resolves; it never owns a mutation.
+const FALLBACK_READ_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels' | 'isSeedable';
@@ -155,11 +159,23 @@ export default function Subjects() {
 	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
 	const [attentionFilter, setAttentionFilter] = useState<'all' | 'missing-coverage' | 'room-constrained'>('all');
 
+	// Prompt 01A: actor school scope — resolved from /auth/me once, used for all
+	// reads and mutations; falls back only for public reads before resolution.
+	const [actorSchoolId, setActorSchoolId] = useState<number | null>(null);
+
+	useEffect(() => {
+		resolveActorSchoolId().then((id) => {
+			if (id != null) setActorSchoolId(id);
+		});
+	}, []);
+
+	const schoolScope = actorSchoolId ?? FALLBACK_READ_SCHOOL_ID;
+
 	const fetchSubjects = useCallback(async () => {
 		setLoading(true);
 		try {
 			const { data } = await atlasApi.get<{ subjects: Subject[] }>('/subjects', {
-				params: { schoolId: DEFAULT_SCHOOL_ID },
+				params: { schoolId: schoolScope },
 			});
 			setSubjects(data.subjects);
 			setError(null);
@@ -203,7 +219,7 @@ export default function Subjects() {
 		try {
 			const schoolYearId = await ensureActiveSchoolYear();
 			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
-				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId }, 
+				params: { schoolId: schoolScope, schoolYearId },
 			});
 			
 			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[] = [];
@@ -397,8 +413,9 @@ export default function Subjects() {
 				});
 				toast.success('Subject updated successfully.');
 			} else {
+				// Prompt 01A: server derives school ownership from the authenticated
+				// actor — no client-supplied schoolId on create.
 				await atlasApi.post('/subjects', {
-					schoolId: DEFAULT_SCHOOL_ID,
 					...values,
 					outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
 					ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
@@ -434,7 +451,7 @@ export default function Subjects() {
 		try {
 			const schoolYearId = await ensureActiveSchoolYear();
 			await atlasApi.post('/subjects/sync-offerings', {
-				schoolId: DEFAULT_SCHOOL_ID,
+				schoolId: schoolScope,
 				schoolYearId,
 			});
 			await fetchSubjects();
@@ -477,18 +494,22 @@ export default function Subjects() {
 	};
 
 	const subjectSourceState = useMemo<AdminSourceState>(() => {
+		// Prompt 01A: provenance truth. A successful catalog load is a read of
+		// persisted ATLAS data — it is NOT proof of an upstream verification
+		// event. Only an explicit, successful sync-offerings refresh (or a live
+		// EnrollPro-backed sync with captured evidence) may display the live
+		// state; everything else is honestly "saved data".
 		if (loading || syncingContract) return 'checking-source';
 		if (error && subjects.length === 0) return 'no-saved-data';
-		if (syncError) return 'saved-data';
-		return 'verified-live';
-	}, [error, loading, subjects.length, syncError, syncingContract]);
+		return 'saved-data';
+	}, [error, loading, subjects.length, syncingContract]);
 
 	const subjectStats = useMemo(() => {
 		const activeCount = subjects.filter((subject) => subject.isActive).length;
 		const archivedCount = subjects.length - activeCount;
 		const roomConstrainedCount = subjects.filter((subject) => subject.isActive && (subject.preferredRoomType !== 'CLASSROOM' || subject.requiredFeatures.length > 0)).length;
 		const coverageRiskCount = coverageBySubjectId
-			? subjects.filter((subject) => subject.isActive && subject.isSeedable && (coverageBySubjectId.get(subject.id)?.uncoveredSectionCount ?? 0) > 0).length
+			? subjects.filter((subject) => subject.isActive && (coverageBySubjectId.get(subject.id)?.uncoveredSectionCount ?? 0) > 0).length
 			: null;
 		return [
 			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: archivedCount > 0 ? `${activeCount} active · ${archivedCount} archived (kept for history, hidden from new setup).` : 'Subjects currently available for scheduling this school year.' },
@@ -548,93 +569,6 @@ export default function Subjects() {
 		setCoverageSubject(subject);
 		fetchTeacherCoverage(subject.id);
 	}, [fetchTeacherCoverage]);
-const SubjectMobileCard = ({ subject }: { subject: Subject }) => {
-		const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
-			? 'Standard classroom'
-			: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
-		const grades = subject.gradeLevels.length > 0
-			? [...subject.gradeLevels].sort((a, b) => a - b).map((grade) => gradeLabel(grade)).join(', ')
-			: 'No grades';
-		const programScopes = subject.programScopes ?? [];
-		const programCopy = programScopes.length === 0 ? null : programScopes.length === 1 ? programFullLabel(programScopes[0]) : `${programScopes.length} programs`;
-		const needsCoverage = coverageBySubjectId !== null && subject.isActive && subject.isSeedable && (coverageBySubjectId.get(subject.id)?.uncoveredSectionCount ?? 0) > 0;
-		const isArchived = !subject.isActive;
-		const isExcluded = subject.isActive && !subject.isSeedable;
-
-		return (
-			<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 shadow-sm" data-testid="subject-mobile-card">
-				<div className="flex items-start justify-between gap-3">
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-1.5">
-							<code className="text-[0.7rem] font-mono text-muted-foreground uppercase px-1 py-0.5 bg-muted/30 rounded border border-border/40 font-bold tracking-tight">{subject.code}</code>
-							{isArchived && <Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>}
-							{isExcluded && <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-slate-50 text-slate-600 border-slate-200 shadow-none">Excluded</Badge>}
-							{!isArchived && !isExcluded && subject.isSeedable && <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">Available</Badge>}
-						</div>
-						<h3 className="mt-1.5 truncate text-base font-bold text-foreground">{subject.name}</h3>
-					</div>
-				</div>
-
-				<div className="mt-2.5 space-y-1.5 text-xs">
-					<div className="flex items-center justify-between gap-2">
-						<span className="text-muted-foreground font-medium">Grades</span>
-						<span className="font-semibold text-foreground text-right">{grades}{programCopy ? ` · ${programCopy}` : ''}</span>
-					</div>
-					<div className="flex items-center justify-between gap-2">
-						<span className="text-muted-foreground font-medium">Coverage</span>
-						{isArchived ? (
-							<span className="text-muted-foreground font-medium">Archived</span>
-						) : isExcluded ? (
-							<span className="text-muted-foreground font-medium">Excluded</span>
-						) : coverageBySubjectId?.get(subject.id) ? (
-							<span className={needsCoverage ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>
-								{coverageBySubjectId.get(subject.id)!.ownedSectionCount}/{coverageBySubjectId.get(subject.id)!.relevantSectionCount} covered
-							</span>
-						) : (
-							<span className="text-muted-foreground font-medium">Checking</span>
-						)}
-					</div>
-				</div>
-
-				<div className="mt-3 flex items-center gap-2 border-t border-slate-200/70 pt-3">
-					<Button type="button" size="sm" className="h-9 flex-1 gap-1.5 font-bold" onClick={() => openSubjectCoverage(subject)}>
-						<Users className="size-3.5" />
-						Review coverage
-					</Button>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 text-muted-foreground" aria-label={`More subject actions for ${subject.name}`}>
-								<MoreVertical className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-44">
-							<DropdownMenuItem onClick={() => openSubjectEditor(subject)}>
-								<Pencil className="mr-2 size-4" />
-								<span>Edit subject</span>
-							</DropdownMenuItem>
-							{subject.isActive && (
-								<DropdownMenuItem onClick={() => setArchiveTarget(subject)}>
-									<Archive className="mr-2 size-4" />
-									<span>Archive for new schedules</span>
-								</DropdownMenuItem>
-							)}
-							{!subject.isActive && (
-								<DropdownMenuItem onClick={() => handleReactivateSubject(subject)}>
-									<RotateCcw className="mr-2 size-4" />
-									<span>Make schedulable again</span>
-								</DropdownMenuItem>
-							)}
-							<DropdownMenuSeparator />
-							<DropdownMenuItem onClick={() => setDeleteTarget(subject)} className="text-red-600 focus:text-red-600">
-								<Trash2 className="mr-2 size-4" />
-								<span>Delete permanently</span>
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			</div>
-		);
-	};
 
 	return (
 		<AdminWorkspaceFrame

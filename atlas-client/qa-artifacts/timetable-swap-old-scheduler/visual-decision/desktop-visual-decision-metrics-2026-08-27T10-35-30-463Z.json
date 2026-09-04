@@ -1,0 +1,82 @@
+{
+  "viewport": "desktop",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 624,
+  "dialogBox": {
+    "x": 395,
+    "y": 108.921875,
+    "width": 576,
+    "height": 550.15625
+  },
+  "scrollMetrics": {
+    "scrollHeight": 388,
+    "clientHeight": 388,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 412,
+    "clientHeight": 412,
+    "requiresScroll": false
+  },
+  "strategyRects": [
+    {
+      "label": "Recommended Direct swap 0 blocking • 890 warnings",
+      "disabled": false,
+      "rect": {
+        "x": 425,
+        "y": 386.078125,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 425,
+        "y": 436.078125,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": false
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 425,
+        "y": 486.078125,
+        "width": 516,
+        "height": 44
+      },
+      "intersectsFooter": false
+    }
+  ],
+  "strategyCount": 3,
+  "visibleStrategyCount": 3,
+  "strategyButtonsIntersectingFooter": [],
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasSelectedStatus": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 1366,
+    "docClientWidth": 1366
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 885.09375,
+    "y": 606.078125,
+    "width": 68.90625,
+    "height": 40
+  },
+  "feedbackText": "Ready to swap.",
+  "footerOverlap": false,
+  "blockedWrites": []
+}

@@ -1,0 +1,19 @@
+{
+  "viewport": "mobile-landscape",
+  "title": "Swap these two classes?",
+  "visibleTextLength": 396,
+  "dialogBox": {
+    "x": 134.00198364257812,
+    "y": 26.501632690429688,
+    "width": 575.9960632324219,
+    "height": 336.99769592285156
+  },
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 844,
+    "docClientWidth": 844
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "hasSelectedStatus": true,
+  "blockedWrites": []
+}

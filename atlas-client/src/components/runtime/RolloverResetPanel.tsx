@@ -10,6 +10,7 @@ import {
 	type RolloverDummyYearResetResult,
 	type RolloverStatus,
 } from '@/lib/settings';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -21,13 +22,16 @@ import { cn } from '@/lib/utils';
 const DUMMY_YEAR_RESET_CONFIRMATION_TEXT = ['RESET', 'DUMMY', 'SCHOOL', 'YEAR', '1'].join('_');
 
 /**
- * `RolloverResetPanel` -- the destructive year-reset flow, admin-only.
+ * `RolloverResetPanel` -- the destructive test-data reset flow, admin-only.
  *
- * Phase 0B.2: this lives only at `/admin/year-setup`. Setup pages never render
- * this panel inline; they link to the admin route instead. The confirmation is
- * a two-step checkbox + "Yes, erase and sync" button (Decision 1) rather than
- * typing a snake-case token. See
- * `docs/phases/setup-content-area-improvement-plan-2026-08-08.md` Phase 0B.2.
+ * RR-09B: the reset is demoted to an "Advanced: clear disposable test data"
+ * disclosure inside the year-setup page. It is visible only when the server
+ * classifies the current year as resettable dummy-shaped data
+ * (`canResetDummyYear`), never as the primary path for real-data rollover
+ * conflicts (those lead with the non-destructive Archive and sync flow in
+ * `RolloverGuidanceCard`). When archive-and-sync resolves the state, the
+ * disclosure hides. The confirmation stays a two-step checkbox + "Yes, erase
+ * and sync" button (Phase 0B.2 Decision 1).
  */
 type RolloverResetPanelProps = {
 	schoolId?: number;
@@ -85,7 +89,10 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 	}, [schoolId]);
 
 	const canApply = status?.drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && status.conflicts.length === 0;
-	const canPreviewReset = status?.drift.status === 'mapping-conflict' || status?.canResetDummyYear;
+	// RR-09B: the destructive reset is offered ONLY for dummy-shaped data the
+	// server classifies as resettable. Real-data rollover conflicts lead with
+	// Archive and sync (RolloverGuidanceCard), never this panel.
+	const canPreviewReset = status?.canResetDummyYear === true;
 	const isBlocking = status?.drift.status === 'atlas-stale' || status?.drift.status === 'mapping-conflict';
 	const icon = useMemo(() => {
 		if (status?.drift.status === 'aligned') return <CheckCircle2 className="h-4 w-4" />;
@@ -138,7 +145,7 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 			setShowResetCounts(false);
 			setResetOpen(true);
 		} catch (err: any) {
-			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not preview the dummy-year reset.';
+			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not preview the test-data reset.';
 			setError(message);
 			toast.error(message);
 		} finally {
@@ -156,9 +163,9 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 			onStatus?.(result);
 			onApplied?.(result);
 			setResetOpen(false);
-			toast.success(`Reset sample data and synced ${result.enrollProActiveYear?.yearLabel ?? 'the active school year'} from EnrollPro.`);
+			toast.success(`Cleared disposable test data and synced ${result.enrollProActiveYear?.yearLabel ?? 'the active school year'} from EnrollPro.`);
 		} catch (err: any) {
-			const message = err?.response?.data?.message ?? err?.response?.data?.actionHint ?? err?.message ?? 'ATLAS could not reset the sample data.';
+			const message = err?.response?.data?.message ?? err?.response?.data?.actionHint ?? err?.message ?? 'ATLAS could not clear the disposable test data.';
 			setError(message);
 			toast.error(message);
 		} finally {
@@ -188,7 +195,7 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 							{status?.drift.message ?? 'Checking EnrollPro school year status.'}
 						</p>
 						<p className="text-xs text-slate-600">
-							This page is for IT admins only. It clears ATLAS sample data, then syncs the active EnrollPro school year. The reset only affects ATLAS -- it does not change EnrollPro.
+							This page is for IT admins only. Use Archive and sync to move the old school year to read-only history and sync the new one from EnrollPro. Nothing on this page changes EnrollPro.
 						</p>
 						{error ? <p className="text-xs font-medium text-red-700">{error}</p> : null}
 						{status?.conflicts?.length ? (
@@ -211,22 +218,35 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 								Sync from EnrollPro
 							</Button>
 						) : null}
-						{canPreviewReset ? (
-							<Button type="button" variant="destructive" size="sm" onClick={() => void handlePreviewReset()} disabled={previewing || applying || resetting} data-testid="rollover-reset-preview">
-								{resetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-								Reset sample data
-							</Button>
-						) : null}
 					</div>
+
+					{canPreviewReset ? (
+						<Accordion type="single" collapsible data-testid="rollover-reset-advanced">
+							<AccordionItem value="advanced-reset" className="border-0">
+								<AccordionTrigger className="py-2 text-left text-xs font-semibold text-slate-600 hover:no-underline">
+									Advanced: clear disposable test data
+								</AccordionTrigger>
+								<AccordionContent className="space-y-2 pt-1 text-xs text-slate-600">
+									<p>
+										Only for genuinely disposable test data (dummy years used for testing). Real school-year history must be archived, not cleared. This reset erases ATLAS data for the active EnrollPro school year, then syncs the new year. It cannot be undone.
+									</p>
+									<Button type="button" variant="destructive" size="sm" onClick={() => void handlePreviewReset()} disabled={previewing || applying || resetting} data-testid="rollover-reset-preview">
+										{resetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+										Clear disposable test data
+									</Button>
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
+					) : null}
 				</CardContent>
 			</Card>
 
 			<Dialog open={resetOpen} onOpenChange={setResetOpen}>
 				<DialogContent className="sm:max-w-2xl" data-testid="rollover-reset-dialog">
 					<DialogHeader>
-						<DialogTitle>Erase ATLAS sample data and sync the new school year</DialogTitle>
+						<DialogTitle>Erase ATLAS disposable test data and sync the new school year</DialogTitle>
 						<DialogDescription>
-							This clears ATLAS test data for the active EnrollPro school year, then syncs the new year from EnrollPro. This only affects ATLAS -- it does not change EnrollPro.
+							This clears ATLAS disposable test data for the active EnrollPro school year, then syncs the new year from EnrollPro. This only affects ATLAS -- it does not change EnrollPro. Real school-year history should be archived instead.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4">
@@ -251,7 +271,7 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 								) : null}
 							</div>
 						) : (
-							<p className="rounded-xl border bg-slate-50 p-3 text-sm text-slate-600">No sample records were found for reset.</p>
+							<p className="rounded-xl border bg-slate-50 p-3 text-sm text-slate-600">No disposable test-data records were found for reset.</p>
 						)}
 						{resetPreview?.reset.blockers.length ? (
 							<div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -272,7 +292,7 @@ export function RolloverResetPanel({ schoolId = 1, onApplied, onStatus }: Rollov
 								data-testid="rollover-reset-confirm"
 							/>
 							<Label htmlFor="rollover-reset-confirm" className="text-sm leading-relaxed text-slate-700">
-								I understand this will erase ATLAS test data, including teachers, classes, and timetables set up for the old school year.
+								I understand this will erase ATLAS disposable test data, including teachers, classes, and timetables set up for the old school year.
 							</Label>
 						</div>
 					</div>

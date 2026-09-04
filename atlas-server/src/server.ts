@@ -2,8 +2,14 @@ import { createServer } from 'node:http';
 
 import app from './app.js';
 import { prisma } from './lib/prisma.js';
+import { registerProcessCrashHandlers } from './services/crash-handler.service.js';
 import { registerRoomPreferenceCollaborationSocket } from './services/room-preference-collaboration.service.js';
 import { startRolloverAutomation, stopRolloverAutomation } from './services/rollover-automation.service.js';
+
+// RR-08: process-level crash hardening. Registered before anything else so
+// startup-time failures are also captured. Policy: log-and-continue with a
+// visible SERVER_FATAL_ERROR notification (single unattended deployment).
+registerProcessCrashHandlers();
 
 const PORT = Number(process.env.PORT) || 5001;
 const server = createServer(app);

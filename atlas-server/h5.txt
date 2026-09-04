@@ -1,0 +1,32 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ Renamed section produces SECTION_RECONFIGURED on preview ════
+  ✓ 1 reconfigured section detected — expected 1, got 1
+  ✓ Reconfigured section externalId=50001 — expected 50001, got 50001
+  ✓ Previous name is "Original Name" — expected Original Name, got Original Name
+  ✓ New name is "Renamed Section" — expected Renamed Section, got Renamed Section
+  ✓ Drift status remains atlas-stale (not mapping-conflict) — expected atlas-stale, got atlas-stale
+
+════ Grade change produces SECTION_RECONFIGURED ════
+  ✓ 1 reconfigured section detected for grade change — expected 1, got 1
+  ✓ Previous gradeLevelId=7 — expected 7, got 7
+  ✓ New gradeLevelId=8 — expected 8, got 8
+
+════ Capacity-only change produces no reconfigured sections ════
+  ✓ No reconfigured sections for capacity-only change — expected 0, got 0
+
+════ detectReconfiguredSections works directly ════
+  ✓ 2 reconfigured sections detected — expected 2, got 2
+  ✓ Section A reconfigured
+  ✓ Section A previous name — expected Section A, got Section A
+  ✓ Section A new name — expected Section A Renamed, got Section A Renamed
+  ✓ Section B reconfigured
+  ✓ Section B previous gradeLevelId=8 — expected 8, got 8
+  ✓ Section B new gradeLevelId=9 — expected 9, got 9
+  ✓ Section B previous programType=STE — expected STE, got STE
+  ✓ Section B new programType=SPA — expected SPA, got SPA
+
+════ Preview performs no local writes ════
+  ✓ Preview performs no local writes — expected [{"id":13050,"externalId":70001,"schoolId":1,"schoolYearId":999976,"name":"Write Test","gradeLevelId":7,"gradeLevelName":"Grade 7","displayOrder":7,"maxCapacity":40,"enrolledCount":30,"programType":"REGULAR","programCode":null,"programName":null,"isSpecialProgram":false,"tleProgramId":null,"tleSpecialization":null,"tleProgramCategory":null,"isActiveForScheduling":true,"preferredRoomId":null,"homeRoomId":null,"buildingZoneId":null,"lastSyncedAt":"2026-08-31T15:49:08.419Z","isStale":false,"staleReason":null,"staleAt":null,"version":1,"createdAt":"2026-08-31T15:49:08.419Z","updatedAt":"2026-08-31T15:49:08.419Z"}], got [{"id":13050,"externalId":70001,"schoolId":1,"schoolYearId":999976,"name":"Write Test","gradeLevelId":7,"gradeLevelName":"Grade 7","displayOrder":7,"maxCapacity":40,"enrolledCount":30,"programType":"REGULAR","programCode":null,"programName":null,"isSpecialProgram":false,"tleProgramId":null,"tleSpecialization":null,"tleProgramCategory":null,"isActiveForScheduling":true,"preferredRoomId":null,"homeRoomId":null,"buildingZoneId":null,"lastSyncedAt":"2026-08-31T15:49:08.419Z","isStale":false,"staleReason":null,"staleAt":null,"version":1,"createdAt":"2026-08-31T15:49:08.419Z","updatedAt":"2026-08-31T15:49:08.419Z"}]
+
+EnrollPro rollover reconfigure gate test complete: 19 passed, 0 failed.

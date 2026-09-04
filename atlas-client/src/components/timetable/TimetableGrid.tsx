@@ -110,6 +110,8 @@ interface GridCellProps {
 	hasKbSource: boolean;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
+	swapClassAEntryId?: string | null;
+	swapClassBEntryId?: string | null;
 	teacherDepartureEntryIds?: Set<string>;
 	localSandboxChangedEntryIds?: Set<string>;
 	localSandboxConflictEntryIds?: Set<string>;
@@ -193,6 +195,8 @@ const GridCell = memo(function GridCell({
 	hasKbSource,
 	violationIndex,
 	highlightedEntryIds,
+	swapClassAEntryId,
+	swapClassBEntryId,
 	teacherDepartureEntryIds,
 	localSandboxChangedEntryIds,
 	localSandboxConflictEntryIds,
@@ -421,6 +425,8 @@ const GridCell = memo(function GridCell({
 					}
 
 					if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
+					if (entry.entryId === swapClassAEntryId) cellClass += ' ring-2 ring-blue-600 ring-offset-1 border-blue-300 bg-blue-50';
+					if (entry.entryId === swapClassBEntryId) cellClass += ' ring-2 ring-amber-500 ring-offset-1 border-amber-300 bg-amber-50';
 					if (isTeacherDepartureAffected) cellClass += ' ring-2 ring-violet-500 ring-offset-1';
 					if (isSandboxChanged) cellClass += ' ring-2 ring-emerald-400 ring-offset-1';
 					if (isSandboxConflict) cellClass += ' border-red-600 ring-2 ring-red-300 ring-offset-1';
@@ -566,6 +572,8 @@ interface TimetableGridProps {
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
+	swapClassAEntryId?: string | null;
+	swapClassBEntryId?: string | null;
 	teacherDepartureEntryIds?: Set<string>;
 	localSandboxChangedEntryIds?: Set<string>;
 	localSandboxConflictEntryIds?: Set<string>;

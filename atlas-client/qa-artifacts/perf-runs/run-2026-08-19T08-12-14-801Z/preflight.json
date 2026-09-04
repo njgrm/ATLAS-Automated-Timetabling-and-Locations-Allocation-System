@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "dataset": {
+    "rows": 11,
+    "cells": 66,
+    "violations": 0,
+    "unassignedItems": 0,
+    "candidateCount": 45
+  }
+}

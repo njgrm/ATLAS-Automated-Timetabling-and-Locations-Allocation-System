@@ -46,6 +46,7 @@ import {
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
 import { assertActiveSchoolYearForGeneration } from './school-year-drift-guard.service.js';
+import { ensureCanonicalClassProgramSlots, KNOWN_PROGRAM_TYPES, CANONICAL_TEMPLATE_VERSION } from './class-program-slot.service.js';
 
 // ─── Helpers ───
 
@@ -80,7 +81,7 @@ function err(
 async function assertRolloverSetupReadyForGeneration(schoolId: number, schoolYearId: number): Promise<void> {
 	const [sectionCount, teachingLoadOwnerCount] = await Promise.all([
 		prisma.sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } }),
-		prisma.subjectSectionOwnership.count({ where: { schoolId } }),
+		prisma.subjectSectionOwnership.count({ where: { schoolId, schoolYearId } }),
 	]);
 	if (sectionCount === 0) {
 		throw err(
@@ -301,6 +302,7 @@ export interface RunSummary {
 		term3: number;
 	};
 	timetableShapeContracts?: TimetableShapeContract[];
+	canonicalTemplateVersion?: string;
 	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>;
 	inputSnapshot?: GenerationInputSnapshot;
 }
@@ -321,6 +323,10 @@ function normalizeGradeLevel(value: number): number {
 		6: 8,
 		7: 9,
 		8: 10,
+		17: 7,
+		18: 8,
+		19: 9,
+		20: 10,
 	};
 
 	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
@@ -336,7 +342,8 @@ function normalizeGradeLevel(value: number): number {
 
 /**
  * Normalize EnrollPro internal grade_level_id to actual grade number.
- * Unlike normalizeGradeLevel, this ALWAYS maps internal IDs (5,6,7,8) to actual grades (7,8,9,10).
+ * Unlike normalizeGradeLevel, this ALWAYS maps known internal IDs (5-8 and
+ * the current 17-20 feed IDs) to actual grades (7-10).
  * Use this when you know the input is an internal EnrollPro ID, not an actual grade number.
  */
 function normalizeInternalGradeId(value: number): number {
@@ -345,6 +352,10 @@ function normalizeInternalGradeId(value: number): number {
 		6: 8,
 		7: 9,
 		8: 10,
+		17: 7,
+		18: 8,
+		19: 9,
+		20: 10,
 	};
 
 	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
@@ -361,7 +372,7 @@ function buildRunTimetableShapeContracts(input: {
 	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
 	templateProfiles: Array<{ programType: string; periodLengthMinutes: number; periodsPerDay: number }>;
 	policy: ConstructorInput['policy'];
-	canonicalSlots?: Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>>;
+	canonicalSlots?: Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>>;
 }): TimetableShapeContract[] {
 	const templateByProgram = new Map(input.templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
 	const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 45, periodsPerDay: 10 };
@@ -388,20 +399,22 @@ function buildRunTimetableShapeContracts(input: {
 		}
 
 		for (const programType of programTypes) {
+			const canonicalRows = input.canonicalSlots?.get(`${normalizedGradeLevel}:${programType}`);
 			const window = input.gradeWindows.find((row) => normalizeInternalGradeId(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === programType)
 				?? input.gradeWindows.find((row) => normalizeInternalGradeId(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === 'ALL');
 			const template = templateByProgram.get(programType) ?? regularTemplate;
-			const periodLengthMinutes = effectivePeriodLengthMinutes || template.periodLengthMinutes;
-			const periodsPerDay = effectivePeriodsPerDay || template.periodsPerDay;
+			const canonicalClassRows = canonicalRows?.filter((row) => row.rowKind === 'CLASS') ?? [];
+			const periodLengthMinutes = canonicalClassRows.length > 0 ? 45 : (effectivePeriodLengthMinutes || template.periodLengthMinutes);
+			const periodsPerDay = canonicalClassRows.length > 0 ? canonicalClassRows.length : (effectivePeriodsPerDay || template.periodsPerDay);
 			contracts.push(buildTimetableShapeContract({
 				gradeLevel: normalizedGradeLevel,
 				programType,
-				startTime: window?.startTime ?? input.policy?.earliestStartTime ?? '07:00',
-				endTime: window?.endTime ?? input.policy?.latestEndTime ?? '17:00',
+				startTime: canonicalRows?.[0]?.startTime ?? window?.startTime ?? input.policy?.earliestStartTime ?? '07:00',
+				endTime: canonicalRows?.[canonicalRows.length - 1]?.endTime ?? window?.endTime ?? input.policy?.latestEndTime ?? '17:00',
 				periodLengthMinutes,
 				periodsPerDay,
 				basePolicy: input.policy,
-				canonicalSlots: input.canonicalSlots?.get(`${normalizedGradeLevel}:${programType}`),
+				canonicalSlots: canonicalRows,
 			}));
 		}
 	}
@@ -821,7 +834,7 @@ export async function triggerGenerationRun(
 				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true },
 			}),
 			prisma.facultySubject.findMany({
-				where: { schoolId },
+				where: { schoolId, schoolYearId },
 				select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 			}),
 			prisma.room.findMany({
@@ -934,9 +947,11 @@ export async function triggerGenerationRun(
 			classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
 		}
 
-		// Load canonical class-program slots for grade/program-specific scheduling
+		// Ensure the active year has the stakeholder-derived exact templates before
+		// constructing candidates. Existing exact templates are never overwritten.
+		const canonicalCoverage = await ensureCanonicalClassProgramSlots(schoolId, schoolYearId);
 		const { resolveClassProgramSlots, normalizeInternalGradeId } = await import('./class-program-slot.service.js');
-		const canonicalSlotsByGradeProgram = new Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>>();
+		const canonicalSlotsByGradeProgram = new Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>>();
 		for (const grade of sectionsByGrade) {
 			// Normalize gradeLevelId to actual grade number (7, 8, 9, or 10)
 			// gradeLevelId is an internal EnrollPro ID, not an actual grade number
@@ -947,9 +962,16 @@ export async function triggerGenerationRun(
 			}
 			for (const programType of programTypes) {
 				const allSlots = await resolveClassProgramSlots(schoolId, schoolYearId, actualGradeNumber, programType as any);
-				if (allSlots.length > 0) {
-					const key = `${actualGradeNumber}:${programType}`;
-					canonicalSlotsByGradeProgram.set(key, allSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, subjectFamily: s.subjectFamily, rowKind: s.rowKind })));
+				const key = `${actualGradeNumber}:${programType}`;
+				if (allSlots.length > 0) canonicalSlotsByGradeProgram.set(key, allSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, subjectFamily: s.subjectFamily, subjectLabel: s.subjectLabel, rowKind: s.rowKind })));
+				if (KNOWN_PROGRAM_TYPES.includes(programType as any)) {
+					const coverage = canonicalCoverage.coverage.find((item) => item.gradeLevel === actualGradeNumber && item.programType === programType);
+					if (!coverage || coverage.issues.length > 0) {
+						throw err(409, 'CANONICAL_TEMPLATE_INCOMPLETE', `Canonical timetable template is incomplete for Grade ${actualGradeNumber} ${programType}.`, {
+							actionHint: 'Review the active-year class-program template before generating.',
+							details: { schoolId, schoolYearId, gradeLevel: actualGradeNumber, programType, issues: coverage?.issues ?? ['missing-template'] },
+						});
+					}
 				}
 			}
 		}
@@ -1248,6 +1270,7 @@ export async function triggerGenerationRun(
 			shiftWindowPolicy: enforceShiftWindows ? 'ENFORCED' : 'DISABLED',
 			configuredShiftWindowCount: gradeWindows.length,
 			timetableShapeContracts,
+			canonicalTemplateVersion: CANONICAL_TEMPLATE_VERSION,
 			timetableDisplaySlots,
 			inputSnapshot,
 		};
@@ -1574,6 +1597,7 @@ async function preparePerformanceFixtureDraftEntries(
 		prisma.subjectSectionOwnership.findMany({
 			where: {
 				schoolId,
+				schoolYearId,
 				OR: candidatePairs.map((pair) => ({ subjectId: pair.subjectId, sectionId: pair.sectionId })),
 			},
 			select: { facultyId: true, subjectId: true, sectionId: true },

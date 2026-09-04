@@ -81,12 +81,16 @@ function normalizeGradeLevel(value: number): number {
 	if (value >= 7 && value <= 10) return value;
 
 	// EnrollPro internal grade_level_id -> actual grade number mapping
-	// grade_level_id 5 = Grade 7, 6 = Grade 8, 7 = Grade 9, 8 = Grade 10
+	// Historical IDs 5-8 and current feed IDs 17-20 map to Grades 7-10.
 	const ENROLLPRO_MAPPINGS: Record<number, number> = {
 		5: 7,
 		6: 8,
 		7: 9,
 		8: 10,
+		17: 7,
+		18: 8,
+		19: 9,
+		20: 10,
 	};
 
 	if (value in ENROLLPRO_MAPPINGS) return ENROLLPRO_MAPPINGS[value];
@@ -363,7 +367,7 @@ export interface TimetableShapeContract {
 	periodSlots: PeriodSlot[];
 	displaySlots: PeriodSlot[];
 	/** Canonical class-program slots for this grade/program (from stakeholder template) */
-	canonicalSlots?: Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>;
+	canonicalSlots?: Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>;
 }
 
 function normalizeProgramType(programType?: string | null): string {
@@ -378,7 +382,7 @@ export function buildTimetableShapeContract(input: {
 	periodLengthMinutes: number;
 	periodsPerDay: number;
 	basePolicy?: PolicyInput;
-	canonicalSlots?: Array<{ startTime: string; endTime: string; subjectFamily: string | null; rowKind: string }>;
+	canonicalSlots?: Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>;
 }): TimetableShapeContract {
 	// Apply per-grade/program effective event resolution
 	const effectiveSpecialEvents = getEffectiveEvents(
@@ -411,19 +415,38 @@ export function buildTimetableShapeContract(input: {
 		allowConsecutiveLabSessions: input.basePolicy?.allowConsecutiveLabSessions,
 		specialEvents: effectiveSpecialEvents,
 	};
-	const periodSlots = buildPeriodSlots(policyForShape);
-	const specialEventSlots = buildSpecialEventSlots(policyForShape);
+	const canonicalRows = [...(input.canonicalSlots ?? [])].sort((left, right) => {
+		const startDiff = timeToMinutes(left.startTime) - timeToMinutes(right.startTime);
+		return startDiff !== 0 ? startDiff : timeToMinutes(left.endTime) - timeToMinutes(right.endTime);
+	});
+	const canonicalClassRows = canonicalRows.filter((row) => row.rowKind === 'CLASS');
+	const hasCanonicalRows = canonicalClassRows.length > 0;
+	const periodSlots = hasCanonicalRows
+		? canonicalClassRows.map((row) => ({ startTime: row.startTime, endTime: row.endTime }))
+		: buildPeriodSlots(policyForShape);
+	const specialEventSlots = hasCanonicalRows
+		? canonicalRows
+			.filter((row) => row.rowKind === 'BREAK' || row.rowKind === 'SPECIAL_EVENT')
+			.map((row) => ({
+				startTime: row.startTime,
+				endTime: row.endTime,
+				isSpecialEvent: true,
+				eventName: row.subjectLabel ?? undefined,
+			}))
+		: buildSpecialEventSlots(policyForShape);
 	const displaySlots = (policyForShape.showSpecialEventsInGrid ?? true)
 		? mergeDisplaySlots(periodSlots, specialEventSlots)
 		: periodSlots;
+	const canonicalStartTime = canonicalRows[0]?.startTime ?? input.startTime;
+	const canonicalEndTime = canonicalRows[canonicalRows.length - 1]?.endTime ?? input.endTime;
 
 	return {
 		gradeLevel: input.gradeLevel,
 		programType: normalizeProgramType(input.programType),
-		startTime: input.startTime,
-		endTime: input.endTime,
-		periodLengthMinutes: input.periodLengthMinutes,
-		periodsPerDay: input.periodsPerDay,
+		startTime: hasCanonicalRows ? canonicalStartTime : input.startTime,
+		endTime: hasCanonicalRows ? canonicalEndTime : input.endTime,
+		periodLengthMinutes: hasCanonicalRows ? 45 : input.periodLengthMinutes,
+		periodsPerDay: hasCanonicalRows ? periodSlots.length : input.periodsPerDay,
 		periodSlots,
 		displaySlots,
 		canonicalSlots: input.canonicalSlots,
@@ -493,9 +516,20 @@ export function getPreferredSlotsForSection(
 		&& c.programType === normalizedProgram
 	) ?? contracts.find(c =>
 		normalizeGradeLevel(c.gradeLevel) === normalizedGrade
+		&& c.programType === 'REGULAR'
+	) ?? contracts.find(c =>
+		normalizeGradeLevel(c.gradeLevel) === normalizedGrade
 	);
 
-	if (!contract?.canonicalSlots || contract.canonicalSlots.length === 0) {
+	if (!contract) {
+		// Once canonical contracts are present, never borrow a different grade's
+		// shape. Legacy callers with no canonical data retain global fallback.
+		return contracts.some(c => (c.canonicalSlots?.length ?? 0) > 0)
+			? []
+			: buildUnionClassPeriodSlots(contracts);
+	}
+
+	if (!contract.canonicalSlots || contract.canonicalSlots.length === 0) {
 		// No canonical slots — use global period slots
 		return buildUnionClassPeriodSlots(contracts);
 	}
@@ -628,6 +662,16 @@ export interface UnassignedItem {
 	adviserName?: string | null;
 	homeRoomId?: number | null;
 	homeRoomFallbackCause?: HomeRoomFallbackCause;
+	/**
+	 * TL-02 term-load diagnostics. Populated for rotation-session refusals
+	 * (`FACULTY_SLOT_UNAVAILABLE`) so audits can distinguish per-term overage
+	 * from cumulative overage. `facultyTermLoad` is the projected load in
+	 * `termIndex` AFTER charging this session would have been attempted; in
+	 * refusal rows it represents the load at the time of refusal.
+	 */
+	termIndex?: 1 | 2 | 3;
+	facultyTermLoad?: number;
+	facultyMax?: number;
 }
 
 export interface ConstructorResult {
@@ -1175,7 +1219,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return false;
 	}
 
-	function getQualifiedFacultyIds(item: DemandItem, day: string, slot: { startTime: string; endTime: string }, pi: number, unavailableTimeRanges?: Map<number, UnavailableTimeRange[]>): { ids: number[], reason?: UnassignedItem['reason'] } {
+	function getQualifiedFacultyIds(item: DemandItem, day: string, slot: { startTime: string; endTime: string }, pi: number, unavailableTimeRanges?: Map<number, UnavailableTimeRange[]>, termIndex?: 1 | 2 | 3): { ids: number[], reason?: UnassignedItem['reason'] } {
 		const subject = subjectMap.get(item.subjectId);
 		
 		// Priority 1: Explicit Assignments from qualifiedMap
@@ -1220,9 +1264,11 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			|| (useHomeRoomPriority && item.entryKind === 'SECTION');
 
 		const isWithinLoadAndOccupancy = (facId: number): boolean => {
-			const currentLoad = facultyLoad.get(facId) ?? 0;
 			const maxLoad = facultyMax.get(facId) ?? 0;
-			if (currentLoad + item.durationPerSession > maxLoad) return false;
+			// Non-rotation sessions run in every term (baseLoad already includes them).
+			// Rotation sessions only charge the term the session will run in (termIndex).
+			const relevantLoad = getFacultyProjectedLoadForTerm(facId, termIndex);
+			if (relevantLoad + item.durationPerSession > maxLoad) return false;
 			if (facultyOcc.isOccupied(facId, day, slot.startTime, slot.endTime)) return false;
 			return true;
 		};
@@ -1265,19 +1311,32 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				}
 			}
 
-			// Check if it's overload or preference
-			const overloaded = candidates.every((facId) => (facultyLoad.get(facId) ?? 0) + item.durationPerSession > (facultyMax.get(facId) ?? 0));
+			// Check if it's overload or preference (term-aware)
+			const overloaded = candidates.every((facId) => {
+				const maxLoad = facultyMax.get(facId) ?? 0;
+				const relevantLoad = getFacultyProjectedLoadForTerm(facId, termIndex);
+				return relevantLoad + item.durationPerSession > maxLoad;
+			});
 			return { ids: [], reason: overloaded ? 'FACULTY_OVERLOADED' : 'NO_AVAILABLE_SLOT' };
 		}
 
 		return { ids: available.sort((a, b) => a - b) };
 	}
 
+	// Prompt 01: per-term ranked modular candidate pool for the CURRENT demand
+	// item's family. Populated by buildModularAssignments; consumed by the
+	// placement loop to resolve the actual teacher at the chosen slot against
+	// effective per-term occupancy.
+	const modularCandidatePoolByTerm = new Map<number, number[]>();
+
 	function buildModularAssignments(item: DemandItem): { assignments: ModularAssignment[]; missingTerms: number[] } {
 		if (!item.modularSubjects || item.modularSubjects.length === 0) {
 			return { assignments: [], missingTerms: [] };
 		}
 
+		// Prompt 01: per-term ranked candidate pool for this demand's modular family.
+		// Reset per item — each section's lane resolves its own teachers at slot time.
+		modularCandidatePoolByTerm.clear();
 		const sortedModules = [...item.modularSubjects].sort((left, right) => left.modularOrder - right.modularOrder);
 		const assignments: ModularAssignment[] = [];
 		const missingTerms: number[] = [];
@@ -1300,11 +1359,25 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				missingTerms.push(termIndex);
 				continue;
 			}
+			// Prompt 01 (Dynamic Timetable Recovery): the modular teacher is a REAL
+			// per-term reservation. The slot is chosen AFTER this function runs, so
+			// the teacher CANNOT be finalized here — committing to rankedFacultyIds[0]
+			// double-booked one teacher across all sections that shared a slot.
+			// Store the full ranked candidate pool; the placement loop resolves the
+			// actual teacher per slot against effective per-term occupancy.
+			const rankedFacultyIds = [...facultyIds].sort((left, right) => {
+				const leftLoad = getFacultyProjectedLoadForTerm(left, termIndex);
+				const rightLoad = getFacultyProjectedLoadForTerm(right, termIndex);
+				if (leftLoad !== rightLoad) return leftLoad - rightLoad;
+				return left - right;
+			});
 			assignments.push({
 				termIndex,
-				facultyId: facultyIds[0],
+				facultyId: rankedFacultyIds[0],
 				subjectCode: moduleSubject.subjectCode,
 			});
+			// candidate pool for slot-time resolution (termIndex -> ranked ids)
+			modularCandidatePoolByTerm.set(termIndex, rankedFacultyIds);
 		}
 
 		if (missingTerms.length > 0) {
@@ -1347,9 +1420,43 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const roomOcc = new OccupancyTracker();
 	const sectionOcc = new OccupancyTracker();
 
-	// Faculty load (total assigned minutes)
+	// Faculty load tracking — TL-02 term-aware model.
+	//   baseLoad: minutes that run in EVERY term concurrently (non-rotation subjects).
+	//   facultyLoadByTerm: minutes that run only in a specific term (rotation/modular subjects).
+	// A session with a `sessionTermIndex` charges facultyLoadByTerm[thatTerm];
+	// a session WITHOUT a term index charges baseLoad (i.e., runs every term).
+	const facultyLoadBase = new Map<number, number>();
+	const facultyLoadByTerm = new Map<number, Map<1 | 2 | 3, number>>();
 	const facultyLoad = new Map<number, number>();
 	const facultyMax = new Map(faculty.map((f) => [f.id, f.maxHoursPerWeek * 60]));
+
+	function chargeFacultyLoad(facId: number, minutes: number, termIndex: 1 | 2 | 3 | undefined): void {
+		if (termIndex === 1 || termIndex === 2 || termIndex === 3) {
+			const termMap = facultyLoadByTerm.get(facId) ?? new Map<1 | 2 | 3, number>();
+			termMap.set(termIndex, (termMap.get(termIndex) ?? 0) + minutes);
+			facultyLoadByTerm.set(facId, termMap);
+		} else {
+			facultyLoadBase.set(facId, (facultyLoadBase.get(facId) ?? 0) + minutes);
+		}
+		// Cumulative mirror retained for diagnostic parity with previous behavior.
+		facultyLoad.set(facId, (facultyLoad.get(facId) ?? 0) + minutes);
+	}
+
+	function getFacultyProjectedLoadForTerm(facId: number, termIndex: 1 | 2 | 3 | undefined): number {
+		const baseLoad = facultyLoadBase.get(facId) ?? 0;
+		if (termIndex === 1 || termIndex === 2 || termIndex === 3) {
+			const termMap = facultyLoadByTerm.get(facId);
+			const termLoad = termMap?.get(termIndex) ?? 0;
+			return baseLoad + termLoad;
+		}
+		// Non-rotation candidate check — every term carries baseLoad plus any rotation charge.
+		const termMap = facultyLoadByTerm.get(facId);
+		if (!termMap) return baseLoad;
+		const term1 = termMap.get(1) ?? 0;
+		const term2 = termMap.get(2) ?? 0;
+		const term3 = termMap.get(3) ?? 0;
+		return baseLoad + Math.max(term1, term2, term3);
+	}
 	const roomById = new Map(rooms.map((room) => [room.id, room]));
 
 	const entries: ScheduledEntry[] = [];
@@ -1413,7 +1520,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			// Mark occupancy for locked placements
 			sectionOcc.mark(lock.sectionId, lock.day, period.startTime, period.endTime);
 			facultyOcc.mark(lock.facultyId, lock.day, period.startTime, period.endTime);
-			facultyLoad.set(lock.facultyId, (facultyLoad.get(lock.facultyId) ?? 0) + durationMinutes);
+			// Locked entries don't carry an explicit term — treat them as concurrent (every term).
+			chargeFacultyLoad(lock.facultyId, durationMinutes, undefined);
 			const dailyKey = `${lock.facultyId}:${lock.day}`;
 			facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + durationMinutes);
 			const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
@@ -1798,15 +1906,34 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 				const slot = { startTime: slotCandidate.startTime, endTime: slotCandidate.endTime };
 				const isModularUnified = Boolean(item.modularGroupId);
+
+				// Prompt 01: a modular lane is only placeable at this slot when EVERY
+				// term of its family has at least one conflict-free qualified teacher.
+				// Skipping this check stacked all concurrent lanes at one slot-time and
+				// double-booked the shared TLE/Science pool. When the pool cannot cover
+				// the slot, try the next slot instead of emitting a known-conflicting lane.
+				if (isModularUnified && modularCandidatePoolByTerm.size > 0) {
+					const everyTermCovered = Array.from(modularCandidatePoolByTerm.entries())
+						.every(([, pool]) => pool.some((candidate) =>
+							!facultyOcc.isOccupied(candidate, slotCandidate.day, slot.startTime, slot.endTime),
+						));
+					if (!everyTermCovered) {
+						sawFacultySlotUnavailable = true;
+						continue;
+					}
+				}
+
 				// For canonical slots, use a simplified faculty lookup without pi index
 				const { ids: rawCandidates, reason: qReason } = isModularUnified
 					? { ids: [0] as number[], reason: undefined }
-					: getQualifiedFacultyIds(item, slotCandidate.day, slot, -1, unavailableTimeRanges);
+					: getQualifiedFacultyIds(item, slotCandidate.day, slot, -1, unavailableTimeRanges, sessionTermIndex);
 				const candidates = isModularUnified
 					? rawCandidates
 					: [...rawCandidates].sort((left, right) => {
-						const leftLoad = facultyLoad.get(left) ?? 0;
-						const rightLoad = facultyLoad.get(right) ?? 0;
+						// Compare per-term load using the term this session would run in,
+						// so the constructor spreads rotation work across teachers within terms.
+						const leftLoad = getFacultyProjectedLoadForTerm(left, sessionTermIndex);
+						const rightLoad = getFacultyProjectedLoadForTerm(right, sessionTermIndex);
 						if (leftLoad !== rightLoad) return leftLoad - rightLoad;
 						return left - right;
 					});
@@ -1982,9 +2109,26 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							}
 						}
 
-						entryCounter++;
-						const usedCrossBuildingFallback = preferredHomeRoomId != null && broaderStandardRooms.some((broaderRoom) => broaderRoom.id === room.id);
-						const usedSameZoneFallback = preferredHomeRoomId != null && sameZoneStandardRooms.some((sameZoneRoom) => sameZoneRoom.id === room.id);
+					entryCounter++;
+					const usedCrossBuildingFallback = preferredHomeRoomId != null && broaderStandardRooms.some((broaderRoom) => broaderRoom.id === room.id);
+					const usedSameZoneFallback = preferredHomeRoomId != null && sameZoneStandardRooms.some((sameZoneRoom) => sameZoneRoom.id === room.id);
+
+					// Prompt 01: for a modular lane, resolve the ACTUAL per-term teachers
+					// now that the slot (day/time) is known. Pick, per term, the first
+					// ranked candidate who is not already reserved for this slot by an
+					// earlier lane — this is what prevents 10 sections at the same
+					// day/time from all taking the same teacher.
+					let resolvedModularAssignments = modularAssignmentInfo?.assignments ?? [];
+					if (isModularUnified && modularAssignmentInfo && modularCandidatePoolByTerm.size > 0) {
+						resolvedModularAssignments = modularAssignmentInfo.assignments.map((assignment) => {
+							const pool = modularCandidatePoolByTerm.get(assignment.termIndex) ?? [];
+							if (pool.length === 0) return assignment;
+							const chosen = pool.find((candidate) =>
+								!facultyOcc.isOccupied(candidate, slotCandidate.day, slot.startTime, slot.endTime),
+							) ?? pool[pool.length - 1];
+							return { ...assignment, facultyId: chosen };
+						});
+					}
 						const fallbackTier = preferredHomeRoomId == null
 							? 'GENERAL_POOL'
 							: room.id === preferredHomeRoomId
@@ -2015,14 +2159,14 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
 							adviserId: item.adviserId ?? null,
 							adviserName: item.adviserName ?? null,
-							metadata: isModularUnified
-								? {
-									roomAssignmentReason: 'MODULAR_POOL_ASSIGNED',
-									modularGroupId: item.modularGroupId ?? undefined,
-									modularAssignments: modularAssignmentInfo?.assignments ?? [],
-									deferredRoomTypePreference: true,
-									deferredPreferredRoomType: requestedRoomType,
-								}
+						metadata: isModularUnified
+							? {
+								roomAssignmentReason: 'MODULAR_POOL_ASSIGNED',
+								modularGroupId: item.modularGroupId ?? undefined,
+								modularAssignments: resolvedModularAssignments,
+								deferredRoomTypePreference: true,
+								deferredPreferredRoomType: requestedRoomType,
+							}
 								: {
 									roomAssignmentReason: preferredHomeRoomId != null
 										? (room.id === preferredHomeRoomId
@@ -2045,16 +2189,26 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 								},
 						});
 
-						if (!isModularUnified) {
-							facultyOcc.mark(facId, slotCandidate.day, slot.startTime, slot.endTime);
+					if (!isModularUnified) {
+						facultyOcc.mark(facId, slotCandidate.day, slot.startTime, slot.endTime);
+					} else if (resolvedModularAssignments.length > 0) {
+						// Prompt 01: modular compact lanes reserve their per-term teachers
+						// for the chosen day/time. Every consumer of this lane sees these
+						// effective reservations; the constructor must track them too so
+						// a later lane cannot silently double-book the same teacher.
+						for (const assignment of resolvedModularAssignments) {
+							facultyOcc.mark(assignment.facultyId, slotCandidate.day, slot.startTime, slot.endTime);
+							chargeFacultyLoad(assignment.facultyId, item.durationPerSession, assignment.termIndex);
 						}
-						roomOcc.mark(room.id, slotCandidate.day, slot.startTime, slot.endTime);
+					}
+					roomOcc.mark(room.id, slotCandidate.day, slot.startTime, slot.endTime);
 						for (const sectionId of getDemandSectionIds(item)) {
 							sectionOcc.mark(sectionId, slotCandidate.day, slot.startTime, slot.endTime);
 						}
 
 						if (!isModularUnified) {
-							facultyLoad.set(facId, (facultyLoad.get(facId) ?? 0) + item.durationPerSession);
+							// Charge the term this session actually runs in (TL-02 per-term lane model).
+							chargeFacultyLoad(facId, item.durationPerSession, sessionTermIndex);
 							const dailyKey = `${facId}:${slotCandidate.day}`;
 							facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + item.durationPerSession);
 							const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
@@ -2134,6 +2288,16 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					: undefined;
 				const assignedFacultyIds = qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [];
 				const assignedFacultyId = assignedFacultyIds[0] ?? null;
+				// TL-02 term-load diagnostics: when a rotation session is refused for overload,
+				// capture the per-term projected load vs the cap so audits distinguish
+				// cumulative overage from per-term overage.
+				const isFacultyOverloadRefusal = reason === 'FACULTY_OVERLOADED';
+				const facultyTermLoad = isFacultyOverloadRefusal && assignedFacultyId != null
+					? getFacultyProjectedLoadForTerm(assignedFacultyId, sessionTermIndex)
+					: undefined;
+				const facultyMaxLoad = isFacultyOverloadRefusal && assignedFacultyId != null
+					? facultyMax.get(assignedFacultyId)
+					: undefined;
 				unassignedItems.push({
 					sectionId: item.sectionId,
 					subjectId: item.subjectId,
@@ -2154,6 +2318,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					adviserName: item.adviserName ?? null,
 					homeRoomId: item.homeRoomId ?? null,
 					homeRoomFallbackCause,
+					termIndex: sessionTermIndex,
+					facultyTermLoad,
+					facultyMax: facultyMaxLoad,
 				});
 				unassignedCount++;
 			}

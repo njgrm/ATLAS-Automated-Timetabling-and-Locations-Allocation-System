@@ -183,9 +183,15 @@ router.post(
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			const operationId = Number(req.body.operationId);
+			const expectedVersion = Number(req.body.expectedVersion);
+			if (!Number.isInteger(operationId) || !Number.isInteger(expectedVersion)) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'operationId and expectedVersion are required integers.' });
+				return;
+			}
 
 			const result = await manualEditService.revertLastEdit(
-				scope.runId, scope.schoolId, scope.schoolYearId, actorId,
+				scope.runId, scope.schoolId, scope.schoolYearId, actorId, operationId, expectedVersion,
 			);
 			res.json(result);
 		} catch (e) { next(e); }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
@@ -20,6 +20,7 @@ import type { SubjectCoverageRow, SubjectCoverageSummary, UncoveredSectionInfo }
 
 export type SubjectCoverageModeProps = {
 	activeSchoolYearId: number | null;
+	selectedSubjectId?: number | null;
 	onFocusSection?: (sectionId: number, subjectId: number) => void;
 };
 
@@ -42,11 +43,11 @@ function SectionList({ sections }: { sections: UncoveredSectionInfo[] }) {
 	return (
 		<div className="mt-1.5">
 			<ul className="space-y-0.5">
-				{visible.map((s) => (
-					<li key={s.sectionId} className="flex items-center gap-1.5 text-xs text-slate-500">
+					{visible.map((s) => (
+					<li key={s.sectionId} className="flex items-center gap-1.5 text-xs text-muted-foreground">
 						<span className="w-1 h-1 rounded-full bg-amber-400 shrink-0" />
 						<span className="font-medium">{s.sectionName}</span>
-						<span className="text-slate-400">· Gr {s.gradeLevel}</span>
+						<span className="text-muted-foreground/60">· Gr {s.gradeLevel}</span>
 					</li>
 				))}
 			</ul>
@@ -77,7 +78,7 @@ function SubjectRow({
 	const firstUncovered = row.uncoveredSections[0];
 
 	return (
-		<div className={`flex items-start gap-4 p-4 rounded-xl border transition-colors ${hasMissing ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100 bg-white'}`}>
+		<div className={`flex items-start gap-4 p-4 rounded-xl border transition-colors ${hasMissing ? 'border-amber-200 bg-amber-50/30' : 'border-border/40 bg-background'}`}>
 			<div className="shrink-0 mt-0.5">
 				{hasMissing ? (
 					<div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -92,12 +93,12 @@ function SubjectRow({
 
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2 flex-wrap">
-					<span className="font-mono text-sm font-bold text-slate-800">{row.subjectCode}</span>
-					<span className="text-sm text-slate-600 truncate">{row.subjectName}</span>
+					<span className="font-mono text-sm font-bold text-foreground">{row.subjectCode}</span>
+					<span className="text-sm text-muted-foreground truncate">{row.subjectName}</span>
 					<CoverageBadge row={row} />
 				</div>
 
-				<div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+				<div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
 					<span className="font-medium">
 						{row.ownedSectionCount}/{row.relevantSectionCount} covered
 					</span>
@@ -133,11 +134,12 @@ function SubjectRow({
 	);
 }
 
-export function SubjectCoverageMode({ activeSchoolYearId, onFocusSection }: SubjectCoverageModeProps) {
+export function SubjectCoverageMode({ activeSchoolYearId, selectedSubjectId, onFocusSection }: SubjectCoverageModeProps) {
 	const [searchParams] = useSearchParams();
 	const [summary, setSummary] = useState<SubjectCoverageSummary | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const subjectRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
 	useEffect(() => {
 		if (!activeSchoolYearId) {
@@ -187,39 +189,51 @@ export function SubjectCoverageMode({ activeSchoolYearId, onFocusSection }: Subj
 		return sortedRows.filter((r) => r.uncoveredSectionCount > 0);
 	}, [sortedRows, isFilteringMissing]);
 
+	// Synchronize focus after async coverage rows have rendered, not merely when
+	// the route intent first sets the ID.
+	useEffect(() => {
+		if (loading || selectedSubjectId == null) return;
+		const rowEl = subjectRowRefs.current.get(selectedSubjectId);
+		if (!rowEl) return;
+		rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		rowEl.focus({ preventScroll: true });
+	}, [displayRows, loading, selectedSubjectId]);
+
 	return (
 		<div className="flex flex-col h-full min-h-0">
 			{/* Header strip */}
-			<div className="shrink-0 px-4 py-3 border-b border-border/40 flex items-center justify-between gap-3">
-				<div className="flex items-center gap-3">
-					<h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-						<FolderOpen className="w-4 h-4 text-primary" />
-						Subject coverage
-					</h2>
-					{!loading && summary && (
-						<div className="flex items-center gap-2">
-							<Badge variant="outline" className="text-[11px] font-semibold">
-								{totalCount} subjects
-							</Badge>
-							{missingCount > 0 ? (
-								<Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 text-[11px] font-semibold gap-1">
-									<AlertTriangle className="w-3 h-3" />
-									{missingCount} need coverage
+			<div className="shrink-0 px-4 py-3 border-b border-border/40">
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<div className="flex items-center gap-2">
+						<h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+							<FolderOpen className="w-4 h-4 text-primary" />
+							Subject coverage
+						</h2>
+						{!loading && summary && (
+							<div className="flex flex-wrap items-center gap-1.5">
+								<Badge variant="outline" className="text-[11px] font-semibold">
+									{totalCount} subjects
 								</Badge>
-							) : (
-								<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px] font-semibold gap-1">
-									<CheckCircle2 className="w-3 h-3" />
-									All covered
-								</Badge>
-							)}
-						</div>
+								{missingCount > 0 ? (
+									<Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 text-[11px] font-semibold gap-1">
+										<AlertTriangle className="w-3 h-3" />
+										{missingCount} need coverage
+									</Badge>
+								) : (
+									<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px] font-semibold gap-1">
+										<CheckCircle2 className="w-3 h-3" />
+										All covered
+									</Badge>
+								)}
+							</div>
+						)}
+					</div>
+					{filterParam === 'missing-coverage' && (
+						<Badge variant="outline" className="text-[11px] font-semibold border-amber-200 bg-amber-50 text-amber-700">
+							Filtered: missing coverage
+						</Badge>
 					)}
 				</div>
-				{filterParam === 'missing-coverage' && (
-					<Badge variant="outline" className="text-[11px] font-semibold border-amber-200 bg-amber-50 text-amber-700">
-						Filtered: missing coverage
-					</Badge>
-				)}
 			</div>
 
 			{/* Content */}
@@ -233,9 +247,28 @@ export function SubjectCoverageMode({ activeSchoolYearId, onFocusSection }: Subj
 					)}
 
 					{error && (
-						<div className="flex items-center justify-center py-12 text-sm text-red-600 gap-2">
-							<AlertTriangle className="w-4 h-4" />
-							{error}
+						<div className="flex flex-col items-center justify-center py-12 text-sm text-red-600 gap-3">
+							<div className="flex items-center gap-2">
+								<AlertTriangle className="w-4 h-4" />
+								<span>{error}</span>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-8 px-4 text-xs font-bold uppercase tracking-tight"
+								onClick={() => {
+									if (!activeSchoolYearId) return;
+									setLoading(true);
+									setError(null);
+									fetchSubjectCoverageSummary(activeSchoolYearId)
+										.then((data) => setSummary(data))
+										.catch((err) => setError(err?.message ?? 'Failed to load coverage data.'))
+										.finally(() => setLoading(false));
+								}}
+							>
+								Retry
+							</Button>
 						</div>
 					)}
 
@@ -248,17 +281,28 @@ export function SubjectCoverageMode({ activeSchoolYearId, onFocusSection }: Subj
 				{!loading && !error && sortedRows.length > 0 && displayRows.length === 0 && isFilteringMissing && (
 					<div className="flex flex-col items-center justify-center py-12 text-center gap-2">
 						<CheckCircle2 className="w-8 h-8 text-emerald-500" />
-						<p className="text-sm font-medium text-slate-700">No subjects need coverage.</p>
+						<p className="text-sm font-medium text-foreground">No subjects need coverage.</p>
 						<p className="text-xs text-muted-foreground">All subjects have teachers assigned to every required section.</p>
 					</div>
 				)}
 
 				{!loading && !error && displayRows.map((row) => (
-					<SubjectRow
+					<div
 						key={row.subjectId}
-						row={row}
-						onFocusSection={handleFocusSection}
-					/>
+						data-subject-id={row.subjectId}
+						data-testid="teaching-load-subject-focus-target"
+						ref={(el) => {
+							if (el) subjectRowRefs.current.set(row.subjectId, el);
+							else subjectRowRefs.current.delete(row.subjectId);
+						}}
+						tabIndex={-1}
+						className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-xl"
+					>
+						<SubjectRow
+							row={row}
+							onFocusSection={handleFocusSection}
+						/>
+					</div>
 				))}
 				</div>
 			</ScrollArea>

@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
-import { resolveClassProgramSlots, normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
 
 type ExportOptions = {
 	schoolId: number;
@@ -15,6 +15,7 @@ type TimeSlot = {
 	endTime: string;
 	isSpecialEvent?: boolean;
 	eventName?: string;
+	isSpecialization?: boolean;
 };
 
 type ScheduledEntry = {
@@ -420,9 +421,15 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 
 	for (const [gradeLevel, gradeSections] of gradeGroups) {
 		let sheetRow = 1;
-		// Load canonical slots for this grade
-		const canonicalSlots = await resolveClassProgramSlots(options.schoolId, options.schoolYearId, gradeLevel);
 		const hasSpecialProgram = gradeSections.some(s => s.programType && s.programType !== 'REGULAR');
+		// Resolve the union of exact templates represented in this grade so mixed
+		// regular/special-program sheets retain every stakeholder-defined row.
+		const canonicalSlots = await resolveCanonicalSlotsForPrograms(
+			options.schoolId,
+			options.schoolYearId,
+			gradeLevel,
+			['REGULAR', ...gradeSections.map((section) => section.programType as any)],
+		);
 
 		// Build ordered slot list from canonical slots
 		const classSlots = canonicalSlots
@@ -432,7 +439,12 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			.filter(s => s.rowKind === 'BREAK' || s.rowKind === 'CONFLICT');
 
 		const orderedSlots = interleaveSlots(
-			classSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, isSpecialEvent: false })),
+			classSlots.map(s => ({
+				startTime: s.startTime,
+				endTime: s.endTime,
+				isSpecialEvent: false,
+				isSpecialization: visibility === 'visible' && s.subjectLabel === 'Specialization',
+			})),
 			breakSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, isSpecialEvent: true, eventName: s.subjectLabel ?? undefined })),
 		);
 
@@ -488,7 +500,9 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 				} else {
 					// Teacher row
 					const teacherRow = sheet.getRow(row);
-					teacherRow.getCell(1).value = `${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)}`;
+				teacherRow.getCell(1).value = item.slot.isSpecialization
+					? `SPECIALIZATION ${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)}`
+					: `${formatTime12h(item.slot.startTime)}-${formatTime12h(item.slot.endTime)}`;
 					band.forEach((sec, col) => {
 						const entry = entryGrid.get(`${sec.externalId}-${item.slot.startTime}-${item.slot.endTime}`);
 						teacherRow.getCell(col + 2).value = visibility === 'hidden' && entry?.isSpecialization ? '' : entry?.teacher ?? '';

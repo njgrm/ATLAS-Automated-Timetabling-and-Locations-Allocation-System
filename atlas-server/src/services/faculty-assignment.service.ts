@@ -20,6 +20,7 @@ import {
   type NormalizedAssignmentScope,
 } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
+import { getOrCreateTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
 export type AssignmentMutationResult =
 | {
@@ -1200,6 +1201,7 @@ export interface AssignmentSummaryListOptions {
   scheduling?: AssignmentSummarySchedulingFilter;
   assignment?: AssignmentSummaryAssignmentFilter;
   department?: string | null;
+  gradeLevel?: number | null;
   sortField?: AssignmentSummarySortField;
   sortDir?: AssignmentSummarySortDir;
 }
@@ -1224,6 +1226,7 @@ export interface AssignmentSummaryPageResult<T> {
     scheduling: AssignmentSummarySchedulingFilter;
     assignment: AssignmentSummaryAssignmentFilter;
     department: string | null;
+    gradeLevel: number | null;
   };
   sort: {
     field: AssignmentSummarySortField;
@@ -1242,7 +1245,17 @@ type AssignmentSummaryListRow = {
   subjectCount: number;
   policyCreditedHours: number;
   maxHoursPerWeek: number;
+  /** Actual JHS grades (7-10) derived from the member's real current-year owned sections. */
+  assignedGradeLevels: number[];
 };
+
+const ASSIGNMENT_SUMMARY_GRADE_LEVELS = new Set([7, 8, 9, 10]);
+
+function normalizeAssignmentSummaryGradeLevelFilter(value: number | null | undefined): number | null {
+  if (value == null || typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const normalized = normalizeGradeLevel(value);
+  return Number.isInteger(normalized) && ASSIGNMENT_SUMMARY_GRADE_LEVELS.has(normalized) ? normalized : null;
+}
 
 function clampPositiveInteger(value: number | undefined, fallback: number, max?: number): number {
   if (!Number.isFinite(value) || value == null || value < 1) {
@@ -1260,6 +1273,7 @@ function normalizeAssignmentSummaryListOptions(options?: AssignmentSummaryListOp
     scheduling: options?.scheduling === 'active' || options?.scheduling === 'excluded' ? options.scheduling : 'all',
     assignment: options?.assignment === 'assigned' || options?.assignment === 'unassigned' ? options.assignment : 'all',
     department: typeof options?.department === 'string' && options.department.trim() ? options.department.trim() : null,
+    gradeLevel: normalizeAssignmentSummaryGradeLevelFilter(options?.gradeLevel),
     sortField:
       options?.sortField === 'specialization' ||
       options?.sortField === 'subjects' ||
@@ -1339,6 +1353,10 @@ function buildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
   if (normalized.department) {
     filtered = filtered.filter((row) => row.department === normalized.department);
   }
+  if (normalized.gradeLevel != null) {
+    const gradeLevel = normalized.gradeLevel;
+    filtered = filtered.filter((row) => (row.assignedGradeLevels ?? []).includes(gradeLevel));
+  }
 
   const sorted = [...filtered].sort((left, right) => {
     let cmp = 0;
@@ -1382,6 +1400,7 @@ function buildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
       scheduling: normalized.scheduling,
       assignment: normalized.assignment,
       department: normalized.department,
+      gradeLevel: normalized.gradeLevel,
     },
     sort: {
       field: normalized.sortField,
@@ -1505,7 +1524,7 @@ async function loadCoverageContext(schoolId: number, schoolYearId: number, authT
       orderBy: { code: 'asc' },
     }),
     prisma.subjectSectionOwnership.findMany({
-      where: { schoolId },
+      where: { schoolId, schoolYearId },
       select: { subjectId: true, sectionId: true, facultyId: true },
     }),
     prisma.facultyMirror.findMany({
@@ -1707,6 +1726,7 @@ export async function getSectionAssignedClassesIndex(
   const ownershipRows = await prisma.subjectSectionOwnership.findMany({
     where: {
       schoolId,
+      schoolYearId,
       sectionId: { in: sectionIds },
       subjectId: { in: subjectIds },
     },
@@ -2010,6 +2030,7 @@ export async function repairActiveSubjectCoverageWithPlaceholders(
         const existingOwnership = await tx.subjectSectionOwnership.findMany({
           where: {
             schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
             subjectId: subject.id,
             sectionId: { in: relevantSectionIds },
           },
@@ -2027,7 +2048,7 @@ export async function repairActiveSubjectCoverageWithPlaceholders(
         }
 
         const existingAssignment = await tx.facultySubject.findUnique({
-          where: { facultyId_subjectId: { facultyId: placeholder.facultyId, subjectId: subject.id } },
+          where: { facultyId_subjectId_schoolYearId: { facultyId: placeholder.facultyId, subjectId: subject.id, schoolYearId: input.schoolYearId } },
           select: { id: true, sectionIds: true, gradeLevels: true },
         });
 
@@ -2045,6 +2066,7 @@ export async function repairActiveSubjectCoverageWithPlaceholders(
               facultyId: placeholder.facultyId,
               subjectId: subject.id,
               schoolId: input.schoolId,
+              schoolYearId: input.schoolYearId,
               gradeLevels: mergedGradeLevels,
               sectionIds: mergedSectionIds,
               assignedBy: input.assignedBy,
@@ -2069,6 +2091,7 @@ export async function repairActiveSubjectCoverageWithPlaceholders(
           await tx.subjectSectionOwnership.createMany({
             data: uncoveredSectionIds.map((sectionId) => ({
               schoolId: input.schoolId,
+              schoolYearId: input.schoolYearId,
               facultySubjectId,
               facultyId: placeholder.facultyId,
               subjectId: subject.id,
@@ -2085,6 +2108,10 @@ export async function repairActiveSubjectCoverageWithPlaceholders(
   const after = apply
     ? await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken)
     : before;
+
+  if (apply) {
+    await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
+  }
 
   const resolvedSubjectCodes = before.rows
     .filter((row) => row.uncoveredSectionCount > 0)
@@ -2213,6 +2240,7 @@ export async function previewOrApplyRealFacultyRecovery(
       ? prisma.subjectSectionOwnership.findMany({
         where: {
           schoolId: input.schoolId,
+          schoolYearId: input.schoolYearId,
           sectionId: { in: currentYearSectionIds },
         },
         select: {
@@ -2656,9 +2684,10 @@ export async function previewOrApplyRealFacultyRecovery(
         if (!destinationFacultySubjectId) {
           const existing = await tx.facultySubject.findUnique({
             where: {
-              facultyId_subjectId: {
+              facultyId_subjectId_schoolYearId: {
                 facultyId: move.toFacultyId,
                 subjectId: move.subjectId,
+                schoolYearId: input.schoolYearId,
               },
             },
             select: { id: true },
@@ -2672,6 +2701,7 @@ export async function previewOrApplyRealFacultyRecovery(
                 facultyId: move.toFacultyId,
                 subjectId: move.subjectId,
                 schoolId: input.schoolId,
+                schoolYearId: input.schoolYearId,
                 gradeLevels: [],
                 sectionIds: [],
                 assignedBy: input.actorId,
@@ -2707,6 +2737,7 @@ export async function previewOrApplyRealFacultyRecovery(
           await tx.subjectSectionOwnership.create({
             data: {
               schoolId: input.schoolId,
+              schoolYearId: input.schoolYearId,
               facultySubjectId: destinationFacultySubjectId,
               facultyId: move.toFacultyId,
               subjectId: move.subjectId,
@@ -2730,7 +2761,7 @@ export async function previewOrApplyRealFacultyRecovery(
         if (!Number.isFinite(facultyId) || !Number.isFinite(subjectId)) continue;
 
         const facultySubject = await tx.facultySubject.findUnique({
-          where: { facultyId_subjectId: { facultyId, subjectId } },
+          where: { facultyId_subjectId_schoolYearId: { facultyId, subjectId, schoolYearId: input.schoolYearId } },
           select: { id: true, assignedBy: true },
         });
         if (!facultySubject) continue;
@@ -2738,6 +2769,7 @@ export async function previewOrApplyRealFacultyRecovery(
         const ownedRows = await tx.subjectSectionOwnership.findMany({
           where: {
             schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
             facultyId,
             subjectId,
           },
@@ -2771,6 +2803,10 @@ export async function previewOrApplyRealFacultyRecovery(
   const afterSummary = apply
     ? await getAssignmentSummary(input.schoolId, input.schoolYearId, input.authToken)
     : beforeSummary;
+
+  if (apply) {
+    await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
+  }
 
   const beforeRowsByCode = new Map(beforeCoverage.rows.map((row) => [row.subjectCode, row]));
   const afterRowsByCode = new Map(afterCoverage.rows.map((row) => [row.subjectCode, row]));
@@ -3265,6 +3301,7 @@ export async function previewOrApplySpecialProgramRedistribution(
       ? prisma.subjectSectionOwnership.findMany({
         where: {
           schoolId: input.schoolId,
+          schoolYearId: input.schoolYearId,
           subjectId: { in: targetedSubjects.map((subject) => subject.id) },
           sectionId: { in: relevantSectionIds },
         },
@@ -3304,6 +3341,7 @@ export async function previewOrApplySpecialProgramRedistribution(
       by: ['facultyId'],
       where: {
         schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
         facultyId: { in: allFaculty.map((member) => member.id) },
         sectionId: { in: context.sections.map((section) => section.id) },
       },
@@ -3563,9 +3601,10 @@ export async function previewOrApplySpecialProgramRedistribution(
         if (!destinationFacultySubjectId) {
           const existing = await tx.facultySubject.findUnique({
             where: {
-              facultyId_subjectId: {
+              facultyId_subjectId_schoolYearId: {
                 facultyId: move.toFacultyId,
                 subjectId: move.subjectId,
+                schoolYearId: input.schoolYearId,
               },
             },
             select: { id: true },
@@ -3579,6 +3618,7 @@ export async function previewOrApplySpecialProgramRedistribution(
                 facultyId: move.toFacultyId,
                 subjectId: move.subjectId,
                 schoolId: input.schoolId,
+                schoolYearId: input.schoolYearId,
                 gradeLevels: [],
                 sectionIds: [],
                 assignedBy: input.actorId,
@@ -3594,6 +3634,7 @@ export async function previewOrApplySpecialProgramRedistribution(
         const sourceOwnership = await tx.subjectSectionOwnership.findFirst({
           where: {
             schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
             subjectId: move.subjectId,
             sectionId: move.sectionId,
             facultyId: move.fromFacultyId,
@@ -3644,7 +3685,7 @@ export async function previewOrApplySpecialProgramRedistribution(
 
         const facultySubject = await tx.facultySubject.findUnique({
           where: {
-            facultyId_subjectId: { facultyId, subjectId },
+            facultyId_subjectId_schoolYearId: { facultyId, subjectId, schoolYearId: input.schoolYearId },
           },
           select: { id: true, assignedBy: true },
         });
@@ -3654,6 +3695,7 @@ export async function previewOrApplySpecialProgramRedistribution(
         const ownership = await tx.subjectSectionOwnership.findMany({
           where: {
             schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
             facultyId,
             subjectId,
           },
@@ -3681,6 +3723,7 @@ export async function previewOrApplySpecialProgramRedistribution(
     ? await prisma.subjectSectionOwnership.findMany({
       where: {
         schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
         subjectId: { in: targetedSubjects.map((subject) => subject.id) },
         sectionId: { in: relevantSectionIds },
       },
@@ -3705,6 +3748,10 @@ export async function previewOrApplySpecialProgramRedistribution(
   }));
 
   const after = buildSpecialProgramDistributionRows(targetedSubjects, normalizedAfterOwnershipRows, facultyById);
+
+  if (apply) {
+    await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
+  }
 
   return {
     applied: apply,
@@ -4160,6 +4207,17 @@ export function __testResolveOwnedCurrentYearSectionScope(
   );
 }
 
+export function __testBuildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
+  rows: T[],
+  options?: AssignmentSummaryListOptions,
+): AssignmentSummaryPageResult<T> {
+  return buildAssignmentSummaryPage(rows, options);
+}
+
+export function __testNormalizeAssignmentSummaryListOptions(options?: AssignmentSummaryListOptions) {
+  return normalizeAssignmentSummaryListOptions(options);
+}
+
 async function buildRosterIndex(schoolId: number, schoolYearId: number, authToken?: string) {
 const mirrorRows = await prisma.sectionMirror.findMany({
   where: { schoolId, schoolYearId, isStale: false },
@@ -4259,7 +4317,7 @@ const currentYearSectionIds = Array.from(rosterIndex.sectionMap.keys());
 const currentYearSectionIdSet = new Set(currentYearSectionIds);
 
 const assignments = await prisma.facultySubject.findMany({
-where: { facultyId },
+where: { facultyId, schoolYearId },
 include: {
 subject: {
   select: {
@@ -4285,6 +4343,7 @@ const ownershipRows = currentYearSectionIds.length > 0
   ? await prisma.subjectSectionOwnership.findMany({
     where: {
       schoolId: faculty.schoolId,
+      schoolYearId,
       facultyId,
       sectionId: { in: currentYearSectionIds },
     },
@@ -4618,7 +4677,7 @@ export async function setAssignments(
 				);
 			}
 			const existingHgFs = await prisma.facultySubject.findUnique({
-				where: { facultyId_subjectId: { facultyId, subjectId: hgSubject.id } },
+				where: { facultyId_subjectId_schoolYearId: { facultyId, subjectId: hgSubject.id, schoolYearId } },
 				select: { id: true },
 			});
 			advisedHgInfo = {
@@ -4665,6 +4724,7 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
           const blockingOwners = await tx.subjectSectionOwnership.findMany({
             where: {
               schoolId,
+              schoolYearId,
               subjectId: { in: incomingSubjectIds },
               sectionId: { in: incomingSectionIds },
               facultyId: { not: facultyId },
@@ -4698,6 +4758,7 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
                   facultyId: conflict.facultyId,
                   subjectId: conflict.subjectId,
                   schoolId,
+                  schoolYearId,
                 },
                 select: { id: true, sectionIds: true },
               });
@@ -4724,6 +4785,7 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
               await tx.subjectSectionOwnership.deleteMany({
                 where: {
                   schoolId,
+                  schoolYearId,
                   subjectId: conflict.subjectId,
                   sectionId: conflict.sectionId,
                   facultyId: conflict.facultyId,
@@ -4750,7 +4812,7 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
         ? [advisedHgInfo.hgFacultySubjectId]
         : [];
       await tx.facultySubject.deleteMany({
-        where: { facultyId, id: { notIn: preservedIds } },
+        where: { facultyId, schoolId, schoolYearId, id: { notIn: preservedIds } },
       });
 
       if (assignmentsToCreate.length > 0) {
@@ -4760,6 +4822,7 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
             facultyId,
             subjectId: assignment.subjectId,
             schoolId,
+            schoolYearId,
             gradeLevels: assignment.gradeLevels,
             sectionIds: assignment.sectionIds,
             assignedBy,
@@ -4779,6 +4842,7 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
 
             return {
               schoolId,
+              schoolYearId,
               facultySubjectId: fs.id,
               facultyId,
               subjectId: fs.subjectId,
@@ -4813,6 +4877,7 @@ if (error?.code === 'P2034') {
   throw error;
 }
 
+await refreshTeachingLoadCycle(schoolId, schoolYearId);
 return { success: true, version: expectedVersion + 1 };
 }
 
@@ -4822,6 +4887,7 @@ export async function getAssignmentSummary(
   authToken?: string,
   listOptions?: AssignmentSummaryListOptions,
 ) {
+  const source = await getOrCreateTeachingLoadCycleSource(schoolId, schoolYearId);
   const rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
   const currentYearSectionScope = Array.from(rosterIndex.sectionMap.values()).map((section) => ({
     id: section.id,
@@ -4837,6 +4903,7 @@ export async function getAssignmentSummary(
       where: { schoolId, isStale: false },
       include: {
         facultySubjects: {
+          where: { schoolId, schoolYearId },
           include: {
             subject: {
               select: {
@@ -4863,6 +4930,7 @@ export async function getAssignmentSummary(
       ? prisma.subjectSectionOwnership.findMany({
         where: {
           schoolId,
+          schoolYearId,
           sectionId: { in: currentYearSectionIds },
         },
         select: {
@@ -5107,6 +5175,7 @@ export async function getAssignmentSummary(
     let baselineSubjectCount = 0;
     let missingOwnershipSubjectCount = 0;
     let ownershipWithoutScopeSubjectCount = 0;
+    const memberOwnedCurrentYearSectionIds: number[] = [];
 
     const assignments = schedulableAssignments.map((assignment) => {
       const storedCurrentYearSectionIds = assignment.sectionIds
@@ -5126,6 +5195,7 @@ export async function getAssignmentSummary(
         ownedCurrentYearSectionIdsRaw,
         relevantSectionIds,
       );
+      memberOwnedCurrentYearSectionIds.push(...ownedCurrentYearSectionIds);
 
       const normalized = normalizeStoredAssignmentScope(
         {
@@ -5252,6 +5322,8 @@ export async function getAssignmentSummary(
       member.advisedSectionId != null &&
       currentYearSectionIdSet.has(member.advisedSectionId);
 
+    const assignedGradeLevels = deriveGradeLevelsFromSectionIds(memberOwnedCurrentYearSectionIds, sectionDisplayOrderMap);
+
     const sectionCount = assignments.reduce((sum, assignment) => sum + assignment.sectionIds.length, 0);
     const sectionLoadComputation = computeTeachingLoadMinuteComputation(assignments, 'section');
     const gradeLoadComputation = computeTeachingLoadMinuteComputation(assignments, 'grade');
@@ -5291,6 +5363,7 @@ export async function getAssignmentSummary(
       version: member.version,
       subjectCount: realAssignmentRowCount,
       sectionCount,
+      assignedGradeLevels,
       baselineSubjectCount,
       missingOwnershipSubjectCount,
       ownershipWithoutScopeSubjectCount,
@@ -5371,11 +5444,25 @@ export async function getAssignmentSummary(
   const listPage = buildAssignmentSummaryPage(facultySummary, listOptions);
 
   return {
+    source,
     faculty: facultySummary,
     listPage,
     ownershipIndex,
     coverageTotals,
     integrityDiagnostics,
+  };
+}
+
+export async function getEffectiveTeachingLoad(
+  schoolId: number,
+  schoolYearId: number,
+  authToken?: string,
+) {
+  const summary = await getAssignmentSummary(schoolId, schoolYearId, authToken);
+  return {
+    source: summary.source,
+    assignments: summary.ownershipIndex,
+    coverageTotals: summary.coverageTotals,
   };
 }
 
@@ -5392,7 +5479,7 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
 
   const [facultySubjects, ownershipRows] = await Promise.all([
     prisma.facultySubject.findMany({
-      where: { schoolId: input.schoolId },
+      where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId },
       select: {
         id: true,
         facultyId: true,
@@ -5414,6 +5501,7 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
       ? prisma.subjectSectionOwnership.findMany({
         where: {
           schoolId: input.schoolId,
+          schoolYearId: input.schoolYearId,
           sectionId: { in: currentYearSectionIds },
         },
         select: {
@@ -5531,6 +5619,7 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
           await tx.subjectSectionOwnership.deleteMany({
             where: {
               schoolId: input.schoolId,
+              schoolYearId: input.schoolYearId,
               facultySubjectId: update.facultySubjectId,
               sectionId: { in: update.outOfSubjectScopeOwnedSectionIds },
             },
@@ -5547,6 +5636,7 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
       }
     });
     updatedRows = updates.length;
+		await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
   }
 
   const sampleUpdates = updates
@@ -5602,6 +5692,7 @@ export async function previewOrApplyStaleOwnershipReconcile(
   const ownershipRows = await prisma.subjectSectionOwnership.findMany({
     where: {
       schoolId: input.schoolId,
+      schoolYearId: input.schoolYearId,
       sectionId: { in: sectionIds },
     },
     select: {
@@ -5721,11 +5812,11 @@ export async function previewOrApplyStaleOwnershipReconcile(
 
     const [affectedFacultySubjects, remainingOwnershipRows] = await Promise.all([
       tx.facultySubject.findMany({
-        where: { id: { in: affectedFacultySubjectIds } },
+        where: { id: { in: affectedFacultySubjectIds }, schoolYearId: input.schoolYearId },
         select: { id: true, sectionIds: true },
       }),
       tx.subjectSectionOwnership.findMany({
-        where: { facultySubjectId: { in: affectedFacultySubjectIds } },
+        where: { facultySubjectId: { in: affectedFacultySubjectIds }, schoolYearId: input.schoolYearId },
         select: { facultySubjectId: true, sectionId: true },
       }),
     ]);
@@ -5781,6 +5872,8 @@ export async function previewOrApplyStaleOwnershipReconcile(
       occurredAt: new Date().toISOString(),
     }),
   );
+
+  await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
 
   return {
     applied: true,
@@ -5978,6 +6071,7 @@ export async function previewOrApplyTeachingLoadReset(input: TeachingLoadResetIn
 
   const ownershipFilter = {
     schoolId: input.schoolId,
+    schoolYearId: input.schoolYearId,
     sectionId: { in: sectionIds },
     ...(typeof input.subjectId === 'number' ? { subjectId: input.subjectId } : {}),
   };
@@ -5999,7 +6093,7 @@ export async function previewOrApplyTeachingLoadReset(input: TeachingLoadResetIn
   const [facultySubjects, subjects] = await Promise.all([
     facultySubjectIds.length > 0
       ? prisma.facultySubject.findMany({
-        where: { id: { in: facultySubjectIds } },
+        where: { id: { in: facultySubjectIds }, schoolYearId: input.schoolYearId },
         select: { id: true, facultyId: true, subjectId: true, sectionIds: true },
       })
       : Promise.resolve([]),
@@ -6038,7 +6132,7 @@ export async function previewOrApplyTeachingLoadReset(input: TeachingLoadResetIn
 
       const nextSectionIds = row.sectionIds.filter((sectionId) => !removable.has(sectionId));
       if (nextSectionIds.length === 0) {
-        const remainingOwnershipRows = await tx.subjectSectionOwnership.count({ where: { facultySubjectId: row.id } });
+        const remainingOwnershipRows = await tx.subjectSectionOwnership.count({ where: { facultySubjectId: row.id, schoolYearId: input.schoolYearId } });
         if (remainingOwnershipRows === 0) {
           await tx.facultySubject.delete({ where: { id: row.id } });
         }
@@ -6051,6 +6145,8 @@ export async function previewOrApplyTeachingLoadReset(input: TeachingLoadResetIn
       });
     }
   });
+
+  await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
 
   const appliedResult: TeachingLoadResetResult = {
     ...preview,

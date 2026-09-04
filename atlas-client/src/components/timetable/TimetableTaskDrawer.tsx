@@ -1,10 +1,10 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+﻿import { memo, useEffect, useMemo, useReducer, useState } from 'react';
 import {
 	ArrowRightLeft,
 	CalendarClock,
 	CheckCircle2,
+	ChevronRight,
 	ClipboardCheck,
-	ExternalLink,
 	Flag,
 	ListChecks,
 	Search,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { initialSimplePlacementState, reduceSimplePlacementState } from '@/lib/simple-timetable-state';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -25,12 +26,23 @@ import { DraggableQueuePin, DraggableUnassignedPin } from '@/components/timetabl
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { DraftQueueItem, UnassignedItem, Violation } from '@/types';
+import {
+	BlockerGroupCard,
+	PublishChecklistContent,
+	RepairContextBanner,
+	type RepairOrigin,
+} from '@/components/timetable/simple/SimpleTaskDrawerHelpers';
 
-export type RepairOrigin = {
-	reason: string;
-	plainReason: string;
-	groupCount: number;
-};
+export type { RepairOrigin } from '@/components/timetable/simple/SimpleTaskDrawerHelpers';
+import {
+	draftQueueKey,
+	draftStatusRank,
+	deriveRowReasonStack,
+	getDraftQueueStatus,
+	sameDraftQueueItem,
+	sameUnassignedItem,
+	statusRank,
+} from '@/components/timetable/simple/SimpleQueueHelpers';
 
 type TimetableTaskDrawerProps = {
 	task: TimetableSimpleTask | null;
@@ -68,10 +80,10 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 		icon: ClipboardCheck,
 	},
 	'swap-sessions': {
-		title: 'Swap sessions',
-		description: 'Choose the first class on the grid, then choose the class to switch with it. ATLAS opens a visual swap review.',
+		title: 'Swap class times',
+		description: 'Choose two occupied classes on the grid. ATLAS shows the proposed time change before anything is saved.',
 		stepOne: 'Choose first class',
-		stepTwo: 'Choose class to switch with',
+		stepTwo: 'Choose second class',
 		icon: ArrowRightLeft,
 	},
 	'review-issues': {
@@ -96,275 +108,6 @@ const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 		icon: Send,
 	},
 };
-
-type BlockerGroup = {
-	reason: string;
-	plainLabel: string;
-	count: number;
-	actionLabel: string;
-	actionHref: string;
-	items: Array<{
-		sectionName: string;
-		subjectName: string;
-		facultyName: string;
-		reason: string;
-	}>;
-};
-
-const UNASSIGNED_GROUP_MAP: Record<string, { plainLabel: string; actionLabel: string; actionHref: string; nextStep: string }> = {
-	FACULTY_OVERLOADED: { plainLabel: 'Teachers are overloaded', actionLabel: 'Review Teaching Load', actionHref: '/teaching-load', nextStep: 'Teacher workload is full. Move some classes or assign another teacher.' },
-	NO_QUALIFIED_FACULTY: { plainLabel: 'No qualified teacher is assigned', actionLabel: 'Assign a qualified teacher', actionHref: '/teaching-load', nextStep: 'No qualified teacher is assigned. Build or repair Teaching Load.' },
-	NO_AVAILABLE_SLOT: { plainLabel: 'No available time slot', actionLabel: 'Review timetable slots or policy', actionHref: '/timetable', nextStep: 'No allowed time slot was found. Try manual placement or review the scheduling policy.' },
-	NO_COMPATIBLE_ROOM: { plainLabel: 'No compatible room found', actionLabel: 'Review room setup', actionHref: '/campus-rooms', nextStep: 'No compatible room was found. Review room setup.' },
-	ROOM_CAPACITY_EXCEEDED: { plainLabel: 'Room capacity exceeded', actionLabel: 'Review room assignment', actionHref: '/campus-rooms', nextStep: 'The room is too small for this class. Choose a larger room.' },
-};
-
-function buildBlockerGroups(
-	violations: Violation[],
-	sectionLabelFn: (id: number) => string,
-	subjectLabelFn: (id: number) => string,
-	facultyLabelFn: (id: number) => string,
-): BlockerGroup[] {
-	const hardViolations = violations.filter((v) => v.severity === 'HARD');
-	const groups = new Map<string, BlockerGroup>();
-
-	for (const v of hardViolations) {
-		const code = v.code;
-		const groupConfig = UNASSIGNED_GROUP_MAP[code];
-		if (!groupConfig) continue;
-
-		if (!groups.has(code)) {
-			groups.set(code, {
-				reason: code,
-				plainLabel: groupConfig.plainLabel,
-				count: 0,
-				actionLabel: groupConfig.actionLabel,
-				actionHref: groupConfig.actionHref,
-				items: [],
-			});
-		}
-
-		const group = groups.get(code)!;
-		group.count += 1;
-
-		const sectionName = v.entities.sectionId != null ? sectionLabelFn(v.entities.sectionId) : '';
-		const subjectName = v.entities.subjectId != null ? subjectLabelFn(v.entities.subjectId) : '';
-		const facultyName = v.entities.facultyId != null ? facultyLabelFn(v.entities.facultyId) : '';
-
-		if (sectionName || subjectName) {
-			group.items.push({
-				sectionName: sectionName || 'Unknown section',
-				subjectName: subjectName || 'Unknown subject',
-				facultyName: facultyName || 'No teacher assigned',
-				reason: groupConfig.nextStep,
-			});
-		}
-	}
-
-	return Array.from(groups.values()).sort((a, b) => b.count - a.count);
-}
-
-function PublishChecklistContent({
-	runId,
-	assignedCount,
-	unassignedCount,
-	hardCount,
-	softCount,
-	violations,
-	sectionLabel,
-	subjectLabel,
-	facultyLabel,
-	onPublish,
-	onReviewIssues,
-	onPlaceUnresolved,
-}: {
-	runId: number | null;
-	assignedCount: number;
-	unassignedCount: number;
-	hardCount: number;
-	softCount: number;
-	violations: Violation[];
-	sectionLabel: (id: number) => string;
-	subjectLabel: (id: number) => string;
-	facultyLabel: (id: number) => string;
-	onPublish: () => void;
-	onReviewIssues: () => void;
-	onPlaceUnresolved: () => void;
-}) {
-	const blockerGroups = useMemo(
-		() => buildBlockerGroups(violations, sectionLabel, subjectLabel, facultyLabel),
-		[violations, sectionLabel, subjectLabel, facultyLabel],
-	);
-
-	return (
-		<div className="space-y-3 p-3 text-sm">
-			<div className="rounded-xl border border-border bg-muted/30 p-3" data-testid="timetable-publish-readiness-summary">
-				<p className="font-semibold text-foreground">Publish checklist</p>
-				{runId && (
-					<p className="mt-1 text-xs text-muted-foreground">Run #{runId}</p>
-				)}
-				<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
-					<li>Assigned sessions: {assignedCount}</li>
-					<li>Unresolved sessions: {unassignedCount}</li>
-					<li>Hard blockers: {hardCount}</li>
-					<li>Warnings to review: {softCount}</li>
-				</ul>
-			</div>
-
-			{blockerGroups.map((group) => (
-				<BlockerGroupCard key={group.reason} group={group} onNavigate={group.actionHref.includes('/teaching-load') ? onReviewIssues : onPlaceUnresolved} />
-			))}
-
-			{unassignedCount > 0 && hardCount === 0 && (
-				<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
-					<p className="text-sm font-semibold">Sessions still unresolved</p>
-					<p className="mt-1 text-xs">{unassignedCount} session{unassignedCount === 1 ? '' : 's'} need placement before publishing.</p>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="mt-2 h-8 text-xs"
-						onClick={onPlaceUnresolved}
-					>
-						Place unresolved sessions
-					</Button>
-				</div>
-			)}
-
-			{softCount > 0 && hardCount === 0 && unassignedCount === 0 && (
-				<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
-					<p className="text-sm font-semibold">Warnings to review</p>
-					<p className="mt-1 text-xs">{softCount} warning{softCount === 1 ? '' : 's'} must be acknowledged before publish.</p>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="mt-2 h-8 text-xs"
-						onClick={onReviewIssues}
-					>
-						Review warnings
-					</Button>
-				</div>
-			)}
-
-			{hardCount === 0 && unassignedCount === 0 && softCount === 0 && (
-				<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
-					<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-					<p className="text-sm">Schedule is clean and ready to publish.</p>
-				</div>
-			)}
-
-			<Button
-				type="button"
-				className="h-11 w-full"
-				disabled={hardCount > 0 || unassignedCount > 0}
-				onClick={onPublish}
-			>
-				Publish schedule
-			</Button>
-		</div>
-	);
-}
-
-function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; onNavigate: () => void }) {
-	const [expanded, setExpanded] = useState(false);
-	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
-
-	return (
-		<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900" data-testid="timetable-publish-blocked-reason">
-			<div className="flex items-start justify-between gap-2">
-				<div className="min-w-0">
-					<p className="text-sm font-semibold">{group.plainLabel}</p>
-					<p className="mt-0.5 text-xs text-red-700">{group.count} session{group.count === 1 ? '' : 's'} affected</p>
-				</div>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-7 shrink-0 gap-1 text-xs"
-					onClick={onNavigate}
-				>
-					{group.actionLabel}
-					<ExternalLink className="size-3" aria-hidden="true" />
-				</Button>
-			</div>
-
-			{group.items.length > 0 && (
-				<div className="mt-2 space-y-1.5">
-					{visibleItems.map((item, index) => (
-						<div key={index} className="rounded-lg border border-red-100 bg-white/60 px-2 py-1.5 text-xs">
-							<p className="font-medium text-red-800">{item.sectionName} · {item.subjectName}</p>
-							<p className="text-red-600">{item.facultyName}</p>
-						</div>
-					))}
-					{group.items.length > 3 && (
-						<Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-red-700" onClick={() => setExpanded(!expanded)}>
-							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
-						</Button>
-					)}
-				</div>
-			)}
-		</div>
-	);
-}
-
-function RepairContextBanner({
-	repairOrigin,
-	onBackToBlockerSummary,
-	onClearFilter,
-}: {
-	repairOrigin: RepairOrigin;
-	onBackToBlockerSummary?: () => void;
-	onClearFilter?: () => void;
-}) {
-	return (
-		<div
-			className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2"
-			data-testid="timetable-repair-context-banner"
-			role="status"
-			aria-label={`Repairing: ${repairOrigin.plainReason}`}
-		>
-			<div className="flex items-start justify-between gap-2">
-				<div className="min-w-0">
-					<p className="text-xs font-semibold text-amber-900">
-						Fixing publish blockers → {repairOrigin.plainReason}
-					</p>
-					<p className="mt-0.5 text-xs text-amber-700">
-						{repairOrigin.groupCount} session{repairOrigin.groupCount === 1 ? '' : 's'} affected.
-						ATLAS cannot test slots until this is resolved.
-					</p>
-				</div>
-			</div>
-			<div className="mt-1.5 flex gap-1.5">
-				{onBackToBlockerSummary && (
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-7 gap-1 text-xs"
-						onClick={onBackToBlockerSummary}
-						data-testid="timetable-repair-back-to-blockers"
-					>
-						<ExternalLink className="size-3" aria-hidden="true" />
-						Back to blocker summary
-					</Button>
-				)}
-				{onClearFilter && (
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className="h-7 gap-1 text-xs text-amber-700"
-						onClick={onClearFilter}
-						data-testid="timetable-repair-clear-filter"
-					>
-						Clear filter
-					</Button>
-				)}
-			</div>
-		</div>
-	);
-}
 
 function TimetableTaskDrawerImpl({
 	task,
@@ -417,22 +160,18 @@ function TimetableTaskDrawerImpl({
 						<X className="size-4" aria-hidden="true" />
 					</Button>
 				</div>
-				<div className="mt-1.5 grid grid-cols-2 gap-1.5 [@media(max-height:500px)]:hidden">
-					<div className="rounded-lg border border-border bg-muted/30 px-2 py-1.5">
-						<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Step 1</p>
-						<p className="truncate text-xs font-semibold text-foreground">{copy.stepOne}</p>
-					</div>
-					<div className="rounded-lg border border-border bg-muted/30 px-2 py-1.5">
-						<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Step 2</p>
-						<p className="truncate text-xs font-semibold text-foreground">{copy.stepTwo}</p>
-					</div>
+				<div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground [@media(max-height:500px)]:hidden" aria-label="Task steps">
+					<span className="font-semibold text-foreground">1.</span>
+					<span className="truncate">{copy.stepOne}</span>
+					<ChevronRight className="size-3 shrink-0" aria-hidden="true" />
+					<span className="font-semibold text-foreground">2.</span>
+					<span className="truncate">{copy.stepTwo}</span>
 				</div>
-				<div className="mt-1.5 flex flex-wrap gap-1.5 [@media(max-height:500px)]:hidden" aria-label="Task summary">
-					{unassignedCount > 0 && <Badge variant="outline" className="h-5 text-xs">{unassignedCount > 99 ? '99+' : unassignedCount} unresolved</Badge>}
-					{hardCount > 0 && <Badge variant="destructive" className="h-5 text-xs">{hardCount} blocker{hardCount === 1 ? '' : 's'}</Badge>}
-					{softCount > 0 && <Badge variant="secondary" className="h-5 text-xs">{softCount} warning{softCount === 1 ? '' : 's'}</Badge>}
-					{isPreGenerationWorkspace && <Badge variant="outline" className="h-5 text-xs">Draft mode</Badge>}
-				</div>
+				{task === 'place-unresolved' && unassignedCount > 0 ? (
+					<p className="mt-1 text-xs font-medium text-amber-700" aria-label="Sessions left to place">
+						{unassignedCount} session{unassignedCount === 1 ? '' : 's'} left to place
+					</p>
+				) : null}
 			</div>
 
 			{task === 'place-unresolved' ? (
@@ -457,18 +196,14 @@ function TimetableTaskDrawerImpl({
 			) : task === 'swap-sessions' ? (
 				<div className="flex min-h-0 flex-1 flex-col">
 					<ScrollArea className="flex-1">
-						<div className="space-y-3 p-3 text-sm">
-							<div className="rounded-xl border border-border bg-muted/30 p-3">
-								<p className="font-semibold text-foreground">How to switch</p>
-								<ol className="mt-2 list-decimal space-y-1.5 pl-4 text-sm text-muted-foreground">
-									<li>Tap or click the class you want to move.</li>
-									<li>Tap or click another occupied class.</li>
-									<li>Review the visual swap sheet before saving.</li>
-								</ol>
+						<div className="space-y-2 p-3 text-sm">
+							<div className="rounded-lg border border-border bg-muted/30 p-3">
+								<p className="font-semibold text-foreground">Choose two occupied classes</p>
+								<p className="mt-1 text-xs text-muted-foreground">ATLAS will show the proposed time change before anything is saved.</p>
 							</div>
-							<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
-								<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-								<p className="text-sm">Teacher ownership stays in Teaching Load. Timetable only reviews the switch.</p>
+							<div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+								<CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+								<span>Teachers stay assigned to their classes.</span>
 							</div>
 						</div>
 					</ScrollArea>
@@ -499,108 +234,6 @@ function TimetableTaskDrawerImpl({
 
 export const TimetableTaskDrawer = memo(TimetableTaskDrawerImpl);
 
-type QueueStatus = ReturnType<typeof getUnassignedStatus>;
-
-function statusRank(status: QueueStatus) {
-	if (status.key === 'ready') return 0;
-	if (status.key === 'needs-room') return 1;
-	if (status.key === 'needs-owner') return 2;
-	return 3;
-}
-
-function sameUnassignedItem(a: UnassignedItem | null, b: UnassignedItem | null) {
-	if (!a || !b) return false;
-	return a.sectionId === b.sectionId
-		&& a.subjectId === b.subjectId
-		&& a.session === b.session
-		&& (a.cohortCode ?? '') === (b.cohortCode ?? '');
-}
-
-type DraftQueueStatus = {
-	key: 'ready' | 'needs-owner' | 'needs-room' | 'blocked';
-	label: string;
-	actionLabel: string;
-	className: string;
-};
-
-function getDraftQueueStatus(
-	item: DraftQueueItem,
-	roomMap?: LeftRailContentContext['roomMap'],
-): DraftQueueStatus {
-	if (item.hasNoTeacher || item.facultyOptions.length === 0) {
-		return {
-			key: 'needs-owner',
-			label: 'Needs owner',
-			actionLabel: 'Fix owner',
-			className: 'border-amber-200 bg-amber-50 text-amber-800',
-		};
-	}
-	const rooms = roomMap ? Array.from(roomMap.values()).filter((room) => room.isTeachingSpace) : [];
-	const hasPreferredRoom = rooms.some((room) => room.type === item.preferredRoomType);
-	const hasFallbackRoom = rooms.length > 0;
-	if (!item.preferredRoomType || !hasFallbackRoom || !hasPreferredRoom) {
-		return {
-			key: 'needs-room',
-			label: 'Needs room',
-			actionLabel: 'Choose room',
-			className: 'border-sky-200 bg-sky-50 text-sky-800',
-		};
-	}
-	return {
-		key: 'ready',
-		label: 'Ready to place',
-		actionLabel: 'Place',
-		className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-	};
-}
-
-function draftStatusRank(status: DraftQueueStatus) {
-	if (status.key === 'ready') return 0;
-	if (status.key === 'needs-room') return 1;
-	if (status.key === 'needs-owner') return 2;
-	return 3;
-}
-
-type RowReasonStack = {
-	mainIssue: string;
-	firstFix: string;
-	explanation: string;
-};
-
-const BLOCKER_TO_ROW_REASON: Record<string, { mainIssue: string; explanation: string }> = {
-	NO_AVAILABLE_SLOT: { mainIssue: 'No available slot', explanation: 'ATLAS cannot test slots until this is resolved.' },
-	FACULTY_OVERLOADED: { mainIssue: 'Teacher overloaded', explanation: 'Teacher workload is full. Move or reassign classes.' },
-	NO_QUALIFIED_FACULTY: { mainIssue: 'No qualified teacher', explanation: 'No qualified teacher is assigned. Build or repair Teaching Load.' },
-	NO_COMPATIBLE_ROOM: { mainIssue: 'No compatible room', explanation: 'No compatible room was found. Review room setup.' },
-	ROOM_CAPACITY_EXCEEDED: { mainIssue: 'Room too small', explanation: 'The room is too small for this class. Choose a larger room.' },
-};
-
-function deriveRowReasonStack(
-	status: { key: string; label: string; actionLabel: string },
-	blockerReason?: string | null,
-): RowReasonStack | null {
-	if (status.key === 'ready') return null;
-
-	const blockerInfo = blockerReason ? BLOCKER_TO_ROW_REASON[blockerReason] : null;
-	const mainIssue = blockerInfo?.mainIssue ?? null;
-	const firstFix = status.actionLabel;
-	const explanation = blockerInfo?.explanation ?? (
-		status.key === 'needs-room' ? 'A room must be chosen before slot testing can continue.'
-			: status.key === 'needs-owner' ? 'A Teaching Load owner must be fixed before placement.'
-			: 'This session needs review before it can be placed.'
-	);
-
-	return { mainIssue: mainIssue ?? 'Needs attention', firstFix, explanation };
-}
-
-function sameDraftQueueItem(a: DraftQueueItem | null, b: DraftQueueItem | null) {
-	if (!a || !b) return false;
-	return a.assignmentKey === b.assignmentKey && a.sessionNumber === b.sessionNumber;
-}
-
-function draftQueueKey(item: DraftQueueItem) {
-	return `${item.assignmentKey}-${item.sessionNumber}`;
-}
 
 function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext }) {
 	const {
@@ -628,6 +261,7 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 	} = context;
 	const [skippedKeys, setSkippedKeys] = useState<Set<string>>(new Set());
 	const [activeItem, setActiveItem] = useState<DraftQueueItem | null>(null);
+	const [placementState, dispatchPlacement] = useReducer(reduceSimplePlacementState, initialSimplePlacementState);
 	const [findOpen, setFindOpen] = useState(false);
 
 	const queue = draftBoard?.queue ?? [];
@@ -666,13 +300,22 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 
 	useEffect(() => {
 		if (activeItem && sortedQueue.some((item) => sameDraftQueueItem(item, activeItem))) return;
-		setActiveItem(sortedQueue[0] ?? null);
+		const nextItem = sortedQueue[0] ?? null;
+		setActiveItem(nextItem);
+		dispatchPlacement(nextItem ? { type: 'display', key: draftQueueKey(nextItem) } : { type: 'reset' });
 	}, [activeItem, sortedQueue]);
+
+	useEffect(() => {
+		if (!placementState.armed) return;
+		if (preGenKbSource?.type === 'draftQueue' && draftQueueKey(preGenKbSource.item) === placementState.displayedKey) return;
+		dispatchPlacement({ type: 'display', key: placementState.displayedKey });
+	}, [placementState.armed, placementState.displayedKey, preGenKbSource]);
 
 	const selectQueueItem = (item: DraftQueueItem) => {
 		const status = getDraftQueueStatus(item, roomMap);
 		setActiveItem(item);
 		if (status.key === 'needs-owner') {
+			dispatchPlacement({ type: 'display', key: draftQueueKey(item) });
 			setPreGenKbSource(null);
 			setKbSelectedSource(null);
 			setSelectedEntry(null);
@@ -683,6 +326,7 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 			return;
 		}
 		const source = { type: 'draftQueue' as const, item };
+		dispatchPlacement({ type: 'arm', key: draftQueueKey(item), sectionId: item.sectionId });
 		setPreGenKbSource(source);
 		setKbSelectedSource(source);
 		setSelectedEntry(null);
@@ -696,7 +340,11 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 		if (!activeItem) return;
 		const itemKey = draftQueueKey(activeItem);
 		setSkippedKeys((prev) => new Set(prev).add(itemKey));
-		setActiveItem(sortedQueue.find((item) => draftQueueKey(item) !== itemKey) ?? activeItem);
+		const nextItem = sortedQueue.find((item) => draftQueueKey(item) !== itemKey) ?? activeItem;
+		setPreGenKbSource(null);
+		setKbSelectedSource(null);
+		setActiveItem(nextItem);
+		dispatchPlacement({ type: 'skip', nextKey: nextItem ? draftQueueKey(nextItem) : null });
 		toast.info('Skipped for now. ATLAS moved it behind the next draft sessions.');
 	};
 
@@ -762,8 +410,8 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 						</Button>
 					</div>
 				</div>
-				<p className="mt-1 text-xs text-muted-foreground">
-					Current session first. Use Find for the full queue.
+				<p className="mt-1 text-sm text-muted-foreground">
+					Next session is shown first. Select it before choosing a highlighted slot.
 				</p>
 				{findOpen ? (
 					<div className="mt-2 space-y-2 rounded-xl border border-border bg-muted/20 p-2">
@@ -827,7 +475,8 @@ function SimpleDraftPlottingTray({ context }: { context: LeftRailContentContext 
 								context={context}
 								item={item}
 								index={index}
-								active={sameDraftQueueItem(item, activeItem) || (preGenKbSource?.type === 'draftQueue' && sameDraftQueueItem(preGenKbSource.item, item))}
+								displayed={sameDraftQueueItem(item, activeItem)}
+								selected={Boolean(placementState.armed && placementState.displayedKey === draftQueueKey(item))}
 								onSelect={selectQueueItem}
 								formatFacultyInitials={formatFacultyInitials}
 								gradeBadge={item.gradeLevel ? GRADE_BADGE[item.gradeLevel] : undefined}
@@ -850,7 +499,8 @@ function SimpleDraftQueueRow({
 	context,
 	item,
 	index,
-	active,
+	displayed,
+	selected,
 	onSelect,
 	formatFacultyInitials,
 	gradeBadge,
@@ -859,7 +509,8 @@ function SimpleDraftQueueRow({
 	context: LeftRailContentContext;
 	item: DraftQueueItem;
 	index: number;
-	active: boolean;
+	displayed: boolean;
+	selected: boolean;
 	onSelect: (item: DraftQueueItem) => void;
 	formatFacultyInitials: (id: number) => string;
 	gradeBadge?: string;
@@ -867,7 +518,7 @@ function SimpleDraftQueueRow({
 }) {
 	const { isDesktop } = context;
 	const status = getDraftQueueStatus(item, roomMap);
-	const isCurrent = active || index === 0;
+	const isCurrent = displayed || index === 0;
 	const ownerLabel = item.facultyOptions[0] ? formatFacultyInitials(item.facultyOptions[0]) : 'No owner';
 	const content = (
 		<div className="grid min-h-[72px] grid-cols-[1fr_auto] gap-2 p-2" data-testid={isCurrent ? 'pregen-current-plotting-item' : 'pregen-next-plotting-item'}>
@@ -877,10 +528,11 @@ function SimpleDraftQueueRow({
 				className="h-auto min-w-0 justify-start p-0 text-left hover:bg-transparent"
 				onClick={() => onSelect(item)}
 				aria-label={`${status.actionLabel}: ${item.subjectCode} for ${item.sectionName}, session ${item.sessionNumber}`}
+				aria-pressed={selected}
 			>
 				<div className="min-w-0">
 					<div className="flex min-w-0 items-center gap-1.5">
-						{isCurrent ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">Now</Badge> : null}
+						{isCurrent ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">{selected ? 'Selected' : 'Next'}</Badge> : null}
 								{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>GR{item.gradeLevel}</Badge> : null}
 						<span className="truncate font-semibold text-foreground">{item.sectionName}</span>
 					</div>
@@ -893,15 +545,15 @@ function SimpleDraftQueueRow({
 					{status.key !== 'ready' && (
 						<p className="mt-1 text-[0.65rem] leading-tight text-muted-foreground" data-testid="timetable-row-reason-stack">
 							<span className="font-medium text-foreground/80">First fix:</span> {status.actionLabel}
-							{status.key === 'needs-room' && ' — ATLAS cannot test slots until the room is known.'}
-							{status.key === 'needs-owner' && ' — ATLAS cannot evaluate placement without a teacher owner.'}
+							{status.key === 'needs-room' && ' â€” ATLAS cannot test slots until the room is known.'}
+							{status.key === 'needs-owner' && ' â€” ATLAS cannot evaluate placement without a teacher owner.'}
 						</p>
 					)}
 				</div>
 			</Button>
 			<div className="flex min-w-[7.5rem] flex-col justify-center gap-1">
-				<Button type="button" size="sm" variant={status.key === 'ready' ? 'default' : 'outline'} className="h-8 px-2 text-xs" disabled={status.key === 'blocked'} onClick={() => onSelect(item)}>
-					<span className="truncate">{status.actionLabel}</span>
+				<Button type="button" size="sm" variant={status.key === 'ready' ? 'default' : 'outline'} className="h-11 px-3 text-sm" disabled={status.key === 'blocked'} onClick={() => onSelect(item)} aria-pressed={selected}>
+					<span className="truncate">{selected ? 'Selected' : status.actionLabel}</span>
 				</Button>
 				<p className="truncate text-center text-xs text-muted-foreground">{String(item.preferredRoomType ?? 'room').replace(/_/g, ' ').toLowerCase()}</p>
 			</div>
@@ -910,25 +562,26 @@ function SimpleDraftQueueRow({
 
 	if (!isDesktop) {
 		return (
-			<div role="listitem" className={cn('rounded-xl border bg-background text-xs transition-colors', active ? 'border-primary ring-2 ring-primary/70' : 'border-border hover:border-primary/50')}>
+			<div role="listitem" aria-current={selected ? 'true' : undefined} className={cn('rounded-xl border bg-background text-sm transition-colors', selected ? 'border-primary ring-2 ring-primary/70' : 'border-border hover:border-primary/50')}>
 				{content}
 			</div>
 		);
 	}
 
 	return (
-		<div role="listitem" data-testid="simple-plotting-session-row">
+		<div role="listitem" aria-current={selected ? 'true' : undefined} data-testid="simple-plotting-session-row">
 			<DraggableQueuePin
 				item={item}
 				disabled={false}
 				onClick={() => onSelect(item)}
+				onDragStart={() => onSelect(item)}
 				onKeyDown={(event) => {
 					if (event.key === 'Enter' || event.key === ' ') {
 						event.preventDefault();
 						onSelect(item);
 					}
 				}}
-				className={cn('rounded-xl border bg-background text-xs transition-colors', active ? 'border-primary ring-2 ring-primary/70' : 'border-border hover:border-primary/50')}
+				className={cn('rounded-xl border bg-background text-sm transition-colors', selected ? 'border-primary ring-2 ring-primary/70' : 'border-border hover:border-primary/50')}
 			>
 				{content}
 			</DraggableQueuePin>
@@ -953,11 +606,13 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 		toast,
 		openTacticalSandbox,
 		GRADE_BADGE,
+		focusSection,
 		unassignedReasonFilter,
 		setUnassignedReasonFilter,
 	} = context;
 	const [skippedKeys, setSkippedKeys] = useState<Set<string>>(new Set());
 	const [activeItem, setActiveItem] = useState<UnassignedItem | null>(null);
+	const [placementState, dispatchPlacement] = useReducer(reduceSimplePlacementState, initialSimplePlacementState);
 	const [findOpen, setFindOpen] = useState(false);
 	const [search, setSearch] = useState('');
 
@@ -979,46 +634,46 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 
 	useEffect(() => {
 		if (activeItem && sortedItems.some((item) => sameUnassignedItem(item, activeItem))) return;
-		setActiveItem(sortedItems[0] ?? null);
-	}, [activeItem, sortedItems]);
+		const nextItem = sortedItems[0] ?? null;
+		setActiveItem(nextItem);
+		dispatchPlacement(nextItem ? { type: 'display', key: buildUnassignedKey(nextItem) } : { type: 'reset' });
+	}, [activeItem, buildUnassignedKey, sortedItems]);
 
 	useEffect(() => {
-		if (!activeItem) return;
-		const itemKey = buildUnassignedKey(activeItem);
-		const status = getUnassignedStatus(activeItem, unassignedFixSuggestions[itemKey]);
-		if (status.key !== 'ready' && status.key !== 'needs-room') return;
-		setSelectedEntry(null);
-		setSelectedViolation(null);
-		setSelectedUnassignedForRepair(null);
-		setKbSelectedSource({ type: 'unassigned', item: activeItem });
+		if (!placementState.armed) return;
+		if (context.kbSelectedSource?.type === 'unassigned' && buildUnassignedKey(context.kbSelectedSource.item) === placementState.displayedKey) return;
+		dispatchPlacement({ type: 'display', key: placementState.displayedKey });
 	}, [
-		activeItem,
 		buildUnassignedKey,
-		setKbSelectedSource,
-		setSelectedEntry,
-		setSelectedUnassignedForRepair,
-		setSelectedViolation,
-		unassignedFixSuggestions,
+		context.kbSelectedSource,
+		placementState.armed,
+		placementState.displayedKey,
 	]);
 
 	const selectForPlacement = (item: UnassignedItem) => {
 		const itemKey = buildUnassignedKey(item);
 		const status = getUnassignedStatus(item, unassignedFixSuggestions[itemKey]);
 		setActiveItem(item);
+		focusSection(item.sectionId);
 		setSelectedEntry(null);
 		setSelectedViolation(null);
 		if (status.key === 'needs-owner') {
+			dispatchPlacement({ type: 'display', key: itemKey });
+			setKbSelectedSource(null);
 			setSelectedUnassignedForRepair(item);
 			openTacticalSandbox();
 			toast.info('Teaching Load repair opened. Fix the owner there, then place the session.');
 			return;
 		}
 		if (status.key === 'blocked') {
+			dispatchPlacement({ type: 'display', key: itemKey });
+			setKbSelectedSource(null);
 			setDrawerUnassigned(item);
 			toast.info('This session is blocked. Review the details first.');
 			return;
 		}
 		setSelectedUnassignedForRepair(null);
+		dispatchPlacement({ type: 'arm', key: itemKey, sectionId: item.sectionId });
 		setKbSelectedSource({ type: 'unassigned', item });
 	};
 
@@ -1027,7 +682,9 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 		const itemKey = buildUnassignedKey(activeItem);
 		setSkippedKeys((prev) => new Set(prev).add(itemKey));
 		const nextItem = sortedItems.find((item) => buildUnassignedKey(item) !== itemKey) ?? activeItem;
+		setKbSelectedSource(null);
 		setActiveItem(nextItem);
+		dispatchPlacement({ type: 'skip', nextKey: nextItem ? buildUnassignedKey(nextItem) : null });
 		toast.info('Skipped for now. ATLAS moved it behind the next sessions.');
 	};
 
@@ -1052,6 +709,17 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 		return base.slice(0, 4);
 	}, [activeItem, sortedItems]);
 
+	const nextActionLabel = useMemo(() => {
+		if (sortedItems.length === 0) return 'No unresolved sessions';
+		const first = sortedItems[0];
+		const status = getUnassignedStatus(first, unassignedFixSuggestions[buildUnassignedKey(first)]);
+		const remaining = sortedItems.length;
+		if (status.key === 'ready') return `Place ${remaining} session${remaining === 1 ? '' : 's'} on the grid`;
+		if (status.key === 'needs-room') return `Choose room for ${remaining} session${remaining === 1 ? '' : 's'}`;
+		if (status.key === 'needs-owner') return `Assign teacher for ${remaining} session${remaining === 1 ? '' : 's'}`;
+		return `Review ${remaining} blocked session${remaining === 1 ? '' : 's'}`;
+	}, [sortedItems, unassignedFixSuggestions, buildUnassignedKey]);
+
 	const hasLoadingNames = trayItems.some((item) => {
 		const section = sectionLabel(item.sectionId).toLowerCase();
 		const subject = subjectLabel(item.subjectId).toLowerCase();
@@ -1073,15 +741,13 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 			<div className="shrink-0 border-b border-border/70 px-3 py-2">
 				<div className="flex items-center justify-between gap-2">
 					<div className="min-w-0">
-						<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Plotting queue</p>
-						<p className="truncate text-sm font-semibold text-foreground">
-							{sortedItems.length} session{sortedItems.length === 1 ? '' : 's'} left
+						<p className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Next action</p>
+						<p className="truncate text-sm font-semibold text-foreground" data-testid="simple-plotting-next-action">
+							{nextActionLabel}
 						</p>
-						{hasLoadingNames ? (
-							<p className="text-xs text-muted-foreground">Loading names…</p>
-						) : (
-							<p className="text-xs text-muted-foreground">Current session first. Use Find for the full queue.</p>
-						)}
+						<p className="text-sm text-muted-foreground">
+							{hasLoadingNames ? 'Loading names…' : 'Current session first. Use Find for the full queue.'}
+						</p>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5">
 						<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5 px-2 text-xs" onClick={() => setFindOpen((value) => !value)} data-testid="simple-plotting-find-session">
@@ -1148,7 +814,8 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 								context={context}
 								item={item}
 								index={index}
-								active={sameUnassignedItem(item, activeItem)}
+								displayed={sameUnassignedItem(item, activeItem)}
+								selected={Boolean(placementState.armed && placementState.displayedKey === buildUnassignedKey(item))}
 								onSelect={selectForPlacement}
 							/>
 						</div>
@@ -1168,13 +835,15 @@ function SimpleUnassignedQueueRow({
 	context,
 	item,
 	index,
-	active,
+	displayed,
+	selected,
 	onSelect,
 }: {
 	context: LeftRailContentContext;
 	item: UnassignedItem;
 	index: number;
-	active: boolean;
+	displayed: boolean;
+	selected: boolean;
 	onSelect: (item: UnassignedItem) => void;
 }) {
 	const {
@@ -1191,9 +860,9 @@ function SimpleUnassignedQueueRow({
 	const status = getUnassignedStatus(item, unassignedFixSuggestions[itemKey]);
 	const gradeBadge = item.gradeLevel ? GRADE_BADGE[item.gradeLevel] : undefined;
 	const followUp = followUps.has(itemKey);
-	const isCurrent = active || index === 0;
+	const isCurrent = displayed || index === 0;
 	const actionLabel = status.key === 'ready'
-		? 'Place'
+		? 'Place session'
 		: status.key === 'needs-room'
 			? 'Choose room'
 			: status.key === 'needs-owner'
@@ -1207,26 +876,29 @@ function SimpleUnassignedQueueRow({
 				itemKey={itemKey}
 				item={item}
 				disabled={false}
+				onDragStart={() => onSelect(item)}
 				className={cn(
 					'rounded-xl border bg-background text-xs transition-colors',
-					active ? 'border-primary ring-2 ring-primary/70' : 'border-border hover:border-primary/50',
+					selected ? 'border-primary ring-2 ring-primary/70' : 'border-border hover:border-primary/50',
 				)}
 			>
 				<div
 					className="grid min-h-[72px] grid-cols-[1fr_auto] gap-2 p-2"
 					data-testid={isCurrent ? 'simple-current-session-card' : 'simple-next-session-card'}
 					data-simple-plotting-row="true"
+					aria-current={selected ? 'true' : undefined}
 				>
 					<Button
 						type="button"
 						variant="ghost"
 						className="h-auto min-w-0 justify-start p-0 text-left hover:bg-transparent"
 						onClick={() => onSelect(item)}
+						aria-pressed={selected}
 						aria-label={`${actionLabel}: ${subjectLabel(item.subjectId)} for ${sectionLabel(item.sectionId)}, session ${item.session}`}
 					>
 						<div className="min-w-0">
 							<div className="flex min-w-0 items-center gap-1.5">
-								{isCurrent ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">Now</Badge> : null}
+								{isCurrent ? <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">{selected ? 'Selected' : 'Next'}</Badge> : null}
 								{gradeBadge ? <Badge variant="outline" className={`h-5 shrink-0 px-1.5 text-xs ${gradeBadge}`}>GR{item.gradeLevel}</Badge> : null}
 								<span className="truncate font-semibold text-foreground">{sectionLabel(item.sectionId)}</span>
 							</div>
@@ -1236,16 +908,16 @@ function SimpleUnassignedQueueRow({
 							<p className={cn('mt-1 inline-flex max-w-full rounded-full border px-2 py-0.5 text-xs font-semibold', status.className)}>
 								<span className="truncate">{status.label}</span>
 							</p>
-							{reasonStack && reasonStack.mainIssue !== 'Needs attention' && (
-								<p className="mt-1 text-[0.65rem] leading-tight text-muted-foreground" data-testid="timetable-row-reason-stack">
+							{isCurrent && reasonStack && reasonStack.mainIssue !== 'Needs attention' && (
+								<p className="mt-1 text-xs leading-tight text-muted-foreground" data-testid="timetable-row-reason-stack">
 									<span className="font-medium text-foreground/80">Main issue:</span> {reasonStack.mainIssue} · <span className="font-medium text-foreground/80">First fix:</span> {reasonStack.firstFix}
 								</p>
 							)}
 						</div>
 					</Button>
 					<div className="flex min-w-[7.5rem] flex-col justify-center gap-1">
-						<Button type="button" size="sm" variant={status.key === 'ready' ? 'default' : 'outline'} className="h-8 px-2 text-xs" disabled={status.key === 'blocked'} onClick={() => onSelect(item)}>
-							<span className="truncate">{actionLabel}</span>
+						<Button type="button" size="sm" variant={status.key === 'ready' ? 'default' : 'outline'} className="h-11 px-3 text-sm" disabled={status.key === 'blocked'} onClick={() => onSelect(item)} aria-pressed={selected}>
+							<span className="truncate">{selected ? 'Selected' : actionLabel}</span>
 						</Button>
 						<div className="grid grid-cols-2 gap-1">
 							<Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => setDrawerUnassigned(item)}>

@@ -1,0 +1,47 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+  ✓ Resolved active year: 5
+
+════ Aligned drift skips apply (no DB writes) ════
+  ✓ Tick skips when drift is aligned — expected skipped, got skipped
+  ✓ Active mirror unchanged — expected 5, got 5
+  ✓ Active mirror still active — expected true, got true
+  ✓ Faculty mirror count unchanged — expected 23, got 23
+
+════ Unreachable upstream advances backoff ════
+  ✓ Tick returns unreachable — expected unreachable, got unreachable
+  ✓ consecutiveFailures incremented (got 1)
+  ✓ nextAttemptAt is in the future
+
+════ A realistic unmarked section collision stays manual ════
+  ✓ Fake EnrollPro collision produces mapping-conflict — expected mapping-conflict, got mapping-conflict
+  ✓ Preview contains SECTION_ID_COLLISION
+  ✓ Unmarked collision requires manual review — expected conflict, got conflict
+  ✓ Automation records a conflict state — expected conflict, got conflict
+  ✓ Manual collision handling does not alter section mirrors — expected 20, got 20
+  ✓ Marked mapping-conflict enters the auto-recovery path in test mode — expected applied, got applied
+  ✓ Marked mapping-conflict invokes recovery exactly once — expected 1, got 1
+
+════ getAutomationStatus returns enabled and school states ════
+  ✓ enabled is boolean
+  ✓ schools is array
+
+════ Test-mode recovery safety predicate ════
+  ✓ Unmarked collision cannot auto-clear — expected false, got false
+  ✓ Marked mapping-conflict collision can auto-clear in test mode — expected true, got true
+  ✓ Published artifacts prevent auto-clear — expected false, got false
+  ✓ Disabled test mode prevents auto-clear — expected false, got false
+
+════ withSchoolLock prevents concurrent execution for same school ════
+  ✓ Only one concurrent execution per school — expected 1, got 1
+
+════ Automation never calls dummy-year reset path ════
+  ✓ Tick skips (aligned drift, no apply triggered) — expected skipped, got skipped
+  ✓ No new DUMMY_YEAR_RESET audit entries — expected 3, got 3
+
+════ Live-state invariants after all tests ════
+  ✓ Active mirror exists
+  ✓ Active mirror year matches EnrollPro (5) — expected 5, got 5
+  ✓ At least 1 active faculty mirror (got 23)
+  ✓ No fake-year section mirror artifacts remain — expected 0, got 0
+
+Rollover automation test complete: 28 passed, 0 failed.

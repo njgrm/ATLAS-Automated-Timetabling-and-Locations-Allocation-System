@@ -1,0 +1,11 @@
+{
+  "activeSchoolYearId": 2,
+  "draftBoardAvailable": true,
+  "draftBoardCounts": {
+    "draft": 0,
+    "lockedForRun": 5,
+    "archived": 0,
+    "unscheduled": 1313
+  },
+  "fixtureClassification": "fixture-unavailable"
+}

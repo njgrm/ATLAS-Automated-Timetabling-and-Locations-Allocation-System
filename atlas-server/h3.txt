@@ -1,0 +1,83 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ Rollover preview contract ════
+  ✓ EnrollPro active school year is reachable
+  ✓ EnrollPro active year label is readable (got "2026-2027")
+  ✓ Rollover drift is aligned
+  ✓ EnrollPro section feed reports >= 1 section (got 20) — expected >= 1, got 20
+  ✓ EnrollPro faculty feed reports >= 1 faculty (got 23) — expected >= 1, got 23
+  ✓ Rollover preview performs no local writes — expected {"sectionMirrors":20,"facultyMirrors":23,"generationRuns":3,"schedulingPolicies":1,"facultySubjects":77,"ownerships":530,"auditLogs":8,"mirrors":1,"teachingLoadSuggestions":19}, got {"sectionMirrors":20,"facultyMirrors":23,"generationRuns":3,"schedulingPolicies":1,"facultySubjects":77,"ownerships":530,"auditLogs":8,"mirrors":1,"teachingLoadSuggestions":19}
+
+════ EnrollPro field-level drift contract ════
+  ✓ EnrollPro school-year feed exposes a positive numeric id
+  ✓ EnrollPro school-year feed exposes a readable year label
+  ✓ EnrollPro section feed exposes row data for field drift checks — expected >= 1, got 3
+  ✓ EnrollPro section row exposes a positive section id
+  ✓ EnrollPro section row exposes a section name
+  ✓ EnrollPro section row exposes a program type
+  ✓ EnrollPro section row exposes grade identity
+  ✓ EnrollPro section row exposes capacity or enrollment count
+  ✓ EnrollPro section row adviser exposes teacher id when adviser is present
+  ✓ EnrollPro section row adviser exposes a readable name when adviser is present
+  ✓ EnrollPro faculty feed exposes row data for field drift checks — expected >= 1, got 23
+  ✓ EnrollPro faculty row exposes a positive faculty id
+  ✓ EnrollPro faculty row exposes a readable faculty name
+  ✓ EnrollPro faculty row exposes active scheduling status
+  ✓ EnrollPro faculty row exposes department or specialization fields
+  SKIP EnrollPro /settings/public unreachable or auth-gated — settings field checks skipped
+  ✓ Optional subject-offerings probe is classified without blocking ATLAS — got HTTP 404
+
+════ Current-year mirror and empty Teaching Load contract ════
+  ✓ ATLAS mirrors all 20 current-year sections reported by EnrollPro — expected 20, got 20
+  ✓ ATLAS has at least 1 active faculty mirror (feed reports 23, mirror has 23) — expected >= 1, got 23
+  ✓ ATLAS has a current-year scheduling policy baseline — expected >= 1, got 1
+  ✓ ATLAS has a valid generation run count for the active year — expected >= 0, got 3
+  ✓ Teaching Load already has 530 ownership rows — skipping empty-state assertion
+
+════ Reset and generation guards ════
+  ✓ Dummy reset apply requires the exact confirmation phrase — expected CONFIRMATION_REQUIRED, got CONFIRMATION_REQUIRED
+  ✓ Stale-year generation is blocked by EnrollPro active-year drift — expected ACTIVE_YEAR_DRIFT, got ACTIVE_YEAR_DRIFT
+  ✓ Teaching Load has 530 ownership rows — TEACHING_LOAD_REVIEW_REQUIRED guard condition not met; skipping guard assertion
+
+════ Simulated EnrollPro next-year rollover ════
+  ✓ Simulated EnrollPro rollover exposes next canonical schoolYearId=999999 — expected 999999, got 999999
+  ✓ Simulated EnrollPro rollover exposes readable 2099-2100 label — expected 2099-2100, got 2099-2100
+  ✓ ATLAS reports atlas-stale when EnrollPro has rolled to the next year — expected atlas-stale, got atlas-stale
+  ✓ Next-year drift recommends rollover sync — expected RUN_ROLLOVER_SYNC, got RUN_ROLLOVER_SYNC
+  ✓ Simulated next-year section feed is counted from live-shaped EnrollPro data — expected 1, got 1
+  ✓ Simulated next-year faculty feed is counted from live-shaped EnrollPro data — expected 1, got 1
+  ✓ Simulated next-year rollover preview performs no local writes — expected {"sectionMirrors":0,"facultyMirrors":23,"generationRuns":0,"schedulingPolicies":0,"facultySubjects":77,"ownerships":530,"auditLogs":0,"mirrors":0,"teachingLoadSuggestions":0}, got {"sectionMirrors":0,"facultyMirrors":23,"generationRuns":0,"schedulingPolicies":0,"facultySubjects":77,"ownerships":530,"auditLogs":0,"mirrors":0,"teachingLoadSuggestions":0}
+  ✓ Generation against the old active year is blocked after simulated EnrollPro rollover — expected ACTIVE_YEAR_DRIFT, got ACTIVE_YEAR_DRIFT
+
+════ Reversible setup-to-generation fixture ════
+  ✓ Precondition: 23 active faculty mirrors available for fixture
+  ✓ Teaching Load suggestion proposal cancel marks unused proposals cancelled — expected CANCELLED, got CANCELLED
+  ✓ Teaching Load suggestion proposal cancel performs no FacultySubject writes — expected 77, got 77
+  ✓ Teaching Load suggestion proposal cancel performs no ownership writes — expected 530, got 530
+  ✓ Teaching Load suggestion proposal preview performs no FacultySubject writes — expected 77, got 77
+  ✓ Teaching Load suggestion proposal preview performs no ownership writes — expected 530, got 530
+  ✓ Teaching Load suggestion proposal is saved for officer review before apply — expected PENDING, got PENDING
+  ✓ Teaching Load suggestion proposal records suggested assignment count — expected >= 0, got 249
+  ✓ Teaching Load suggestion proposal apply marks the proposal applied — expected APPLIED, got APPLIED
+  ✓ Fixture created 249 ownership rows
+[generation][run=496] pre-gen consume: accepted=0, skipped=0, lockedEntries=0
+[hybrid-scheduler] profile=GRADE_ASC_SUBJECT_ASC assigned=765 unassigned=160 policyBlocked=0 score=68500
+[hybrid-scheduler] profile=MOST_CONSTRAINED_FIRST assigned=790 unassigned=135 policyBlocked=0 score=72250
+[hybrid-scheduler] profile=GRADE_DESC_SUBJECT_ASC assigned=768 unassigned=157 policyBlocked=0 score=68950
+[hybrid-scheduler] profile=SESSION_PATTERN_PRIORITY assigned=768 unassigned=157 policyBlocked=0 score=68950
+[hybrid-scheduler] profile=PACKED_BLOCK_PRIORITY assigned=772 unassigned=153 policyBlocked=0 score=69550
+[hybrid-scheduler] profile=LOAD_DENSITY_SLOT_PRIORITY assigned=779 unassigned=146 policyBlocked=0 score=70600
+[hybrid-scheduler] Selected profile=MOST_CONSTRAINED_FIRST (assigned=790 unassigned=135 policyBlocked=0)
+[generation][run=496] constructor: assigned=790, unassigned=135, policyBlocked=0, entries=790, hybrid=true, selectedProfile=MOST_CONSTRAINED_FIRST
+[generation][run=496] top unassigned reasons: {
+  NO_QUALIFIED_FACULTY: 40,
+  FACULTY_OVERLOADED: 90,
+  NO_COMPATIBLE_ROOM: 5
+}
+  ✓ Current-year generation succeeds after normalized Teaching Load fixture — expected COMPLETED, got COMPLETED
+  ✓ Generated current-year timetable contains entries — expected >= 1, got 790
+  ✓ Generation fixture cleanup restores current-year run count — expected 3, got 3
+  ✓ Generation fixture cleanup restores current-year audit log count — expected 8, got 8
+  ✓ Generation fixture cleanup restores Teaching Load suggestion proposal count — expected 19, got 19
+
+EnrollPro rollover readiness test complete: 53 passed, 0 failed.

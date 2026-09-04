@@ -1,0 +1,9 @@
+{
+  "reason": "More menu still visible after Status key dialog opened (CSS animation)",
+  "rootOverflow": {
+    "scrollWidth": 1366,
+    "clientWidth": 1366,
+    "hasHorizontalOverflow": false
+  },
+  "statusDialogOpened": true
+}

@@ -8,7 +8,7 @@ import type {
 	TeachingLoadIntegrityDiagnostics,
 } from '@/types';
 
-const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v3';
+const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v4';
 const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
 const SECTION_SUMMARY_CACHE_PREFIX = 'atlas:section-summary:v1';
 const SECTION_HOME_ROOMS_CACHE_PREFIX = 'atlas:section-home-rooms:v1';

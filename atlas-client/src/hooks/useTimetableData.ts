@@ -228,6 +228,7 @@ type UseTimetableDataInput = {
 	setFollowUps: React.Dispatch<React.SetStateAction<Set<string>>>;
 	entityFilter: string;
 	setEntityFilter: React.Dispatch<React.SetStateAction<string>>;
+	sectionFocusId: number | null;
 	viewMode: 'section' | 'faculty' | 'room';
 	setViewMode: React.Dispatch<React.SetStateAction<'section' | 'faculty' | 'room'>>;
 	programFilter: ProgramFilter;
@@ -375,6 +376,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		setFollowUps,
 		entityFilter,
 		setEntityFilter,
+		sectionFocusId,
 		viewMode,
 		setViewMode,
 		programFilter,
@@ -913,7 +915,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				const room = roomMap.get(id);
 				if (!room) return `Room #${id}`;
 				const building = room.buildingShortCode || room.buildingName;
-				return building ? `${room.name} Â· ${building}` : room.name;
+				return building ? `${room.name} · ${building}` : room.name;
 			},
 			subjectName: (id) => subjectMap.get(id)?.name ?? `Subject #${id}`,
 		},
@@ -1013,7 +1015,12 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				for (const id of sectionMap.keys()) ids.add(id);
 				return Array.from(ids).sort((a, b) => a - b);
 			}
-			return sectionIds;
+			const ids = new Set<number>(sectionIds);
+			// Keep sections with unresolved sessions selectable so queue selection can
+			// move the grid to the section that needs attention.
+			for (const item of programKindFilteredUnassignedItems) ids.add(item.sectionId);
+			if (sectionFocusId != null) ids.add(sectionFocusId);
+			return Array.from(ids).sort((a, b) => a - b);
 		}
 		if (viewMode === 'faculty') {
 			const ids = new Set<number>();
@@ -1035,7 +1042,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			if (bldgA !== bldgB) return bldgA.localeCompare(bldgB);
 			return ra.name.localeCompare(rb.name);
 		});
-	}, [filteredDraftEntries, viewMode, sectionIds, sectionMap, roomMap, centerView, facultyMap]);
+	}, [filteredDraftEntries, facultyMap, programKindFilteredUnassignedItems, roomMap, sectionFocusId, sectionIds, sectionMap, viewMode, centerView]);
 	const pivotEntityIds = useStablePrimitiveArray(rawPivotEntityIds);
 
 	const gridEntries = useMemo(() => {
@@ -1082,10 +1089,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	useEffect(() => {
 		if (pivotEntityIds.length > 0) {
+			if (viewMode === 'section' && sectionFocusId != null && pivotEntityIds.includes(sectionFocusId)) {
+				if (entityFilter !== String(sectionFocusId)) setEntityFilter(String(sectionFocusId));
+				return;
+			}
 			const currentValid = entityFilter && entityFilter !== 'all' && pivotEntityIds.includes(Number(entityFilter));
 			if (!currentValid) setEntityFilter(String(pivotEntityIds[0]));
 		}
-	}, [pivotEntityIds, entityFilter, setEntityFilter]);
+	}, [entityFilter, pivotEntityIds, sectionFocusId, setEntityFilter, viewMode]);
 
 	const fetchSchoolYear = useCallback(async () => {
 		const context = await resolveActiveSchoolYearContext({

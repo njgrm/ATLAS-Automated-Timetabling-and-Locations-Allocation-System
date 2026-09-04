@@ -79,8 +79,15 @@ export function publishNotificationEvent(
 		buffer.splice(0, buffer.length - MAX_BUFFER);
 	}
 	for (const subscriber of subscribers) {
-		if (canReceive(subscriber, resolved)) {
+		if (!canReceive(subscriber, resolved)) {
+			continue;
+		}
+		try {
 			subscriber.send(resolved);
+		} catch {
+			// RR-08: a dead SSE subscriber must never crash the publish path
+			// (or the process). Drop it so it stops receiving.
+			subscribers.delete(subscriber);
 		}
 	}
 	return resolved;

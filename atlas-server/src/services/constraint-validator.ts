@@ -9,6 +9,10 @@
 
 import type { RoomType } from '@prisma/client';
 import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
+import {
+	expandEffectiveScheduledResources,
+	findEffectiveFacultyOverlaps,
+} from './effective-scheduled-resources.js';
 
 // ─── Violation codes ───
 
@@ -250,30 +254,28 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		ctx.facultySubjects.flatMap((fs) => fs.sectionIds.map((sectionId) => `${fs.facultyId}:${fs.subjectId}:${sectionId}`)),
 	);
 
-	// ── 1) Faculty time conflict ──
-	const byFacultyDay = new Map<string, ScheduledEntry[]>();
-	for (const e of ctx.entries) {
-		if (e.facultyId == null) continue;
-		const key = `${e.facultyId}:${e.day}`;
-		const arr = byFacultyDay.get(key);
-		if (arr) arr.push(e);
-		else byFacultyDay.set(key, [e]);
-	}
-
-	for (const [, dayEntries] of byFacultyDay) {
-		for (let i = 0; i < dayEntries.length; i++) {
-			for (let j = i + 1; j < dayEntries.length; j++) {
-				const a = dayEntries[i];
-				const b = dayEntries[j];
-				if (timesOverlap(a, b) && !isSameCohortGroup(a, b)) {
-					violations.push({
-						...base,
-						code: 'FACULTY_TIME_CONFLICT',
-						message: `Faculty ${a.facultyId} has overlapping assignments on ${a.day}: ${a.startTime}-${a.endTime} vs ${b.startTime}-${b.endTime}.`,
-						entities: { facultyId: a.facultyId ?? undefined, day: a.day, startTime: a.startTime, endTime: b.endTime, entryIds: [a.entryId, b.entryId] },
-					});
-				}
-			}
+	// ── 1) Faculty time conflict (canonical effective-resource view) ──
+	// Prompt 01 (Dynamic Timetable Recovery): modular compact entries carry their
+	// real teachers in metadata.modularAssignments; the top-level facultyId is
+	// null. Validating only entry.facultyId hid real teacher double-bookings
+	// (run 633's hidden-overlap class). Expand every entry into per-teacher,
+	// per-term effective reservations and detect overlaps with term-scope
+	// semantics: same teacher + same day + overlapping intervals + overlapping
+	// terms (term 0 = year-round overlaps all; distinct terms rotate).
+	{
+		const effectiveReservations = expandEffectiveScheduledResources(ctx.entries);
+		const effectiveOverlaps = findEffectiveFacultyOverlaps(effectiveReservations);
+		for (const { a, b } of effectiveOverlaps) {
+			if (isSameCohortGroup(
+				ctx.entries.find((e) => e.entryId === a.entryId) as ScheduledEntry,
+				ctx.entries.find((e) => e.entryId === b.entryId) as ScheduledEntry,
+			)) continue;
+			violations.push({
+				...base,
+				code: 'FACULTY_TIME_CONFLICT',
+				message: `Faculty ${a.facultyId} has overlapping assignments on ${a.day}: ${a.startTime}-${a.endTime} vs ${b.startTime}-${b.endTime}${a.termIndex !== b.termIndex && a.termIndex !== 0 && b.termIndex !== 0 ? '' : ` (term scope: ${a.termIndex} vs ${b.termIndex})`}.`,
+				entities: { facultyId: a.facultyId, day: a.day, startTime: a.startTime, endTime: b.endTime, entryIds: [a.entryId, b.entryId] },
+			});
 		}
 	}
 
@@ -340,25 +342,42 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 	}
 
-	// ── 4) Faculty load over max ──
-	const minutesByFaculty = new Map<number, number>();
-	for (const e of ctx.entries) {
-		if (e.facultyId == null) continue;
-		minutesByFaculty.set(e.facultyId, (minutesByFaculty.get(e.facultyId) ?? 0) + e.durationMinutes);
-	}
+	// ── 4) Faculty load over max (canonical effective-resource view, term-aware) ──
+	// Product contract (TL-02 + Prompt 01): the weekly cap bounds a teacher's
+	// CONCURRENT weekly load — what they teach in any single week of a term.
+	// Modular reservations rotate across terms, so a teacher's concurrent load is
+	// the per-term sum of their reservations in that term; the cap applies to the
+	// WORST term. Direct (year-round) reservations count in every term.
+	{
+		const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+		// facultyId -> termIndex -> minutes (term 0 = year-round direct)
+		const minutesByFacultyTerm = new Map<number, Map<number, number>>();
+		const effectiveReservations = expandEffectiveScheduledResources(ctx.entries);
+		for (const r of effectiveReservations) {
+			const dur = toMin(r.endTime) - toMin(r.startTime);
+			const terms = minutesByFacultyTerm.get(r.facultyId) ?? new Map<number, number>();
+			terms.set(r.termIndex, (terms.get(r.termIndex) ?? 0) + dur);
+			minutesByFacultyTerm.set(r.facultyId, terms);
+		}
 
-	for (const [facultyId, totalMinutes] of minutesByFaculty) {
-		const fac = facultyMap.get(facultyId);
-		if (!fac) continue;
-		const maxMinutes = fac.maxHoursPerWeek * 60;
-		if (totalMinutes > maxMinutes) {
-			violations.push({
-				...base,
-				code: 'FACULTY_OVERLOAD',
-				message: `Faculty ${facultyId} assigned ${totalMinutes} min/week, exceeds max ${maxMinutes} min (${fac.maxHoursPerWeek} h).`,
-				entities: { facultyId },
-				meta: { totalMinutes, maxMinutes, maxHoursPerWeek: fac.maxHoursPerWeek },
-			});
+		for (const [facultyId, terms] of minutesByFacultyTerm) {
+			const fac = facultyMap.get(facultyId);
+			if (!fac) continue;
+			const maxMinutes = fac.maxHoursPerWeek * 60;
+			// Concurrent weekly load = direct (term 0) + the worst rotation term.
+			const direct = terms.get(0) ?? 0;
+			let worstTerm = 0;
+			for (const [term, mins] of terms) if (term !== 0 && mins > worstTerm) worstTerm = mins;
+			const concurrentMinutes = direct + worstTerm;
+			if (concurrentMinutes > maxMinutes) {
+				violations.push({
+					...base,
+					code: 'FACULTY_OVERLOAD',
+					message: `Faculty ${facultyId} concurrently assigned ${concurrentMinutes} min/week (term-peak), exceeds max ${maxMinutes} min (${fac.maxHoursPerWeek} h).`,
+					entities: { facultyId },
+					meta: { totalMinutes: concurrentMinutes, maxMinutes, maxHoursPerWeek: fac.maxHoursPerWeek, directMinutes: direct, worstTermMinutes: worstTerm },
+				});
+			}
 		}
 	}
 

@@ -9,7 +9,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
-import { resolveClassProgramSlots, normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
 
 // ─── Types ───
 
@@ -127,10 +127,7 @@ export async function generateClassProgramMatrix(
 	const actualGrade = normalizeGradeLevelSync(gradeLevel);
 	const warnings: string[] = [];
 
-	// 1. Load canonical time rows
-	const canonicalSlots = await resolveClassProgramSlots(schoolId, schoolYearId, actualGrade);
-
-	// 2. Load all active sections for this grade
+	// 1. Load all active sections for this grade
 	const sections = await prisma.sectionMirror.findMany({
 		where: {
 			schoolId,
@@ -147,6 +144,14 @@ export async function generateClassProgramMatrix(
 		},
 		orderBy: { name: 'asc' },
 	});
+
+	// 2. Resolve the union of exact program templates represented in this grade.
+	const canonicalSlots = await resolveCanonicalSlotsForPrograms(
+		schoolId,
+		schoolYearId,
+		actualGrade,
+		['REGULAR', ...sections.map((section) => section.programType as any)],
+	);
 
 	if (sections.length === 0) {
 		warnings.push(`No active sections found for Grade ${actualGrade}`);

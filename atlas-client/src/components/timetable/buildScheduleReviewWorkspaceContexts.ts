@@ -42,6 +42,8 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	setViewMode: (value: 'section' | 'faculty' | 'room') => void;
 	entityFilter: string;
 	setEntityFilter: (value: string) => void;
+	focusSection: (sectionId: number) => void;
+	sectionFocusId: number | null;
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
 	violations: Violation[];

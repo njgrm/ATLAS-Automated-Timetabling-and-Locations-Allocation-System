@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "feedbackVisible": true,
+  "blockedCommitRequests": [
+    "POST /api/v1/generation/1/2/runs/427/manual-edits/commit"
+  ],
+  "mutationSafety": "All non-preview generation writes were intercepted and aborted."
+}

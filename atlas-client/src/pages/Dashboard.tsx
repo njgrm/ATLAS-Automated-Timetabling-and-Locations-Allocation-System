@@ -23,6 +23,7 @@ import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard'
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
 
 const CampusReadinessCard = lazy(() => import('@/components/dashboard/CampusReadinessCard').then((module) => ({ default: module.CampusReadinessCard })));
+const DashboardCharts = lazy(() => import('@/components/dashboard/DashboardCharts').then((module) => ({ default: module.DashboardCharts })));
 
 type StatTone = 'brand' | 'sky' | 'violet' | 'amber';
 
@@ -78,14 +79,6 @@ const SOURCE_CHIP_COPY: Record<string, string> = {
 	using_saved_data: 'Saved source data',
 	no_saved_data: 'No source data',
 	partial_degraded: 'Partial source',
-};
-
-const SOURCE_CHIP_CLASS: Record<string, string> = {
-	verified_live: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
-	checking_source: 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100',
-	using_saved_data: 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100',
-	no_saved_data: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
-	partial_degraded: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
 };
 
 type NextStep = {
@@ -246,6 +239,7 @@ export default function Dashboard() {
 		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
 		activeTermUnassignedCount, activeTermHardViolationCount,
 		latestRunStatus, violationCount,
+		assignedCount, unassignedCount, hardViolationCount,
 		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard,
 	} = useDashboardData();
 
@@ -282,138 +276,146 @@ export default function Dashboard() {
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
 			<div className='flex-1 min-h-0 overflow-auto scrollbar-thin'>
-				<div className='max-w-[1440px] mx-auto w-full flex flex-col space-y-6 px-4 py-4 lg:px-8 lg:py-8 animate-fade-in'>
 
-					{/* Header */}
-					<div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
-						<div>
-							<div className='flex flex-wrap items-center gap-2'>
-								<h1 className='text-3xl font-bold text-gray-900'>Scheduling Dashboard</h1>
-								{rolloverAligned && rolloverStatus ? (
-									<Popover>
-										<PopoverTrigger asChild>
-											<Badge variant='outline' className='h-7 cursor-help gap-1.5 rounded-full border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 shadow-none' data-testid='dashboard-year-status-chip'>
-												<CheckCircle2 className='w-3.5 h-3.5' />
-												Year aligned
-											</Badge>
-										</PopoverTrigger>
-										<PopoverContent align='end' className='w-72 rounded-xl p-3 text-sm'>
-											<p className='text-xs font-bold uppercase tracking-wide text-muted-foreground'>School year status</p>
-											<p className='mt-1 font-semibold text-slate-900'>{rolloverStatus.drift.message}</p>
-											{rolloverStatus.enrollProActiveYear?.yearLabel ? (
-												<p className='mt-1 text-xs leading-relaxed text-slate-500'>EnrollPro {rolloverStatus.enrollProActiveYear.yearLabel} is the active school year.</p>
-											) : null}
-										</PopoverContent>
-									</Popover>
-								) : null}
-							</div>
-							<p className='mt-1 text-sm text-muted-foreground'>Build, review, and publish the school timetable.</p>
+				{/* Main content */}
+				<div className='max-w-[1440px] mx-auto w-full flex flex-col space-y-6 px-4 py-6 lg:px-8 lg:py-8 animate-fade-in'>
+
+					{/* Hero card - disconnected rounded card */}
+					<div className='relative rounded-2xl overflow-hidden bg-[linear-gradient(145deg,hsl(var(--primary)),hsl(var(--primary)/0.8))] text-primary-foreground'>
+						<div className='absolute inset-0 pointer-events-none aria-hidden'>
+							<div className='absolute top-10 right-10 h-32 w-32 rounded-full bg-white opacity-10 blur-3xl' />
+							<div className='absolute bottom-8 left-8 h-28 w-28 rounded-full bg-white opacity-10 blur-3xl' />
 						</div>
-						<div className='flex flex-wrap items-center gap-1.5'>
-							{activeTerm?.activeTerm && (
-								<Popover>
-									<PopoverTrigger asChild>
-										<Badge
-											className='border-primary/20 bg-primary/5 text-primary font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer'
-											data-testid='dashboard-active-term'
-										>
-											Active Term: {activeTerm.activeTerm}
-										</Badge>
-									</PopoverTrigger>
-									<PopoverContent align='end' className='w-72 rounded-xl p-4'>
-										<h3 className='text-sm font-bold text-foreground'>Current Term Readiness</h3>
-										<p className='mt-1 text-xs text-muted-foreground'>Term {activeTerm.activeTerm} status from the latest generation run.</p>
-										<div className='mt-3 space-y-2'>
-											<div className='flex items-center justify-between text-xs'>
-												<span className='text-muted-foreground'>Published schedule</span>
-												{activeTermPublished === null ? (
-													<span className='text-muted-foreground'>Checking...</span>
-												) : activeTermPublished ? (
-													<span className='text-emerald-600 font-semibold'>Available</span>
-												) : (
-													<span className='text-amber-600 font-semibold'>Not published</span>
-												)}
-											</div>
-											{activeTermHardViolationCount !== null && activeTermHardViolationCount > 0 && (
-												<div className='flex items-center justify-between text-xs'>
-													<span className='text-muted-foreground'>Hard violations</span>
-													<span className='text-rose-600 font-semibold'>{activeTermHardViolationCount}</span>
-												</div>
-											)}
-											{activeTermUnassignedCount !== null && (
-												<div className='flex items-center justify-between text-xs'>
-													<span className='text-muted-foreground'>Unassigned sessions</span>
-													{activeTermUnassignedCount > 0 ? (
-														<span className='text-amber-600 font-semibold'>{activeTermUnassignedCount}</span>
-													) : (
-														<span className='text-emerald-600 font-semibold'>None</span>
-													)}
-												</div>
-											)}
-										</div>
-									</PopoverContent>
-								</Popover>
-							)}
-							{/* Source state chip with popover */}
-							<Popover>
-								<PopoverTrigger asChild>
-									<Badge
-										className={`${SOURCE_CHIP_CLASS[readinessSourceState]} font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer`}
-										data-testid='dashboard-source-health-panel'
-										data-source-decision={readinessSourceState}
-									>
-										{readinessSourceState === 'partial_degraded' ? (
-											<AlertTriangle className='w-3.5 h-3.5' />
-										) : readinessSourceState === 'checking_source' ? (
-											<RefreshCw className='w-3.5 h-3.5 animate-spin' />
-										) : (
-											<CheckCircle2 className='w-3.5 h-3.5' />
+						<div className='relative px-6 py-6 lg:px-8 lg:py-8'>
+							<div className='flex flex-col sm:flex-row sm:items-start justify-between gap-4'>
+								<div className='min-w-0'>
+									<h1 className='text-2xl font-bold tracking-tight'>Scheduling Dashboard</h1>
+									<p className='mt-1 text-sm text-white/80'>Build, review, and publish the school timetable.</p>
+									<div className='flex flex-wrap items-center gap-2 mt-3'>
+										{rolloverAligned && rolloverStatus ? (
+											<Popover>
+												<PopoverTrigger asChild>
+													<Badge variant='outline' className='h-7 cursor-help gap-1.5 rounded-full border-white/20 bg-white/20 px-2.5 text-xs font-semibold text-white shadow-none hover:bg-white/30' data-testid='dashboard-year-status-chip'>
+														<CheckCircle2 className='w-3.5 h-3.5' />
+														Year aligned
+													</Badge>
+												</PopoverTrigger>
+												<PopoverContent align='end' className='w-72 rounded-xl p-3 text-sm'>
+													<p className='text-xs font-bold uppercase tracking-wide text-muted-foreground'>School year status</p>
+													<p className='mt-1 font-semibold text-slate-900'>{rolloverStatus.drift.message}</p>
+													{rolloverStatus.enrollProActiveYear?.yearLabel ? (
+														<p className='mt-1 text-xs leading-relaxed text-slate-500'>EnrollPro {rolloverStatus.enrollProActiveYear.yearLabel} is the active school year.</p>
+													) : null}
+												</PopoverContent>
+											</Popover>
+										) : null}
+										{activeTerm?.activeTerm && (
+											<Popover>
+												<PopoverTrigger asChild>
+													<Badge
+														className='border-white/20 bg-white/20 text-white font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer hover:bg-white/30'
+														data-testid='dashboard-active-term'
+													>
+														Active Term: {activeTerm.activeTerm}
+													</Badge>
+												</PopoverTrigger>
+												<PopoverContent align='end' className='w-72 rounded-xl p-4'>
+													<h3 className='text-sm font-bold text-foreground'>Current Term Readiness</h3>
+													<p className='mt-1 text-xs text-muted-foreground'>Term {activeTerm.activeTerm} status from the latest generation run.</p>
+													<div className='mt-3 space-y-2'>
+														<div className='flex items-center justify-between text-xs'>
+															<span className='text-muted-foreground'>Published schedule</span>
+															{activeTermPublished === null ? (
+																<span className='text-muted-foreground'>Checking...</span>
+															) : activeTermPublished ? (
+																<span className='text-emerald-600 font-semibold'>Available</span>
+															) : (
+																<span className='text-amber-600 font-semibold'>Not published</span>
+															)}
+														</div>
+														{activeTermHardViolationCount !== null && activeTermHardViolationCount > 0 && (
+															<div className='flex items-center justify-between text-xs'>
+																<span className='text-muted-foreground'>Hard violations</span>
+																<span className='text-rose-600 font-semibold'>{activeTermHardViolationCount}</span>
+															</div>
+														)}
+														{activeTermUnassignedCount !== null && (
+															<div className='flex items-center justify-between text-xs'>
+																<span className='text-muted-foreground'>Unassigned sessions</span>
+																{activeTermUnassignedCount > 0 ? (
+																	<span className='text-amber-600 font-semibold'>{activeTermUnassignedCount}</span>
+																) : (
+																	<span className='text-emerald-600 font-semibold'>None</span>
+																)}
+															</div>
+														)}
+													</div>
+												</PopoverContent>
+											</Popover>
 										)}
-										{SOURCE_CHIP_COPY[readinessSourceState]}
-									</Badge>
-								</PopoverTrigger>
-								<PopoverContent align='end' className='w-80 rounded-xl p-4'>
-									<div className='flex items-start gap-3'>
-										<div className={`shrink-0 rounded-lg p-2 ${sourceDecisionStyle.icon}`}>
-											<SourceDecisionIcon className='h-4 w-4' />
-										</div>
-										<div className='min-w-0'>
-											<h3 className='text-sm font-bold text-slate-900'>{sourceDecision.title}</h3>
-											<p data-testid='dashboard-source-decision' className='mt-1 text-sm text-slate-600'>{sourceDecision.sentence}</p>
-											<p className='mt-1 text-xs text-muted-foreground leading-relaxed'>{sourceDecision.helper}</p>
-										</div>
+										<Popover>
+											<PopoverTrigger asChild>
+												<Badge
+													className='border-white/20 bg-white/20 text-white font-semibold gap-1.5 px-2.5 py-1.5 rounded-full cursor-pointer hover:bg-white/30'
+													data-testid='dashboard-source-health-panel'
+													data-source-decision={readinessSourceState}
+												>
+													{readinessSourceState === 'partial_degraded' ? (
+														<AlertTriangle className='w-3.5 h-3.5' />
+													) : readinessSourceState === 'checking_source' ? (
+														<RefreshCw className='w-3.5 h-3.5 animate-spin' />
+													) : (
+														<CheckCircle2 className='w-3.5 h-3.5' />
+													)}
+													{SOURCE_CHIP_COPY[readinessSourceState]}
+												</Badge>
+											</PopoverTrigger>
+											<PopoverContent align='end' className='w-80 rounded-xl p-4'>
+												<div className='flex items-start gap-3'>
+													<div className={`shrink-0 rounded-lg p-2 ${sourceDecisionStyle.icon}`}>
+														<SourceDecisionIcon className='h-4 w-4' />
+													</div>
+													<div className='min-w-0'>
+														<h3 className='text-sm font-bold text-slate-900'>{sourceDecision.title}</h3>
+														<p data-testid='dashboard-source-decision' className='mt-1 text-sm text-slate-600'>{sourceDecision.sentence}</p>
+														<p className='mt-1 text-xs text-muted-foreground leading-relaxed'>{sourceDecision.helper}</p>
+													</div>
+												</div>
+												<div className='mt-3 flex flex-wrap gap-1.5' aria-label='Setup repair links'>
+													{SOURCE_REPAIR_LINKS.map((link) => (
+														<Link key={link.href} to={link.href} data-source-repair-link={link.label.toLowerCase().replace(/\s+/g, '-')}>
+															<Button type='button' variant='outline' size='sm' className='h-8 rounded-lg px-2.5 text-xs font-semibold'>{link.label}</Button>
+														</Link>
+													))}
+												</div>
+											</PopoverContent>
+										</Popover>
 									</div>
-									<div className='mt-3 flex flex-wrap gap-1.5' aria-label='Setup repair links'>
-										{SOURCE_REPAIR_LINKS.map((link) => (
-											<Link key={link.href} to={link.href} data-source-repair-link={link.label.toLowerCase().replace(/\s+/g, '-')}>
-												<Button type='button' variant='outline' size='sm' className='h-8 rounded-lg px-2.5 text-xs font-semibold'>{link.label}</Button>
-											</Link>
-										))}
-									</div>
-								</PopoverContent>
-							</Popover>
-
-							<Button type='button' variant='outline' size='sm' className='h-9 rounded-xl bg-white gap-2 px-3 text-xs' onClick={refreshDashboard} disabled={loading} aria-label='Check dashboard readiness for updates'>
-								<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-								<span className='hidden sm:inline'>Check for updates</span>
-							</Button>
-							<SmartHelpTrigger
-								title='How to use the dashboard'
-								description='Use the dashboard to find the next setup task before opening detailed tools.'
-								steps={[
-									{ title: 'Check source status', body: 'Confirm whether ATLAS is using live EnrollPro data or saved setup data.', target: 'Source connection' },
-									{ title: 'Follow the next step', body: 'Use the Your next step card to move scheduling forward one task at a time.', target: 'Your next step' },
-									{ title: 'Review setup readiness', body: 'The checklist shows which setup areas still need attention.', target: 'Setup readiness' },
-									{ title: 'Open timetable last', body: 'Create or review the timetable after setup and Teaching Load are ready.', target: 'Open Timetable' },
-								]}
-								className='h-9'
-							/>
-							<Link to='/timetable'>
-								<Button className='h-9 gap-2 bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90'>
-									<CalendarRange className='w-4 h-4' />
-									Open Timetable
-								</Button>
-							</Link>
+								</div>
+								<div className='flex flex-wrap items-center gap-2'>
+									<Button type='button' variant='outline' size='sm' className='h-9 rounded-xl bg-white/20 hover:bg-white/30 text-white border-white/20 gap-2 px-3 text-xs font-semibold' onClick={refreshDashboard} disabled={loading} aria-label='Check dashboard readiness for updates'>
+										<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+										<span className='hidden sm:inline'>Check for updates</span>
+									</Button>
+									<SmartHelpTrigger
+										title='How to use the dashboard'
+										description='Use the dashboard to find the next setup task before opening detailed tools.'
+										steps={[
+											{ title: 'Check source status', body: 'Confirm whether ATLAS is using live EnrollPro data or saved setup data.', target: 'Source connection' },
+											{ title: 'Follow the next step', body: 'Use the Your next step card to move scheduling forward one task at a time.', target: 'Your next step' },
+											{ title: 'Review setup readiness', body: 'The checklist shows which setup areas still need attention.', target: 'Setup readiness' },
+											{ title: 'Open timetable last', body: 'Create or review the timetable after setup and Teaching Load are ready.', target: 'Open Timetable' },
+										]}
+										className='h-9 bg-white/20 hover:bg-white/30 text-white border-white/20'
+									/>
+									<Link to='/timetable'>
+										<Button className='h-9 gap-2 bg-white px-3 text-xs font-semibold text-primary shadow-none hover:bg-white/90'>
+											<CalendarRange className='w-4 h-4' />
+											Open Timetable
+										</Button>
+									</Link>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -428,7 +430,7 @@ export default function Dashboard() {
 							const tone = TONE[stat.tone];
 							return (
 								<Link key={stat.label} to={stat.href} className='block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'>
-									<Card className='group h-full transition-all duration-300 hover:shadow-lg hover:-translate-y-1'>
+									<Card className='group h-full card-hover-lift'>
 										<CardContent className='p-5 flex flex-col h-full'>
 											<div className='flex items-start justify-between gap-4'>
 												<div className='min-w-0'>
@@ -659,6 +661,17 @@ export default function Dashboard() {
 									)}
 								</CardContent>
 							</Card>
+
+							{/* Dashboard Charts - Run Health Donut */}
+							<Suspense fallback={<div className='h-48 flex items-center justify-center text-sm text-muted-foreground'>Loading charts...</div>}>
+								<DashboardCharts
+									loading={loading}
+									assignedCount={assignedCount}
+									unassignedCount={unassignedCount}
+									hardViolationCount={hardViolationCount}
+									latestRunStatus={latestRunStatus}
+								/>
+							</Suspense>
 					</div>
 
 					{/* Campus Map & Rooms – full-width */}

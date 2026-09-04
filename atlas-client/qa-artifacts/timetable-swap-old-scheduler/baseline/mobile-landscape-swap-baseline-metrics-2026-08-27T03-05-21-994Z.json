@@ -1,0 +1,57 @@
+{
+  "viewport": "mobile-landscape",
+  "activeSchoolYearId": 2,
+  "assignedCount": 830,
+  "entryCount": 830,
+  "title": "Review occupied-slot swap",
+  "sectionCount": 5,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "SWAP OPTIONS",
+    "BLOCKS",
+    "WARNINGS",
+    "AFTER SAVE"
+  ],
+  "visibleTextLength": 862,
+  "dialogBox": {
+    "x": 134,
+    "y": 19.5,
+    "width": 576,
+    "height": 351
+  },
+  "scrollMetrics": {
+    "scrollHeight": 674,
+    "clientHeight": 265,
+    "requiresScroll": true
+  },
+  "strategies": [
+    {
+      "label": "Direct swap Blocking 0 - Warnings 890",
+      "disabled": false
+    },
+    {
+      "label": "Move blocking session Blocking - - Warnings -",
+      "disabled": true
+    },
+    {
+      "label": "Move selected session Blocking - - Warnings -",
+      "disabled": true
+    }
+  ],
+  "hasRecommendedBadge": false,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 844,
+    "docClientWidth": 844
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 559.578125,
+    "y": 400.6875,
+    "width": 133.421875,
+    "height": 32
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "statusText": "Occupied-slot swap preview is ready.",
+  "blockedWrites": []
+}

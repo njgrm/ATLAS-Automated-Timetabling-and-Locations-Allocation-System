@@ -1,0 +1,105 @@
+{
+  "viewport": "mobile-landscape",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 562,
+  "dialogBox": {
+    "x": 134,
+    "y": 19.5,
+    "width": 576,
+    "height": 351
+  },
+  "scrollMetrics": {
+    "scrollHeight": 337,
+    "clientHeight": 337,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 361,
+    "clientHeight": 229,
+    "requiresScroll": true
+  },
+  "strategyRects": [
+    {
+      "label": "Recommended Direct swap 0B • 890W",
+      "disabled": false,
+      "rect": {
+        "x": 164,
+        "y": 270,
+        "width": 516,
+        "height": 36
+      },
+      "intersectsFooter": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 312,
+        "width": 516,
+        "height": 36
+      },
+      "intersectsFooter": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 354,
+        "width": 516,
+        "height": 36
+      },
+      "intersectsFooter": true
+    }
+  ],
+  "strategyCount": 3,
+  "visibleStrategyCount": 3,
+  "strategyButtonsIntersectingFooter": [
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 312,
+        "width": 516,
+        "height": 36
+      },
+      "intersectsFooter": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 354,
+        "width": 516,
+        "height": 36
+      },
+      "intersectsFooter": true
+    }
+  ],
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasSelectedStatus": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 844,
+    "docClientWidth": 844
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 628.09375,
+    "y": 321.5,
+    "width": 68.90625,
+    "height": 40
+  },
+  "feedbackText": "Ready.",
+  "footerOverlap": false,
+  "blockedWrites": []
+}

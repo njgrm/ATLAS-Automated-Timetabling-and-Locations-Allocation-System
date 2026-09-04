@@ -45,24 +45,31 @@ function shouldPreferCachedSections(req: Request): boolean {
 	return req.query.preferCachedSections !== 'false' && req.query.preferCached !== 'false';
 }
 
-function parsePlacementBody(req: Request) {
+function parsePlacementBodyValue(body: Record<string, unknown>) {
+	const entryKind: 'SECTION' | 'COHORT' | undefined = body.entryKind === 'SECTION' || body.entryKind === 'COHORT'
+		? body.entryKind
+		: undefined;
 	return {
-		placementId: req.body.placementId == null ? undefined : Number(req.body.placementId),
-		excludePlacementIds: Array.isArray(req.body.excludePlacementIds)
-			? req.body.excludePlacementIds.map((value: unknown) => Number(value)).filter((value: number) => Number.isInteger(value) && value > 0)
+		placementId: body.placementId == null ? undefined : Number(body.placementId),
+		excludePlacementIds: Array.isArray(body.excludePlacementIds)
+			? body.excludePlacementIds.map((value: unknown) => Number(value)).filter((value: number) => Number.isInteger(value) && value > 0)
 			: undefined,
-		entryKind: req.body.entryKind,
-		sectionId: Number(req.body.sectionId),
-		subjectId: Number(req.body.subjectId),
-		facultyId: Number(req.body.facultyId),
-		roomId: Number(req.body.roomId),
-		day: String(req.body.day),
-		startTime: String(req.body.startTime),
-		endTime: String(req.body.endTime),
-		cohortCode: req.body.cohortCode == null ? null : String(req.body.cohortCode),
-		notes: req.body.notes == null ? null : String(req.body.notes),
-		expectedVersion: req.body.expectedVersion == null ? undefined : Number(req.body.expectedVersion),
+		entryKind,
+		sectionId: Number(body.sectionId),
+		subjectId: Number(body.subjectId),
+		facultyId: Number(body.facultyId),
+		roomId: Number(body.roomId),
+		day: String(body.day),
+		startTime: String(body.startTime),
+		endTime: String(body.endTime),
+		cohortCode: body.cohortCode == null ? null : String(body.cohortCode),
+		notes: body.notes == null ? null : String(body.notes),
+		expectedVersion: body.expectedVersion == null ? undefined : Number(body.expectedVersion),
 	};
+}
+
+function parsePlacementBody(req: Request) {
+	return parsePlacementBodyValue(req.body as Record<string, unknown>);
 }
 
 function parseSwapBody(req: Request) {
@@ -195,6 +202,32 @@ router.post(
 );
 
 router.post(
+	'/:schoolId/:schoolYearId/pre-generation-drafts/replace',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!requirePrivileged(req, res)) return;
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const result = await draftService.replacePlacementFromQueue(
+				scope.schoolId,
+				scope.schoolYearId,
+				req.user!.userId,
+				{
+					displacedPlacementId: Number(req.body.displacedPlacementId),
+					displacedExpectedVersion: Number(req.body.displacedExpectedVersion),
+					placement: parsePlacementBodyValue((req.body.placement ?? {}) as Record<string, unknown>),
+				},
+				getUpstreamAuthToken(req),
+			);
+			res.status(201).json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.post(
 	'/:schoolId/:schoolYearId/pre-generation-drafts/undo',
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
@@ -202,8 +235,14 @@ router.post(
 			if (!requirePrivileged(req, res)) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
-			const board = await draftService.undoLastPlacement(scope.schoolId, scope.schoolYearId, req.user!.userId, getUpstreamAuthToken(req));
-			res.json(board);
+			const operationId = Number(req.body.operationId);
+			const expectedVersion = Number(req.body.expectedVersion);
+			if (!Number.isInteger(operationId) || !Number.isInteger(expectedVersion)) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'operationId and expectedVersion are required integers.' });
+				return;
+			}
+			const result = await draftService.undoLastPlacement(scope.schoolId, scope.schoolYearId, req.user!.userId, operationId, expectedVersion, getUpstreamAuthToken(req));
+			res.json(result);
 		} catch (error) {
 			next(error);
 		}
@@ -218,8 +257,8 @@ router.post(
 			if (!requirePrivileged(req, res)) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
-			const board = await draftService.clearDraft(scope.schoolId, scope.schoolYearId, req.user!.userId, getUpstreamAuthToken(req));
-			res.json(board);
+			const result = await draftService.clearDraft(scope.schoolId, scope.schoolYearId, req.user!.userId, getUpstreamAuthToken(req));
+			res.json(result);
 		} catch (error) {
 			next(error);
 		}
@@ -334,8 +373,8 @@ router.delete(
 				res.status(400).json({ code: 'INVALID_PARAM', message: placementId });
 				return;
 			}
-			const board = await draftService.removeSinglePlacement(scope.schoolId, scope.schoolYearId, req.user!.userId, placementId);
-			res.json(board);
+			const result = await draftService.removeSinglePlacement(scope.schoolId, scope.schoolYearId, req.user!.userId, placementId, getUpstreamAuthToken(req));
+			res.json(result);
 		} catch (error) {
 			next(error);
 		}

@@ -15,8 +15,10 @@ import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import type {
 	DraftBoardState,
+	DraftBoardMutationResult,
 	DraftPlacement,
 	DraftPlacementCommitResult,
+	DraftUndoResult,
 	DraftQueueItem,
 	ExternalSection,
 	FacultyMirror,
@@ -124,6 +126,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 	const [preview, setPreview] = useState<PreviewResult | null>(null);
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [allowSoftOverride, setAllowSoftOverride] = useState(false);
+	const [lastOperation, setLastOperation] = useState<{ operationId: number; resultingVersion: number } | null>(null);
 	const [gradeFilter, setGradeFilter] = useState('all');
 	const [sectionFilter, setSectionFilter] = useState('all');
 	const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -357,6 +360,9 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 				allowSoftOverride,
 			});
 			setBoard(response.data.board);
+			setLastOperation(response.data.operationId != null && response.data.resultingVersion != null
+				? { operationId: response.data.operationId, resultingVersion: response.data.resultingVersion }
+				: null);
 			onBoardChange?.(response.data.board);
 			setPreview(response.data.preview);
 			setPending(null);
@@ -371,29 +377,37 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 	}, [allowSoftOverride, pending, schoolId, schoolYearId]);
 
 	const handleUndo = useCallback(async () => {
+		if (!lastOperation) return;
 		try {
 			setSaving(true);
-			const response = await atlasApi.post<DraftBoardState>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/undo`);
-			setBoard(response.data);
-			onBoardChange?.(response.data);
+			const response = await atlasApi.post<DraftUndoResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/undo`, {
+				operationId: lastOperation.operationId,
+				expectedVersion: lastOperation.resultingVersion,
+			});
+			setBoard(response.data.board);
+			onBoardChange?.(response.data.board);
+			setLastOperation(null);
 			setPending(null);
 			setPreview(null);
 			setPreviewError(null);
 			setAllowSoftOverride(false);
 			toast.success('Last draft placement action reverted.');
 		} catch (error: any) {
-			toast.error(error?.response?.data?.message ?? 'Nothing to undo.');
+			toast.error(error?.response?.data?.code === 'UNDO_CONFLICT' ? 'Schedule changed—review latest' : (error?.response?.data?.message ?? 'Nothing to undo.'));
 		} finally {
 			setSaving(false);
 		}
-	}, [schoolId, schoolYearId]);
+	}, [lastOperation, onBoardChange, schoolId, schoolYearId]);
 
 	const handleClear = useCallback(async () => {
 		try {
 			setSaving(true);
-			const response = await atlasApi.post<DraftBoardState>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/clear`);
-			setBoard(response.data);
-			onBoardChange?.(response.data);
+			const response = await atlasApi.post<DraftBoardMutationResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/clear`);
+			setBoard(response.data.board);
+			setLastOperation(response.data.operationId != null && response.data.resultingVersion != null
+				? { operationId: response.data.operationId, resultingVersion: response.data.resultingVersion }
+				: null);
+			onBoardChange?.(response.data.board);
 			setPending(null);
 			setPreview(null);
 			setPreviewError(null);
@@ -430,7 +444,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 						<Button variant="ghost" size="sm" className="h-6 px-2 text-[0.625rem]" onClick={() => void fetchBoard()}>
 							<RefreshCw className="mr-1 size-3" />Refresh
 						</Button>
-						<Button variant="ghost" size="sm" className="h-6 px-2 text-[0.625rem]" onClick={() => void handleUndo()} disabled={saving}>
+						<Button variant="ghost" size="sm" className="h-6 px-2 text-[0.625rem]" onClick={() => void handleUndo()} disabled={saving || !lastOperation}>
 							<Undo2 className="mr-1 size-3" />Undo
 						</Button>
 						<Button variant="ghost" size="sm" className="h-6 px-2 text-[0.625rem] text-destructive hover:text-destructive" onClick={() => void handleClear()} disabled={saving}>

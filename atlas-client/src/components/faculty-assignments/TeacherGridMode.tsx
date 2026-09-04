@@ -52,8 +52,6 @@ type TeacherGridModeProps = {
 	onClearHoverLoad: () => void;
 	activeFacultyIds: Set<number>;
 	resolveSectionHoverDeltaMinutes: (subject: Subject, sectionId: number) => number;
-	splitBrainQuarantineRequired: boolean;
-	splitBrainReasonLabel: string;
 	onResetAssignments: () => void;
 	searchQuery: string;
 	onSearchQueryChange: (q: string) => void;
@@ -103,8 +101,6 @@ export function TeacherGridMode({
 	onClearHoverLoad,
 	activeFacultyIds,
 	resolveSectionHoverDeltaMinutes,
-	splitBrainQuarantineRequired,
-	splitBrainReasonLabel,
 	onResetAssignments,
 	searchQuery,
 	onSearchQueryChange,
@@ -351,7 +347,7 @@ export function TeacherGridMode({
 														}
 													}}
 													className={cn(
-														"flex items-center gap-4 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+														"flex items-center gap-3 p-3 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
 														isExpanded && "border-b border-border/40"
 													)}
 													onClick={() => handleTeacherClick(member.id)}
@@ -360,6 +356,7 @@ export function TeacherGridMode({
 														{member.firstName?.[0] ?? ''}{member.lastName?.[0] ?? ''}
 													</div>
 													
+													{/* Name + department: always visible, never collapsed behind initials */}
 													<div className="flex-1 min-w-0">
 														<div className="flex items-center gap-2">
 															<h4 className="text-sm font-semibold uppercase tracking-tight truncate">
@@ -380,8 +377,8 @@ export function TeacherGridMode({
 														</p>
 													</div>
 
-													{/* Load Signals */}
-													<div className="flex items-center gap-6 px-4">
+													{/* Load Signals: compact on mobile, full on desktop */}
+													<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
 														<div className="text-right">
 															<p className={cn(
 																"text-xs font-semibold tabular-nums",
@@ -389,19 +386,19 @@ export function TeacherGridMode({
 															)}>
 																{member.isPlaceholder ? `${displayHours.toFixed(1)}h` : `${loadPercentage}%`}
 															</p>
-															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Load Status</p>
+															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter hidden sm:block">Load Status</p>
 														</div>
-														<div className="text-right min-w-14">
+														<div className="text-right min-w-10 hidden sm:block">
 															<p className="text-xs font-semibold tabular-nums">{subjectsCount}</p>
-															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
+															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
 														</div>
-														<div className="text-right min-w-14">
+														<div className="text-right min-w-10 hidden sm:block">
 															<p className="text-xs font-semibold tabular-nums">{sectionsCount}</p>
-															<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
+															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
 														</div>
 													</div>
 
-													<div className="flex items-center gap-2 border-l border-border/40 pl-4">
+													<div className="flex items-center gap-2 shrink-0">
 														{isExpanded ? <ChevronDown className="size-5 text-muted-foreground" /> : <ChevronRight className="size-5 text-muted-foreground" />}
 													</div>
 												</div>
@@ -460,8 +457,6 @@ export function TeacherGridMode({
 																				onSwapSectionOwnership={onSwapSectionOwnership}
 																				selectedFacultySpecialization={member.specialization}
 																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-																				quarantined={splitBrainQuarantineRequired}
-																				quarantineLabel={splitBrainReasonLabel}
 																				completedSectionIds={completedSectionIds}
 																			/>
 																		))}
@@ -496,8 +491,6 @@ export function TeacherGridMode({
 																				onSwapSectionOwnership={onSwapSectionOwnership}
 																				selectedFacultySpecialization={member.specialization}
 																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-																				quarantined={splitBrainQuarantineRequired}
-																				quarantineLabel={splitBrainReasonLabel}
 																				completedSectionIds={completedSectionIds}
 																			/>
 																		))}

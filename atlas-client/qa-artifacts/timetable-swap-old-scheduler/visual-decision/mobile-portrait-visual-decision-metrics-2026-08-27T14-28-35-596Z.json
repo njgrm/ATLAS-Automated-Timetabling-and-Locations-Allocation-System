@@ -1,0 +1,64 @@
+{
+  "viewport": "mobile-portrait",
+  "title": "Swap these two classes?",
+  "primaryRegionCount": 1,
+  "pairVisible": true,
+  "pairBox": {
+    "x": 33,
+    "y": 215,
+    "width": 420.609375,
+    "height": 54
+  },
+  "recommendedVisible": true,
+  "recommendedBox": {
+    "x": 17,
+    "y": 321,
+    "width": 452.609375,
+    "height": 143
+  },
+  "actionVisible": true,
+  "actionBox": {
+    "x": 17,
+    "y": 476,
+    "width": 452.609375,
+    "height": 49
+  },
+  "dialogBox": {
+    "x": 16,
+    "y": 143,
+    "width": 358,
+    "height": 558
+  },
+  "bodyMetrics": {
+    "scrollHeight": 322,
+    "clientHeight": 322,
+    "requiresScroll": false
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 33,
+    "y": 644,
+    "width": 324,
+    "height": 44
+  },
+  "selectedStatusVisible": true,
+  "selectedStatusBox": {
+    "x": 33,
+    "y": 418,
+    "width": 420.609375,
+    "height": 34
+  },
+  "hasNoBlockers": true,
+  "hasBlockingCopy": false,
+  "hasWarningsCopy": true,
+  "hasRecommendedBadge": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 390,
+    "docClientWidth": 390
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "primaryRegionsIntersectAction": false,
+  "visibleTextLength": 520,
+  "blockedWrites": []
+}

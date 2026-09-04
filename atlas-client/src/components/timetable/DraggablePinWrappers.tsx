@@ -4,7 +4,7 @@
  * These replace native HTML5 draggable usage so all drag events route
  * through the global DndContext in ScheduleReviewWorkspace.
  */
-import { useEffect, useState, type KeyboardEventHandler, type MouseEventHandler, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEventHandler, type MouseEventHandler, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 import type { DraftPlacement, DraftQueueItem, UnassignedItem } from '@/types';
@@ -21,6 +21,7 @@ export function DraggableQueuePin({
 	className,
 	onClick,
 	onKeyDown,
+	onDragStart,
 }: {
 	item: DraftQueueItem;
 	disabled: boolean;
@@ -28,15 +29,30 @@ export function DraggableQueuePin({
 	className?: string;
 	onClick?: MouseEventHandler<HTMLDivElement>;
 	onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
+	onDragStart?: () => void;
 }) {
+	const [coarsePointer, setCoarsePointer] = useState(false);
+	const dragStartNotifiedRef = useRef(false);
+	useEffect(() => {
+		const query = window.matchMedia('(pointer: coarse)');
+		const update = () => setCoarsePointer(query.matches);
+		update();
+		query.addEventListener('change', update);
+		return () => query.removeEventListener('change', update);
+	}, []);
 	const id = `queue-pin-${item.assignmentKey}-${item.sessionNumber}`;
+	const dragDisabled = disabled || coarsePointer;
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id,
-		disabled,
+		disabled: dragDisabled,
 		data: { type: 'draftQueue', item },
 	});
-	const dragAttributes = disabled ? {} : attributes;
-	const dragListeners = disabled ? {} : listeners;
+	const dragAttributes = dragDisabled ? {} : attributes;
+	const dragListeners = dragDisabled ? {} : listeners;
+	useEffect(() => {
+		if (isDragging && !dragStartNotifiedRef.current) onDragStart?.();
+		dragStartNotifiedRef.current = isDragging;
+	}, [isDragging, onDragStart]);
 
 	return (
 		<div
@@ -109,14 +125,17 @@ export function DraggableUnassignedPin({
 	disabled,
 	children,
 	className,
+	onDragStart,
 }: {
 	itemKey: string;
 	item: UnassignedItem;
 	disabled: boolean;
 	children: ReactNode;
 	className?: string;
+	onDragStart?: () => void;
 }) {
 	const [coarsePointer, setCoarsePointer] = useState(false);
+	const dragStartNotifiedRef = useRef(false);
 	useEffect(() => {
 		const query = window.matchMedia('(pointer: coarse)');
 		const update = () => setCoarsePointer(query.matches);
@@ -134,6 +153,10 @@ export function DraggableUnassignedPin({
 	});
 	const dragAttributes = dragDisabled ? {} : attributes;
 	const dragListeners = dragDisabled ? {} : listeners;
+	useEffect(() => {
+		if (isDragging && !dragStartNotifiedRef.current) onDragStart?.();
+		dragStartNotifiedRef.current = isDragging;
+	}, [isDragging, onDragStart]);
 
 	return (
 		<div

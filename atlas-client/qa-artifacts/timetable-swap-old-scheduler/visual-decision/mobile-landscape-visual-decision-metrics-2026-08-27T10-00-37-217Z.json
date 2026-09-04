@@ -1,0 +1,65 @@
+{
+  "viewport": "mobile-landscape",
+  "title": "Swap these two classes?",
+  "sectionCount": 3,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "SWAP OPTIONS",
+    "DIRECT SWAP STATUS"
+  ],
+  "visibleTextLength": 718,
+  "dialogBox": {
+    "x": 134,
+    "y": 19.5,
+    "width": 576,
+    "height": 351
+  },
+  "scrollMetrics": {
+    "scrollHeight": 498,
+    "clientHeight": 498,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 522,
+    "clientHeight": 195,
+    "requiresScroll": true
+  },
+  "strategies": [
+    {
+      "label": "Recommended Direct swap Blocking 0 • Warnings 890",
+      "disabled": false,
+      "hasRecommended": true,
+      "hasUnavailable": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "hasRecommended": false,
+      "hasUnavailable": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "hasRecommended": false,
+      "hasUnavailable": true
+    }
+  ],
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasNoSafeSwapFound": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 844,
+    "docClientWidth": 844
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 571.25,
+    "y": 312.5,
+    "width": 121.75,
+    "height": 40
+  },
+  "feedbackText": "Ready to swap. ATLAS will save only the selected option.",
+  "footerOverlap": false,
+  "blockedWrites": []
+}

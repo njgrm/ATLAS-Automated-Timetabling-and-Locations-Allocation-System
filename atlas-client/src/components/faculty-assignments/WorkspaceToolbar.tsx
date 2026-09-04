@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Zap, Activity, Settings2, RotateCcw, Layers, Users, ChartColumn } from 'lucide-react';
+import { Zap, Activity, Settings2, RotateCcw, Users, ChartColumn } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { cn } from '@/lib/utils';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
-import type { TeachingLoadSplitBrainReconcileResult, CoverageMode } from '@/types';
+import type { CoverageMode } from '@/types';
 
 type WorkspaceToolbarProps = {
 	realAssignedPairs: number;
@@ -27,8 +27,6 @@ type WorkspaceToolbarProps = {
 	isWorkspaceWritable: boolean;
 	isOnline: boolean;
 	dataSourceNotice: string | null;
-	splitBrainIncident: TeachingLoadSplitBrainReconcileResult | null;
-	splitBrainQuarantineRequired?: boolean;
 	showJumpList: boolean;
 	onToggleJumpList: () => void;
 	coverageMode: CoverageMode;
@@ -36,10 +34,6 @@ type WorkspaceToolbarProps = {
 	coverageModeConfig: Record<CoverageMode, { label: string; description: string }>;
 	onGlobalResetClick: () => void;
 	canRunGlobalReset: boolean;
-	onReconcileClick: () => void;
-	reconcileLoading: boolean;
-	showReconcileAction: boolean;
-	reconcileEnabled: boolean;
 	workspaceStateLabel: string;
 	workspaceStateDescription: string;
 	workspaceStateNextAction: string;
@@ -74,8 +68,6 @@ export function WorkspaceToolbar({
 	isWorkspaceWritable,
 	isOnline,
 	dataSourceNotice,
-	splitBrainIncident,
-	splitBrainQuarantineRequired = false,
 	showJumpList,
 	onToggleJumpList,
 	coverageMode,
@@ -83,11 +75,6 @@ export function WorkspaceToolbar({
 	coverageModeConfig,
 	onGlobalResetClick,
 	canRunGlobalReset,
-	onReconcileClick,
-	reconcileLoading,
-	showReconcileAction,
-	reconcileEnabled,
-	reviewDismissed,
 	workspaceStateLabel,
 	workspaceStateDescription,
 	workspaceStateNextAction,
@@ -95,7 +82,7 @@ export function WorkspaceToolbar({
 	saving,
 	onSave,
 	onRetrySource,
-}: WorkspaceToolbarProps & { reviewDismissed?: boolean }) {
+}: WorkspaceToolbarProps) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
 	const statusConfig = useMemo(() => {
@@ -108,15 +95,6 @@ export function WorkspaceToolbar({
 	}, [isOnline, dataSource, isWorkspaceWritable, degradedWriteEnabled, dataSourceNotice]);
 
 	const primaryAction = useMemo(() => {
-		if (activeDraftCount > 0) {
-			return {
-				label: saving ? 'Saving...' : `Save draft (${activeDraftCount})`,
-				onClick: onSave,
-				disabled: saving || !isWorkspaceWritable,
-				variant: 'default' as const,
-				helper: isWorkspaceWritable ? 'Save pending assignment changes.' : 'Saving is blocked until this workspace is writable.',
-			};
-		}
 		if (dataSource === 'refreshing') {
 			return {
 				label: 'Checking source',
@@ -142,35 +120,11 @@ export function WorkspaceToolbar({
 			variant: 'secondary' as const,
 			helper: autoFillEnabled ? 'Preview ATLAS suggestions before any Teaching Load rows are saved.' : 'Suggestions need live writable data.',
 		};
-	}, [activeDraftCount, autoFillEnabled, autoFillLoading, dataSource, isOnline, isWorkspaceWritable, onAutoFillClick, onRetrySource, onSave, saving]);
-
-	const showReviewBadge = useMemo(() => {
-		if (!splitBrainIncident) return false;
-		if (splitBrainIncident.quarantine.required) return true;
-		if (splitBrainIncident.counters.truthRowsToUpdate > 0) return true;
-		if ((splitBrainIncident.counters.integrityMissingOwnershipPairs ?? 0) > 0) return true;
-		if ((splitBrainIncident.counters.integrityOwnershipWithoutScopePairs ?? 0) > 0) return true;
-		if (reviewDismissed) return false;
-		return splitBrainIncident.quarantine.severity === 'WARNING';
-	}, [splitBrainIncident, reviewDismissed]);
+	}, [autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource]);
 
 	// State-driven alert chip: surfaces only when something needs attention.
-	// Priority: split-brain review > above-weekly-maximum classes (generation blocker) > temporary teacher placeholders.
+	// Priority: above-weekly-maximum classes (generation blocker) > temporary teacher placeholders.
 	const alertChip = useMemo(() => {
-		if (showReviewBadge) {
-			const isLocked = splitBrainIncident?.quarantine.required === true;
-			return {
-				key: 'review',
-				label: isLocked ? 'Unlock editing' : 'Review saved coverage',
-				tone: 'warning' as const,
-				tooltip: isLocked
-					? 'Editing is locked. Open the lock recovery dialog to review and unlock.'
-					: 'ATLAS detected a mismatch between local assignments and saved coverage. Review before continuing.',
-				onClick: isLocked ? onReconcileClick : onViewStaffingNeedsClick,
-				disabled: isLocked ? (reconcileLoading || !reconcileEnabled) : staffingNeedsLoading,
-				testId: isLocked ? 'teaching-load-alert-unlock-editing' : 'teaching-load-alert-review-coverage',
-			};
-		}
 		if (overCapCount > 0) {
 			return {
 				key: 'overcap',
@@ -194,12 +148,12 @@ export function WorkspaceToolbar({
 			};
 		}
 		return null;
-	}, [overCapCount, syntheticPlaceholderPairs, showReviewBadge, onViewStaffingNeedsClick, staffingNeedsLoading]);
+	}, [overCapCount, syntheticPlaceholderPairs, onViewStaffingNeedsClick, staffingNeedsLoading]);
 
 	return (
 		<div className="rounded-xl border border-border/40 bg-background px-2 py-1 shadow-sm" data-testid="teaching-load-command-header">
-			{/* Compact workflow guide: keep Teaching Load to one decision row; disclose stats and repair tools through More. */}
-			<div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto" data-testid="teaching-load-compact-command-header">
+			{/* Row 1: Title + status + primary action + More. Wraps on narrow screens. */}
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5" data-testid="teaching-load-compact-command-header">
 				<div className="flex min-w-0 shrink-0 items-center gap-2">
 					<h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">Teaching Load</h1>
 					<Tooltip>
@@ -221,40 +175,32 @@ export function WorkspaceToolbar({
 				</div>
 
 				<div className="ml-auto flex shrink-0 items-center gap-2">
-				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation' | 'subjects')} className="h-8">
-					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
-						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
-						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
-						<TabsTrigger value="subjects" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Subjects</TabsTrigger>
-					</TabsList>
-				</Tabs>
+					<SmartHelpTrigger
+						title="How to use Teaching Load"
+						description="Use this page to build and review which teacher owns each subject-section load before timetable generation."
+						steps={[
+							{
+								title: 'Start with the repair queue',
+								body: 'ATLAS puts missing load, overloads, placeholders, and unsaved draft work in the order scheduler officers should fix them.',
+							},
+							{
+								title: 'Preview suggestions first',
+								body: 'Suggest Teaching Load draft shows what ATLAS can fill before anything becomes final.',
+							},
+							{
+								title: 'Use Advanced grid only when needed',
+								body: 'Dense teacher and section grids stay available for expert repair, but they should not be your first stop.',
+							},
+							{
+								title: 'Save only after review',
+								body: 'Draft changes stay visible near the action bar so you can save, undo, or discard with a clear status message.',
+							},
+						]}
+						triggerLabel="Help"
+						className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
+					/>
 
-				<SmartHelpTrigger
-					title="How to use Teaching Load"
-					description="Use this page to build and review which teacher owns each subject-section load before timetable generation."
-					steps={[
-						{
-							title: 'Start with the repair queue',
-							body: 'ATLAS puts missing load, overloads, placeholders, and unsaved draft work in the order scheduler officers should fix them.',
-						},
-						{
-							title: 'Preview suggestions first',
-							body: 'Suggest Teaching Load draft shows what ATLAS can fill before anything becomes final.',
-						},
-						{
-							title: 'Use Advanced grid only when needed',
-							body: 'Dense teacher and section grids stay available for expert repair, but they should not be your first stop.',
-						},
-						{
-							title: 'Save only after review',
-							body: 'Draft changes stay visible near the action bar so you can save, undo, or discard with a clear status message.',
-						},
-					]}
-					triggerLabel="Help"
-					className="hidden h-7 shrink-0 px-2 text-xs sm:inline-flex"
-				/>
-
-				<Tooltip>
+					<Tooltip>
 					<TooltipTrigger asChild>
 						<Button
 							type="button"
@@ -265,8 +211,9 @@ export function WorkspaceToolbar({
 							data-testid={primaryAction.label === 'Suggest Teaching Load draft' ? 'teaching-load-suggest-draft-action' : undefined}
 							className="h-7 gap-1.5 border border-primary/20 bg-primary/5 px-2 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-3"
 						>
-							{activeDraftCount > 0 ? <Activity className="size-4" /> : <Zap className="size-4" />}
-							{primaryAction.label}
+							<Zap className="size-4" />
+							<span className="hidden sm:inline">{primaryAction.label}</span>
+							<span className="sm:hidden">{primaryAction.label === 'Suggest Teaching Load draft' ? 'Suggest' : primaryAction.label}</span>
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
@@ -274,59 +221,75 @@ export function WorkspaceToolbar({
 					</TooltipContent>
 				</Tooltip>
 
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="outline" size="icon-sm" className="h-7 w-7 shadow-sm" aria-label="More Teaching Load tools">
-									<Settings2 className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-64 p-2">
-								<DropdownMenuItem onSelect={onViewStaffingNeedsClick} disabled={staffingNeedsLoading} className="gap-2 font-semibold">
-									<ChartColumn className="size-4" />
-									Open staffing audit
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={onToggleJumpList} className="gap-2 font-semibold">
-									<Users className="size-4" />
-									{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
-								</DropdownMenuItem>
-							{showReconcileAction && (
-								<DropdownMenuItem onSelect={onReconcileClick} disabled={reconcileLoading || !reconcileEnabled} className="gap-2 font-semibold text-amber-800">
-									<Layers className="size-4" />
-									{reconcileLoading ? 'Unlocking...' : splitBrainQuarantineRequired ? 'Review and unlock editing' : 'Reconcile saved coverage'}
-								</DropdownMenuItem>
-							)}
-								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
-								<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
-									{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
-										<DropdownMenuRadioItem key={mode} value={mode} className="flex flex-col items-start gap-0.5 py-2 cursor-pointer">
-											<span className="text-xs font-bold uppercase tracking-tight">{config.label}</span>
-											<span className="text-xs text-muted-foreground font-medium leading-tight">{config.description}</span>
-										</DropdownMenuRadioItem>
-									))}
-								</DropdownMenuRadioGroup>
-								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Maintenance</DropdownMenuLabel>
-								<DropdownMenuItem
-									onSelect={onGlobalResetClick}
-									disabled={!canRunGlobalReset}
-									className="text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer py-2"
-								>
-									<RotateCcw className="size-4 mr-2" />
-									<div className="flex flex-col gap-0.5">
-										<span className="text-xs font-bold uppercase tracking-tight">Global Reset</span>
-										<span className="text-xs opacity-80">Wipe all assignments for this year</span>
-									</div>
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</TooltipTrigger>
-					<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
-				</Tooltip>
-
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button variant="outline" size="icon-sm" className="h-7 w-7 shadow-sm" aria-label="More Teaching Load tools">
+										<Settings2 className="size-4" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="w-64 p-2">
+									<DropdownMenuItem onSelect={onViewStaffingNeedsClick} disabled={staffingNeedsLoading} className="gap-2 font-semibold">
+										<ChartColumn className="size-4" />
+										Open staffing audit
+									</DropdownMenuItem>
+									<DropdownMenuItem onSelect={onToggleJumpList} className="gap-2 font-semibold">
+										<Users className="size-4" />
+										{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
+									</DropdownMenuItem>
+									<DropdownMenuItem onSelect={() => onViewModeChange('teacher')} className="gap-2 font-semibold sm:hidden">
+										<Users className="size-4" />
+										Teachers
+									</DropdownMenuItem>
+									<DropdownMenuItem onSelect={() => onViewModeChange('allocation')} className="gap-2 font-semibold sm:hidden">
+										<Users className="size-4" />
+										Sections
+									</DropdownMenuItem>
+									<DropdownMenuItem onSelect={() => onViewModeChange('subjects')} className="gap-2 font-semibold sm:hidden">
+										<Users className="size-4" />
+										Subjects
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
+									<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
+										{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
+											<DropdownMenuRadioItem key={mode} value={mode} className="flex flex-col items-start gap-0.5 py-2 cursor-pointer">
+												<span className="text-xs font-bold uppercase tracking-tight">{config.label}</span>
+												<span className="text-xs text-muted-foreground font-medium leading-tight">{config.description}</span>
+											</DropdownMenuRadioItem>
+										))}
+									</DropdownMenuRadioGroup>
+									<DropdownMenuSeparator />
+									<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Maintenance</DropdownMenuLabel>
+									<DropdownMenuItem
+										onSelect={onGlobalResetClick}
+										disabled={!canRunGlobalReset}
+										className="text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer py-2"
+									>
+										<RotateCcw className="size-4 mr-2" />
+										<div className="flex flex-col gap-0.5">
+											<span className="text-xs font-bold uppercase tracking-tight">Global Reset</span>
+											<span className="text-xs opacity-80">Wipe all assignments for this year</span>
+										</div>
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="text-xs font-bold">More teaching-load tools</TooltipContent>
+					</Tooltip>
 				</div>
+			</div>
+
+			{/* Row 2: Tabs — always visible, never hidden in an overflow strip. */}
+			<div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-border/40 pt-1.5" data-testid="teaching-load-tab-row">
+				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation' | 'subjects')} className="h-8">
+					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
+						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
+						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
+						<TabsTrigger value="subjects" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Subjects</TabsTrigger>
+					</TabsList>
+				</Tabs>
 			</div>
 
 			{/* Readiness strip: at-a-glance health below the command row.
@@ -369,7 +332,7 @@ export function WorkspaceToolbar({
 								alertChip.onClick ? 'cursor-pointer hover:brightness-95' : 'cursor-default',
 							)}
 						>
-							{alertChip.key === 'review' ? <Layers className="size-3.5" /> : alertChip.key === 'overcap' ? <Activity className="size-3.5" /> : <Users className="size-3.5" />}
+							{alertChip.key === 'overcap' ? <Activity className="size-3.5" /> : <Users className="size-3.5" />}
 							<span className="text-sm font-bold">{alertChip.label}</span>
 						</Button>
 					</TooltipTrigger>

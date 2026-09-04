@@ -451,113 +451,55 @@ function buildSubjectContractData(subject: {
 	};
 }
 
-let subjectContractSchemaReady: Promise<void> | null = null;
+// (Prompt 01A: the runtime DDL cache is retired with the DDL itself — see
+// migration 0042.)
 
-async function ensureSubjectContractSchemaColumns(): Promise<void> {
-	if (!subjectContractSchemaReady) {
-		subjectContractSchemaReady = (async () => {
-			await prisma.$executeRawUnsafe(`
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subject_qualification_priority') THEN
-    CREATE TYPE subject_qualification_priority AS ENUM ('DEPARTMENT_FIRST', 'SPECIALIZATION_PRIMARY');
-  END IF;
-END
-$$;
-			`);
-
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ADD COLUMN IF NOT EXISTS output_label VARCHAR(64)
-			`);
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ADD COLUMN IF NOT EXISTS owner_department VARCHAR(32)
-			`);
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ADD COLUMN IF NOT EXISTS qualification_priority subject_qualification_priority
-			`);
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ADD COLUMN IF NOT EXISTS rotation_family VARCHAR(64)
-			`);
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ADD COLUMN IF NOT EXISTS is_system_managed BOOLEAN NOT NULL DEFAULT FALSE
-			`);
-
-			await prisma.$executeRawUnsafe(`
-UPDATE subjects
-SET
-  output_label = CASE
-    WHEN code LIKE 'SCI_%' THEN 'SCIENCE'
-    WHEN code LIKE 'TLE%' THEN 'TLE'
-    WHEN code IN ('SPA_SPEC', 'SPS_SPEC') THEN 'SPECIALIZATION'
-    WHEN code = 'STE_RESEARCH' THEN 'RESEARCH'
-    ELSE code
-  END,
-  owner_department = CASE
-    WHEN code LIKE 'FIL%' THEN 'FIL'
-    WHEN code LIKE 'ENG%' THEN 'ENG'
-    WHEN code LIKE 'MATH%' THEN 'MATH'
-    WHEN code LIKE 'AP%' THEN 'AP'
-    WHEN code LIKE 'ESP%' OR code = 'HG' THEN 'ESP'
-    WHEN code LIKE 'MAPEH%' THEN 'MAPEH'
-    WHEN code LIKE 'TLE%' THEN 'TLE'
-    WHEN code LIKE 'SCI%' OR code LIKE 'STE_%' THEN 'SCI'
-		WHEN code LIKE 'SPA_%' THEN 'MAPEH'
-		WHEN code LIKE 'SPS_%' THEN 'MAPEH'
-    WHEN code = 'DEVL_READING' THEN 'ENG'
-    ELSE owner_department
-  END,
-	qualification_priority = 'DEPARTMENT_FIRST'::subject_qualification_priority,
-  rotation_family = CASE
-    WHEN code LIKE 'TLE%' THEN 'TLE_ROTATION'
-    WHEN modular_group_id IS NOT NULL AND modular_group_id <> '' THEN modular_group_id
-    ELSE rotation_family
-  END,
-  is_system_managed = CASE
-    WHEN code LIKE 'TLE_%_EXP' OR code LIKE 'TLE_SPEC_%' THEN TRUE
-    ELSE is_system_managed
-  END
-WHERE
-  output_label IS NULL
-  OR owner_department IS NULL
-  OR qualification_priority IS NULL
-  OR rotation_family IS NULL
-  OR (code LIKE 'TLE_%_EXP' OR code LIKE 'TLE_SPEC_%')
-			`);
-
-			await prisma.$executeRawUnsafe(`
-UPDATE subjects
-SET owner_department = 'MAPEH'
-WHERE code IN ('SPA_SPEC', 'SPS_SPEC')
-   OR code LIKE 'SPA_%'
-   OR code LIKE 'SPS_%'
-			`);
-
-			await prisma.$executeRawUnsafe(`
-UPDATE subjects
-SET qualification_priority = 'DEPARTMENT_FIRST'::subject_qualification_priority
-WHERE qualification_priority IS NULL
-			`);
-
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ALTER COLUMN qualification_priority SET DEFAULT 'DEPARTMENT_FIRST'::subject_qualification_priority
-			`);
-			await prisma.$executeRawUnsafe(`
-ALTER TABLE subjects
-  ALTER COLUMN qualification_priority SET NOT NULL
-			`);
-		})().catch((error) => {
-			subjectContractSchemaReady = null;
-			throw error;
-		});
+/**
+ * Prompt 01A: pre-mutation guard — cross-school denial + optimistic concurrency.
+ *
+ * - The subject must belong to the actor's authenticated school (403 otherwise).
+ * - When `expectedUpdatedAt` is supplied, it must match the row's current
+ *   `updatedAt` (409 STALE_WRITE otherwise). Passing the guard is optional for
+ *   callers that have not yet adopted versioned writes, but the router always
+ *   forwards the value when the client provides one.
+ */
+export async function assertSchoolScopeAndVersion(
+	subjectId: number,
+	actorSchoolId: number,
+	expectedUpdatedAt?: string | null,
+): Promise<{ ok: true; subject: { id: number; schoolId: number; updatedAt: Date } } | { ok: false; error: { status: number; code: string; message: string } }> {
+	if (!Number.isInteger(subjectId) || subjectId <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'subjectId must be a positive integer.' } };
 	}
+	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+		return { ok: false, error: { status: 403, code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' } };
+	}
+	const subject = await prisma.subject.findUnique({
+		where: { id: subjectId },
+		select: { id: true, schoolId: true, updatedAt: true },
+	});
+	if (!subject) {
+		return { ok: false, error: { status: 404, code: 'NOT_FOUND', message: 'Subject not found.' } };
+	}
+	if (subject.schoolId !== actorSchoolId) {
+		return { ok: false, error: { status: 403, code: 'CROSS_SCHOOL_DENIED', message: 'Subject belongs to another school.' } };
+	}
+	if (expectedUpdatedAt != null) {
+		const expected = new Date(expectedUpdatedAt).getTime();
+		if (Number.isFinite(expected) && subject.updatedAt.getTime() !== expected) {
+			return { ok: false, error: { status: 409, code: 'STALE_WRITE', message: 'Subject was modified by another user. Refresh and retry.' } };
+		}
+	}
+	return { ok: true, subject };
+}
 
-	await subjectContractSchemaReady;
+// Prompt 01A: runtime schema DDL/backfill REMOVED. The subject-contract schema
+// columns and backfills now live exclusively in tracked migration
+// `0042_subject_contract_schema_ddl` (applied via `prisma migrate deploy`).
+// Read/CRUD/generation paths must never execute DDL — this stub preserves the
+// internal call sites while performing zero work.
+async function ensureSubjectContractSchemaColumns(): Promise<void> {
+	return;
 }
 
 export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
@@ -574,6 +516,15 @@ export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
 		},
 	});
 
+	// Prompt 01A (Subjects CRUD source authority): bootstrap defaults are
+	// CREATE-MISSING-ONLY. The previous upsert `update` branch rewrote
+	// operator-managed grade levels, minutes, room types, program scopes, and
+	// active state on every generation/sync/read — that is what restored
+	// grade 10 to STE_RESEARCH after the operator removed it (run 641
+	// timestamp proof: run created 12:01:30.144Z, subject updatedAt
+	// 12:01:30.216Z). Existing rows are operator-owned; a default definition
+	// may never overwrite them. Repair of a drifted row is an explicit,
+	// previewed, operator-authorized action.
 	await prisma.$transaction(
 		MATATAG_DEFAULTS.map((subject) => {
 			const contract = buildSubjectContractData(subject);
@@ -584,27 +535,7 @@ export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
 						code: subject.code,
 					},
 				},
-				update: {
-					name: subject.name,
-					minMinutesPerWeek: subject.minMinutesPerWeek,
-					preferredRoomType: subject.preferredRoomType,
-					modularGroupId: subject.modularGroupId ?? null,
-					modularOrder: subject.modularOrder ?? null,
-					termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
-					termCount: subject.termCount ?? 3,
-					gradeLevels: subject.gradeLevels,
-					interSectionEnabled: subject.interSectionEnabled ?? false,
-					interSectionGradeLevels: subject.interSectionGradeLevels ?? [],
-					programScopes: subject.programScopes,
-					allowedSpecializations: subject.allowedSpecializations ?? [],
-					requiredFeatures: contract.requiredFeatures,
-					isSeedable: subject.isSeedable,
-					ownerDepartment: contract.ownerDepartment,
-					qualificationPriority: contract.qualificationPriority,
-					rotationFamily: contract.rotationFamily,
-					outputLabel: contract.outputLabel,
-					isSystemManaged: contract.isSystemManaged,
-				},
+				update: {}, // never overwrite operator-managed catalog rows
 				create: {
 					schoolId,
 					code: subject.code,
@@ -971,6 +902,36 @@ export async function createSubject(
 	},
 ) {
 	await ensureSubjectContractSchemaColumns();
+
+	// Prompt 01A: server-side input validation. The API previously accepted
+	// negative weekly minutes and empty grade scope with 201 — invalid catalog
+	// rows that later broke demand math.
+	if (typeof data.minMinutesPerWeek !== 'number' || !Number.isFinite(data.minMinutesPerWeek) || data.minMinutesPerWeek <= 0) {
+		throw Object.assign(
+			new Error('minMinutesPerWeek must be a positive number.'),
+			{ statusCode: 400, code: 'INVALID_MIN_MINUTES_PER_WEEK' },
+		);
+	}
+	if (!Array.isArray(data.gradeLevels) || data.gradeLevels.length === 0) {
+		throw Object.assign(
+			new Error('gradeLevels must contain at least one grade level.'),
+			{ statusCode: 400, code: 'INVALID_GRADE_LEVELS' },
+		);
+	}
+	const invalidGrades = data.gradeLevels.filter((g) => ![7, 8, 9, 10].includes(g));
+	if (invalidGrades.length > 0) {
+		throw Object.assign(
+			new Error(`gradeLevels contains invalid grades: ${invalidGrades.join(', ')} (allowed: 7, 8, 9, 10).`),
+			{ statusCode: 400, code: 'INVALID_GRADE_LEVELS' },
+		);
+	}
+	if (data.preferredRoomType == null || String(data.preferredRoomType).trim() === '') {
+		throw Object.assign(
+			new Error('preferredRoomType is required.'),
+			{ statusCode: 400, code: 'INVALID_ROOM_TYPE' },
+		);
+	}
+
 	// Validate inter-section grade levels are within subject's grade levels
 	const interGrades = data.interSectionGradeLevels ?? [];
 	if (interGrades.length > 0) {
@@ -1066,36 +1027,11 @@ export async function updateSubject(
 		}
 	}
 
-	// Seedable subjects can update name, minMinutesPerWeek, gradeLevels, and programScopes
-	if (subject.isSeedable) {
-		const resolvedRequiredFeatures = mergeRequiredFeaturesWithAdditionalOwnerDepartments(
-			data.requiredFeatures ?? subject.requiredFeatures,
-			data.allowedOwnerDepartments,
-		);
-		const allowed: Record<string, unknown> = {};
-		if (data.name !== undefined) allowed.name = data.name;
-		if (data.minMinutesPerWeek !== undefined) allowed.minMinutesPerWeek = data.minMinutesPerWeek;
-		if (data.gradeLevels !== undefined) allowed.gradeLevels = data.gradeLevels;
-		if (data.interSectionEnabled !== undefined) allowed.interSectionEnabled = data.interSectionEnabled;
-		if (data.interSectionGradeLevels !== undefined) allowed.interSectionGradeLevels = data.interSectionGradeLevels;
-		if (data.isSeedable !== undefined) allowed.isSeedable = data.isSeedable;
-		if (data.modularGroupId !== undefined) allowed.modularGroupId = data.modularGroupId;
-		if (data.modularOrder !== undefined) allowed.modularOrder = data.modularOrder;
-		if (data.termGroupId !== undefined) allowed.termGroupId = data.termGroupId;
-		if (data.termCount !== undefined) allowed.termCount = data.termCount;
-		if (data.programScopes !== undefined) allowed.programScopes = data.programScopes;
-		if (data.allowedSpecializations !== undefined) allowed.allowedSpecializations = data.allowedSpecializations;
-		if (data.requiredFeatures !== undefined || data.allowedOwnerDepartments !== undefined) {
-			allowed.requiredFeatures = resolvedRequiredFeatures;
-		}
-		if (data.ownerDepartment !== undefined) allowed.ownerDepartment = data.ownerDepartment;
-		if (data.qualificationPriority !== undefined) allowed.qualificationPriority = data.qualificationPriority;
-		if (data.rotationFamily !== undefined) allowed.rotationFamily = data.rotationFamily;
-		if (data.outputLabel !== undefined) allowed.outputLabel = data.outputLabel;
-		if (data.isSystemManaged !== undefined) allowed.isSystemManaged = data.isSystemManaged;
-		return prisma.subject.update({ where: { id }, data: allowed });
-	}
-
+	// Prompt 01A: `isSeedable` is bootstrap/seed metadata ONLY — it must not gate
+	// which operator edits are accepted. The old branch silently dropped
+	// `preferredRoomType` and `isActive` for seedable subjects while returning
+	// 200, making valid edits vanish. All operator-editable catalog fields use
+	// ONE allowlist; seedable and non-seedable subjects are edited identically.
 	const updateData: Record<string, unknown> = {};
 	const resolvedRequiredFeatures = mergeRequiredFeaturesWithAdditionalOwnerDepartments(
 		data.requiredFeatures ?? subject.requiredFeatures,

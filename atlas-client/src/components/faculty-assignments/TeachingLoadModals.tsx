@@ -26,6 +26,13 @@ type TeachingLoadModalsProps = {
 	resetConfirmText: string;
 	onResetConfirmTextChange: (text: string) => void;
 	onResetConfirm: () => void;
+	saveWarningOpen: boolean;
+	onSaveWarningOpenChange: (open: boolean) => void;
+	onSaveConfirm: () => void;
+	discardConfirmOpen: boolean;
+	onDiscardConfirmOpenChange: (open: boolean) => void;
+	onDiscardConfirm: () => void;
+	activeDraftCount: number;
 };
 
 export function TeachingLoadModals({
@@ -50,6 +57,13 @@ export function TeachingLoadModals({
 	resetConfirmText,
 	onResetConfirmTextChange,
 	onResetConfirm,
+	saveWarningOpen,
+	onSaveWarningOpenChange,
+	onSaveConfirm,
+	discardConfirmOpen,
+	onDiscardConfirmOpenChange,
+	onDiscardConfirm,
+	activeDraftCount,
 }: TeachingLoadModalsProps) {
 	return (
 		<>
@@ -124,6 +138,26 @@ export function TeachingLoadModals({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<ConfirmationModal
+				open={saveWarningOpen}
+				onOpenChange={onSaveWarningOpenChange}
+				title="Save teaching load changes?"
+				description="Saving now will update the timetable's unassigned list when ATLAS next syncs. Any class whose teacher you changed will be moved back to the unassigned list. Do you want to continue?"
+				onConfirm={onSaveConfirm}
+				confirmText="Save changes"
+				variant="warning"
+			/>
+
+			<ConfirmationModal
+				open={discardConfirmOpen}
+				onOpenChange={onDiscardConfirmOpenChange}
+				title={`Discard ${activeDraftCount} draft ${activeDraftCount === 1 ? 'change' : 'changes'}?`}
+				description="This will discard every unsaved Teaching Load change. This cannot be undone."
+				onConfirm={onDiscardConfirm}
+				confirmText="Discard all"
+				variant="danger"
+			/>
 		</>
 	);
 }

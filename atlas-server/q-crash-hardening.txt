@@ -1,0 +1,47 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ withSchoolLock survives rejected operations (RR-08 root cause) ════
+  ✓ Rejected locked operation propagates its error to the caller (code) — expected SIMULATED, got SIMULATED
+  ✓ No unhandled rejection escapes withSchoolLock — expected 0, got 0
+  ✓ Lock is not poisoned after a rejected operation
+  ✓ Serialized execution preserved after a failure — expected 1, got 1
+
+════ Fatal error handler publishes and never throws ════
+[FATAL] [unhandledRejection] 2026-09-01T13:52:08.164Z
+Error: boom from a floating promise
+    at runFatalHandlerTests (D:\ATLAS\atlas-server\src\__tests__\enrollpro-rollover-crash-hardening.test.ts:312:42)
+    at run (D:\ATLAS\atlas-server\src\__tests__\enrollpro-rollover-crash-hardening.test.ts:454:8)
+  ✓ SERVER_FATAL_ERROR notification published — expected 1, got 1
+  ✓ Notification type is SERVER_FATAL_ERROR — expected SERVER_FATAL_ERROR, got SERVER_FATAL_ERROR
+  ✓ Notification audience is PRIVILEGED — expected PRIVILEGED, got PRIVILEGED
+  ✓ Stack captured in metadata
+[FATAL] [uncaughtException] 2026-09-01T13:52:08.166Z
+Error: publish will fail
+    at runFatalHandlerTests (D:\ATLAS\atlas-server\src\__tests__\enrollpro-rollover-crash-hardening.test.ts:322:42)
+    at run (D:\ATLAS\atlas-server\src\__tests__\enrollpro-rollover-crash-hardening.test.ts:454:8)
+  ✓ A failing notification publish does not crash the fatal handler
+
+════ Reset survives a simulated mid-flight crash and resumes without re-deleting ════
+  ✓ Sandbox published run exists before reset
+  ✓ Run 1: apply-phase failure surfaces as a service error (code) — expected ENROLLPRO_UNAVAILABLE, got ENROLLPRO_UNAVAILABLE
+  ✓ Run 1 error is 5xx-able for the route (got 503)
+  ✓ Run 1 committed a DUMMY_YEAR_RESET audit row
+  ✓ Phase marker records cleared=true — expected true, got true
+  ✓ Phase marker records syncApplied=false — expected false, got false
+  ✓ Run 1 cleared the target year section mirrors — expected 0, got 0
+  ✓ Old-year published run untouched by the reset (id) — expected 526, got 526
+  ✓ Old-year published run summary unchanged — expected {"isPublished":true,"publishedAt":"2026-09-01T13:52:08.202Z","publishedBy":1,"assignedCount":12}, got {"isPublished":true,"publishedAt":"2026-09-01T13:52:08.202Z","publishedBy":1,"assignedCount":12}
+  ✓ Run 2 completes the reset — expected true, got true
+  ✓ Run 2 resumes after the prior clear — expected resumed-after-clear, got resumed-after-clear
+  ✓ Drift is aligned after the resumed apply — expected aligned, got aligned
+  ✓ Run 2 synced the EnrollPro active year — expected 888912, got 888912
+  ✓ Resume did not re-run the destructive transaction (marker row id unchanged) — expected 21420, got 21420
+  ✓ Phase marker updated to syncApplied=true — expected true, got true
+  ✓ Phase marker records teachingLoadCleared=true — expected true, got true
+  ✓ Target-year mirror is active after resume — expected true, got true
+  ✓ Stale mirror label reconciled to upstream truth — expected 2089-2090, got 2089-2090
+  ✓ Resumed apply synced the feed sections — expected 2, got 2
+  ✓ Old-year published run still untouched after resume — expected 526, got 526
+  ✓ Old-year mirror deactivated by the apply (superseded) — expected false, got false
+
+RR-08 crash hardening test complete: 30 passed, 0 failed.

@@ -125,6 +125,11 @@ export type LeftRailContentContext = {
 	selectedUnassignedForRepair: UnassignedItem | null;
 	setSelectedUnassignedForRepair: Dispatch<SetStateAction<UnassignedItem | null>>;
 	openTacticalSandbox: () => void;
+	viewMode: 'section' | 'faculty' | 'room';
+	setViewMode: (value: 'section' | 'faculty' | 'room') => void;
+	entityFilter: string;
+	setEntityFilter: (value: string) => void;
+	focusSection: (sectionId: number) => void;
 };
 
 export type ScheduleReviewDialogsContext = {

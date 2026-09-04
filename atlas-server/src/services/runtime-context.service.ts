@@ -13,7 +13,7 @@ type RuntimeContextEvidenceType =
 
 type RuntimeContextSource = 'atlas-persisted' | 'enrollpro-verified';
 type RuntimeDriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
-type RuntimeDriftAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR';
+type RuntimeDriftAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR' | 'RUN_ARCHIVE_AND_SYNC';
 
 export type RuntimeContextEvidence = {
 	type: RuntimeContextEvidenceType;
@@ -147,8 +147,14 @@ function rankRuntimeYears(evidence: RuntimeYearEvidence[]): YearScore[] {
 	return ranked;
 }
 
-export function pickBestRuntimeYear(evidence: RuntimeYearEvidence[]): RuntimeYearEvidence | null {
-	return rankRuntimeYears(evidence)[0]?.representative ?? null;
+export function pickBestRuntimeYear(
+	evidence: RuntimeYearEvidence[],
+	excludedYearIds?: Set<number>,
+): RuntimeYearEvidence | null {
+	const eligible = excludedYearIds && excludedYearIds.size > 0
+		? evidence.filter((item) => !excludedYearIds.has(item.yearId))
+		: evidence;
+	return rankRuntimeYears(eligible)[0]?.representative ?? null;
 }
 
 function buildActiveYearDrift(input: {
@@ -157,12 +163,13 @@ function buildActiveYearDrift(input: {
 	upstreamYearLabel: string | null;
 	upstreamReachable: boolean;
 	mappingConflict: boolean;
+	conflictCodes?: string[];
 	publishedResetBlocked?: boolean;
 	mirrorSyncedAt?: Date | null;
 	verifyUpstream: boolean;
 }) {
 	if (input.mappingConflict) {
-		const action = resolveMappingConflictAction(input.publishedResetBlocked ?? false);
+		const action = resolveMappingConflictAction(input.publishedResetBlocked ?? false, input.conflictCodes ?? []);
 		return {
 			status: 'mapping-conflict' as const,
 			message: action.message,
@@ -321,6 +328,23 @@ export async function resolveRuntimeContext(
 		});
 	}
 
+	// RR-09A: archived years are historical scope — weaker than any live
+	// evidence. They never participate in the active-year election, even when
+	// their artifacts are newer than the live year's.
+	const archivedYearIds = new Set(
+		(await prisma.enrollProSchoolYearMirror.findMany({
+			where: { schoolId, isArchived: true },
+			select: { enrollProSchoolYearId: true },
+		})).map((mirror) => mirror.enrollProSchoolYearId),
+	);
+	if (archivedYearIds.size > 0) {
+		for (let i = evidence.length - 1; i >= 0; i -= 1) {
+			if (archivedYearIds.has(evidence[i].yearId)) {
+				evidence.splice(i, 1);
+			}
+		}
+	}
+
 	const rankedYears = rankRuntimeYears(evidence);
 	let selectedRank = rankedYears[0] ?? null;
 	if (!selectedRank) return null;
@@ -334,6 +358,7 @@ export async function resolveRuntimeContext(
 	let upstreamActiveSchoolYearId: number | null = schoolYearMirror?.enrollProSchoolYearId ?? null;
 	let upstreamActiveSchoolYearLabel: string | null = schoolYearMirror?.yearLabel ?? null;
 	let mappingConflict = false;
+	let conflictCodes: string[] = [];
 
 	const verifyUpstream = options?.verifyUpstream !== false;
 	let activeTermResult: ActiveTermResult = {
@@ -389,6 +414,7 @@ export async function resolveRuntimeContext(
 			}
 			const conflicts = await findMappingConflicts(schoolId, upstreamYear, sectionExternalIds);
 			mappingConflict = conflicts.length > 0;
+			conflictCodes = conflicts.map((conflict) => conflict.code);
 
 			const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
 			if (upstreamRank && selectedRank) {
@@ -454,6 +480,7 @@ export async function resolveRuntimeContext(
 		upstreamYearLabel: upstreamActiveSchoolYearLabel,
 		upstreamReachable,
 		mappingConflict,
+		conflictCodes,
 		publishedResetBlocked,
 		mirrorSyncedAt: schoolYearMirror?.lastSyncedAt ?? null,
 		verifyUpstream,

@@ -534,7 +534,9 @@ export default function SpecializationMapping() {
 					<div className='space-y-1 flex-1 min-w-0'>
 						<div className='flex items-center gap-2'>
 							<Sparkles className='size-4 text-primary' />
-							<h1 className='text-lg font-bold tracking-tight'>Specialization to Subject Mapping</h1>
+							<span className='text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider'>
+								Specialization to Subject Mapping
+							</span>
 						</div>
 						<p className='text-xs text-muted-foreground'>
 							Map each teacher specialization to one or more subjects for use in schedule generation.

@@ -1,0 +1,79 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+  ✓ Resolved active year: 6
+
+════ Aligned drift skips apply (no DB writes) ════
+  ✓ Tick skips when drift is aligned — expected skipped, got skipped
+  ✓ Active mirror unchanged — expected 6, got 6
+  ✓ Active mirror still active — expected true, got true
+  ✓ Faculty mirror count unchanged — expected 23, got 23
+
+════ Unreachable upstream advances backoff ════
+  ✓ Tick returns unreachable — expected unreachable, got unreachable
+  ✓ consecutiveFailures incremented (got 1)
+  ✓ nextAttemptAt is in the future
+
+════ A realistic unmarked section collision stays manual ════
+  ✓ Fake EnrollPro collision produces mapping-conflict — expected mapping-conflict, got mapping-conflict
+  ✓ Preview contains SECTION_ID_COLLISION
+  ✓ Unmarked collision requires manual review — expected conflict, got conflict
+  ✓ Automation records a conflict state — expected conflict, got conflict
+  ✓ Manual collision handling does not alter section mirrors — expected 20, got 20
+  ✓ Marked mapping-conflict enters the auto-recovery path in test mode — expected applied, got applied
+  ✓ Marked mapping-conflict invokes recovery exactly once — expected 1, got 1
+
+════ getAutomationStatus returns enabled and school states ════
+  ✓ enabled is boolean
+  ✓ schools is array
+
+════ Test-mode recovery safety predicate ════
+  ✓ Unmarked collision cannot auto-clear — expected false, got false
+  ✓ Marked mapping-conflict collision can auto-clear in test mode — expected true, got true
+  ✓ Published artifacts prevent auto-clear — expected false, got false
+  ✓ Disabled test mode prevents auto-clear — expected false, got false
+
+════ withSchoolLock prevents concurrent execution for same school ════
+  ✓ Only one concurrent execution per school — expected 1, got 1
+
+════ Automation never calls dummy-year reset path ════
+  ✓ Tick skips (aligned drift, no apply triggered) — expected skipped, got skipped
+  ✓ No new DUMMY_YEAR_RESET audit entries — expected 4, got 4
+
+════ RR-09B archive-resolvable conflict self-heals with no attention noise ════
+  ✓ isArchiveResolvableStatus recognizes the label-only wedge — expected true, got true
+  ✓ Archive-resolvable conflict self-heals (applied) — expected applied, got applied
+  ✓ Automation records success for the self-heal — expected success, got success
+  ✓ archiveAndSyncActiveYear invoked exactly once — expected 1, got 1
+  ✓ Self-heal runs with initiatedBy system — expected system, got system
+  ✓ No attention publications on the injected publisher for archive-resolvable conflicts — expected 0, got 0
+  ✓ No standing attention state recorded for archive-resolvable conflicts — expected null, got null
+
+════ RR-09B non-resolvable conflict still pauses manual with attention ════
+  ✓ Section collisions are not archive-resolvable — expected false, got false
+  ✓ Non-resolvable conflict still pauses for manual review — expected conflict, got conflict
+  ✓ Automation records a conflict state — expected conflict, got conflict
+  ✓ archiveAndSyncActiveYear is NOT invoked for section collisions — expected 0, got 0
+  ✓ Attention notification state recorded for manual conflicts — expected ROLLOVER_ATTENTION_REQUIRED:conflict, got ROLLOVER_ATTENTION_REQUIRED:conflict
+
+════ RR-09B clean drift auto-applies AND archives the superseded year (sandbox) ════
+  ✓ Clean atlas-stale drift auto-applies against the new year — expected applied, got applied
+  ✓ Automation records success — expected success, got success
+  ✓ Superseded year archived automatically after the sync — expected true, got true
+  ✓ Superseded year deactivated — expected false, got false
+  ✓ New-year mirror activated by the automated sync — expected true, got true
+  ✓ New-year mirror carries the upstream label — expected 2095-2096, got 2095-2096
+  ✓ Old-year sections preserved (non-destruction) — expected 2, got 2
+  ✓ Old-year runs preserved (non-destruction) — expected 1, got 1
+  ✓ Old-year policies preserved (non-destruction) — expected 1, got 1
+  ✓ ARCHIVE_SCHOOL_YEAR audit written with initiatedBy system — expected 1, got 1
+  ✓ ROLLOVER_AUTO_SYNC_COMPLETED notification published
+  ✓ Completion notification carries archive metadata — expected 1, got 1
+  ✓ Archive metadata names the superseded year — expected 991001, got 991001
+  ✓ Completion message mentions the archive
+
+════ Live-state invariants after all tests ════
+  ✓ Active mirror exists
+  ✓ Active mirror year matches EnrollPro (6) — expected 6, got 6
+  ✓ At least 1 active faculty mirror (got 23)
+  ✓ No fake-year section mirror artifacts remain — expected 0, got 0
+
+Rollover automation test complete: 54 passed, 0 failed.

@@ -89,7 +89,9 @@ export function SubjectRow({
 		: `${programScopes.length} programs`;
 
 	const isArchived = !subject.isActive;
-	const isExcluded = subject.isActive && !subject.isSeedable;
+	// Prompt 01A: isSeedable is bootstrap/seed metadata — NOT timetable inclusion.
+	// Generation schedules by isActive; the old "Excluded/Available" badges made
+	// a false claim about scheduling. Catalog active state is the status shown.
 	const coverageStatus = coverageRow?.status ?? null;
 	const hasMissingCoverage = (coverageRow?.uncoveredSectionCount ?? 0) > 0;
 	const isFullCoverage = coverageStatus === 'FULL';
@@ -107,11 +109,8 @@ export function SubjectRow({
 						{isArchived && (
 							<Badge className="h-4 px-1.5 text-[0.65rem] font-bold bg-amber-100 text-amber-700 border border-amber-200 shadow-none">Archived</Badge>
 						)}
-						{isExcluded && (
-							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-slate-50 text-slate-600 border-slate-200 shadow-none">Excluded</Badge>
-						)}
-						{!isArchived && !isExcluded && subject.isSeedable && (
-							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">Available</Badge>
+						{!isArchived && (
+							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">Active</Badge>
 						)}
 					</div>
 				</div>
@@ -150,12 +149,14 @@ export function SubjectRow({
 							label={`Room features required by ${subject.name}`}
 							shortHelp={`This subject needs ${subject.requiredFeatures.length} special room feature${subject.requiredFeatures.length === 1 ? '' : 's'}: ${subject.requiredFeatures.join(', ')}.`}
 						>
-							<button
+							<Button
 								type="button"
-								className="mt-0.5 self-start text-[0.7rem] text-amber-600 font-semibold uppercase cursor-help hover:underline"
+								variant="link"
+								size="sm"
+								className="mt-0.5 self-start h-auto p-0 text-[0.7rem] text-amber-600 font-semibold uppercase cursor-help hover:underline"
 							>
 								+{subject.requiredFeatures.length} feature{subject.requiredFeatures.length === 1 ? '' : 's'}
-							</button>
+							</Button>
 						</AccessibleInfo>
 					) : null}
 				</div>
@@ -165,17 +166,6 @@ export function SubjectRow({
 			<td className="px-4 py-3" data-testid={`subject-coverage-cell-${subject.id}`}>
 				{isArchived ? (
 					<Badge variant="secondary" className="text-xs font-bold">Archived</Badge>
-				) : isExcluded ? (
-					<span className="flex items-center gap-1">
-						<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-slate-600 border-slate-200 shadow-none" aria-label={`${subject.name} excluded from timetable`}>
-							Excluded
-						</Badge>
-						<AccessibleInfo
-							label={`${subject.name} excluded from timetable`}
-							shortHelp="This subject counts toward teacher load but is not placed on the timetable grid."
-							size="icon-xs"
-						/>
-					</span>
 				) : coverageRow ? (
 					<span className="flex items-center gap-1">
 						{isFullCoverage ? (

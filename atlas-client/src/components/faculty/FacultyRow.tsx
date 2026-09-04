@@ -6,6 +6,7 @@ import {
 	getFacultyLoadSortRank,
 	STANDARD_WEEKLY_TEACHING_HOURS,
 } from '@/lib/faculty-assignment-helpers';
+import { GRADE_COLORS } from '@/lib/grade-labels';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
@@ -209,6 +210,31 @@ function AssignmentBreakdownPopover({ assignments }: { assignments: FacultyAssig
 	);
 }
 
+/** Compact DepEd-colored chips for the grades a teacher actually teaches (assigned-grade truth). */
+export function FacultyAssignedGradeChips({ faculty }: { faculty: FacultySummary }) {
+	const grades = (faculty.assignedGradeLevels ?? [])
+		.filter((grade) => VALID_JHS_GRADES.has(grade))
+		.sort((left, right) => left - right);
+
+	if (grades.length === 0) return null;
+
+	return (
+		<span className="flex flex-wrap items-center gap-1" data-testid="teacher-assigned-grade-chips">
+			{grades.map((grade) => (
+				<span
+					key={grade}
+					className={cn(
+						'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[0.6rem] font-bold leading-none',
+						GRADE_COLORS[String(grade)],
+					)}
+				>
+					{grade}
+				</span>
+			))}
+		</span>
+	);
+}
+
 export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: FacultySummary; onClick?: () => void }) {
 	const assignments = faculty.assignments ?? [];
 	const summaries = buildSubjectSummaries(assignments);
@@ -361,12 +387,13 @@ export function FacultyMobileCard({
 				<FacultyIdentityCell faculty={faculty} />
 				{secondaryActionMenu}
 			</div>
-			<div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-				<FacultyLoadStateBadge faculty={faculty} />
-				<span className={cn('font-semibold tabular-nums', presentation.hoursClassName)}>
-					{weeklyHours > 0 ? `${weeklyHours} / ${STANDARD_WEEKLY_TEACHING_HOURS}h` : '\u2014'}
-				</span>
-			</div>
+		<div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+			<FacultyLoadStateBadge faculty={faculty} />
+			<span className={cn('font-semibold tabular-nums', presentation.hoursClassName)}>
+				{weeklyHours > 0 ? `${weeklyHours} / ${STANDARD_WEEKLY_TEACHING_HOURS}h` : '\u2014'}
+			</span>
+			<FacultyAssignedGradeChips faculty={faculty} />
+		</div>
 			{summaries.length > 0 && (
 				<button
 					type="button"

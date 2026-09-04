@@ -445,22 +445,29 @@ export function SubjectFormModal({
 											</Button>
 										</div>
 									</div>
-									<div className="relative">
-										<Input
-											id={`${formId}-time`}
-											type="number"
-											min={0}
-											value={timeMode === 'minutes' ? form.minMinutesPerWeek : Math.round((form.minMinutesPerWeek / 60) * 10) / 10}
-											onChange={(event) => {
-												const value = Number(event.target.value);
-												setForm((previous) => ({
-													...previous,
-													minMinutesPerWeek: timeMode === 'minutes' ? value : Math.round(value * 60),
-												}));
-											}}
-											aria-describedby={`${formId}-time-help`}
-											className="pr-16 font-medium"
-										/>
+								<div className="relative">
+									<Input
+										id={`${formId}-time`}
+										type="number"
+										min={0}
+										// Prompt 01A: exact minute-preserving hours conversion.
+										// 225 min = 3.75 h — step must accept quarter-hour precision
+										// (0.25) so the browser never blocks a legal value; the old
+										// implicit step=1 silently rejected 3.8/3.75 and swallowed
+										// the submit while Save stayed enabled.
+										step={timeMode === 'minutes' ? 1 : 0.25}
+										value={timeMode === 'minutes' ? form.minMinutesPerWeek : Math.round((form.minMinutesPerWeek / 60) * 100) / 100}
+										onChange={(event) => {
+											const value = Number(event.target.value);
+											setForm((previous) => ({
+												...previous,
+												// round to the nearest whole minute; 3.75 h -> 225 min exactly
+												minMinutesPerWeek: timeMode === 'minutes' ? Math.round(value) : Math.round(value * 60),
+											}));
+										}}
+										aria-describedby={`${formId}-time-help`}
+										className="pr-16 font-medium"
+									/>
 										<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">
 											{timeMode === 'minutes' ? 'min/wk' : 'hr/wk'}
 										</span>

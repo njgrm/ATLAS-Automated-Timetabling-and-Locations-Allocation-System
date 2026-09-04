@@ -262,6 +262,8 @@ export type FacultySummary = {
 	version: number;
 	subjectCount: number;
 	sectionCount: number;
+	/** Actual JHS grades (7-10) taught via real current-year owned sections. Absent on legacy cached rows. */
+	assignedGradeLevels?: number[];
 	baselineSubjectCount?: number;
 	missingOwnershipSubjectCount?: number;
 	ownershipWithoutScopeSubjectCount?: number;
@@ -1504,6 +1506,20 @@ export interface DraftPlacementCommitResult {
 	placement: DraftPlacement;
 	preview: PreviewResult;
 	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
+}
+
+export interface DraftUndoResult {
+	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
+}
+
+export interface DraftBoardMutationResult {
+	board: DraftBoardState;
+	operationId: number | null;
+	resultingVersion: number | null;
 }
 
 export interface DraftPlacementSwapPreview {
@@ -1540,6 +1556,8 @@ export interface DraftPlacementSwapResult {
 	};
 	preview: DraftPlacementSwapPreview;
 	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
 }
 
 /* ─── Grade Shift Window types ─── */

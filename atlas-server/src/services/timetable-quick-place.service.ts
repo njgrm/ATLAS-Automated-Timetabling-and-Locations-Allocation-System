@@ -90,7 +90,7 @@ export async function solveQuickPlace(
 
 	// 2. Load live teaching load ownerships to find teacher assignments
 	const ownerships = await prisma.subjectSectionOwnership.findMany({
-		where: { schoolId },
+		where: { schoolId, schoolYearId },
 	});
 
 	const ownershipMap = new Map<string, number>();
@@ -431,7 +431,7 @@ export async function applyQuickPlace(
 	const homeRoomFallbackDiagnostics = buildHomeRoomFallbackDiagnostics(finalEntries, finalUnassigned);
 
 	const facultySubjectRows = await prisma.facultySubject.findMany({
-		where: { schoolId },
+		where: { schoolId, schoolYearId },
 		select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 	});
 	const refData = await loadRunContext(runId, schoolId, schoolYearId);

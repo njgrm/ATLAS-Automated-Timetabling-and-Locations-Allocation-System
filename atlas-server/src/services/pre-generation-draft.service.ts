@@ -24,6 +24,7 @@ import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
+import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
 
 function err(statusCode: number, code: string, message: string, details?: Record<string, unknown>) {
 	const error = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, unknown> };
@@ -171,6 +172,26 @@ export interface DraftPlacementCommitResult {
 	placement: DraftPlacementRow;
 	preview: DraftPlacementPreview;
 	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
+}
+
+export interface DraftPlacementReplaceInput {
+	displacedPlacementId: number;
+	displacedExpectedVersion: number;
+	placement: DraftPlacementInput;
+}
+
+export interface DraftUndoResult {
+	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
+}
+
+export interface DraftBoardMutationResult {
+	board: DraftBoardState;
+	operationId: number | null;
+	resultingVersion: number | null;
 }
 
 export interface DraftPlacementSwapInput {
@@ -229,6 +250,8 @@ export interface DraftPlacementSwapResult {
 	};
 	preview: DraftPlacementSwapPreview;
 	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
 }
 
 export interface DraftConsumeResult {
@@ -523,7 +546,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 			select: { id: true, maxHoursPerWeek: true },
 		}),
 		prisma.facultySubject.findMany({
-			where: { schoolId },
+			where: { schoolId, schoolYearId },
 			select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 		}),
 		prisma.subject.findMany({
@@ -1077,7 +1100,7 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 		});
 	}
 
-	await prisma.$transaction([
+	const [action] = await prisma.$transaction([
 		prisma.lockedSessionAction.create({
 			data: {
 				lockId: placement.id,
@@ -1106,6 +1129,8 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 		placement: toDraftRow(placement),
 		preview,
 		board: await buildBoardStateFromContext(schoolId, schoolYearId, refreshed),
+		operationId: action.id,
+		resultingVersion: action.id,
 	};
 }
 
@@ -1222,7 +1247,7 @@ export async function swapPlacements(
 			targetDailyMinutesAfter: preview.dailyLoads.target.dailyMinutesAfter,
 		});
 	}
-	const [updatedSource, updatedTarget] = await prisma.$transaction(async (tx) => {
+	const [updatedSource, updatedTarget, operationId] = await prisma.$transaction(async (tx) => {
 		const nextSource = await tx.lockedSession.update({
 			where: { id: sourcePlacement.id },
 			data: {
@@ -1241,27 +1266,15 @@ export async function swapPlacements(
 				version: { increment: 1 },
 			},
 		});
-		await tx.lockedSessionAction.createMany({
-			data: [
-				{
-					lockId: sourcePlacement.id,
-					schoolId,
-					schoolYearId,
-					actorId,
-					actionType: 'SWAP',
-					beforePayload: sourcePlacement as unknown as object,
-					afterPayload: nextSource as unknown as object,
-				},
-				{
-					lockId: targetPlacement.id,
-					schoolId,
-					schoolYearId,
-					actorId,
-					actionType: 'SWAP',
-					beforePayload: targetPlacement as unknown as object,
-					afterPayload: nextTarget as unknown as object,
-				},
-			],
+		const action = await tx.lockedSessionAction.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				actorId,
+				actionType: 'SWAP',
+				beforePayload: [sourcePlacement, targetPlacement] as unknown as object,
+				afterPayload: [nextSource, nextTarget] as unknown as object,
+			},
 		});
 		await tx.auditLog.create({
 			data: {
@@ -1277,7 +1290,7 @@ export async function swapPlacements(
 				} as object,
 			},
 		});
-		return [nextSource, nextTarget] as const;
+		return [nextSource, nextTarget, action.id] as const;
 	});
 	const refreshed = await loadDraftContext(schoolId, schoolYearId, authToken);
 	return {
@@ -1287,15 +1300,90 @@ export async function swapPlacements(
 		},
 		preview,
 		board: await buildBoardStateFromContext(schoolId, schoolYearId, refreshed),
+		operationId,
+		resultingVersion: operationId,
 	};
 }
 
-export async function clearDraft(schoolId: number, schoolYearId: number, actorId: number, authToken?: string) {
+export async function replacePlacementFromQueue(
+	schoolId: number,
+	schoolYearId: number,
+	actorId: number,
+	input: DraftPlacementReplaceInput,
+	authToken?: string,
+): Promise<DraftPlacementCommitResult> {
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
+	const displaced = getDraftPlacementOrThrow(ctx, input.displacedPlacementId, input.displacedExpectedVersion);
+	const placementInput = { ...input.placement, placementId: undefined, excludePlacementIds: [displaced.id] };
+	const preview = await previewPlacement(schoolId, schoolYearId, placementInput, authToken);
+	if (preview.hardViolations.length > 0 || preview.dailyLoadBand === 'hard') {
+		throw err(422, 'HARD_VIOLATION_BLOCK', 'Replacement cannot be committed while hard conflicts remain.');
+	}
+
+	const [placement, action] = await prisma.$transaction(async (tx) => {
+		const archived = await tx.lockedSession.updateMany({
+			where: { id: displaced.id, schoolId, schoolYearId, status: 'DRAFT', version: input.displacedExpectedVersion },
+			data: { status: 'ARCHIVED', version: { increment: 1 } },
+		});
+		if (archived.count !== 1) throw err(409, 'VERSION_CONFLICT', 'Draft placement changed before replacement could be saved.');
+		const created = await tx.lockedSession.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				entryKind: placementInput.entryKind ?? 'SECTION',
+				sectionId: placementInput.sectionId,
+				subjectId: placementInput.subjectId,
+				facultyId: placementInput.facultyId,
+				roomId: placementInput.roomId,
+				day: placementInput.day as any,
+				startTime: placementInput.startTime,
+				endTime: placementInput.endTime,
+				cohortCode: placementInput.cohortCode ?? null,
+				notes: placementInput.notes ?? null,
+				createdBy: actorId,
+				status: 'DRAFT',
+			},
+		});
+		const createdAction = await tx.lockedSessionAction.create({
+			data: {
+				lockId: created.id,
+				schoolId,
+				schoolYearId,
+				actorId,
+				actionType: 'REPLACE',
+				beforePayload: displaced as unknown as object,
+				afterPayload: created as unknown as object,
+			},
+		});
+		await tx.auditLog.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				action: 'PRE_GENERATION_DRAFT_REPLACE',
+				actorId,
+				targetIds: [displaced.id, created.id],
+				metadata: { displacedPlacementId: displaced.id, createdPlacementId: created.id } as object,
+			},
+		});
+		return [created, createdAction] as const;
+	}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+	const refreshed = await loadDraftContext(schoolId, schoolYearId, authToken);
+	return {
+		placement: toDraftRow(placement),
+		preview,
+		board: await buildBoardStateFromContext(schoolId, schoolYearId, refreshed),
+		operationId: action.id,
+		resultingVersion: action.id,
+	};
+}
+
+export async function clearDraft(schoolId: number, schoolYearId: number, actorId: number, authToken?: string): Promise<DraftBoardMutationResult> {
 	const draftPlacements = await prisma.lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
 	if (draftPlacements.length === 0) {
-		return listDraftBoardState(schoolId, schoolYearId, authToken);
+		return { board: await listDraftBoardState(schoolId, schoolYearId, authToken), operationId: null, resultingVersion: null };
 	}
-	await prisma.$transaction([
+	const [, action] = await prisma.$transaction([
 		prisma.lockedSession.updateMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, data: { status: 'ARCHIVED', version: { increment: 1 } } }),
 		prisma.lockedSessionAction.create({
 			data: {
@@ -1318,21 +1406,43 @@ export async function clearDraft(schoolId: number, schoolYearId: number, actorId
 			},
 		}),
 	]);
-	return listDraftBoardState(schoolId, schoolYearId, authToken);
+	return {
+		board: await listDraftBoardState(schoolId, schoolYearId, authToken),
+		operationId: action.id,
+		resultingVersion: action.id,
+	};
 }
 
-export async function undoLastPlacement(schoolId: number, schoolYearId: number, actorId: number, authToken?: string) {
-	const action = await prisma.lockedSessionAction.findFirst({
-		where: { schoolId, schoolYearId, actionType: { not: 'UNDO' } },
-		orderBy: { createdAt: 'desc' },
-	});
-	if (!action) {
-		throw err(400, 'NOTHING_TO_UNDO', 'No draft placement actions are available to undo.');
-	}
-	await prisma.$transaction(async (tx) => {
-		if (action.actionType === 'CREATE' && action.lockId != null) {
+export async function undoLastPlacement(
+	schoolId: number,
+	schoolYearId: number,
+	actorId: number,
+	operationId: number,
+	expectedVersion: number,
+	authToken?: string,
+): Promise<DraftUndoResult> {
+	const undoAction = await prisma.$transaction(async (tx) => {
+		const [action, headAction, priorUndo] = await Promise.all([
+			tx.lockedSessionAction.findFirst({ where: { id: operationId, schoolId, schoolYearId, actionType: { not: 'UNDO' } } }),
+			tx.lockedSessionAction.findFirst({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
+			tx.lockedSessionAction.findFirst({
+				where: { schoolId, schoolYearId, actionType: 'UNDO', afterPayload: { path: ['revertedActionId'], equals: operationId } },
+			}),
+		]);
+		assertUndoHead({
+			requestedOperationId: operationId,
+			expectedVersion,
+			currentVersion: headAction?.id ?? 0,
+			headOperationId: headAction?.id ?? null,
+			requestingActorId: actorId,
+			operationActorId: action?.actorId ?? null,
+			alreadyReverted: priorUndo != null,
+		});
+		if (!action) throw err(409, 'UNDO_CONFLICT', 'Schedule changed—review latest');
+		const undoStrategy = getDraftUndoStrategy(action.actionType);
+		if (undoStrategy === 'archive-created' && action.lockId != null) {
 			await tx.lockedSession.update({ where: { id: action.lockId }, data: { status: 'ARCHIVED', version: { increment: 1 } } });
-		} else if (action.actionType === 'UPDATE' && action.lockId != null) {
+		} else if (undoStrategy === 'restore-before' && action.lockId != null) {
 			const before = action.beforePayload as Record<string, unknown> | null;
 			if (!before) throw err(500, 'UNDO_STATE_INVALID', 'Missing previous state for placement update undo.');
 			await tx.lockedSession.update({
@@ -1353,7 +1463,23 @@ export async function undoLastPlacement(schoolId: number, schoolYearId: number, 
 					version: { increment: 1 },
 				},
 			});
-		} else if (action.actionType === 'CLEAR_DRAFT') {
+		} else if (undoStrategy === 'restore-pair') {
+			const beforeList = Array.isArray(action.beforePayload) ? action.beforePayload as Array<Record<string, unknown>> : [];
+			if (beforeList.length !== 2) throw err(500, 'UNDO_STATE_INVALID', 'Missing previous state for draft swap undo.');
+			for (const before of beforeList) {
+				await tx.lockedSession.update({
+					where: { id: Number(before.id) },
+					data: {
+						day: String(before.day) as any,
+						startTime: String(before.startTime),
+						endTime: String(before.endTime),
+						status: 'DRAFT',
+						lockedRunId: null,
+						version: { increment: 1 },
+					},
+				});
+			}
+		} else if (undoStrategy === 'restore-list') {
 			const beforeList = Array.isArray(action.beforePayload) ? action.beforePayload as Array<Record<string, unknown>> : [];
 			for (const item of beforeList) {
 				await tx.lockedSession.upsert({
@@ -1385,8 +1511,24 @@ export async function undoLastPlacement(schoolId: number, schoolYearId: number, 
 					},
 				});
 			}
+		} else if (undoStrategy === 'restore-removed' && action.lockId != null) {
+			await tx.lockedSession.update({
+				where: { id: action.lockId },
+				data: { status: 'DRAFT', lockedRunId: null, version: { increment: 1 } },
+			});
+		} else if (undoStrategy === 'restore-replaced' && action.lockId != null) {
+			const displaced = action.beforePayload as Record<string, unknown> | null;
+			if (!displaced?.id) throw err(500, 'UNDO_STATE_INVALID', 'Missing displaced placement for replacement undo.');
+			await tx.lockedSession.update({
+				where: { id: action.lockId },
+				data: { status: 'ARCHIVED', version: { increment: 1 } },
+			});
+			await tx.lockedSession.update({
+				where: { id: Number(displaced.id) },
+				data: { status: 'DRAFT', lockedRunId: null, version: { increment: 1 } },
+			});
 		}
-		await tx.lockedSessionAction.create({
+		const createdUndo = await tx.lockedSessionAction.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1406,11 +1548,16 @@ export async function undoLastPlacement(schoolId: number, schoolYearId: number, 
 				metadata: { revertedActionId: action.id, revertedActionType: action.actionType } as object,
 			},
 		});
-	});
-	return listDraftBoardState(schoolId, schoolYearId, undefined);
+		return createdUndo;
+	}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+	return {
+		board: await listDraftBoardState(schoolId, schoolYearId, authToken),
+		operationId: undoAction.id,
+		resultingVersion: undoAction.id,
+	};
 }
 
-export async function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number): Promise<DraftBoardState> {
+export async function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number, authToken?: string): Promise<DraftBoardMutationResult> {
 	const placement = await prisma.lockedSession.findUnique({ where: { id: placementId } });
 	if (!placement || placement.schoolId !== schoolId || placement.schoolYearId !== schoolYearId) {
 		throw err(404, 'PLACEMENT_NOT_FOUND', 'Draft placement not found.');
@@ -1418,17 +1565,17 @@ export async function removeSinglePlacement(schoolId: number, schoolYearId: numb
 	if (placement.status !== 'DRAFT') {
 		throw err(409, 'PLACEMENT_NOT_DRAFT', 'Only DRAFT placements can be removed.');
 	}
-	await prisma.$transaction(async (tx) => {
+	const action = await prisma.$transaction(async (tx) => {
 		await tx.lockedSession.update({
 			where: { id: placementId },
 			data: { status: 'ARCHIVED', version: { increment: 1 } },
 		});
-		await tx.lockedSessionAction.create({
+		const createdAction = await tx.lockedSessionAction.create({
 			data: {
 				schoolId,
 				schoolYearId,
 				actorId,
-				actionType: 'CREATE', // record as inverse of CREATE so undo can restore it
+				actionType: 'REMOVE',
 				lockId: placementId,
 				beforePayload: { ...placement, createdAt: placement.createdAt.toISOString(), updatedAt: placement.updatedAt.toISOString() } as object,
 				afterPayload: { status: 'ARCHIVED' } as object,
@@ -1444,8 +1591,13 @@ export async function removeSinglePlacement(schoolId: number, schoolYearId: numb
 				metadata: { placementId } as object,
 			},
 		});
+		return createdAction;
 	});
-	return listDraftBoardState(schoolId, schoolYearId, undefined);
+	return {
+		board: await listDraftBoardState(schoolId, schoolYearId, authToken),
+		operationId: action.id,
+		resultingVersion: action.id,
+	};
 }
 
 export async function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftConsumeResult> {

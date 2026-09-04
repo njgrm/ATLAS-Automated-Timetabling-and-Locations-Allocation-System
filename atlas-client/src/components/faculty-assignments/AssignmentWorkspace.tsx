@@ -45,8 +45,6 @@ type AssignmentWorkspaceProps = {
 	onClearHoverLoad: () => void;
 	activeFacultyIds: Set<number>;
 	resolveSectionHoverDeltaMinutes: (subject: Subject, sectionId: number) => number;
-	splitBrainQuarantineRequired: boolean;
-	splitBrainReasonLabel: string;
 	faculty: FacultySummary[];
 	onSelectTeacher: (id: number) => void;
 	onSetViewMode: (mode: string) => void;
@@ -83,8 +81,6 @@ export function AssignmentWorkspace({
 	onClearHoverLoad,
 	activeFacultyIds,
 	resolveSectionHoverDeltaMinutes,
-	splitBrainQuarantineRequired,
-	splitBrainReasonLabel,
 	faculty,
 	onSelectTeacher,
 	onSetViewMode,
@@ -227,8 +223,6 @@ export function AssignmentWorkspace({
 															onSwapSectionOwnership={onSwapSectionOwnership}
 															selectedFacultySpecialization={selected.specialization}
 															resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-															quarantined={splitBrainQuarantineRequired}
-															quarantineLabel={splitBrainReasonLabel}
 														/>
 													);
 												})}
@@ -275,8 +269,6 @@ export function AssignmentWorkspace({
 															onSwapSectionOwnership={onSwapSectionOwnership}
 															selectedFacultySpecialization={selected.specialization}
 															resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-															quarantined={splitBrainQuarantineRequired}
-															quarantineLabel={splitBrainReasonLabel}
 														/>
 													);
 												})}
@@ -345,8 +337,6 @@ export function AssignmentWorkspace({
 											onSwapSectionOwnership={onSwapSectionOwnership}
 											selectedFacultySpecialization={selected.specialization}
 											resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-											quarantined={splitBrainQuarantineRequired}
-											quarantineLabel={splitBrainReasonLabel}
 										/>
 									))}
 								</div>
@@ -430,8 +420,6 @@ export function AssignmentWorkspace({
 											onSwapSectionOwnership={onSwapSectionOwnership}
 											selectedFacultySpecialization={selected.specialization}
 											resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-											quarantined={splitBrainQuarantineRequired}
-											quarantineLabel={splitBrainReasonLabel}
 										/>
 									))}
 								</div>

@@ -1,0 +1,83 @@
+{
+  "viewport": "mobile-portrait",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 562,
+  "dialogBox": {
+    "x": 16,
+    "y": 148.140625,
+    "width": 358,
+    "height": 547.71875
+  },
+  "scrollMetrics": {
+    "scrollHeight": 371,
+    "clientHeight": 371,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 383,
+    "clientHeight": 383,
+    "requiresScroll": false
+  },
+  "strategyRects": [
+    {
+      "label": "Recommended Direct swap 0B • 890W",
+      "disabled": false,
+      "rect": {
+        "x": 40,
+        "y": 390.46875,
+        "width": 310,
+        "height": 44
+      },
+      "intersectsFooter": false
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 40,
+        "y": 438.46875,
+        "width": 310,
+        "height": 44
+      },
+      "intersectsFooter": false
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 40,
+        "y": 486.46875,
+        "width": 310,
+        "height": 44
+      },
+      "intersectsFooter": false
+    }
+  ],
+  "strategyCount": 3,
+  "visibleStrategyCount": 3,
+  "strategyButtonsIntersectingFooter": [],
+  "recommendedIntersectsFooter": false,
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasSelectedStatus": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 390,
+    "docClientWidth": 390
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 25,
+    "y": 646.859375,
+    "width": 340,
+    "height": 44
+  },
+  "feedbackText": "Ready.",
+  "footerOverlap": false,
+  "blockedWrites": []
+}

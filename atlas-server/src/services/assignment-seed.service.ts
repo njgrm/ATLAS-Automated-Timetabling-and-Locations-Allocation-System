@@ -23,7 +23,7 @@ export interface AssignmentSeedResult {
  */
 export async function seedQualifiedAssignments(
 	schoolId: number,
-	_schoolYearId: number,
+	schoolYearId: number,
 ): Promise<AssignmentSeedResult> {
 	const [faculty, subjects] = await Promise.all([
 		prisma.facultyMirror.findMany({
@@ -57,7 +57,7 @@ export async function seedQualifiedAssignments(
 
 			// Check if assignment already exists
 			const existing = await prisma.facultySubject.findUnique({
-				where: { facultyId_subjectId: { facultyId: member.id, subjectId: subject.id } },
+				where: { facultyId_subjectId_schoolYearId: { facultyId: member.id, subjectId: subject.id, schoolYearId } },
 				select: { id: true },
 			});
 
@@ -71,6 +71,7 @@ export async function seedQualifiedAssignments(
 					facultyId: member.id,
 					subjectId: subject.id,
 					schoolId,
+					schoolYearId,
 					sectionIds: [],
 					gradeLevels: [],
 					assignedBy: 0, // 0 = system-seeded (no specific officer)

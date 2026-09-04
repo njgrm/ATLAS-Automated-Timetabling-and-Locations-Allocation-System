@@ -1,0 +1,105 @@
+{
+  "viewport": "mobile-landscape",
+  "title": "Swap these two classes?",
+  "sectionCount": 2,
+  "sectionTitles": [
+    "WHAT CHANGES",
+    "CHOOSE OPTION"
+  ],
+  "visibleTextLength": 624,
+  "dialogBox": {
+    "x": 134,
+    "y": 19.5,
+    "width": 576,
+    "height": 351
+  },
+  "scrollMetrics": {
+    "scrollHeight": 373,
+    "clientHeight": 373,
+    "requiresScroll": false
+  },
+  "bodyMetrics": {
+    "scrollHeight": 397,
+    "clientHeight": 221,
+    "requiresScroll": true
+  },
+  "strategyRects": [
+    {
+      "label": "Recommended Direct swap 0 blocking • 890 warnings",
+      "disabled": false,
+      "rect": {
+        "x": 164,
+        "y": 288.65625,
+        "width": 516,
+        "height": 40
+      },
+      "intersectsFooter": true
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 334.65625,
+        "width": 516,
+        "height": 40
+      },
+      "intersectsFooter": true
+    },
+    {
+      "label": "Unavailable Move selected session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 380.65625,
+        "width": 516,
+        "height": 40
+      },
+      "intersectsFooter": false
+    }
+  ],
+  "strategyCount": 3,
+  "visibleStrategyCount": 3,
+  "strategyButtonsIntersectingFooter": [
+    {
+      "label": "Recommended Direct swap 0 blocking • 890 warnings",
+      "disabled": false,
+      "rect": {
+        "x": 164,
+        "y": 288.65625,
+        "width": 516,
+        "height": 40
+      },
+      "intersectsFooter": true
+    },
+    {
+      "label": "Unavailable Move blocking session Not available for this pair",
+      "disabled": true,
+      "rect": {
+        "x": 164,
+        "y": 334.65625,
+        "width": 516,
+        "height": 40
+      },
+      "intersectsFooter": true
+    }
+  ],
+  "hasRecommendedBadge": true,
+  "hasUnavailableLabel": true,
+  "hasSelectedStatus": true,
+  "globalOverflow": {
+    "hasHorizontalOverflow": false,
+    "docScrollWidth": 844,
+    "docClientWidth": 844
+  },
+  "footerVisible": true,
+  "footerBox": {
+    "x": 624.09375,
+    "y": 317.5,
+    "width": 68.90625,
+    "height": 40
+  },
+  "feedbackText": "Ready to swap.",
+  "footerOverlap": false,
+  "blockedWrites": []
+}

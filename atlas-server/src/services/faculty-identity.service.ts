@@ -134,6 +134,7 @@ async function applyAssignmentCounts(candidates: Map<number, Candidate>, schoolI
 	const ownershipWhere: Prisma.SubjectSectionOwnershipWhereInput = {
 		schoolId,
 		facultyId: { in: facultyIds },
+		...(schoolYearId ? { schoolYearId } : {}),
 		...(currentYearSectionIds.length > 0 ? { sectionId: { in: currentYearSectionIds } } : {}),
 	};
 	const [ownershipCounts, subjectCounts] = await Promise.all([
@@ -144,7 +145,7 @@ async function applyAssignmentCounts(candidates: Map<number, Candidate>, schoolI
 		}),
 		prisma.facultySubject.groupBy({
 			by: ['facultyId'],
-			where: { schoolId, facultyId: { in: facultyIds } },
+			where: { schoolId, facultyId: { in: facultyIds }, ...(schoolYearId ? { schoolYearId } : {}) },
 			_count: { _all: true },
 		}),
 	]);

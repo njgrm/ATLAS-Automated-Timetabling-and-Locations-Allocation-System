@@ -783,11 +783,11 @@ export default function Sections() {
 			primaryActions={
 				<SectionsHomeRoomActions
 					canAutoAssign={!!activeSchoolYearId && state.status === 'ok' && sectionsNeedingRooms > 0}
-					sectionsNeedingRooms={sectionsNeedingRooms}
 					syncing={syncing}
 					syncingQueuedEdits={syncingQueuedEdits}
 					stateStatus={state.status}
 					isOnline={isOnline}
+					sectionsNeedingRooms={sectionsNeedingRooms}
 					onAutoAssign={() => setAutoAssignOpen(true)}
 					onSync={handleSync}
 				/>

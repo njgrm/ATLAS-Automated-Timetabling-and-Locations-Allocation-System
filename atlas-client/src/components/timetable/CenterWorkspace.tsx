@@ -13,6 +13,7 @@ import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 import type { CommitResult, ManualEditProposal, RoomType, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem, Violation } from '@/types';
 
@@ -140,6 +141,8 @@ type CenterWorkspaceProps = {
 	setPreGenOnboarding: (value: boolean) => void;
 	gridEntries: any[];
 	highlightedEntryIds: Set<string>;
+	swapClassAEntryId?: string | null;
+	swapClassBEntryId?: string | null;
 	teacherDepartureEntryIds?: Set<string>;
 	onReassignTeacher?: (entry: any) => void;
 	handleEntryClick: (entry: any) => void;
@@ -225,6 +228,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		setPreGenOnboarding,
 		gridEntries,
 		highlightedEntryIds,
+		swapClassAEntryId,
+		swapClassBEntryId,
 		teacherDepartureEntryIds,
 		onReassignTeacher,
 		handleEntryClick,
@@ -589,20 +594,35 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 							{(centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 								<div className="p-4">
 									{centerView === 'pre-generation' ? (
-										<div className="mb-3 flex items-center gap-2 flex-wrap">
+										<div className="mb-3 flex min-w-0 items-center gap-2">
 											{entityFilter && entityFilter !== 'all' ? (
-												<Badge
-													variant="secondary"
-												className={`h-5 max-w-36 truncate px-2 text-xs ${
-														viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-														viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-														'bg-muted text-muted-foreground'
-															}`}
-												>
-													{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
-												</Badge>
+												<TooltipProvider delayDuration={300}>
+													<Tooltip>
+														<TooltipTrigger asChild>
+																	<Badge
+																		variant="secondary"
+																		aria-label={`${viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: ${pivotLabel(Number(entityFilter))}`}
+																		tabIndex={0}
+																		data-testid="timetable-current-context-badge"
+																	className={`min-w-0 max-w-[min(32rem,calc(100vw-8rem))] flex-1 cursor-default justify-start overflow-hidden px-2 text-xs ${
+																		viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+																		viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+																		'bg-muted text-muted-foreground'
+																	}`}
+																	>
+																		<span className="shrink-0">
+																			{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}:
+																		</span>
+																		<span className="min-w-0 truncate">{pivotLabel(Number(entityFilter))}</span>
+																	</Badge>
+														</TooltipTrigger>
+														<TooltipContent side="bottom" className="max-w-[min(32rem,calc(100vw-2rem))] text-xs">
+															{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
+														</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
 											) : null}
-										<Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
+										<Button variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
 												<MapPin className="size-3" />
 												Map
 											</Button>
@@ -613,6 +633,8 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 										timeSlots={timeSlots}
 										violationIndex={violationIndex}
 										highlightedEntryIds={highlightedEntryIds}
+										swapClassAEntryId={swapClassAEntryId}
+										swapClassBEntryId={swapClassBEntryId}
 										teacherDepartureEntryIds={teacherDepartureEntryIds}
 										localSandboxChangedEntryIds={localSandboxChangedEntryIds}
 										localSandboxConflictEntryIds={localSandboxConflictEntryIds}

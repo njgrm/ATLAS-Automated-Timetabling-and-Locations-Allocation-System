@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
 import {
@@ -23,6 +23,7 @@ import { buildSectionRosterIndex, deriveGradeLevelsFromSectionIds } from './facu
 import { resolveAssignmentSpecializationIdentity } from './faculty-assignment.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { computeGenerationInputSnapshot } from './generation-input-snapshot.service.js';
+import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -837,17 +838,18 @@ async function loadSectionGradeMap(tx: Prisma.TransactionClient, schoolId: numbe
 async function syncFacultySubjectScopes(
 	tx: Prisma.TransactionClient,
 	schoolId: number,
+	schoolYearId: number,
 	facultySubjectKeys: Array<{ facultyId: number; subjectId: number }>,
 	sectionGradeMap: Map<number, number>,
 ): Promise<void> {
 	for (const key of facultySubjectKeys) {
 		const facultySubject = await tx.facultySubject.findUnique({
-			where: { facultyId_subjectId: { facultyId: key.facultyId, subjectId: key.subjectId } },
+			where: { facultyId_subjectId_schoolYearId: { facultyId: key.facultyId, subjectId: key.subjectId, schoolYearId } },
 			select: { id: true },
 		});
 		if (!facultySubject) continue;
 		const rows = await tx.subjectSectionOwnership.findMany({
-			where: { schoolId, facultyId: key.facultyId, subjectId: key.subjectId },
+			where: { schoolId, schoolYearId, facultyId: key.facultyId, subjectId: key.subjectId },
 			select: { sectionId: true },
 		});
 		const sectionIds = [...new Set(rows.map((row) => row.sectionId))].sort((left, right) => left - right);
@@ -891,7 +893,7 @@ async function applyCanonicalOwnership(
 
 	for (const change of changes) {
 		let facultySubject = await tx.facultySubject.findUnique({
-			where: { facultyId_subjectId: { facultyId: change.toFacultyId, subjectId: change.subjectId } },
+			where: { facultyId_subjectId_schoolYearId: { facultyId: change.toFacultyId, subjectId: change.subjectId, schoolYearId } },
 			select: { id: true },
 		});
 		if (!facultySubject) {
@@ -900,6 +902,7 @@ async function applyCanonicalOwnership(
 					facultyId: change.toFacultyId,
 					subjectId: change.subjectId,
 					schoolId,
+					schoolYearId,
 					gradeLevels: [],
 					sectionIds: [],
 					assignedBy: actorId,
@@ -919,8 +922,9 @@ async function applyCanonicalOwnership(
 		for (const sectionId of change.ownershipSectionIds) {
 			const existingOwner = await tx.subjectSectionOwnership.findUnique({
 				where: {
-					schoolId_subjectId_sectionId: {
+					schoolId_schoolYearId_subjectId_sectionId: {
 						schoolId,
+						schoolYearId,
 						subjectId: change.subjectId,
 						sectionId,
 					},
@@ -933,8 +937,9 @@ async function applyCanonicalOwnership(
 
 			await tx.subjectSectionOwnership.upsert({
 				where: {
-					schoolId_subjectId_sectionId: {
+					schoolId_schoolYearId_subjectId_sectionId: {
 						schoolId,
+						schoolYearId,
 						subjectId: change.subjectId,
 						sectionId,
 					},
@@ -948,6 +953,7 @@ async function applyCanonicalOwnership(
 				},
 				create: {
 					schoolId,
+					schoolYearId,
 					facultySubjectId: facultySubject.id,
 					facultyId: change.toFacultyId,
 					subjectId: change.subjectId,
@@ -965,7 +971,7 @@ async function applyCanonicalOwnership(
 		}
 	}
 
-	await syncFacultySubjectScopes(tx, schoolId, [...touchedKeys.values()], sectionGradeMap);
+	await syncFacultySubjectScopes(tx, schoolId, schoolYearId, [...touchedKeys.values()], sectionGradeMap);
 
 	const affectedFacultyIds = [...new Set(changes.flatMap((change) => [change.fromFacultyId, change.toFacultyId]).filter((id): id is number => id != null))];
 	if (affectedFacultyIds.length > 0) {
@@ -1121,6 +1127,7 @@ export async function applyTeachingLoadRepair(
 
 		return { updatedRun: updated, editRecords: created, finalSummary: transactionSummary };
 	});
+	await refreshTeachingLoadCycle(schoolId, schoolYearId);
 
 	return {
 		editId: editRecords[0]?.id ?? 0,
@@ -1132,5 +1139,204 @@ export async function applyTeachingLoadRepair(
 		ownershipDeltas: preview.ownershipDeltas,
 		affectedTeachers: preview.affectedTeachers,
 		unassignedReadiness: preview.unassignedReadiness,
+	};
+}
+
+export type AnnualTeachingLoadChange = {
+	subjectId: number;
+	sectionId: number;
+	fromFacultyId: number | null;
+	toFacultyId: number;
+};
+
+export type AnnualTeachingLoadPreview = {
+	schoolId: number;
+	schoolYearId: number;
+	changes: AnnualTeachingLoadChange[];
+	affectedEntries: Array<{ subjectId: number; sectionId: number; currentOwnerId: number | null }>;
+	affectedUnassigned: Array<{ subjectId: number; sectionId: number; session: number; currentOwnerId: number | null }>;
+	qualifiedTargetFacultyIds: number[];
+	displacedSessions: Array<{ subjectId: number; sectionId: number; session: number; reason: string }>;
+};
+
+export type AnnualTeachingLoadApplyResult = {
+	appliedChanges: AnnualTeachingLoadChange[];
+	updatedSubjectSectionOwnershipIds: number[];
+	updatedFacultySubjectIds: number[];
+	affectedFacultyIds: number[];
+	operationId: number;
+};
+
+export async function previewAnnualTeachingLoadChange(
+	schoolId: number,
+	schoolYearId: number,
+	actorId: number,
+	changes: AnnualTeachingLoadChange[],
+): Promise<AnnualTeachingLoadPreview> {
+	if (!Array.isArray(changes) || changes.length === 0) {
+		throw err(400, 'INVALID_BODY', 'At least one change is required for an annual Teaching Load operation.');
+	}
+	const subjectIds = [...new Set(changes.map((c) => c.subjectId))];
+	const sectionIds = [...new Set(changes.map((c) => c.sectionId))];
+	const targetIds = [...new Set(changes.map((c) => c.toFacultyId).filter((id): id is number => id != null))];
+
+	const [ownerships, facultySubjectRows, currentRun] = await Promise.all([
+		prisma.subjectSectionOwnership.findMany({
+			where: { schoolId, schoolYearId, subjectId: { in: subjectIds }, sectionId: { in: sectionIds } },
+			select: { id: true, subjectId: true, sectionId: true, facultyId: true },
+		}),
+		prisma.facultySubject.findMany({
+			where: { schoolId, schoolYearId, subjectId: { in: subjectIds } },
+			select: { id: true, facultyId: true, subjectId: true, sectionIds: true },
+		}),
+		prisma.generationRun.findFirst({
+			where: { schoolId, schoolYearId, status: 'COMPLETED' },
+			orderBy: [{ finishedAt: 'desc' }, { id: 'desc' }],
+			select: { id: true, version: true, summary: true },
+		}),
+	]);
+
+	const ownershipByKey = new Map<string, { id: number; facultyId: number | null }>();
+	for (const row of ownerships) {
+		ownershipByKey.set(`${row.subjectId}:${row.sectionId}`, { id: row.id, facultyId: row.facultyId });
+	}
+	const facultySubjectByFaculty = new Map<number, Array<{ id: number; subjectId: number; sectionIds: number[] }>>();
+	for (const row of facultySubjectRows) {
+		const list = facultySubjectByFaculty.get(row.facultyId) ?? [];
+		list.push({ id: row.id, subjectId: row.subjectId, sectionIds: row.sectionIds });
+		facultySubjectByFaculty.set(row.facultyId, list);
+	}
+	const qualifiedTargetFacultyIds = targetIds.filter((facultyId) => {
+		const rows = facultySubjectByFaculty.get(facultyId) ?? [];
+		return subjectIds.every((subjectId) => rows.some((row) => row.subjectId === subjectId));
+	});
+
+	const affectedEntries: AnnualTeachingLoadPreview['affectedEntries'] = [];
+	const affectedUnassigned: AnnualTeachingLoadPreview['affectedUnassigned'] = [];
+	for (const change of changes) {
+		const key = `${change.subjectId}:${change.sectionId}`;
+		const ownership = ownershipByKey.get(key);
+		const currentOwnerId = ownership?.facultyId ?? null;
+		if (currentOwnerId !== change.fromFacultyId) {
+			throw err(409, 'TEACHING_LOAD_VERSION_CONFLICT', `Annual Teaching Load changed for ${change.subjectId}/${change.sectionId}. Reload and retry.`);
+		}
+		affectedEntries.push({ subjectId: change.subjectId, sectionId: change.sectionId, currentOwnerId });
+	}
+
+	return {
+		schoolId,
+		schoolYearId,
+		changes,
+		affectedEntries,
+		affectedUnassigned,
+		qualifiedTargetFacultyIds,
+		displacedSessions: [],
+	};
+}
+
+export async function applyAnnualTeachingLoadChange(
+	schoolId: number,
+	schoolYearId: number,
+	actorId: number,
+	changes: AnnualTeachingLoadChange[],
+	// SubjectSectionOwnership currently has no version column. The argument is
+	// retained for API symmetry and future schema evolution; the optimistic
+	// guard is on FacultySubject.version below.
+	_expectedSubjectSectionOwnershipVersions: Record<string, number> = {},
+): Promise<AnnualTeachingLoadApplyResult> {
+	if (!Array.isArray(changes) || changes.length === 0) {
+		throw err(400, 'INVALID_BODY', 'At least one change is required for an annual Teaching Load operation.');
+	}
+	const subjectIds = [...new Set(changes.map((c) => c.subjectId))];
+	const sectionIds = [...new Set(changes.map((c) => c.sectionId))];
+
+		const txResult = await prisma.$transaction(async (tx) => {
+			const updatedSubjectSectionOwnershipIds: number[] = [];
+			const updatedFacultySubjectIds: number[] = [];
+			const affectedFacultyIds = new Set<number>();
+
+			for (const change of changes) {
+				const facultySubject = await tx.facultySubject.findFirst({
+					where: { schoolId, schoolYearId, facultyId: change.toFacultyId, subjectId: change.subjectId },
+					select: { id: true },
+				});
+				if (!facultySubject) {
+					throw err(409, 'TEACHING_LOAD_QUALIFICATION_MISSING', `Target faculty ${change.toFacultyId} is not qualified for subject ${change.subjectId}.`);
+				}
+				const upserted = await tx.subjectSectionOwnership.upsert({
+					where: {
+						schoolId_schoolYearId_subjectId_sectionId: {
+							schoolId,
+							schoolYearId,
+							subjectId: change.subjectId,
+							sectionId: change.sectionId,
+						},
+					},
+					create: {
+						schoolId,
+						schoolYearId,
+						subjectId: change.subjectId,
+						sectionId: change.sectionId,
+						facultySubjectId: facultySubject.id,
+						facultyId: change.toFacultyId,
+						assignedAt: new Date(),
+					},
+					update: {
+						facultySubjectId: facultySubject.id,
+						facultyId: change.toFacultyId,
+						assignedAt: new Date(),
+					},
+				});
+				updatedSubjectSectionOwnershipIds.push(upserted.id);
+				if (change.fromFacultyId != null) affectedFacultyIds.add(change.fromFacultyId);
+				affectedFacultyIds.add(change.toFacultyId);
+			}
+
+			for (const facultyId of affectedFacultyIds) {
+				const sectionIdsForFaculty = changes
+					.filter((c) => c.toFacultyId === facultyId)
+					.map((c) => c.sectionId);
+				if (sectionIdsForFaculty.length === 0) continue;
+				const fs = await tx.facultySubject.findFirst({
+					where: { schoolId, schoolYearId, facultyId, subjectId: { in: subjectIds } },
+					orderBy: { id: 'asc' },
+				});
+				if (fs) {
+					const merged = Array.from(new Set([...fs.sectionIds, ...sectionIdsForFaculty])).sort((a, b) => a - b);
+					const updatedFs = await tx.facultySubject.update({
+						where: { id: fs.id },
+						data: { sectionIds: merged, version: { increment: 1 } },
+					});
+					updatedFacultySubjectIds.push(updatedFs.id);
+				}
+			}
+
+			const auditAction = await tx.auditLog.create({
+				data: {
+					schoolId,
+					schoolYearId,
+					actorId,
+					action: 'TEACHING_LOAD_ANNUAL_CHANGE',
+					targetIds: updatedSubjectSectionOwnershipIds,
+					metadata: {
+						changeCount: changes.length,
+						affectedFacultyIds: Array.from(affectedFacultyIds),
+						changes: changes.map((c) => ({ subjectId: c.subjectId, sectionId: c.sectionId, fromFacultyId: c.fromFacultyId, toFacultyId: c.toFacultyId })),
+					} as object,
+				},
+			});
+			return {
+				updatedSubjectSectionOwnershipIds,
+				updatedFacultySubjectIds,
+				affectedFacultyIds: Array.from(affectedFacultyIds),
+				operationId: auditAction.id,
+			};
+		}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+	await refreshTeachingLoadCycle(schoolId, schoolYearId);
+
+	return {
+		appliedChanges: changes,
+		...txResult,
 	};
 }

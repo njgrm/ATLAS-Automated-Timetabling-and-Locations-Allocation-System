@@ -1,0 +1,11 @@
+{
+  "viewport": "mobile-landscape",
+  "fixtureClassification": "fixture-unavailable",
+  "draftBoardAvailable": true,
+  "draftBoardCounts": {
+    "draft": 0,
+    "lockedForRun": 5,
+    "archived": 0,
+    "unscheduled": 1313
+  }
+}

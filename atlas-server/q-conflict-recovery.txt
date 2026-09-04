@@ -1,0 +1,99 @@
+[prisma] ✔ DATABASE_URL protocol looks correct
+
+════ ENROLLPRO_UNREACHABLE classification ════
+  ✓ Classifies as ENROLLPRO_UNREACHABLE — expected ENROLLPRO_UNREACHABLE, got ENROLLPRO_UNREACHABLE
+  ✓ Cannot clear test data when unreachable — expected false, got false
+  ✓ Message mentions unreachable
+
+════ AUTO_ROLLOVER_READY classification ════
+  ✓ Classifies as AUTO_ROLLOVER_READY — expected AUTO_ROLLOVER_READY, got AUTO_ROLLOVER_READY
+  ✓ Cannot clear when aligned — expected false, got false
+
+════ ATLAS_STALE classification ════
+  ✓ Classifies clean atlas-stale rollover as AUTO_ROLLOVER_READY — expected AUTO_ROLLOVER_READY, got AUTO_ROLLOVER_READY
+
+════ Dynamic recovery confirmation ════
+  ✓ Confirmation includes target school-year ID — expected CLEAR_TEST_DATA_AND_SYNC_5, got CLEAR_TEST_DATA_AND_SYNC_5
+  ✓ Unavailable target uses safe non-applicable confirmation — expected CLEAR_TEST_DATA_AND_SYNC_UNAVAILABLE, got CLEAR_TEST_DATA_AND_SYNC_UNAVAILABLE
+
+════ MANUAL_RECONFIGURE_REQUIRED classification ════
+  ✓ Classifies as MANUAL_RECONFIGURE_REQUIRED — expected MANUAL_RECONFIGURE_REQUIRED, got MANUAL_RECONFIGURE_REQUIRED
+  ✓ Cannot clear when reconfigure required — expected false, got false
+  ✓ Message mentions reconfigured section count
+
+════ TEST_DATA_RECOVERY_AVAILABLE classification ════
+  ✓ Classifies as TEST_DATA_RECOVERY_AVAILABLE — expected TEST_DATA_RECOVERY_AVAILABLE, got TEST_DATA_RECOVERY_AVAILABLE
+  ✓ Can clear test data — expected true, got true
+  ✓ Conflict code is SECTION_ID_COLLISION — expected SECTION_ID_COLLISION, got SECTION_ID_COLLISION
+  ✓ Artifact counts are present
+  ✓ Message mentions target year
+
+════ TEST_DATA_RECOVERY_BLOCKED classification ════
+  ✓ Classifies as TEST_DATA_RECOVERY_BLOCKED — expected TEST_DATA_RECOVERY_BLOCKED, got TEST_DATA_RECOVERY_BLOCKED
+  ✓ Cannot clear when no artifacts — expected false, got false
+
+════ ARCHIVE_AND_SYNC_AVAILABLE for label-mismatch conflicts (RR-09A) ════
+  ✓ Label-only mismatch is archive-resolvable — expected ARCHIVE_AND_SYNC_AVAILABLE, got ARCHIVE_AND_SYNC_AVAILABLE
+  ✓ Archive resolution never clears test data — expected false, got false
+  ✓ Message points at the archive flow
+
+════ Published data blocker ════
+  ✓ Still classified as recoverable — expected TEST_DATA_RECOVERY_AVAILABLE, got TEST_DATA_RECOVERY_AVAILABLE
+  ✓ Has blockers
+  ✓ Published data blocker present
+
+════ Mixed label-mismatch + section collision stays manual (not archive-resolvable) ════
+  ✓ Mixed conflicts are not archive-resolvable — expected TEST_DATA_RECOVERY_BLOCKED, got TEST_DATA_RECOVERY_BLOCKED
+  ✓ Mixed conflicts cannot auto-archive — expected false, got false
+
+════ Classifier recommends RUN_ARCHIVE_AND_SYNC action values ════
+  ✓ Label-only mismatch recommends RUN_ARCHIVE_AND_SYNC — expected RUN_ARCHIVE_AND_SYNC, got RUN_ARCHIVE_AND_SYNC
+  ✓ Action copy names the archive flow
+  ✓ Section collisions keep the reset path — expected RESET_DUMMY_YEAR, got RESET_DUMMY_YEAR
+  ✓ Published-blocked collisions stay manual — expected REVIEW_MAPPING_CONFLICT, got REVIEW_MAPPING_CONFLICT
+  ✓ isArchiveResolvableConflict accepts label-only — expected true, got true
+  ✓ isArchiveResolvableConflict rejects mixed — expected false, got false
+  ✓ isArchiveResolvableConflict rejects empty — expected false, got false
+
+════ RR-09A archive backend: archive refuses active year, preserves rows, audits, notifies ════
+  ✓ Archive refuses the EnrollPro active year — expected CANNOT_ARCHIVE_ACTIVE_YEAR, got CANNOT_ARCHIVE_ACTIVE_YEAR
+  ✓ Archive refuses a year with no ATLAS mirror — expected SCHOOL_YEAR_MIRROR_NOT_FOUND, got SCHOOL_YEAR_MIRROR_NOT_FOUND
+  ✓ Old year archived in this call — expected false, got false
+  ✓ Archive deletes NOTHING (row-count parity) — expected {"sectionMirrors":2,"generationRuns":1,"publishedRuns":1,"policies":1}, got {"sectionMirrors":2,"generationRuns":1,"publishedRuns":1,"policies":1}
+  ✓ Audit metadata records preserved run count — expected 1, got 1
+  ✓ Audit metadata records preserved published-run count — expected 1, got 1
+  ✓ Mirror marked isArchived — expected true, got true
+  ✓ Archived year implies isActive false — expected false, got false
+  ✓ Archived-by actor recorded — expected 1, got 1
+  ✓ Archived-at timestamp recorded
+  ✓ ARCHIVE_SCHOOL_YEAR audit row written — expected 1, got 1
+  ✓ SCHOOL_YEAR_ARCHIVED notification published
+  ✓ Archive notification is privileged — expected PRIVILEGED, got PRIVILEGED
+  ✓ Re-archive reports alreadyArchived — expected true, got true
+  ✓ Re-archive keeps the original archivedBy — expected 1, got 1
+  ✓ Re-archive does not duplicate the audit row — expected 1, got 1
+
+════ RR-09A archive-and-sync resolves the label-mismatch wedge to aligned ════
+  ✓ Resolved against the EnrollPro active year — expected 889022, got 889022
+  ✓ Exactly one superseded year archived — expected 1, got 1
+  ✓ The old year is the archived one — expected 889021, got 889021
+  ✓ Stale mirror label reconciled to upstream truth — expected true, got true
+  ✓ New-year mirror active after archive-and-sync — expected true, got true
+  ✓ New-year mirror label corrected — expected 2091-2092, got 2091-2092
+  ✓ New-year mirror not archived — expected false, got false
+  ✓ Archive-and-sync deletes NOTHING in the old year — expected {"sectionMirrors":2,"generationRuns":1,"publishedRuns":1,"policies":1}, got {"sectionMirrors":2,"generationRuns":1,"publishedRuns":1,"policies":1}
+  ✓ Old year archived — expected true, got true
+  ✓ Old year deactivated — expected false, got false
+  ✓ ARCHIVE_AND_SYNC_APPLIED audit row written — expected 1, got 1
+  ✓ ROLLOVER_ARCHIVE_SYNC_COMPLETED notification published
+  ✓ Completion notification says no action needed
+  ✓ Standard apply ran exactly once — expected 1, got 1
+  ✓ Archived-year published run remains published
+  ✓ Archived-year published schedule read still resolves
+  ✓ Archived-year published payload carries entries
+
+════ RR-09A archived years never win the runtime evidence election ════
+  ✓ Excluded archived year cannot win the election — expected 6, got 6
+  ✓ Sanity: without exclusion the newer year wins — expected 5, got 5
+
+Recovery classifier test complete: 68 passed, 0 failed.

@@ -23,14 +23,6 @@ import type { BridgeUser } from '@/types';
 import type { SchoolYear } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbLink,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from '@/ui/breadcrumb';
 import { Separator } from '@/ui/separator';
 import { Skeleton } from '@/ui/skeleton';
 import {
@@ -356,6 +348,7 @@ export function AppShell() {
 		return [{ label: 'ATLAS' }];
 	})();
 	const currentPageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? 'ATLAS';
+	const eyebrowLabel = breadcrumbs.length > 1 ? breadcrumbs[0]?.label : null;
 
 	return (
 		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen} className="relative">
@@ -406,33 +399,22 @@ export function AppShell() {
 								{mobileSyncLabel}
 							</Badge>
 						</>
-					) : (
-						<>
-							<SidebarTrigger className='-ml-1 hidden lg:inline-flex' />
-							<Separator orientation='vertical' className='mr-2 h-4! hidden lg:block' />
-							<Breadcrumb>
-								<BreadcrumbList>
-									<BreadcrumbItem>
-										<BreadcrumbLink asChild>
-											<Link to='/'>ATLAS</Link>
-										</BreadcrumbLink>
-									</BreadcrumbItem>
-									{breadcrumbs.map((crumb, i) => (
-										<React.Fragment key={`${crumb.label}-${i}`}>
-											<BreadcrumbSeparator />
-											<BreadcrumbItem>
-												{i === breadcrumbs.length - 1 ? (
-													<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-												) : (
-													<span className='text-sm text-muted-foreground'>{crumb.label}</span>
-												)}
-											</BreadcrumbItem>
-										</React.Fragment>
-									))}
-								</BreadcrumbList>
-							</Breadcrumb>
+				) : (
+					<>
+						<SidebarTrigger className='-ml-1 hidden lg:inline-flex' />
+						<Separator orientation='vertical' className='mr-2 h-4! hidden lg:block' />
+						<div className='flex flex-col'>
+							{eyebrowLabel && (
+								<span className='text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider'>
+									{eyebrowLabel}
+								</span>
+							)}
+							<span className='text-base font-bold text-foreground'>
+								{currentPageTitle}
+							</span>
+						</div>
 
-							<div className='ml-auto flex items-center gap-2'>
+						<div className='ml-auto flex items-center gap-2'>
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
 								{activeTermLabel && (
 									<Badge

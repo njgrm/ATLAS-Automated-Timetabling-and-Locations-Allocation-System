@@ -32,13 +32,14 @@ model School {
   enrollProSchoolYearMirrors EnrollProSchoolYearMirror[]
   publishedScheduleRevisions PublishedScheduleRevision[]
   teachingLoadSuggestionProposals TeachingLoadSuggestionProposal[]
+  teachingLoadCycles         TeachingLoadCycle[]
 
   @@map("schools")
 }
 
 model EnrollProSchoolYearMirror {
   id                       Int       @id @default(autoincrement())
-  schoolId                 Int       @map("school_id")
+  schoolId                Int       @map("school_id")
   enrollProSchoolYearId    Int       @map("enrollpro_school_year_id")
   yearLabel                String    @map("year_label") @db.VarChar(32)
   isActive                 Boolean   @default(false) @map("is_active")
@@ -50,6 +51,12 @@ model EnrollProSchoolYearMirror {
   syncStatus               String    @default("pending") @map("sync_status") @db.VarChar(32)
   lastFailureSummary       String?   @map("last_failure_summary") @db.VarChar(500)
   lastSyncMetadata         Json?     @map("last_sync_metadata")
+  /// RR-09A: non-destructive archive lifecycle. An archived year keeps every
+  /// row as read-only history and never wins the active-year election.
+  isArchived               Boolean   @default(false) @map("is_archived")
+  archivedAt               DateTime? @map("archived_at")
+  archivedBy               Int?      @map("archived_by")
+  archiveReason            String?   @map("archive_reason") @db.VarChar(500)
   createdAt                DateTime  @default(now()) @map("created_at")
   updatedAt                DateTime  @updatedAt @map("updated_at")
 
@@ -306,6 +313,8 @@ model FacultySubject {
   facultyId   Int           @map("faculty_id")
   subjectId   Int           @map("subject_id")
   schoolId    Int           @map("school_id")
+  /// NULL rows predate annual Teaching Load scoping and are retained as legacy evidence.
+  schoolYearId Int?         @map("school_year_id")
   gradeLevels Int[]         @map("grade_levels")
   sectionIds  Int[]         @default([]) @map("section_ids")
   assignedBy  Int           @map("assigned_by")
@@ -318,8 +327,8 @@ model FacultySubject {
 
   sectionOwnerships SubjectSectionOwnership[]
 
-  @@unique([facultyId, subjectId], map: "uq_faculty_subject")
-  @@index([schoolId])
+  @@unique([facultyId, subjectId, schoolYearId], map: "uq_faculty_subject_year")
+  @@index([schoolId, schoolYearId])
   @@index([facultyId])
   @@index([subjectId])
   @@map("faculty_subjects")
@@ -333,6 +342,8 @@ model FacultySubject {
 model SubjectSectionOwnership {
   id                  Int      @id @default(autoincrement())
   schoolId            Int      @map("school_id")
+  /// NULL rows predate annual Teaching Load scoping and are retained as legacy evidence.
+  schoolYearId        Int?     @map("school_year_id")
   facultySubjectId    Int      @map("faculty_subject_id")
   facultyId           Int      @map("faculty_id")
   subjectId           Int      @map("subject_id")
@@ -347,12 +358,37 @@ model SubjectSectionOwnership {
 
   facultySubject FacultySubject @relation(fields: [facultySubjectId], references: [id], onDelete: Cascade)
 
-  /// DB-level uniqueness: one owner per school+subject+section
-  @@unique([schoolId, subjectId, sectionId], map: "uq_subject_section_owner")
+  /// DB-level uniqueness: one owner per school year + subject + section.
+  @@unique([schoolId, schoolYearId, subjectId, sectionId], map: "uq_subject_section_owner_year")
   @@index([facultySubjectId])
-  @@index([schoolId, subjectId])
+  @@index([schoolId, schoolYearId, subjectId])
   @@index([facultyId])
   @@map("subject_section_ownerships")
+}
+
+enum TeachingLoadCycleState {
+  EMPTY
+  POPULATED
+
+  @@map("teaching_load_cycle_state")
+}
+
+/// Annual Teaching Load boundary. A cycle exists even when the active year has no assignments.
+model TeachingLoadCycle {
+  id           Int                    @id @default(autoincrement())
+  schoolId     Int                    @map("school_id")
+  schoolYearId Int                    @map("school_year_id")
+  state        TeachingLoadCycleState @default(EMPTY)
+  version      Int                    @default(1)
+  initializedAt DateTime              @default(now()) @map("initialized_at")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, schoolYearId], map: "uq_teaching_load_cycle")
+  @@index([schoolId, schoolYearId, state])
+  @@map("teaching_load_cycles")
 }
 
 enum TeachingLoadSuggestionStatus {

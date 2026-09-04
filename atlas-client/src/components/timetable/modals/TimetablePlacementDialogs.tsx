@@ -639,9 +639,9 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 					onOpenAutoFocus={focusCancelButton(generatedSwapCancelRef)}
 				>
 					<DialogHeader className="shrink-0 border-b border-border px-4 py-2 sm:px-4 sm:py-3">
-						<DialogTitle className="text-sm sm:text-base lg:text-lg">Swap these two classes?</DialogTitle>
+						<DialogTitle className="text-sm sm:text-base lg:text-lg">Swap class times</DialogTitle>
 						<DialogDescription className="text-xs sm:text-sm">
-							{regularSwapPending ? `${subjectLabel(regularSwapPending.entryA.subjectId)} for ${sectionLabel(regularSwapPending.entryA.sectionId)} exchanges times with ${subjectLabel(regularSwapPending.entryB.subjectId)} for ${sectionLabel(regularSwapPending.entryB.sectionId)}.` : ''}
+							{regularSwapPending ? 'These two classes will exchange their scheduled times. Each teacher stays with their class.' : ''}
 						</DialogDescription>
 					</DialogHeader>
 					<div role="status" aria-live="polite" data-testid="generated-swap-preview-status" className="sr-only">
@@ -661,23 +661,45 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 						) : regularSwapPending && regularSwapPreview ? (
 							<ReviewActionSheet type="generated-swap">
 								<div data-testid="generated-swap-primary-region" className="px-4 py-3">
-									<div data-testid="generated-swap-pair-region" className="grid grid-cols-2 gap-2">
-										<div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 p-2">
-											<ArrowRightLeft className="size-4 shrink-0 text-primary" />
-											<div className="min-w-0">
-												<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
-												<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryA.sectionId)} &middot; {regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}</p>
-											</div>
-										</div>
-										<div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2">
-											<ArrowRightLeft className="size-4 shrink-0 text-amber-600" />
-											<div className="min-w-0">
-												<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
-												<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryB.sectionId)} &middot; {regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}</p>
-											</div>
+								<div data-testid="generated-swap-pair-region" className="grid grid-cols-2 gap-2">
+									<div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-2">
+										<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">A</div>
+										<div className="min-w-0">
+											<p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">Class A</p>
+											<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryA.subjectId)}</p>
+											<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryA.sectionId)}</p>
+											<p className="text-xs font-medium text-blue-800">{regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}–{formatTime(regularSwapPending.entryA.endTime)}</p>
 										</div>
 									</div>
-									<p className="mt-2 text-xs text-muted-foreground">Teacher ownership remains sourced from Teaching Load.</p>
+									<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2">
+										<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-600 text-[10px] font-bold text-white">B</div>
+										<div className="min-w-0">
+											<p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Class B</p>
+											<p className="text-sm font-semibold truncate">{subjectLabel(regularSwapPending.entryB.subjectId)}</p>
+											<p className="text-xs text-muted-foreground truncate">{sectionLabel(regularSwapPending.entryB.sectionId)}</p>
+											<p className="text-xs font-medium text-amber-800">{regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}–{formatTime(regularSwapPending.entryB.endTime)}</p>
+										</div>
+									</div>
+								</div>
+								<div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+									<span className="font-medium text-blue-700">A</span>
+									<ArrowRightLeft className="size-3.5" />
+									<span className="font-medium text-amber-700">B</span>
+									<span className="ml-1">Teachers stay with their classes.</span>
+								</div>
+								<div className="mt-3 rounded-md border border-border bg-muted/30 p-2" data-testid="generated-swap-before-after">
+									<p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Before → After</p>
+									<div className="grid grid-cols-2 gap-2 text-xs">
+										<div className="space-y-0.5">
+											<p className="font-semibold text-blue-800">Class A moves to</p>
+											<p className="text-muted-foreground">{regularSwapPending.entryB.day} {formatTime(regularSwapPending.entryB.startTime)}–{formatTime(regularSwapPending.entryB.endTime)}</p>
+										</div>
+										<div className="space-y-0.5">
+											<p className="font-semibold text-amber-800">Class B moves to</p>
+											<p className="text-muted-foreground">{regularSwapPending.entryA.day} {formatTime(regularSwapPending.entryA.startTime)}–{formatTime(regularSwapPending.entryA.endTime)}</p>
+										</div>
+									</div>
+								</div>
 								</div>
 								<div data-testid="generated-swap-primary-region" className="px-4 py-3 border-t border-border">
 									<div data-testid="generated-swap-recommended-region">
@@ -705,9 +727,9 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 													>
 														<span className="flex items-center gap-1.5">
 															<ShieldCheck className="size-3.5 shrink-0" />
-															<span className="font-semibold">Direct swap</span>
+														<span className="font-semibold">{hard === 0 ? 'Safe to review' : 'Needs review'}</span>
 														</span>
-														<span>{hard === 0 ? 'No blockers' : `${hard} blockers`}, {soft} warnings to review after swap</span>
+														<span className="text-right">{hard === 0 ? 'No blocking conflict' : `${hard} blocking conflict${hard === 1 ? '' : 's'}`}{soft > 0 ? ' · Other warnings stay unchanged' : ''}</span>
 													</div>
 												);
 											})()}
@@ -737,7 +759,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 										: regularSwapPreview?.recommendedStrategy === 'BLOCKED'
 											? 'This swap is blocked.'
 											: regularSwapStrategy
-												? 'Ready to swap. ATLAS will save only the selected option.'
+												? 'Ready to apply this swap.'
 												: 'Choose a safe swap option before saving.'}
 						</p>
 						<Button ref={generatedSwapCancelRef} variant="outline" className="min-h-[40px] sm:min-h-[44px]" onClick={closeGeneratedSwap}>

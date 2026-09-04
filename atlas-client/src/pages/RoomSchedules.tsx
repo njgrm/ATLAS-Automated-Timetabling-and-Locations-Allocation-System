@@ -365,7 +365,9 @@ export default function RoomSchedules() {
 				<header className="flex flex-col gap-1.5 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-soft sm:flex-row sm:items-center sm:justify-between">
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-2">
-							<h1 className="text-lg font-bold text-slate-900 sm:text-xl">Schedules</h1>
+							<span className="text-[0.65rem] font-medium text-muted-foreground uppercase tracking-wider">
+								Schedules
+							</span>
 							<SmartSourceStatusChip
 								label={state.status === 'ok' ? 'Ready to review' : roomsLoading ? 'Loading names' : 'Choose schedule'}
 								tone={state.status === 'ok' ? 'live' : roomsLoading ? 'checking' : 'neutral'}

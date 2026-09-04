@@ -1,0 +1,28 @@
+{
+  "viewport": "desktop",
+  "rootOverflow": {
+    "scrollWidth": 1366,
+    "clientWidth": 1366,
+    "hasHorizontalOverflow": false
+  },
+  "moreVisible": true,
+  "statusKeyItemVisible": true,
+  "statusDialogOpened": true,
+  "moreClosedAfterOpen": false,
+  "definitionsVisible": {
+    "canPlace": true,
+    "canSwap": true,
+    "blocked": true
+  },
+  "dialogBox": {
+    "x": 492.02398681640625,
+    "y": 124.45248413085938,
+    "width": 381.95208740234375,
+    "height": 520.2107238769531
+  },
+  "dialogScroll": {
+    "scrollHeight": 521,
+    "clientHeight": 521
+  },
+  "closeButtonVisible": true
+}

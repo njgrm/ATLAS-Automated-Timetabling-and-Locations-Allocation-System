@@ -8,10 +8,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { cn } from '@/lib/utils';
 
 import atlasApi from '@/lib/api';
-import { ConfirmationModal } from '@/ui/confirmation-modal';
 import {
 	computeSectionAssignmentDeltaMinutes,
 } from '@/lib/faculty-assignment-helpers';
+import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, resolveCoverageState } from '@/lib/teaching-load-helpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
@@ -25,56 +25,17 @@ import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/Tea
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { SubjectCoverageMode } from '@/components/faculty-assignments/SubjectCoverageMode';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
-import { TeachingLoadLockRecoveryDialog } from '@/components/faculty-assignments/TeachingLoadLockRecoveryDialog';
 import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
+import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
-import { hasTeachingLoadLockRecoveryAction } from '@/lib/teaching-load-lock-helpers';
 import type {
 	AutoFillSummaryResult, 
-	CoverageMode, 
-	ExternalSection,
 	Subject,
 	SectionAssignedClassesResult
 } from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
-
-const COVERAGE_MODE_CONFIG: Record<CoverageMode, { label: string; description: string }> = {
-	// Phase 4.5: plain DepEd language. "Teacher X" / "Hard Cap" / "Hybrid
-	// Staffing" are ATLAS-internal terms; the 40h limit is the Magna Carta
-	// weekly maximum for DepEd teachers.
-	REAL_FACULTY_STANDARD: {
-		label: 'Real teachers first, up to 30h/week',
-		description: 'Fills qualified real teachers up to the 30h standard. Some sections may stay unassigned.',
-	},
-	REAL_FACULTY_HARD_CAP: {
-		label: 'Maximum allowed hours (40h)',
-		description: 'Fills real teachers up to the 40h DepEd Magna Carta maximum before leaving any section unassigned.',
-	},
-	REAL_FACULTY_THEN_TEACHER_X: {
-		label: 'Real teachers first, then substitutes',
-		description: 'Prioritizes real teachers, then uses temporary substitutes for the remaining sections.',
-	},
-};
-
-function formatTeachingLoadSaveError(error: any) {
-	const code = error?.response?.data?.code;
-	const message = error?.response?.data?.message;
-	if (code === 'VERSION_CONFLICT') {
-		return `${message ?? 'The Teaching Load changed in another session.'} ATLAS reloaded the latest saved data. Review your draft before saving again.`;
-	}
-	if (typeof message === 'string' && message.trim()) {
-		if (/over.*cap|cap/i.test(message)) {
-			return 'This teacher is already above the weekly maximum. Choose another teacher or move one class first.';
-		}
-		if (/owner|ownership|already assigned/i.test(message)) {
-			return 'This section already has an owner for this subject. Review the current owner before saving.';
-		}
-		return message;
-	}
-	return 'ATLAS could not save Teaching Load. Check the highlighted repair reason, then try again.';
-}
 
 export default function TeachingLoad() {
 	const data = useTeachingLoadData();
@@ -107,8 +68,6 @@ export default function TeachingLoad() {
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
-	const [lockRecoveryOpen, setLockRecoveryOpen] = useState(false);
-	const [lockRecoveryError, setLockRecoveryError] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (data.activeSchoolYearId) {
@@ -122,22 +81,20 @@ export default function TeachingLoad() {
 		}
 	}, [data.activeSchoolYearId]);
 
-	useEffect(() => {
-		const viewParam = searchParams.get('view');
-		const taskParam = searchParams.get('task');
-		if (viewParam === 'subjects' || taskParam === 'missing-load') {
-			ui.setViewMode('subjects');
-		}
-		if (data.sectionFocusId) {
-			ui.setViewMode('allocation');
-			ui.setSelectedSectionId(data.sectionFocusId);
-			ui.setSectionModeFilter('all');
-		}
-		if (data.subjectFocusId) {
-			ui.setSelectedSubjectId(data.subjectFocusId);
-			ui.setSubjectSearch('');
-		}
-	}, [data.sectionFocusId, data.subjectFocusId, ui, searchParams]);
+	// Apply inbound route intent exactly once per navigation entry.
+	// User actions (clicking tabs, selecting teachers/sections) immediately
+	// supersede the URL intent. A reload or new external navigation re-applies it.
+	useTeachingLoadRouteIntent(searchParams, {
+		setViewMode: ui.setViewMode,
+		setSelectedId: data.setSelectedId,
+		setSelectedSectionId: ui.setSelectedSectionId,
+		setSectionModeFilter: ui.setSectionModeFilter,
+		setSelectedSubjectId: ui.setSelectedSubjectId,
+		setSubjectSearch: ui.setSubjectSearch,
+		setLoadFilter: ui.setLoadFilter,
+		setFilterStatus: ui.setFilterStatus,
+		setShowTemporaryRoles: ui.setShowTemporaryRoles,
+	});
 
 	const completedSectionIds = useMemo(() => {
 		const completed = new Set<number>();
@@ -165,46 +122,11 @@ export default function TeachingLoad() {
 	}, [data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds]);
 
 	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
-	const splitBrainNeedsReconcile = hasTeachingLoadLockRecoveryAction(data.splitBrainIncident);
 	const splitBrainNeedsAttention = Boolean(
 		data.splitBrainIncident
 		&& data.splitBrainIncident.quarantine.severity !== 'NONE'
-		&& (!ui.reviewDismissed || data.splitBrainQuarantineRequired)
+		&& !ui.reviewDismissed
 	);
-
-	const applySplitBrainReconcile = useCallback(async (options?: { silent?: boolean }) => {
-		if (!data.activeSchoolYearId) {
-			return false;
-		}
-		if (!data.canPersistAssignments) {
-			if (!options?.silent) {
-				toast.error('Reconcile needs a live connection. Refresh and try again.');
-			}
-			return false;
-		}
-
-		data.setSplitBrainApplyLoading(true);
-		try {
-			await atlasApi.post('/faculty-assignments/integrity/reconcile-split-brain', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId: data.activeSchoolYearId,
-				previewOnly: false,
-				confirmApply: true,
-			});
-			if (!options?.silent) {
-				toast.success('Reloaded the saved assignments. You can continue editing.');
-			}
-			await data.fetchData({ forceRefresh: true });
-			return true;
-		} catch (error: any) {
-			if (!options?.silent) {
-				toast.error(error?.response?.data?.message ?? 'ATLAS could not reconcile the saved assignments.');
-			}
-			return false;
-		} finally {
-			data.setSplitBrainApplyLoading(false);
-		}
-	}, [data]);
 
 	const handleSave = useCallback(async (force?: boolean) => {
 		if (!data.activeSchoolYearId) return;
@@ -232,25 +154,18 @@ export default function TeachingLoad() {
 					assignments,
 				});
 			}
-			toast.success(
-				draftEntries.length === 1 && data.selected
-					? `Teaching load for ${data.selected.lastName} has been successfully updated.`
-					: `Saved ${draftEntries.length} teaching-load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`,
-			);
-			setDraftStatusMessage(
-				draftEntries.length === 1 && data.selected
-					? `Saved Teaching Load for ${data.selected.lastName}.`
-					: `Saved ${draftEntries.length} Teaching Load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`,
-			);
+			const message = draftEntries.length === 1 && data.selected
+				? `Saved Teaching Load for ${data.selected.lastName}.`
+				: `Saved ${draftEntries.length} Teaching Load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`;
+			toast.success(message);
+			setDraftStatusMessage(message);
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
 			const readableError = formatTeachingLoadSaveError(error);
 			if (error?.response?.data?.code === 'VERSION_CONFLICT') {
 				await data.fetchData({ forceRefresh: true });
-				toast.error(readableError);
-			} else {
-				toast.error(readableError);
 			}
+			toast.error(readableError);
 			setDraftStatusMessage(readableError);
 		} finally {
 			data.setSaving(false);
@@ -291,8 +206,6 @@ export default function TeachingLoad() {
 			data.pushHistory();
 			data.setDraftAssignmentsByFaculty((prev) => {
 				const getBase = (id: number) => prev[id] ?? data.savedAssignmentsByFaculty[id] ?? [];
-
-				// Clone both faculty assignments
 				let fromCurrent = [...getBase(fromFacultyId)];
 				let toCurrent = [...getBase(destinationFacultyId)];
 
@@ -300,54 +213,35 @@ export default function TeachingLoad() {
 				const fromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (fromIndex >= 0) {
 					const nextSectionIds = fromCurrent[fromIndex].sectionIds.filter((id: number) => id !== sectionId);
-					if (nextSectionIds.length === 0) {
-						fromCurrent.splice(fromIndex, 1);
-					} else {
-						fromCurrent[fromIndex] = { ...fromCurrent[fromIndex], sectionIds: nextSectionIds };
-					}
+					if (nextSectionIds.length === 0) fromCurrent.splice(fromIndex, 1);
+					else fromCurrent[fromIndex] = { ...fromCurrent[fromIndex], sectionIds: nextSectionIds };
 				}
 
 				// Add sectionId to recipient
 				const toIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (toIndex >= 0) {
-					toCurrent[toIndex] = {
-						...toCurrent[toIndex],
-						sectionIds: Array.from(new Set([...toCurrent[toIndex].sectionIds, sectionId])),
-					};
+					toCurrent[toIndex] = { ...toCurrent[toIndex], sectionIds: Array.from(new Set([...toCurrent[toIndex].sectionIds, sectionId])) };
 				} else {
 					toCurrent.push({ subjectId, sectionIds: [sectionId], gradeLevels: [] });
 				}
 
 				// Two-way swap: if recipient had a section, give it back to donor
 				if (sectionToGiveBack != null) {
-					// Remove sectionToGiveBack from recipient
 					const updatedToIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
 					if (updatedToIndex >= 0) {
 						const remainingSections = toCurrent[updatedToIndex].sectionIds.filter((id: number) => id !== sectionToGiveBack);
-						if (remainingSections.length === 0) {
-							toCurrent.splice(updatedToIndex, 1);
-						} else {
-							toCurrent[updatedToIndex] = { ...toCurrent[updatedToIndex], sectionIds: remainingSections };
-						}
+						if (remainingSections.length === 0) toCurrent.splice(updatedToIndex, 1);
+						else toCurrent[updatedToIndex] = { ...toCurrent[updatedToIndex], sectionIds: remainingSections };
 					}
-
-					// Add sectionToGiveBack to donor
 					const updatedFromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
 					if (updatedFromIndex >= 0) {
-						fromCurrent[updatedFromIndex] = {
-							...fromCurrent[updatedFromIndex],
-							sectionIds: Array.from(new Set([...fromCurrent[updatedFromIndex].sectionIds, sectionToGiveBack])),
-						};
+						fromCurrent[updatedFromIndex] = { ...fromCurrent[updatedFromIndex], sectionIds: Array.from(new Set([...fromCurrent[updatedFromIndex].sectionIds, sectionToGiveBack])) };
 					} else {
 						fromCurrent.push({ subjectId, sectionIds: [sectionToGiveBack], gradeLevels: [] });
 					}
 				}
 
-				return {
-					...prev,
-					[fromFacultyId]: fromCurrent,
-					[destinationFacultyId]: toCurrent,
-				};
+				return { ...prev, [fromFacultyId]: fromCurrent, [destinationFacultyId]: toCurrent };
 			});
 
 			if (sectionToGiveBack != null) {
@@ -433,20 +327,17 @@ export default function TeachingLoad() {
 		if (!autoFillResult) return 'Preview a Teaching Load suggestion before applying it.';
 		if (!suggestionProposalId) return 'ATLAS needs to save this preview as a proposal before it can be applied.';
 		if (!data.activeSchoolYearId) return 'ATLAS needs an active school year before applying a Teaching Load suggestion.';
-		if (!data.canPersistAssignments) {
-			if (!data.isOnline) return 'Saving is disabled while ATLAS is offline.';
-			if (data.dataSource === 'refreshing') return 'Wait for source verification before applying a Teaching Load suggestion.';
-			return 'ATLAS must verify writable Teaching Load data before applying a suggestion.';
-		}
-		if (data.splitBrainQuarantineRequired) return 'Editing is locked. Open the lock recovery dialog to review and unlock.';
+		if (!data.isOnline) return 'Saving is disabled while ATLAS is offline.';
+		if (data.dataSource === 'refreshing') return 'Wait for source verification before applying a Teaching Load suggestion.';
+		if (!data.canPersistAssignments) return 'ATLAS must verify writable Teaching Load data before applying a suggestion.';
 		if (suggestionApplying) return 'ATLAS is applying the suggested Teaching Load now.';
 		return null;
-	}, [autoFillResult, data.activeSchoolYearId, data.canPersistAssignments, data.dataSource, data.isOnline, data.splitBrainQuarantineRequired, suggestionApplying, suggestionProposalId]);
+	}, [autoFillResult, data.activeSchoolYearId, data.canPersistAssignments, data.dataSource, data.isOnline, suggestionApplying, suggestionProposalId]);
 
 	const suggestionReviewWarning = useMemo(() => {
-		if (!splitBrainNeedsReconcile || data.splitBrainQuarantineRequired) return null;
+		if (!splitBrainNeedsAttention) return null;
 		return 'ATLAS found Teaching Load warnings. You may apply this draft, but review the warnings before generating or publishing.';
-	}, [splitBrainNeedsReconcile, data.splitBrainQuarantineRequired]);
+	}, [splitBrainNeedsAttention]);
 
 	const handleApplySuggestedTeachingLoad = useCallback(async () => {
 		if (suggestionApplyDisabledReason || !data.activeSchoolYearId || !suggestionProposalId) {
@@ -627,10 +518,11 @@ export default function TeachingLoad() {
 		ui.setViewMode('subjects');
 	}, [ui]);
 
-	const handleFocusSectionFromSubject = useCallback((sectionId: number, _subjectId: number) => {
+	const handleFocusSectionFromSubject = useCallback((sectionId: number, subjectId: number) => {
 		ui.setViewMode('allocation');
 		ui.setSelectedSectionId(sectionId);
 		ui.setSectionModeFilter('all');
+		ui.setSelectedSubjectId(subjectId);
 		setAdvancedGridVisible(true);
 	}, [ui]);
 
@@ -660,14 +552,6 @@ export default function TeachingLoad() {
 				description: 'ATLAS is showing the last saved teaching load. Changes stay off until the connection returns.',
 				nextAction: 'Reconnect, then refresh before saving assignments.',
 				writeBlockedReason: 'Saving is off until ATLAS reconnects. Your work is safe to review.',
-			};
-		}
-		if (data.splitBrainQuarantineRequired) {
-			return {
-				label: 'Review lock active',
-				description: 'Editing is locked while ATLAS checks saved Teaching Load links that no longer match the current roster.',
-				nextAction: 'Unlock editing to continue.',
-				writeBlockedReason: 'Editing is temporarily locked. Open the lock recovery dialog to review and unlock.',
 			};
 		}
 		if (data.dataSource === 'refreshing') {
@@ -715,8 +599,6 @@ export default function TeachingLoad() {
 		data.degradedNotice,
 		data.error,
 		data.isOnline,
-		data.splitBrainQuarantineRequired,
-		data.splitBrainReasonLabel,
 	]);
 
 	const {
@@ -759,54 +641,7 @@ export default function TeachingLoad() {
 	});
 
 	const sectionsBySubject = useMemo(() => {
-		const grouped: Record<number, ExternalSection[]> = {};
-		for (const sectionResult of data.sectionAssignedClassesIndex?.sections ?? []) {
-			const section = data.sectionMap.get(sectionResult.sectionId);
-			if (!section) continue;
-			const gradeMatch = ui.gradeLevelFilter === 'all' || section.displayOrder === Number(ui.gradeLevelFilter);
-			if (!gradeMatch) continue;
-
-			const contractRows = [
-				...sectionResult.classes.map((entry) => ({
-					subjectId: entry.subjectId,
-					specializationCode: entry.specializationCode,
-					specializationLabel: entry.specializationLabel,
-					rotationFamily: entry.rotationFamily,
-					rotationTermRank: entry.rotationTermRank,
-					rotationTermLabel: entry.rotationTermLabel,
-					rotationTermGroupId: entry.rotationTermGroupId,
-					rotationTermCount: entry.rotationTermCount,
-					minMinutesPerWeek: entry.minMinutesPerWeek,
-				})),
-				...((sectionResult.unassignedExpectedClasses ?? []).map((entry) => ({
-					subjectId: entry.subjectId,
-					specializationCode: null,
-					specializationLabel: null,
-					rotationFamily: entry.rotationFamily,
-					rotationTermRank: entry.rotationTermRank,
-					rotationTermLabel: entry.rotationTermLabel,
-					rotationTermGroupId: entry.rotationTermGroupId,
-					rotationTermCount: entry.rotationTermCount,
-					minMinutesPerWeek: entry.minMinutesPerWeek,
-				}))),
-			];
-
-			for (const contractRow of contractRows) {
-				if (!grouped[contractRow.subjectId]) grouped[contractRow.subjectId] = [];
-				grouped[contractRow.subjectId].push({
-					...section,
-					assignmentSpecializationCode: contractRow.specializationCode,
-					assignmentSpecializationLabel: contractRow.specializationLabel,
-					assignmentRotationFamily: contractRow.rotationFamily,
-					assignmentRotationTermRank: contractRow.rotationTermRank,
-					assignmentRotationTermLabel: contractRow.rotationTermLabel,
-					assignmentRotationTermGroupId: contractRow.rotationTermGroupId,
-					assignmentRotationTermCount: contractRow.rotationTermCount,
-					assignmentRawMinutesPerWeek: contractRow.minMinutesPerWeek,
-				});
-			}
-		}
-		return grouped;
+		return buildSectionsBySubject(data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter);
 	}, [data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter]);
 
 	const selectedSectionContract = useMemo<SectionAssignedClassesResult | null>(() => {
@@ -819,36 +654,14 @@ export default function TeachingLoad() {
 		return Array.from(depts).sort();
 	}, [data.faculty]);
 
-	const coverageState = useMemo(() => {
-		if (data.loading && !data.coverageTotals) {
-			return {
-				label: 'Checking assignment needs',
-				description: 'Coverage totals are loading. Zeroes shown now are placeholders, not final staffing counts.',
-			};
-		}
-		if (!data.activeSchoolYearId) {
-			return {
-				label: 'No active school year',
-				description: 'ATLAS needs an active school year before it can count teacher-section assignment needs.',
-			};
-		}
-		if (!data.coverageTotals || coverageHeadline.total === 0) {
-			return {
-				label: 'No assignment universe',
-				description: 'Coverage is 0 / 0 because ATLAS has no schedulable subject-section pairs for the current source state.',
-			};
-		}
-		if (coverageHeadline.syntheticAssigned > 0) {
-			return {
-				label: 'Mixed coverage',
-				description: `${coverageHeadline.realAssigned} pairs are staffed by real teachers and ${coverageHeadline.syntheticAssigned} use temporary substitutes.`,
-			};
-		}
-		return {
-			label: 'Real-teacher coverage',
-			description: 'Coverage counts are based on real teacher assignments for the current school year.',
-		};
-	}, [
+	const coverageState = useMemo(() => resolveCoverageState({
+		loading: data.loading,
+		activeSchoolYearId: data.activeSchoolYearId,
+		coverageTotals: data.coverageTotals,
+		totalPairs: coverageHeadline.total,
+		realAssignedPairs: coverageHeadline.realAssigned,
+		syntheticPlaceholderPairs: coverageHeadline.syntheticAssigned,
+	}), [
 		coverageHeadline.realAssigned,
 		coverageHeadline.syntheticAssigned,
 		coverageHeadline.total,
@@ -884,7 +697,7 @@ export default function TeachingLoad() {
 						overCapCount={overCapCount}
 						autoFillLoading={data.loading || suggestionLoading}
 						staffingNeedsLoading={data.loading}
-						autoFillEnabled={Boolean(data.activeSchoolYearId) && data.canPersistAssignments && !data.splitBrainQuarantineRequired}
+						autoFillEnabled={Boolean(data.activeSchoolYearId) && data.canPersistAssignments}
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
 						onViewStaffingNeedsClick={handleViewStaffingNeeds}
 						viewMode={ui.viewMode}
@@ -894,8 +707,6 @@ export default function TeachingLoad() {
 						isWorkspaceWritable={data.canPersistAssignments}
 						isOnline={data.isOnline}
 						dataSourceNotice={data.degradedNotice}
-						splitBrainIncident={data.splitBrainIncident}
-						splitBrainQuarantineRequired={data.splitBrainQuarantineRequired}
 						showJumpList={ui.showJumpList}
 						onToggleJumpList={() => ui.setShowJumpList(!ui.showJumpList)}
 						coverageMode={ui.coverageMode}
@@ -903,14 +714,6 @@ export default function TeachingLoad() {
 						coverageModeConfig={COVERAGE_MODE_CONFIG}
 						onGlobalResetClick={() => ui.setResetDialogOpen(true)}
 						canRunGlobalReset={data.canRunGlobalReset}
-						onReconcileClick={() => {
-							setLockRecoveryError(null);
-							setLockRecoveryOpen(true);
-						}}
-						reconcileLoading={data.splitBrainApplyLoading}
-						showReconcileAction={splitBrainNeedsReconcile}
-						reconcileEnabled={data.canPersistAssignments}
-						reviewDismissed={ui.reviewDismissed}
 						workspaceStateLabel={workspaceState.label}
 						workspaceStateDescription={workspaceState.description}
 						workspaceStateNextAction={workspaceState.nextAction}
@@ -981,8 +784,6 @@ export default function TeachingLoad() {
 								onClearHoverLoad={() => ui.setHoveredIncomingMinutes(0)}
 								activeFacultyIds={data.activeFacultyIds}
 								resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
-							splitBrainQuarantineRequired={data.splitBrainQuarantineRequired}
-							splitBrainReasonLabel={data.splitBrainReasonLabel}
 							onResetAssignments={data.handleResetAssignments}
 							searchQuery={ui.searchQuery}
 								onSearchQueryChange={ui.setSearchQuery}
@@ -1009,6 +810,7 @@ export default function TeachingLoad() {
 						) : ui.viewMode === 'subjects' ? (
 							<SubjectCoverageMode
 								activeSchoolYearId={data.activeSchoolYearId}
+								selectedSubjectId={ui.selectedSubjectId}
 								onFocusSection={handleFocusSectionFromSubject}
 							/>
 						) : (
@@ -1085,8 +887,9 @@ export default function TeachingLoad() {
 
 			{/* Phase 4.8: mobile inspector access. The persistent inspector is
 				hidden below lg; this floating button opens the same profile in a
-				Sheet on small screens. */}
-			{advancedGridVisible && (
+				Sheet on small screens. Only visible in Teachers and Sections modes,
+				not Subjects (which has no meaningful inspector). */}
+			{advancedGridVisible && ui.viewMode !== 'subjects' && (
 				<Button
 					type="button"
 					variant="outline"
@@ -1136,43 +939,6 @@ export default function TeachingLoad() {
 				</SheetContent>
 			</Sheet>
 
-			<TeachingLoadLockRecoveryDialog
-				open={lockRecoveryOpen}
-				onOpenChange={setLockRecoveryOpen}
-				splitBrainIncident={data.splitBrainIncident}
-				loading={data.splitBrainApplyLoading}
-				enabled={data.canPersistAssignments}
-				error={lockRecoveryError}
-				disabledReason={
-					!data.activeSchoolYearId
-						? 'ATLAS needs the active school year before it can unlock Teaching Load editing.'
-						: !data.isOnline
-						? 'Reconnect before unlocking Teaching Load editing.'
-						: data.dataSource === 'refreshing'
-						? 'Wait for ATLAS to finish checking EnrollPro, then try again.'
-						: !data.canPersistAssignments
-						? 'ATLAS needs writable saved setup data before it can unlock Teaching Load editing. Refresh source data first.'
-						: null
-				}
-				onConfirm={async () => {
-					setLockRecoveryError(null);
-					const success = await applySplitBrainReconcile();
-					if (success) {
-						setLockRecoveryOpen(false);
-						setLockRecoveryError(null);
-						// Check if still locked after refresh.
-						const stillLocked = data.splitBrainIncident?.quarantine.required === true;
-						setDraftStatusMessage(
-							stillLocked
-								? 'ATLAS cleaned what it could, but editing is still locked. Review the remaining blocker below.'
-								: 'Teaching Load editing is unlocked. Review the remaining open classes before generating.'
-						);
-					} else {
-						setLockRecoveryError('ATLAS could not reconcile the saved assignments. The dialog will remain open so you can try again or close and continue reviewing.');
-					}
-				}}
-			/>
-
 			<TeachingLoadModals
 				autoFillDialogOpen={ui.autoFillDialogOpen}
 				onAutoFillDialogOpenChange={ui.setAutoFillDialogOpen}
@@ -1200,6 +966,16 @@ export default function TeachingLoad() {
 				resetConfirmText={ui.resetConfirmText}
 				onResetConfirmTextChange={ui.setResetConfirmText}
 				onResetConfirm={applyGlobalReset}
+				saveWarningOpen={showSaveWarning}
+				onSaveWarningOpenChange={setShowSaveWarning}
+				onSaveConfirm={() => handleSave(true)}
+				discardConfirmOpen={showDiscardConfirm}
+				onDiscardConfirmOpenChange={setShowDiscardConfirm}
+				onDiscardConfirm={() => {
+					discardAllDrafts();
+					setShowDiscardConfirm(false);
+				}}
+				activeDraftCount={data.activeDraftCount}
 			/>
 
 			<StaffingAuditSheet
@@ -1213,31 +989,6 @@ export default function TeachingLoad() {
 				workspaceStateLabel={workspaceState.label}
 				workspaceStateNextAction={workspaceState.nextAction}
 				onNavigateToAllocation={handleNavigateToAllocation}
-			/>
-
-			<ConfirmationModal
-				open={showSaveWarning}
-				onOpenChange={setShowSaveWarning}
-				title="Save teaching load changes?"
-				description="Saving now will update the timetable's unassigned list when ATLAS next syncs. Any class whose teacher you changed will be moved back to the unassigned list. Do you want to continue?"
-				onConfirm={() => handleSave(true)}
-				confirmText="Save changes"
-				variant="warning"
-			/>
-
-			{/* Phase 4.3: Discard requires confirmation. The cancel action is the
-				safe default; the destructive confirm is explicit. */}
-			<ConfirmationModal
-				open={showDiscardConfirm}
-				onOpenChange={setShowDiscardConfirm}
-				title={`Discard ${data.activeDraftCount} draft ${data.activeDraftCount === 1 ? 'change' : 'changes'}?`}
-				description="This will discard every unsaved Teaching Load change. This cannot be undone."
-				onConfirm={() => {
-					discardAllDrafts();
-					setShowDiscardConfirm(false);
-				}}
-				confirmText="Discard all"
-				variant="danger"
 			/>
 		</TooltipProvider>
 	);

@@ -71,7 +71,7 @@ export async function syncTimetableSetup(
 
 	// Load live teaching load ownerships
 	const ownerships = await prisma.subjectSectionOwnership.findMany({
-		where: { schoolId },
+		where: { schoolId, schoolYearId },
 	});
 	const ownershipMap = new Map<string, number | null>();
 	for (const o of ownerships) {
@@ -210,7 +210,7 @@ export async function syncTimetableSetup(
 	// Compile resource diagnostics
 	const { buildQualifiedCoverageBySubject, buildSlotSaturation, buildUnassignedBySubjectGrade, buildHomeRoomStats, buildHomeRoomFallbackDiagnostics } = await import('./generation.service.js');
 	const facultySubjectRows = await prisma.facultySubject.findMany({
-		where: { schoolId },
+		where: { schoolId, schoolYearId },
 		select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 	});
 	const activeFacultyIdSet = new Set(refData.faculty.map((member) => member.id));

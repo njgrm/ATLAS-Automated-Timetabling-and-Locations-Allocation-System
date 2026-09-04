@@ -78,9 +78,10 @@ export async function syncAdvisoryHgAssignments(
 			// Upsert FacultySubject for HG
 			const existingFs = await tx.facultySubject.findUnique({
 				where: {
-					facultyId_subjectId: {
+					facultyId_subjectId_schoolYearId: {
 						facultyId: adviser.id,
 						subjectId: hgSubjectId,
+						schoolYearId,
 					},
 				},
 				select: { id: true, sectionIds: true },
@@ -112,6 +113,7 @@ export async function syncAdvisoryHgAssignments(
 						facultyId: adviser.id,
 						subjectId: hgSubjectId,
 						schoolId,
+						schoolYearId,
 						gradeLevels: [],
 						sectionIds: [advisedSectionId],
 						assignedBy: SYSTEM_ASSIGNED_BY,
@@ -122,11 +124,12 @@ export async function syncAdvisoryHgAssignments(
 				upserted += 1;
 			}
 
-			// Upsert SubjectSectionOwnership (unique on schoolId+subjectId+sectionId)
+			// Upsert SubjectSectionOwnership within the active annual Teaching Load scope.
 			await tx.subjectSectionOwnership.upsert({
 				where: {
-					schoolId_subjectId_sectionId: {
+					schoolId_schoolYearId_subjectId_sectionId: {
 						schoolId,
+						schoolYearId,
 						subjectId: hgSubjectId,
 						sectionId: advisedSectionId,
 					},
@@ -138,6 +141,7 @@ export async function syncAdvisoryHgAssignments(
 				},
 				create: {
 					schoolId,
+					schoolYearId,
 					facultySubjectId,
 					facultyId: adviser.id,
 					subjectId: hgSubjectId,
@@ -159,6 +163,7 @@ export async function syncAdvisoryHgAssignments(
 		where: {
 			subjectId: hgSubjectId,
 			schoolId,
+			schoolYearId,
 			assignedBy: SYSTEM_ASSIGNED_BY,
 		},
 		select: { id: true, facultyId: true, sectionIds: true },
@@ -187,6 +192,7 @@ export async function syncAdvisoryHgAssignments(
 				await tx.subjectSectionOwnership.deleteMany({
 					where: {
 						facultySubjectId: fs.id,
+						schoolYearId,
 						sectionId: { in: sectionsToRemove },
 					},
 				});

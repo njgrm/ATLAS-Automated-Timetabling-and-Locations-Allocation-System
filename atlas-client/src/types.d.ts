@@ -893,9 +893,22 @@ export interface DraftBoardState {
     };
 }
 export interface DraftPlacementCommitResult {
-    placement: DraftPlacement;
-    preview: PreviewResult;
-    board: DraftBoardState;
+	placement: DraftPlacement;
+	preview: PreviewResult;
+	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
+}
+
+export interface DraftUndoResult {
+	board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
+}
+export interface DraftBoardMutationResult {
+	board: DraftBoardState;
+	operationId: number | null;
+	resultingVersion: number | null;
 }
 export interface DraftPlacementSwapPreview {
     allowed: boolean;
@@ -930,6 +943,8 @@ export interface DraftPlacementSwapResult {
     };
     preview: DraftPlacementSwapPreview;
     board: DraftBoardState;
+	operationId: number;
+	resultingVersion: number;
 }
 export interface GradeShiftWindow {
     id: number;

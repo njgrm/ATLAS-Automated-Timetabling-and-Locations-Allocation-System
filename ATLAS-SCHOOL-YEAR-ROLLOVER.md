@@ -5,7 +5,7 @@ Last reviewed: 2026-08-31
 ## Purpose
 
 This runbook defines how ATLAS should react when EnrollPro publishes a new
-active school year. It supplements the [ATLAS API Guide](./ATLAS_API_GUIDE.md),
+active school year. It supplements the [ATLAS API Guide](./EnrollPro/docs/features/integration/ATLAS_API_GUIDE.md),
 which remains the endpoint reference.
 
 ATLAS owns schedules, teaching loads, room assignments, timetable generation,
@@ -40,6 +40,15 @@ The EnrollPro rollover clones section structure but copies no active adviser,
 teaching schedule, or learner. ATLAS must not restore those relationships from
 the previous year.
 
+As of the Rollover Archive stream (`2026-09-01`), the data-treatment contract is
+an implemented lifecycle: when EnrollPro commits rollover, ATLAS archives the
+superseded school year (non-destructive `isArchived` mirror flag; every
+published run, revision, section, and teaching-load row is preserved as
+read-only history) and syncs the new year automatically. An archived year never
+wins the active-year election, its published schedules stay readable as
+historical payloads, and operators receive one completion notification with no
+action needed.
+
 ## Before EnrollPro Rollover
 
 ATLAS should:
@@ -55,23 +64,44 @@ does not call ATLAS inside its atomic transaction.
 
 ## After EnrollPro Commit
 
-1. Read `/api/integration/v1/health`.
-2. Read `/api/integration/v1/school-year` and compare the returned ID and label
-   with the ATLAS selected year.
-3. Read `/api/integration/v1/sections` through all pages.
-4. Read `/api/integration/v1/default/faculty` through all pages.
-5. Preview the change set before applying ATLAS mirror updates.
-6. Upsert the new year, cloned sections, and active faculty.
-7. Mark old adviser links inactive and leave new sections without advisers when
-   EnrollPro returns none.
-8. Create or verify the ATLAS new-year scheduling policy without copying a
-   source timetable.
-9. Keep generation blocked until teaching loads, rooms, subjects, advisers, and
-   applicable constraints have been reviewed.
-10. Record counts, skipped records, source generation time, and completion time.
+ATLAS handles a normal EnrollPro rollover automatically — there is no required
+operator action:
+
+1. The rollover automation tick detects the drift within one interval
+   (default 5 minutes) and resolves it:
+   - a clean year change auto-applies the sync, then archives every superseded
+     ATLAS year as read-only history (nothing is deleted);
+   - a label-mismatch wedge (the old year's ID carrying a stale label)
+     self-heals through the non-destructive archive-and-sync flow, which also
+     corrects the ATLAS-owned mirror label to upstream truth.
+2. Privileged users receive one completion notification
+   (`ROLLOVER_AUTO_SYNC_COMPLETED` or `ROLLOVER_ARCHIVE_SYNC_COMPLETED`) that
+   ends with "No action needed."
+3. The manual equivalent is available to IT admins at
+   `POST /api/v1/runtime/rollover-archive/preview` and `/apply`
+   (also surfaced as the primary "Archive and sync" action on
+   `/admin/year-setup`). It is idempotent and non-destructive.
+4. Under the hood the reconciliation reads `/api/integration/v1/health`,
+   `/school-year`, `/sections`, and `/default/faculty`; upserts the new year,
+   cloned sections, and active faculty; deactivates old adviser links; creates
+   the new-year scheduling policy; records counts and timing in the
+   `ARCHIVE_AND_SYNC_APPLIED` / `ROLLOVER_SYNC_APPLIED` audit logs.
+5. Generation stays blocked until teaching loads, rooms, subjects, advisers,
+   and applicable constraints have been reviewed
+   (`TEACHING_LOAD_REVIEW_REQUIRED`).
+
+The destructive dummy-year reset (`POST /api/v1/runtime/rollover-sync/reset-dummy-year`)
+remains MANUAL-ONLY and is reserved for genuinely disposable test data. It is
+never invoked by automation and is demoted to the "Advanced: clear disposable
+test data" disclosure on `/admin/year-setup`. Real school-year history is
+archived, never reset.
 
 The EnrollPro administrator may use
 `POST /api/integration/atlas/sync-faculty` to ask ATLAS to reconcile faculty.
+The trigger must authenticate with the shared server key using either
+`Authorization: Bearer <ATLAS_API_KEY>` or
+`X-Integration-Key: <ATLAS_API_KEY>`. ATLAS requires the matching
+`ATLAS_SYSTEM_TOKEN` to be configured; both services must use the same value.
 The EnrollPro SF7 workflow may use `POST /api/sf7/sync-atlas` to pull published
 ATLAS assignments into the school-year reporting snapshot. Neither route gives
 EnrollPro ownership of the live timetable.
@@ -214,4 +244,3 @@ before ATLAS creates a session and returns them to the original ATLAS address.
 - [Shared School Year Lifecycle](./EnrollPro/docs/features/integration/ENROLLPRO-SCHOOL-YEAR-LIFECYCLE.md)
 - [Microservice Architecture](./EnrollPro/ARCHITECTURE_MICROSERVICES.md)
 - [Personnel And SF7](./EnrollPro/docs/features/personnel/PERSONNEL_AND_SF7.md)
-
