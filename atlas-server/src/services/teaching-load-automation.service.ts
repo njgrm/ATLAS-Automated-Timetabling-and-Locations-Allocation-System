@@ -40,10 +40,11 @@ import {
 	repairActiveSubjectCoverageWithPlaceholders,
 } from './faculty-assignment.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
 
-// DO 005 s.2024 weekly minute caps
-const STANDARD_CAP_MIN = 1_800;
-const HARD_CAP_MIN = 2_400;
+// DO 005 s.2024 weekly minute caps — sourced from workload policy defaults
+const STANDARD_CAP_MIN = WORKLOAD_DEFAULTS.teachingStandardMinutes;
+const HARD_CAP_MIN = WORKLOAD_DEFAULTS.hardCapMinutes;
 const TRUE_LOAD_OUTLIER_OVERLOAD_HOURS = 24;
 const TRUE_LOAD_OUTLIER_POLICY_MULTIPLIER = 2;
 
@@ -861,7 +862,7 @@ function buildStaffingReport(
 	);
 	const recoverableConcurrentMissingHoursPerWeek = Math.round((recoverableConcurrentMissingMinutesPerWeek / 60) * 10) / 10;
 	const constrainedConcurrentMissingHoursPerWeek = Math.round((constrainedConcurrentMissingMinutesPerWeek / 60) * 10) / 10;
-	const recommendedNewHires = Math.round((concurrentMissingHoursPerWeek / 30) * 10) / 10;
+	const recommendedNewHires = Math.round((concurrentMissingHoursPerWeek / (STANDARD_CAP_MIN / 60)) * 10) / 10;
 
 	const initialSpareByFaculty = new Map<number, number>();
 	for (const member of faculty) {

@@ -1,10 +1,15 @@
-const ENABLE_LEGACY_TIME_PREFERENCES = process.env.ATLAS_ENABLE_LEGACY_TIME_PREFERENCES === 'true';
+﻿const ENABLE_LEGACY_TIME_PREFERENCES = process.env.ATLAS_ENABLE_LEGACY_TIME_PREFERENCES === 'true';
 /**
  * Generation run service — lifecycle management for timetable generation runs.
  * Business logic only; no transport concerns.
+ *
+ * Prompt 03A: all data access resolves through the injectable data context so
+ * tests can instrument the exact production path. Production uses the singleton.
  */
 
-import { prisma } from '../lib/prisma.js';
+const db = () => getDataContext();
+
+import { getDataContext } from '../lib/data-context.js';
 import type { GenerationRunStatus } from '@prisma/client';
 import {
 	validateHardConstraints,
@@ -33,7 +38,6 @@ import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 import { getTemplatePeriodProfiles, ensureDefaultTemplates, ensureTemplatesForProgramTypes } from './class-template.service.js';
 import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
-import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { syncCohorts } from './cohort.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
@@ -80,8 +84,8 @@ function err(
 
 async function assertRolloverSetupReadyForGeneration(schoolId: number, schoolYearId: number): Promise<void> {
 	const [sectionCount, teachingLoadOwnerCount] = await Promise.all([
-		prisma.sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } }),
-		prisma.subjectSectionOwnership.count({ where: { schoolId, schoolYearId } }),
+		db().sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } }),
+		db().subjectSectionOwnership.count({ where: { schoolId, schoolYearId } }),
 	]);
 	if (sectionCount === 0) {
 		throw err(
@@ -162,7 +166,7 @@ export async function reconcileInvalidPublishedRunStates(
 	},
 ): Promise<PublishedStateReconciliationResult> {
 	const reason = options?.reason ?? 'PUBLISHED_STATE_CONTRACT_RECONCILIATION';
-	const candidates = await prisma.generationRun.findMany({
+	const candidates = await db().generationRun.findMany({
 		where: {
 			schoolId,
 			...(options?.schoolYearId ? { schoolYearId: options.schoolYearId } : {}),
@@ -182,7 +186,7 @@ export async function reconcileInvalidPublishedRunStates(
 	}
 
 	const reconciledAtIso = new Date().toISOString();
-	await prisma.$transaction(async (tx) => {
+	await db().$transaction(async (tx) => {
 		for (const run of invalidPublishedRuns) {
 			const nextSummary = buildUnpublishedSummary(run.summary, {
 				reason,
@@ -242,7 +246,7 @@ function extractNoQualifiedSubjectIds(unassignedItems: unknown): number[] {
 }
 
 async function getActiveFacultyMirrorIdSet(schoolId: number): Promise<Set<number>> {
-	const faculty = await prisma.facultyMirror.findMany({
+	const faculty = await db().facultyMirror.findMany({
 		where: { schoolId, isActiveForScheduling: true, isStale: false },
 		select: { id: true },
 	});
@@ -677,7 +681,7 @@ export async function triggerGenerationRun(
 	}
 
 	// Create run as QUEUED
-	const run = await prisma.generationRun.create({
+	const run = await db().generationRun.create({
 		data: {
 			schoolId,
 			schoolYearId,
@@ -688,7 +692,7 @@ export async function triggerGenerationRun(
 
 	// Transition to RUNNING
 	const startedAt = new Date();
-	await prisma.generationRun.update({
+	await db().generationRun.update({
 		where: { id: run.id },
 		data: { status: 'RUNNING', startedAt },
 	});
@@ -723,28 +727,14 @@ export async function triggerGenerationRun(
 		}
 
 		// ── Fetch all input data for construction ──
-		stage = 'subject-contract-sync';
-		try {
-			await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, options?.authToken);
-		} catch (syncError) {
-			console.warn('[generation] Subject sync failed; using local mirror', syncError);
-			publishNotificationEvent({
-				type: 'SUBJECT_SYNC_DEGRADED',
-				domain: 'integration',
-				severity: 'warning',
-				audience: 'PRIVILEGED',
-				schoolId,
-				schoolYearId,
-				facultyId: null,
-				message: 'Subject offering sync could not reach the upstream source; generation is using saved ATLAS subject data.',
-				metadata: {
-					runId: run.id,
-					stage,
-					error: syncError instanceof Error ? syncError.message : String(syncError),
-					sourceSystem: 'EnrollPro',
-				},
-			});
-		}
+		// Prompt 01B: generation is a PASSIVE consumer of the subject catalog.
+		// The previous `reconcileSubjectContractFromUpstream` call mutated the
+		// catalog during generation (activation/deactivation overlays, dynamic
+		// TLE materialization, deprecated deactivation) — the exact mechanism
+		// that overwrote operator-owned data mid-run. Generation now reads one
+		// immutable catalog snapshot; offering/overlay reconciliation is a
+		// separate explicit preview/apply operator action.
+		stage = 'subject-catalog-snapshot';
 		await ensureDefaultTemplates(schoolId);
 		try {
 			await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
@@ -783,12 +773,12 @@ export async function triggerGenerationRun(
 		}
 
 		stage = 'coverage-repair';
-		const latestCompletedRun = await prisma.generationRun.findFirst({
+		const latestCompletedRun = await db().generationRun.findFirst({
 			where: { schoolId, schoolYearId, status: 'COMPLETED' },
 			orderBy: { id: 'desc' },
 			select: { id: true, unassignedItems: true },
 		});
-		const dynamicTleSubjects = await prisma.subject.findMany({
+		const dynamicTleSubjects = await db().subject.findMany({
 			where: {
 				schoolId,
 				isActive: true,
@@ -798,7 +788,7 @@ export async function triggerGenerationRun(
 		});
 		const noQualifiedSubjectIds = extractNoQualifiedSubjectIds(latestCompletedRun?.unassignedItems);
 		const noQualifiedSubjects = noQualifiedSubjectIds.length > 0
-			? await prisma.subject.findMany({
+			? await db().subject.findMany({
 				where: { schoolId, isActive: true, id: { in: noQualifiedSubjectIds } },
 				select: { code: true },
 			})
@@ -829,22 +819,22 @@ export async function triggerGenerationRun(
 
 		stage = 'sections-fetch';
 		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specialEvents] = await Promise.all([
-			prisma.facultyMirror.findMany({
+			db().facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true, isStale: false },
 				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true },
 			}),
-			prisma.facultySubject.findMany({
+			db().facultySubject.findMany({
 				where: { schoolId, schoolYearId },
 				select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 			}),
-			prisma.room.findMany({
+			db().room.findMany({
 				where: {
 					isTeachingSpace: true,
 					building: { schoolId, isTeachingBuilding: true },
 				},
 				select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, buildingId: true, buildingZoneId: true, building: { select: { gradeScope: true } } },
 			}),
-			prisma.subject.findMany({
+			db().subject.findMany({
 				where: { schoolId, isActive: true },
 				select: {
 					id: true,
@@ -864,7 +854,7 @@ export async function triggerGenerationRun(
 					modularOrder: true,
 				},
 			}),
-			prisma.facultyPreference.findMany({
+			db().facultyPreference.findMany({
 				where: { schoolId, schoolYearId },
 				select: {
 					facultyId: true,
@@ -875,14 +865,14 @@ export async function triggerGenerationRun(
 				},
 			}),
 			getOrCreatePolicy(schoolId, schoolYearId),
-			prisma.building.findMany({
+			db().building.findMany({
 				where: { schoolId },
 				select: { id: true, name: true, x: true, y: true },
 			}),
 			enforceShiftWindows
-				? prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } })
+				? db().gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } })
 				: Promise.resolve([]),
-			prisma.policySpecialEvent.findMany({
+			db().policySpecialEvent.findMany({
 				where: { schoolId, schoolYearId, enabled: true },
 				orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
 			}),
@@ -894,7 +884,7 @@ export async function triggerGenerationRun(
 			buildingGradeScope: r.building?.gradeScope ?? [],
 		}));
 
-		const cohorts = await prisma.instructionalCohort.findMany({
+		const cohorts = await db().instructionalCohort.findMany({
 			where: { schoolId, schoolYearId, isActive: true },
 			orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
 			select: {
@@ -1280,7 +1270,7 @@ export async function triggerGenerationRun(
 
 		// Finalize as COMPLETED with draft entries
 		stage = 'persist';
-		const completed = await prisma.generationRun.update({
+		const completed = await db().generationRun.update({
 			where: { id: run.id },
 			data: {
 				status: 'COMPLETED',
@@ -1294,7 +1284,7 @@ export async function triggerGenerationRun(
 		});
 
 		// Audit log
-		await prisma.auditLog.create({
+		await db().auditLog.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1343,7 +1333,7 @@ export async function triggerGenerationRun(
 		const rawMessage = error instanceof Error ? error.message : String(error);
 		const errorMessage = `[${stage}] ${rawMessage}`;
 
-		const failed = await prisma.generationRun.update({
+		const failed = await db().generationRun.update({
 			where: { id: run.id },
 			data: {
 				status: 'FAILED',
@@ -1353,7 +1343,7 @@ export async function triggerGenerationRun(
 			},
 		});
 
-		await prisma.auditLog.create({
+		await db().auditLog.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1412,7 +1402,7 @@ export async function getGenerationRoomRequestGateStatus(schoolId: number, schoo
 
 	if (!activeRunId) return { blocked: false, openCount: 0, runId: null };
 
-	const openCount = await prisma.facultyRoomPreference.count({
+	const openCount = await db().facultyRoomPreference.count({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -1428,7 +1418,7 @@ export async function getGenerationRoomRequestGateStatus(schoolId: number, schoo
 // ─── Queries ───
 
 export async function getRunById(runId: number, schoolId: number, schoolYearId: number) {
-	const run = await prisma.generationRun.findFirst({
+	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
@@ -1442,7 +1432,7 @@ export async function getLatestRun(schoolId: number, schoolYearId: number) {
 
 async function resolveLatestValidRunId(schoolId: number, schoolYearId: number): Promise<number> {
 	const [runCandidates, activeFacultyIds] = await Promise.all([
-		prisma.generationRun.findMany({
+		db().generationRun.findMany({
 			where: { schoolId, schoolYearId, status: 'COMPLETED' },
 			orderBy: { createdAt: 'desc' },
 			select: {
@@ -1461,7 +1451,7 @@ async function resolveLatestValidRunId(schoolId: number, schoolYearId: number): 
 	}
 
 	for (const candidate of runCandidates) {
-		const runDraft = await prisma.generationRun.findUnique({
+		const runDraft = await db().generationRun.findUnique({
 			where: { id: candidate.id },
 			select: { id: true, draftEntries: true },
 		});
@@ -1470,7 +1460,7 @@ async function resolveLatestValidRunId(schoolId: number, schoolYearId: number): 
 		}
 	}
 
-	const latestRun = await prisma.generationRun.findUnique({
+	const latestRun = await db().generationRun.findUnique({
 		where: { id: runCandidates[0].id },
 		select: { id: true, draftEntries: true },
 	});
@@ -1494,7 +1484,7 @@ export async function assertLatestRunIsCurrent(schoolId: number, schoolYearId: n
 export async function listRuns(schoolId: number, schoolYearId: number, limit: number = 20) {
 	const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 20;
 	const safeLimit = Math.min(Math.max(normalizedLimit, 1), 100);
-	return prisma.generationRun.findMany({
+	return db().generationRun.findMany({
 		where: { schoolId, schoolYearId },
 		orderBy: { createdAt: 'desc' },
 		take: safeLimit,
@@ -1518,7 +1508,7 @@ export async function listRuns(schoolId: number, schoolYearId: number, limit: nu
 
 /** Select a safe fixture source without loading any timetable JSON payloads. */
 export async function getPerformanceFixtureSource(schoolId: number, schoolYearId: number) {
-	const candidates = await prisma.generationRun.findMany({
+	const candidates = await db().generationRun.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -1575,7 +1565,7 @@ async function preparePerformanceFixtureDraftEntries(
 	const subjectIds = [...new Set(entryRecords.map((entry) => maybePositiveInt(entry.subjectId)).filter((id): id is number => id != null))];
 	const subjectRows = subjectIds.length === 0
 		? []
-		: await prisma.subject.findMany({
+		: await db().subject.findMany({
 			where: { schoolId, id: { in: subjectIds } },
 			select: { id: true, code: true },
 		});
@@ -1594,7 +1584,7 @@ async function preparePerformanceFixtureDraftEntries(
 	}
 
 	const [ownershipRows, activeFaculty] = await Promise.all([
-		prisma.subjectSectionOwnership.findMany({
+		db().subjectSectionOwnership.findMany({
 			where: {
 				schoolId,
 				schoolYearId,
@@ -1602,7 +1592,7 @@ async function preparePerformanceFixtureDraftEntries(
 			},
 			select: { facultyId: true, subjectId: true, sectionId: true },
 		}),
-		prisma.facultyMirror.findMany({
+		db().facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true },
 			orderBy: { id: 'asc' },
@@ -1623,7 +1613,7 @@ async function preparePerformanceFixtureDraftEntries(
 			&& entry.entryKind !== 'COHORT',
 		);
 		if (affectedEntries.length === 0) continue;
-		const section = await prisma.sectionMirror.findFirst({
+		const section = await db().sectionMirror.findFirst({
 			where: { schoolId, schoolYearId, externalId: pair.sectionId },
 			select: { name: true },
 		});
@@ -1666,7 +1656,7 @@ export async function createPerformanceFixture(
 	actorId: number,
 	options: { purpose?: PerformanceFixturePurpose } = {},
 ) {
-	const source = await prisma.generationRun.findFirst({
+	const source = await db().generationRun.findFirst({
 		where: { id: sourceRunId, schoolId, schoolYearId, status: 'COMPLETED' },
 		select: {
 			id: true,
@@ -1700,7 +1690,7 @@ export async function createPerformanceFixture(
 			...preparedDraft.metadata,
 		},
 	};
-	const fixture = await prisma.generationRun.create({
+	const fixture = await db().generationRun.create({
 		data: {
 			schoolId,
 			schoolYearId,
@@ -1718,7 +1708,7 @@ export async function createPerformanceFixture(
 		},
 		select: { id: true, version: true, createdAt: true },
 	});
-	await prisma.auditLog.create({
+	await db().auditLog.create({
 		data: {
 			schoolId,
 			schoolYearId,
@@ -1738,7 +1728,7 @@ export async function deletePerformanceFixture(
 	schoolYearId: number,
 	actorId: number,
 ) {
-	const fixture = await prisma.generationRun.findFirst({
+	const fixture = await db().generationRun.findFirst({
 		where: { id: fixtureRunId, schoolId, schoolYearId },
 		select: { id: true, runType: true, summary: true },
 	});
@@ -1746,9 +1736,9 @@ export async function deletePerformanceFixture(
 	if (!fixture || fixture.runType !== 'PERFORMANCE_FIXTURE' || marker?.reversible === false) {
 		throw err(409, 'FIXTURE_DELETE_FORBIDDEN', 'Only a marked performance fixture can be deleted.');
 	}
-	await prisma.$transaction([
-		prisma.generationRun.delete({ where: { id: fixture.id } }),
-		prisma.auditLog.create({
+	await db().$transaction([
+		db().generationRun.delete({ where: { id: fixture.id } }),
+		db().auditLog.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1810,14 +1800,14 @@ export async function publishRun(
 		softViolationsAcknowledged: softViolationCount > 0 ? acknowledgeSoftViolations : false,
 	};
 
-	const updated = await prisma.generationRun.update({
+	const updated = await db().generationRun.update({
 		where: { id: run.id },
 		data: {
 			summary: nextSummary as object,
 		},
 	});
 
-	await prisma.auditLog.create({
+	await db().auditLog.create({
 		data: {
 			schoolId,
 			schoolYearId,
@@ -1887,7 +1877,7 @@ function filterViolationsByTerm(
 }
 
 export async function getRunViolations(runId: number, schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
-	const run = await prisma.generationRun.findFirst({
+	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
 	});
@@ -1911,7 +1901,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 
 export async function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
 	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
-	const run = await prisma.generationRun.findFirst({
+	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
 	});
@@ -1973,7 +1963,7 @@ async function buildDraftReport(run: {
 }
 
 export async function getRunDraft(runId: number, schoolId: number, schoolYearId: number): Promise<DraftReport> {
-	const run = await prisma.generationRun.findFirst({
+	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
 	});
@@ -1984,7 +1974,7 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 
 export async function getLatestRunDraft(schoolId: number, schoolYearId: number): Promise<DraftReport> {
 	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
-	const run = await prisma.generationRun.findFirst({
+	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
 	});
@@ -1995,7 +1985,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 
 export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearId: number) {
 	const [runs, activeFacultyIds] = await Promise.all([
-		prisma.generationRun.findMany({
+		db().generationRun.findMany({
 			where: { schoolId, schoolYearId, status: 'COMPLETED' },
 			orderBy: { createdAt: 'desc' },
 			select: { id: true, schoolYearId: true, status: true, draftEntries: true, summary: true },
@@ -2012,7 +2002,7 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 
 	const reconciledAtIso = new Date().toISOString();
 	const unpublishedRunIds: number[] = [];
-	await prisma.$transaction(async (tx) => {
+	await db().$transaction(async (tx) => {
 		for (const run of staleRuns) {
 			const wasPublished = hasPublishedMarkers(run.summary);
 			const data: {

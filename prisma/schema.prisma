@@ -33,6 +33,13 @@ model School {
   publishedScheduleRevisions PublishedScheduleRevision[]
   teachingLoadSuggestionProposals TeachingLoadSuggestionProposal[]
   teachingLoadCycles         TeachingLoadCycle[]
+  schoolYearTermConfigs      SchoolYearTermConfig[]
+  schoolYearOfferings        SchoolYearOffering[]
+  departmentAliases          DepartmentAlias[]
+  departmentLabels           DepartmentLabel[]
+  subjectOwnerPrefixes       SubjectOwnerPrefix[]
+  programScopeRules          ProgramScopeRule[]
+  crossDepartmentPermissions CrossDepartmentPermission[]
 
   @@map("schools")
 }
@@ -217,6 +224,9 @@ model Subject {
   school                  School                       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   facultySubjects         FacultySubject[]
   templateBindings        ClassTemplateSubject[]
+  schoolYearOfferings     SchoolYearOffering[]
+  programScopeRules       ProgramScopeRule[]
+  crossDepartmentPermissions CrossDepartmentPermission[]
 
   @@unique([schoolId, code], map: "uq_subjects_school_code")
   @@index([schoolId])
@@ -277,6 +287,7 @@ model FacultyMirror {
   roomPreferences           FacultyRoomPreference[]
   roomRequestAppeals        RoomRequestAppeal[]
   authAccounts              AtlasAuthAccount[]
+  crossDepartmentPermissions CrossDepartmentPermission[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
@@ -679,6 +690,12 @@ model SchedulingPolicy {
   allowFlexibleSubjectAssignment           Boolean  @default(false) @map("allow_flexible_subject_assignment")
   allowConsecutiveLabSessions              Boolean  @default(false) @map("allow_consecutive_lab_sessions")
   constraintConfig                         Json?    @map("constraint_config")
+  /// Weekly teaching standard in minutes (default 1800 = 30h). Used for teaching utilization calculation.
+  teachingStandardMinutes                  Int      @default(1800) @map("teaching_standard_minutes")
+  /// Advisory credit in minutes (default 300 = 5h). Separately reported; does NOT count toward teaching utilization.
+  advisoryCreditMinutes                    Int      @default(300) @map("advisory_credit_minutes")
+  /// Absolute hard cap in minutes (default 2400 = 40h). Maximum credited workload.
+  hardCapMinutes                           Int      @default(2400) @map("hard_cap_minutes")
   createdAt                                DateTime @default(now())
   updatedAt                                DateTime @updatedAt
 
@@ -1076,4 +1093,175 @@ enum ClassProgramSlotKind {
   CONFLICT
 
   @@map("class_program_slot_kind")
+}
+
+// ─── Offering Model (Prompt TL-DR-02) ───────────────────────────────────────
+
+/// Vocabulary table for offering classifications. Persisted, configurable.
+/// Classification DECISIONS per subject come from fingerprinted decision records.
+enum OfferingClassification {
+  CORE
+  SPECIALIZATION
+  EXPLORATORY
+  OTHER
+
+  @@map("offering_classification")
+}
+
+/// Term mode for an offering.
+enum TermMode {
+  ALL
+  ROTATING_FAMILY_MEMBER
+  EMPTY
+
+  @@map("term_mode")
+}
+
+/// Persisted definition of how many terms a school year has, their identities,
+/// and their order. Populated by a separate fingerprinted data apply per school year.
+model SchoolYearTermConfig {
+  id              Int      @id @default(autoincrement())
+  schoolId        Int      @map("school_id")
+  schoolYearId    Int      @map("school_year_id")
+  termCount       Int      @map("term_count")
+  termIdentities  Json     @map("term_identities")   // ordered unique identities, e.g. ["T1","T2","T3"]
+  isActive        Boolean  @default(true) @map("is_active")
+  createdBy       Int?     @map("created_by")
+  updatedBy       Int?     @map("updated_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  offerings       SchoolYearOffering[]
+
+  @@unique([schoolId, schoolYearId], map: "uq_term_config_school_year")
+  @@map("school_year_term_configs")
+}
+
+/// The core offering row. Term applicability is expressed through child rows
+/// in OfferingTermAssignment referencing the school-year term config.
+model SchoolYearOffering {
+  id                Int                  @id @default(autoincrement())
+  schoolId          Int                  @map("school_id")
+  schoolYearId      Int                  @map("school_year_id")
+  termConfigId      Int                  @map("term_config_id")
+  subjectId         Int?                                  // NULL ONLY for an explicit EMPTY scope row
+  gradeLevel        Int                  @map("grade_level")
+  programType       ProgramType          @map("program_type")
+  sectionMirrorId   Int?                 @map("section_mirror_id")  // SectionMirror PK scope — XOR cohortId
+  cohortId          Int?                 @map("cohort_id")          // InstructionalCohort PK scope — XOR sectionMirrorId
+  classification    OfferingClassification @map("classification")
+  weeklyMinutes     Int                  @default(0) @map("weekly_minutes")
+  rotationFamily    String?              @map("rotation_family") @db.VarChar(64)
+  rotationOrder     Int?                 @map("rotation_order")
+  termMode          TermMode             @map("term_mode")
+  isActive          Boolean              @default(true) @map("is_active")
+  retiredAt         DateTime?            @map("retired_at")
+  retiredBy         Int?                 @map("retired_by")
+  version           Int                  @default(1)
+  createdBy         Int?                 @map("created_by")
+  updatedBy         Int?                 @map("updated_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  school            School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  subject           Subject?             @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  termConfig        SchoolYearTermConfig @relation(fields: [termConfigId], references: [id], onDelete: Restrict)
+  termAssignments   OfferingTermAssignment[]
+
+  @@unique([schoolId, schoolYearId, subjectId, gradeLevel, programType, sectionMirrorId, cohortId, rotationFamily], map: "uq_offering_scope")
+  @@index([schoolId, schoolYearId, isActive, gradeLevel, programType], map: "idx_offering_demand")
+  @@index([subjectId], map: "idx_offering_subject")
+  @@index([schoolId, schoolYearId, sectionMirrorId], map: "idx_offering_section")
+  @@map("school_year_offerings")
+}
+
+/// Relational term applicability: one child row per term the offering runs in.
+model OfferingTermAssignment {
+  id              Int      @id @default(autoincrement())
+  offeringId      Int      @map("offering_id")
+  termIdentity    String   @map("term_identity") @db.VarChar(64)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  offering        SchoolYearOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@unique([offeringId, termIdentity], map: "uq_offering_term_assignment")
+  @@index([termIdentity], map: "idx_offering_term_assignments")
+  @@map("offering_term_assignments")
+}
+
+// ─── Qualification Policy (Prompt TL-DR-03) ────────────────────────────────
+
+/// Persisted department alias — canonical mapping from alias to department code.
+model DepartmentAlias {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
+  alias       String   @db.VarChar(64)
+  department  String   @map("department") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, alias], map: "uq_department_alias_school_alias")
+  @@map("department_aliases")
+}
+
+/// Persisted department label — human-readable label for a department code.
+model DepartmentLabel {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
+  code        String   @db.VarChar(32)
+  label       String   @db.VarChar(64)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, code], map: "uq_department_label_school_code")
+  @@map("department_labels")
+}
+
+/// Persisted subject-code-to-department prefix rule.
+model SubjectOwnerPrefix {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
+  prefix      String   @db.VarChar(16)
+  department  String   @map("department") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, prefix], map: "uq_subject_owner_prefix_school_prefix")
+  @@map("subject_owner_prefixes")
+}
+
+/// Persisted program scope rule — which programs a subject is allowed for.
+model ProgramScopeRule {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
+  subjectId   Int      @map("subject_id")
+  programType ProgramType @map("program_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, subjectId, programType], map: "uq_program_scope_rule")
+  @@map("program_scope_rules")
+}
+
+/// Persisted cross-department permission — allows a faculty member to teach
+/// outside their primary department for specific subjects.
+model CrossDepartmentPermission {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
+  facultyId   Int      @map("faculty_id")
+  subjectId   Int      @map("subject_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  faculty     FacultyMirror @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, facultyId, subjectId], map: "uq_cross_dept_permission")
+  @@map("cross_department_permissions")
 }

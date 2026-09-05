@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { Prisma, type LockedSession, type PreGenerationDraftEntryKind, type PreGenerationDraftStatus, type RoomType } from '@prisma/client';
 import {
 	validateHardConstraints,
@@ -25,6 +25,8 @@ import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './facul
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
+
+const db = () => getDataContext();
 
 function err(statusCode: number, code: string, message: string, details?: Record<string, unknown>) {
 	const error = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, unknown> };
@@ -537,19 +539,19 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 	const sectionResultPromise = loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options);
 	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts, specialEvents] = await Promise.all([
 		sectionResultPromise,
-		prisma.facultyMirror.findMany({
+		db().facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
 			select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },
 		}),
-		prisma.facultyMirror.findMany({
+		db().facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
 			select: { id: true, maxHoursPerWeek: true },
 		}),
-		prisma.facultySubject.findMany({
+		db().facultySubject.findMany({
 			where: { schoolId, schoolYearId },
 			select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 		}),
-		prisma.subject.findMany({
+		db().subject.findMany({
 			where: { schoolId, isActive: true },
 			select: {
 				id: true,
@@ -562,7 +564,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				interSectionGradeLevels: true,
 			},
 		}),
-		prisma.room.findMany({
+		db().room.findMany({
 			where: { building: { schoolId, isTeachingBuilding: true } },
 			select: {
 				id: true,
@@ -576,11 +578,11 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				building: { select: { id: true, name: true, shortCode: true, x: true, y: true } },
 			},
 		}),
-		prisma.building.findMany({ where: { schoolId }, select: { id: true, name: true, shortCode: true, x: true, y: true } }),
+		db().building.findMany({ where: { schoolId }, select: { id: true, name: true, shortCode: true, x: true, y: true } }),
 		getOrCreatePolicy(schoolId, schoolYearId),
-		prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
-		prisma.lockedSession.findMany({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
-		prisma.instructionalCohort.findMany({
+		db().gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
+		db().lockedSession.findMany({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+		db().instructionalCohort.findMany({
 			where: { schoolId, schoolYearId },
 			orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
 			select: {
@@ -593,7 +595,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				preferredRoomType: true,
 			},
 		}),
-		prisma.policySpecialEvent.findMany({
+		db().policySpecialEvent.findMany({
 			where: { schoolId, schoolYearId, enabled: true },
 			orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
 		}),
@@ -1028,7 +1030,7 @@ export async function listDraftBoardState(
 }
 
 export async function getDraftPlacement(schoolId: number, schoolYearId: number, placementId: number): Promise<DraftPlacementRow> {
-	const placement = await prisma.lockedSession.findFirst({ where: { id: placementId, schoolId, schoolYearId } });
+	const placement = await db().lockedSession.findFirst({ where: { id: placementId, schoolId, schoolYearId } });
 	if (!placement) {
 		throw err(404, 'PLACEMENT_NOT_FOUND', 'Draft placement was not found in this school/year scope.');
 	}
@@ -1060,7 +1062,7 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 		}
 		actionType = 'UPDATE';
 		beforePayload = existing as unknown as object;
-		placement = await prisma.lockedSession.update({
+		placement = await db().lockedSession.update({
 			where: { id: existing.id },
 			data: {
 				entryKind: input.entryKind ?? existing.entryKind,
@@ -1080,7 +1082,7 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 		});
 	} else {
 		actionType = 'CREATE';
-		placement = await prisma.lockedSession.create({
+		placement = await db().lockedSession.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1100,8 +1102,8 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 		});
 	}
 
-	const [action] = await prisma.$transaction([
-		prisma.lockedSessionAction.create({
+	const [action] = await db().$transaction([
+		db().lockedSessionAction.create({
 			data: {
 				lockId: placement.id,
 				schoolId,
@@ -1112,7 +1114,7 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 				afterPayload: placement as unknown as object,
 			},
 		}),
-		prisma.auditLog.create({
+		db().auditLog.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1247,7 +1249,7 @@ export async function swapPlacements(
 			targetDailyMinutesAfter: preview.dailyLoads.target.dailyMinutesAfter,
 		});
 	}
-	const [updatedSource, updatedTarget, operationId] = await prisma.$transaction(async (tx) => {
+	const [updatedSource, updatedTarget, operationId] = await db().$transaction(async (tx) => {
 		const nextSource = await tx.lockedSession.update({
 			where: { id: sourcePlacement.id },
 			data: {
@@ -1320,7 +1322,7 @@ export async function replacePlacementFromQueue(
 		throw err(422, 'HARD_VIOLATION_BLOCK', 'Replacement cannot be committed while hard conflicts remain.');
 	}
 
-	const [placement, action] = await prisma.$transaction(async (tx) => {
+	const [placement, action] = await db().$transaction(async (tx) => {
 		const archived = await tx.lockedSession.updateMany({
 			where: { id: displaced.id, schoolId, schoolYearId, status: 'DRAFT', version: input.displacedExpectedVersion },
 			data: { status: 'ARCHIVED', version: { increment: 1 } },
@@ -1379,13 +1381,13 @@ export async function replacePlacementFromQueue(
 }
 
 export async function clearDraft(schoolId: number, schoolYearId: number, actorId: number, authToken?: string): Promise<DraftBoardMutationResult> {
-	const draftPlacements = await prisma.lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+	const draftPlacements = await db().lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
 	if (draftPlacements.length === 0) {
 		return { board: await listDraftBoardState(schoolId, schoolYearId, authToken), operationId: null, resultingVersion: null };
 	}
-	const [, action] = await prisma.$transaction([
-		prisma.lockedSession.updateMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, data: { status: 'ARCHIVED', version: { increment: 1 } } }),
-		prisma.lockedSessionAction.create({
+	const [, action] = await db().$transaction([
+		db().lockedSession.updateMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, data: { status: 'ARCHIVED', version: { increment: 1 } } }),
+		db().lockedSessionAction.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1395,7 +1397,7 @@ export async function clearDraft(schoolId: number, schoolYearId: number, actorId
 				afterPayload: { archivedCount: draftPlacements.length } as object,
 			},
 		}),
-		prisma.auditLog.create({
+		db().auditLog.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -1421,7 +1423,7 @@ export async function undoLastPlacement(
 	expectedVersion: number,
 	authToken?: string,
 ): Promise<DraftUndoResult> {
-	const undoAction = await prisma.$transaction(async (tx) => {
+	const undoAction = await db().$transaction(async (tx) => {
 		const [action, headAction, priorUndo] = await Promise.all([
 			tx.lockedSessionAction.findFirst({ where: { id: operationId, schoolId, schoolYearId, actionType: { not: 'UNDO' } } }),
 			tx.lockedSessionAction.findFirst({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
@@ -1558,14 +1560,14 @@ export async function undoLastPlacement(
 }
 
 export async function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number, authToken?: string): Promise<DraftBoardMutationResult> {
-	const placement = await prisma.lockedSession.findUnique({ where: { id: placementId } });
+	const placement = await db().lockedSession.findUnique({ where: { id: placementId } });
 	if (!placement || placement.schoolId !== schoolId || placement.schoolYearId !== schoolYearId) {
 		throw err(404, 'PLACEMENT_NOT_FOUND', 'Draft placement not found.');
 	}
 	if (placement.status !== 'DRAFT') {
 		throw err(409, 'PLACEMENT_NOT_DRAFT', 'Only DRAFT placements can be removed.');
 	}
-	const action = await prisma.$transaction(async (tx) => {
+	const action = await db().$transaction(async (tx) => {
 		await tx.lockedSession.update({
 			where: { id: placementId },
 			data: { status: 'ARCHIVED', version: { increment: 1 } },
@@ -1672,14 +1674,14 @@ export async function consumeDraftPlacementsForRun(runId: number, schoolId: numb
 
 export async function markPlacementsLockedForRun(schoolId: number, schoolYearId: number, runId: number, placementIds: number[]) {
 	if (placementIds.length === 0) return;
-	await prisma.lockedSession.updateMany({
+	await db().lockedSession.updateMany({
 		where: { schoolId, schoolYearId, id: { in: placementIds } },
 		data: { status: 'LOCKED_FOR_RUN', lockedRunId: runId, version: { increment: 1 } },
 	});
 }
 
 export async function archivePlacementsForRun(runId: number, schoolId: number, schoolYearId: number) {
-	await prisma.lockedSession.updateMany({
+	await db().lockedSession.updateMany({
 		where: { schoolId, schoolYearId, lockedRunId: runId },
 		data: { status: 'ARCHIVED', version: { increment: 1 } },
 	});

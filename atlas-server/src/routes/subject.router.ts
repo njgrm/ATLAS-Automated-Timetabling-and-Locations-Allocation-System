@@ -5,6 +5,7 @@ import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as subjectService from '../services/subject.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 
@@ -62,7 +63,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 	}
 });
 
-// Auth: POST /subjects â€” create a custom subject
+// Auth: POST /subjects — create a custom subject
 router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const actorSchoolId = resolveActorSchoolId(req);
@@ -134,6 +135,8 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 });
 
 // Auth: PATCH /subjects/:id
+// Prompt 01B: MANDATORY atomic versioned mutation — expectedUpdatedAt is
+// required, and the version predicate runs inside the UPDATE transaction.
 router.patch('/:id', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
@@ -141,25 +144,27 @@ router.patch('/:id', authenticate, requirePrivilegedRole, async (req: Request, r
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 			return;
 		}
-		// Prompt 01A: cross-school denial + optimistic concurrency.
-		const scope = await subjectService.assertSchoolScopeAndVersion(id, resolveActorSchoolId(req), req.body?.expectedUpdatedAt);
-		if (!scope.ok) {
-			res.status(scope.error.status).json({ code: scope.error.code, message: scope.error.message });
-			return;
-			}
 		const { expectedUpdatedAt, ...payload } = req.body ?? {};
-		const subject = await subjectService.updateSubject(id, payload);
-		if (!subject) {
-			res.status(404).json({ code: 'NOT_FOUND', message: 'Subject not found.' });
+		const result = await subjectService.updateSubjectAtomic({
+			id,
+			actorSchoolId: resolveActorSchoolId(req),
+			expectedUpdatedAt,
+			changes: payload,
+		});
+		if (!result.ok) {
+			res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
 			return;
 		}
-		res.json({ subject });
+		res.json({ subject: result.subject });
 	} catch (err) {
 		next(err);
 	}
 });
 
 // Auth: DELETE /subjects/:id
+// Prompt 01B-R: ordinary DELETE is BLOCKED until fingerprinted preview/apply
+// is complete. The old path performed writes without version guards, school
+// scoping in the delete predicate, or dependency enumeration.
 router.delete('/:id', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
@@ -167,38 +172,89 @@ router.delete('/:id', authenticate, requirePrivilegedRole, async (req: Request, 
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 			return;
 		}
-		// Prompt 01A: cross-school denial + optimistic concurrency guard.
-		const scope = await subjectService.assertSchoolScopeAndVersion(id, resolveActorSchoolId(req), (req.query.expectedUpdatedAt as string | undefined) ?? undefined);
-		if (!scope.ok) {
-			res.status(scope.error.status).json({ code: scope.error.code, message: scope.error.message });
-			return;
-			}
 		const cleanupHistorical = req.query.cleanupHistorical === 'true';
 		const cleanupActive = req.query.cleanupActive === 'true';
 		const cleanupAll = req.query.cleanupAll === 'true';
-		const result = await subjectService.deleteSubject(id, { cleanupHistorical, cleanupActive, cleanupAll });
-		if (!result.success) {
-			const status = result.code === 'NOT_FOUND'
-				? 404
-				: (result.code === 'ACTIVE_ASSIGNMENTS' || result.code === 'HISTORICAL_ASSIGNMENTS' ? 409 : 400);
-			res.status(status).json({
-				code: 'DELETE_BLOCKED',
-				message: result.error,
-				reason: result.code,
-				details: result.details,
+		if (cleanupHistorical || cleanupActive || cleanupAll) {
+			res.status(400).json({
+				code: 'CLEANUP_FLAGS_UNSUPPORTED',
+				message: 'Legacy cleanup flags are no longer sufficient authorization. Use the fingerprinted delete preview/apply workflow.',
 			});
 			return;
 		}
-		res.status(200).json({
-			deletedSubjectId: result.deletedSubjectId,
-			cleanedHistoricalAssignments: result.cleanedHistoricalAssignments,
+		// Prompt 01B-R: block ordinary DELETE — require preview/apply
+		res.status(409).json({
+			code: 'DELETE_PREVIEW_REQUIRED',
+			message: 'Subject deletion requires a fingerprinted preview before apply. Use the delete preview endpoint first.',
 		});
 	} catch (err) {
 		next(err);
 	}
 });
 
-// Auth: POST /subjects/:id/archive â€” explicit archive action for safe cleanup workflows
+// Auth: POST /subjects/:id/delete-preview — read-only dependency enumeration
+router.post('/:id/delete-preview', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const id = Number(req.params.id);
+		if (Number.isNaN(id)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+			return;
+		}
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
+			return;
+		}
+		const result = await subjectService.previewSubjectDeletion(id, actorSchoolId);
+		if (!result.ok) {
+			res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
+			return;
+		}
+		res.json({ preview: result.preview });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /subjects/:id/delete-apply — fingerprint-bound atomic deletion
+router.post('/:id/delete-apply', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const id = Number(req.params.id);
+		if (Number.isNaN(id)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+			return;
+		}
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
+			return;
+		}
+		const { expectedUpdatedAt, fingerprint } = req.body ?? {};
+		if (!expectedUpdatedAt) {
+			res.status(400).json({ code: 'VERSION_REQUIRED', message: 'expectedUpdatedAt is required.' });
+			return;
+		}
+		if (!fingerprint) {
+			res.status(400).json({ code: 'FINGERPRINT_REQUIRED', message: 'fingerprint from delete preview is required.' });
+			return;
+		}
+		const result = await subjectService.applySubjectDeletion({
+			subjectId: id,
+			actorSchoolId,
+			expectedUpdatedAt,
+			fingerprint,
+		});
+		if (!result.ok) {
+			res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
+			return;
+		}
+		res.json({ receipt: result.receipt });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /subjects/:id/archive — Prompt 01B: atomic state transition with no-op conflict.
 router.post('/:id/archive', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
@@ -206,25 +262,23 @@ router.post('/:id/archive', authenticate, requirePrivilegedRole, async (req: Req
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 			return;
 		}
-		const scope = await subjectService.assertSchoolScopeAndVersion(id, resolveActorSchoolId(req), req.body?.expectedUpdatedAt);
-		if (!scope.ok) {
-			res.status(scope.error.status).json({ code: scope.error.code, message: scope.error.message });
-			return;
-			}
-		const subject = await subjectService.updateSubject(id, { isActive: false });
-		if (!subject) {
-			res.status(404).json({ code: 'NOT_FOUND', message: 'Subject not found.' });
+		const result = await subjectService.transitionSubjectActiveStateAtomic({
+			id,
+			actorSchoolId: resolveActorSchoolId(req),
+			expectedUpdatedAt: req.body?.expectedUpdatedAt,
+			targetActive: false,
+		});
+		if (!result.ok) {
+			res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
 			return;
 		}
-		// Prompt 01A: a success response must reflect persisted state â€” no false
-		// success when the subject was already inactive.
-		res.json({ subject, archived: subject.isActive === false });
+		res.json({ subject: result.subject, archived: result.subject.isActive === false });
 	} catch (err) {
 		next(err);
 	}
 });
 
-// Auth: POST /subjects/:id/reactivate â€” explicit reactivation action for archived subjects
+// Auth: POST /subjects/:id/reactivate — Prompt 01B: atomic state transition with no-op conflict.
 router.post('/:id/reactivate', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
@@ -232,68 +286,182 @@ router.post('/:id/reactivate', authenticate, requirePrivilegedRole, async (req: 
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 			return;
 		}
-		const scope = await subjectService.assertSchoolScopeAndVersion(id, resolveActorSchoolId(req), req.body?.expectedUpdatedAt);
-		if (!scope.ok) {
-			res.status(scope.error.status).json({ code: scope.error.code, message: scope.error.message });
-			return;
-			}
-		const subject = await subjectService.updateSubject(id, { isActive: true });
-		if (!subject) {
-			res.status(404).json({ code: 'NOT_FOUND', message: 'Subject not found.' });
+		const result = await subjectService.transitionSubjectActiveStateAtomic({
+			id,
+			actorSchoolId: resolveActorSchoolId(req),
+			expectedUpdatedAt: req.body?.expectedUpdatedAt,
+			targetActive: true,
+		});
+		if (!result.ok) {
+			res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
 			return;
 		}
-		res.json({ subject, reactivated: subject.isActive === true });
+		res.json({ subject: result.subject, reactivated: result.subject.isActive === true });
 	} catch (err) {
 		next(err);
 	}
 });
 
-// Auth: POST /subjects/seed â€” seed defaults for a school
+// Auth: POST /subjects/seed — Prompt 01B: actor-scoped; conflicting body schoolId rejected.
 router.post('/seed', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = Number(req.body.schoolId);
-		if (!schoolId || Number.isNaN(schoolId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required to seed subjects.' });
 			return;
 		}
-		await subjectService.ensureDefaultSubjects(schoolId);
-		const subjects = await subjectService.getSubjectsBySchool(schoolId);
+		const bodySchoolId = req.body?.schoolId != null ? Number(req.body.schoolId) : undefined;
+		if (bodySchoolId !== undefined && Number.isInteger(bodySchoolId) && bodySchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: `Cannot seed subjects for school ${bodySchoolId}: the authenticated actor belongs to school ${actorSchoolId}.` });
+			return;
+		}
+		await subjectService.ensureDefaultSubjects(actorSchoolId);
+		const subjects = await subjectService.getSubjectsBySchool(actorSchoolId);
 		res.json({ subjects });
 	} catch (err) {
 		next(err);
 	}
 });
 
-// Auth: POST /subjects/sync-offerings â€” refresh special-program subject state from upstream offerings + mirrored demand
+// Auth: POST /subjects/sync-offerings — Prompt 01B-R: BLOCKED until preview/apply exists.
+// The old path directly invoked syncSubjectContractFromProgramOfferings() which
+// performs bulk mutations (activate/deactivate overlays, materialize TLE, deactivate
+// stale TLE) without a preview or fingerprint guard.
 router.post('/sync-offerings', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = Number(req.body.schoolId);
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required to sync subject offerings.' });
+			return;
+		}
 		const schoolYearId = Number(req.body.schoolYearId);
-		if (!schoolId || Number.isNaN(schoolId) || !schoolYearId || Number.isNaN(schoolYearId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId and schoolYearId are required.' });
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		const bodySchoolId = req.body?.schoolId != null ? Number(req.body.schoolId) : undefined;
+		if (bodySchoolId !== undefined && Number.isInteger(bodySchoolId) && bodySchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: `Cannot sync offerings for school ${bodySchoolId}: the authenticated actor belongs to school ${actorSchoolId}.` });
+			return;
+		}
+		// Verify the school year belongs to the actor's school
+		const yearMirror = await prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId: actorSchoolId, enrollProSchoolYearId: schoolYearId },
+			select: { enrollProSchoolYearId: true },
+		});
+		if (!yearMirror) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_YEAR_DENIED', message: `School year ${schoolYearId} does not belong to school ${actorSchoolId}.` });
 			return;
 		}
 
-		const authToken = getUpstreamAuthToken(req);
-		const report = await subjectService.syncSubjectContractFromProgramOfferings(schoolId, schoolYearId, authToken);
-		publishNotificationEvent({
-			type: 'SUBJECT_OFFERINGS_SYNC_COMPLETED',
-			domain: 'integration',
-			severity: 'success',
-			audience: 'PRIVILEGED',
-			schoolId,
-			schoolYearId,
-			facultyId: null,
-			message: 'Subject offerings refreshed from enrollment setup.',
-			metadata: { report },
+		// Prompt 01B-R: block direct sync — require preview/apply
+		res.status(409).json({
+			code: 'SYNC_PREVIEW_REQUIRED',
+			message: 'Subject sync requires a fingerprinted preview before apply. Use the sync preview endpoint first.',
 		});
-		res.json({ report });
 	} catch (err) {
 		next(err);
 	}
 });
 
-// Auth: GET /subjects/stats â€” get counts for dashboard
+// Auth: POST /subjects/sync-offerings/preview — read-only sync preview
+router.post('/sync-offerings/preview', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
+			return;
+		}
+		const schoolYearId = Number(req.body.schoolYearId);
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		const bodySchoolId = req.body?.schoolId != null ? Number(req.body.schoolId) : undefined;
+		if (bodySchoolId !== undefined && Number.isInteger(bodySchoolId) && bodySchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: `Cannot sync offerings for school ${bodySchoolId}: the authenticated actor belongs to school ${actorSchoolId}.` });
+			return;
+		}
+		const yearMirror = await prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId: actorSchoolId, enrollProSchoolYearId: schoolYearId },
+			select: { enrollProSchoolYearId: true },
+		});
+		if (!yearMirror) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_YEAR_DENIED', message: `School year ${schoolYearId} does not belong to school ${actorSchoolId}.` });
+			return;
+		}
+
+		const authToken = getUpstreamAuthToken(req);
+		const result = await subjectService.previewSubjectSync(actorSchoolId, schoolYearId, authToken);
+		// Return { preview: ... } — client consumes response.data.preview
+		res.json({ preview: result.preview });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /subjects/sync-offerings/apply — fingerprint-bound sync apply
+router.post('/sync-offerings/apply', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
+			return;
+		}
+		const schoolYearId = Number(req.body.schoolYearId);
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		const bodySchoolId = req.body?.schoolId != null ? Number(req.body.schoolId) : undefined;
+		if (bodySchoolId !== undefined && Number.isInteger(bodySchoolId) && bodySchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: `Cannot sync offerings for school ${bodySchoolId}: the authenticated actor belongs to school ${actorSchoolId}.` });
+			return;
+		}
+		const yearMirror = await prisma.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId: actorSchoolId, enrollProSchoolYearId: schoolYearId },
+			select: { enrollProSchoolYearId: true },
+		});
+		if (!yearMirror) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_YEAR_DENIED', message: `School year ${schoolYearId} does not belong to school ${actorSchoolId}.` });
+			return;
+		}
+
+		const { fingerprint } = req.body ?? {};
+		if (!fingerprint) {
+			res.status(400).json({ code: 'FINGERPRINT_REQUIRED', message: 'fingerprint from sync preview is required.' });
+			return;
+		}
+
+		const authToken = getUpstreamAuthToken(req);
+		const result = await subjectService.applySubjectSync({
+			schoolId: actorSchoolId,
+			schoolYearId,
+			fingerprint,
+			authToken,
+		});
+		if (!result.ok) {
+			res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
+			return;
+		}
+		publishNotificationEvent({
+			type: 'SUBJECT_OFFERINGS_SYNC_COMPLETED',
+			domain: 'integration',
+			severity: 'success',
+			audience: 'PRIVILEGED',
+			schoolId: actorSchoolId,
+			schoolYearId,
+			facultyId: null,
+			message: 'Subject offerings refreshed from enrollment setup.',
+			metadata: { report: result.report },
+		});
+		res.json({ report: result.report });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /subjects/stats — get counts for dashboard
 router.get('/stats/:schoolId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.params.schoolId);

@@ -38,6 +38,18 @@ import type { RoomType, Subject, SubjectCoverageSummary, SubjectCoverageRow } fr
 import { fetchSubjectCoverageSummary } from '@/lib/coverage';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
+import { SubjectMobileCard } from '@/components/subjects/SubjectMobileCard';
+import { SubjectCoverageSheet } from '@/components/subjects/SubjectCoverageSheet';
+import { SyncPreviewSheet, type SyncPreviewData } from '@/components/subjects/SyncPreviewSheet';
+import { SubjectStatusBanners } from '@/components/subjects/SubjectStatusBanners';
+import { useSubjectStats, useCoverageDetail } from '@/components/subjects/useSubjectStats';
+import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
+import { SubjectFilterToolbar } from '@/components/subjects/SubjectFilterToolbar';
+import { SubjectTablePagination } from '@/components/subjects/SubjectTablePagination';
+import { SortableHeader } from '@/components/subjects/SortableHeader';
+import type { SortField, SortDir } from '@/components/subjects/SortableHeader';
+import { resolveSubjectSourceCopy } from '@/components/subjects/subject-source-utils';
+import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -71,9 +83,6 @@ import { resolveActorSchoolId } from '@/lib/settings';
 // reads before the actor scope resolves; it never owns a mutation.
 const FALLBACK_READ_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
-
-type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels' | 'isSeedable';
-type SortDir = 'asc' | 'desc';
 
 type TeachingLoadResetPreview = {
 	applied: boolean;
@@ -130,6 +139,9 @@ export default function Subjects() {
 	const [archivingLoading, setArchivingLoading] = useState(false);
 	const [syncingContract, setSyncingContract] = useState(false);
 	const [syncError, setSyncError] = useState(false);
+	const [syncPreview, setSyncPreview] = useState<SyncPreviewData | null>(null);
+	const [syncPreviewLoading, setSyncPreviewLoading] = useState(false);
+	const [syncApplyLoading, setSyncApplyLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
 
@@ -341,57 +353,17 @@ export default function Subjects() {
 		}
 	};
 
-	const SortIcon = ({ field }: { field: SortField }) => {
-		if (sortField !== field) return <ArrowUpDown className="size-3 text-muted-foreground/50" />;
-		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
-	};
-	// Phase 2.4: SortableHeader closes over sortField/sortDir/toggleSort from
-	// the component scope. aria-sort exposes the WCAG-standard sort state;
-	// the button carries a plain-language accessible name and a visible Tooltip.
-	const SortableHeader = ({
-		field,
-		label,
-		align = 'left',
-	}: {
-		field: SortField;
-		label: string;
-		align?: 'left' | 'right';
-	}) => {
-		const isActive = sortField === field;
-		const direction = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
-		const ariaLabel = `Sort by ${label}, currently ${direction}`;
-		return (
-			<th
-				className={cn('px-4 py-3 text-left', align === 'right' && 'text-right')}
-				aria-sort={direction as 'ascending' | 'descending' | 'none'}
-			>
-				<TooltipProvider delayDuration={200}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => toggleSort(field)}
-								aria-label={ariaLabel}
-								className={cn(
-									'h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground',
-									align === 'right' && 'ml-auto',
-								)}
-							>
-								{label} <SortIcon field={field} />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="top" className="text-xs">{ariaLabel}</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</th>
-		);
-	};
-
 	const handleModalSave = async (values: SubjectFormValues) => {
 		setSaving(true);
 		try {
 			if (modalMode === 'edit' && values.id != null) {
+				// Prompt 01B-R: send expectedUpdatedAt for atomic version guard
+				const currentSubject = subjects.find((s) => s.id === values.id);
+				const expectedUpdatedAt = currentSubject?.updatedAt;
+				if (!expectedUpdatedAt) {
+					toast.error('Cannot determine current version. Refresh and retry.');
+					return;
+				}
 				await atlasApi.patch(`/subjects/${values.id}`, {
 					name: values.name,
 					outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
@@ -400,7 +372,6 @@ export default function Subjects() {
 					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
-					isActive: values.isActive,
 					isSeedable: values.isSeedable,
 					isSystemManaged: values.isSystemManaged,
 					gradeLevels: values.gradeLevels,
@@ -410,6 +381,7 @@ export default function Subjects() {
 					modularOrder: values.modularGroupId?.trim() ? values.modularOrder : null,
 					programScopes: values.programScopes,
 					requiredFeatures: values.requiredFeatures,
+					expectedUpdatedAt,
 				});
 				toast.success('Subject updated successfully.');
 			} else {
@@ -431,8 +403,15 @@ export default function Subjects() {
 			setModalSubjectMeta(null);
 			await fetchSubjects();
 		} catch (err: any) {
+			const code = err?.response?.data?.code;
 			const msg = err?.response?.data?.message ?? 'Failed to save subject.';
-			toast.error(msg);
+			if (code === 'STALE_WRITE') {
+				toast.error('This subject was modified by another user. Refresh and retry.');
+			} else if (code === 'PROTECTED_FIELD' || code === 'UNKNOWN_FIELD') {
+				toast.error(msg);
+			} else {
+				toast.error(msg);
+			}
 		} finally {
 			setSaving(false);
 		}
@@ -445,24 +424,67 @@ export default function Subjects() {
 		|| attentionFilter !== 'all'
 		|| searchQuery.trim() !== '';
 
-	const handleSyncContract = async () => {
-		setSyncingContract(true);
+	const handleSyncPreview = async () => {
+		setSyncPreviewLoading(true);
 		setSyncError(false);
 		try {
 			const schoolYearId = await ensureActiveSchoolYear();
-			await atlasApi.post('/subjects/sync-offerings', {
+			const previewRes = await atlasApi.post('/subjects/sync-offerings/preview', {
 				schoolId: schoolScope,
 				schoolYearId,
 			});
-			await fetchSubjects();
-			await fetchCoverageSummary();
-			toast.success('Subject offerings refreshed for the active school year.');
+			const preview = previewRes.data?.preview;
+			if (!preview) {
+				toast.error('Failed to generate sync preview.');
+				return;
+			}
+			if (preview.summary.totalChanges === 0) {
+				toast.info('No subject offering changes detected.');
+				setSyncPreview(null);
+				return;
+			}
+			setSyncPreview(preview);
 		} catch (err: any) {
 			setSyncError(true);
-			toast.error(err?.response?.data?.message ?? 'Failed to refresh subject offerings.');
+			toast.error(err?.response?.data?.message ?? 'Failed to preview subject offerings.');
 		} finally {
-			setSyncingContract(false);
+			setSyncPreviewLoading(false);
 		}
+	};
+
+	const handleSyncApply = async () => {
+		if (!syncPreview) return;
+		setSyncApplyLoading(true);
+		setSyncError(false);
+		try {
+			const schoolYearId = await ensureActiveSchoolYear();
+			await atlasApi.post('/subjects/sync-offerings/apply', {
+				schoolId: schoolScope,
+				schoolYearId,
+				fingerprint: syncPreview.fingerprint,
+			});
+			setSyncPreview(null);
+			await fetchSubjects();
+			await fetchCoverageSummary();
+			toast.success(`Subject offerings refreshed. ${syncPreview.summary.totalChanges} change(s) applied.`);
+		} catch (err: any) {
+			setSyncError(true);
+			const code = err?.response?.data?.code;
+			const msg = err?.response?.data?.message ?? 'Failed to apply subject offerings.';
+			if (code === 'SYNC_DRIFT') {
+				toast.error('Upstream data changed since preview. Re-running preview...');
+				setSyncPreview(null);
+				await handleSyncPreview();
+			} else {
+				toast.error(msg);
+			}
+		} finally {
+			setSyncApplyLoading(false);
+		}
+	};
+
+	const handleSyncCancel = () => {
+		setSyncPreview(null);
 	};
 
 
@@ -470,12 +492,25 @@ export default function Subjects() {
 	const handleArchiveSubject = async (target: Subject) => {
 		setArchivingLoading(true);
 		try {
-			await atlasApi.post(`/subjects/${target.id}/archive`);
+			// Prompt 01B-R: send expectedUpdatedAt for atomic version guard
+			const currentSubject = subjects.find((s) => s.id === target.id);
+			const expectedUpdatedAt = currentSubject?.updatedAt ?? target.updatedAt;
+			await atlasApi.post(`/subjects/${target.id}/archive`, { expectedUpdatedAt });
 			toast.success(`"${target.name}" archived.`);
 			setArchiveTarget(null);
 			await fetchSubjects();
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to archive subject.');
+			const code = err?.response?.data?.code;
+			const msg = err?.response?.data?.message ?? 'Failed to archive subject.';
+			if (code === 'ALREADY_ARCHIVED') {
+				toast.info('Subject is already archived.');
+				setArchiveTarget(null);
+				await fetchSubjects();
+			} else if (code === 'STALE_WRITE') {
+				toast.error('This subject was modified by another user. Refresh and retry.');
+			} else {
+				toast.error(msg);
+			}
 		} finally {
 			setArchivingLoading(false);
 		}
@@ -485,11 +520,23 @@ export default function Subjects() {
 
 	const handleReactivateSubject = async (target: Subject) => {
 		try {
-			await atlasApi.post(`/subjects/${target.id}/reactivate`);
+			// Prompt 01B-R: send expectedUpdatedAt for atomic version guard
+			const currentSubject = subjects.find((s) => s.id === target.id);
+			const expectedUpdatedAt = currentSubject?.updatedAt ?? target.updatedAt;
+			await atlasApi.post(`/subjects/${target.id}/reactivate`, { expectedUpdatedAt });
 			toast.success(`${target.name} reactivated.`);
 			await fetchSubjects();
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to reactivate subject.');
+			const code = err?.response?.data?.code;
+			const msg = err?.response?.data?.message ?? 'Failed to reactivate subject.';
+			if (code === 'ALREADY_ACTIVE') {
+				toast.info('Subject is already active.');
+				await fetchSubjects();
+			} else if (code === 'STALE_WRITE') {
+				toast.error('This subject was modified by another user. Refresh and retry.');
+			} else {
+				toast.error(msg);
+			}
 		}
 	};
 
@@ -499,69 +546,15 @@ export default function Subjects() {
 		// event. Only an explicit, successful sync-offerings refresh (or a live
 		// EnrollPro-backed sync with captured evidence) may display the live
 		// state; everything else is honestly "saved data".
-		if (loading || syncingContract) return 'checking-source';
+		if (loading || syncPreviewLoading || syncApplyLoading) return 'checking-source';
 		if (error && subjects.length === 0) return 'no-saved-data';
 		return 'saved-data';
-	}, [error, loading, subjects.length, syncingContract]);
+	}, [error, loading, subjects.length, syncPreviewLoading, syncApplyLoading]);
 
-	const subjectStats = useMemo(() => {
-		const activeCount = subjects.filter((subject) => subject.isActive).length;
-		const archivedCount = subjects.length - activeCount;
-		const roomConstrainedCount = subjects.filter((subject) => subject.isActive && (subject.preferredRoomType !== 'CLASSROOM' || subject.requiredFeatures.length > 0)).length;
-		const coverageRiskCount = coverageBySubjectId
-			? subjects.filter((subject) => subject.isActive && (coverageBySubjectId.get(subject.id)?.uncoveredSectionCount ?? 0) > 0).length
-			: null;
-		return [
-			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: archivedCount > 0 ? `${activeCount} active · ${archivedCount} archived (kept for history, hidden from new setup).` : 'Subjects currently available for scheduling this school year.' },
-			{
-				label: 'Missing coverage',
-				value: coverageRiskCount === null
-					? <Loader2 className="size-3 animate-spin" data-testid="subjects-missing-coverage-spinner" />
-					: coverageRiskCount,
-				tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const,
-				helpText: coverageRiskCount === null
-					? 'ATLAS is checking teaching-load coverage.'
-					: 'Active schedulable subjects with one or more uncovered sections in the current teaching load.',
-			},
-			{ label: 'Room constrained', value: roomConstrainedCount, tone: roomConstrainedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active subjects that need a specialized room type or room feature.' },
-		];
-	}, [coverageBySubjectId, subjects]);
-
-	const coverageDetail = useMemo(() => {
-		if (!coverageSubject) return null;
-		const assigned = teacherCoverage[coverageSubject.id]?.assigned ?? [];
-		const coveredGrades = new Set(assigned.flatMap((teacher) => teacher.grades));
-		const uncoveredGrades = coverageSubject.gradeLevels.filter((grade) => !coveredGrades.has(grade));
-		return {
-			assigned,
-			uncoveredGrades,
-			programScopes: coverageSubject.programScopes ?? [],
-		};
-	}, [coverageSubject, teacherCoverage]);
+	const subjectStats = useSubjectStats({ subjects, coverageBySubjectId });
+	const coverageDetail = useCoverageDetail({ coverageSubject, teacherCoverage });
 	const openSubjectEditor = useCallback((subject: Subject) => {
-		setModalSubject({
-			id: subject.id,
-			code: subject.code,
-			outputLabel: subject.outputLabel ?? subject.displayCode ?? '',
-			name: subject.name,
-			ownerDepartment: subject.ownerDepartment ?? '',
-			allowedOwnerDepartments: [...(subject.allowedOwnerDepartments ?? [])],
-			qualificationPriority: subject.qualificationPriority ?? 'DEPARTMENT_FIRST',
-			rotationFamily: subject.rotationFamily ?? '',
-			minMinutesPerWeek: subject.minMinutesPerWeek,
-			preferredRoomType: subject.preferredRoomType,
-			gradeLevels: [...subject.gradeLevels],
-			isActive: subject.isActive,
-			isSeedable: subject.isSeedable,
-			isSystemManaged: subject.isSystemManaged ?? false,
-			interSectionEnabled: subject.interSectionEnabled ?? false,
-			interSectionGradeLevels: [...(subject.interSectionGradeLevels ?? [])],
-			modularGroupId: subject.modularGroupId ?? '',
-			modularOrder: subject.modularOrder ?? null,
-			programScopes: [...(subject.programScopes ?? ['REGULAR'])],
-			allowedSpecializations: [...(subject.allowedSpecializations ?? [])],
-			requiredFeatures: [...(subject.requiredFeatures ?? [])],
-		});
+		setModalSubject(subjectToFormValues(subject));
 		setModalSubjectMeta(subject);
 		setModalMode('edit');
 	}, []);
@@ -570,29 +563,14 @@ export default function Subjects() {
 		fetchTeacherCoverage(subject.id);
 	}, [fetchTeacherCoverage]);
 
-	return (
-		<AdminWorkspaceFrame
-			title = "Subjects"
-			description="Review the curriculum subjects that can be scheduled for this school year. Start with missing teacher coverage and room-constrained subjects before generation."
-			sourceState={subjectSourceState}
-			sourceCopy={{
-				description:
-					subjectSourceState === 'verified-live'
-							? 'The curriculum subject list is loaded for the active school year.'
-						: subjectSourceState === 'checking-source'
-							? 'ATLAS is checking which subjects and program offerings should be active while the page stays usable.'
-						: subjectSourceState === 'saved-data'
-							? 'ATLAS is showing the last known curriculum list while offering verification is incomplete.'
-						: 'ATLAS could not load a usable subject catalog.',
-				nextAction:
-					subjectSourceState === 'verified-live'
-							? 'Open coverage for subjects with risk, or add a subject if the curriculum list is missing one.'
-						: subjectSourceState === 'checking-source'
-							? 'Keep reviewing subjects and wait before final curriculum changes.'
-						: subjectSourceState === 'saved-data'
-							? 'Refresh offerings before treating this as final curriculum truth.'
-						: 'Reconnect and sync subjects before this page can be used.',
-			}}
+		const subjectSourceCopy = resolveSubjectSourceCopy(subjectSourceState);
+
+		return (
+			<AdminWorkspaceFrame
+				title = "Subjects"
+				description="Review the curriculum subjects that can be scheduled for this school year. Start with missing teacher coverage and room-constrained subjects before generation."
+				sourceState={subjectSourceState}
+				sourceCopy={subjectSourceCopy}
 stats={subjectStats}
 			secondaryActions={null}
 			primaryActions={(
@@ -600,8 +578,8 @@ stats={subjectStats}
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button variant="outline" onClick={handleSyncContract} size="sm" className="gap-2" disabled={syncingContract}>
-									<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
+								<Button variant="outline" onClick={handleSyncPreview} size="sm" className="gap-2" disabled={syncPreviewLoading}>
+									<RefreshCw className={`size-4 ${syncPreviewLoading ? 'animate-spin' : ''}`} />
 									Refresh offerings
 								</Button>
 							</TooltipTrigger>
@@ -615,173 +593,74 @@ stats={subjectStats}
 				</div>
 			)}
 			toolbar={(
-				<AdminSearchFilterToolbar
-					searchValue={searchQuery}
+				<SubjectFilterToolbar
+					searchQuery={searchQuery}
 					onSearchChange={setSearchQuery}
-					searchPlaceholder="Search name or code..."
-					filtersOpen={showFilters}
+					showFilters={showFilters}
 					onToggleFilters={() => setShowFilters(!showFilters)}
 					hasActiveFilters={hasActiveFilters}
-				>
-						<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-							<SelectTrigger className="h-10 w-36 text-sm">
-								<SelectValue placeholder="All Status" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Status</SelectItem>
-								<SelectItem value="active">Active</SelectItem>
-								<SelectItem value="inactive">Archived</SelectItem>
-							</SelectContent>
-						</Select>
-						<Select value={attentionFilter} onValueChange={(value) => setAttentionFilter(value as typeof attentionFilter)}>
-							<SelectTrigger className="h-10 w-52 text-sm">
-								<SelectValue placeholder="All statuses" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All statuses</SelectItem>
-								<SelectItem value="missing-coverage">Missing teacher coverage</SelectItem>
-								<SelectItem value="room-constrained">Room-constrained subjects</SelectItem>
-							</SelectContent>
-						</Select>
-						<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
-							<SelectTrigger className="h-10 w-44 text-sm">
-								<SelectValue placeholder="All Room Types" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Room Types</SelectItem>
-								{ALL_ROOM_TYPES.map((t) => (
-									<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
-							<SelectTrigger className="h-10 w-36 text-sm">
-								<SelectValue placeholder="All Grades" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Grades</SelectItem>
-								{GRADE_OPTIONS.map((g) => (
-									<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<Select value={programScopeFilter} onValueChange={setProgramScopeFilter}>
-							<SelectTrigger className="h-10 w-40 text-sm">
-								<SelectValue placeholder="All Programs" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Programs</SelectItem>
-								{PROGRAM_SCOPE_OPTIONS.map((o) => (
-									<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-								))}
-							</SelectContent>
-</Select>
-
-					{hasActiveFilters && (
-							<Button
-								variant="ghost"
-								size="sm"
-								className="px-3 text-sm text-muted-foreground hover:text-foreground"
-								data-testid="subjects-reset-filters"
-								onClick={() => {
-									setStatusFilter('all');
-									setRoomTypeFilter('all');
-									setGradeLevelFilter('all');
-									setProgramScopeFilter('all');
-									setAttentionFilter('all');
-									setSearchQuery('');
-								}}
-							>
-								Reset filters
-							</Button>
-						)}
-				</AdminSearchFilterToolbar>
+					statusFilter={statusFilter}
+					onStatusFilterChange={(v) => setStatusFilter(v as typeof statusFilter)}
+					attentionFilter={attentionFilter}
+					onAttentionFilterChange={(v) => setAttentionFilter(v as typeof attentionFilter)}
+					roomTypeFilter={roomTypeFilter}
+					onRoomTypeFilterChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}
+					gradeLevelFilter={gradeLevelFilter}
+					onGradeLevelFilterChange={setGradeLevelFilter}
+					programScopeFilter={programScopeFilter}
+					onProgramScopeFilterChange={setProgramScopeFilter}
+					onResetFilters={() => {
+						setStatusFilter('all');
+						setRoomTypeFilter('all');
+						setGradeLevelFilter('all');
+						setProgramScopeFilter('all');
+						setAttentionFilter('all');
+						setSearchQuery('');
+					}}
+				/>
 			)}
 		>
 
 			{/* Status Banners */}
-			{syncError && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
-					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-						<span className="flex-1 font-medium">ATLAS could not refresh the active subject offerings. The last saved curriculum list is still shown.</span>
-					<Button size="sm" variant="outline" onClick={handleSyncContract} disabled={syncingContract} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
-							<RefreshCw className={`mr-1.5 size-3 ${syncingContract ? 'animate-spin' : ''}`} /> Retry refresh
-					</Button>
-				</div>
-			)}
+			<SubjectStatusBanners
+				syncError={syncError}
+				error={error}
+				syncPreviewLoading={syncPreviewLoading}
+				onRetrySync={handleSyncPreview}
+				onRetryLoad={fetchSubjects}
+			/>
 
-			{error && !syncError && (
-				<div
-					role={error ? 'alert' : 'status'}
-					data-testid="subjects-error-banner"
-					className="shrink-0 mx-6 mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive flex items-center justify-between shadow-sm"
-				>
-					<div className="flex items-center gap-2">
-						<AlertTriangle className="size-4 shrink-0" />
-						<span className="font-medium">{error}</span>
-					</div>
-					<div className="flex items-center gap-1">
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={() => void fetchSubjects()}
-							disabled={loading}
-							className="h-7 px-2 font-bold"
-							data-testid="subjects-error-retry"
-						>
-							<RefreshCw className={`mr-1 size-3 ${loading ? 'animate-spin' : ''}`} /> Try again
-						</Button>
-						<Button variant="ghost" size="sm" className="h-7 px-2 font-bold" onClick={() => setError(null)}>Dismiss</Button>
-					</div>
-				</div>
-			)}
+			{/* Sync Preview Confirmation Sheet */}
+			<SyncPreviewSheet
+				preview={syncPreview}
+				applyLoading={syncApplyLoading}
+				onApply={handleSyncApply}
+				onCancel={handleSyncCancel}
+			/>
 
 			<AdminTableShell
 				footer={!loading && subjects.length > 0 ? (
-					<div className="flex items-center justify-between gap-3">
-						<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-							<span>
-								{totalFiltered === 0
-									? 'No results'
-									: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
-							</span>
-							<div className="flex items-center gap-2 border-l pl-4 border-border/50">
-								<span>Rows per page:</span>
-								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-20 text-xs bg-background">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-						<div className="flex items-center gap-1.5">
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button>
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button>
-							<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div>
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button>
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button>
-						</div>
-					</div>
+					<SubjectTablePagination
+						page={page}
+						pageSize={pageSize}
+						totalFiltered={totalFiltered}
+						totalPages={totalPages}
+						onPageChange={setPage}
+						onPageSizeChange={setPageSize}
+					/>
 				) : undefined}
 			>
-						<div className="space-y-3 p-3 md:hidden">
-							{loading ? (
-								Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)
-							) : paged.length === 0 ? (
-								<div className="flex min-h-80 items-center justify-center px-4 py-12 text-center">
-									<AdminStatePanel
-										icon={<BookOpen className="size-8" />}
-										title={subjects.length === 0 ? 'No subjects found.' : 'No matches found.'}
-										description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'}
-									/>
-								</div>
-							) : (
-								paged.map((subject) => <SubjectMobileCard key={subject.id} subject={subject} />)
-							)}
-						</div>
+						<SubjectMobileList
+							loading={loading}
+							paged={paged}
+							subjects={subjects}
+							coverageBySubjectId={coverageBySubjectId}
+							onReviewCoverage={(s) => { setCoverageSubject(s); }}
+							onEdit={openSubjectEditor}
+							onArchive={(s) => { setArchiveTarget(s); }}
+							onReactivate={handleReactivateSubject}
+							onDelete={(s) => { setDeleteTarget(s); }}
+						/>
 					<table className="hidden w-full text-sm md:table">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
@@ -789,11 +668,11 @@ stats={subjectStats}
 										exposes the sort state, the button carries an accessible
 										name + visible Tooltip. The helper closes over the
 										component's sortField/sortDir/toggleSort. */}
-									<SortableHeader field="name" label="Subject" align="left" />
-									<SortableHeader field="gradeLevels" label="Grades / program" align="left" />
-									<SortableHeader field="minMinutesPerWeek" label="Weekly need" align="left" />
-									<SortableHeader field="preferredRoomType" label="Room need" align="left" />
-									<SortableHeader field="isSeedable" label="Teacher coverage" align="left" />
+									<SortableHeader field="name" label="Subject" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+									<SortableHeader field="gradeLevels" label="Grades / program" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+									<SortableHeader field="minMinutesPerWeek" label="Weekly need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+									<SortableHeader field="preferredRoomType" label="Room need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+									<SortableHeader field="isSeedable" label="Teacher coverage" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Action</th>
 								</tr>
 							</thead>

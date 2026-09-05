@@ -10,8 +10,10 @@
  * Schools can clone, customize, and extend templates without changing core logic.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import type { ProgramType } from '@prisma/client';
+
+const db = () => getDataContext();
 
 // ─── Default templates seeded per school ───
 
@@ -105,7 +107,7 @@ export interface TemplatePeriodProfile {
  */
 export async function ensureDefaultTemplates(schoolId: number): Promise<void> {
 	for (const spec of DEFAULT_TEMPLATE_SPECS) {
-		const existing = await prisma.classTemplate.findUnique({
+		const existing = await db().classTemplate.findUnique({
 			where: {
 				schoolId_programType: { schoolId, programType: spec.programType },
 			},
@@ -115,13 +117,13 @@ export async function ensureDefaultTemplates(schoolId: number): Promise<void> {
 		}
 
 		// Resolve subject IDs from codes for this school
-		const subjects = await prisma.subject.findMany({
+		const subjects = await db().subject.findMany({
 			where: { schoolId, code: { in: spec.subjectCodes }, isActive: true },
 			select: { id: true, code: true },
 		});
 		const bindingRows = subjects.map((s) => ({ subjectId: s.id }));
 
-		await prisma.classTemplate.create({
+		await db().classTemplate.create({
 			data: {
 				schoolId,
 				name: spec.name,
@@ -157,7 +159,7 @@ export async function ensureTemplatesForProgramTypes(
 	const unique = [...new Set(programTypes)];
 
 	for (const programType of unique) {
-		const existing = await prisma.classTemplate.findUnique({
+		const existing = await db().classTemplate.findUnique({
 			where: { schoolId_programType: { schoolId, programType } },
 		});
 		if (existing) continue;
@@ -166,11 +168,11 @@ export async function ensureTemplatesForProgramTypes(
 		const spec = DEFAULT_TEMPLATE_SPECS.find((s) => s.programType === programType);
 
 		if (spec) {
-			const subjects = await prisma.subject.findMany({
+			const subjects = await db().subject.findMany({
 				where: { schoolId, code: { in: spec.subjectCodes } },
 				select: { id: true },
 			});
-			await prisma.classTemplate.create({
+			await db().classTemplate.create({
 				data: {
 					schoolId,
 					name: spec.name,
@@ -190,7 +192,7 @@ export async function ensureTemplatesForProgramTypes(
 			// Unknown / less common program type — seed a minimal placeholder
 			// with the same period structure as REGULAR so generation doesn't stall.
 			// Officers can customize the template afterward.
-			const regularSubjects = await prisma.subject.findMany({
+			const regularSubjects = await db().subject.findMany({
 				where: {
 					schoolId,
 					programScopes: { has: 'REGULAR' },
@@ -198,7 +200,7 @@ export async function ensureTemplatesForProgramTypes(
 				},
 				select: { id: true },
 			});
-			await prisma.classTemplate.create({
+			await db().classTemplate.create({
 				data: {
 					schoolId,
 					name: programType,
@@ -224,7 +226,7 @@ export async function ensureTemplatesForProgramTypes(
 }
 
 export async function getTemplatesBySchool(schoolId: number): Promise<ClassTemplateWithSubjects[]> {
-	const templates = await prisma.classTemplate.findMany({
+	const templates = await db().classTemplate.findMany({
 		where: { schoolId },
 		include: {
 			subjectBindings: {
@@ -256,7 +258,7 @@ export async function getTemplatesBySchool(schoolId: number): Promise<ClassTempl
 }
 
 export async function getTemplateById(id: number): Promise<ClassTemplateWithSubjects | null> {
-	const t = await prisma.classTemplate.findUnique({
+	const t = await db().classTemplate.findUnique({
 		where: { id },
 		include: {
 			subjectBindings: {
@@ -307,7 +309,7 @@ export async function createTemplate(
 		);
 	}
 
-	const t = await prisma.classTemplate.create({
+	const t = await db().classTemplate.create({
 		data: {
 			schoolId,
 			name: data.name,
@@ -359,7 +361,7 @@ export async function updateTemplate(
 		isActive: boolean;
 	}>,
 ): Promise<ClassTemplateWithSubjects | null> {
-	const existing = await prisma.classTemplate.findUnique({ where: { id } });
+	const existing = await db().classTemplate.findUnique({ where: { id } });
 	if (!existing) return null;
 
 	if (data.periodLengthMinutes !== undefined && data.periodLengthMinutes <= 0) {
@@ -383,7 +385,7 @@ export async function updateTemplate(
 	if (data.periodsPerDay !== undefined) updateData.periodsPerDay = data.periodsPerDay;
 	if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-	const t = await prisma.classTemplate.update({
+	const t = await db().classTemplate.update({
 		where: { id },
 		data: updateData,
 		include: {
@@ -424,9 +426,9 @@ export async function setTemplateSubjects(templateId: number, subjectIds: number
 		);
 	}
 
-	await prisma.$transaction([
-		prisma.classTemplateSubject.deleteMany({ where: { templateId } }),
-		prisma.classTemplateSubject.createMany({
+	await db().$transaction([
+		db().classTemplateSubject.deleteMany({ where: { templateId } }),
+		db().classTemplateSubject.createMany({
 			data: subjectIds.map((subjectId) => ({ templateId, subjectId })),
 		}),
 	]);
@@ -437,7 +439,7 @@ export async function setTemplateSubjects(templateId: number, subjectIds: number
  * Used by the schedule constructor to determine period length per program type.
  */
 export async function getTemplatePeriodProfiles(schoolId: number): Promise<TemplatePeriodProfile[]> {
-	const templates = await prisma.classTemplate.findMany({
+	const templates = await db().classTemplate.findMany({
 		where: { schoolId, isActive: true },
 		select: { programType: true, periodLengthMinutes: true, periodsPerDay: true },
 	});
@@ -457,7 +459,7 @@ export async function getTemplateSubjectIds(
 	schoolId: number,
 	programType: ProgramType,
 ): Promise<Set<number> | null> {
-	const template = await prisma.classTemplate.findUnique({
+	const template = await db().classTemplate.findUnique({
 		where: {
 			schoolId_programType: { schoolId, programType },
 		},

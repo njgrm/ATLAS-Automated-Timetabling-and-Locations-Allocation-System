@@ -10,4 +10,15 @@ if (!dbUrl) {
 	console.log('[prisma] ✔ DATABASE_URL protocol looks correct');
 }
 
+// Singleton Prisma client for production use
 export const prisma = new PrismaClient();
+
+/**
+ * Create a new Prisma client for testing with extensions.
+ * This allows tests to instrument the client without affecting the global singleton.
+ */
+export function createTestPrismaClient(): PrismaClient {
+	return new PrismaClient({
+		datasourceUrl: dbUrl,
+	});
+}

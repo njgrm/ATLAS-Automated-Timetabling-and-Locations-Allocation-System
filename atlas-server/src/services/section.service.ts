@@ -4,9 +4,11 @@
  * for high availability and local overrides.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { resolveRuntimeContext } from './runtime-context.service.js';
 import { sectionAdapter, type SectionSummary, type SectionFetchResult } from './section-adapter.js';
+
+const db = () => getDataContext();
 
 type RuntimeSectionSourceOptions = {
 	authToken?: string;
@@ -18,7 +20,7 @@ async function loadMirrorBackedSectionFetchResult(
 	schoolYearId: number,
 	fallbackReason: string,
 ): Promise<SectionFetchResult | null> {
-	const mirrors = await prisma.sectionMirror.findMany({
+	const mirrors = await db().sectionMirror.findMany({
 		where: { schoolId, schoolYearId, isStale: false },
 		orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
 		select: {
@@ -92,7 +94,7 @@ async function loadSnapshotBackedSectionFetchResult(
 	schoolYearId: number,
 	fallbackReason: string,
 ): Promise<SectionFetchResult | null> {
-	const snapshot = await prisma.sectionSnapshot.findUnique({
+	const snapshot = await db().sectionSnapshot.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		select: { payload: true, fetchedAt: true },
 	});
@@ -226,7 +228,7 @@ export async function syncSectionsFromExternal(
 	for (const gl of result.gradeLevels) {
 		const validGlSections = gl.sections.filter(s => externalIds.has(s.id));
 		for (const s of validGlSections) {
-			await prisma.sectionMirror.upsert({
+			await db().sectionMirror.upsert({
 				where: {
 					schoolId_schoolYearId_externalId: {
 						schoolId,
@@ -277,7 +279,7 @@ export async function syncSectionsFromExternal(
 
 	// Hard-delete sections that no longer exist in EnrollPro.
 	// EnrollPro is the source of truth — stale rows must not persist.
-	const { count: deletedCount } = await prisma.sectionMirror.deleteMany({
+	const { count: deletedCount } = await db().sectionMirror.deleteMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -307,7 +309,7 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		source = 'enrollpro';
 	}
 
-	let mirrors = await prisma.sectionMirror.findMany({
+	let mirrors = await db().sectionMirror.findMany({
 		where: { schoolId, schoolYearId, isStale: false },
 		orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
 	});
@@ -316,7 +318,7 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		// Initial sync
 		const syncResult = await syncSectionsFromExternal(schoolId, schoolYearId, authToken);
 		source = syncResult.source;
-		mirrors = await prisma.sectionMirror.findMany({
+		mirrors = await db().sectionMirror.findMany({
 			where: { schoolId, schoolYearId, isStale: false },
 			orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
 		});
@@ -387,7 +389,7 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 
 export async function getHomeRoomControlData(schoolYearId: number, schoolId: number): Promise<HomeRoomControlPayload> {
 	const [sections, rooms] = await Promise.all([
-		prisma.sectionMirror.findMany({
+		db().sectionMirror.findMany({
 			where: { schoolId, schoolYearId, isStale: false },
 			select: {
 				id: true,
@@ -401,7 +403,7 @@ export async function getHomeRoomControlData(schoolYearId: number, schoolId: num
 			},
 			orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
 		}),
-		prisma.room.findMany({
+		db().room.findMany({
 			where: {
 				isTeachingSpace: true,
 				building: { schoolId, isTeachingBuilding: true },
@@ -458,13 +460,13 @@ export async function updateSectionHomeRooms(
 	const requestedRoomIds = [...new Set(assignments.map((assignment) => assignment.homeRoomId).filter((value): value is number => value != null))];
 
 	const [sections, rooms] = await Promise.all([
-		prisma.sectionMirror.findMany({
+		db().sectionMirror.findMany({
 			where: { externalId: { in: uniqueSectionIds }, schoolId, schoolYearId },
 			select: { id: true, externalId: true },
 		}),
 		requestedRoomIds.length === 0
 			? Promise.resolve([])
-			: prisma.room.findMany({
+			: db().room.findMany({
 				where: {
 					id: { in: requestedRoomIds },
 					isTeachingSpace: true,
@@ -479,7 +481,7 @@ export async function updateSectionHomeRooms(
 	const mirrorIdByExternalId = new Map(sections.map((s) => [s.externalId, s.id]));
 
 	let updated = 0;
-	await prisma.$transaction(async (tx) => {
+	await db().$transaction(async (tx) => {
 		for (const assignment of assignments) {
 			if (!sectionIdSet.has(assignment.sectionId)) continue;
 			const mirrorId = mirrorIdByExternalId.get(assignment.sectionId);
@@ -553,7 +555,7 @@ export async function applySpecialProgramPlacementOverlay(
 	schoolId: number,
 	schoolYearId: number,
 ): Promise<SpecialProgramPlacementResult> {
-	const sections = await prisma.sectionMirror.findMany({
+	const sections = await db().sectionMirror.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -590,7 +592,7 @@ export async function applySpecialProgramPlacementOverlay(
 	}
 
 	const [rooms, currentlyAssignedRows] = await Promise.all([
-		prisma.room.findMany({
+		db().room.findMany({
 			where: {
 				isTeachingSpace: true,
 				building: { schoolId, isTeachingBuilding: true },
@@ -607,7 +609,7 @@ export async function applySpecialProgramPlacementOverlay(
 				},
 			},
 		}),
-		prisma.sectionMirror.findMany({
+		db().sectionMirror.findMany({
 			where: {
 				schoolId,
 				schoolYearId,
@@ -699,9 +701,9 @@ export async function applySpecialProgramPlacementOverlay(
 	}
 
 	if (updates.length > 0) {
-		await prisma.$transaction(
+		await db().$transaction(
 			updates.map((update) =>
-				prisma.sectionMirror.update({
+				db().sectionMirror.update({
 					where: { id: update.sectionId },
 					data: {
 						homeRoomId: update.homeRoomId,
@@ -713,7 +715,7 @@ export async function applySpecialProgramPlacementOverlay(
 		);
 	}
 
-	const after = await prisma.sectionMirror.findMany({
+	const after = await db().sectionMirror.findMany({
 		where: {
 			schoolId,
 			schoolYearId,

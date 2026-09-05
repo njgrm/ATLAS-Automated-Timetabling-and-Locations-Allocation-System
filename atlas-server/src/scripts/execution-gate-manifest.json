@@ -1,0 +1,117 @@
+{
+  "$schema": "execution-gate-manifest-v1",
+  "version": "1.0.0",
+  "plan": "teaching-load-dynamic-recovery-2026-09-05",
+  "ledger": "docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md",
+  "summary": "docs/verification/teaching-load-dynamic-recovery-2026-09-05-execution-summary.md",
+  "evidenceLog": "docs/verification/evidence-log.md",
+  "reviewDir": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05",
+  "prompts": [
+    {
+      "id": "01",
+      "file": "docs/prompts/teaching-load-dynamic-recovery-01-workload-policy-2026-09-05.md",
+      "title": "Canonical Workload Policy and Metric Semantics",
+      "tasks": [
+        { "id": "TL-01.1", "title": "Reproduce 7-vs-9 overload discrepancy", "acceptance": "Live read-only recomputation produces 7 actual-teaching overloads", "files": ["atlas-server/src/services/faculty-assignment.service.ts"], "mutationBoundary": "read-only", "required": true },
+        { "id": "TL-01.2", "title": "Inventory hardcoded constants", "acceptance": "Every hardcoded constant classified", "files": ["atlas-server/src/services/*.ts"], "mutationBoundary": "read-only", "required": true },
+        { "id": "TL-01.3", "title": "Define canonical workload DTO", "acceptance": "Canonical DTO and calculation service exist", "files": ["atlas-server/src/services/workload-policy.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-01.4", "title": "Add persisted workload policy", "acceptance": "Persisted policy model exists", "files": ["prisma/schema.prisma"], "mutationBoundary": "schema-migration", "required": true },
+        { "id": "TL-01.5", "title": "Unify consumers of workload calculation", "acceptance": "All consumers use same primitives", "files": ["atlas-server/src/services/faculty-assignment.service.ts"], "mutationBoundary": "refactor", "required": true },
+        { "id": "TL-01.6", "title": "Replace negative Remaining with mutually exclusive states", "acceptance": "Remaining displays correctly", "files": ["atlas-client/src/lib/faculty-assignment-helpers.ts"], "mutationBoundary": "refactor", "required": true },
+        { "id": "TL-01.7", "title": "Write workload policy unit tests", "acceptance": "8 tests pass", "files": ["atlas-server/src/__tests__/workload-policy.test.ts"], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-01.8", "title": "Rewrite superseded tests", "acceptance": "Tests rewritten", "files": ["atlas-server/src/__tests__/*.test.ts"], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-01.9", "title": "Prove 7-vs-9 discrepancy resolved", "acceptance": "7 overloads proven", "files": [], "mutationBoundary": "read-only", "required": true },
+        { "id": "TL-01.10", "title": "Server typecheck, build, startup, health", "acceptance": "tsc passes, tests pass", "files": ["atlas-server"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-01.11", "title": "Client typecheck, build, UX guardrails", "acceptance": "tsc passes, tests pass", "files": ["atlas-client"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-01.12", "title": "Update source-of-truth documentation", "acceptance": "Docs reflect new contract", "files": ["docs/reference/atlas-runtime-source-of-truth-map.md"], "mutationBoundary": "docs-only", "required": true }
+      ]
+    },
+    {
+      "id": "02",
+      "file": "docs/prompts/teaching-load-dynamic-recovery-02-school-year-offerings-2026-09-05.md",
+      "title": "Persisted School-Year Terms and Offering Authority",
+      "tasks": [
+        { "id": "TL-02.1", "title": "Audit 0043 preview", "acceptance": "Preview adapted for Prisma", "files": ["prisma/schema.prisma"], "mutationBoundary": "read-only", "required": true },
+        { "id": "TL-02.2", "title": "Create term config + offering schema", "acceptance": "Models exist with relations", "files": ["prisma/schema.prisma"], "mutationBoundary": "schema-migration", "required": true },
+        { "id": "TL-02.3", "title": "Create migration 0045", "acceptance": "Migration created and applied", "files": ["prisma/migrations/0045_add_offering_term_config_models"], "mutationBoundary": "migration", "required": true },
+        { "id": "TL-02.4", "title": "Implement term config service", "acceptance": "CRUD and validation exported", "files": ["atlas-server/src/services/term-config.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-02.5", "title": "Implement offering service", "acceptance": "Preview/apply/readiness exported", "files": ["atlas-server/src/services/school-year-offering.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-02.6", "title": "Implement offering readiness evaluator", "acceptance": "Readiness returns stable codes", "files": ["atlas-server/src/services/school-year-offering.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-02.7", "title": "Write unit tests", "acceptance": "13 tests pass", "files": ["atlas-server/src/__tests__/term-config-offering.test.ts"], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-02.8", "title": "Typecheck, build, regression tests", "acceptance": "tsc passes, all tests pass", "files": ["atlas-server"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-02.9", "title": "Update progress ledger, evidence, docs", "acceptance": "Ledger updated", "files": ["docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md"], "mutationBoundary": "docs-only", "required": true }
+      ]
+    },
+    {
+      "id": "03",
+      "file": "docs/prompts/teaching-load-dynamic-recovery-03-qualification-and-program-policy-2026-09-05.md",
+      "title": "Unified Qualification, Department, and Program Policy",
+      "tasks": [
+        { "id": "TL-03.1", "title": "Inventory qualification evaluation call sites", "acceptance": "Full inventory produced", "files": ["atlas-server/src/services/*.ts"], "mutationBoundary": "read-only", "required": true },
+        { "id": "TL-03.2", "title": "Define canonical qualification result type", "acceptance": "Evaluator service created", "files": ["atlas-server/src/services/qualification-evaluator.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-03.3", "title": "Create persisted policy schema + migration", "acceptance": "5 models created, migration applied", "files": ["prisma/schema.prisma"], "mutationBoundary": "schema-migration", "required": true },
+        { "id": "TL-03.4", "title": "Replace hardcoded data with persisted policy", "acceptance": "Canonical evaluator with fallback", "files": ["atlas-server/src/services/qualification-evaluator.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-03.5", "title": "Route all consumers through evaluator", "acceptance": "BLOCKED — pending database recovery", "files": [], "mutationBoundary": "refactor", "required": true },
+        { "id": "TL-03.6", "title": "Write unit tests", "acceptance": "15 tests pass", "files": ["atlas-server/src/__tests__/qualification-evaluator.test.ts"], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-03.7", "title": "Typecheck, build, regression tests", "acceptance": "tsc passes, all tests pass", "files": ["atlas-server"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-03.8", "title": "Update progress ledger, evidence, docs", "acceptance": "Ledger updated", "files": ["docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md"], "mutationBoundary": "docs-only", "required": true }
+      ]
+    },
+    {
+      "id": "04",
+      "file": "docs/prompts/teaching-load-dynamic-recovery-04-security-concurrency-and-source-ownership-2026-09-05.md",
+      "title": "Assignment Security, Concurrency, and Source Ownership",
+      "tasks": [
+        { "id": "TL-04.1", "title": "Implement school scope derivation", "acceptance": "deriveSchoolScope exported", "files": ["atlas-server/src/services/assignment-security.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-04.2", "title": "Implement version guard", "acceptance": "assertVersionGuard exported", "files": ["atlas-server/src/services/assignment-security.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-04.3", "title": "Implement preview fingerprint", "acceptance": "computePreviewFingerprint exported", "files": ["atlas-server/src/services/assignment-security.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-04.4", "title": "Implement audit principal contract", "acceptance": "writeAuditLog exported", "files": ["atlas-server/src/services/assignment-security.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-04.5", "title": "Write unit tests", "acceptance": "20 tests pass", "files": ["atlas-server/src/__tests__/assignment-security.test.ts"], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-04.6", "title": "Typecheck, build, regression tests", "acceptance": "tsc passes, all tests pass", "files": ["atlas-server"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-04.7", "title": "Update progress ledger, evidence, docs", "acceptance": "Ledger updated", "files": ["docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md"], "mutationBoundary": "docs-only", "required": true }
+      ]
+    },
+    {
+      "id": "05",
+      "file": "docs/prompts/teaching-load-dynamic-recovery-05-allocation-and-rebalance-2026-09-05.md",
+      "title": "Dynamic Allocation, Insertion, and Rebalance",
+      "tasks": [
+        { "id": "TL-05.1", "title": "Implement offering-demand-to-work-queue converter", "acceptance": "buildWorkQueue exported", "files": ["atlas-server/src/services/allocation.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-05.2", "title": "Implement allocation candidate evaluator", "acceptance": "evaluateCandidates exported", "files": ["atlas-server/src/services/allocation.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-05.3", "title": "Implement allocation preview/apply service", "acceptance": "previewAllocation exported", "files": ["atlas-server/src/services/allocation.service.ts"], "mutationBoundary": "new-file", "required": true },
+        { "id": "TL-05.4", "title": "Write unit tests", "acceptance": "2 tests pass", "files": ["atlas-server/src/__tests__/allocation.test.ts"], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-05.5", "title": "Typecheck, build, regression tests", "acceptance": "tsc passes, all tests pass", "files": ["atlas-server"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-05.6", "title": "Update progress ledger, evidence, docs", "acceptance": "Ledger updated", "files": ["docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md"], "mutationBoundary": "docs-only", "required": true }
+      ]
+    },
+    {
+      "id": "06",
+      "file": "docs/prompts/teaching-load-dynamic-recovery-06-ux-filters-and-readiness-2026-09-05.md",
+      "title": "Teaching Load UX, Contextual Filters, and Honest Readiness",
+      "tasks": [
+        { "id": "TL-06.1", "title": "Update API to serve new workload metrics", "acceptance": "New fields in response", "files": ["atlas-server/src/services/faculty-assignment.service.ts"], "mutationBoundary": "api-change", "required": true },
+        { "id": "TL-06.2", "title": "Update client types and hooks", "acceptance": "New types in client", "files": ["atlas-client/src/types.ts"], "mutationBoundary": "type-change", "required": true },
+        { "id": "TL-06.3", "title": "Write unit tests", "acceptance": "Tests pass", "files": [], "mutationBoundary": "test-only", "required": true },
+        { "id": "TL-06.4", "title": "Typecheck, build, regression tests", "acceptance": "tsc passes, all tests pass", "files": ["atlas-server", "atlas-client"], "mutationBoundary": "verification", "required": true },
+        { "id": "TL-06.5", "title": "Update progress ledger, evidence, docs", "acceptance": "Ledger updated", "files": ["docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md"], "mutationBoundary": "docs-only", "required": true }
+      ]
+    }
+  ],
+  "predecessors": {
+    "02": ["01"],
+    "03": ["01", "02"],
+    "04": ["01", "02", "03"],
+    "05": ["01", "02", "03", "04"],
+    "06": ["01", "02", "03", "04", "05"]
+  },
+  "testBaseline": {
+    "workload-policy.test.ts": 8,
+    "term-config-offering.test.ts": 13,
+    "qualification-evaluator.test.ts": 15,
+    "assignment-security.test.ts": 20,
+    "allocation.test.ts": 2,
+    "faculty-assignment-summary-list.test.ts": 39,
+    "schedule-constructor-term-load.test.ts": 330,
+    "total": 427
+  }
+}

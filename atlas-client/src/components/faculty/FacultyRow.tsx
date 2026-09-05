@@ -52,9 +52,9 @@ type LoadPresentation = {
 };
 
 export function getFacultyLoadPresentation(faculty: FacultySummary): LoadPresentation {
-	const weeklyHours = faculty.policyCreditedHours ?? 0;
+	const actualTeachingHours = faculty.actualTeachingHours ?? faculty.sectionTeachingHours ?? faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
-	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);
+	const loadStatus = deriveLoadStatus(actualTeachingHours, maxHours);
 	const loadRank = getFacultyLoadSortRank(faculty);
 	const loadState = loadRank === 5
 		? 'excluded'
@@ -321,7 +321,7 @@ export function FacultyAssignedClassesCell({ faculty, onClick }: { faculty: Facu
 }
 
 export function FacultyWeeklyLoadCell({ faculty }: { faculty: FacultySummary }) {
-	const weeklyHours = faculty.policyCreditedHours ?? 0;
+	const weeklyHours = faculty.actualTeachingHours ?? faculty.sectionTeachingHours ?? faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
 	const presentation = getFacultyLoadPresentation(faculty);
 	const isOver = weeklyHours > maxHours;
@@ -337,7 +337,7 @@ export function FacultyWeeklyLoadCell({ faculty }: { faculty: FacultySummary }) 
 				</TooltipTrigger>
 				<TooltipContent className="max-w-52 text-xs leading-relaxed">
 					{weeklyHours > 0
-						? `${weeklyHours}h credited / ${STANDARD_WEEKLY_TEACHING_HOURS}h standard (max ${maxHours}h)`
+						? `${weeklyHours}h teaching / ${STANDARD_WEEKLY_TEACHING_HOURS}h standard (max ${maxHours}h)`
 						: `No load assigned. Standard is ${STANDARD_WEEKLY_TEACHING_HOURS}h, max ${maxHours}h.`}
 				</TooltipContent>
 			</Tooltip>

@@ -278,6 +278,16 @@ export type FacultySummary = {
 	ancillaryHours: number;
 	policyCreditedHours: number;
 	policyLoadPercentage: number;
+	/** Actual teaching hours (sectionTeachingHours) — used for teaching utilization comparison. */
+	actualTeachingHours: number;
+	/** Teaching utilization as percentage of standard (actualTeaching / standard * 100). */
+	teachingUtilizationPercent: number;
+	/** Remaining teaching capacity in minutes before reaching the standard. */
+	teachingCapacityRemainingMinutes: number;
+	/** Excess teaching minutes above the standard. */
+	excessTeachingMinutes: number;
+	/** Total credited workload minutes (teaching + advisory + ancillary). */
+	creditedWorkloadMinutes: number;
 	syntheticCoverageHours: number;
 	loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
 	assignments: FacultyAssignmentRecord[];

@@ -8,8 +8,10 @@
  * Uses effective schedule truth (latest valid completed run with stale-faculty check).
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
+
+const db = () => getDataContext();
 
 // ─── Types ───
 
@@ -78,7 +80,7 @@ async function resolveLatestValidEntries(
 	schoolId: number,
 	schoolYearId: number,
 ): Promise<RawEntry[]> {
-	const candidates = await prisma.generationRun.findMany({
+	const candidates = await db().generationRun.findMany({
 		where: { schoolId, schoolYearId, status: 'COMPLETED' },
 		orderBy: { createdAt: 'desc' },
 		select: { id: true },
@@ -88,14 +90,14 @@ async function resolveLatestValidEntries(
 	if (candidates.length === 0) return [];
 
 	// Load active faculty IDs for stale check
-	const activeFaculty = await prisma.facultyMirror.findMany({
+	const activeFaculty = await db().facultyMirror.findMany({
 		where: { schoolId, isStale: false },
 		select: { id: true },
 	});
 	const activeFacultyIds = new Set(activeFaculty.map(f => f.id));
 
 	for (const candidate of candidates) {
-		const run = await prisma.generationRun.findUnique({
+		const run = await db().generationRun.findUnique({
 			where: { id: candidate.id },
 			select: { draftEntries: true },
 		});
@@ -106,7 +108,7 @@ async function resolveLatestValidEntries(
 	}
 
 	// Fallback: return newest run's entries even if stale (better than empty)
-	const fallback = await prisma.generationRun.findUnique({
+	const fallback = await db().generationRun.findUnique({
 		where: { id: candidates[0].id },
 		select: { draftEntries: true },
 	});
@@ -128,7 +130,7 @@ export async function generateClassProgramMatrix(
 	const warnings: string[] = [];
 
 	// 1. Load all active sections for this grade
-	const sections = await prisma.sectionMirror.findMany({
+	const sections = await db().sectionMirror.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -178,18 +180,18 @@ export async function generateClassProgramMatrix(
 
 	// 6. Load subject, faculty, and room maps for labels
 	const [subjects, faculty, rooms] = await Promise.all([
-		prisma.subject.findMany({
+		db().subject.findMany({
 			where: { schoolId, isActive: true },
 			select: { id: true, name: true, code: true },
 		}),
 		facultyIds.length > 0
-			? prisma.facultyMirror.findMany({
+			? db().facultyMirror.findMany({
 				where: { id: { in: facultyIds }, schoolId, isStale: false },
 				select: { id: true, firstName: true, lastName: true },
 			})
 			: Promise.resolve([]),
 		roomIds.length > 0
-			? prisma.room.findMany({
+			? db().room.findMany({
 				where: { id: { in: roomIds } },
 				select: { id: true, name: true, building: { select: { name: true } } },
 			})
@@ -238,7 +240,7 @@ export async function generateClassProgramMatrix(
 	});
 
 	// 9. Load school year label
-	const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+	const mirror = await db().enrollProSchoolYearMirror.findFirst({
 		where: { schoolId, enrollProSchoolYearId: schoolYearId },
 		select: { yearLabel: true },
 	});

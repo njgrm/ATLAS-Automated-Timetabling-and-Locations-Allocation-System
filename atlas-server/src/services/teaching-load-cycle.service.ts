@@ -1,4 +1,6 @@
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
+
+const db = () => getDataContext();
 
 export type TeachingLoadCycleSource = {
 	schoolId: number;
@@ -10,29 +12,29 @@ export type TeachingLoadCycleSource = {
 };
 
 export async function ensureTeachingLoadCycle(schoolId: number, schoolYearId: number) {
-	const ownershipCount = await prisma.subjectSectionOwnership.count({
+	const ownershipCount = await db().subjectSectionOwnership.count({
 		where: { schoolId, schoolYearId },
 	});
 	const expectedState = ownershipCount > 0 ? 'POPULATED' : 'EMPTY';
-	const existing = await prisma.teachingLoadCycle.findUnique({
+	const existing = await db().teachingLoadCycle.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 	});
 	if (!existing) {
-		return prisma.teachingLoadCycle.create({
+		return db().teachingLoadCycle.create({
 			data: { schoolId, schoolYearId, state: expectedState },
 		});
 	}
 	if (existing.state === expectedState) {
 		return existing;
 	}
-	return prisma.teachingLoadCycle.update({
+	return db().teachingLoadCycle.update({
 		where: { id: existing.id },
 		data: { state: expectedState, version: { increment: 1 } },
 	});
 }
 
 export async function getTeachingLoadCycle(schoolId: number, schoolYearId: number) {
-	return prisma.teachingLoadCycle.findUnique({
+	return db().teachingLoadCycle.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 	});
 }
@@ -50,10 +52,10 @@ export async function getOrCreateTeachingLoadCycleSource(schoolId: number, schoo
 }
 
 export async function refreshTeachingLoadCycle(schoolId: number, schoolYearId: number) {
-	const ownershipCount = await prisma.subjectSectionOwnership.count({
+	const ownershipCount = await db().subjectSectionOwnership.count({
 		where: { schoolId, schoolYearId },
 	});
-	return prisma.teachingLoadCycle.upsert({
+	return db().teachingLoadCycle.upsert({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		create: { schoolId, schoolYearId, state: ownershipCount > 0 ? 'POPULATED' : 'EMPTY' },
 		update: {

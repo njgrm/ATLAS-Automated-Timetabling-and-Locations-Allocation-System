@@ -1,7 +1,9 @@
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { findMappingConflicts, fetchSectionExternalIds, resolveMappingConflictAction } from './enrollpro-rollover.service.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
 import { fetchEnrollProActiveTerm, type ActiveTermResult } from './active-term-adapter.service.js';
+
+const db = () => getDataContext();
 
 type RuntimeContextEvidenceType =
 	| 'school-year-mirror'
@@ -236,7 +238,7 @@ export async function resolveRuntimeContext(
 	options?: ResolveRuntimeContextOptions,
 ): Promise<RuntimeContextResult | null> {
 	const [schoolYearMirror, policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
-		prisma.enrollProSchoolYearMirror.findFirst({
+		db().enrollProSchoolYearMirror.findFirst({
 			where: { schoolId, isActive: true },
 			orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
 			select: {
@@ -251,27 +253,27 @@ export async function resolveRuntimeContext(
 				lastFailureSummary: true,
 			},
 		}),
-		prisma.schedulingPolicy.findFirst({
+		db().schedulingPolicy.findFirst({
 			where: { schoolId },
 			orderBy: [{ updatedAt: 'desc' }],
 			select: { schoolYearId: true, updatedAt: true },
 		}),
-		prisma.sectionMirror.findFirst({
+		db().sectionMirror.findFirst({
 			where: { schoolId, isStale: false },
 			orderBy: [{ lastSyncedAt: 'desc' }],
 			select: { schoolYearId: true, lastSyncedAt: true },
 		}),
-		prisma.sectionSnapshot.findFirst({
+		db().sectionSnapshot.findFirst({
 			where: { schoolId },
 			orderBy: [{ fetchedAt: 'desc' }],
 			select: { schoolYearId: true, fetchedAt: true, source: true },
 		}),
-		prisma.facultySnapshot.findFirst({
+		db().facultySnapshot.findFirst({
 			where: { schoolId },
 			orderBy: [{ fetchedAt: 'desc' }],
 			select: { schoolYearId: true, fetchedAt: true, source: true },
 		}),
-		prisma.generationRun.findFirst({
+		db().generationRun.findFirst({
 			where: { schoolId },
 			orderBy: [{ createdAt: 'desc' }],
 			select: { schoolYearId: true, createdAt: true },
@@ -332,7 +334,7 @@ export async function resolveRuntimeContext(
 	// evidence. They never participate in the active-year election, even when
 	// their artifacts are newer than the live year's.
 	const archivedYearIds = new Set(
-		(await prisma.enrollProSchoolYearMirror.findMany({
+		(await db().enrollProSchoolYearMirror.findMany({
 			where: { schoolId, isArchived: true },
 			select: { enrollProSchoolYearId: true },
 		})).map((mirror) => mirror.enrollProSchoolYearId),
@@ -455,11 +457,11 @@ export async function resolveRuntimeContext(
 	let publishedResetBlocked = false;
 	if (mappingConflict && upstreamActiveSchoolYearId) {
 		const [generationRuns, publishedRevisions] = await Promise.all([
-			prisma.generationRun.findMany({
+			db().generationRun.findMany({
 				where: { schoolId, schoolYearId: upstreamActiveSchoolYearId },
 				select: { summary: true },
 			}),
-			prisma.publishedScheduleRevision.count({
+			db().publishedScheduleRevision.count({
 				where: { schoolId, schoolYearId: upstreamActiveSchoolYearId },
 			}),
 		]);

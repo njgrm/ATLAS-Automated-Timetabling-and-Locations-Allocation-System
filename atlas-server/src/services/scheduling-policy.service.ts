@@ -3,8 +3,10 @@
  * Business logic only; no transport concerns.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { Prisma } from '@prisma/client';
+
+const db = () => getDataContext();
 
 // ─── Helpers ───
 
@@ -30,7 +32,7 @@ export async function validateAncillaryLoadImmutable(
 		return;
 	}
 
-	const current = await prisma.facultyMirror.findUnique({
+	const current = await db().facultyMirror.findUnique({
 		where: { id: facultyId },
 		select: {
 			ancillaryMinutesPerWeek: true,
@@ -94,6 +96,9 @@ export const POLICY_DEFAULTS = {
 	enableTleTwoPassPriority: true,
 	allowFlexibleSubjectAssignment: false,
 	allowConsecutiveLabSessions: false,
+	teachingStandardMinutes: 1_800,
+	advisoryCreditMinutes: 300,
+	hardCapMinutes: 2_400,
 } as const;
 
 export interface PolicyPlacementSemantics {
@@ -180,6 +185,9 @@ export interface SchedulingPolicyData {
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
+	teachingStandardMinutes: number;
+	advisoryCreditMinutes: number;
+	hardCapMinutes: number;
 }
 
 // ─── Validation ───
@@ -234,6 +242,9 @@ export interface PolicyInput {
 	allowFlexibleSubjectAssignment?: unknown;
 	allowConsecutiveLabSessions?: unknown;
 	constraintConfig?: unknown;
+	teachingStandardMinutes?: unknown;
+	advisoryCreditMinutes?: unknown;
+	hardCapMinutes?: unknown;
 }
 
 interface SpecialEventWindow {
@@ -591,6 +602,27 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		}
 	}
 
+	// --- workload policy ---
+	const teachingStandardMinutes = requirePositiveInt(
+		input.teachingStandardMinutes,
+		'teachingStandardMinutes', 600, 4800,
+		POLICY_DEFAULTS.teachingStandardMinutes,
+	);
+	const advisoryCreditMinutes = requirePositiveInt(
+		input.advisoryCreditMinutes,
+		'advisoryCreditMinutes', 0, 1200,
+		POLICY_DEFAULTS.advisoryCreditMinutes,
+	);
+	const hardCapMinutes = requirePositiveInt(
+		input.hardCapMinutes,
+		'hardCapMinutes', 600, 6000,
+		POLICY_DEFAULTS.hardCapMinutes,
+	);
+
+	if (errors.length === 0 && hardCapMinutes < teachingStandardMinutes) {
+		errors.push('hardCapMinutes must be >= teachingStandardMinutes.');
+	}
+
 	return {
 		data: {
 			teacherMoveEnabled,
@@ -628,6 +660,9 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			allowFlexibleSubjectAssignment: allowFlexibleAssignment,
 			allowConsecutiveLabSessions: allowConsecutiveLab,
 			constraintConfig,
+			teachingStandardMinutes,
+			advisoryCreditMinutes,
+			hardCapMinutes,
 		},
 		errors,
 	};
@@ -710,7 +745,7 @@ function normalizeRoomCapacityConstraintConfig(config: Prisma.JsonValue | null |
 async function ensureSchedulingPolicyColumns(): Promise<void> {
 	if (!ensureColumnsPromise) {
 		ensureColumnsPromise = (async () => {
-			await prisma.$executeRawUnsafe(`
+			await db().$executeRawUnsafe(`
 				CREATE TABLE IF NOT EXISTS "scheduling_policies" (
 					"id" SERIAL PRIMARY KEY,
 					"school_id" INTEGER NOT NULL,
@@ -729,7 +764,7 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				);
 			`);
 
-			await prisma.$executeRawUnsafe(`
+			await db().$executeRawUnsafe(`
 				ALTER TABLE "scheduling_policies"
 				ADD COLUMN IF NOT EXISTS "teacher_move_enabled" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "period_length_minutes" INTEGER NOT NULL DEFAULT 45,
@@ -770,24 +805,24 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 			`);
 
-			await prisma.$executeRawUnsafe(`
+			await db().$executeRawUnsafe(`
 				CREATE UNIQUE INDEX IF NOT EXISTS "scheduling_policies_school_id_school_year_id_key"
 				ON "scheduling_policies" ("school_id", "school_year_id")
 			`);
 
-			await prisma.$executeRawUnsafe(`
+			await db().$executeRawUnsafe(`
 				UPDATE "scheduling_policies"
 				SET "enable_lunch_window" = "enforce_lunch_window"
 				WHERE "enable_lunch_window" IS DISTINCT FROM "enforce_lunch_window"
 			`);
 
-			await prisma.$executeRawUnsafe(`
+			await db().$executeRawUnsafe(`
 				UPDATE "scheduling_policies"
 				SET "createdAt" = COALESCE("createdAt", NOW())
 				WHERE "createdAt" IS NULL
 			`);
 
-			await prisma.$executeRawUnsafe(`
+			await db().$executeRawUnsafe(`
 				UPDATE "scheduling_policies"
 				SET "updatedAt" = COALESCE("updatedAt", NOW())
 				WHERE "updatedAt" IS NULL
@@ -805,13 +840,13 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) {
 	try {
 		await ensureSchedulingPolicyColumns();
-		const existing = await prisma.schedulingPolicy.findUnique({
+		const existing = await db().schedulingPolicy.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		});
 		if (existing) {
 			const normalizedConstraintConfig = normalizeRoomCapacityConstraintConfig(existing.constraintConfig as Prisma.JsonValue | null);
 			if (normalizedConstraintConfig !== existing.constraintConfig && normalizedConstraintConfig != null) {
-				return await prisma.schedulingPolicy.update({
+				return await db().schedulingPolicy.update({
 					where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 					data: { constraintConfig: normalizedConstraintConfig as Prisma.InputJsonValue },
 				});
@@ -820,7 +855,7 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 		}
 
 		// Auto-create with defaults
-		return await prisma.schedulingPolicy.create({
+		return await db().schedulingPolicy.create({
 			data: { schoolId, schoolYearId, ...POLICY_DEFAULTS },
 		});
 	} catch (e: unknown) {
@@ -848,7 +883,7 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		throw err(400, 'INVALID_POLICY', errors.join(' '));
 	}
 
-	const existingWindows = await prisma.gradeShiftWindow.findMany({
+	const existingWindows = await db().gradeShiftWindow.findMany({
 		where: { schoolId, schoolYearId },
 		select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
 	});
@@ -905,11 +940,14 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		allowFlexibleSubjectAssignment: data.allowFlexibleSubjectAssignment,
 		allowConsecutiveLabSessions: data.allowConsecutiveLabSessions,
 		constraintConfig: constraintConfigValue,
+		teachingStandardMinutes: data.teachingStandardMinutes,
+		advisoryCreditMinutes: data.advisoryCreditMinutes,
+		hardCapMinutes: data.hardCapMinutes,
 	};
 
 	try {
 		await ensureSchedulingPolicyColumns();
-		return await prisma.schedulingPolicy.upsert({
+		return await db().schedulingPolicy.upsert({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			create: { schoolId, schoolYearId, ...prismaData },
 			update: prismaData,

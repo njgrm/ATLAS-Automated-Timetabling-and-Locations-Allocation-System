@@ -3,8 +3,10 @@
  * Business logic only; no transport concerns.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import type { ProgramType } from '@prisma/client';
+
+const db = () => getDataContext();
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const e = new Error(message) as Error & { statusCode: number; code: string };
@@ -46,7 +48,7 @@ async function validateAgainstPolicyBounds(
 	schoolYearId: number,
 	input: GradeWindowInput,
 ): Promise<void> {
-	const policy = await prisma.schedulingPolicy.findUnique({
+	const policy = await db().schedulingPolicy.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		select: { earliestStartTime: true, latestEndTime: true },
 	});
@@ -90,7 +92,7 @@ export interface GradeWindowRow {
 // ─── List ───
 
 export async function listGradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]> {
-	return prisma.gradeShiftWindow.findMany({
+	return db().gradeShiftWindow.findMany({
 		where: { schoolId, schoolYearId },
 		orderBy: [{ gradeLevel: 'asc' }, { programType: 'asc' }],
 	});
@@ -121,7 +123,7 @@ export async function upsertGradeWindow(
 	await validateAgainstPolicyBounds(schoolId, schoolYearId, input);
 
 	if (input.programType == null) {
-		const existing = await prisma.gradeShiftWindow.findFirst({
+		const existing = await db().gradeShiftWindow.findFirst({
 			where: {
 				schoolId,
 				schoolYearId,
@@ -132,7 +134,7 @@ export async function upsertGradeWindow(
 		});
 
 		if (existing) {
-			return prisma.gradeShiftWindow.update({
+			return db().gradeShiftWindow.update({
 				where: { id: existing.id },
 				data: {
 					startTime: input.startTime,
@@ -142,7 +144,7 @@ export async function upsertGradeWindow(
 			});
 		}
 
-		return prisma.gradeShiftWindow.create({
+		return db().gradeShiftWindow.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -154,7 +156,7 @@ export async function upsertGradeWindow(
 		});
 	}
 
-	return prisma.gradeShiftWindow.upsert({
+	return db().gradeShiftWindow.upsert({
 		where: {
 			schoolId_schoolYearId_gradeLevel_programType: {
 				schoolId,
@@ -199,7 +201,7 @@ const LEGACY_DEFAULT_END = '17:00';
 export async function ensurePhase3GradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]> {
 	const ensured: GradeWindowRow[] = [];
 	for (const window of PHASE3_DEFAULT_WINDOWS) {
-		const existing = await prisma.gradeShiftWindow.findFirst({
+		const existing = await db().gradeShiftWindow.findFirst({
 			where: {
 				schoolId,
 				schoolYearId,
@@ -211,7 +213,7 @@ export async function ensurePhase3GradeWindows(schoolId: number, schoolYearId: n
 		if (existing) {
 			const isLegacyDefault = existing.startTime === LEGACY_DEFAULT_START && existing.endTime === LEGACY_DEFAULT_END;
 			if (isLegacyDefault) {
-				const healed = await prisma.gradeShiftWindow.update({
+				const healed = await db().gradeShiftWindow.update({
 					where: { id: existing.id },
 					data: { startTime: window.startTime, endTime: window.endTime },
 				});
@@ -231,11 +233,11 @@ export async function ensurePhase3GradeWindows(schoolId: number, schoolYearId: n
 // ─── Delete ───
 
 export async function deleteGradeWindow(schoolId: number, schoolYearId: number, gradeLevel: number): Promise<void> {
-	const existing = await prisma.gradeShiftWindow.findFirst({
+	const existing = await db().gradeShiftWindow.findFirst({
 		where: { schoolId, schoolYearId, gradeLevel },
 	});
 	if (!existing) {
 		throw err(404, 'WINDOW_NOT_FOUND', `No grade shift window found for grade ${gradeLevel}.`);
 	}
-	await prisma.gradeShiftWindow.delete({ where: { id: existing.id } });
+	await db().gradeShiftWindow.delete({ where: { id: existing.id } });
 }

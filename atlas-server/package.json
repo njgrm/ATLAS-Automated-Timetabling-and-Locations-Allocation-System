@@ -13,6 +13,7 @@
     "seed:qa-room-requests": "tsx src/scripts/seed-qa-room-requests.ts",
     "verify:enrollpro-source": "tsx src/scripts/verify-enrollpro-source.ts",
     "verify:cross-repo-source-gate": "tsx src/scripts/verify-cross-repo-source-gate.ts",
+    "verify:execution-gate": "tsx src/scripts/verify-execution-gate.ts",
     "test:auth": "npm run test:system-token-auth && tsx src/__tests__/local-auth.test.ts && tsx src/__tests__/auth-login-integration.test.ts",
     "test:system-token-auth": "tsx src/__tests__/system-token-auth.test.ts",
     "test:seed-email-rules": "tsx src/__tests__/seed-email-rules.test.ts",

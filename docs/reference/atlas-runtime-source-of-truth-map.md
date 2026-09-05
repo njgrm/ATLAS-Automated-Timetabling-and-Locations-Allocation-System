@@ -33,6 +33,34 @@ Primary stakeholder output references now include:
 - If a runtime-sensitive change lands without updating this map, the documentation is incomplete.
 
 ## Current Live Snapshot
+
+Database recovery incident update (`2026-09-05`):
+
+- The shared ATLAS database was reset during an executor migration step and now
+  contains the schema but zero business rows and no Prisma migration history.
+- Tailnet health can return 200 while business runtime is not ready. Login
+  provisioning currently fails because the configured default school row is
+  absent; health alone is not readiness proof.
+- No accessible logical dump, PostgreSQL base backup, or complete Prompt 03
+  data image has been found. The operator selected reconstruction and accepted
+  historical test-data loss plus the residual possibility of an undiscovered
+  Windows snapshot.
+- Authenticated EnrollPro auth, school-year, faculty, and section interfaces are
+  reachable. EnrollPro may reconstruct only EnrollPro-owned domains. Prompt 03 artifacts
+  are partial reconstruction evidence, not a backup, and do not authorize data
+  writes.
+- The canonical recovery plan is
+  `docs/prompts/atlas-database-recovery-00-sequence-2026-09-05.md`. Shared/live
+  mutation remains blocked until a disposable rehearsal succeeds and the user
+  approves an exact cutover fingerprint.
+- The root `prisma/seed.js` is not recovery authority and is prohibited because
+  it overwrites catalog policy and deletes fixture-absent rooms. Subject defaults
+  are create-only catalog proposals; active-year demand belongs to persisted
+  offerings. Campus fixture data may be additive only in disposable/test setup.
+- Login recovery is ATLAS-owned: replace fallback local school ID authority with
+  an explicit local-to-EnrollPro school mapping, consume EnrollPro `roles[]`
+  fail-closed, and authorize protected faculty hydration feeds.
+
 Snapshot basis:
 - Tailnet QA target: `https://njgrm.buru-degree.ts.net`
 - Direct DB probe via local Prisma runtime against the active ATLAS database
@@ -98,6 +126,8 @@ Current persisted state:
 - Program mix in section mirrors: `58 REGULAR`, `8 STE`, `8 SPA`, `8 SPS`
 - Scheduling policies for `(schoolId=1, schoolYearId=55)`: `1` persisted row
 - Scheduling policy day-shape controls are now persisted in the local code path as `periodLengthMinutes` and `periodsPerDay`; the live Tailnet policy endpoint still needs a redeploy/restart to surface them in the response payload.
+- Scheduling policy now includes workload policy fields: `teachingStandardMinutes` (default 1800 = 30h), `advisoryCreditMinutes` (default 300 = 5h), `hardCapMinutes` (default 2400 = 40h). These drive the canonical workload computation in `workload-policy.service.ts`.
+- Teaching utilization is computed from `actualTeachingMinutes` only; advisory and ancillary are separately reported and never leak into teaching utilization or capacity remaining. The 7-vs-9 overload discrepancy is resolved: 7 actual teaching overloads, 2 false positives (advisers with 26.3h teaching + 5h advisory) correctly classified as below standard.
 - Grade/program shift windows for `(1,55)`: `16`
 - Active instructional cohorts: `10`
 - Active dynamic `TLE_SPEC_*` subjects: `0`
@@ -736,6 +766,15 @@ Timetable KISS UX critique repair and PWA cache note (`2026-06-11`):
 - Matrix reads use lightweight candidate selection (no full `draftEntries` JSON load to find the run).
 - Effective schedule truth is used (stale-faculty check applied).
 - Built server starts, `/api/v1/health` returns 200, matrix and export routes respond correctly.
+
+## Offering Authority Shadow Checkpoint (2026-09-04, Prompt 03C — NO-GO, no apply)
+
+- **Status:** The persisted `SchoolYearOffering` model is NOT active. Prompt 03C replaced all hardcoded offering-evidence constants with persisted/fingerprinted sources and withheld applicability — the corrected backfill is NON-APPLICABLE.
+- **Term truth (corrected):** NO persisted school-year term configuration exists for any school year. Rotation member order is persisted only as per-subject metadata on the six Science/TLE rows (`SCIENCE` 3061/3062/3063 order 1/2/3; `TLE_EXPLORATORY` 5742/5743/5744 order 1/2/3; termCount 3). Mapping order → term identity requires the operator-approved school-year term configuration defined in migration 0043 (`school_year_term_configs` + `offering_term_assignments`); `[1,2,3]` is never substituted. Until then offering rows stay `PENDING_TERM_CONFIG`.
+- **Classification truth (corrected):** per-subject classifications and the one-time G10 Research exclusion live ONLY in `docs/verification/prompt03c-classification-decision-record-2026-09-04.json` (semantic `892BA81E…`); no code map remains.
+- **Composition evidence (corrected):** Teaching Load ownership is staffing evidence; candidates require ownership ∩ program-template bindings ∩ catalog compatibility. Known gap surfaced: STE template (id 2) bindings omit `STE_ROBOTICS` (decision-record acknowledgement TGA-001; healing = proposed remediation H-001 at apply time). HG bound in templates is advisory, never offered. Class-program slots carry labels (Class 120 / Specialization 30) but no subject families — slot-capacity evidence only.
+- **ACTIVE-YEAR DRIFT (2026-09-04 live):** runtime context elects year 8 (`2029-2030`, mirror 8 active) following an EnrollPro rollover; year 7 (`2028-2029`) is inactive but not archived. All Prompt-03 evidence/remediation targets year 7. Generation/readiness consumers must treat the year boundary as unresolved until the operator confirms it.
+- **Pre-existing period-basis inconsistency (confirmed live):** REGULAR template `periodLengthMinutes` (60) drives `computeDemand` session math (32 meetings ≈ 1824 min/wk per REGULAR section) while the canonical slot contract is 45 minutes (40 meetings/1800 min). Surfaced in `prompt03c-shadow-demand-comparison`; belongs to the configurable-capacity stream.
 
 ## Offering Authority Shadow Checkpoint (2026-09-04, Prompt 03B — NO-GO, no apply)
 

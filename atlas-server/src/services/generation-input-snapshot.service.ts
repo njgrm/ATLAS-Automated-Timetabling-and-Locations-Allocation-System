@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 
 export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects';
 
@@ -130,7 +130,7 @@ export function compareGenerationInputSnapshots(
 export async function computeGenerationInputSnapshot(
 	schoolId: number,
 	schoolYearId: number,
-	client: Prisma.TransactionClient | typeof prisma = prisma,
+	client: Prisma.TransactionClient | PrismaClient = getDataContext(),
 ): Promise<GenerationInputSnapshot> {
 	const [
 		facultyMirrorAggregate,

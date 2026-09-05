@@ -14,18 +14,31 @@ import {
 } from '@/ui/dialog';
 import type { Subject } from '@/types';
 
-const DEFAULT_SCHOOL_ID = 1;
+type DeletePreview = {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	actorSchoolId: number;
+	currentVersion: string;
+	dependencies: Array<{
+		type: string;
+		id: number;
+		classification: 'ACTIVE' | 'HISTORICAL' | 'BLOCKING';
+		description: string;
+	}>;
+	activeCount: number;
+	historicalCount: number;
+	blockingCount: number;
+	deletable: boolean;
+	fingerprint: string;
+	generatedAt: string;
+};
 
 type Phase =
 	| { id: 'confirm' }
-	| {
-			id: 'blocked_active';
-			activeCount: number;
-			historicalCount: number;
-			subjectWasActive: boolean;
-			teachingLoadPath?: string;
-	  }
-	| { id: 'blocked_historical'; historicalCount: number };
+	| { id: 'preview'; preview: DeletePreview }
+	| { id: 'blocked'; preview: DeletePreview }
+	| { id: 'applying' };
 
 interface Props {
 	target: Subject | null;
@@ -47,130 +60,60 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 		if (target) setPhase({ id: 'confirm' });
 	}, [target?.id]);
 
-	const attemptDelete = useCallback(
-		async (subject: Subject, options?: { cleanupHistorical?: boolean; cleanupAll?: boolean }) => {
-			const params: Record<string, boolean> = {};
-			if (options?.cleanupHistorical) params.cleanupHistorical = true;
-			if (options?.cleanupAll) params.cleanupAll = true;
+	const handlePreview = useCallback(async () => {
+		if (!target) return;
+		setLoading(true);
+		try {
+			const { data } = await atlasApi.post<{ preview: DeletePreview }>(`/subjects/${target.id}/delete-preview`);
+			const preview = data?.preview;
+			if (!preview) {
+				toast.error('Failed to generate delete preview.');
+				return;
+			}
+			if (preview.deletable) {
+				setPhase({ id: 'preview', preview });
+			} else {
+				setPhase({ id: 'blocked', preview });
+			}
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Failed to preview deletion.');
+		} finally {
+			setLoading(false);
+		}
+	}, [target]);
 
-			const { data } = await atlasApi.delete<{ cleanedHistoricalAssignments?: number }>(
-				`/subjects/${subject.id}`,
-				{ params: Object.keys(params).length ? params : undefined },
-			);
-			const cleaned = data?.cleanedHistoricalAssignments ?? 0;
-			toast.success(
-				cleaned > 0
-					? `"${subject.name}" deleted. Cleaned ${cleaned} record${cleaned !== 1 ? 's' : ''}.`
-					: `"${subject.name}" deleted.`,
-			);
+	const handleApply = useCallback(async () => {
+		if (!target || phase.id !== 'preview') return;
+		setLoading(true);
+		setPhase({ id: 'applying' });
+		try {
+			const currentSubject = target;
+			const expectedUpdatedAt = currentSubject.updatedAt;
+			await atlasApi.post(`/subjects/${target.id}/delete-apply`, {
+				expectedUpdatedAt,
+				fingerprint: phase.preview.fingerprint,
+			});
+			toast.success(`"${target.name}" deleted.`);
 			onDeleted();
 			onClose();
-		},
-		[onDeleted, onClose],
-	);
-
-	const handleConfirmDelete = useCallback(async () => {
-		if (!target) return;
-		setLoading(true);
-		try {
-			await attemptDelete(target);
 		} catch (err: any) {
-			const payload = err?.response?.data;
-			if (payload?.code === 'DELETE_BLOCKED') {
-				const { reason, details } = payload;
-				if (reason === 'ACTIVE_ASSIGNMENTS') {
-					setPhase({
-						id: 'blocked_active',
-						activeCount: details?.activeAssignmentCount ?? 0,
-						historicalCount: details?.historicalAssignmentCount ?? 0,
-						subjectWasActive: target.isActive,
-						teachingLoadPath: details?.teachingLoadPath,
-					});
-				} else {
-					setPhase({
-						id: 'blocked_historical',
-						historicalCount: details?.historicalAssignmentCount ?? 1,
-					});
-				}
+			const code = err?.response?.data?.code;
+			const msg = err?.response?.data?.message ?? 'Failed to delete subject.';
+			if (code === 'DEPENDENCY_DRIFT') {
+				toast.error('Dependencies changed. Re-running preview...');
+				setPhase({ id: 'confirm' });
+				await handlePreview();
+			} else if (code === 'STALE_WRITE') {
+				toast.error('Subject was modified by another user. Refresh and retry.');
+				setPhase({ id: 'confirm' });
 			} else {
-				toast.error(payload?.message ?? 'Failed to delete subject.');
+				toast.error(msg);
+				setPhase({ id: 'confirm' });
 			}
 		} finally {
 			setLoading(false);
 		}
-	}, [target, attemptDelete]);
-
-	const handleArchiveAndDelete = useCallback(async () => {
-		if (!target) return;
-		setLoading(true);
-		try {
-			// Step 1: Archive the subject (sets isActive: false)
-			await atlasApi.post(`/subjects/${target.id}/archive`);
-			// Step 2: Clear active section ownership rows from the current school year
-			const schoolYearId = await onEnsureSchoolYear();
-			const preview = await atlasApi.post<{ ownershipRowsToRemove: number }>('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				subjectId: target.id,
-				previewOnly: true,
-			});
-			if ((preview.data.ownershipRowsToRemove ?? 0) > 0) {
-				await atlasApi.post('/faculty-assignments/reset', {
-					schoolId: DEFAULT_SCHOOL_ID,
-					schoolYearId,
-					subjectId: target.id,
-					previewOnly: false,
-					confirmReset: true,
-				});
-			}
-			// Step 3: Delete with full cleanup for any remaining historical records
-			await attemptDelete(target, { cleanupAll: true });
-		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Archive and delete failed.');
-		} finally {
-			setLoading(false);
-		}
-	}, [target, onEnsureSchoolYear, attemptDelete]);
-
-	const handleClearAndDelete = useCallback(async () => {
-		if (!target) return;
-		setLoading(true);
-		try {
-			const schoolYearId = await onEnsureSchoolYear();
-			const preview = await atlasApi.post<{ ownershipRowsToRemove: number }>('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				subjectId: target.id,
-				previewOnly: true,
-			});
-			if ((preview.data.ownershipRowsToRemove ?? 0) > 0) {
-				await atlasApi.post('/faculty-assignments/reset', {
-					schoolId: DEFAULT_SCHOOL_ID,
-					schoolYearId,
-					subjectId: target.id,
-					previewOnly: false,
-					confirmReset: true,
-				});
-			}
-			await attemptDelete(target, { cleanupAll: true });
-		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to clear assignments.');
-		} finally {
-			setLoading(false);
-		}
-	}, [target, onEnsureSchoolYear, attemptDelete]);
-
-	const handleCleanupAndDelete = useCallback(async () => {
-		if (!target) return;
-		setLoading(true);
-		try {
-			await attemptDelete(target, { cleanupHistorical: true });
-		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to clean up and delete.');
-		} finally {
-			setLoading(false);
-		}
-	}, [target, attemptDelete]);
+	}, [target, phase, onDeleted, onClose, handlePreview]);
 
 	const subjectLabel = target ? `"${target.name}"` : '';
 
@@ -203,84 +146,76 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 							<Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
 								Cancel
 							</Button>
-							<Button variant="destructive" size="sm" disabled={loading} onClick={handleConfirmDelete}>
-								{loading ? <><Spinner />Checking...</> : 'Delete permanently'}
+							<Button variant="destructive" size="sm" disabled={loading} onClick={handlePreview}>
+								{loading ? <><Spinner />Checking...</> : 'Check dependencies'}
 							</Button>
 						</DialogFooter>
 					</>
 				)}
 
-				{/* Phase 2: Blocked — active assignments exist */}
-				{phase.id === 'blocked_active' && (
+				{/* Phase 2: Preview — deletable */}
+				{phase.id === 'preview' && (
 					<>
 						<DialogHeader>
-							<DialogTitle className="flex items-center gap-2 text-amber-700">
-								<AlertTriangle className="size-5 shrink-0" />
-								Clear assignments first
+							<DialogTitle className="flex items-center gap-2 text-destructive">
+								<Trash2 className="size-5 shrink-0" />
+								Confirm deletion
 							</DialogTitle>
 							<DialogDescription asChild>
 								<div className="space-y-2.5 pt-1 text-sm">
 									<p className="text-foreground">
 										{subjectLabel} has{' '}
 										<span className="font-bold">
-											{phase.activeCount} active assignment{phase.activeCount !== 1 ? 's' : ''}
+											{phase.preview.historicalCount} historical record{phase.preview.historicalCount !== 1 ? 's' : ''}
 										</span>{' '}
-										in the current teaching load and cannot be deleted directly.
+										that will be removed along with the subject.
 									</p>
-									{phase.historicalCount > 0 && (
+									{phase.preview.historicalCount > 0 && (
 										<p className="text-xs text-muted-foreground">
-											Also has {phase.historicalCount} historical record{phase.historicalCount !== 1 ? 's' : ''} that will be removed.
+											Dependencies: {phase.preview.dependencies.map((d) => d.description).join(', ')}
 										</p>
 									)}
-									<p className="text-xs rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 font-medium leading-relaxed">
-										{phase.subjectWasActive
-											? 'Clicking "Archive & Delete" will deactivate this subject, remove its section assignments from the current school year, then permanently delete it.'
-											: 'Clicking "Clear & Delete" will remove all active section assignments then permanently delete this subject.'}
-									</p>
 								</div>
 							</DialogDescription>
 						</DialogHeader>
-						<DialogFooter className="flex-wrap gap-2">
+						<DialogFooter className="gap-2">
 							<Button variant="ghost" size="sm" disabled={loading} onClick={onClose}>
 								Cancel
 							</Button>
-							{phase.teachingLoadPath && (
-								<Link to={phase.teachingLoadPath} onClick={onClose}>
-									<Button variant="outline" size="sm" type="button">
-										View Teaching Load
-									</Button>
-								</Link>
-							)}
-							{phase.subjectWasActive ? (
-								<Button variant="destructive" size="sm" disabled={loading} onClick={handleArchiveAndDelete}>
-									{loading
-										? <><Spinner />Working...</>
-										: <><Archive className="mr-2 size-4" />Archive &amp; Delete</>}
-								</Button>
-							) : (
-								<Button variant="destructive" size="sm" disabled={loading} onClick={handleClearAndDelete}>
-									{loading ? <><Spinner />Clearing...</> : 'Clear & Delete'}
-								</Button>
-							)}
+							<Button variant="destructive" size="sm" disabled={loading} onClick={handleApply}>
+								{loading ? <><Spinner />Deleting...</> : 'Delete permanently'}
+							</Button>
 						</DialogFooter>
 					</>
 				)}
 
-				{/* Phase 3: Blocked — historical records only */}
-				{phase.id === 'blocked_historical' && (
+				{/* Phase 3: Blocked — active/blocking dependencies */}
+				{phase.id === 'blocked' && (
 					<>
 						<DialogHeader>
 							<DialogTitle className="flex items-center gap-2 text-amber-700">
 								<AlertTriangle className="size-5 shrink-0" />
-								Historical records found
+								Cannot delete — dependencies exist
 							</DialogTitle>
 							<DialogDescription asChild>
 								<div className="space-y-2.5 pt-1 text-sm">
 									<p className="text-foreground">
 										{subjectLabel} has{' '}
 										<span className="font-bold">
-											{phase.historicalCount} historical record{phase.historicalCount !== 1 ? 's' : ''}
-										</span>. These will be permanently removed along with the subject.
+											{phase.preview.activeCount} active assignment{phase.preview.activeCount !== 1 ? 's' : ''}
+										</span>
+										{phase.preview.blockingCount > 0 && (
+											<>, and <span className="font-bold">{phase.preview.blockingCount} blocking reference{phase.preview.blockingCount !== 1 ? 's' : ''}</span></>
+										)}
+										.
+									</p>
+									<div className="text-xs text-muted-foreground space-y-1">
+										{phase.preview.dependencies.filter((d) => d.classification === 'ACTIVE' || d.classification === 'BLOCKING').map((d, i) => (
+											<p key={i}>{d.description}</p>
+										))}
+									</div>
+									<p className="text-xs rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 font-medium leading-relaxed">
+										Remove active assignments and blocking references before deleting this subject.
 									</p>
 								</div>
 							</DialogDescription>
@@ -289,11 +224,21 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 							<Button variant="ghost" size="sm" disabled={loading} onClick={onClose}>
 								Cancel
 							</Button>
-							<Button variant="destructive" size="sm" disabled={loading} onClick={handleCleanupAndDelete}>
-								{loading ? <><Spinner />Deleting...</> : 'Clean Up & Delete'}
+							<Button variant="outline" size="sm" asChild>
+								<Link to={`/teaching-load?subjectId=${target?.id}`} onClick={onClose}>
+									View Teaching Load
+								</Link>
 							</Button>
 						</DialogFooter>
 					</>
+				)}
+
+				{/* Phase 4: Applying */}
+				{phase.id === 'applying' && (
+					<div className="flex items-center justify-center py-8">
+						<Spinner />
+						<span className="ml-2 text-sm text-muted-foreground">Deleting...</span>
+					</div>
 				)}
 
 			</DialogContent>

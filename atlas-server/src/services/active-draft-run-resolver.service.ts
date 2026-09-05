@@ -1,4 +1,6 @@
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
+
+const db = () => getDataContext();
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -41,7 +43,7 @@ export type ActiveDraftRun = {
 };
 
 export async function resolveActiveDraftRun(schoolId: number, schoolYearId: number): Promise<ActiveDraftRun> {
-	const latestRun = await prisma.generationRun.findFirst({
+	const latestRun = await db().generationRun.findFirst({
 		where: { schoolId, schoolYearId, status: 'COMPLETED' },
 		orderBy: { createdAt: 'desc' },
 		select: {
@@ -67,7 +69,7 @@ export async function resolveActiveDraftRun(schoolId: number, schoolYearId: numb
 		);
 	}
 
-	const activeFaculty = await prisma.facultyMirror.findMany({
+	const activeFaculty = await db().facultyMirror.findMany({
 		where: { schoolId, isActiveForScheduling: true, isStale: false },
 		select: { id: true },
 	});

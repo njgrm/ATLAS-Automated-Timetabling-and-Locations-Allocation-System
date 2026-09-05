@@ -9,8 +9,10 @@
  * generation assigns subjects per section and does not hard-lock them here.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import type { ProgramType, ClassProgramSlotKind } from '@prisma/client';
+
+const db = () => getDataContext();
 
 // ─── Grade Normalization ───
 
@@ -66,7 +68,7 @@ export async function normalizeGradeLevelForSlots(
 
 	// Last resort: try to look up the grade level name from the database
 	if (schoolId) {
-		const gradeLevel = await prisma.sectionMirror.findFirst({
+		const gradeLevel = await db().sectionMirror.findFirst({
 			where: { schoolId, gradeLevelId: id },
 			select: { gradeLevelName: true },
 		});
@@ -276,7 +278,7 @@ export async function seedClassProgramSlots(
 	schoolId: number,
 	schoolYearId: number,
 ): Promise<{ seeded: number }> {
-	const existing = await prisma.classProgramSlot.findMany({
+	const existing = await db().classProgramSlot.findMany({
 		where: { schoolId, schoolYearId },
 		select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true },
 	});
@@ -306,7 +308,7 @@ export async function seedClassProgramSlots(
 		}
 	}
 
-	if (rows.length > 0) await prisma.classProgramSlot.createMany({ data: rows, skipDuplicates: true });
+	if (rows.length > 0) await db().classProgramSlot.createMany({ data: rows, skipDuplicates: true });
 
 	return { seeded: rows.length };
 }
@@ -316,7 +318,7 @@ export async function ensureCanonicalClassProgramSlots(
 	schoolYearId: number,
 ): Promise<{ seeded: number; coverage: CanonicalTemplateCoverage[] }> {
 	const seeded = await seedClassProgramSlots(schoolId, schoolYearId);
-	const rows = await prisma.classProgramSlot.findMany({
+	const rows = await db().classProgramSlot.findMany({
 		where: { schoolId, schoolYearId, isActive: true },
 		select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true },
 	});
@@ -353,7 +355,7 @@ export async function resolveClassProgramSlots(
 	programType?: ProgramType | null,
 ): Promise<ResolvedSlotRow[]> {
 	// Try exact grade + program first
-	const exactRows = await prisma.classProgramSlot.findMany({
+	const exactRows = await db().classProgramSlot.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -372,7 +374,7 @@ export async function resolveClassProgramSlots(
 	// programs must have their own exact contract so they cannot silently lose
 	// their additional or restricted capacity.
 	if (programType != null && !KNOWN_PROGRAM_TYPES.includes(programType)) {
-		const fallbackRows = await prisma.classProgramSlot.findMany({
+		const fallbackRows = await db().classProgramSlot.findMany({
 			where: {
 				schoolId,
 				schoolYearId,

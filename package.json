@@ -11,6 +11,7 @@
     "seed:atlas-enrollpro-source": "npm --prefix atlas-server run seed:enrollpro-source --",
     "verify:enrollpro-source": "npm --prefix atlas-server run verify:enrollpro-source --",
     "verify:cross-repo-source-gate": "npm --prefix atlas-server run verify:cross-repo-source-gate --",
+    "verify:execution-gate": "npm --prefix atlas-server run verify:execution-gate --",
     "test:phase4-review": "npm --prefix atlas-server run test:phase4-review",
     "test:login-ui-parity": "node qa-artifacts/login-ui-parity-check.mjs",
     "test:visual:install": "playwright install chromium",

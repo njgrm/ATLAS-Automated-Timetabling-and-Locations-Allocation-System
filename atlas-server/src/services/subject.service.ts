@@ -186,6 +186,12 @@ type UpstreamProgramSignals = {
 		programCategory?: string | null;
 		gradeLevels: number[];
 	}>;
+	provenance: {
+		offeringsStatus: 'live' | 'degraded' | 'unavailable';
+		sectionStatus: 'live' | 'degraded' | 'unavailable';
+		mirrorStatus: 'live' | 'degraded' | 'unavailable';
+		tleStatus: 'live' | 'degraded' | 'unavailable';
+	};
 };
 
 type SpecialProgramTrack = { code: string; label: string; sectionCount: number };
@@ -354,6 +360,12 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 	const offeredPrograms = new Set<ProgramType>(['REGULAR']);
 	const tleSpecializations = new Map<string, { code: string; name: string; programCategory?: string | null; gradeLevels: number[] }>();
 
+	// Track provenance for each source
+	let offeringsStatus: 'live' | 'degraded' | 'unavailable' = 'unavailable';
+	let sectionStatus: 'live' | 'degraded' | 'unavailable' = 'unavailable';
+	let mirrorStatus: 'live' | 'degraded' | 'unavailable' = 'unavailable';
+	let tleStatus: 'live' | 'degraded' | 'unavailable' = 'unavailable';
+
 	try {
 		const offeringUrl = `${baseUrl}/integration/v1/subject-offerings?schoolId=${schoolId}&schoolYearId=${schoolYearId}`;
 		const offeringsPayload = await fetchJsonWithAuth(offeringUrl, token) as { data?: Array<{ programType?: string }> };
@@ -362,8 +374,9 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 			const programType = normalizeProgramType(offering.programType);
 			if (programType) offeredPrograms.add(programType);
 		}
+		offeringsStatus = 'live';
 	} catch {
-		// Best-effort contract sync; generation flow handles hard upstream failures elsewhere.
+		offeringsStatus = 'unavailable';
 	}
 
 	try {
@@ -371,8 +384,9 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 		for (const programType of sectionPrograms) {
 			offeredPrograms.add(programType);
 		}
+		sectionStatus = 'live';
 	} catch {
-		// Keep best-effort behavior.
+		sectionStatus = 'unavailable';
 	}
 
 	try {
@@ -380,8 +394,9 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 		for (const programType of mirrorPrograms) {
 			offeredPrograms.add(programType);
 		}
+		mirrorStatus = 'live';
 	} catch {
-		// Mirror enrichment is best-effort.
+		mirrorStatus = 'unavailable';
 	}
 
 	try {
@@ -408,8 +423,9 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 			existing.gradeLevels = [...new Set([...existing.gradeLevels, ...gradeLevels])];
 			if (!existing.programCategory && category) existing.programCategory = category;
 		}
+		tleStatus = 'live';
 	} catch {
-		// Keep sync resilient when the protected endpoint is unavailable.
+		tleStatus = 'unavailable';
 	}
 
 	const mirroredTleSpecializations = await fetchMirroredTleSignals(schoolId, schoolYearId);
@@ -417,6 +433,12 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 	return {
 		offeredPrograms,
 		tleSpecializations: mergeTleSpecializations([...tleSpecializations.values()], mirroredTleSpecializations),
+		provenance: {
+			offeringsStatus,
+			sectionStatus,
+			mirrorStatus,
+			tleStatus,
+		},
 	};
 }
 
@@ -493,6 +515,282 @@ export async function assertSchoolScopeAndVersion(
 	return { ok: true, subject };
 }
 
+/**
+ * Prompt 01B-R: validated PATCH allowlist.
+ *
+ * Only operator-editable catalog fields may appear in a PATCH request.
+ * Protected/immutable fields (id, schoolId, code, createdAt, updatedAt,
+ * isActive, relations) are rejected explicitly rather than silently ignored.
+ */
+const VALID_PATCH_FIELDS = new Set([
+	'name',
+	'minMinutesPerWeek',
+	'preferredRoomType',
+	'gradeLevels',
+	'isSeedable',
+	'interSectionEnabled',
+	'interSectionGradeLevels',
+	'programScopes',
+	'allowedSpecializations',
+	'requiredFeatures',
+	'ownerDepartment',
+	'qualificationPriority',
+	'rotationFamily',
+	'outputLabel',
+	'isSystemManaged',
+	'modularGroupId',
+	'modularOrder',
+	'termGroupId',
+	'termCount',
+]);
+
+const PROTECTED_PATCH_FIELDS = new Set([
+	'id',
+	'schoolId',
+	'code',
+	'createdAt',
+	'updatedAt',
+	'isActive',
+	'school',
+	'facultySubjects',
+	'templateBindings',
+]);
+
+export function validateAndFilterPatchFields(
+	raw: Record<string, unknown>,
+): { ok: true; data: Record<string, unknown> } | { ok: false; error: { status: number; code: string; message: string } } {
+	const data: Record<string, unknown> = {};
+	const unknownFields: string[] = [];
+	const protectedFields: string[] = [];
+
+	for (const key of Object.keys(raw)) {
+		if (PROTECTED_PATCH_FIELDS.has(key)) {
+			protectedFields.push(key);
+			continue;
+		}
+		if (!VALID_PATCH_FIELDS.has(key)) {
+			unknownFields.push(key);
+			continue;
+		}
+		data[key] = raw[key];
+	}
+
+	if (protectedFields.length > 0) {
+		return {
+			ok: false,
+			error: {
+				status: 400,
+				code: 'PROTECTED_FIELD',
+				message: `Cannot modify protected fields: ${protectedFields.join(', ')}.`,
+			},
+		};
+	}
+	if (unknownFields.length > 0) {
+		return {
+			ok: false,
+			error: {
+				status: 400,
+				code: 'UNKNOWN_FIELD',
+				message: `Unknown fields not allowed: ${unknownFields.join(', ')}.`,
+			},
+		};
+	}
+
+	// Validate values when present
+	if (data.minMinutesPerWeek !== undefined) {
+		const val = Number(data.minMinutesPerWeek);
+		if (!Number.isFinite(val) || val <= 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_MIN_MINUTES_PER_WEEK', message: 'minMinutesPerWeek must be a positive number.' } };
+		}
+	}
+	if (data.gradeLevels !== undefined) {
+		if (!Array.isArray(data.gradeLevels) || data.gradeLevels.length === 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_GRADE_LEVELS', message: 'gradeLevels must contain at least one grade level.' } };
+		}
+		const invalid = data.gradeLevels.filter((g: unknown) => ![7, 8, 9, 10].includes(Number(g)));
+		if (invalid.length > 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_GRADE_LEVELS', message: `gradeLevels contains invalid grades: ${invalid.join(', ')} (allowed: 7, 8, 9, 10).` } };
+		}
+	}
+	if (data.preferredRoomType !== undefined) {
+		if (typeof data.preferredRoomType !== 'string' || data.preferredRoomType.trim() === '') {
+			return { ok: false, error: { status: 400, code: 'INVALID_ROOM_TYPE', message: 'preferredRoomType must be a non-empty string.' } };
+		}
+	}
+
+	return { ok: true, data };
+}
+
+/**
+ * Prompt 01B: MANDATORY atomic versioned mutation.
+ *
+ * The version predicate (id + schoolId + expectedUpdatedAt) is part of the
+ * UPDATE's WHERE clause inside one transaction — no read-then-write window.
+ * Zero rows affected => distinguish not-found / cross-school / stale without
+ * authorizing any write.
+ *
+ * Prompt 01B-R: changes are now validated through an explicit allowlist
+ * before reaching Prisma. Protected fields are rejected; unknown fields
+ * are rejected; values are validated.
+ */
+export async function updateSubjectAtomic(input: {
+	id: number;
+	actorSchoolId: number;
+	expectedUpdatedAt: string;
+	changes: Record<string, unknown>;
+}): Promise<
+	| { ok: true; subject: Awaited<ReturnType<typeof prisma.subject.findUniqueOrThrow>> }
+	| { ok: false; error: { status: number; code: string; message: string } }
+> {
+	const { id, actorSchoolId, expectedUpdatedAt, changes } = input;
+
+	// strict validation BEFORE any read
+	if (!Number.isInteger(id) || id <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'id must be a positive integer.' } };
+	}
+	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+		return { ok: false, error: { status: 403, code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' } };
+	}
+	if (typeof expectedUpdatedAt !== 'string' || expectedUpdatedAt.trim() === '') {
+		return { ok: false, error: { status: 400, code: 'VERSION_REQUIRED', message: 'expectedUpdatedAt is required for every subject mutation.' } };
+	}
+	const expectedMs = new Date(expectedUpdatedAt).getTime();
+	if (!Number.isFinite(expectedMs)) {
+		return { ok: false, error: { status: 400, code: 'INVALID_VERSION', message: 'expectedUpdatedAt must be a valid ISO-8601 timestamp.' } };
+	}
+
+	// Prompt 01B-R: validate and filter the changes through the allowlist
+	const validated = validateAndFilterPatchFields(changes);
+	if (!validated.ok) {
+		return validated;
+	}
+	const safeChanges = validated.data;
+
+	if (Object.keys(safeChanges).length === 0) {
+		return { ok: false, error: { status: 400, code: 'NO_CHANGES', message: 'No valid fields provided for update.' } };
+	}
+
+	// snapshot for outcome classification when the conditional update matches zero rows
+	const existing = await prisma.subject.findUnique({ where: { id }, select: { id: true, schoolId: true, updatedAt: true } });
+
+	try {
+		const updated = await prisma.$transaction(async (tx) => {
+			const result = await tx.subject.updateMany({
+				where: {
+					id,
+					schoolId: actorSchoolId,
+					updatedAt: new Date(expectedMs),
+				},
+				data: safeChanges,
+			});
+			if (result.count === 0) {
+				return null;
+			}
+			return tx.subject.findUniqueOrThrow({ where: { id } });
+		}, { isolationLevel: 'Serializable' });
+
+		if (updated != null) {
+			return { ok: true, subject: updated };
+		}
+
+		// zero rows: classify without authorizing a write
+		if (!existing) {
+			return { ok: false, error: { status: 404, code: 'NOT_FOUND', message: 'Subject not found.' } };
+		}
+		if (existing.schoolId !== actorSchoolId) {
+			return { ok: false, error: { status: 403, code: 'CROSS_SCHOOL_DENIED', message: 'Subject belongs to another school.' } };
+		}
+		return { ok: false, error: { status: 409, code: 'STALE_WRITE', message: 'Subject was modified by another user. Refresh and retry.' } };
+	} catch (error) {
+		// serialization failures surface as stale writes for retry semantics
+		const code = (error as { code?: string }).code;
+		if (code === 'P2034') {
+			return { ok: false, error: { status: 409, code: 'STALE_WRITE', message: 'Concurrent modification detected. Refresh and retry.' } };
+		}
+		throw error;
+	}
+}
+
+/**
+ * Prompt 01B: atomic state-transition (archive/reactivate) with no-op conflict.
+ * Asserts the expected current isActive so a repeated archive can never
+ * advance updatedAt or report false success.
+ */
+export async function transitionSubjectActiveStateAtomic(input: {
+	id: number;
+	actorSchoolId: number;
+	expectedUpdatedAt: string;
+	targetActive: boolean;
+}): Promise<
+	| { ok: true; subject: Awaited<ReturnType<typeof prisma.subject.findUniqueOrThrow>> }
+	| { ok: false; error: { status: number; code: string; message: string } }
+> {
+	const { id, actorSchoolId, expectedUpdatedAt, targetActive } = input;
+
+	if (!Number.isInteger(id) || id <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'id must be a positive integer.' } };
+	}
+	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+		return { ok: false, error: { status: 403, code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' } };
+	}
+	if (typeof expectedUpdatedAt !== 'string' || expectedUpdatedAt.trim() === '') {
+		return { ok: false, error: { status: 400, code: 'VERSION_REQUIRED', message: 'expectedUpdatedAt is required for every subject mutation.' } };
+	}
+	const expectedMs = new Date(expectedUpdatedAt).getTime();
+	if (!Number.isFinite(expectedMs)) {
+		return { ok: false, error: { status: 400, code: 'INVALID_VERSION', message: 'expectedUpdatedAt must be a valid ISO-8601 timestamp.' } };
+	}
+
+	const existing = await prisma.subject.findUnique({ where: { id }, select: { id: true, schoolId: true, isActive: true, updatedAt: true } });
+
+	// pre-classify the expected-state no-op conflict BEFORE the transaction so
+	// a repeated archive cannot bump updatedAt
+	if (existing && existing.schoolId === actorSchoolId && existing.isActive === targetActive) {
+		return {
+			ok: false,
+			error: {
+				status: 409,
+				code: targetActive ? 'ALREADY_ACTIVE' : 'ALREADY_ARCHIVED',
+				message: targetActive ? 'Subject is already active.' : 'Subject is already archived.',
+			},
+		};
+	}
+
+	try {
+		const updated = await prisma.$transaction(async (tx) => {
+			const result = await tx.subject.updateMany({
+				where: {
+					id,
+					schoolId: actorSchoolId,
+					updatedAt: new Date(expectedMs),
+					isActive: !targetActive, // must currently be in the opposite state
+				},
+				data: { isActive: targetActive },
+			});
+			if (result.count === 0) return null;
+			return tx.subject.findUniqueOrThrow({ where: { id } });
+		}, { isolationLevel: 'Serializable' });
+
+		if (updated != null) {
+			return { ok: true, subject: updated };
+		}
+
+		if (!existing) {
+			return { ok: false, error: { status: 404, code: 'NOT_FOUND', message: 'Subject not found.' } };
+		}
+		if (existing.schoolId !== actorSchoolId) {
+			return { ok: false, error: { status: 403, code: 'CROSS_SCHOOL_DENIED', message: 'Subject belongs to another school.' } };
+		}
+		return { ok: false, error: { status: 409, code: 'STALE_WRITE', message: 'Subject was modified by another user. Refresh and retry.' } };
+	} catch (error) {
+		const code = (error as { code?: string }).code;
+		if (code === 'P2034') {
+			return { ok: false, error: { status: 409, code: 'STALE_WRITE', message: 'Concurrent modification detected. Refresh and retry.' } };
+		}
+		throw error;
+	}
+}
+
 // Prompt 01A: runtime schema DDL/backfill REMOVED. The subject-contract schema
 // columns and backfills now live exclusively in tracked migration
 // `0042_subject_contract_schema_ddl` (applied via `prisma migrate deploy`).
@@ -505,16 +803,11 @@ async function ensureSubjectContractSchemaColumns(): Promise<void> {
 export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
 	await ensureSubjectContractSchemaColumns();
 
-	await prisma.subject.updateMany({
-		where: {
-			schoolId,
-			code: { in: DEPRECATED_SUBJECT_CODES },
-		},
-		data: {
-			isActive: false,
-			isSeedable: false,
-		},
-	});
+	// Prompt 01B: bootstrap seeding is STRICTLY create-missing-only. The
+	// deprecated-subject `updateMany` deactivation is REMOVED from this passive
+	// path — deprecating a subject is an operator decision that belongs in the
+	// explicit preview/apply workflow, not something every read/generation
+	// re-enforces.
 
 	// Prompt 01A (Subjects CRUD source authority): bootstrap defaults are
 	// CREATE-MISSING-ONLY. The previous upsert `update` branch rewrote
@@ -1189,4 +1482,394 @@ export async function getSubjectsWithoutFaculty(schoolId: number) {
 		},
 		select: { id: true, name: true, code: true },
 	});
+}
+
+// ─── Prompt 01B-R2: Fingerprinted delete preview/apply ───
+// Uses shared dependency collector from subject-delete-dependencies.service.ts
+
+import { collectDeleteDependencies, type DeleteDependencyGraph } from './subject-delete-dependencies.service.js';
+import { canonicalHash, sortByKey } from '../lib/canonical-json.js';
+
+type DeletePreview = {
+	ok: true;
+	preview: {
+		subjectId: number;
+		subjectCode: string;
+		subjectName: string;
+		actorSchoolId: number;
+		currentVersion: string;
+		dependencies: Array<{
+			type: string;
+			id: number;
+			classification: string;
+			description: string;
+			action: string;
+		}>;
+		summary: {
+			activeCount: number;
+			historicalCount: number;
+			blockingCount: number;
+			immutableCount: number;
+			deletable: boolean;
+			blockingReasons: string[];
+		};
+		fingerprint: string;
+		generatedAt: string;
+	};
+};
+
+type DeleteApplyResult =
+	| {
+		ok: true;
+		receipt: {
+			deletedSubjectId: number;
+			deletedDependencies: Array<{ type: string; id: number }>;
+			deletedDependencyCount: number;
+			appliedAt: string;
+		};
+	  }
+	| { ok: false; error: { status: number; code: string; message: string } };
+
+/**
+ * Compute a deterministic fingerprint from a delete dependency graph.
+ * Uses the shared canonicalizer to handle nested objects correctly.
+ */
+async function computeDeleteFingerprint(graph: DeleteDependencyGraph): Promise<string> {
+	const fingerprintData = {
+		subjectId: graph.subjectId,
+		subjectCode: graph.subjectCode,
+		actorSchoolId: graph.actorSchoolId,
+		subjectVersion: graph.subjectVersion,
+		subjectIsActive: graph.subjectIsActive,
+		dependencies: sortByKey(graph.dependencies, (d) => `${d.type}:${d.id}`),
+	};
+	return canonicalHash(fingerprintData);
+}
+
+export async function previewSubjectDeletion(
+	subjectId: number,
+	actorSchoolId: number,
+): Promise<DeletePreview | { ok: false; error: { status: number; code: string; message: string } }> {
+	if (!Number.isInteger(subjectId) || subjectId <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'subjectId must be a positive integer.' } };
+	}
+	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+		return { ok: false, error: { status: 403, code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' } };
+	}
+
+	// Use the shared dependency collector
+	const graph = await collectDeleteDependencies(prisma, subjectId, actorSchoolId);
+	if ('error' in graph) {
+		return { ok: false, error: graph.error };
+	}
+
+	const fingerprint = await computeDeleteFingerprint(graph);
+
+	return {
+		ok: true,
+		preview: {
+			subjectId: graph.subjectId,
+			subjectCode: graph.subjectCode,
+			subjectName: graph.subjectName,
+			actorSchoolId: graph.actorSchoolId,
+			currentVersion: graph.subjectVersion,
+			dependencies: graph.dependencies.map((d) => ({
+				type: d.type,
+				id: d.id,
+				classification: d.classification,
+				description: d.description,
+				action: d.action,
+			})),
+			summary: graph.summary,
+			fingerprint,
+			generatedAt: new Date().toISOString(),
+		},
+	};
+}
+
+export async function applySubjectDeletion(input: {
+	subjectId: number;
+	actorSchoolId: number;
+	expectedUpdatedAt: string;
+	fingerprint: string;
+}): Promise<DeleteApplyResult> {
+	const { subjectId, actorSchoolId, expectedUpdatedAt, fingerprint } = input;
+
+	if (!Number.isInteger(subjectId) || subjectId <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'subjectId must be a positive integer.' } };
+	}
+	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+		return { ok: false, error: { status: 403, code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' } };
+	}
+	if (typeof expectedUpdatedAt !== 'string' || expectedUpdatedAt.trim() === '') {
+		return { ok: false, error: { status: 400, code: 'VERSION_REQUIRED', message: 'expectedUpdatedAt is required.' } };
+	}
+	const expectedMs = new Date(expectedUpdatedAt).getTime();
+	if (!Number.isFinite(expectedMs)) {
+		return { ok: false, error: { status: 400, code: 'INVALID_VERSION', message: 'expectedUpdatedAt must be a valid ISO-8601 timestamp.' } };
+	}
+	if (typeof fingerprint !== 'string' || fingerprint.trim() === '') {
+		return { ok: false, error: { status: 400, code: 'FINGERPRINT_REQUIRED', message: 'fingerprint is required.' } };
+	}
+
+	// Execute in one Serializable transaction
+	const result = await prisma.$transaction(async (tx) => {
+		// 1. Re-read subject with version check
+		const subject = await tx.subject.findUnique({
+			where: { id: subjectId },
+			select: { id: true, schoolId: true, updatedAt: true },
+		});
+		if (!subject) {
+			return { ok: false as const, error: { status: 404, code: 'NOT_FOUND', message: 'Subject not found.' } };
+		}
+		if (subject.schoolId !== actorSchoolId) {
+			return { ok: false as const, error: { status: 403, code: 'CROSS_SCHOOL_DENIED', message: 'Subject belongs to another school.' } };
+		}
+		if (subject.updatedAt.getTime() !== expectedMs) {
+			return { ok: false as const, error: { status: 409, code: 'STALE_WRITE', message: 'Subject was modified by another user. Refresh and retry.' } };
+		}
+
+		// 2. Re-collect dependencies using the SAME collector as preview
+		const graph = await collectDeleteDependencies(tx as any, subjectId, actorSchoolId);
+		if ('error' in graph) {
+			return { ok: false as const, error: graph.error };
+		}
+
+		// 3. Recompute fingerprint
+		const currentFingerprint = await computeDeleteFingerprint(graph);
+		if (currentFingerprint !== fingerprint) {
+			return {
+				ok: false as const,
+				error: {
+					status: 409,
+					code: 'DELETE_DRIFT',
+					message: 'Dependencies changed since preview. Re-run the delete preview.',
+				},
+			};
+		}
+
+		// 4. Enforce deletable — reject if any blocking/active/immutable dependencies
+		if (!graph.summary.deletable) {
+			return {
+				ok: false as const,
+				error: {
+					status: 409,
+					code: 'NOT_DELETABLE',
+					message: `Subject cannot be deleted: ${graph.summary.blockingReasons.join('; ')}`,
+				},
+			};
+		}
+
+		// 5. Delete only rows classified as DELETE (historical dependencies)
+		const deletedDependencies: Array<{ type: string; id: number }> = [];
+		for (const dep of graph.dependencies) {
+			if (dep.action === 'DELETE') {
+				switch (dep.type) {
+					case 'FacultySubject':
+						await tx.facultySubject.delete({ where: { id: dep.id } });
+						deletedDependencies.push({ type: dep.type, id: dep.id });
+						break;
+					case 'SubjectSectionOwnership':
+						await tx.subjectSectionOwnership.delete({ where: { id: dep.id } });
+						deletedDependencies.push({ type: dep.type, id: dep.id });
+						break;
+					default:
+						// Unknown dependency type — fail closed
+						return {
+							ok: false as const,
+							error: {
+								status: 409,
+								code: 'UNKNOWN_DEPENDENCY',
+								message: `Unknown dependency type: ${dep.type}. Cannot safely delete.`,
+							},
+						};
+				}
+			}
+		}
+
+		// 6. Delete the subject itself
+		await tx.subject.delete({ where: { id: subjectId } });
+		deletedDependencies.push({ type: 'Subject', id: subjectId });
+
+		return {
+			ok: true as const,
+			receipt: {
+				deletedSubjectId: subjectId,
+				deletedDependencies,
+				deletedDependencyCount: deletedDependencies.length,
+				appliedAt: new Date().toISOString(),
+			},
+		};
+	}, { isolationLevel: 'Serializable' });
+
+	return result;
+}
+
+// ─── Prompt 01B-R2: Sync preview/apply ───
+// Uses shared sync plan builder from subject-sync-plan.service.ts
+
+import { buildSyncPlan, computeSyncPlanFingerprint, applySyncPlan, type SyncPlan } from './subject-sync-plan.service.js';
+
+type SyncPreviewResult = {
+	ok: true;
+	preview: {
+		schoolId: number;
+		schoolYearId: number;
+		sourceRevision: string;
+		offeredPrograms: string[];
+		mutations: Array<{
+			action: string;
+			code: string;
+			name: string;
+			reason: string;
+		}>;
+		summary: {
+			activationCount: number;
+			deactivationCount: number;
+			creationCount: number;
+			updateCount: number;
+			totalChanges: number;
+		};
+		fingerprint: string;
+		generatedAt: string;
+	};
+};
+
+type SyncApplyResult =
+	| {
+		ok: true;
+		report: {
+			schoolId: number;
+			schoolYearId: number;
+			sourceRevision: string;
+			activatedCount: number;
+			deactivatedCount: number;
+			createdCount: number;
+			updatedCount: number;
+			appliedAt: string;
+		};
+	  }
+	| { ok: false; error: { status: number; code: string; message: string } };
+
+export async function previewSubjectSync(
+	schoolId: number,
+	schoolYearId: number,
+	authToken?: string,
+): Promise<SyncPreviewResult> {
+	// Fetch upstream signals (read-only)
+	const signals = await fetchUpstreamProgramSignals(schoolId, schoolYearId, authToken);
+
+	// Build the sync plan using the shared plan builder
+	const plan = await buildSyncPlan(prisma, schoolId, schoolYearId, {
+		offeredPrograms: signals.offeredPrograms,
+		tleSpecializations: signals.tleSpecializations,
+		provenance: signals.provenance,
+	});
+
+	// Compute fingerprint
+	const fingerprint = await computeSyncPlanFingerprint(plan);
+
+	return {
+		ok: true,
+		preview: {
+			schoolId: plan.schoolId,
+			schoolYearId: plan.schoolYearId,
+			sourceRevision: plan.sourceRevision,
+			offeredPrograms: plan.sourceSnapshot.offeredPrograms,
+			mutations: plan.mutations.map((m) => ({
+				action: m.action,
+				code: m.code,
+				name: m.name,
+				reason: m.reason,
+			})),
+			summary: plan.summary,
+			fingerprint,
+			generatedAt: new Date().toISOString(),
+		},
+	};
+}
+
+export async function applySubjectSync(input: {
+	schoolId: number;
+	schoolYearId: number;
+	fingerprint: string;
+	authToken?: string;
+}): Promise<SyncApplyResult> {
+	const { schoolId, schoolYearId, fingerprint, authToken } = input;
+
+	if (!Number.isInteger(schoolId) || schoolId <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'schoolId must be a positive integer.' } };
+	}
+	if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+		return { ok: false, error: { status: 400, code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' } };
+	}
+	if (typeof fingerprint !== 'string' || fingerprint.trim() === '') {
+		return { ok: false, error: { status: 400, code: 'FINGERPRINT_REQUIRED', message: 'fingerprint is required.' } };
+	}
+
+	// Execute in one Serializable transaction
+	const result = await prisma.$transaction(async (tx) => {
+		// 1. Re-fetch upstream signals inside the transaction
+		const signals = await fetchUpstreamProgramSignals(schoolId, schoolYearId, authToken);
+
+		// 2. Rebuild the plan using the SAME plan builder as preview
+		const plan = await buildSyncPlan(tx as any, schoolId, schoolYearId, {
+			offeredPrograms: signals.offeredPrograms,
+			tleSpecializations: signals.tleSpecializations,
+			provenance: signals.provenance,
+		});
+
+		// 3. Check if plan is applicable
+		if (!plan.applicable) {
+			return {
+				ok: false as const,
+				error: {
+					status: 409,
+					code: 'SOURCE_DEGRADED',
+					message: 'Cannot apply sync: upstream source is degraded or unavailable.',
+				},
+			};
+		}
+
+		// 3b. Check if offering model is available (Prompt 03 not yet authorized)
+		if (!plan.offeringModelAvailable) {
+			return {
+				ok: false as const,
+				error: {
+					status: 409,
+					code: 'OFFERING_MODEL_REQUIRED',
+					message: 'Cannot apply sync: persisted offering model is not yet available. Prompt 03 must define the offering schema first.',
+				},
+			};
+		}
+
+		// 4. Recompute fingerprint
+		const currentFingerprint = await computeSyncPlanFingerprint(plan);
+		if (currentFingerprint !== fingerprint) {
+			return {
+				ok: false as const,
+				error: {
+					status: 409,
+					code: 'SYNC_DRIFT',
+					message: 'Upstream signals changed since preview. Re-run the sync preview.',
+				},
+			};
+		}
+
+		// 5. Apply the plan within the transaction
+		const counts = await applySyncPlan(tx as any, plan);
+
+		return {
+			ok: true as const,
+			report: {
+				schoolId,
+				schoolYearId,
+				sourceRevision: plan.sourceRevision,
+				...counts,
+				appliedAt: new Date().toISOString(),
+			},
+		};
+	}, { isolationLevel: 'Serializable' });
+
+	return result;
 }

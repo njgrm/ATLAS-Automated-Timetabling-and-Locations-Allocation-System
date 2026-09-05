@@ -1,8 +1,10 @@
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { buildSectionRosterIndex } from './faculty-assignment-scope.service.js';
 import { sectionAdapter, type ExternalSection, type SectionsByGrade } from './section-adapter.js';
 import { ensureDefaultSubjects } from './subject.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+
+const db = () => getDataContext();
 
 type SeedableFaculty = {
 	id: number;
@@ -276,7 +278,7 @@ async function loadSeedInputs(input: Pick<SeedTeachingLoadBaselineInput, 'school
 
 	const [{ gradeLevels, source }, faculty, subjects, specializationAliases] = await Promise.all([
 		loadGradeLevels(input),
-		prisma.facultyMirror.findMany({
+		db().facultyMirror.findMany({
 			where: { schoolId: input.schoolId, isStale: false, isActiveForScheduling: true },
 			select: {
 				id: true,
@@ -292,12 +294,12 @@ async function loadSeedInputs(input: Pick<SeedTeachingLoadBaselineInput, 'school
 			},
 			orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
 		}),
-		prisma.subject.findMany({
+		db().subject.findMany({
 			where: { schoolId: input.schoolId, isActive: true },
 			select: { id: true, code: true, name: true, minMinutesPerWeek: true, gradeLevels: true },
 			orderBy: [{ isSeedable: 'desc' }, { code: 'asc' }, { id: 'asc' }],
 		}),
-		prisma.specializationAlias.findMany({
+		db().specializationAlias.findMany({
 			where: { schoolId: input.schoolId },
 			select: { alias: true, canonical: true },
 		}),
@@ -404,7 +406,7 @@ function printSeedDiagnostics(diagnostics: SeededTeachingLoadDiagnostics) {
 
 export async function collectSeededTeachingLoadDiagnostics(input: Pick<SeedTeachingLoadBaselineInput, 'schoolId' | 'schoolYearId' | 'authToken' | 'gradeLevels'>): Promise<SeededTeachingLoadDiagnostics> {
 	const { sections, faculty, subjects, aliasToCanonical } = await loadSeedInputs(input);
-	const assignments = await prisma.facultySubject.findMany({
+	const assignments = await db().facultySubject.findMany({
 		where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId },
 		select: {
 			facultyId: true,
@@ -595,7 +597,7 @@ export async function seedTeachingLoadBaseline(input: SeedTeachingLoadBaselineIn
 		assignedBy: input.assignedBy,
 	}));
 
-	await prisma.$transaction(async (tx) => {
+	await db().$transaction(async (tx) => {
 		await tx.subjectSectionOwnership.deleteMany({ where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } });
 		await tx.facultySubject.deleteMany({ where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } });
 		if (rows.length > 0) {

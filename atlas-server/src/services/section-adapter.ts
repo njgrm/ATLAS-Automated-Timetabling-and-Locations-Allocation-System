@@ -5,8 +5,10 @@
  * Source metadata is always returned so callers can surface live vs fallback state.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import crypto from 'crypto';
+
+const db = () => getDataContext();
 
 // ─── Active school year resolver ───
 
@@ -440,7 +442,7 @@ function computeChecksum(payload: unknown): string {
 
 async function saveSectionSnapshot(schoolId: number, schoolYearId: number, data: SectionFetchResult): Promise<void> {
 	const checksum = computeChecksum(data.gradeLevels);
-	await prisma.sectionSnapshot.upsert({
+	await db().sectionSnapshot.upsert({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		update: {
 			payload: data.gradeLevels as any,
@@ -463,7 +465,7 @@ export async function loadSectionSnapshot(schoolId: number, schoolYearId: number
 	gradeLevels: SectionsByGrade[];
 	fetchedAt: Date;
 } | null> {
-	const snapshot = await prisma.sectionSnapshot.findUnique({
+	const snapshot = await db().sectionSnapshot.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 	});
 	if (!snapshot) return null;

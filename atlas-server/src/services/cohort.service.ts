@@ -6,9 +6,11 @@
  * for scheduling reference.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import type { RoomType } from '@prisma/client';
 import { sectionAdapter, type SectionsByGrade, type ExternalSection } from './section-adapter.js';
+
+const db = () => getDataContext();
 
 // ─── Types ───
 
@@ -225,7 +227,7 @@ async function deriveSpecialProgramCohortsFromOwnership(
 
 	const sectionById = new Map(specialSections.map((section) => [section.sectionId, section]));
 
-	const trackedSubjects = await prisma.subject.findMany({
+	const trackedSubjects = await db().subject.findMany({
 		where: {
 			schoolId,
 			OR: [
@@ -244,7 +246,7 @@ async function deriveSpecialProgramCohortsFromOwnership(
 
 	const subjectCodeById = new Map(trackedSubjects.map((subject) => [subject.id, subject.code]));
 
-	const ownershipRows = await prisma.subjectSectionOwnership.findMany({
+	const ownershipRows = await db().subjectSectionOwnership.findMany({
 		where: {
 			schoolId,
 			subjectId: { in: trackedSubjects.map((subject) => subject.id) },
@@ -475,7 +477,7 @@ class AutoCohortAdapter implements CohortAdapter {
 				errorMessage: msg,
 				ts: new Date().toISOString(),
 			}));
-			const existing = await prisma.instructionalCohort.findMany({
+			const existing = await db().instructionalCohort.findMany({
 				where: { schoolId, schoolYearId },
 				orderBy: [{ gradeLevel: 'asc' }, { specializationCode: 'asc' }],
 			});
@@ -551,7 +553,7 @@ export async function syncCohorts(schoolId: number, schoolYearId: number, authTo
 		}
 
 		if (mergedCohorts.length === 0) {
-			const existingCount = await prisma.instructionalCohort.count({
+			const existingCount = await db().instructionalCohort.count({
 				where: { schoolId, schoolYearId, isActive: true },
 			});
 			if (existingCount > 0) {
@@ -573,11 +575,11 @@ export async function syncCohorts(schoolId: number, schoolYearId: number, authTo
 			};
 		}
 
-		await prisma.$transaction([
-			prisma.instructionalCohort.deleteMany({
+		await db().$transaction([
+			db().instructionalCohort.deleteMany({
 				where: { schoolId, schoolYearId },
 			}),
-			prisma.instructionalCohort.createMany({
+			db().instructionalCohort.createMany({
 				data: mergedCohorts.map((c) => ({
 					schoolId,
 					schoolYearId,
@@ -618,7 +620,7 @@ export async function syncCohorts(schoolId: number, schoolYearId: number, authTo
  * Get all cohorts for a school/year from local persistence.
  */
 export async function getCohortsBySchoolYear(schoolId: number, schoolYearId: number) {
-	return prisma.instructionalCohort.findMany({
+	return db().instructionalCohort.findMany({
 		where: { schoolId, schoolYearId, isActive: true },
 		orderBy: [{ gradeLevel: 'asc' }, { specializationCode: 'asc' }],
 	});
@@ -628,7 +630,7 @@ export async function getCohortsBySchoolYear(schoolId: number, schoolYearId: num
  * Get cohorts by grade level.
  */
 export async function getCohortsByGrade(schoolId: number, schoolYearId: number, gradeLevel: number) {
-	return prisma.instructionalCohort.findMany({
+	return db().instructionalCohort.findMany({
 		where: { schoolId, schoolYearId, gradeLevel, isActive: true },
 		orderBy: { specializationCode: 'asc' },
 	});
@@ -638,7 +640,7 @@ export async function getCohortsByGrade(schoolId: number, schoolYearId: number, 
  * Get a single cohort by code.
  */
 export async function getCohortByCode(schoolId: number, schoolYearId: number, cohortCode: string) {
-	return prisma.instructionalCohort.findFirst({
+	return db().instructionalCohort.findFirst({
 		where: { schoolId, schoolYearId, cohortCode, isActive: true },
 	});
 }

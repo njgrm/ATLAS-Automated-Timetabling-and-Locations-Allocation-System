@@ -68,7 +68,7 @@ export function getFacultyComparableLoadHours(member: FacultySummary): number {
 	if (member.isPlaceholder) {
 		return member.gradeTeachingHours ?? member.syntheticCoverageHours ?? 0;
 	}
-	return member.policyCreditedHours ?? member.subjectHours ?? 0;
+	return member.actualTeachingHours ?? member.sectionTeachingHours ?? member.policyCreditedHours ?? member.subjectHours ?? 0;
 }
 
 function resolveRotationFamily(subject: Pick<Subject, 'code' | 'rotationFamily'>): string | null {
@@ -156,23 +156,23 @@ function uniqueSortedPositiveInts(values: readonly number[] | null | undefined):
 	);
 }
 
-export function deriveLoadStatus(policyCreditedHours: number, maxHoursPerWeek = MAX_WEEKLY_TEACHING_HOURS): { status: LoadStatus; label: string; instruction?: string } {
-	if (policyCreditedHours > maxHoursPerWeek) {
+export function deriveLoadStatus(actualTeachingHours: number, maxHoursPerWeek = MAX_WEEKLY_TEACHING_HOURS): { status: LoadStatus; label: string; instruction?: string } {
+	if (actualTeachingHours > maxHoursPerWeek) {
 		return { status: 'over-cap', label: 'Over maximum', instruction: 'Move classes before generating.' };
 	}
-	if (policyCreditedHours > STANDARD_WEEKLY_TEACHING_HOURS) {
+	if (actualTeachingHours > STANDARD_WEEKLY_TEACHING_HOURS) {
 		return { status: 'overload-allowed', label: 'Above standard', instruction: 'Review before generating.' };
 	}
-	if (policyCreditedHours === STANDARD_WEEKLY_TEACHING_HOURS) {
+	if (actualTeachingHours === STANDARD_WEEKLY_TEACHING_HOURS) {
 		return { status: 'compliant', label: 'At standard' };
 	}
 	return { status: 'below-standard', label: 'Below standard' };
 }
 
 export function getFacultyLoadSortRank(
-	faculty: Pick<FacultySummary, 'isActiveForScheduling' | 'policyCreditedHours' | 'subjectCount' | 'maxHoursPerWeek'>,
+	faculty: Pick<FacultySummary, 'isActiveForScheduling' | 'actualTeachingHours' | 'sectionTeachingHours' | 'policyCreditedHours' | 'subjectCount' | 'maxHoursPerWeek'>,
 ): number {
-	const weeklyHours = faculty.policyCreditedHours ?? 0;
+	const weeklyHours = faculty.actualTeachingHours ?? faculty.sectionTeachingHours ?? faculty.policyCreditedHours ?? 0;
 	const subjectCount = faculty.subjectCount ?? 0;
 	const maxHours = faculty.maxHoursPerWeek ?? MAX_WEEKLY_TEACHING_HOURS;
 	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);

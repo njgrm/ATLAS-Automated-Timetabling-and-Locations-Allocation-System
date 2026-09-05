@@ -510,7 +510,7 @@ export default function TeachingLoad() {
 	}, [emptyActiveYearTeachingLoad, guidedDefaultApplied]);
 
 	const overCapCount = useMemo(
-		() => data.faculty.filter((member) => member.isActiveForScheduling && (member.policyCreditedHours ?? 0) > member.maxHoursPerWeek).length,
+		() => data.faculty.filter((member) => member.isActiveForScheduling && (member.actualTeachingHours ?? member.sectionTeachingHours ?? 0) > member.maxHoursPerWeek).length,
 		[data.faculty],
 	);
 
