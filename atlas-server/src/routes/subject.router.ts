@@ -71,6 +71,15 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required to create subjects.' });
 			return;
 		}
+		// SCA-01.3: a body schoolId that conflicts with the actor scope is a
+		// misleading cross-school write attempt — reject it instead of silently
+		// ignoring it. A matching schoolId is accepted as a no-op for
+		// client compatibility; ownership always comes from the actor.
+		const bodySchoolId = req.body?.schoolId != null ? Number(req.body.schoolId) : undefined;
+		if (bodySchoolId !== undefined && Number.isInteger(bodySchoolId) && bodySchoolId !== actorSchoolId) {
+			res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: `Cannot create subjects for school ${bodySchoolId}: the authenticated actor belongs to school ${actorSchoolId}.` });
+			return;
+		}
 		const {
 			code,
 			name,
@@ -100,10 +109,13 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			return;
 		}
 		// Prompt 01A: mutation ownership comes from the actor, never the body.
+		// SCA-01.3: minutes pass through uncoerced — the service owns strict
+		// integer/range validation (a router Number() cast would silently turn
+		// true into 1 before validation could reject it).
 		const subject = await subjectService.createSubject(actorSchoolId, {
 			code,
 			name,
-			minMinutesPerWeek: Number(minMinutesPerWeek),
+			minMinutesPerWeek,
 			preferredRoomType,
 			gradeLevels,
 			isSeedable,

@@ -36,7 +36,7 @@ export function SubjectMobileList({
 					<AdminStatePanel
 						icon={<BookOpen className="size-8" />}
 						title={subjects.length === 0 ? 'No subjects found.' : 'No matches found.'}
-						description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'}
+						description={subjects.length === 0 ? 'The catalog is empty for this school. Add the first subject to start the list.' : 'Clear a filter or search another subject name or code.'}
 					/>
 				</div>
 			) : (

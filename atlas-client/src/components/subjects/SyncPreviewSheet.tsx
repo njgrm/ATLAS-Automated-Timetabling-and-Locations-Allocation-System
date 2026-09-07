@@ -1,3 +1,13 @@
+/**
+ * SCA-01.4 — RETIRED upstream-offering sync UI.
+ *
+ * This sheet is no longer rendered. Its backend apply is permanently blocked
+ * (`offeringModelAvailable=false` → 409 OFFERING_MODEL_REQUIRED, or 409
+ * SOURCE_DEGRADED when upstream offering data is absent), and EnrollPro does
+ * not supply subject offerings. The file is kept so the fingerprinted
+ * preview/apply contract stays reviewable until SCA-02 builds the ATLAS-owned
+ * Curriculum Requirements workflow that replaces this action.
+ */
 import { Loader2 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';

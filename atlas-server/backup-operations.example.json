@@ -1,0 +1,10 @@
+{
+  "_comment": "ATLAS operational backup example configuration (Prompt 06). Non-secret. Copy to a protected operator location and point ATLAS_BACKUP_CONFIG at it. Every value below is the accepted default; change only what your environment requires. See docs/runbooks/database-backup-restore-2026-09-07.md.",
+  "backupRoot": "D:\\ATLAS-database-recovery\\backups",
+  "schedule": "daily at 22:00 Asia/Manila",
+  "retentionCount": 14,
+  "rpoHours": 24,
+  "restoreDrillTargetMinutes": 60,
+  "requiredPostgresMajor": 18,
+  "freshManifestMaxAgeMs": 86400000
+}

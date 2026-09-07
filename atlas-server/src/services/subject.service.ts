@@ -556,6 +556,80 @@ const PROTECTED_PATCH_FIELDS = new Set([
 	'templateBindings',
 ]);
 
+// SCA-01.3: catalog input truth — mirrors the Prisma enums without importing
+// runtime-only values into the validator. Every create/patch value is checked
+// here so callers receive stable typed 4xx codes instead of Prisma errors.
+const VALID_ROOM_TYPES = new Set([
+	'CLASSROOM',
+	'LABORATORY',
+	'COMPUTER_LAB',
+	'TLE_WORKSHOP',
+	'LIBRARY',
+	'GYMNASIUM',
+	'FACULTY_ROOM',
+	'OFFICE',
+	'OTHER',
+]);
+
+const VALID_PROGRAM_SCOPES = new Set(['REGULAR', 'STE', 'SPA', 'SPS', 'OTHER']);
+
+const VALID_GRADES = new Set([7, 8, 9, 10]);
+
+const VALID_QUALIFICATION_PRIORITIES = new Set(['DEPARTMENT_FIRST', 'SPECIALIZATION_PRIMARY']);
+
+// SCA-01.3: Prisma stores minutes as Int32 — anything outside this range (or
+// non-integer) would explode inside Prisma instead of returning a typed 4xx.
+const MAX_MINUTES_PER_WEEK = 2147483647;
+
+function checkMinutesPerWeek(value: unknown): PatchFieldError | null {
+	if (typeof value !== 'number' || !Number.isFinite(value)) {
+		return { status: 400, code: 'INVALID_MIN_MINUTES_PER_WEEK', message: 'minMinutesPerWeek must be a positive number.' };
+	}
+	if (!Number.isInteger(value) || value <= 0 || value > MAX_MINUTES_PER_WEEK) {
+		return { status: 400, code: 'INVALID_MIN_MINUTES_PER_WEEK', message: `minMinutesPerWeek must be a positive integer up to ${MAX_MINUTES_PER_WEEK}.` };
+	}
+	return null;
+}
+
+const VALID_BOOLEAN_FIELDS = new Set(['isSeedable', 'isSystemManaged', 'interSectionEnabled']);
+
+const NULLABLE_STRING_FIELDS = new Set(['ownerDepartment', 'rotationFamily', 'outputLabel', 'modularGroupId', 'termGroupId']);
+
+type PatchFieldError = { status: number; code: string; message: string };
+
+function patchFieldError(status: number, code: string, message: string): { ok: false; error: PatchFieldError } {
+	return { ok: false, error: { status, code, message } };
+}
+
+function findDuplicates(values: unknown[]): unknown[] {
+	const seen = new Set<unknown>();
+	const dupes = new Set<unknown>();
+	for (const value of values) {
+		if (seen.has(value)) dupes.add(value);
+		else seen.add(value);
+	}
+	return [...dupes];
+}
+
+function checkStringArrayField(
+	field: string,
+	code: string,
+	value: unknown,
+): { ok: true; values: string[] } | { ok: false; error: PatchFieldError } {
+	if (!Array.isArray(value)) {
+		return patchFieldError(400, code, `${field} must be an array.`);
+	}
+	const invalid = value.filter((entry) => typeof entry !== 'string' || entry.trim() === '');
+	if (invalid.length > 0) {
+		return patchFieldError(400, code, `${field} must contain only non-empty strings.`);
+	}
+	const dupes = findDuplicates(value);
+	if (dupes.length > 0) {
+		return patchFieldError(400, 'DUPLICATE_VALUES', `${field} contains duplicate values: ${dupes.join(', ')}.`);
+	}
+	return { ok: true, values: value as string[] };
+}
+
 export function validateAndFilterPatchFields(
 	raw: Record<string, unknown>,
 ): { ok: true; data: Record<string, unknown> } | { ok: false; error: { status: number; code: string; message: string } } {
@@ -598,23 +672,103 @@ export function validateAndFilterPatchFields(
 
 	// Validate values when present
 	if (data.minMinutesPerWeek !== undefined) {
-		const val = Number(data.minMinutesPerWeek);
-		if (!Number.isFinite(val) || val <= 0) {
-			return { ok: false, error: { status: 400, code: 'INVALID_MIN_MINUTES_PER_WEEK', message: 'minMinutesPerWeek must be a positive number.' } };
+		// SCA-01.3: strict typeof — the old Number() coercion accepted "300"
+		// and true, then Prisma threw a 500 on the write path.
+		const minutesError = checkMinutesPerWeek(data.minMinutesPerWeek);
+		if (minutesError) return { ok: false, error: minutesError };
+	}
+	if (data.name !== undefined) {
+		if (typeof data.name !== 'string' || data.name.trim() === '') {
+			return { ok: false, error: { status: 400, code: 'INVALID_SUBJECT_NAME', message: 'name must be a non-empty string.' } };
 		}
 	}
 	if (data.gradeLevels !== undefined) {
 		if (!Array.isArray(data.gradeLevels) || data.gradeLevels.length === 0) {
 			return { ok: false, error: { status: 400, code: 'INVALID_GRADE_LEVELS', message: 'gradeLevels must contain at least one grade level.' } };
 		}
-		const invalid = data.gradeLevels.filter((g: unknown) => ![7, 8, 9, 10].includes(Number(g)));
+		const invalid = (data.gradeLevels as unknown[]).filter((g) => typeof g !== 'number' || !Number.isInteger(g) || !VALID_GRADES.has(g));
 		if (invalid.length > 0) {
 			return { ok: false, error: { status: 400, code: 'INVALID_GRADE_LEVELS', message: `gradeLevels contains invalid grades: ${invalid.join(', ')} (allowed: 7, 8, 9, 10).` } };
 		}
+		const dupes = findDuplicates(data.gradeLevels);
+		if (dupes.length > 0) {
+			return { ok: false, error: { status: 400, code: 'DUPLICATE_VALUES', message: `gradeLevels contains duplicate grades: ${dupes.join(', ')}.` } };
+		}
 	}
 	if (data.preferredRoomType !== undefined) {
-		if (typeof data.preferredRoomType !== 'string' || data.preferredRoomType.trim() === '') {
-			return { ok: false, error: { status: 400, code: 'INVALID_ROOM_TYPE', message: 'preferredRoomType must be a non-empty string.' } };
+		if (typeof data.preferredRoomType !== 'string' || !VALID_ROOM_TYPES.has(data.preferredRoomType)) {
+			return { ok: false, error: { status: 400, code: 'INVALID_ROOM_TYPE', message: `preferredRoomType must be one of: ${[...VALID_ROOM_TYPES].join(', ')}.` } };
+		}
+	}
+	if (data.programScopes !== undefined) {
+		// SCA-01R: empty scopes are rejected on patch, matching create. An empty
+		// value would activate legacy program-scope inference and misrepresent
+		// the operator's stored intent.
+		if (!Array.isArray(data.programScopes) || data.programScopes.length === 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_PROGRAM_SCOPES', message: 'programScopes must contain at least one program scope when provided.' } };
+		}
+		const invalid = (data.programScopes as unknown[]).filter((s) => typeof s !== 'string' || !VALID_PROGRAM_SCOPES.has(s));
+		if (invalid.length > 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_PROGRAM_SCOPES', message: `programScopes contains invalid scopes: ${invalid.join(', ')} (allowed: ${[...VALID_PROGRAM_SCOPES].join(', ')}).` } };
+		}
+		const dupes = findDuplicates(data.programScopes);
+		if (dupes.length > 0) {
+			return { ok: false, error: { status: 400, code: 'DUPLICATE_VALUES', message: `programScopes contains duplicate scopes: ${dupes.join(', ')}.` } };
+		}
+	}
+	if (data.interSectionGradeLevels !== undefined) {
+		if (!Array.isArray(data.interSectionGradeLevels)) {
+			return { ok: false, error: { status: 400, code: 'INVALID_INTER_SECTION_GRADES', message: 'interSectionGradeLevels must be an array.' } };
+		}
+		const invalid = (data.interSectionGradeLevels as unknown[]).filter((g) => typeof g !== 'number' || !Number.isInteger(g) || !VALID_GRADES.has(g));
+		if (invalid.length > 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_INTER_SECTION_GRADES', message: `interSectionGradeLevels contains invalid grades: ${invalid.join(', ')} (allowed: 7, 8, 9, 10).` } };
+		}
+		const dupes = findDuplicates(data.interSectionGradeLevels);
+		if (dupes.length > 0) {
+			return { ok: false, error: { status: 400, code: 'DUPLICATE_VALUES', message: `interSectionGradeLevels contains duplicate grades: ${dupes.join(', ')}.` } };
+		}
+		// Subset-vs-gradeLevels is enforced in updateSubjectAtomic against the
+		// final grade scope (incoming or currently stored).
+	}
+	for (const field of ['allowedSpecializations', 'requiredFeatures', 'allowedOwnerDepartments'] as const) {
+		if (data[field] !== undefined) {
+			const checked = checkStringArrayField(
+				field,
+				field === 'allowedSpecializations' ? 'INVALID_ALLOWED_SPECIALIZATIONS'
+					: field === 'requiredFeatures' ? 'INVALID_REQUIRED_FEATURES'
+						: 'INVALID_OWNER_DEPARTMENTS',
+				data[field],
+			);
+			if (!checked.ok) return checked;
+		}
+	}
+	for (const field of VALID_BOOLEAN_FIELDS) {
+		if (data[field] !== undefined && typeof data[field] !== 'boolean') {
+			return { ok: false, error: { status: 400, code: 'INVALID_FIELD_TYPE', message: `${field} must be a boolean.` } };
+		}
+	}
+	for (const field of NULLABLE_STRING_FIELDS) {
+		const value = data[field];
+		if (value !== undefined && value !== null && typeof value !== 'string') {
+			return { ok: false, error: { status: 400, code: 'INVALID_FIELD_TYPE', message: `${field} must be a string or null.` } };
+		}
+	}
+	if (data.qualificationPriority !== undefined) {
+		if (typeof data.qualificationPriority !== 'string' || !VALID_QUALIFICATION_PRIORITIES.has(data.qualificationPriority)) {
+			return { ok: false, error: { status: 400, code: 'INVALID_QUALIFICATION_PRIORITY', message: `qualificationPriority must be one of: ${[...VALID_QUALIFICATION_PRIORITIES].join(', ')}.` } };
+		}
+	}
+	if (data.modularOrder !== undefined && data.modularOrder !== null) {
+		if (typeof data.modularOrder !== 'number' || !Number.isInteger(data.modularOrder) || data.modularOrder <= 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_TERM_METADATA', message: 'modularOrder must be a positive integer or null.' } };
+		}
+	}
+	if (data.termCount !== undefined) {
+		// SCA-01R: Subject.termCount is a non-null column — null must never
+		// reach Prisma (it would surface as an untyped 500).
+		if (data.termCount === null || typeof data.termCount !== 'number' || !Number.isInteger(data.termCount) || data.termCount <= 0) {
+			return { ok: false, error: { status: 400, code: 'INVALID_TERM_METADATA', message: 'termCount must be a positive integer.' } };
 		}
 	}
 
@@ -671,7 +825,21 @@ export async function updateSubjectAtomic(input: {
 	}
 
 	// snapshot for outcome classification when the conditional update matches zero rows
-	const existing = await prisma.subject.findUnique({ where: { id }, select: { id: true, schoolId: true, updatedAt: true } });
+	const existing = await prisma.subject.findUnique({ where: { id }, select: { id: true, schoolId: true, updatedAt: true, gradeLevels: true } });
+
+	// SCA-01.3: inter-section grades must sit inside the final grade scope
+	// (incoming gradeLevels win; otherwise the currently stored scope applies).
+	if (Array.isArray(safeChanges.interSectionGradeLevels) && (safeChanges.interSectionGradeLevels as unknown[]).length > 0) {
+		const finalGrades = Array.isArray(safeChanges.gradeLevels)
+			? (safeChanges.gradeLevels as unknown[])
+			: (existing?.gradeLevels as unknown[] | undefined);
+		if (Array.isArray(finalGrades)) {
+			const outside = (safeChanges.interSectionGradeLevels as unknown[]).filter((g) => !finalGrades.includes(g));
+			if (outside.length > 0) {
+				return { ok: false, error: { status: 400, code: 'INVALID_INTER_SECTION_GRADES', message: `interSectionGradeLevels contains grades not in subject gradeLevels: ${outside.join(', ')}` } };
+			}
+		}
+	}
 
 	try {
 		const updated = await prisma.$transaction(async (tx) => {
@@ -1132,9 +1300,12 @@ type SubjectScopeFilter = {
 
 export async function getSubjectsBySchool(schoolId: number, filters?: SubjectScopeFilter) {
 	await ensureSubjectContractSchemaColumns();
+	// SCA-01.2: catalog reads order by name only. The old `isSeedable desc`
+	// ordering presented bootstrap seed state as operator priority; seed state
+	// is not timetable demand and must not rank the catalog.
 	const subjects = await prisma.subject.findMany({
 		where: { schoolId },
-		orderBy: [{ isSeedable: 'desc' }, { name: 'asc' }],
+		orderBy: [{ name: 'asc' }],
 	});
 
 	const includeSte = filters?.includeSte ?? true;
@@ -1196,44 +1367,123 @@ export async function createSubject(
 ) {
 	await ensureSubjectContractSchemaColumns();
 
-	// Prompt 01A: server-side input validation. The API previously accepted
-	// negative weekly minutes and empty grade scope with 201 — invalid catalog
-	// rows that later broke demand math.
+	// SCA-01.3: server-side input validation with create/patch parity. The API
+	// previously accepted negative weekly minutes and empty grade scope with
+	// 201 — invalid catalog rows that later broke demand math. Every rejection
+	// below carries a stable typed code; Prisma errors never surface for input
+	// mistakes.
+	function invalid(statusCode: number, code: string, message: string): never {
+		throw Object.assign(new Error(message), { statusCode, code });
+	}
+	if (typeof data.code !== 'string' || data.code.trim() === '') {
+		invalid(400, 'INVALID_SUBJECT_CODE', 'code must be a non-empty string.');
+	}
+	if (typeof data.name !== 'string' || data.name.trim() === '') {
+		invalid(400, 'INVALID_SUBJECT_NAME', 'name must be a non-empty string.');
+	}
 	if (typeof data.minMinutesPerWeek !== 'number' || !Number.isFinite(data.minMinutesPerWeek) || data.minMinutesPerWeek <= 0) {
-		throw Object.assign(
-			new Error('minMinutesPerWeek must be a positive number.'),
-			{ statusCode: 400, code: 'INVALID_MIN_MINUTES_PER_WEEK' },
-		);
+		invalid(400, 'INVALID_MIN_MINUTES_PER_WEEK', 'minMinutesPerWeek must be a positive number.');
+	}
+	{
+		// SCA-01.3 (review F1): strict integer + Int32 range — floats, numeric
+		// strings, booleans, and overflow values previously reached Prisma as
+		// untyped 500s.
+		const minutesError = checkMinutesPerWeek(data.minMinutesPerWeek);
+		if (minutesError) {
+			invalid(minutesError.status, minutesError.code, minutesError.message);
+		}
 	}
 	if (!Array.isArray(data.gradeLevels) || data.gradeLevels.length === 0) {
-		throw Object.assign(
-			new Error('gradeLevels must contain at least one grade level.'),
-			{ statusCode: 400, code: 'INVALID_GRADE_LEVELS' },
-		);
+		invalid(400, 'INVALID_GRADE_LEVELS', 'gradeLevels must contain at least one grade level.');
 	}
-	const invalidGrades = data.gradeLevels.filter((g) => ![7, 8, 9, 10].includes(g));
+	const invalidGrades = data.gradeLevels.filter((g) => typeof g !== 'number' || !Number.isInteger(g) || !VALID_GRADES.has(g));
 	if (invalidGrades.length > 0) {
-		throw Object.assign(
-			new Error(`gradeLevels contains invalid grades: ${invalidGrades.join(', ')} (allowed: 7, 8, 9, 10).`),
-			{ statusCode: 400, code: 'INVALID_GRADE_LEVELS' },
-		);
+		invalid(400, 'INVALID_GRADE_LEVELS', `gradeLevels contains invalid grades: ${invalidGrades.join(', ')} (allowed: 7, 8, 9, 10).`);
 	}
-	if (data.preferredRoomType == null || String(data.preferredRoomType).trim() === '') {
-		throw Object.assign(
-			new Error('preferredRoomType is required.'),
-			{ statusCode: 400, code: 'INVALID_ROOM_TYPE' },
-		);
+	if (findDuplicates(data.gradeLevels).length > 0) {
+		invalid(400, 'DUPLICATE_VALUES', `gradeLevels contains duplicate grades: ${findDuplicates(data.gradeLevels).join(', ')}.`);
+	}
+	if (typeof data.preferredRoomType !== 'string' || !VALID_ROOM_TYPES.has(data.preferredRoomType)) {
+		invalid(400, 'INVALID_ROOM_TYPE', `preferredRoomType must be one of: ${[...VALID_ROOM_TYPES].join(', ')}.`);
+	}
+	if (data.programScopes !== undefined) {
+		if (!Array.isArray(data.programScopes) || data.programScopes.length === 0) {
+			invalid(400, 'INVALID_PROGRAM_SCOPES', 'programScopes must contain at least one program scope when provided.');
+		}
+		const invalidScopes = (data.programScopes as unknown[]).filter((s) => typeof s !== 'string' || !VALID_PROGRAM_SCOPES.has(s));
+		if (invalidScopes.length > 0) {
+			invalid(400, 'INVALID_PROGRAM_SCOPES', `programScopes contains invalid scopes: ${invalidScopes.join(', ')} (allowed: ${[...VALID_PROGRAM_SCOPES].join(', ')}).`);
+		}
+		if (findDuplicates(data.programScopes).length > 0) {
+			invalid(400, 'DUPLICATE_VALUES', `programScopes contains duplicate scopes: ${findDuplicates(data.programScopes).join(', ')}.`);
+		}
+	}
+	for (const [field, code] of [
+		['allowedSpecializations', 'INVALID_ALLOWED_SPECIALIZATIONS'],
+		['requiredFeatures', 'INVALID_REQUIRED_FEATURES'],
+		['allowedOwnerDepartments', 'INVALID_OWNER_DEPARTMENTS'],
+	] as const) {
+		const value = data[field];
+		if (value !== undefined) {
+			const checked = checkStringArrayField(field, code, value);
+			if (!checked.ok) {
+				invalid(checked.error.status, checked.error.code, checked.error.message);
+			}
+		}
+	}
+	for (const [field, value] of [
+		['isSeedable', data.isSeedable],
+		['isSystemManaged', data.isSystemManaged],
+		['interSectionEnabled', data.interSectionEnabled],
+		['isActive', data.isActive],
+	] as const) {
+		if (value !== undefined && typeof value !== 'boolean') {
+			invalid(400, 'INVALID_FIELD_TYPE', `${field} must be a boolean.`);
+		}
+	}
+	// SCA-01.3 (review F1): contract string fields must be strings-or-null on
+	// create — a number here previously crashed buildSubjectContractData
+	// (.trim TypeError) or Prisma with an untyped 500.
+	for (const field of ['ownerDepartment', 'rotationFamily', 'outputLabel'] as const) {
+		const value = data[field];
+		if (value !== undefined && value !== null && typeof value !== 'string') {
+			invalid(400, 'INVALID_FIELD_TYPE', `${field} must be a string or null.`);
+		}
+	}
+	if (data.qualificationPriority !== undefined && !VALID_QUALIFICATION_PRIORITIES.has(data.qualificationPriority)) {
+		invalid(400, 'INVALID_QUALIFICATION_PRIORITY', `qualificationPriority must be one of: ${[...VALID_QUALIFICATION_PRIORITIES].join(', ')}.`);
+	}
+	if (data.modularGroupId !== undefined && data.modularGroupId !== null && typeof data.modularGroupId !== 'string') {
+		invalid(400, 'INVALID_TERM_METADATA', 'modularGroupId must be a string or null.');
+	}
+	if (data.modularOrder !== undefined && data.modularOrder !== null
+		&& (typeof data.modularOrder !== 'number' || !Number.isInteger(data.modularOrder) || data.modularOrder <= 0)) {
+		invalid(400, 'INVALID_TERM_METADATA', 'modularOrder must be a positive integer or null.');
+	}
+	if (data.termGroupId !== undefined && data.termGroupId !== null && typeof data.termGroupId !== 'string') {
+		invalid(400, 'INVALID_TERM_METADATA', 'termGroupId must be a string or null.');
+	}
+	if (data.termCount !== undefined && data.termCount !== null
+		&& (typeof data.termCount !== 'number' || !Number.isInteger(data.termCount) || data.termCount <= 0)) {
+		invalid(400, 'INVALID_TERM_METADATA', 'termCount must be a positive integer or null.');
 	}
 
 	// Validate inter-section grade levels are within subject's grade levels
 	const interGrades = data.interSectionGradeLevels ?? [];
+	if (!Array.isArray(interGrades)) {
+		invalid(400, 'INVALID_INTER_SECTION_GRADES', 'interSectionGradeLevels must be an array.');
+	}
 	if (interGrades.length > 0) {
-		const invalid = interGrades.filter((g) => !data.gradeLevels.includes(g));
-		if (invalid.length > 0) {
-			throw Object.assign(
-				new Error(`interSectionGradeLevels contains grades not in subject gradeLevels: ${invalid.join(', ')}`),
-				{ statusCode: 400, code: 'INVALID_INTER_SECTION_GRADES' },
-			);
+		const invalidInter = interGrades.filter((g) => typeof g !== 'number' || !Number.isInteger(g) || !VALID_GRADES.has(g));
+		if (invalidInter.length > 0) {
+			invalid(400, 'INVALID_INTER_SECTION_GRADES', `interSectionGradeLevels contains invalid grades: ${invalidInter.join(', ')} (allowed: 7, 8, 9, 10).`);
+		}
+		if (findDuplicates(interGrades).length > 0) {
+			invalid(400, 'DUPLICATE_VALUES', `interSectionGradeLevels contains duplicate grades: ${findDuplicates(interGrades).join(', ')}.`);
+		}
+		const outsideScope = interGrades.filter((g) => !data.gradeLevels.includes(g));
+		if (outsideScope.length > 0) {
+			invalid(400, 'INVALID_INTER_SECTION_GRADES', `interSectionGradeLevels contains grades not in subject gradeLevels: ${outsideScope.join(', ')}`);
 		}
 	}
 

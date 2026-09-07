@@ -21,7 +21,7 @@ import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
-import { Info, AlertCircle, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Info, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
 	id?: number;
@@ -476,60 +476,29 @@ export function SubjectFormModal({
 								</div>
 							</div>
 
-							<div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-								<div className="space-y-2">
-									<label htmlFor={`${formId}-room`} className="text-sm font-semibold text-foreground ml-0.5">Room need</label>
-									<Select value={form.preferredRoomType} onValueChange={(v) => setForm((p) => ({ ...p, preferredRoomType: v as RoomType }))}>
-										<SelectTrigger id={`${formId}-room`} className="h-10">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{ALL_ROOM_TYPES.map((roomType) => (
-												<SelectItem key={roomType} value={roomType}>{ROOM_TYPE_LABELS[roomType]}</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<p className="text-xs text-muted-foreground">Choose standard classroom unless this subject needs a specialized room.</p>
-								</div>
-
-								{/* Phase 2.1 + Decision 2: rename "Can be scheduled" to the
-									plain-language "Available for timetable" with helper. The
-									default is on (per Decision 2). When the user disables it,
-									a confirmation state explains the consequence. */}
-								<div className="space-y-2">
-									<div className="flex items-center gap-3 p-3 rounded-lg border bg-accent/5 self-end h-10">
-										<Switch
-											checked={form.isSeedable}
-											onCheckedChange={(v) => setForm((p) => ({ ...p, isSeedable: v }))}
-										/>
-										<label className="text-sm font-semibold cursor-pointer" onClick={() => setForm((p) => ({ ...p, isSeedable: !p.isSeedable }))}>
-											Available for timetable
-										</label>
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<AlertCircle className="size-3 text-muted-foreground cursor-help" />
-												</TooltipTrigger>
-												<TooltipContent className="max-w-xs text-xs">
-													Turn this off only if this subject should not appear in schedule generation (e.g. Homeroom Guidance, consultation periods).
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-									</div>
-									{!form.isSeedable ? (
-										<div
-											role="status"
-											data-testid="subjects-form-seedable-warning"
-											className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"
-										>
-											<AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-											<p>
-												This subject will be excluded from schedule generation. Existing assignments are kept.
-											</p>
-										</div>
-									) : null}
-								</div>
+						<div className="grid grid-cols-1 gap-6 pt-2">
+							<div className="space-y-2">
+								<label htmlFor={`${formId}-room`} className="text-sm font-semibold text-foreground ml-0.5">Room need</label>
+								<Select value={form.preferredRoomType} onValueChange={(v) => setForm((p) => ({ ...p, preferredRoomType: v as RoomType }))}>
+									<SelectTrigger id={`${formId}-room`} className="h-10">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{ALL_ROOM_TYPES.map((roomType) => (
+											<SelectItem key={roomType} value={roomType}>{ROOM_TYPE_LABELS[roomType]}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<p className="text-xs text-muted-foreground">Choose standard classroom unless this subject needs a specialized room.</p>
 							</div>
+
+							{/* SCA-01.2: isSeedable is hidden bootstrap metadata, not
+								timetable demand. The old "Available for timetable"
+								switch made a false claim about schedule generation:
+								archived/active lifecycle (isActive) is the only
+								catalog status shown to operators. The stored value
+								is preserved untouched by edits. */}
+						</div>
 						</div>
 
 						<Separator className="opacity-50" />

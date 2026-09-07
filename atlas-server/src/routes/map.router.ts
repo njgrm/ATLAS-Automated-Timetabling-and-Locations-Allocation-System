@@ -100,7 +100,8 @@ router.patch('/buildings/:id', authenticate, requirePrivilegedRole, async (req: 
 		}
 		req.body.gradeScope = normalizeGradeScope(req.body.gradeScope);
 	}
-	const building = await mapService.updateBuilding(id, req.body);
+	const actorSchoolId = (req.user as any)?.schoolId as number | undefined;
+	const building = await mapService.updateBuilding(id, req.body, actorSchoolId);
 	res.json({ building });
 });
 
@@ -111,7 +112,8 @@ router.delete('/buildings/:id', authenticate, requirePrivilegedRole, async (req:
 		res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 		return;
 	}
-	await mapService.deleteBuilding(id);
+	const actorSchoolId = (req.user as any)?.schoolId as number | undefined;
+	await mapService.deleteBuilding(id, actorSchoolId);
 	res.status(204).end();
 });
 
@@ -129,7 +131,8 @@ router.post('/buildings/:buildingId/rooms', authenticate, requirePrivilegedRole,
 			return;
 		}
 		const { floor, type, capacity, isTeachingSpace, floorPosition } = req.body;
-		const room = await mapService.addRoom(buildingId, { name, floor, type, capacity, isTeachingSpace, floorPosition });
+		const actorSchoolId = (req.user as any)?.schoolId as number | undefined;
+		const room = await mapService.addRoom(buildingId, { name, floor, type, capacity, isTeachingSpace, floorPosition }, actorSchoolId);
 		res.status(201).json({ room });
 	} catch (err) {
 		next(err);
@@ -143,7 +146,8 @@ router.delete('/rooms/:id', authenticate, requirePrivilegedRole, async (req: Req
 		res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 		return;
 	}
-	await mapService.deleteRoom(id);
+	const actorSchoolId = (req.user as any)?.schoolId as number | undefined;
+	await mapService.deleteRoom(id, actorSchoolId);
 	res.status(204).end();
 });
 
@@ -155,7 +159,8 @@ router.patch('/rooms/:id', authenticate, requirePrivilegedRole, async (req: Requ
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 			return;
 		}
-		const room = await mapService.updateRoom(id, req.body);
+		const actorSchoolId = (req.user as any)?.schoolId as number | undefined;
+		const room = await mapService.updateRoom(id, req.body, actorSchoolId);
 		res.json({ room });
 	} catch (err) {
 		next(err);

@@ -199,6 +199,51 @@ export type SubjectSectionOwnershipIndexEntry = {
   specializationLabel?: string | null;
 };
 
+// ─── Annual effective consumer contract v2 (TL-06R3C) ───────────────────────
+// Additive enrichment over SubjectSectionOwnershipIndexEntry for AIMS/SMART.
+// Legacy fields are preserved exactly; internal IDs and external IDs are
+// different namespaces and must never be copied across.
+export const EFFECTIVE_CONTRACT_VERSION = 2;
+
+export const EFFECTIVE_CONTRACT_METADATA_INCOMPLETE = 'EFFECTIVE_CONTRACT_METADATA_INCOMPLETE';
+
+export type EffectiveTeachingLoadAssignmentV2 = SubjectSectionOwnershipIndexEntry & {
+  facultyExternalId: number;
+  sectionExternalId: number;
+  sectionName: string;
+  gradeLevelId: number;
+  gradeLevelName: string;
+  programType: string;
+  programCode: string;
+  programName: string;
+  subjectCode: string;
+  subjectName: string;
+  subjectOutputLabel: string;
+  minMinutesPerWeek: number;
+  rotationFamily: string | null;
+  termGroupId: string | null;
+  termCount: number;
+};
+
+export type EffectiveTeachingLoadSourceV2 = {
+  schoolId: number;
+  schoolYearId: number;
+  state: 'EMPTY' | 'POPULATED';
+  version: number;
+  contractVersion: number;
+  initializedAt: string;
+  updatedAt: string;
+};
+
+export type EffectiveTeachingLoadMissingMetadata = {
+  subjectId: number;
+  sectionId: number;
+  facultyId: number;
+  missingFaculty: boolean;
+  missingSection: boolean;
+  missingSubject: boolean;
+};
+
 export type AssignmentSpecializationIdentity = {
   specializationCode: string | null;
   specializationLabel: string | null;
@@ -5483,11 +5528,147 @@ export async function getEffectiveTeachingLoad(
   authToken?: string,
 ) {
   const summary = await getAssignmentSummary(schoolId, schoolYearId, authToken);
+  const assignments = await enrichEffectiveAssignments(schoolId, schoolYearId, summary.ownershipIndex);
+  const source: EffectiveTeachingLoadSourceV2 = {
+    ...summary.source,
+    contractVersion: EFFECTIVE_CONTRACT_VERSION,
+  };
   return {
-    source: summary.source,
-    assignments: summary.ownershipIndex,
+    source,
+    assignments,
     coverageTotals: summary.coverageTotals,
   };
+}
+
+/**
+ * Additively enriches annual ownership rows with scoped cross-system identity
+ * and curriculum metadata (consumer contract v2).
+ *
+ * Scoping (fail-closed, no cross-school/year leakage):
+ * - faculty metadata resolves only within the requested school (by mirror PK);
+ * - section metadata resolves only within the requested school + year
+ *   (by `SectionMirror.externalId`, which is the `sectionId` namespace);
+ * - subject metadata resolves only within the requested school (by PK).
+ *
+ * Query shape: exactly one batched read per dimension (faculty, section,
+ * subject) regardless of assignment count. Never one query per assignment.
+ *
+ * Failure: when any non-empty assignment cannot resolve its required metadata
+ * in the exact scope, throws `EFFECTIVE_CONTRACT_METADATA_INCOMPLETE` and
+ * emits no partially enriched payload. `EMPTY` (zero assignments) is valid
+ * and returns `[]` with no fallback reads.
+ */
+export async function enrichEffectiveAssignments(
+  schoolId: number,
+  schoolYearId: number,
+  assignments: SubjectSectionOwnershipIndexEntry[],
+): Promise<EffectiveTeachingLoadAssignmentV2[]> {
+  if (assignments.length === 0) {
+    return [];
+  }
+
+  const facultyIds = [...new Set(assignments.map((row) => row.facultyId))];
+  const sectionExternalIds = [...new Set(assignments.map((row) => row.sectionId))];
+  const subjectIds = [...new Set(assignments.map((row) => row.subjectId))];
+
+  const [facultyRows, sectionRows, subjectRows] = await Promise.all([
+    db().facultyMirror.findMany({
+      where: { schoolId, id: { in: facultyIds } },
+      select: { id: true, externalId: true },
+    }),
+    db().sectionMirror.findMany({
+      where: { schoolId, schoolYearId, externalId: { in: sectionExternalIds } },
+      select: {
+        externalId: true,
+        name: true,
+        gradeLevelId: true,
+        gradeLevelName: true,
+        programType: true,
+        programCode: true,
+        programName: true,
+      },
+    }),
+    db().subject.findMany({
+      where: { schoolId, id: { in: subjectIds } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        outputLabel: true,
+        minMinutesPerWeek: true,
+        rotationFamily: true,
+        modularGroupId: true,
+        termGroupId: true,
+        termCount: true,
+      },
+    }),
+  ]);
+
+  const facultyById = new Map(facultyRows.map((row) => [row.id, row]));
+  const sectionByExternalId = new Map(sectionRows.map((row) => [row.externalId, row]));
+  const subjectById = new Map(subjectRows.map((row) => [row.id, row]));
+
+  const missing: EffectiveTeachingLoadMissingMetadata[] = [];
+  const enriched: EffectiveTeachingLoadAssignmentV2[] = [];
+
+  for (const row of assignments) {
+    const faculty = facultyById.get(row.facultyId);
+    const section = sectionByExternalId.get(row.sectionId);
+    const subject = subjectById.get(row.subjectId);
+    if (!faculty || !section || !subject) {
+      missing.push({
+        subjectId: row.subjectId,
+        sectionId: row.sectionId,
+        facultyId: row.facultyId,
+        missingFaculty: !faculty,
+        missingSection: !section,
+        missingSubject: !subject,
+      });
+      continue;
+    }
+
+    const programType = section.programType ?? 'REGULAR';
+    enriched.push({
+      ...row,
+      facultyExternalId: faculty.externalId,
+      sectionExternalId: section.externalId,
+      sectionName: section.name,
+      gradeLevelId: section.gradeLevelId,
+      gradeLevelName: section.gradeLevelName,
+      programType,
+      programCode: section.programCode ?? section.programType ?? 'REGULAR',
+      programName: section.programName ?? section.programCode ?? 'Regular',
+      subjectCode: subject.code,
+      subjectName: subject.name,
+      subjectOutputLabel: subject.outputLabel
+        ?? resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId),
+      minMinutesPerWeek: subject.minMinutesPerWeek,
+      rotationFamily: subject.rotationFamily
+        ?? resolveSubjectRotationFamily(subject.code, subject.modularGroupId),
+      termGroupId: subject.termGroupId ?? null,
+      termCount: subject.termCount,
+    });
+  }
+
+  if (missing.length > 0) {
+    throw Object.assign(
+      new Error(
+        `Annual Teaching Load contract metadata is incomplete for ${missing.length} assignment(s) in scope (schoolId=${schoolId}, schoolYearId=${schoolYearId}).`,
+      ),
+      {
+        statusCode: 500,
+        code: EFFECTIVE_CONTRACT_METADATA_INCOMPLETE,
+        details: {
+          schoolId,
+          schoolYearId,
+          missingCount: missing.length,
+          missingSamples: missing.slice(0, 25),
+        },
+      },
+    );
+  }
+
+  return enriched;
 }
 
 export async function previewOrApplyTeachingLoadTruthReconcile(

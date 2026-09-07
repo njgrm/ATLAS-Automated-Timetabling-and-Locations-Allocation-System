@@ -29,6 +29,12 @@ export function sanitizeUrl(url: string): string {
 	}
 }
 
+function isPrismaError(err: ServiceError): boolean {
+	return err.name === 'PrismaClientKnownRequestError'
+		|| err.name === 'PrismaClientUnknownRequestError'
+		|| err.name === 'PrismaClientRustPanicError';
+}
+
 export function errorHandler(err: ServiceError, req: Request, res: Response, _next: NextFunction): void {
 	const statusCode = err.statusCode ?? 500;
 	const code = err.code ?? 'SERVER_ERROR';
@@ -46,7 +52,9 @@ export function errorHandler(err: ServiceError, req: Request, res: Response, _ne
 
 	res.status(statusCode).json({
 		code,
-		message: err.message || 'An internal server error occurred.',
+		message: isPrismaError(err)
+			? 'A database error occurred. Please try again or contact an administrator.'
+			: (err.message || 'An internal server error occurred.'),
 		...(err.actionHint ? { actionHint: err.actionHint } : {}),
 		...(err.details ? { details: err.details } : {}),
 	});

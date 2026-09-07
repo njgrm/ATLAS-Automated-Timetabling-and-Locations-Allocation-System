@@ -4,19 +4,19 @@ export function resolveSubjectSourceCopy(sourceState: AdminSourceState) {
 	return {
 		description:
 			sourceState === 'verified-live'
-				? 'The curriculum subject list is loaded for the active school year.'
+				? 'ATLAS is showing the saved subject catalog for this school.'
 			: sourceState === 'checking-source'
-				? 'ATLAS is checking which subjects and program offerings should be active while the page stays usable.'
+				? 'ATLAS is loading the subject catalog for this school.'
 			: sourceState === 'saved-data'
-				? 'ATLAS is showing the last known curriculum list while offering verification is incomplete.'
+				? 'ATLAS is showing the saved subject catalog for this school.'
 			: 'ATLAS could not load a usable subject catalog.',
 		nextAction:
 			sourceState === 'verified-live'
-				? 'Open coverage for subjects with risk, or add a subject if the curriculum list is missing one.'
+				? 'Open coverage for subjects with risk, or add a subject if the catalog is missing one.'
 			: sourceState === 'checking-source'
-				? 'Keep reviewing subjects and wait before final curriculum changes.'
+				? 'Wait for the catalog to load before making curriculum changes.'
 			: sourceState === 'saved-data'
-				? 'Refresh offerings before treating this as final curriculum truth.'
-			: 'Reconnect and sync subjects before this page can be used.',
+				? 'Add a subject if the catalog is missing one, or open coverage for subjects at risk.'
+			: 'Check the school connection, then retry loading the catalog.',
 	};
 }

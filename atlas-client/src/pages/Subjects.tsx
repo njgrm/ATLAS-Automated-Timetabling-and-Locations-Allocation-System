@@ -40,7 +40,6 @@ import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/
 import { SubjectRow } from '@/components/subjects/SubjectRow';
 import { SubjectMobileCard } from '@/components/subjects/SubjectMobileCard';
 import { SubjectCoverageSheet } from '@/components/subjects/SubjectCoverageSheet';
-import { SyncPreviewSheet, type SyncPreviewData } from '@/components/subjects/SyncPreviewSheet';
 import { SubjectStatusBanners } from '@/components/subjects/SubjectStatusBanners';
 import { useSubjectStats, useCoverageDetail } from '@/components/subjects/useSubjectStats';
 import { subjectToFormValues } from '@/components/subjects/subject-form-utils';
@@ -76,12 +75,9 @@ import {
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
 import { resolveActorSchoolId } from '@/lib/settings';
+import { resolveSubjectsReadScope } from '@/lib/subject-school-scope';
 
 
-// Prompt 01A: school scope comes from the authenticated actor (server-enforced
-// on mutations). This constant is a display-only fallback for public catalog
-// reads before the actor scope resolves; it never owns a mutation.
-const FALLBACK_READ_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 
 type TeachingLoadResetPreview = {
@@ -137,11 +133,6 @@ export default function Subjects() {
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 	const [archiveTarget, setArchiveTarget] = useState<Subject | null>(null);
 	const [archivingLoading, setArchivingLoading] = useState(false);
-	const [syncingContract, setSyncingContract] = useState(false);
-	const [syncError, setSyncError] = useState(false);
-	const [syncPreview, setSyncPreview] = useState<SyncPreviewData | null>(null);
-	const [syncPreviewLoading, setSyncPreviewLoading] = useState(false);
-	const [syncApplyLoading, setSyncApplyLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
 
@@ -171,23 +162,43 @@ export default function Subjects() {
 	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
 	const [attentionFilter, setAttentionFilter] = useState<'all' | 'missing-coverage' | 'room-constrained'>('all');
 
-	// Prompt 01A: actor school scope — resolved from /auth/me once, used for all
-	// reads and mutations; falls back only for public reads before resolution.
+	// SCA-01.1: actor school scope — resolved from /auth/me, and the ONLY
+	// source of the catalog read scope. There is no school-1 fallback: while
+	// the scope is unresolved the page renders a bounded loading state and
+	// issues no catalog request.
 	const [actorSchoolId, setActorSchoolId] = useState<number | null>(null);
+	const [actorScopeResolved, setActorScopeResolved] = useState(false);
 
 	useEffect(() => {
+		let cancelled = false;
+		resolveActorSchoolId().then((id) => {
+			if (cancelled) return;
+			if (id != null) setActorSchoolId(id);
+			setActorScopeResolved(true);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const retryActorScope = useCallback(() => {
+		setActorScopeResolved(false);
 		resolveActorSchoolId().then((id) => {
 			if (id != null) setActorSchoolId(id);
+			setActorScopeResolved(true);
 		});
 	}, []);
 
-	const schoolScope = actorSchoolId ?? FALLBACK_READ_SCHOOL_ID;
+	const readScope = resolveSubjectsReadScope(actorSchoolId);
 
 	const fetchSubjects = useCallback(async () => {
+		// SCA-01.1: never issue a catalog request without a resolved actor
+		// school. The loading skeleton stays up until the scope resolves.
+		if (!readScope.ready) return;
 		setLoading(true);
 		try {
 			const { data } = await atlasApi.get<{ subjects: Subject[] }>('/subjects', {
-				params: { schoolId: schoolScope },
+				params: { schoolId: readScope.schoolId },
 			});
 			setSubjects(data.subjects);
 			setError(null);
@@ -196,7 +207,7 @@ export default function Subjects() {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [readScope.ready, readScope.schoolId]);
 
 	const ensureActiveSchoolYear = useCallback(async () => {
 		if (activeSchoolYearId) {
@@ -226,12 +237,14 @@ export default function Subjects() {
 	const fetchTeacherCoverage = useCallback(async (subjectId: number) => {
 		const targetSubject = subjects.find(s => s.id === subjectId);
 		if (!targetSubject) return;
+		// SCA-01.1: coverage reads are actor-scoped like the catalog read.
+		if (actorSchoolId == null) return;
 
 		setCoverageLoading(true);
 		try {
 			const schoolYearId = await ensureActiveSchoolYear();
 			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
-				params: { schoolId: schoolScope, schoolYearId },
+				params: { schoolId: actorSchoolId, schoolYearId },
 			});
 			
 			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[] = [];
@@ -267,7 +280,7 @@ export default function Subjects() {
 		} finally {
 			setCoverageLoading(false);
 		}
-	}, [subjects, ensureActiveSchoolYear]);
+	}, [subjects, ensureActiveSchoolYear, actorSchoolId]);
 
 	const fetchCoverageSummary = useCallback(async () => {
 		try {
@@ -330,7 +343,6 @@ export default function Subjects() {
 				case 'minMinutesPerWeek': cmp = a.minMinutesPerWeek - b.minMinutesPerWeek; break;
 				case 'preferredRoomType': cmp = a.preferredRoomType.localeCompare(b.preferredRoomType); break;
 				case 'gradeLevels': cmp = a.gradeLevels.length - b.gradeLevels.length; break;
-				case 'isSeedable': cmp = Number(b.isSeedable) - Number(a.isSeedable); break;
 			}
 			return sortDir === 'desc' ? -cmp : cmp;
 		});
@@ -372,7 +384,8 @@ export default function Subjects() {
 					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
-					isSeedable: values.isSeedable,
+					// SCA-01.2: isSeedable is hidden bootstrap metadata — edits
+					// preserve the stored value instead of resending form state.
 					isSystemManaged: values.isSystemManaged,
 					gradeLevels: values.gradeLevels,
 					interSectionEnabled: values.interSectionEnabled,
@@ -423,71 +436,6 @@ export default function Subjects() {
 		|| programScopeFilter !== 'all'
 		|| attentionFilter !== 'all'
 		|| searchQuery.trim() !== '';
-
-	const handleSyncPreview = async () => {
-		setSyncPreviewLoading(true);
-		setSyncError(false);
-		try {
-			const schoolYearId = await ensureActiveSchoolYear();
-			const previewRes = await atlasApi.post('/subjects/sync-offerings/preview', {
-				schoolId: schoolScope,
-				schoolYearId,
-			});
-			const preview = previewRes.data?.preview;
-			if (!preview) {
-				toast.error('Failed to generate sync preview.');
-				return;
-			}
-			if (preview.summary.totalChanges === 0) {
-				toast.info('No subject offering changes detected.');
-				setSyncPreview(null);
-				return;
-			}
-			setSyncPreview(preview);
-		} catch (err: any) {
-			setSyncError(true);
-			toast.error(err?.response?.data?.message ?? 'Failed to preview subject offerings.');
-		} finally {
-			setSyncPreviewLoading(false);
-		}
-	};
-
-	const handleSyncApply = async () => {
-		if (!syncPreview) return;
-		setSyncApplyLoading(true);
-		setSyncError(false);
-		try {
-			const schoolYearId = await ensureActiveSchoolYear();
-			await atlasApi.post('/subjects/sync-offerings/apply', {
-				schoolId: schoolScope,
-				schoolYearId,
-				fingerprint: syncPreview.fingerprint,
-			});
-			setSyncPreview(null);
-			await fetchSubjects();
-			await fetchCoverageSummary();
-			toast.success(`Subject offerings refreshed. ${syncPreview.summary.totalChanges} change(s) applied.`);
-		} catch (err: any) {
-			setSyncError(true);
-			const code = err?.response?.data?.code;
-			const msg = err?.response?.data?.message ?? 'Failed to apply subject offerings.';
-			if (code === 'SYNC_DRIFT') {
-				toast.error('Upstream data changed since preview. Re-running preview...');
-				setSyncPreview(null);
-				await handleSyncPreview();
-			} else {
-				toast.error(msg);
-			}
-		} finally {
-			setSyncApplyLoading(false);
-		}
-	};
-
-	const handleSyncCancel = () => {
-		setSyncPreview(null);
-	};
-
-
 
 	const handleArchiveSubject = async (target: Subject) => {
 		setArchivingLoading(true);
@@ -541,15 +489,14 @@ export default function Subjects() {
 	};
 
 	const subjectSourceState = useMemo<AdminSourceState>(() => {
-		// Prompt 01A: provenance truth. A successful catalog load is a read of
-		// persisted ATLAS data — it is NOT proof of an upstream verification
-		// event. Only an explicit, successful sync-offerings refresh (or a live
-		// EnrollPro-backed sync with captured evidence) may display the live
-		// state; everything else is honestly "saved data".
-		if (loading || syncPreviewLoading || syncApplyLoading) return 'checking-source';
+		// SCA-01: provenance truth. A successful catalog load is a read of the
+		// persisted ATLAS-owned catalog — it is NOT proof of an upstream
+		// verification event. The upstream offering refresh is retired, so the
+		// page honestly reports saved catalog data once loaded.
+		if (!actorScopeResolved || loading) return 'checking-source';
 		if (error && subjects.length === 0) return 'no-saved-data';
 		return 'saved-data';
-	}, [error, loading, subjects.length, syncPreviewLoading, syncApplyLoading]);
+	}, [actorScopeResolved, error, loading, subjects.length]);
 
 	const subjectStats = useSubjectStats({ subjects, coverageBySubjectId });
 	const coverageDetail = useCoverageDetail({ coverageSubject, teacherCoverage });
@@ -567,31 +514,25 @@ export default function Subjects() {
 
 		return (
 			<AdminWorkspaceFrame
-				title = "Subjects"
-				description="Review the curriculum subjects that can be scheduled for this school year. Start with missing teacher coverage and room-constrained subjects before generation."
+			title = "Subjects"
+			description="Manage the ATLAS-owned subject catalog for this school. Catalog entries describe known subjects; which subjects each school year requires is configured in Curriculum Requirements. Start with missing teacher coverage and room-constrained subjects before generation."
 				sourceState={subjectSourceState}
 				sourceCopy={subjectSourceCopy}
 stats={subjectStats}
 			secondaryActions={null}
-			primaryActions={(
-				<div className="flex items-center gap-2">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button variant="outline" onClick={handleSyncPreview} size="sm" className="gap-2" disabled={syncPreviewLoading}>
-									<RefreshCw className={`size-4 ${syncPreviewLoading ? 'animate-spin' : ''}`} />
-									Refresh offerings
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent className="max-w-72 text-xs leading-relaxed">Checks which subjects and program offerings should be active for the current school year.</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} variant="outline" size="sm" className="gap-2">
-						<Plus className="size-4" />
-						Add subject
-					</Button>
-				</div>
-			)}
+		primaryActions={(
+			<div className="flex items-center gap-2">
+				{/* SCA-01.4: the upstream offering refresh is retired — its
+					backend apply is permanently blocked and EnrollPro does not
+					supply subject offerings. Catalog edits stay here;
+					year-specific required subjects move to Curriculum
+					Requirements (SCA-02). */}
+				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} variant="outline" size="sm" className="gap-2">
+					<Plus className="size-4" />
+					Add subject
+				</Button>
+			</div>
+		)}
 			toolbar={(
 				<SubjectFilterToolbar
 					searchQuery={searchQuery}
@@ -621,24 +562,32 @@ stats={subjectStats}
 			)}
 		>
 
-			{/* Status Banners */}
-			<SubjectStatusBanners
-				syncError={syncError}
-				error={error}
-				syncPreviewLoading={syncPreviewLoading}
-				onRetrySync={handleSyncPreview}
-				onRetryLoad={fetchSubjects}
-			/>
+		{/* Status Banners */}
+		<SubjectStatusBanners
+			error={error}
+			onRetryLoad={fetchSubjects}
+		/>
 
-			{/* Sync Preview Confirmation Sheet */}
-			<SyncPreviewSheet
-				preview={syncPreview}
-				applyLoading={syncApplyLoading}
-				onApply={handleSyncApply}
-				onCancel={handleSyncCancel}
-			/>
-
-			<AdminTableShell
+		{/* SCA-01.1: while the actor school scope is unresolved, no catalog
+			request has been issued — show a bounded scope state instead of an
+			empty table so another school's catalog can never render here. */}
+		{actorScopeResolved && actorSchoolId == null ? (
+			<AdminTableShell>
+				<div className="px-4 py-20">
+					<AdminStatePanel
+						icon={<BookOpen className="size-8" />}
+						title="School scope unavailable."
+						description="ATLAS could not determine which school catalog to show. No subjects were loaded."
+					/>
+					<div className="mt-4 flex justify-center">
+						<Button size="sm" variant="outline" onClick={retryActorScope} className="gap-2">
+							<RefreshCw className="size-3.5" /> Retry
+						</Button>
+					</div>
+				</div>
+			</AdminTableShell>
+		) : (
+		<AdminTableShell
 				footer={!loading && subjects.length > 0 ? (
 					<SubjectTablePagination
 						page={page}
@@ -671,8 +620,11 @@ stats={subjectStats}
 									<SortableHeader field="name" label="Subject" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
 									<SortableHeader field="gradeLevels" label="Grades / program" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
 									<SortableHeader field="minMinutesPerWeek" label="Weekly need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-									<SortableHeader field="preferredRoomType" label="Room need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
-									<SortableHeader field="isSeedable" label="Teacher coverage" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+								<SortableHeader field="preferredRoomType" label="Room need" sortField={sortField} sortDir={sortDir} onToggleSort={toggleSort} align="left" />
+								{/* SCA-01.2: Teacher coverage is a plain column, not a
+									sort. Sorting by isSeedable presented bootstrap
+									seed state as operator priority. */}
+								<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Teacher coverage</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Action</th>
 								</tr>
 							</thead>
@@ -691,7 +643,7 @@ stats={subjectStats}
 								) : paged.length === 0 ? (
 									<tr>
 										<td colSpan={6} className="px-4 py-20 text-center">
-											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'} />
+											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'The catalog is empty for this school. Add the first subject to start the list.' : 'Clear a filter or search another subject name or code.'} />
 										</td>
 									</tr>
 								) : (
@@ -711,9 +663,10 @@ stats={subjectStats}
 								)}
 							</tbody>
 						</table>
-			</AdminTableShell>
+		</AdminTableShell>
+		)}
 
-			{/* Coverage Side Drawer */}
+		{/* Coverage Side Drawer */}
 			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
 				<SheetContent className="w-full sm:max-w-md overflow-y-auto">
 					<SheetHeader className="pb-6 border-b">

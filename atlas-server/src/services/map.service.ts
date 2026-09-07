@@ -10,24 +10,11 @@ export async function getBuildingsBySchool(schoolId: number) {
 		orderBy: { name: 'asc' },
 	});
 
-	// Backfill missing shortCodes (non-destructive)
-	const needsBackfill = buildings.filter((b) => !b.shortCode);
-	if (needsBackfill.length > 0) {
-		await Promise.all(
-			needsBackfill.map((b) =>
-				prisma.building.update({
-					where: { id: b.id },
-					data: { shortCode: generateBuildingShortCode(b.name) },
-				}),
-			),
-		);
-		// Reflect backfilled values in returned data
-		for (const b of needsBackfill) {
-			(b as any).shortCode = generateBuildingShortCode(b.name);
-		}
-	}
-
-	return buildings;
+	// Compute shortCode in-memory for buildings missing one (no writes on GET)
+	return buildings.map((b) => ({
+		...b,
+		shortCode: b.shortCode || generateBuildingShortCode(b.name),
+	}));
 }
 
 export async function getBuilding(id: number) {
@@ -63,7 +50,18 @@ export async function upsertBuilding(
 export async function updateBuilding(
 	id: number,
 	data: Partial<{ name: string; x: number; y: number; width: number; height: number; color: string; rotation: number; floorCount: number; isTeachingBuilding: boolean; shortCode: string; gradeScope: number[] }>,
+	actorSchoolId?: number,
 ) {
+	// Verify building belongs to actor's school if scoped
+	if (actorSchoolId !== undefined) {
+		const existing = await prisma.building.findUnique({ where: { id }, select: { schoolId: true } });
+		if (!existing) {
+			throw Object.assign(new Error('Building not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+		}
+		if (existing.schoolId !== actorSchoolId) {
+			throw Object.assign(new Error('Access denied: building belongs to another school.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
+		}
+	}
 	if (data.floorCount !== undefined) {
 		const highestAssignedFloor = await prisma.room.aggregate({
 			where: { buildingId: id },
@@ -111,13 +109,23 @@ export async function updateBuilding(
 	return building;
 }
 
-export async function deleteBuilding(id: number) {
+export async function deleteBuilding(id: number, actorSchoolId?: number) {
+	if (actorSchoolId !== undefined) {
+		const existing = await prisma.building.findUnique({ where: { id }, select: { schoolId: true } });
+		if (!existing) {
+			throw Object.assign(new Error('Building not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+		}
+		if (existing.schoolId !== actorSchoolId) {
+			throw Object.assign(new Error('Access denied: building belongs to another school.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
+		}
+	}
 	return prisma.building.delete({ where: { id } });
 }
 
 export async function addRoom(
 	buildingId: number,
 	data: { name: string; floor?: number; type?: string; capacity?: number; isTeachingSpace?: boolean; floorPosition?: number },
+	actorSchoolId?: number,
 ) {
 	const floor = data.floor ?? 1;
 	const roomType = (data.type as any) ?? 'CLASSROOM';
@@ -125,10 +133,13 @@ export async function addRoom(
 	// Validate floor does not exceed building floorCount; also load teaching flag
 	const building = await prisma.building.findUnique({
 		where: { id: buildingId },
-		select: { floorCount: true, isTeachingBuilding: true },
+		select: { floorCount: true, isTeachingBuilding: true, schoolId: true },
 	});
 	if (!building) {
 		throw Object.assign(new Error('Building not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+	}
+	if (actorSchoolId !== undefined && building.schoolId !== actorSchoolId) {
+		throw Object.assign(new Error('Access denied: building belongs to another school.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
 	}
 	if (floor < 1 || floor > building.floorCount) {
 		throw Object.assign(
@@ -165,13 +176,26 @@ export async function addRoom(
 	});
 }
 
-export async function deleteRoom(id: number) {
+export async function deleteRoom(id: number, actorSchoolId?: number) {
+	if (actorSchoolId !== undefined) {
+		const room = await prisma.room.findUnique({
+			where: { id },
+			select: { building: { select: { schoolId: true } } },
+		});
+		if (!room) {
+			throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+		}
+		if (room.building.schoolId !== actorSchoolId) {
+			throw Object.assign(new Error('Access denied: room belongs to another school.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
+		}
+	}
 	return prisma.room.delete({ where: { id } });
 }
 
 export async function updateRoom(
 	id: number,
 	data: Partial<{ name: string; floor: number; type: string; capacity: number | null; isTeachingSpace: boolean; floorPosition: number }>,
+	actorSchoolId?: number,
 ) {
 	const room = await prisma.room.findUnique({
 		where: { id },
@@ -182,12 +206,16 @@ export async function updateRoom(
 				select: {
 					floorCount: true,
 					isTeachingBuilding: true,
+					schoolId: true,
 				},
 			},
 		},
 	});
 	if (!room) {
 		throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+	}
+	if (actorSchoolId !== undefined && room.building.schoolId !== actorSchoolId) {
+		throw Object.assign(new Error('Access denied: room belongs to another school.'), { statusCode: 403, code: 'CROSS_SCHOOL_DENIED' });
 	}
 
 	if (data.floor !== undefined && (data.floor < 1 || data.floor > room.building.floorCount)) {

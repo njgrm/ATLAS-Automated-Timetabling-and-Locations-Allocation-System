@@ -3,7 +3,9 @@ import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-export type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels' | 'isSeedable';
+// SCA-01.2: 'isSeedable' is not a sort field. Bootstrap seed state must not
+// rank the catalog — Teacher coverage is a plain display column.
+export type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 export type SortDir = 'asc' | 'desc';
 
 type SortableHeaderProps = {

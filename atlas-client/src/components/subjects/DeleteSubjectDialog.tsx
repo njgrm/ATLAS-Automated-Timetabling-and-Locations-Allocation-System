@@ -132,7 +132,7 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 							<DialogDescription asChild>
 								<div className="space-y-2 pt-1">
 									<p>
-										{subjectLabel} <code className="text-xs font-mono font-bold">{target?.code}</code> will be permanently removed from the curriculum list. This cannot be undone.
+										{subjectLabel} <code className="text-xs font-mono font-bold">{target?.code}</code> will be permanently removed from the saved subject catalog. This cannot be undone.
 									</p>
 									{target?.isActive && (
 										<p className="text-xs text-amber-700 font-semibold rounded-md border border-amber-200 bg-amber-50 px-3 py-2">

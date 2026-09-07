@@ -133,10 +133,10 @@ export const emptyForm: NewSubjectForm = {
 	minMinutesPerWeek: 225,
 	preferredRoomType: 'CLASSROOM',
 	isActive: true,
-	// Phase 2 / Decision 2: the common case is "available for timetable".
-	// Subjects that should NOT be placed on the grid (e.g. Homeroom
-	// Guidance, consultation periods) are turned off in the Edit modal
-	// after creation.
+	// SCA-01.2: isSeedable is bootstrap grouping metadata only — it records
+	// which catalog rows ship with the MATATAG seed bundle. It is hidden from
+	// the operator workflow, never controls timetable demand, and never ranks
+	// the catalog. Catalog lifecycle is expressed by isActive alone.
 	isSeedable: true,
 	isSystemManaged: false,
 	gradeLevels: [7, 8, 9, 10],
