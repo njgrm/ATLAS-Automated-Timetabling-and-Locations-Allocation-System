@@ -7,14 +7,18 @@ Active prompt: SCA-02 (`docs/prompts/subjects-curriculum-authority-02-atlas-requ
 SCA-02 SHA-256 (pinned): `CD3246915B3181D8BAEE77414857BDD6D746472580D82364FD5E45C05D2EE056`
 Sequence SHA-256 (observed, matches manifest SCA-00 pin): `1C0D33E938DCDF70F043E9CB9741B7443924C7FC297B67E981B8277A8987871A`
 
-Current phase: SCA-02 IN_PROGRESS (executor work complete, advisory review pending).
+Current phase: SCA-03 IN_PROGRESS (executor preview complete, advisory review pending).
 SCA-01R4 state: planner/QA GO (formal acceptance recorded 2026-09-07):
 ordinary creates persist isSeedable=false and isSystemManaged=false;
 explicit protected metadata is rejected on POST/PATCH;
 controlled bootstrap/materialization retains its authority;
 catalog-truth 106/106 and payload 7/7 independently reproduced;
 reviewer provenance ses_f84d6aaf3ffeEqdF1KNN8ZoyPI validated.
-SCA-03 NOT STARTED (locked).
+SCA-02R2 state: focused commit a942f85f contains all six authorized files
+(service fix + 3 tests + ledger + advisory review); preflight GO per handoff gate.
+SCA-03 preview: NO-GO audit snapshot (SUPERSEDED_NON_APPLICABLE_AUDIT);
+fingerprint 8865a3c4…59496 (see SCA-03/SCA-03R sections; supersedes
+665994e4…/e61405f0… after SCA-03R authority correction + 6 classifications).
 
 ## Preflight (SCA-01.0)
 
@@ -67,9 +71,206 @@ SCA-03 NOT STARTED (locked).
   - [x] createRequirement Serializable in-tx discovery + typed 409 mapping
   - [x] focused matrix green (truth 68/68, concurrency 27/27, scope-states 25/25, http 24/24, catalog 106/106, tsc/builds, diff-check, built-server health+route)
   - [x] authoritative tests + evidence force-added (tracked) with ls-files/show proof
-  - [ ] Advisory review (fresh context) — PENDING; SCA-02 stays REVIEW_REQUIRED, SCA-03 locked
-- [ ] Planner QA — PENDING; SCA-02 stays REVIEW_REQUIRED until planner QA
-  (SCA-03 locked regardless)
+ - [ ] Advisory review (fresh context) — PENDING; SCA-02 stays REVIEW_REQUIRED, SCA-03 locked
+ - [ ] Planner QA — PENDING; SCA-02 stays REVIEW_REQUIRED until planner QA
+   (SCA-03 locked regardless)
+
+## SCA-03 active-year audit and fingerprinted preview (2026-09-07, executor)
+
+Predecessor gate: `git show --name-only a942f85f` lists exactly the six
+authorized files (service fix, concurrency/truth/scope-states tests, this
+ledger, sca-02r2 advisory review); `git show --check` clean; worktree clean
+before and after. No SCA-02 matrix rerun per handoff.
+
+Resolved authority (dynamic, nothing hardcoded): actor school 1 (officer
+login); active year 8 / 2029-2030 (runtime context, drift `aligned`,
+atlas-persisted, upstream unreachable at probe time); database target
+`atlas_recovery_clean_rebuild_20260905` (name only, no credentials).
+Fresh-state drift vs history: sections 20 (not 82 — year 8 is the active
+year, not the historical year-55 surface); offerings 0; term configs 0;
+templates/bindings 0; cohorts 0; runs 0; revisions 0; ownerships 265 annual
+rows and POPULATED cycle v4 (unchanged truth).
+
+Baseline (read-only census, SELECT/COUNT only): subjects 22/22 active;
+sections 20 (all scheduling-active, non-stale: G7/G8/G9/G10 x
+REGULAR+STE+SPA+SPS, G10 REGULAR x2); cohorts 0; termConfigs 0; offerings
+0/0; termAssignments 0; FacultySubject 88 annual; ownerships 265 annual;
+templates 0; bindings 0; runs 0; revisions 0; cycle POPULATED v4.
+Silver = mirror id 20 / externalId 102; Research id 19 (`STE_RESEARCH`);
+Applied Physics id 17; Robotics id 18. Silver ownerships (15): includes
+244/Research (faculty 36), 206/Applied Physics (faculty 3), 250/Robotics
+(faculty 38). Research also owned in Bonifacio-107 (G7 STE), Makatao-113
+(G8 STE), Rose-116 (G9 STE). Grade-specific STE sciences owned exactly in
+their grade's STE section (14->107, 15->113, 116->Applied Chem 16).
+SPA_SPEC x4, SPS_SPEC x4, DEVL_READING x8, HG x0.
+
+Readiness (production service, read-only): `evaluateCurriculumReadiness`
+-> ready false, termConfigPresent false, 0 requirements, 16 MISSING scopes
+(G7-G10 x REGULAR/STE/SPA/SPS), single blocker OFFERING_TERM_CONFIG_MISSING.
+Snapshot: termConfig null, 0 requirements. Suggestions: 233
+catalog-compatibility-unapproved rows, approved false (never authoritative).
+
+Scope inventory: 16 base scopes, all MISSING; overrides none (no cohorts,
+no section-scoped rows). Legacy ownership per scope recorded (12-15
+subjects/scope); template evidence NONE everywhere.
+
+Proposed manifest: 217 candidate entries (216 CREATE + 1 NONE_EXCLUDED).
+Provenance: 6 EXPLICIT_OPERATOR_DECISION (G10 Silver AP+ROB create,
+Silver Research exclude, G7/G8/G9 STE Research preserve),
+211 LEGACY_OWNERSHIP_SUGGESTION. All rows termMode ALL (only
+config-independent mode), weeklyMinutes from catalog suggestion,
+classification UNRESOLVED, operatorConfirmationRequired true on every row.
+No fixed specialization-count policy anywhere (verified by scan).
+
+G10 correction preview: CREATE AP + CREATE ROB for Silver; Research
+excluded from Silver (no persisted row exists, so no retirement proposed);
+G7-9 Research preserved; no grade-applicability edits; ownership ids
+244/206/250 recorded as later-Teaching-Load-repair material only.
+
+Downstream impact: pinned apply 0/0/0/0 (nothing applicable now);
+projected-if-approved creates 216, retires 0, term rows 0/0,
+FacultySubject created by apply 0, 265 ownership rows intersecting, Silver
+Research ownership 244 flagged for later repair, teacher assignment/minute
+changes 0, projected demand 59,400 min/week across 37 teachers (derivation:
+sum over 216 CREATE rows of catalog weeklyMinutes x scope section count;
+cross-checked against 264 in-scope ownership rows = identical 59,400), templates
+0, unpublished runs 0, published/archived impact NONE (no proposed
+mutation). Teaching Load/generation readiness stay SCA-04-gated.
+
+Rollback: 216 DELETE_BY_IDENTITY rows (one per CREATE); term assignments
+none; published/archived never mutated.
+
+Fingerprint: `docs/verification/subjects-curriculum-active-year-preview-2026-09-07.json`
++ `.sha256` sidecar. SHA-256
+`e61405f05e7614f494d74ea6d1677a12b0ba8e0eca2ad0a48ead611b84bf74c4`
+(recomputed from exact artifact bytes + certutil cross-check; one
+environment format-on-write pass expanded layout after the first hash, so
+the sidecar was recomputed from final bytes and matches).
+SUPERSEDED by SCA-03R: e61405f0… is now marked
+SUPERSEDED_NON_APPLICABLE_AUDIT inside the artifact; the current audit hash
+is 665994e4… (SCA-03R section). Neither hash authorizes any apply.
+`authorizesNoMutation: true`. Supersedes 1B03EB83…/76997884…/8D5927EA…
+(historical). Single future apply scope pinned (active-year remediation
+only, after term config + approval + redeploy).
+Blockers: TERM_CONFIG_MISSING (HARD), OPERATOR_CONFIRMATION_PENDING
+(HARD), CLASSIFICATION_UNDECIDED (HARD), LIVE_RUNTIME_STALE (HARD:
+port-5001 returns 404 for curriculum endpoints — SCA-02 routes not yet
+deployed; no restart performed). Applicability false, verdict NO-GO.
+
+### TODO (SCA-03 — separate entries, not collapsed)
+
+- [x] SCA-03.0 preflight (commit inventory 6/6 + check clean) — DONE
+- [x] SCA-03.1 baseline census (13 tables + focus identities) — DONE
+- [x] SCA-03.2 scope inventory (16 MISSING scopes) — DONE
+- [x] SCA-03.3 proposed manifest (217 rows, provenance-bound) — DONE
+- [x] SCA-03.4 G10 Silver correction preview — DONE
+- [x] SCA-03.5 downstream impact (pinned 0s + projections) — DONE
+- [x] SCA-03.6 rollback manifest (216 rows) — DONE
+- [x] SCA-03.7 fingerprint package + sidecar — DONE
+- [x] SCA-03.8 focused verification (13 checks; zero-write proven) — DONE
+- [x] SCA-03.9 advisory review (fresh contexts; identity reconciled per SCA-03R) — DONE
+  - Review 01 (reviewerSpawnId: NO_SPAWN_ID_EXPOSED in artifact;
+    reviewer identity status: REVIEW_IDENTITY_UNAVAILABLE — the
+    executor-recorded task labels previously cited here are RETRACTED as
+    identity evidence; no spawn ID was captured from a spawn envelope or
+    repeated verbatim in the artifact, so the review does NOT satisfy
+    authenticated independent-review identity; its technical findings are
+    retained as advisory evidence only):
+    verdict zeroFix:false, one material M1 (demand-derivation
+    irreproducible: rows sum 48,600 vs artifact 59,400 vs ledger 59,625,
+    no formula stated). All other areas PASS (identities, provenance,
+    binding, isolation, no two-rule, rollback 216/216, hash match,
+    zero-write, boundary).
+  - M1 fix (executor, same session): added `projectedDemandDerivation`
+    to the artifact (CREATE-row minutes x scope-section-count = 59,400;
+    cross-check 264 in-scope ownership rows = identical 59,400; old
+    59,625 explained as inclusion of excluded Silver Research);
+    ledger corrected to 59,400; sidecar recomputed from final bytes:
+    e61405f0…f74c4.
+  - Changed-scope re-review 02 (reviewerSpawnId: NO_SPAWN_ID_EXPOSED in
+    artifact; identity status likewise REVIEW_IDENTITY_UNAVAILABLE,
+    findings advisory-only):
+    verdict zeroFix:true — demand recomputed both ways = 59,400,
+    ledger/artifact agree, hash MATCH, stability + zero-write + boundary
+    confirmed. Advisory loop closed; no further passes.
+  - SCA-03 stays NO-GO (non-applicable) until term config + operator
+    approval + redeploy; SCA-04 locked.
+- [ ] Planner/operator decision (term config + approval) — PENDING; SCA-04 locked
+
+### Task log (SCA-03)
+
+| Task | Risk | Status | Files | Evidence | Review |
+|---|---|---|---|---|---|
+| SCA-03.0 preflight | LOW | DONE | this ledger | a942f85f 6/6 files; check clean | prompt-boundary batch |
+| SCA-03.1 baseline | MEDIUM | DONE | census (TEMP, deleted) | 22/20/0/0/0/88/265/0/0/POPULATED-v4 | prompt-boundary batch |
+| SCA-03.2 scopes | MEDIUM | DONE | preview artifact | 16 MISSING scopes | prompt-boundary batch |
+| SCA-03.3 manifest | MEDIUM | DONE | preview artifact | 217 rows, 6 operator + 211 suggestion | prompt-boundary batch |
+| SCA-03.4 G10 fix | MEDIUM | DONE | preview artifact | AP+ROB create, Research excluded, G7-9 kept | prompt-boundary batch |
+| SCA-03.5 impact | MEDIUM | DONE | preview artifact | pinned 0s; projected 216 creates, 59,400 min | prompt-boundary batch |
+| SCA-03.6 rollback | MEDIUM | DONE | preview artifact | 216 DELETE_BY_IDENTITY rows | prompt-boundary batch |
+| SCA-03.7 fingerprint | MEDIUM | DONE | preview JSON + .sha256 | 8865a3c4…59496 (audit-snapshot, non-applicable), match proven | prompt-boundary batch |
+| SCA-03.8 verification | MEDIUM | DONE | TEMP scripts (deleted) | 13/13 checks incl. zero-write + hash match | prompt-boundary batch |
+| SCA-03.9 advisory | MEDIUM | DONE | 2 review artifacts | R01 zeroFix:false (M1) → fixed → R02 zeroFix:true | advisory-only (identity REVIEW_BLOCKED) |
+
+## SCA-03R authority correction + operator decision package (2026-09-08, executor)
+
+Authority model (Task 1): the SCA-03 preview artifact now states
+`snapshotKind: AUDIT_SNAPSHOT_ONLY` and
+`auditFingerprintStatus: SUPERSEDED_NON_APPLICABLE_AUDIT`. It authorizes no
+mutation now or later; any source revision (terms, confirmations,
+classifications, redeploy) invalidates it for apply. `futureApplyScope`
+removed; replaced by `applyScopeNote` (explicitly non-authorizing). No
+approval sentence exists for any hash in the artifact, ledger, or report.
+
+Classifications (Task 2, operator-decided only): G10 Silver Applied Physics
++ Robotics = SPECIALIZATION; Silver Research exclusion = SPECIALIZATION
+context (row stays NONE_EXCLUDED); G7/G8/G9 STE Research preserves =
+SPECIALIZATION. Before: resolved 0 / unresolved 217. After: resolved 6 /
+unresolved 211; explicitly decided rows 6; suggestion-only rows 211. No
+inference for remaining suggestions.
+
+Decision worksheet (Task 3):
+`docs/verification/subjects-curriculum-operator-decisions-2026-09-08.json`
+(+ `.sha256`): 211 single-row groups keyed by subject/grade/program (names
+resolved read-only from catalog), each with sections, row identity,
+ownership evidence (SUGGESTION_ONLY), null unapproved classification,
+confirm-or-reject proposal (UNAPPROVED), termMode ALL (UNAPPROVED),
+unresolved fields, accept/reject impacts; plus one UNDECIDED term-config
+decision (no assumed count; SCIENCE/TLE_ROTATION recorded as catalog
+observations only).
+
+Next-action sequence (Task 4): recorded verbatim in the artifact
+(`nextActionSequence` steps 1–7: authorized deploy → term selection →
+candidate confirmation → fresh post-decision preview → new fingerprint →
+approval request → SCA-04 only after approval). Prior hash e61405f0…
+marked SUPERSEDED_NON_APPLICABLE_AUDIT; new audit hash below.
+
+Identity reconciliation (Task 5): executor-recorded `ses_…` task labels for
+SCA-03 reviews are RETRACTED as identity evidence (no spawn-envelope
+capture, no verbatim repeat in artifacts). Status:
+REVIEW_IDENTITY_UNAVAILABLE. No authenticated independent-review identity
+is claimed; R01/R02 technical findings retained as advisory evidence only.
+No new review spawned (a new review counts only with valid captured
+identity) → the review-identity process item is REVIEW_BLOCKED.
+
+Packaging (Task 6): force-added exactly the 7 authorized evidence paths
+(preview JSON + sidecar, worksheet + sidecar, 2 review artifacts, this
+ledger); `.gitignore` untouched; staged inventory contains no product
+source. Current audit hash 8865a3c4…59496; worksheet hash
+e4b638d7…8278 (both sidecar-matched, certutil cross-checked).
+Proofs: all 7 paths in `git ls-files`; staged blobs byte-identical to
+reviewed disk bytes (7/7 SAME); `git diff --cached --name-only` lists only
+the 7 paths; `git diff --check` and `git diff --cached --check` pass.
+
+### TODO (SCA-03R)
+
+- [x] SCA-03R.1 authority correction (snapshot-only, scope renamed, no approval sentence) — DONE
+- [x] SCA-03R.2 classifications (6 resolved / 211 unresolved, recount proven) — DONE
+- [x] SCA-03R.3 worksheet (211 groups + term decision, unapproved) — DONE
+- [x] SCA-03R.4 next-action sequence (steps 1–7 in artifact + report) — DONE
+- [x] SCA-03R.5 identity reconciliation (retraction recorded) — DONE
+- [x] SCA-03R.6 durable packaging (7 paths force-added, proofs below) — DONE
+- [x] SCA-03R.7 verification (parse, hash, arithmetic, census, git checks) — DONE
 
 ## SCA-01.0 — Ownership map (Subjects page reads/mutations → production route/service)
 
