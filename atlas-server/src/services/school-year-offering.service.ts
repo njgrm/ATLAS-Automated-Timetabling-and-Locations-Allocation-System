@@ -1149,6 +1149,17 @@ const VALID_TERM_MODES = new Set(['ALL', 'ROTATING_FAMILY_MEMBER', 'EMPTY']);
  * SCA-02.1: versioned single-row create. Operator provenance is recorded as
  * createdBy/updatedBy actor id. Never derives policy from subject codes and
  * never contacts EnrollPro offering endpoints.
+ *
+ * SCA-02R2: canonical duplicate discovery and insertion execute inside ONE
+ * Serializable transaction. Concurrent identical creates therefore produce
+ * exactly one active row: the loser either observes the winner's row inside
+ * its own transaction (typed 409 REQUIREMENT_EXISTS) or loses the
+ * serialization race (Prisma P2034 / SQLSTATE 40001), which is mapped to the
+ * same typed 409 after a bounded existence re-read. Spurious serialization
+ * conflicts with no persisted duplicate retry a bounded number of times;
+ * every retry re-runs discovery inside its own transaction, so no retry can
+ * create duplicate offerings or duplicate term assignments. Term assignments
+ * are created in the same transaction as the offering row (atomic).
  */
 export async function createRequirement(
   schoolId: number,
@@ -1173,6 +1184,8 @@ export async function createRequirement(
 
   // SCA-02R: duplicate detection on the canonical identity — a section or
   // cohort override never collides with the base scope or each other.
+  // The identity key is pure computation; the EXISTENCE read itself must
+  // happen inside the Serializable transaction below (see createInTx).
   const identityKey = requirementIdentityKey(requirementIdentityOf({
     subjectId: input.subjectId,
     gradeLevel: input.gradeLevel,
@@ -1181,61 +1194,111 @@ export async function createRequirement(
     cohortId: scope.cohortId,
     rotationFamily: input.rotationFamily ?? null,
   }));
-  const scopePeers = await db().schoolYearOffering.findMany({
-    where: {
-      schoolId,
-      schoolYearId,
-      isActive: true,
-      subjectId: input.subjectId,
-      gradeLevel: input.gradeLevel,
-      programType: input.programType,
-    },
-    select: { subjectId: true, gradeLevel: true, programType: true, sectionMirrorId: true, cohortId: true, rotationFamily: true },
-  });
-  const duplicate = scopePeers.some(
-    (row) => requirementIdentityKey(requirementIdentityOf({
+  const discoveryWhere = {
+    schoolId,
+    schoolYearId,
+    isActive: true,
+    subjectId: input.subjectId,
+    gradeLevel: input.gradeLevel,
+    programType: input.programType,
+  };
+  const discoverySelect = {
+    subjectId: true, gradeLevel: true, programType: true,
+    sectionMirrorId: true, cohortId: true, rotationFamily: true,
+  };
+  const isDuplicateRow = (row: {
+    subjectId: number | null; gradeLevel: number; programType: string;
+    sectionMirrorId: number | null; cohortId: number | null; rotationFamily: string | null;
+  }): boolean =>
+    requirementIdentityKey(requirementIdentityOf({
       subjectId: row.subjectId,
       gradeLevel: row.gradeLevel,
       programType: row.programType,
       sectionMirrorId: row.sectionMirrorId,
       cohortId: row.cohortId,
       rotationFamily: row.rotationFamily,
-    })) === identityKey,
-  );
-  if (duplicate) {
-    throw err(409, 'REQUIREMENT_EXISTS', 'An active requirement already covers this exact scope. Edit or retire it instead of creating a duplicate.');
-  }
+    })) === identityKey;
 
-  const created = await db().$transaction(async (tx) => {
-    const row = await tx.schoolYearOffering.create({
-      data: {
-        schoolId,
-        schoolYearId,
-        termConfigId: termConfig.id,
-        subjectId: input.subjectId,
-        gradeLevel: input.gradeLevel,
-        programType: input.programType,
-        sectionMirrorId: scope.sectionMirrorId,
-        cohortId: scope.cohortId,
-        classification: input.classification,
-        weeklyMinutes: input.weeklyMinutes,
-        rotationFamily: input.rotationFamily ?? null,
-        rotationOrder: input.rotationOrder ?? null,
-        termMode: input.termMode,
-        createdBy: actorId,
-        updatedBy: actorId,
-      },
-    });
-    for (const termIdentity of input.termIdentities) {
-      await tx.offeringTermAssignment.create({ data: { offeringId: row.id, termIdentity } });
+  // SCA-02R2: bounded attempts. Attempt 1 handles the uncontended path and
+  // the genuine-duplicate race. A retry happens ONLY for a serialization
+  // conflict with no persisted duplicate (spurious SSI abort against a
+  // genuinely different identity); it re-runs discovery inside a fresh
+  // transaction and therefore cannot duplicate anything.
+  const MAX_CREATE_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt += 1) {
+    try {
+      const createdId = await db().$transaction(async (tx) => {
+        const scopePeers = await tx.schoolYearOffering.findMany({
+          where: discoveryWhere,
+          select: discoverySelect,
+        });
+        if (scopePeers.some(isDuplicateRow)) {
+          throw err(409, 'REQUIREMENT_EXISTS', 'An active requirement already covers this exact scope. Edit or retire it instead of creating a duplicate.');
+        }
+        const row = await tx.schoolYearOffering.create({
+          data: {
+            schoolId,
+            schoolYearId,
+            termConfigId: termConfig.id,
+            subjectId: input.subjectId,
+            gradeLevel: input.gradeLevel,
+            programType: input.programType,
+            sectionMirrorId: scope.sectionMirrorId,
+            cohortId: scope.cohortId,
+            classification: input.classification,
+            weeklyMinutes: input.weeklyMinutes,
+            rotationFamily: input.rotationFamily ?? null,
+            rotationOrder: input.rotationOrder ?? null,
+            termMode: input.termMode,
+            createdBy: actorId,
+            updatedBy: actorId,
+          },
+        });
+        for (const termIdentity of input.termIdentities) {
+          await tx.offeringTermAssignment.create({ data: { offeringId: row.id, termIdentity } });
+        }
+        return row.id;
+      }, { isolationLevel: 'Serializable' });
+
+      const rows = await listOfferings(schoolId, schoolYearId);
+      const full = rows.find((r) => r.id === createdId);
+      if (!full) throw err(500, 'REQUIREMENT_NOT_FOUND', 'Requirement was created but could not be read back.');
+      return full;
+    } catch (error) {
+      if (!isSerializationConflict(error)) throw error;
+      // The transaction rolled back fully: no partial offering row and no
+      // partial term assignments exist from this attempt. Re-read once (no
+      // write) to distinguish a genuine duplicate race from a spurious abort.
+      const current = await db().schoolYearOffering.findMany({
+        where: discoveryWhere,
+        select: discoverySelect,
+      });
+      if (current.some(isDuplicateRow)) {
+        throw err(409, 'REQUIREMENT_EXISTS', 'An active requirement already covers this exact scope. Edit or retire it instead of creating a duplicate.');
+      }
+      if (attempt === MAX_CREATE_ATTEMPTS) throw error;
+      // Spurious conflict, bounded retry with fresh discovery inside the
+      // next transaction. No silent duplicates possible (see above).
     }
-    return row;
-  });
+  }
+  // Unreachable: the loop returns or throws on every path.
+  throw err(500, 'REQUIREMENT_NOT_FOUND', 'Requirement creation did not complete.');
+}
 
-  const rows = await listOfferings(schoolId, schoolYearId);
-  const full = rows.find((r) => r.id === created.id);
-  if (!full) throw err(500, 'REQUIREMENT_NOT_FOUND', 'Requirement was created but could not be read back.');
-  return full;
+/**
+ * SCA-02R2: true only for transaction serialization failures (Prisma P2034
+ * or SQLSTATE 40001). Typed API errors (which carry statusCode) are never
+ * serialization conflicts — a 409 thrown for a genuine duplicate inside the
+ * transaction must propagate unchanged, never enter the retry path.
+ */
+function isSerializationConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const record = error as Record<string, unknown>;
+  if (typeof record.statusCode === 'number') return false;
+  const code = record.code;
+  if (code === 'P2034' || code === '40001') return true;
+  const message = (record.message as string | undefined) ?? '';
+  return /could not serialize/i.test(message) && !('statusCode' in record);
 }
 
 /**
