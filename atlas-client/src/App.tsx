@@ -8,6 +8,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MapEditor = lazy(() => import('./pages/MapEditor'));
 const Subjects = lazy(() => import('./pages/Subjects'));
+const CurriculumRequirements = lazy(() => import('./pages/CurriculumRequirements'));
 const Faculty = lazy(() => import('./pages/Faculty'));
 const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
 const Sections = lazy(() => import('./pages/Sections'));
@@ -62,6 +63,10 @@ const router = createBrowserRouter([
 			{
 				path: 'subjects',
 				element: <Subjects />,
+			},
+			{
+				path: 'subjects/requirements',
+				element: <CurriculumRequirements />,
 			},
 			{
 				path: 'teachers',

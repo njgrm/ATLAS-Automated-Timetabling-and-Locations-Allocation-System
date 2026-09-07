@@ -133,11 +133,14 @@ export const emptyForm: NewSubjectForm = {
 	minMinutesPerWeek: 225,
 	preferredRoomType: 'CLASSROOM',
 	isActive: true,
-	// SCA-01.2: isSeedable is bootstrap grouping metadata only — it records
-	// which catalog rows ship with the MATATAG seed bundle. It is hidden from
-	// the operator workflow, never controls timetable demand, and never ranks
-	// the catalog. Catalog lifecycle is expressed by isActive alone.
-	isSeedable: true,
+	// SCA-01R2: isSeedable is controlled MATATAG/bootstrap classification
+	// metadata, never operator input. The operator form defaults to false so
+	// no caller can inherit `true` merely from `emptyForm`; the Subjects page
+	// additionally omits the field from create payloads
+	// (`buildOperatorSubjectCreatePayload`) so the server default-to-false
+	// stays authoritative. Bootstrap rows keep their intended values via
+	// `ensureDefaultSubjects`. Catalog lifecycle is expressed by isActive alone.
+	isSeedable: false,
 	isSystemManaged: false,
 	gradeLevels: [7, 8, 9, 10],
 	interSectionEnabled: false,

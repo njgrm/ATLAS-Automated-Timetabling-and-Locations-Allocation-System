@@ -527,7 +527,6 @@ const VALID_PATCH_FIELDS = new Set([
 	'minMinutesPerWeek',
 	'preferredRoomType',
 	'gradeLevels',
-	'isSeedable',
 	'interSectionEnabled',
 	'interSectionGradeLevels',
 	'programScopes',
@@ -537,7 +536,6 @@ const VALID_PATCH_FIELDS = new Set([
 	'qualificationPriority',
 	'rotationFamily',
 	'outputLabel',
-	'isSystemManaged',
 	'modularGroupId',
 	'modularOrder',
 	'termGroupId',
@@ -551,6 +549,12 @@ const PROTECTED_PATCH_FIELDS = new Set([
 	'createdAt',
 	'updatedAt',
 	'isActive',
+	// SCA-01R3: isSeedable/isSystemManaged are protected bootstrap metadata.
+	// Ordinary operators must never set or flip them — edits preserve the
+	// stored values by omission instead. Controlled bootstrap is the only
+	// writer, via ensureDefaultSubjects (direct Prisma, never this path).
+	'isSeedable',
+	'isSystemManaged',
 	'school',
 	'facultySubjects',
 	'templateBindings',
@@ -591,7 +595,9 @@ function checkMinutesPerWeek(value: unknown): PatchFieldError | null {
 	return null;
 }
 
-const VALID_BOOLEAN_FIELDS = new Set(['isSeedable', 'isSystemManaged', 'interSectionEnabled']);
+const VALID_BOOLEAN_FIELDS = new Set(['interSectionEnabled']);
+// SCA-01R3: isSeedable/isSystemManaged are NOT valid booleans on patch —
+// they are PROTECTED_PATCH_FIELDS above and never reach value validation.
 
 const NULLABLE_STRING_FIELDS = new Set(['ownerDepartment', 'rotationFamily', 'outputLabel', 'modularGroupId', 'termGroupId']);
 
@@ -1348,7 +1354,10 @@ export async function createSubject(
 		gradeLevels: number[];
 		interSectionEnabled?: boolean;
 		interSectionGradeLevels?: number[];
-		isSeedable?: boolean;
+		// SCA-01R3: isSeedable/isSystemManaged are intentionally ABSENT here.
+		// They are protected bootstrap metadata — ordinary creates must not
+		// carry them (rejected below). Controlled bootstrap writes them via
+		// ensureDefaultSubjects (direct Prisma), never this path.
 		modularGroupId?: string | null;
 		modularOrder?: number | null;
 		termGroupId?: string | null;
@@ -1362,10 +1371,18 @@ export async function createSubject(
 		qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 		rotationFamily?: string | null;
 		outputLabel?: string | null;
-		isSystemManaged?: boolean;
 	},
 ) {
 	await ensureSubjectContractSchemaColumns();
+
+	// SCA-01R3: fail closed on protected bootstrap metadata. An ordinary
+	// create carrying isSeedable/isSystemManaged (even via a JS caller that
+	// bypasses the router whitelist) is rejected BEFORE any write with a
+	// typed 400 — a forged classification must never persist.
+	const rawCreate = data as Record<string, unknown>;
+	if (rawCreate.isSeedable !== undefined || rawCreate.isSystemManaged !== undefined) {
+		invalid(400, 'PROTECTED_FIELD', 'isSeedable and isSystemManaged are bootstrap metadata and cannot be set on create.');
+	}
 
 	// SCA-01.3: server-side input validation with create/patch parity. The API
 	// previously accepted negative weekly minutes and empty grade scope with
@@ -1432,8 +1449,6 @@ export async function createSubject(
 		}
 	}
 	for (const [field, value] of [
-		['isSeedable', data.isSeedable],
-		['isSystemManaged', data.isSystemManaged],
 		['interSectionEnabled', data.interSectionEnabled],
 		['isActive', data.isActive],
 	] as const) {
@@ -1495,7 +1510,6 @@ export async function createSubject(
 		qualificationPriority: data.qualificationPriority,
 		rotationFamily: data.rotationFamily,
 		outputLabel: data.outputLabel,
-		isSystemManaged: data.isSystemManaged,
 		requiredFeatures: data.requiredFeatures,
 		allowedOwnerDepartments: data.allowedOwnerDepartments,
 	});
@@ -1509,7 +1523,10 @@ export async function createSubject(
 			preferredRoomType: data.preferredRoomType as any,
 			gradeLevels: data.gradeLevels,
 			isActive: data.isActive ?? true,
-			isSeedable: data.isSeedable ?? false,
+			// SCA-01R3: ordinary creates are always non-seedable. The
+			// protected-field guard above guarantees no caller-supplied value
+			// reaches this write; the constant documents the invariant.
+			isSeedable: false,
 			interSectionEnabled: data.interSectionEnabled ?? false,
 			interSectionGradeLevels: interGrades,
 			modularGroupId: data.modularGroupId ?? null,
@@ -1523,7 +1540,14 @@ export async function createSubject(
 			qualificationPriority: contract.qualificationPriority,
 			rotationFamily: contract.rotationFamily,
 			outputLabel: contract.outputLabel,
-			isSystemManaged: contract.isSystemManaged,
+			// SCA-01R4: ordinary creates are always non-system-managed. The
+			// contract default derives true from `_EXP` / `TLE_SPEC_` codes
+			// for CONTROLLED bootstrap/materialization rows only — deriving
+			// it from operator-provided code/name would let an ordinary
+			// create implicitly self-classify as system-managed, bypassing
+			// R3 protection. The guard above guarantees no caller-supplied
+			// value reaches this write; the constant closes the implicit path.
+			isSystemManaged: false,
 		},
 	});
 }

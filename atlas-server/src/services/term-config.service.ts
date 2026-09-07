@@ -6,6 +6,7 @@
  */
 
 import { getDataContext } from '../lib/data-context.js';
+import { assertSchoolYearAuthority } from './school-year-authority.service.js';
 
 const db = () => getDataContext();
 
@@ -28,6 +29,12 @@ export interface TermConfigInput {
   termCount: number;
   termIdentities: string[];
   isActive?: boolean;
+  /**
+   * SCA-02R: optimistic concurrency token (ISO updatedAt from a prior read).
+   * Mandatory when a configuration already exists: a concurrent term edit
+   * rejects with STALE_WRITE before any write.
+   */
+  expectedUpdatedAt?: string;
 }
 
 // ─── Errors ───
@@ -96,6 +103,13 @@ export async function upsertTermConfig(
   input: TermConfigInput,
   actorId?: number,
 ): Promise<TermConfigData> {
+  await assertSchoolYearAuthority(schoolId, schoolYearId);
+  const unknownTermFields = Object.keys(input ?? {}).filter(
+    (k) => k !== 'termCount' && k !== 'termIdentities' && k !== 'isActive' && k !== 'expectedUpdatedAt',
+  );
+  if (unknownTermFields.length > 0) {
+    throw err(400, 'UNKNOWN_FIELD', `term configuration contains unknown field(s): ${unknownTermFields.join(', ')}.`);
+  }
   const errors = validateTermConfigInput(input);
   if (errors.length > 0) {
     throw err(400, 'INVALID_TERM_CONFIG', errors.join(' '));
@@ -106,8 +120,15 @@ export async function upsertTermConfig(
   });
 
   if (existing) {
-    const updated = await db().schoolYearTermConfig.update({
-      where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+    // SCA-02R: mandatory optimistic concurrency for existing configurations.
+    if (input.expectedUpdatedAt === undefined || typeof input.expectedUpdatedAt !== 'string' || Number.isNaN(Date.parse(input.expectedUpdatedAt))) {
+      throw err(400, 'VERSION_REQUIRED', 'expectedUpdatedAt from the current term configuration is required to edit terms.');
+    }
+    if (existing.updatedAt.toISOString() !== new Date(input.expectedUpdatedAt).toISOString()) {
+      throw err(409, 'STALE_WRITE', 'Term configuration was modified by another operator. Refresh and retry.');
+    }
+    const guarded = await db().schoolYearTermConfig.updateMany({
+      where: { schoolId, schoolYearId, updatedAt: existing.updatedAt },
       data: {
         termCount: input.termCount,
         termIdentities: input.termIdentities,
@@ -115,6 +136,13 @@ export async function upsertTermConfig(
         updatedBy: actorId ?? existing.updatedBy,
       },
     });
+    if (guarded.count !== 1) {
+      throw err(409, 'STALE_WRITE', 'Term configuration changed during the update. Refresh and retry.');
+    }
+    const updated = await db().schoolYearTermConfig.findUnique({
+      where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+    });
+    if (!updated) throw err(500, 'TERM_CONFIG_NOT_FOUND', 'Term configuration was updated but could not be read back.');
     return {
       id: updated.id,
       schoolId: updated.schoolId,

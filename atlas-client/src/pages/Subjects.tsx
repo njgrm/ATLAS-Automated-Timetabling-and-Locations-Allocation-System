@@ -76,6 +76,7 @@ import {
 } from '@/components/admin-workspace/AdminWorkspace';
 import { resolveActorSchoolId } from '@/lib/settings';
 import { resolveSubjectsReadScope } from '@/lib/subject-school-scope';
+import { buildOperatorSubjectCreatePayload } from '@/lib/subject-create-payload';
 
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -384,9 +385,10 @@ export default function Subjects() {
 					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
-					// SCA-01.2: isSeedable is hidden bootstrap metadata — edits
-					// preserve the stored value instead of resending form state.
-					isSystemManaged: values.isSystemManaged,
+					// SCA-01R3: isSeedable/isSystemManaged are protected
+					// bootstrap metadata — edits preserve the stored values
+					// by omission (the server rejects either key with 400
+					// PROTECTED_FIELD) instead of resending form state.
 					gradeLevels: values.gradeLevels,
 					interSectionEnabled: values.interSectionEnabled,
 					interSectionGradeLevels: values.interSectionGradeLevels,
@@ -400,15 +402,13 @@ export default function Subjects() {
 			} else {
 				// Prompt 01A: server derives school ownership from the authenticated
 				// actor — no client-supplied schoolId on create.
-				await atlasApi.post('/subjects', {
-					...values,
-					outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
-					ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
-					allowedOwnerDepartments: values.allowedOwnerDepartments,
-					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
-					modularGroupId: values.modularGroupId?.trim() ? values.modularGroupId.trim() : null,
-					modularOrder: values.modularGroupId?.trim() ? values.modularOrder : null,
-				});
+				// SCA-01R3: the create body is built ONLY by
+				// buildOperatorSubjectCreatePayload, which omits the protected
+				// isSeedable/isSystemManaged bootstrap flags (the server
+				// rejects either key with 400 PROTECTED_FIELD). Never spread
+				// raw form values here: form state may still carry a stale
+				// flag value.
+				await atlasApi.post('/subjects', buildOperatorSubjectCreatePayload(values));
 				toast.success('Subject created successfully.');
 			}
 			setModalMode(null);
@@ -527,6 +527,11 @@ stats={subjectStats}
 					supply subject offerings. Catalog edits stay here;
 					year-specific required subjects move to Curriculum
 					Requirements (SCA-02). */}
+				<Button asChild variant="outline" size="sm" className="gap-2">
+					<Link to="/subjects/requirements">
+						Curriculum Requirements
+					</Link>
+				</Button>
 				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} variant="outline" size="sm" className="gap-2">
 					<Plus className="size-4" />
 					Add subject

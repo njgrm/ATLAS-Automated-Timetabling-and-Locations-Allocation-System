@@ -86,7 +86,10 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			minMinutesPerWeek,
 			preferredRoomType,
 			gradeLevels,
-			isSeedable,
+			// SCA-01R3: isSeedable/isSystemManaged are protected bootstrap
+			// metadata — they are NOT destructured into the service call.
+			// Presence is rejected explicitly below so a hostile body fails
+			// closed with 400 instead of being silently stripped.
 			interSectionEnabled,
 			interSectionGradeLevels,
 			modularGroupId,
@@ -102,10 +105,16 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			qualificationPriority,
 			rotationFamily,
 			outputLabel,
-			isSystemManaged,
 		} = req.body;
 		if (!code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
 			res.status(400).json({ code: 'MISSING_FIELDS', message: 'code, name, minMinutesPerWeek, preferredRoomType, gradeLevels are required.' });
+			return;
+		}
+		// SCA-01R3: ordinary creates must not carry protected bootstrap
+		// metadata. Reject BEFORE any write — never silently strip, or a
+		// forged classification would be indistinguishable from an omission.
+		if (req.body?.isSeedable !== undefined || req.body?.isSystemManaged !== undefined) {
+			res.status(400).json({ code: 'PROTECTED_FIELD', message: 'isSeedable and isSystemManaged are bootstrap metadata and cannot be set on create.' });
 			return;
 		}
 		// Prompt 01A: mutation ownership comes from the actor, never the body.
@@ -118,7 +127,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			minMinutesPerWeek,
 			preferredRoomType,
 			gradeLevels,
-			isSeedable,
 			interSectionEnabled,
 			interSectionGradeLevels,
 			modularGroupId,
@@ -134,7 +142,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			qualificationPriority,
 			rotationFamily,
 			outputLabel,
-			isSystemManaged,
 		});
 		res.status(201).json({ subject });
 	} catch (err: any) {

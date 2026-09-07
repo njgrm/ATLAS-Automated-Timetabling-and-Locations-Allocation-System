@@ -16,6 +16,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.router.js';
 import mapRouter from './routes/map.router.js';
 import subjectRouter from './routes/subject.router.js';
+import curriculumRequirementsRouter from './routes/curriculum-requirements.router.js';
 import facultyRouter from './routes/faculty.router.js';
 import facultyAssignmentRouter from './routes/faculty-assignment.router.js';
 import sectionRouter from './routes/section.router.js';
@@ -88,6 +89,7 @@ app.get('/api/v1/health', (_req, res) => {
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/map', mapRouter);
 app.use('/api/v1/subjects', subjectRouter);
+app.use('/api/v1/curriculum-requirements', curriculumRequirementsRouter);
 app.use('/api/v1/faculty', facultyRouter);
 app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
 app.use('/api/v1/sections', sectionRouter);
