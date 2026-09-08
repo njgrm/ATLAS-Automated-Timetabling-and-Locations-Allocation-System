@@ -1707,3 +1707,40 @@ Verdict: `REVIEW_REQUIRED` (never GO).
   sentence.
 - Verdict: `APPROVAL_REQUIRED` for Stage 2. Nothing applied beyond the single
   Stage 1 term-config row.
+
+## SCA-04A Stage 2 apply (2026-09-09, executor — HIGH data apply, approved)
+
+- Operator approved Stage 2 with corrected artifact byte SHA
+  `0E1CEFEF1707D6126621FE0044EA92329E32ABB065EB8FF2991AA3A05121B36C`
+  (the earlier malformed 56-char hash `…9916B36C` was rejected fail-closed;
+  no write occurred until the exact 64-char SHA was provided).
+- Pre-apply revalidation: termConfig id=71 updatedAt
+  `2026-09-08T20:43:57.400Z` (termCount 3, ["Term 1","Term 2","Term 3"]);
+  sourceRevisionHash `ECAFCA7793E573DCAC402D5EC779FF67E3974A5EE466762C16B16E425969A1C7`;
+  requirements 0. All matched the approval.
+- Applied via production route `POST /api/v1/curriculum-requirements/8/requirements/apply`
+  with all 216 offerings, expectedFingerprint
+  `CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF`,
+  expectedSourceVersions `{}`, expectedTermConfigUpdatedAt
+  `2026-09-08T20:43:57.400Z` → 200, receipt
+  `{applied:216, retired:0, fingerprint:CURR_REQ_2025F58F…85EBF}`.
+- Post-apply verification:
+  - Requirements count 216; classification|termMode:
+    CORE|ALL 96, CORE|ROTATING_FAMILY_MEMBER 48,
+    EXPLORATORY|ROTATING_FAMILY_MEMBER 48, SPECIALIZATION|ALL 16, OTHER|ALL 8.
+  - Readiness: ready=true, termConfigPresent=true, requirementCount=216,
+    16/16 scopes CONFIGURED, 0 blockers.
+  - Idempotent replay: fresh preview total=216 new=0 unchanged=216 retired=0
+    (same fingerprint); replay apply with the fresh sourceVersions → 200,
+    same receipt; signature before/after byte-identical
+    (F528BC6A…, all rows version 1) → zero additional writes.
+  - Unchanged signatures: Teaching Load effective 265 assignments contract v2;
+    generation runs 0; activeYearDrift aligned; subjects 22 / sections 20 /
+    ownerships 265 unchanged (activeRequirementCount now 216 in source
+    revisions; sourceRevisionHash changed to
+    `8785DB9E25B17183D6D1488B5BE2B04D92EF0443E10A16E8FA95EB4613D51569`
+    because requirements entered the hash domain).
+- Authority honored: only the 216 curriculum requirements + their
+  OfferingTermAssignment rows were written. No Teaching Load, generation,
+  publication, subject-catalog, or unrelated mutation.
+- Verdict: stop for planner verification (`REVIEW_REQUIRED`).

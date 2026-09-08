@@ -143,6 +143,23 @@ sidecar `0E1CEFEF…21B36C` written; Stage 2 apply LOCKED pending its exact
 approval sentence. No requirements applied, no Teaching Load, no generation,
 no publication.
 
+## SCA-04A Stage 2 apply (2026-09-09, executor — HIGH data apply, approved)
+
+Operator approved Stage 2 (exact fingerprint `CURR_REQ_2025F58F…85EBF`,
+source revision `ECAFCA77…69A1C7`, corrected artifact byte SHA
+`0E1CEFEF…21B36C`, expectedSourceVersions `{}`; the earlier malformed hash
+was rejected fail-closed with zero writes). Revalidated live term config
+id=71 / updatedAt `2026-09-08T20:43:57.400Z` and source revision — both
+matched. Applied the 216 requirements through
+`POST /api/v1/curriculum-requirements/8/requirements/apply` → 200,
+`{applied:216, retired:0, fingerprint:CURR_REQ_2025F58F…85EBF}`.
+Verified: 216 rows (CORE/ALL 96, CORE/ROT 48, EXPLORATORY/ROT 48, SPEC/ALL 16,
+OTHER/ALL 8); readiness ready=true 16/16 CONFIGURED 0 blockers; idempotent
+replay (fresh preview unchanged=216; replay 200; signature byte-identical,
+versions all 1); Teaching Load 265 v2 / runs 0 / drift aligned unchanged.
+Source revision now `8785DB9E…1569` (requirements in hash domain).
+Stop for planner verification (`REVIEW_REQUIRED`).
+
 ## Planner acceptance — RC-02D
 
 - Reviewed immutable executor range:

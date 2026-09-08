@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026-09-09] — SCA-04A Stage 2 Applied
+
+### Added
+- Applied the operator-approved Stage 2: all 216 confirmed curriculum requirements for school 1, year 8/2029-2030 persisted through the production apply route (receipt `{applied:216, retired:0, fingerprint:CURR_REQ_2025F58F…85EBF}`).
+
+### Changed
+- Readiness flipped to ready=true (termConfigPresent true, requirementCount 216, 16/16 scopes CONFIGURED, 0 blockers).
+- Source revision hash now `8785DB9E…1569` (activeRequirementCount 216 entered the hash domain).
+
+### Decisions Made
+- A malformed 56-char approval byte SHA was rejected fail-closed with zero writes; apply proceeded only after the operator sent the exact 64-char SHA `0E1CEFEF…21B36C`.
+
+### Open Questions
+- Planner verification of the applied Stage 2 is required before any further curriculum/Teaching Load/generation work.
+
 ## [2026-09-09] — SCA-04A Stage 1 Applied, Stage 2 Preview Ready
 
 ### Added
