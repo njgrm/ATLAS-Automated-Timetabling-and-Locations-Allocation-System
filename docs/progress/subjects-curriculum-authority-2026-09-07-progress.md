@@ -1676,3 +1676,34 @@ requirement application in one approval sentence. SCA-04A-R separates them:
 
 No terms or requirements applied. No broad tests/builds (documentation-only).
 Verdict: `REVIEW_REQUIRED` (never GO).
+
+## SCA-04A Stage 1 apply + Stage 2 preview (2026-09-09, executor)
+
+- Operator approved Stage 1 with the exact semantic fingerprint
+  `CURR_TERMS_2F2AFA2775944DD2E5EE3DA3570484532C2C0AC5A33901E5F892377662EAAEC7`
+  and artifact byte SHA `8D0CA107D3A86F49844DC161967BE308DB67F13BFBDE32C7C249812867218AEF`.
+- Precondition verified read-only first: term config absent, 0 requirements,
+  sourceRevisionHash `8B3932BD…E740F` (233 unresolved candidates).
+- Applied exactly one row: `PUT /api/v1/curriculum-requirements/8/terms`
+  `{schoolId:1, termCount:3, termIdentities:["Term 1","Term 2","Term 3"], isActive:true}`
+  → 200, termConfig id=71 (createdBy/updatedBy 46,
+  createdAt=updatedAt=2026-09-08T20:43:57.400Z).
+- Verified after apply: termConfig id=71 present, requirements count 0,
+  readiness termConfigPresent true, requirementCount 0. Stage 1 scope honored
+  (term-config row only; zero requirements, zero Teaching Load, zero runs,
+  zero publication).
+- Stage 2 real production preview: `POST /api/v1/curriculum-requirements/8/requirements/preview`
+  with all 216 rows → 200, `termConfigValid=true`, total=216 new=216
+  unchanged=0 retired=0, fingerprint
+  `CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF`
+  (identical to the SCA-04A computed fingerprint), termConfigRevision
+  `{id:71, updatedAt:2026-09-08T20:43:57.400Z}`, sourceVersions `{}`.
+- Fresh semantic source revision after Stage 1:
+  `ECAFCA7793E573DCAC402D5EC779FF67E3974A5EE466762C16B16E425969A1C7`
+  (term config now in hash domain; subjects/sections/ownerships unchanged).
+- Stage 2 artifact: `docs/verification/subjects-curriculum-stage2-requirements-apply-preview-2026-09-09.json`
+  (+ `.sha256` sidecar `0E1CEFEF1707D6126621FE0044EA92329E32ABB065EB8FF2991AA3A05121B36C`).
+  Authorizes no mutation; Stage 2 apply locked pending the exact approval
+  sentence.
+- Verdict: `APPROVAL_REQUIRED` for Stage 2. Nothing applied beyond the single
+  Stage 1 term-config row.

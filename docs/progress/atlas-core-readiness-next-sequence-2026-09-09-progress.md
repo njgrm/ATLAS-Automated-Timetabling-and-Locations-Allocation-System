@@ -126,6 +126,23 @@ requirements) stays LOCKED; its approval requires a fresh production preview
 route call after Stage 1 applies. No apply, no tests/builds. Verdict:
 `REVIEW_REQUIRED`.
 
+## SCA-04A Stage 1 apply + Stage 2 preview (2026-09-09, executor)
+
+Operator approved Stage 1 (exact fingerprint
+`CURR_TERMS_2F2AFA…EAAEC7`, byte SHA `8D0CA107…218AEF`). Precondition
+verified (term config absent, 0 requirements). Applied the single
+term-configuration row: `PUT /api/v1/curriculum-requirements/8/terms`
+`{schoolId:1, termCount:3, termIdentities:["Term 1","Term 2","Term 3"], isActive:true}`
+→ 200, termConfig id=71 (createdAt=updatedAt=2026-09-08T20:43:57.400Z).
+Verified: id=71 present, requirements 0, readiness termConfigPresent true.
+Stage 2 real production preview over all 216 rows → 200, termConfigValid
+true, fingerprint `CURR_REQ_2025F58F…85EBF` (matches SCA-04A computed),
+termConfigRevision `{id:71, …}`, sourceVersions `{}`. Fresh source revision
+`ECAFCA77…69A1C7`. Stage 2 artifact +
+sidecar `0E1CEFEF…21B36C` written; Stage 2 apply LOCKED pending its exact
+approval sentence. No requirements applied, no Teaching Load, no generation,
+no publication.
+
 ## Planner acceptance — RC-02D
 
 - Reviewed immutable executor range:

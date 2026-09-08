@@ -1,0 +1,77 @@
+{
+  "snapshotKind": "STAGE2_REQUIREMENTS_APPLY_PREVIEW",
+  "stage": 2,
+  "authorizesNoMutation": true,
+  "approvalWorkflow": "SCA-04A-R two-stage workflow. Stage 1 (term config create) is applied and verified. This artifact is the Stage 2 preview over all 216 confirmed requirements, produced through the real production preview route after Stage 1. It authorizes no mutation; a separate exact approval is required before any requirement apply.",
+  "scope": {
+    "actorSchoolId": 1,
+    "activeSchoolYearId": 8,
+    "activeSchoolYearLabel": "2029-2030",
+    "applyScope": "curriculum requirements apply only (216 confirmed rows)"
+  },
+  "precondition": {
+    "statement": "The persisted term configuration for (schoolId=1, schoolYearId=8) MUST be exactly termConfig id=71 with updatedAt 2026-09-08T20:43:57.400Z, termCount=3, termIdentities [Term 1, Term 2, Term 3]. Any drift makes this preview non-applicable.",
+    "verifiedTermConfig": {
+      "id": 71,
+      "schoolId": 1,
+      "schoolYearId": 8,
+      "termCount": 3,
+      "termIdentities": ["Term 1", "Term 2", "Term 3"],
+      "isActive": true,
+      "createdAt": "2026-09-08T20:43:57.400Z",
+      "updatedAt": "2026-09-08T20:43:57.400Z"
+    }
+  },
+  "routeCall": {
+    "method": "POST",
+    "path": "/api/v1/curriculum-requirements/8/requirements/preview",
+    "rowsSent": 216,
+    "status": 200,
+    "termConfigValid": true,
+    "termConfigRevision": {
+      "id": 71,
+      "updatedAt": "2026-09-08T20:43:57.400Z"
+    },
+    "fingerprint": "CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF",
+    "totalCount": 216,
+    "newCount": 216,
+    "unchangedCount": 0,
+    "retiredCount": 0,
+    "sourceVersions": {},
+    "sourceVersionsNote": "Empty: zero requirements are persisted before Stage 2 apply."
+  },
+  "freshSourceRevision": {
+    "sourceRevisionHash": "ECAFCA7793E573DCAC402D5EC779FF67E3974A5EE466762C16B16E425969A1C7",
+    "sourceRevisions": {
+      "activeSubjectCount": 22,
+      "activeSectionCount": 20,
+      "annualOwnershipCount": 265,
+      "activeRequirementCount": 0,
+      "subjectsUpdatedAtMax": "2026-09-06T15:34:50.103Z",
+      "ownershipsUpdatedAtMax": "2026-09-07T00:23:47.202Z"
+    }
+  },
+  "candidateGroups": {
+    "total": 233,
+    "unresolved": 233
+  },
+  "proposedApply": {
+    "method": "POST",
+    "path": "/api/v1/curriculum-requirements/8/requirements/apply",
+    "bodySummary": "offerings (216 rows), expectedFingerprint=CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF, expectedSourceVersions={}, expectedTermConfigUpdatedAt=2026-09-08T20:43:57.400Z",
+    "creates": 216,
+    "updates": 0,
+    "retires": 0,
+    "excluded": 17
+  },
+  "rollback": {
+    "statement": "Rollback of Stage 2 = DELETE_BY_IDENTITY for each created requirement row plus its OfferingTermAssignment rows, keeping the Stage 1 term config row. Exact identity keys: one per confirmed offering identity (subjectId/gradeLevel/programType/sectionMirrorId/cohortId/rotationFamily). Published/archived never mutated."
+  },
+  "fingerprint": {
+    "value": "CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF",
+    "note": "Route-returned production fingerprint over all 216 rows, byte-identical to the SCA-04A computed fingerprint.",
+    "authorizesNoMutation": true
+  },
+  "decisionRecordReference": "docs/verification/subjects-curriculum-active-year-apply-preview-2026-09-09.json (NON_APPLICABLE approval, retained decision record)",
+  "approvalSentence": "I approve SCA-04A Stage 2: apply the 216 confirmed curriculum requirements for school 1, school year 8 (2029-2030) against term config id=71 (updatedAt 2026-09-08T20:43:57.400Z), fingerprint CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF, with expectedSourceVersions={} and zero Teaching Load, timetable generation, or publication changes. The byte SHA-256 of this artifact is delivered by its sidecar (.sha256) file."
+}

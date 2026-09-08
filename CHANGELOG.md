@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026-09-09] — SCA-04A Stage 1 Applied, Stage 2 Preview Ready
+
+### Added
+- Applied the operator-approved Stage 1 term configuration: `PUT /api/v1/curriculum-requirements/8/terms` created termConfig id=71 (termCount=3, ["Term 1","Term 2","Term 3"]) for school 1, year 8/2029-2030. Zero requirements created.
+- Produced the Stage 2 real production preview artifact over all 216 confirmed requirements at `docs/verification/subjects-curriculum-stage2-requirements-apply-preview-2026-09-09.json` (+ `.sha256` sidecar `0E1CEFEF…21B36C`), fingerprint `CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF`.
+
+### Changed
+- Stage 1 approval workflow executed; Stage 2 remains LOCKED pending its exact approval sentence.
+
+### Decisions Made
+- Stage 1 applied exactly as approved (single term-configuration row); Stage 2 not applied.
+
+### Open Questions
+- Stage 2 apply requires the exact approval sentence binding fingerprint `CURR_REQ_2025F58F…85EBF` and sidecar `0E1CEFEF…21B36C`.
+
 ## [2026-09-09] — SCA-04A-R Staged Approval Correction
 
 ### Added
