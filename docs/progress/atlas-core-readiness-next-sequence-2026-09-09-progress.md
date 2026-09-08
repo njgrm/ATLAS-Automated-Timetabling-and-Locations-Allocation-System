@@ -7,8 +7,8 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 | Stage | Status | Evidence / blocker |
 |---|---|---|
 | RC-02 integration | DONE | `main` and `origin/main` at `4559eb13bbd371dd7945b39128f8c0dcdacd430a`; 499 focused assertions, both type-checks/builds, isolated built-server health passed |
-| RC-02D live deployment | REVIEW_REQUIRED | Built server served on Tailnet port 5001 with rollover automation disabled; all decisive gates pass. Deployment evidence commit `cd5d71809b94dbb2e5a0ba02ce84d608655ca6f5`; review range `396a7275..HEAD`; final candidate SHA reported in the executor handoff. See `docs/verification/atlas-core-readiness-rc02d-live-acceptance-2026-09-09.md` |
-| SCA-04A decision preview | LOCKED | Requires planner-accepted RC-02D |
+| RC-02D live deployment | DONE | Planner accepted `396a7275..6d537148`; integrated and pushed through `7d5142c0`. Built server is live on Tailnet port 5001 with rollover automation disabled. |
+| SCA-04A decision preview | READY | RC-02D accepted; operator decisions and zero-write preview are the next action |
 | SCA-04B curriculum apply | LOCKED | Requires complete decisions, fresh fingerprint, and exact user approval |
 | TL-C02 allocation/rebalance | LOCKED | Requires verified SCA-04B authority |
 | TT-C02 unassigned insertion | LOCKED | Requires verified SCA-04B and canonical TL contract |
@@ -69,9 +69,23 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 
 ## Next action
 
-Planner/QA reviews the immutable `396a72754854f2a1016661438d7fbfb31fb6b644..HEAD`
-commit range on `work/core-rc02d`, then SCA-04A becomes runnable. Do not start
-SCA-04A concurrently with the deployment review. No generation is authorized;
-generation remains process-locked until SCA-04B establishes persisted term
-configuration (Curriculum Requirements currently reports
+Run
+`docs/prompts/subjects-curriculum-authority-04a-operator-decision-preview-2026-09-09.md`
+in a fresh isolated executor worktree from current `origin/main`. No generation
+is authorized; generation remains process-locked until SCA-04B establishes
+persisted term configuration (Curriculum Requirements currently reports
 `OFFERING_TERM_CONFIG_MISSING`).
+
+## Planner acceptance — RC-02D
+
+- Reviewed immutable executor range:
+  `396a72754854f2a1016661438d7fbfb31fb6b644..6d53714806b9a5088d0f2bed4e95754deca2b846`.
+- Range contains only the required progress ledger and live-acceptance report.
+- Correction commit preserves the deployment evidence commit, removes all
+  unresolved placeholders, clarifies the run-gate limitation, and passes Git
+  diff hygiene.
+- Independent current-state check: exactly one listener owns port 5001, it is
+  `node dist/server.js`, no ATLAS dev watcher remains, and Tailnet health is 200.
+- Accepted verdict: GO for RC-02D deployment evidence. This unlocks only the
+  zero-write SCA-04A decision/preview prompt; it does not authorize curriculum
+  apply, Teaching Load apply, timetable generation, or publication.

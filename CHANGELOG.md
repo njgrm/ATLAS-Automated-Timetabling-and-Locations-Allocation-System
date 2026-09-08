@@ -25,6 +25,7 @@
 ### Changed
 - Fast-forwarded and pushed the reviewed RC-02 integration package to `main` at `4559eb13bbd371dd7945b39128f8c0dcdacd430a`.
 - Replaced ordinary per-file hash/reviewer-receipt ceremony in successor prompts with commit-range review; semantic fingerprints remain limited to high-risk data and generation actions.
+- Planner QA accepted the RC-02D live deployment evidence and unlocked the zero-write SCA-04A decision preview.
 
 ### Decisions Made
 - Live deployment must complete before current-year curriculum decisions are previewed.
