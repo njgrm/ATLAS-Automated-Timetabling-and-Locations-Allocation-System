@@ -13,7 +13,10 @@ Verdict: **REVIEW_REQUIRED** — all decisive gates pass
   (`origin/main` HEAD at worktree creation; contains the required base. The only
   intervening commit `396a7275` is `docs(core)` and was inspected — no
   conflicting product change.)
-- Candidate SHA: recorded on `work/core-rc02d` by this prompt's commit.
+- Deployment evidence commit: `cd5d71809b94dbb2e5a0ba02ce84d608655ca6f5`.
+- Review range: `396a72754854f2a1016661438d7fbfb31fb6b644..HEAD`; the final
+  candidate SHA is reported by Git in the executor handoff (not embedded in this
+  commit because this commit creates it).
 
 ## 1. Preflight
 
@@ -115,6 +118,12 @@ hash not recorded in this report (credentials/tokens are not exposed).
   checks are intentional no-data responses (`runs/latest`, and
   `room-preferences/.../latest/summary`) consistent with zero runs / zero room
   requests for year 8.
+- Generation gate note: `/api/v1/generation/1/8/runs/gate` returning
+  `blocked=false` proves only that no existing run-level lock is active. It does
+  not prove curriculum or generation readiness. Generation remains
+  process-locked because Curriculum Requirements reports
+  `OFFERING_TERM_CONFIG_MISSING`. SCA-04A is the next stage after planner
+  acceptance; no generation is authorized.
 
 ## 5. Browser acceptance
 
@@ -178,9 +187,14 @@ assertions). No product source was edited in this prompt.
   dev-server supervisor was intentionally stopped and is not restarted by this
   prompt.
 - SCA-04A remains LOCKED behind planner QA acceptance of this commit range.
+- Generation remains process-locked: the `runs/gate` `blocked=false` result only
+  confirms no active run-level lock; Curriculum Requirements reports
+  `OFFERING_TERM_CONFIG_MISSING`, so no generation is authorized until SCA-04B
+  persists term configuration.
 
 ## Handoff
 
 Base: `396a72754854f2a1016661438d7fbfb31fb6b644`
-Candidate: see commit on `work/core-rc02d`.
-Review: immutable `base...candidate` range on `work/core-rc02d`.
+Deployment evidence commit: `cd5d71809b94dbb2e5a0ba02ce84d608655ca6f5` (final
+candidate SHA reported by Git in the executor handoff).
+Review: immutable `base...HEAD` range on `work/core-rc02d`.

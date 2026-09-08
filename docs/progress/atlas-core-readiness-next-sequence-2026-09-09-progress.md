@@ -7,7 +7,7 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 | Stage | Status | Evidence / blocker |
 |---|---|---|
 | RC-02 integration | DONE | `main` and `origin/main` at `4559eb13bbd371dd7945b39128f8c0dcdacd430a`; 499 focused assertions, both type-checks/builds, isolated built-server health passed |
-| RC-02D live deployment | REVIEW_REQUIRED | Built server served on Tailnet port 5001 with rollover automation disabled; all decisive gates pass. Candidate `396a7275..<candidate>` on `work/core-rc02d`. See `docs/verification/atlas-core-readiness-rc02d-live-acceptance-2026-09-09.md` |
+| RC-02D live deployment | REVIEW_REQUIRED | Built server served on Tailnet port 5001 with rollover automation disabled; all decisive gates pass. Deployment evidence commit `cd5d71809b94dbb2e5a0ba02ce84d608655ca6f5`; review range `396a7275..HEAD`; final candidate SHA reported in the executor handoff. See `docs/verification/atlas-core-readiness-rc02d-live-acceptance-2026-09-09.md` |
 | SCA-04A decision preview | LOCKED | Requires planner-accepted RC-02D |
 | SCA-04B curriculum apply | LOCKED | Requires complete decisions, fresh fingerprint, and exact user approval |
 | TL-C02 allocation/rebalance | LOCKED | Requires verified SCA-04B authority |
@@ -33,7 +33,10 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 - Base SHA: `396a72754854f2a1016661438d7fbfb31fb6b644` (`origin/main` HEAD;
   contains required base `4559eb13bbd371dd7945b39128f8c0dcdacd430a`; the only
   intervening commit `396a7275` is docs-only — inspected, no product conflict).
-- Candidate SHA: recorded in the commit below.
+- Deployment evidence commit: `cd5d71809b94dbb2e5a0ba02ce84d608655ca6f5`.
+- Review range: `396a72754854f2a1016661438d7fbfb31fb6b644..HEAD`. The final
+  candidate SHA is reported by Git in the executor handoff; it is not embedded
+  in this commit because this commit creates that SHA.
 - Build: server/client `tsc --noEmit` pass; server/client production builds pass.
 - Restart: exact ATLAS server tree owning port 5001 stopped (tsx watch + node
   child); one built `node dist/server.js` started hidden on port 5001 with
@@ -46,6 +49,11 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
   blocked on `OFFERING_TERM_CONFIG_MISSING`; Teaching Load `POPULATED` (265
   ownerships) with effective contract v2; generation gate open with zero runs;
   dashboard reports year 8 with `using_saved_data`.
+- Generation state: `/api/v1/generation/1/8/runs/gate` returning `blocked=false`
+  proves only that no existing run-level lock is active. It does not prove
+  curriculum or generation readiness. Generation remains process-locked because
+  Curriculum Requirements reports `OFFERING_TERM_CONFIG_MISSING`. SCA-04A is the
+  next stage after planner acceptance; no generation is authorized.
 - Browser acceptance: desktop 1280x720 and mobile 390x844 — login, Dashboard,
   Subjects, Curriculum Requirements, Teaching Load, and Timetable render with
   no horizontal overflow, no mojibake, no uncaught page errors, working
@@ -61,6 +69,9 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 
 ## Next action
 
-Planner/QA reviews the immutable `396a7275..<candidate>` commit range on
-`work/core-rc02d`, then SCA-04A becomes runnable. Do not start SCA-04A
-concurrently with the deployment review.
+Planner/QA reviews the immutable `396a72754854f2a1016661438d7fbfb31fb6b644..HEAD`
+commit range on `work/core-rc02d`, then SCA-04A becomes runnable. Do not start
+SCA-04A concurrently with the deployment review. No generation is authorized;
+generation remains process-locked until SCA-04B establishes persisted term
+configuration (Curriculum Requirements currently reports
+`OFFERING_TERM_CONFIG_MISSING`).
