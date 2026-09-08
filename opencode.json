@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "*": "ask",
+      "D:/ATLAS/**": "allow",
+      "D:/ATLAS-worktrees/**": "allow",
+      "D:/ATLAS-database-recovery/**": "allow",
+      "D:/EnrollPro/**": "allow",
+      "D:/AIMS/**": "allow",
+      "D:/smart-final-capstone/**": "allow"
+    },
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow"
+    },
+    "edit": {
+      "D:/ATLAS/**": "allow",
+      "D:/ATLAS-worktrees/**": "allow",
+      "D:/ATLAS-database-recovery/**": "deny",
+      "D:/EnrollPro/**": "deny",
+      "D:/AIMS/**": "deny",
+      "D:/smart-final-capstone/**": "deny"
+    }
+  }
+}

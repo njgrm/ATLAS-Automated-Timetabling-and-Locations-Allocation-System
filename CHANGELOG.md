@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026-09-09] — OpenCode Worktree Permissions
+
+### Added
+- Added tracked OpenCode project permissions for ATLAS worktrees.
+- Added a minimal global OpenCode rule allowing `D:/ATLAS/**` and `D:/ATLAS-worktrees/**` access.
+
+### Changed
+- ATLAS executors can read and edit isolated worktrees without repeated external-directory prompts.
+
+### Decisions Made
+- Permission remains limited to ATLAS and its worktree root; recovery storage and companion repositories retain their existing read-only or denied edit rules.
+
+### Open Questions
+- None.
+
 ## [2026-09-09] — Core Readiness Integration and Successor Handoffs
 
 ### Added
