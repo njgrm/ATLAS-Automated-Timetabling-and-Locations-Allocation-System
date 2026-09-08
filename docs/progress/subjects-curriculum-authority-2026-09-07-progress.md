@@ -1523,3 +1523,123 @@ failure; canonical set sorting hashes reordered gradeLevels/programScopes
 identically while ordered termIdentities stay order-sensitive (R7 #4). Pins
 verified (manifest `A0EAFFAB…03` == sidecar). Advisory only — no formal GO;
 SCA-04 stays LOCKED.
+
+## SCA-04A operator decisions + apply preview (2026-09-09, executor)
+
+Prompt: `docs/prompts/subjects-curriculum-authority-04a-operator-decision-preview-2026-09-09.md`
+Worktree: `D:\ATLAS-worktrees\curriculum-sca04a` (branch `work/curriculum-sca04a`),
+base HEAD `43c3a83833758fdd4bd947eeba261800de016d55` (origin/main), clean.
+
+### Preflight and runtime identity — DONE
+
+- Tailnet health 200; officer login (actor school 1); runtime context active
+  year 8 `2029-2030`, drift `aligned`.
+- `GET /curriculum-requirements/8/readiness` → 200, ready false,
+  termConfigPresent false, 0 requirements, blocker `OFFERING_TERM_CONFIG_MISSING`.
+- `GET /curriculum-requirements/8/decision-candidates` → 200 read-only,
+  `authorizesNoMutation: true`, 233 groups all `UNAPPROVED_SUGGESTION`,
+  `sourceRevisionHash 8B3932BDE1539090D357ECD8FFD8B7861EA5201D08979D9E24C639425E0E740F`,
+  termConfig null, sourceRevisions 22 subjects / 20 sections / 265 ownerships /
+  0 requirements.
+- `GET /curriculum-requirements/8/requirements` → 200, 0 rows, termConfig null.
+- All decision groups were INCOMPLETE at arrival (no persisted terms, 233
+  unresolved candidates, no rotation decision). Decisions captured interactively
+  from the operator; nothing inferred from catalog codes, templates, historical
+  year 7, or current teacher assignments.
+
+### Operator decisions — COMPLETE (all five groups)
+
+1. Terms for active year 2029-2030: 3 terms, ordered `Term 1, Term 2, Term 3`.
+2. Rotation:
+   - SCIENCE: `T1 SCI_BIO, T2 SCI_CHEM, T3 SCI_ES`.
+   - TLE_ROTATION: `T1 TLE_ICT_EXP, T2 TLE_AFA_EXP, T3 TLE_FCS_EXP`
+     (the alternative AFA→FCS→ICT ordering was explicitly not approved).
+3. Candidate policy (confirmed/rejected per cluster):
+   - Standard academics AP/ENG/ESP/FIL/MAPEH/MATH → CORE/ALL (96).
+   - SCIENCE family → CORE/ROTATING (48) using the approved order.
+   - TLE_ROTATION family → EXPLORATORY/ROTATING (48) using the approved order.
+   - Program-specific SPA/SPS/STE → SPECIALIZATION (16 creates: SPA_SPEC 4,
+     SPS_SPEC 4, STE_APPLIED_CHEM 1, STE_APPLIED_PHYS 1, STE_BIOTECH 1,
+     STE_ENV_SCI 1, STE_RESEARCH G7-9 3, STE_ROBOTICS 1).
+   - DEVL_READING → OTHER/ALL (8); operator: scheduled program-support subject
+     for SPA/SPS G7-10, 225 min/wk, contributes to load and timetable demand.
+   - HG → REJECTED (16); operator: no timetable periods, no demand, no
+     ownership; advisory credit stays 300 min/5h workload policy and is never
+     teaching minutes or timetable capacity; catalog record kept for history.
+4. Classification and applicability bound per row (CORE/SPECIALIZATION/
+   EXPLORATORY/OTHER; ALL or ROTATING_FAMILY_MEMBER + assigned term).
+5. Section/cohort overrides: none requested.
+- Six preserved decisions revalidated against current source revision and kept
+  unchanged: G10 Silver Applied Physics + Robotics SPECIALIZATION (creates),
+  G10 Silver Research excluded (NONE_EXCLUDED), G7-G9 STE Research preserved
+  (SPECIALIZATION creates).
+
+### Preview (read-only, through production route/service) — DONE
+
+- Constructed 216 confirmed offerings (144 CORE / 48 EXPLORATORY / 16
+  SPECIALIZATION / 8 OTHER; 120 ALL-mode + 96 ROTATING_FAMILY_MEMBER) and 17
+  excluded groups (16 HG + 1 G10 STE_RESEARCH). Zero duplicates; rotation
+  families/orders audited (32 rotating scopes, all well-formed, exactly the
+  approved order).
+- Live route parity: `POST /curriculum-requirements/8/requirements/preview`
+  with the 120 ALL-mode rows → 200, fingerprint
+  `CURR_REQ_4D4271CEACE6E2AD1A53F78CD9F86A1379AFD05C60252CA5EBC1E52F94925E6D`,
+  total/new 120, termConfigValid false — byte-identical to a local faithful
+  replication of `computeRequirementFingerprint`. Single-row probe also
+  identical (`CURR_REQ_FED2AFCB…`). The 96 rotating rows are term-gated by the
+  SCA-02 validation contract (ROTATING_FAMILY_MEMBER requires persisted term
+  configuration) and validate in SCA-04B after terms persist; this is designed
+  behavior, not a defect.
+- Fingerprint of the full 216-row proposed set (binds every semantic row,
+  classification, term mode, rotation family/order, term identity):
+  `CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF`.
+- Projected demand 59,400 min/wk (sum over confirmed creates of catalog
+  weeklyMinutes × scope section count), consistent with the SCA-03 cross-check.
+- Rollback: 216 DELETE_BY_IDENTITY (requirements + term assignments); term
+  config delete; published/archived never touched.
+
+### Artifacts
+
+- `docs/verification/subjects-curriculum-active-year-apply-preview-2026-09-09.json`
+  (canonical preview: snapshotKind `OPERATOR_DECISION_APPLY_PREVIEW`,
+  authorizesNoMutation true, scope school 1 / year 8, source revision, term
+  decision, rotation families, before/proposed/excluded counts, classifications,
+  term modes, projected demand + derivation, rollback, fingerprint, excluded
+  groups, all 216 offerings) + `.sha256` sidecar
+  `9DD199F44409DCCEB60BC8CBCD2E6579452D5BA59F176F647F96755468079319`.
+
+### Verification (focused, decisive only) — DONE
+
+- Source-domain stability: re-read after preview shows sourceRevisionHash
+  unchanged, 233 unresolved candidates, 0 requirements, termConfig null →
+  preview unchanged and applicable (no drift).
+- Zero-write: only read-only GETs + read-only preview POSTs; no term PUT, no
+  requirement create/update/retire/apply, no Teaching Load / generation /
+  publication / catalog / section / faculty-authority mutation. Source-domain
+  signature identical before/after.
+- Real-route negative controls (typed, no 500s): cross-year `99999` → 404;
+  duplicate identity in one batch → 409; malformed offering (unknown field) →
+  400; cross-school body `schoolId=2` → 400.
+- No dependencies installed, no builds, no historical suites, no port-5001
+  restart, no server start. Node (built-in crypto) used only for a faithful
+  replication of the production fingerprint verified byte-identical to the live
+  route on two probe sets.
+
+### Task log (SCA-04A)
+
+| Task | Risk | Status | Files | Evidence | Review |
+|---|---|---|---|---|---|
+| 04A.1 runtime identity + decision completeness | MEDIUM | DONE | — | health/context/readiness/decision-candidates probes; 233 unresolved | prompt-boundary batch |
+| 04A.2 operator decisions (5 groups) | HIGH | DONE | preview artifact | interactive answers; nothing inferred | operator-boundary batch |
+| 04A.3 preview build + parity | HIGH | DONE | preview artifact | 216/17 counts; route parity 120-row + single-row; fingerprint match | prompt-boundary batch |
+| 04A.4 stability + zero-write | HIGH | DONE | — | sourceRevisionHash stable; signature identical; 4 typed negative controls | prompt-boundary batch |
+| 04A.5 fingerprint package | HIGH | DONE | preview JSON + .sha256 | `CURR_REQ_2025F58F…85EBF`; sidecar `9DD199F4…79319` | prompt-boundary batch |
+| 04A.6 ledger updates | LOW | DONE | 2 progress ledgers | concise non-duplicative rows | prompt-boundary batch |
+
+### Verdict
+
+`APPROVAL_REQUIRED` (SCA-04B gated on the exact approval sentence from the
+SCA-04A report). No apply, no term write, no Teaching Load, no generation, no
+publication. SCA-04B may apply only the persisted term configuration and the
+216 current-year requirements after the user sends the exact approval
+sentence.

@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-09-09] — SCA-04A Operator Decisions and Apply Preview
+
+### Added
+- Captured the five operator decision groups for active year 2029-2030 (school 1, year 8): 3 terms (`Term 1, Term 2, Term 3`); SCIENCE rotation `T1 SCI_BIO, T2 SCI_CHEM, T3 SCI_ES`; TLE_ROTATION rotation `T1 TLE_ICT_EXP, T2 TLE_AFA_EXP, T3 TLE_FCS_EXP`; clustered candidate confirmations (216 creates / 17 excluded); DEVL_READING OTHER/ALL; HG rejected.
+- Added the zero-write apply preview artifact and sidecar at `docs/verification/subjects-curriculum-active-year-apply-preview-2026-09-09.json` (+ `.sha256`), fingerprint `CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF`.
+- Updated the shared core readiness ledger and the Subjects/Curriculum ledger with concise SCA-04A rows.
+
+### Changed
+- SCA-04A stage moved READY → IN PROGRESS in the shared ledger; SCA-04B remains LOCKED on the exact approval sentence.
+
+### Decisions Made
+- Operator decisions were captured interactively; nothing was inferred from catalog codes, templates, historical year 7, or teacher assignments.
+- Rotating-row preview is term-gated by the SCA-02 validation contract and validates in SCA-04B after terms persist (designed behavior, not a defect).
+- HG is excluded from current-year curriculum requirements and demand; the 300-minute advisory credit is unchanged and never treated as teaching minutes or timetable capacity.
+
+### Open Questions
+- None for SCA-04A; SCA-04B requires the exact approval sentence from this prompt's report.
+
 ## [2026-09-09] — OpenCode Worktree Permissions
 
 ### Added

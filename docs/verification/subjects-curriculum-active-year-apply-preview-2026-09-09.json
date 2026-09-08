@@ -1,0 +1,3170 @@
+{
+  "snapshotKind": "OPERATOR_DECISION_APPLY_PREVIEW",
+  "authorizesNoMutation": true,
+  "created": "2026-09-08T20:21:10.449Z",
+  "scope": {
+    "actorSchoolId": 1,
+    "activeSchoolYearId": 8,
+    "activeSchoolYearLabel": "2029-2030",
+    "applyScope": "curriculum term/configuration apply only"
+  },
+  "sourceRevisionHash": "8B3932BDE1539090D357ECD8FFD8B7861EA5201D08979D9E24C639425E0E740F",
+  "sourceRevisions": {
+    "activeSubjectCount": 22,
+    "activeSectionCount": 20,
+    "annualOwnershipCount": 265,
+    "activeRequirementCount": 0
+  },
+  "termConfiguration": {
+    "operatorDecision": {
+      "termCount": 3,
+      "termIdentities": [
+        "Term 1",
+        "Term 2",
+        "Term 3"
+      ]
+    },
+    "persisted": null,
+    "note": "Terms are operator-decided and will be persisted by SCA-04B before requirement apply. The production preview route rejects ROTATING_FAMILY_MEMBER rows until term configuration is persisted (SCA-02 validation contract); this preview binds the operator-decided term ordering."
+  },
+  "rotationFamilies": {
+    "SCIENCE": {
+      "order": [
+        "SCI_BIO:Term 1",
+        "SCI_CHEM:Term 2",
+        "SCI_ES:Term 3"
+      ]
+    },
+    "TLE_ROTATION": {
+      "order": [
+        "TLE_ICT_EXP:Term 1",
+        "TLE_AFA_EXP:Term 2",
+        "TLE_FCS_EXP:Term 3"
+      ]
+    }
+  },
+  "before": {
+    "termConfig": null,
+    "activeRequirements": 0,
+    "activeOfferingTermAssignments": 0,
+    "sourceVersions": {}
+  },
+  "proposed": {
+    "creates": 216,
+    "updates": 0,
+    "retires": 0,
+    "unchanged": 0,
+    "excluded": 17,
+    "totalCandidates": 233
+  },
+  "classifications": {
+    "CORE": 144,
+    "SPECIALIZATION": 16,
+    "EXPLORATORY": 48,
+    "OTHER": 8
+  },
+  "termModes": {
+    "ALL": 120,
+    "ROTATING_FAMILY_MEMBER": 96
+  },
+  "projectedDemandMinutesPerWeek": 59400,
+  "projectedDemandDerivation": "sum over confirmed CREATE rows of catalog weeklyMinutes x scope section count (source: candidate group sectionCount)",
+  "rollback": {
+    "plan": "DELETE_BY_IDENTITY for each of 216 created requirement rows + their OfferingTermAssignment rows; term configuration DELETE after requirement rollback. Published/archived never mutated."
+  },
+  "fingerprint": {
+    "value": "CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF",
+    "all120AllModeRows": "CURR_REQ_4D4271CEACE6E2AD1A53F78CD9F86A1379AFD05C60252CA5EBC1E52F94925E6D",
+    "verification": "Replication of computeRequirementFingerprint verified byte-identical to live production preview route for the 120 ALL-mode rows (CURR_REQ_4D4271...) and single-row probe (CURR_REQ_FED2AFCB...).",
+    "authorizesNoMutation": true
+  },
+  "excludedGroups": [
+    {
+      "groupKey": "G10:REGULAR:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G10:SPA:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G10:SPS:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G10:STE:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G10:STE:STE_RESEARCH",
+      "reason": "PRESERVED_EXCLUDE",
+      "detail": "G10 Silver Research excluded"
+    },
+    {
+      "groupKey": "G7:REGULAR:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G7:SPA:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G7:SPS:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G7:STE:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G8:REGULAR:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G8:SPA:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G8:SPS:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G8:STE:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G9:REGULAR:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G9:SPA:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G9:SPS:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    },
+    {
+      "groupKey": "G9:STE:HG",
+      "reason": "OPERATOR_REJECT",
+      "detail": "Homeroom Guidance excluded from curriculum demand"
+    }
+  ],
+  "offerings": [
+    {
+      "subjectId": 4,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 10,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 20,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 10,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 21,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 10,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 17,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 18,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 10,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 7,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 20,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 7,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 21,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 7,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 14,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 19,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 7,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 8,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 20,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 8,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 21,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 8,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 15,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 19,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 8,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 9,
+      "programType": "REGULAR",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 20,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 9,
+      "programType": "SPA",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 22,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "OTHER",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 21,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 9,
+      "programType": "SPS",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 4,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 2,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 5,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 1,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 6,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 3,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 8,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    },
+    {
+      "subjectId": 9,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 10,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "CORE",
+      "rotationFamily": "SCIENCE",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 16,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 19,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "SPECIALIZATION",
+      "rotationFamily": null,
+      "rotationOrder": null,
+      "termMode": "ALL",
+      "termIdentities": []
+    },
+    {
+      "subjectId": 12,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 2,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 2"
+      ]
+    },
+    {
+      "subjectId": 13,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 3,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 3"
+      ]
+    },
+    {
+      "subjectId": 11,
+      "gradeLevel": 9,
+      "programType": "STE",
+      "sectionMirrorId": null,
+      "cohortId": null,
+      "weeklyMinutes": 225,
+      "classification": "EXPLORATORY",
+      "rotationFamily": "TLE_ROTATION",
+      "rotationOrder": 1,
+      "termMode": "ROTATING_FAMILY_MEMBER",
+      "termIdentities": [
+        "Term 1"
+      ]
+    }
+  ]
+}

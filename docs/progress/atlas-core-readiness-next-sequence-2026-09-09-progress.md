@@ -8,7 +8,7 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 |---|---|---|
 | RC-02 integration | DONE | `main` and `origin/main` at `4559eb13bbd371dd7945b39128f8c0dcdacd430a`; 499 focused assertions, both type-checks/builds, isolated built-server health passed |
 | RC-02D live deployment | DONE | Planner accepted `396a7275..6d537148`; integrated and pushed through `7d5142c0`. Built server is live on Tailnet port 5001 with rollover automation disabled. |
-| SCA-04A decision preview | READY | RC-02D accepted; operator decisions and zero-write preview are the next action |
+| SCA-04A decision preview | IN PROGRESS | Operator decisions captured 2026-09-09 (terms 3x Term 1/2/3; SCIENCE + TLE_ROTATION rotation orders; 216 creates / 17 excluded); zero-write preview fingerprint written — see SCA-04A ledger rows |
 | SCA-04B curriculum apply | LOCKED | Requires complete decisions, fresh fingerprint, and exact user approval |
 | TL-C02 allocation/rebalance | LOCKED | Requires verified SCA-04B authority |
 | TT-C02 unassigned insertion | LOCKED | Requires verified SCA-04B and canonical TL contract |
@@ -75,6 +75,42 @@ in a fresh isolated executor worktree from current `origin/main`. No generation
 is authorized; generation remains process-locked until SCA-04B establishes
 persisted term configuration (Curriculum Requirements currently reports
 `OFFERING_TERM_CONFIG_MISSING`).
+
+## SCA-04A operator decisions + apply preview (2026-09-09, executor)
+
+- Worktree `D:\ATLAS-worktrees\curriculum-sca04a` (branch
+  `work/curriculum-sca04a`), base HEAD `43c3a83833758fdd4bd947eeba261800de016d55`
+  (origin/main), clean.
+- Live Tailnet: health 200; runtime context school 1 / active year 8
+  (`2029-2030`), drift aligned; decision-candidates 200 with 233 groups all
+  unresolved, `sourceRevisionHash 8B3932BD…E740F`; readiness blocked on
+  `OFFERING_TERM_CONFIG_MISSING`; requirements snapshot 0 rows, termConfig null.
+- Operator decisions (recorded in preview artifact, no inference):
+  1. Terms: 3, ordered `Term 1, Term 2, Term 3` for year 2029-2030.
+  2. Rotation: SCIENCE `T1 SCI_BIO, T2 SCI_CHEM, T3 SCI_ES`;
+     TLE_ROTATION `T1 TLE_ICT_EXP, T2 TLE_AFA_EXP, T3 TLE_FCS_EXP`.
+  3. Candidate policy: CORE/ALL for standard academics (AP, ENG, ESP, FIL,
+     MAPEH, MATH); CORE/ROTATING for SCIENCE; EXPLORATORY/ROTATING for
+     TLE_ROTATION; SPECIALIZATION for program-specific SPA/SPS/STE;
+     OTHER/ALL for DEVL_READING (8); HG rejected (16). Six preserved decisions
+     unchanged (G10 Silver AP/ROB SPECIALIZATION; Silver Research excluded;
+     G7-G9 STE Research preserved).
+- Preview: 216 creates (144 CORE, 48 EXPLORATORY, 16 SPECIALIZATION, 8 OTHER;
+  120 ALL-mode + 96 ROTATING_FAMILY_MEMBER), 17 excluded, 0 updates/retires,
+  projected demand 59,400 min/wk, rollback = 216 DELETE_BY_IDENTITY.
+- Fingerprint: `CURR_REQ_2025F58FF3B49FA527AB9655A4E6D6E7DBAB2ECD4CEFEB580223481D14285EBF`
+  (replication of `computeRequirementFingerprint` verified byte-identical to
+  the live preview route for the 120 ALL-mode subset and single-row probe).
+  Artifact: `docs/verification/subjects-curriculum-active-year-apply-preview-2026-09-09.json`
+  + `.sha256` sidecar `9DD199F4…79319`. Authorizes no mutation.
+- Zero-write: source domain re-read unchanged (sourceRevisionHash stable, 233
+  unresolved, 0 requirements, termConfig null); negative controls typed
+  (cross-year 404, duplicate 409, malformed 400, cross-school 400). Rotating-row
+  preview is term-gated by design (SCA-02 contract) and validates in SCA-04B
+  after terms persist.
+- Verdict: `APPROVAL_REQUIRED` — SCA-04B may proceed only on the exact approval
+  sentence in the SCA-04A report. No apply, no term write, no Teaching Load,
+  no generation, no publish.
 
 ## Planner acceptance — RC-02D
 
