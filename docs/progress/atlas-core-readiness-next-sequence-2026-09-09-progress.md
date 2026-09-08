@@ -112,6 +112,20 @@ persisted term configuration (Curriculum Requirements currently reports
   sentence in the SCA-04A report. No apply, no term write, no Teaching Load,
   no generation, no publish.
 
+## SCA-04A-R staged approval correction (2026-09-09, executor)
+
+Documentation-only authority correction. The combined SCA-04A approval sentence
+(terms + requirements in one apply) is marked `NON_APPLICABLE` in the SCA-04A
+artifact (kept as the zero-write decision record). New Stage 1 artifact
+`docs/verification/subjects-curriculum-stage1-term-config-apply-preview-2026-09-09.json`
+(+ sidecar `8D0CA107…218AEF`, fingerprint
+`CURR_TERMS_2F2AFA2775944DD2E5EE3DA3570484532C2C0AC5A33901E5F892377662EAAEC7`)
+authorizes only the term-configuration create (school 1, year 8, 3 terms Term
+1/2/3, precondition absent) with zero requirement authority. Stage 2 (the 216
+requirements) stays LOCKED; its approval requires a fresh production preview
+route call after Stage 1 applies. No apply, no tests/builds. Verdict:
+`REVIEW_REQUIRED`.
+
 ## Planner acceptance — RC-02D
 
 - Reviewed immutable executor range:

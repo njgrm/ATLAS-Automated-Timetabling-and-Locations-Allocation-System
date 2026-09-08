@@ -1643,3 +1643,36 @@ SCA-04A report). No apply, no term write, no Teaching Load, no generation, no
 publication. SCA-04B may apply only the persisted term configuration and the
 216 current-year requirements after the user sends the exact approval
 sentence.
+
+## SCA-04A-R authority correction — staged approval workflow (2026-09-09, executor)
+
+Prompt: `docs/prompts/` SCA-04A-R (documentation-only authority correction).
+Operator decisions accepted unchanged (3 terms Term 1/2/3; SCIENCE BIO/CHEM/ES;
+TLE_ROTATION ICT/AFA/FCS; 216 confirmed; 16 HG rejected; G10 STE Research
+excluded; DEVL_READING OTHER/ALL). No decision changed.
+
+Correction: the SCA-04A artifact improperly combined term creation and
+requirement application in one approval sentence. SCA-04A-R separates them:
+
+1. `subjects-curriculum-active-year-apply-preview-2026-09-09.json` now carries
+   `approvalStatus: NON_APPLICABLE` with a note pointing to the Stage 1
+   artifact; it remains the zero-write operator-decision record (sidecar
+   recomputed: `29C93563…8E395`).
+2. New `docs/verification/subjects-curriculum-stage1-term-config-apply-preview-2026-09-09.json`
+   (+ `.sha256` sidecar `8D0CA107…218AEF`) authorizes ONLY Stage 1: school 1,
+   year 8/2029-2030, termCount=3, termIdentities ["Term 1","Term 2","Term 3"],
+   precondition persisted term config still absent. Exact request body
+   `PUT /api/v1/curriculum-requirements/8/terms`; rollback = DELETE the single
+   SchoolYearTermConfig row for (1,8), zero term assignments, zero
+   requirements. Fingerprint `CURR_TERMS_2F2AFA2775944DD2E5EE3DA3570484532C2C0AC5A33901E5F892377662EAAEC7`.
+   Zero requirement-creation authority.
+3. Stage 2 remains `LOCKED`. After Stage 1 is approved and applied, the
+   executor must call the real production preview route
+   `POST /api/v1/curriculum-requirements/8/requirements/preview` with all 216
+   rows and capture the persisted term-config id + updatedAt,
+   expectedSourceVersions, the route-returned CURR_REQ fingerprint, a fresh
+   semantic source revision, and produce a new zero-write approval artifact
+   before any requirement apply.
+
+No terms or requirements applied. No broad tests/builds (documentation-only).
+Verdict: `REVIEW_REQUIRED` (never GO).

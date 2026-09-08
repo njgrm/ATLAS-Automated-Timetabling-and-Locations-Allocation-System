@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-09-09] — SCA-04A-R Staged Approval Correction
+
+### Added
+- Marked the combined SCA-04A approval sentence `NON_APPLICABLE`; the SCA-04A artifact is retained as a zero-write decision record.
+- Added a separately fingerprinted Stage 1 term-config preview at `docs/verification/subjects-curriculum-stage1-term-config-apply-preview-2026-09-09.json` (+ sidecar), authorizing only term creation (school 1, year 8, termCount=3, ["Term 1","Term 2","Term 3"], precondition absent) with zero requirement authority.
+- Stage 2 (216 requirements) declared LOCKED pending a fresh production preview route call after Stage 1 applies.
+
+### Changed
+- Approval workflow corrected: term creation and requirement application are no longer combined in a single approval sentence.
+
+### Decisions Made
+- Operator decisions unchanged; only the approval/apply workflow authority is corrected. Documentation-only; nothing applied.
+
+### Open Questions
+- None.
+
 ## [2026-09-09] — SCA-04A Operator Decisions and Apply Preview
 
 ### Added

@@ -1,0 +1,62 @@
+{
+  "snapshotKind": "STAGE1_TERM_CONFIG_APPLY_PREVIEW",
+  "stage": 1,
+  "authorizesNoMutation": true,
+  "approvalWorkflowCorrection": "SCA-04A-R separates term creation (Stage 1) from requirement application (Stage 2). This artifact authorizes ONLY the Stage 1 term-configuration create. No requirement creation authority is granted here.",
+  "scope": {
+    "actorSchoolId": 1,
+    "activeSchoolYearId": 8,
+    "activeSchoolYearLabel": "2029-2030",
+    "applyScope": "term configuration create only"
+  },
+  "precondition": {
+    "statement": "The persisted term configuration for (schoolId=1, schoolYearId=8) must still be absent at apply time. If a term configuration exists, this Stage 1 approval is void and the operator must refresh the decision record.",
+    "verified": {
+      "termConfigPresent": false,
+      "evidence": "GET /api/v1/curriculum-requirements/8/requirements returned termConfig null and 0 requirement rows on 2026-09-09; readiness reported termConfigPresent=false and blocker OFFERING_TERM_CONFIG_MISSING; decision-candidates returned termConfig null with sourceRevisionHash 8B3932BDE1539090D357ECD8FFD8B7861EA5201D08979D9E24C639425E0E740F."
+    }
+  },
+  "requestBody": {
+    "method": "PUT",
+    "path": "/api/v1/curriculum-requirements/8/terms",
+    "body": {
+      "schoolId": 1,
+      "termCount": 3,
+      "termIdentities": [
+        "Term 1",
+        "Term 2",
+        "Term 3"
+      ],
+      "isActive": true
+    }
+  },
+  "expectedBehavior": {
+    "termConfigCreated": true,
+    "resultingTermConfig": {
+      "schoolId": 1,
+      "schoolYearId": 8,
+      "termCount": 3,
+      "termIdentities": [
+        "Term 1",
+        "Term 2",
+        "Term 3"
+      ],
+      "isActive": true
+    }
+  },
+  "requirementsCreatedByThisApproval": 0,
+  "rollback": {
+    "statement": "Rollback of Stage 1 is a DELETE of the single SchoolYearTermConfig row for (schoolId=1, schoolYearId=8) plus no term-assignment rows (none are created by Stage 1) and no requirement rows (none are created by Stage 1).",
+    "exactTarget": "SchoolYearTermConfig where schoolId=1 AND schoolYearId=8"
+  },
+  "fingerprint": {
+    "value": "CURR_TERMS_2F2AFA2775944DD2E5EE3DA3570484532C2C0AC5A33901E5F892377662EAAEC7",
+    "note": "Canonical SHA-256 (CURR_TERMS_ prefix) over the exact Stage 1 binding: actorSchoolId 1, activeSchoolYearId 8, 2029-2030, applyScope term configuration create only, termCount 3, termIdentities [Term 1, Term 2, Term 3], isActive true, precondition term config absent, requirementsCreated 0. Computed with the repository canonical-json facility replication.",
+    "authorizesNoMutation": true
+  },
+  "approvalSentence": "I approve SCA-04A-R Stage 1: create the term configuration for school 1, school year 8 (2029-2030) with termCount=3 and termIdentities [\"Term 1\",\"Term 2\",\"Term 3\"], fingerprint CURR_TERMS_2F2AFA2775944DD2E5EE3DA3570484532C2C0AC5A33901E5F892377662EAAEC7, only if no term configuration is currently persisted for (schoolId=1, schoolYearId=8), and this approval grants term-configuration creation only and creates zero requirements. The byte SHA-256 of this artifact is delivered by its sidecar (.sha256) file.",
+  "stage2Locked": {
+    "state": "LOCKED",
+    "why": "Requirement application (the 216 confirmed requirements) is Stage 2. It is NOT authorized by this artifact. After Stage 1 is approved and applied, the executor must call the real production requirements preview route POST /api/v1/curriculum-requirements/8/requirements/preview with all 216 rows and capture: the persisted term-config id and updatedAt, expectedSourceVersions, the route-returned CURR_REQ fingerprint, a fresh semantic source revision, and produce a new zero-write approval artifact before any requirement apply."
+  }
+}

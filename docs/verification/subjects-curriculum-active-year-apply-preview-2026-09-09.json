@@ -1,6 +1,8 @@
 {
   "snapshotKind": "OPERATOR_DECISION_APPLY_PREVIEW",
   "authorizesNoMutation": true,
+  "approvalStatus": "NON_APPLICABLE",
+  "approvalStatusNote": "The single combined approval sentence in this artifact (terms + 216 requirements in one apply) is NON_APPLICABLE. SCA-04A-R corrected the approval workflow: term creation and requirement application are separated into Stage 1 (terms only) and Stage 2 (requirements, still locked). This artifact remains a zero-write decision record of the operator decisions; it authorizes no mutation. Stage 1 artifact: docs/verification/subjects-curriculum-stage1-term-config-apply-preview-2026-09-09.json.",
   "created": "2026-09-08T20:21:10.449Z",
   "scope": {
     "actorSchoolId": 1,
