@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { 
 	FacultySummary, 
 	Subject, 
@@ -11,12 +11,20 @@ import type {
 	TeachingLoadSplitBrainReconcileResult,
 } from '@/types';
 import { 
-	getFacultyComparableLoadHours, 
 	matchesOwnershipDepartment, 
 	getAssignmentOwnershipKey,
 	buildTeachingLoadProfile,
-	CLASS_ADVISER_EQUIVALENT_HOURS,
+	resolveTeachingActualHours,
+	resolveAdvisoryCreditHours,
+	computeTeachingLoadFacets,
+	applyTeachingLoadFilters,
+	teachingStandardHoursOf,
+	advisoryCreditHoursOf,
+	type EffectiveTeachingPolicy,
+	type TeachingLoadStatusFilter,
+	type TeachingLoadLoadFilter,
 } from '@/lib/faculty-assignment-helpers';
+import type { WorkloadPolicyReadiness } from '@/lib/faculty-teaching-load-cache';
 
 type UseTeachingLoadUIParams = {
 	faculty: FacultySummary[];
@@ -29,6 +37,9 @@ type UseTeachingLoadUIParams = {
 	pendingOwnershipMap: Record<string, any>;
 	activeFacultyIds: Set<number>;
 	sectionMap: Map<number, ExternalSection>;
+	/** Effective school/year workload policy from the summary contract (null when UNCONFIGURED). */
+	workloadPolicy: EffectiveTeachingPolicy | null;
+	workloadPolicyStatus: WorkloadPolicyReadiness;
 };
 
 export function useTeachingLoadUI({
@@ -42,15 +53,18 @@ export function useTeachingLoadUI({
 	pendingOwnershipMap,
 	activeFacultyIds,
 	sectionMap,
+	workloadPolicy,
+	workloadPolicyStatus,
 }: UseTeachingLoadUIParams) {
 	const [searchQuery, setSearchQuery] = useState('');
-	const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
+	const [filterStatus, setFilterStatus] = useState<TeachingLoadStatusFilter>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [subjectSearch, setSubjectSearch] = useState('');
 	const [sectionFilter, setSectionFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
-	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
+	const [loadFilter, setLoadFilter] = useState<TeachingLoadLoadFilter>('all');
+	const [filterAnnouncement, setFilterAnnouncement] = useState('');
 	const [reviewDismissed, setReviewDismissed] = useState(false);
 	const [showTemporaryRoles, setShowTemporaryRoles] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
@@ -82,7 +96,33 @@ export function useTeachingLoadUI({
 		return mapped;
 	}, [subjects]);
 
-	const filteredFaculty = useMemo(() => {
+	// Effective school/year workload policy. No client-side defaults: when the
+	// backend reports UNCONFIGURED, standard-dependent metrics stay unknown and
+	// the UI renders a readiness state instead of inventing 30h/5h.
+	const policyReady = workloadPolicyStatus === 'CONFIGURED' && workloadPolicy != null;
+	const teachingStandardHours = policyReady && workloadPolicy != null
+		? teachingStandardHoursOf(workloadPolicy)
+		: null;
+	const advisoryCreditHours = policyReady && workloadPolicy != null
+		? advisoryCreditHoursOf(workloadPolicy)
+		: 0;
+
+	// Draft-aware actual teaching hours per faculty member (rotation-aware, teaching only).
+	// Computed with the real effective policy when configured; when UNCONFIGURED
+	// the map stays empty and filters fall back to saved row actuals.
+	const effectiveActualHours = useMemo(() => {
+		const map = new Map<number, number>();
+		if (!policyReady || workloadPolicy == null) return map;
+		for (const member of faculty) {
+			if (member.isPlaceholder) continue;
+			const assignments = effectiveAssignmentsByFaculty[member.id] ?? [];
+			const profile = buildTeachingLoadProfile(assignments, subjects, sectionMap, 0, workloadPolicy, member.maxHoursPerWeek);
+			map.set(member.id, profile.actualTeachingHours);
+		}
+		return map;
+	}, [faculty, effectiveAssignmentsByFaculty, subjects, sectionMap, policyReady, workloadPolicy]);
+
+	const searchBaseFaculty = useMemo(() => {
 		let nextFaculty = faculty;
 		if (!showTemporaryRoles) {
 			nextFaculty = nextFaculty.filter((member) => !member.isPlaceholder);
@@ -96,13 +136,85 @@ export function useTeachingLoadUI({
 					|| (member.department ?? '').toLowerCase().includes(normalizedQuery),
 			);
 		}
-		if (filterStatus === 'assigned') {
-			nextFaculty = nextFaculty.filter((member) => (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0);
-		} else if (filterStatus === 'unassigned') {
-			nextFaculty = nextFaculty.filter((member) => (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) === 0);
-		}
+		return nextFaculty;
+	}, [faculty, showTemporaryRoles, searchQuery]);
+
+	// Contextual facet counts: status counts respect the department selection,
+	// department counts respect the status/load selections.
+	const facetCounts = useMemo(() => {
+		return computeTeachingLoadFacets(
+			searchBaseFaculty,
+			{ department: departmentFilter, status: filterStatus, load: loadFilter },
+			effectiveActualHours,
+			teachingStandardHours,
+		);
+	}, [searchBaseFaculty, departmentFilter, filterStatus, loadFilter, effectiveActualHours, teachingStandardHours]);
+
+	const departmentFacetOptions = useMemo(() => {
+		// Server-supplied canonical labels verbatim: a custom persisted label
+		// changes this UI with no client rebuild. Never re-map through the
+		// static client glossary here.
+		return facetCounts.departmentCounts.map((entry) => ({
+			value: entry.value,
+			label: entry.label,
+			count: entry.count,
+		}));
+	}, [facetCounts]);
+
+	// If a prior selection becomes impossible after another filter changes,
+	// reset it to All with an accessible announcement.
+	useEffect(() => {
 		if (departmentFilter !== 'all') {
-			nextFaculty = nextFaculty.filter((member) => member.department === departmentFilter);
+			const option = departmentFacetOptions.find((entry) => entry.value === departmentFilter);
+			if (!option || option.count === 0) {
+				setDepartmentFilter('all');
+				setFilterAnnouncement('Department filter was reset to All departments because the previous selection has no matching teachers.');
+			}
+		}
+	}, [departmentFacetOptions, departmentFilter]);
+	useEffect(() => {
+		const statusKey = filterStatus === 'teaching-assigned'
+			? 'teaching-assigned'
+			: filterStatus === 'no-teaching'
+				? 'no-teaching'
+				: filterStatus === 'adviser-only'
+					? 'adviser-only'
+					: null;
+		if (statusKey && facetCounts.statusCounts[statusKey] === 0) {
+			setFilterStatus('all');
+			setFilterAnnouncement('Status filter was reset to All because the previous selection has no matching teachers.');
+		}
+	}, [facetCounts, filterStatus]);
+	useEffect(() => {
+		if (loadFilter !== 'all' && (teachingStandardHours == null || facetCounts.loadCounts[loadFilter] === 0)) {
+			setLoadFilter('all');
+			setFilterAnnouncement(
+				teachingStandardHours == null
+					? 'Load filter was reset to All because the teaching standard is not configured for this school year.'
+					: 'Load filter was reset to All because the previous selection has no matching teachers.',
+			);
+		}
+	}, [facetCounts, loadFilter, teachingStandardHours]);
+
+	const clearTeachingLoadFilters = useCallback(() => {
+		setSearchQuery('');
+		setFilterStatus('all');
+		setDepartmentFilter('all');
+		setLoadFilter('all');
+		setShowUnmappedSpecialization(false);
+		setFilterAnnouncement('All Teaching Load filters were cleared.');
+	}, []);
+
+	const filteredFaculty = useMemo(() => {
+		// Shared pure filter: displayed counts and resulting rows match exactly.
+		let nextFaculty = applyTeachingLoadFilters(
+			searchBaseFaculty,
+			{ department: departmentFilter, status: filterStatus, load: loadFilter },
+			effectiveActualHours,
+			teachingStandardHours,
+		);
+		if (loadFilter !== 'all') {
+			nextFaculty = nextFaculty.filter((member) => !member.isPlaceholder);
 		}
 		if (showUnmappedSpecialization) {
 			nextFaculty = nextFaculty.filter((member) => {
@@ -112,20 +224,9 @@ export function useTeachingLoadUI({
 			});
 		}
 
-		nextFaculty = nextFaculty.filter((member) => {
-			if (member.isPlaceholder) {
-				return showTemporaryRoles && loadFilter === 'all';
-			}
-			const load = getFacultyComparableLoadHours(member);
-			if (loadFilter === 'overloaded') return load > 30;
-			if (loadFilter === 'optimal') return load >= 25 && load <= 30;
-			if (loadFilter === 'underloaded') return load < 25;
-			return true;
-		});
-
 		nextFaculty = [...nextFaculty].sort((left, right) => {
-			const leftLoad = getFacultyComparableLoadHours(left);
-			const rightLoad = getFacultyComparableLoadHours(right);
+			const leftLoad = resolveTeachingActualHours(left, effectiveActualHours);
+			const rightLoad = resolveTeachingActualHours(right, effectiveActualHours);
 			if (sortOrder === 'load-asc') {
 				if (leftLoad !== rightLoad) return leftLoad - rightLoad;
 			} else if (leftLoad !== rightLoad) {
@@ -135,19 +236,27 @@ export function useTeachingLoadUI({
 		});
 
 		return nextFaculty;
-	}, [faculty, showTemporaryRoles, searchQuery, filterStatus, departmentFilter, effectiveAssignmentsByFaculty, loadFilter, sortOrder]);
+	}, [searchBaseFaculty, filterStatus, departmentFilter, loadFilter, effectiveActualHours, teachingStandardHours, showTemporaryRoles, showUnmappedSpecialization, mappedSpecializations, sortOrder]);
 
 	const groupedFaculty = useMemo(() => {
-		const grouped = new Map<string, FacultySummary[]>();
+		const grouped = new Map<string, { label: string; members: FacultySummary[] }>();
 		for (const member of filteredFaculty) {
-			const department = member.isPlaceholder
-				? 'UNSTAFFED TEMPORARY ROLES'
-				: member.department?.trim() || 'UNASSIGNED DEPARTMENT';
-			const bucket = grouped.get(department) ?? [];
-			bucket.push(member);
-			grouped.set(department, bucket);
+			if (member.isPlaceholder) {
+				const bucket = grouped.get('UNSTAFFED TEMPORARY ROLES') ?? { label: 'UNSTAFFED TEMPORARY ROLES', members: [] };
+				bucket.members.push(member);
+				grouped.set('UNSTAFFED TEMPORARY ROLES', bucket);
+				continue;
+			}
+			// Server-supplied canonical identity groups the grid; unknown maps group under Unmapped.
+			const code = member.departmentCode && member.departmentCode.trim() ? member.departmentCode.trim() : 'UNMAPPED';
+			const label = code === 'UNMAPPED' ? 'Unmapped' : (member.departmentLabel?.trim() || member.department?.trim() || code);
+			const bucket = grouped.get(code) ?? { label, members: [] };
+			bucket.members.push(member);
+			grouped.set(code, bucket);
 		}
-		return Array.from(grouped.entries()).sort(([left], [right]) => left.localeCompare(right));
+		return Array.from(grouped.values())
+			.map((entry) => [entry.label, entry.members] as [string, FacultySummary[]])
+			.sort(([left], [right]) => left.localeCompare(right));
 	}, [filteredFaculty]);
 
 	const { departmentQualifiedSubjects, outsideDepartmentSubjects } = useMemo(() => {
@@ -182,19 +291,21 @@ export function useTeachingLoadUI({
 	}, [selected, subjects]);
 
 	const loadProfile = useMemo(() => {
+		// No effective policy → no invented load profile. The inspector renders
+		// the typed readiness state instead.
+		if (!policyReady || workloadPolicy == null || selected == null) return null;
+		// Advisory authority is the effective policy for valid advisers only.
+		const advisoryHours = selected.isClassAdviser ? resolveAdvisoryCreditHours(selected, workloadPolicy) : 0;
 		const profile = buildTeachingLoadProfile(
 			currentAssignments,
 			subjects,
 			sectionMap,
-			(selected?.isClassAdviser
-				? selected.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS
-				: 0) + ((selected?.ancillaryMinutesPerWeek || 0) / 60),
+			advisoryHours + ((selected.ancillaryMinutesPerWeek || 0) / 60),
+			workloadPolicy,
+			selected.maxHoursPerWeek,
 		);
-		return {
-			...profile,
-			remainingHours: Math.round(((selected?.maxHoursPerWeek || 0) - profile.creditedTotalHours) * 10) / 10,
-		};
-	}, [currentAssignments, sectionMap, selected, subjects]);
+		return profile;
+	}, [currentAssignments, sectionMap, selected, subjects, policyReady, workloadPolicy]);
 
 	const departmentStats = useMemo(() => {
 		const statsMap = new Map<string, { total: number; assigned: number }>();
@@ -275,5 +386,16 @@ export function useTeachingLoadUI({
 		loadProfile,
 		departmentStats,
 		jumpListItems,
+		effectiveActualHours,
+		departmentFacetOptions,
+		statusFacetCounts: facetCounts.statusCounts,
+		loadFacetCounts: facetCounts.loadCounts,
+		filterAnnouncement,
+		clearTeachingLoadFilters,
+		policyReady,
+		teachingStandardHours,
+		advisoryCreditHours,
+		workloadPolicy,
+		workloadPolicyStatus,
 	};
 }

@@ -1117,3 +1117,409 @@ readiness termConfigPresent False, per no-invented-endpoints rule.
 | 03D.6 API | HIGH | DONE | 12/12 probes; signature identical; login-only effects | prompt-boundary batch |
 | 03D.7 browser | MEDIUM | DONE | heading/missing-state/gating proof + 2 screenshots | prompt-boundary batch |
 | 03D.8 advisory | MEDIUM | PENDING | — | fresh context required |
+
+## SCA-03E operator decision workspace (2026-09-08, executor — fresh session)
+
+Scope: operator-facing decision workspace reconstructing SCA-03 candidate
+groups DYNAMICALLY from current subjects + active sections + annual
+ownership evidence. Draft-only: client-side draft, read-only preview
+computation, export/restore without persisting. STOP before batch-apply.
+SCA-04 stays LOCKED. No curriculum/Teaching Load/generation/publication/
+schema/migration/external-subsystem mutation. No port-5001 restart (planner
+manifest explicitly forbids deployment/restart; 03E.5 takes the
+verify-current-PID branch).
+
+### TODO (SCA-03E — separate entries, not collapsed)
+
+- [x] 03E.0 preflight (pins, HEAD, DB name, runtime health, no-mutation pledge) — DONE
+- [x] 03E.1 dynamic candidate reconstruction service + read-only route (MEDIUM) — DONE
+- [x] 03E.2 term-draft editor + workspace UI, 10 capabilities, apply unwired (MEDIUM) — DONE
+- [x] 03E.3 focused tests (truth + negative) + builds + ephemeral-port proof (MEDIUM) — DONE
+- [x] 03E.4 Tailnet current-PID verify + zero-mutation signature (LOW) — DONE
+- [ ] 03E.5 advisory review (fresh context) — REVIEW_BLOCKED (no spawn operation
+  exposed in this execution environment; executor diff review + targeted gates
+  substituted; formal planner/QA review still required before SCA-04)
+
+### 03E.0 preflight evidence (executor, read-only)
+
+- Manifest recomputed `70FEEBDA93C5BCEBCD3C28347CF1B798FC781C583681423160E478A091574B5C` == pinned GO.
+- HEAD `f4ec1e76`, worktree clean (`git status --short` empty).
+- Port 5001 single listener PID 50192; `GET /api/v1/health` 200 (localhost).
+- DB candidate name (only): `localhost:5432 / atlas_recovery_clean_rebuild_20260905`.
+- Six decisions extracted verbatim from superseded audit artifact (reference
+  only, never a data source): (STE_RESEARCH,7/8/9,STE,CREATE,SPECIALIZATION),
+  (STE_APPLIED_PHYS,10,STE,CREATE,SPECIALIZATION),
+  (STE_ROBOTICS,10,STE,CREATE,SPECIALIZATION),
+  (STE_RESEARCH,10,STE,NONE_EXCLUDED,SPECIALIZATION-context).
+- No-mutation pledge: SELECT/COUNT + GET readiness/requirements/suggestions/
+  subjects/sections + POST preview (read-only) only; login permitted.
+- Route inventory: `GET decision-candidates` is the single new read-only
+  endpoint; existing `POST preview` reused read-only; apply route unwired
+  from workspace; PUT terms never called by workspace (term config is
+  draft-local only).
+
+### Task log (SCA-03E)
+
+| Task | Risk | Status | Files | Evidence | Review |
+|---|---|---|---|---|---|
+| 03E.0 preflight | LOW | DONE | this ledger | pins/HEAD/PID/health above | prompt-boundary batch |
+| 03E.1 reconstruction service + route + truth test | MEDIUM | DONE | `curriculum-decision-candidates.service.ts` (new), `curriculum-requirements.router.ts` (+GET decision-candidates), `curriculum-decision-candidates.test.ts` (new) | server tsc clean; 64/64 (E1–E6: dynamic 14 groups, six exact, third-specialization allowed, owned-incompatible excluded, zero-write, route 200/401/404, unmatched-6 reported, residue 0) | prompt-boundary batch |
+| 03E.2 term-draft editor + workspace UI, 10 capabilities, apply unwired | MEDIUM | DONE | `DecisionWorkspace.tsx` (new), `decision-draft.ts` (new), `decision-workspace/` 4 components (new), `App.tsx` (+route), `CurriculumRequirements.tsx` (+nav link) | 10/10 capabilities verified in source: draft terms operator-entered; grade/program/subject grouping + filters; per-row confirm/reject; bulk select + single classify (locked skip); rotation gated on explicit selection + draft terms; sections + demand + formula tooltips; six locked vs bulk; read-only preview + fingerprint via POST preview only; client-side export/restore; no apply/PUT wiring (grep-clean) | prompt-boundary batch |
+| 03E.3 focused verification (fresh session) | MEDIUM | DONE | — | decision-candidates 64/64 (E1–E6) · decision-draft 29/29 (D1–D5) · server tsc clean · server build pass · client tsc clean · client build pass (DecisionWorkspace chunk present) · `git diff --check` clean · native-select/apply/PUT/defaulted-term grep-clean (sole `[1,2,3]` hit is a disavowing comment) · negative controls: unauth 401, cross-school isolation, mirror-less 404/YEAR_NOT_FOUND, unmatched-6 reported-never-fabricated, third-specialization allowed, strict draft-restore rejects | prompt-boundary batch |
+| 03E.4 Tailnet current-PID verify + signature (fresh session) | LOW | DONE | — | Tailnet health 200 · officer login 200 (role officer, school 1) · `GET decision-candidates` 200: 233 groups, 6 PRE_RESOLVED_SPECIALIZATION locked (exact six codes/grades/actions), 227 UNRESOLVED, unmatched empty · unauth 401 · demand formula live (`225 min/wk (catalog) x 2 section(s) = 450 min/wk`) · pre/post DB signature identical `1/44/22/20/88/265/POPULATED-v4/0/0/0/0/0` (login-audit effects only) | prompt-boundary batch |
+| 03E.5 advisory review | MEDIUM | REVIEW_BLOCKED | — | No reviewer-spawn operation exists in this execution environment (tool set: read/edit/write/grep/glob/bash/web only; no subagent spawn). No spawn ID captured, none relayed, none repeated. Executor performed diff review + full targeted-gate rerun instead. Formal planner/QA review required; SCA-04 stays LOCKED regardless. | — |
+
+### Fresh-session verification note (2026-09-08, executor — read-only, no edits to product source)
+
+- Manifest recomputed `70FEEBDA93C5BCEBCD3C28347CF1B798FC781C583681423160E478A091574B5C` == pinned GO.
+- HEAD `f4ec1e76`; worktree NOT clean on arrival (pre-existing other-stream
+  modifications + untracked 03E files + `letter-for-facebook-page.docx`
+  preserved untouched; this session added zero worktree modifications —
+  verification only, plus this ledger's own 03E rows).
+- Port-5001 PID OBSERVED as 21128 (single listener, health 200), NOT the
+  SCA-03D PID 50192: the runtime was restarted outside this session by an
+  unknown operator/process. This executor performed no restart (planner
+  manifest forbids deployment/restart). Live `decision-candidates` 200
+  proves the SCA-02 route set is deployed in the current runtime.
+- Predecessor truth re-proven read-only before and after all probes:
+  subjects 22, sections 20, ownerships 265 POPULATED, termConfigs 0,
+  requirements 0 (full 12-field signature above; identical pre/post).
+- 03E tracked diff remains +26 lines (router GET, App route, requirements
+  nav link); untracked 03E set: 1 service + 1 page + 1 lib + 4 components
+  (all <1000 lines; ESM `.js` imports in service; SMART tokens, no-scroll
+  arch, Inline Stat Banner, DepEd grade-only badges, shadcn/ui + motion).
+- Test files live under the pre-existing gitignored `**/__tests__/` rule
+  (stream convention); a future authorized packaging step must force-add
+  `atlas-server/src/__tests__/curriculum-decision-candidates.test.ts` and
+  `atlas-client/src/lib/__tests__/decision-draft.test.ts` (NOT run here).
+- Stop-eligibility: zero SAFE_TO_CONTINUE tasks remain in SCA-03E scope;
+  single EXTERNALLY_BLOCKED item is 03E.5 advisory identity (no spawn op).
+  Verdict returned: DECISION_READY (workspace complete, mutation-free);
+  NOT approval to apply. SCA-04 stays LOCKED.
+
+## SCA-03E-R authority closure (2026-09-08, fresh executor session)
+
+Prompt: `docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md`
+Manifest: `docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json`
+
+### Preflight (03E-R.0) — DONE
+
+- Pins verified before any edit: prompt SHA-256 `011055A6…9F2A` == manifest
+  `promptSha256` GO; manifest SHA-256 `4DDF2058…8BD` == `.sha256` sidecar GO.
+- HEAD `f4ec1e76`; dirty inventory captured verbatim (Teaching Load,
+  timetable, dashboard/evaluator M-hunks + untracked SCA-03E files + docs +
+  tmp/ + two stray docs). All pre-existing; nothing stashed/committed/reset.
+- DB target (name only): `localhost:5432 / atlas_recovery_clean_rebuild_20260905`.
+- Port-5001 single listener PID `21944` (`node dist/server.js`, started
+  2026-09-08 21:44:46 — runtime restarted outside this session again; no
+  restart by this executor). Health 200; curriculum route set live
+  (`decision-candidates` reachable, read-only).
+- Attribution: my changed files are entirely SCA-03E-R (see task log). The
+  `curriculum-requirements.router.ts` +18 hunk and `App.tsx`/
+  `CurriculumRequirements.tsx` M-hunks are pre-existing SCA-03E carryover
+  (untouched by this pass — router still calls the same
+  `getDecisionCandidates(schoolId, schoolYearId)` signature).
+- No-mutation pledge honored: only disposable-school writes in the server
+  test (schools 99960/99961, exact cleanup, residue 0 proven); school 1 /
+  terms / requirements / Teaching Load / generation / publication untouched.
+
+### TODO (SCA-03E-R)
+
+- [x] 03E-R.0 preflight + attribution + ledger rows — DONE
+- [x] 03E-R.1 remove code-owned decisions — DONE
+- [x] 03E-R.2 explicit validated draft restore + bulk coverage, no hidden authority — DONE
+- [x] 03E-R.3 focused authority/lifecycle tests incl. negative-control fixture — DONE
+- [x] 03E-R.4 focused gates + live read-only census (zero-write signature) — DONE
+- [x] 03E-R.5 ledger reconcile + advisory review — DONE (see below)
+
+### Authority change (03E-R.1)
+
+`curriculum-decision-candidates.service.ts` no longer contains
+`ESTABLISHED_SPECIALIZATION_DECISIONS` or any code that converts a
+subject/grade/program match into a pre-resolved/locked/classified row. Every
+reconstructed group is `UNAPPROVED_SUGGESTION` with `decisionStatus`
+UNAPPROVED, termMode ALL `UNAPPROVED_SUGGESTION`, unresolvedFields
+(classification / operatorConfirmReject / rotation), ownership
+`SUGGESTION_ONLY`. Result no longer ships `establishedDecisions`,
+`unmatchedEstablishedDecisions`, or a `preResolved` counter; counts are
+`{ total, unresolved }` (unresolved == total always). No subject code, grade,
+program, count, classification, action, or term identity receives authority
+from code. The route (`GET …/decision-candidates`, unchanged signature) and
+its read-only contract are preserved.
+
+### Operator efficiency without hidden authority (03E-R.2)
+
+- Draft is client-side and non-persisting. Prior operator choices enter ONLY
+  through explicit Restore/Import. `decision-draft.ts` v2 envelope binds
+  `schoolId`, `schoolYearId`, and a `sourceRevision`
+  (subject/section/ownership/requirement counts + subjects/ownerships
+  updatedAt maxima) captured from the decision-candidates payload at export.
+- `restoreDraftText` is fail-closed: duplicate row key in the file, wrong
+  school, wrong year, stale source revision, malformed JSON/format/version,
+  unknown row, malformed row, or unknown enum all throw visible errors and
+  apply nothing. `restoreDraft` validates schema/scope/source-revision/rows
+  against the CURRENT candidate set.
+- Bulk actions (`applyBulkDecision`) apply to EVERY selected row (no
+  code-lock skip) and return `{ applied, skipped }`; the page reports both
+  counts via toast, so no row is skipped silently.
+- No apply route and no term PUT are reachable from the workspace; preview is
+  the read-only `POST …/requirements/preview` endpoint only.
+
+### Evidence (03E-R.3/03E-R.4)
+
+- Server `npx tsx --env-file=.env src/__tests__/curriculum-decision-candidates.test.ts`:
+  **43 passed / 0 failed**, exit 0. Covers zero-code-authority (R2), no
+  pre-resolved/unmatched fields, same codes under another school/year inherit
+  NO decision (R5, SCHOOL_B fixture), ownership SUGGESTION_ONLY everywhere
+  (R3), third AND fourth specialization representable and unapproved (R4),
+  zero-write signature + route 200/401/404/YEAR_NOT_FOUND (R6), and a
+  negative-control fixture `forbiddenCodeMatchRegression` that fails if a
+  code-matched row is ever auto-pre-resolved again. Residue 0.
+- Client `npx tsx src/lib/__tests__/decision-draft.test.ts`:
+  **32 passed / 0 failed**, exit 0. Covers D1 defaults (special codes
+  UNDECIDED), D4 bulk-applies-every-row + skipped reporting, D5 explicit
+  draft restore reproduces the six operator choices (AP/ROB/Research
+  G7-G9 CREATE SPECIALIZATION + Silver Research REJECT) with zero server
+  constant and zero DB write, D6 fail-closed restore (school/year/source
+  revision/malformed/unknown/duplicate/partial), D7 no apply/PUT surface.
+- Client `npx tsc --noEmit` clean (exit 0). Server `npx tsc --noEmit` clean
+  (exit 0). Client `npm run build` pass (2.86s). `git diff --check` clean
+  (exit 0). No unrelated concurrent-stream compile errors observed.
+- Live read-only census (inline tsx probe, no helper file): schools 1 · auth
+  44 · subjects(s1) 22 · sections(y8) 20 · facultySubject(y8) 88 · ownership
+  (y8) 265 · termConfigs(s1) 0 · active offerings 0 · termAssignments 0 ·
+  runs 0 · revisions 0 · cycle POPULATED updatedAt
+  `2026-09-07T00:23:47.205Z` — byte-identical to the SCA-03D reference
+  signature → zero curriculum/term/Teaching Load/generation/publication
+  writes. Test disposable fixtures cleaned (residue 0); permitted login
+  audit effects are the only permitted write class and none were triggered by
+  this session (no login performed).
+- Runtime freshness: port-5001 serves the SCA-02/03E route set (PID 21944)
+  but is STALE relative to this correction (built before 03E-R). Browser/UI
+  proof of the corrected workspace is therefore `PENDING_DEPLOY`; source
+  acceptance is not weakened. No deployment in this prompt.
+
+### Task log (SCA-03E-R)
+
+| Task | Risk | Status | Files | Evidence | Review |
+|---|---|---|---|---|---|
+| 03E-R.0 preflight | LOW | DONE | this ledger | pins/HEAD/dirty/DB/PID/route above | prompt-boundary batch |
+| 03E-R.1 remove code authority | MEDIUM | DONE | `curriculum-decision-candidates.service.ts` | no decision const; 43/43 server test R2 | prompt-boundary batch |
+| 03E-R.2 explicit restore + bulk | MEDIUM | DONE | `decision-draft.ts`, `DecisionWorkspace.tsx`, `decision-workspace/*` | 32/32 client test D4-D6 | prompt-boundary batch |
+| 03E-R.3 tests + negative control | MEDIUM | DONE | both test files | 43/43 + 32/32; mutant fixture | prompt-boundary batch |
+| 03E-R.4 focused gates + census | MEDIUM | DONE | — | tsc×2, build, diff-check, census | prompt-boundary batch |
+| 03E-R.5 ledger + advisory review | MEDIUM | DONE | this ledger + review artifact | artifact `sca-03e-r-advisory-review-01.md` | fresh reviewer |
+
+### Exact changed files (SCA-03E-R, executor)
+
+- `atlas-server/src/services/curriculum-decision-candidates.service.ts`
+  (rewritten: decision constant + pre-resolved machinery removed)
+- `atlas-client/src/lib/decision-draft.ts` (v2 fail-closed draft)
+- `atlas-client/src/pages/DecisionWorkspace.tsx`
+- `atlas-client/src/components/decision-workspace/CandidateRow.tsx`
+- `atlas-client/src/components/decision-workspace/CandidateTable.tsx`
+- `atlas-client/src/components/decision-workspace/DraftPreviewPanel.tsx`
+- `atlas-server/src/__tests__/curriculum-decision-candidates.test.ts`
+- `atlas-client/src/lib/__tests__/decision-draft.test.ts`
+- this ledger (SCA-03E-R rows only)
+No edit to `App.tsx`, `CurriculumRequirements.tsx`, the router logic, Teaching
+Load, timetable, dashboard/evaluator, generation, schema/migrations, auth,
+`.env`, or companion repos. Test files are under the pre-existing
+`**/__tests__/` ignore rule; future authorized packaging must force-add the
+two test paths (NOT run here).
+
+### Advisory review (03E-R.5)
+
+Reviewer context: fresh reviewer spawned via the Task tool; spawn ID
+`ses_f7e4cb1e7ffeU8aix81K8kMtPG` captured from the spawn return envelope,
+relayed to the reviewer in the resumed session, and repeated verbatim in the
+artifact (header line 3 + body). Artifact:
+`docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03e-r-advisory-review-01.md`.
+First pass verdict `zeroFix: false` with one material process finding P-1
+(`git diff --check` exited 2 due to a trailing blank line this ledger append
+introduced) plus informational P-2 (port-5001 is a `tsx watch` child that
+auto-respawned after the last source write, so no forbidden manual restart
+occurred; runtime may already reflect the corrected source). P-1 fixed
+(trailing blank line removed; `git diff --check` re-exits 0); changed-scope
+re-review in the same reviewer session (spawn ID relayed pre-artifact)
+verdict `zeroFix: true` — all code/test/boundary findings already zero, the
+only change is the ledger whitespace fix, test diffs unchanged so prior
+43/43 + 32/32 reused. Advisory only: no formal GO, no SCA-04 unlock. SCA-04
+stays LOCKED; this prompt authorizes no apply, no term write, no Teaching
+Load/generation/publication/schema mutation, and no deployment.
+## SCA-03E-R2 semantic source-revision closure (2026-09-08, same executor session)
+
+Prompt: `docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md`
+Manifest: `docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json`
+
+### Preflight (03E-R2.0) — DONE
+
+- Pins verified before any edit: prompt SHA-256 `DA17ADF5…9B` == manifest
+  `promptSha256` GO; manifest SHA-256 `A0EAFFAB…03` == `.sha256` sidecar GO.
+- SCA-03E-R constant removal re-verified intact: repo grep for
+  `ESTABLISHED_SPECIALIZATION_DECISIONS|PRE_RESOLVED_SPECIALIZATION|
+  preResolved|establishedDecisions|lockedEstablishedDecision` → zero matches.
+- HEAD `f4ec1e76`; dirty worktree inventory preserved verbatim (Teaching
+  Load, timetable, dashboard/evaluator hunks + untracked SCA files + tests +
+  docs). No stash/commit/reset; no unrelated hunk touched.
+- DB target (name only): `localhost:5432 / atlas_recovery_clean_rebuild_20260905`.
+- Listener PID 21944 (`tsx watch` child) observed, health 200; no restart by
+  this executor (forbidden). Route set live read-only.
+- Read-only live census (pre = SCA-03D reference): `1/44/22/20/88/265/
+  POPULATED(0.205Z)/0/0/0/0/0` — see post below.
+
+### Tasks (03E-R2.1–03E-R2.5) — DONE
+
+- **03E-R2.1** `curriculum-decision-candidates.service.ts` now returns a
+  server-owned `sourceRevisionHash` = `canonicalHash()` (existing
+  `lib/canonical-json.js`, no duplicated hash logic) over a deterministic
+  domain containing school + school-year identity and stably ordered
+  (by id / by offeringId+termIdentity) semantic rows: subject identity/code/
+  name/active/grade+program scopes/minutes/rotation+modular+term metadata;
+  section identity/external/name/grade/program fields/active+stale/version/
+  updatedAt; ownership identity/subject/section/faculty/facultySubject/
+  updatedAt; term-config id/count/ordered identities/active/updatedAt;
+  active persisted requirement identity + applicability/classification/
+  minutes/rotation/version; requirement term assignments in deterministic
+  order. Reads are 6 batched findMany/findUnique + buildExpectedScopes
+  (query-shape proof: 8 queries for 14 groups, bound 4..14). Counts and max
+  timestamps remain diagnostic (`sourceRevisions`) only — never the gate.
+- **03E-R2.2** `decision-draft.ts` envelope versioned forward to **v3** and
+  binds `schoolId + schoolYearId + sourceRevisionHash` only. Restore rejects
+  absent/null/blank/wrong-type/mismatched hash, unknown top-level/source-
+  revision/term-draft/row fields, unknown rows, unknown enums, malformed
+  rotation, duplicate JSON keys (new per-object duplicate scanner run BEFORE
+  `JSON.parse`, string values never mistaken for keys), and any scope or
+  revision mismatch. All validation completes before any state is applied —
+  a failure leaves the current UI draft unchanged and surfaces one actionable
+  error. `DraftPreviewPanel`/`DecisionWorkspace` pass the exact hash and show
+  a short `Source rev <8-char>` identifier with an explanation that source
+  changes invalidate saved drafts.
+- **03E-R2.3** Negative controls (RED/GREEN) — see evidence.
+- **03E-R2.4** Bulk/preview/export/restore preserved; zero-write census
+  identical before/after; Tailnet rendered proof `PENDING_DEPLOY` (watcher
+  may already serve corrected source; no restart performed).
+- **03E-R2.5** Ledger + fresh advisory review below.
+
+### Evidence (RED/GREEN + gates)
+
+- Client `decision-draft.test.ts` **35 passed / 0 failed**, exit 0 (D1–D7:
+  defaults, compile, bulk coverage+skipped, v3 six-choice restore
+  reproduction, fail-closed hash/unknown-field/duplicate/legacy-v2 cases,
+  no false duplicate on string values, no apply/PUT surface).
+- Server `curriculum-decision-candidates.test.ts` **59 passed / 0 failed**,
+  exit 0. R7 same-count hash invalidation (RED evidence, each mutation flips
+  the hash while counts stay equal): #1 section name (old count/timestamp
+  gate proven UNCHANGED → mutant that falls back to count/max-timestamp
+  equality fails the suite), #2 ownership faculty association, #3 subject
+  minutes, #4 term config create + identity ORDER swap, #5 requirement
+  classification, #6 term assignment replacement, #7 delete-and-recreate
+  equal counts, #8 cross-school AND cross-year substitution. Equivalent
+  reordered read hashes identically (stable across repeated calls). No
+  code-matched subject gains authority after any mutation. Query-shape gate:
+  **8 queries for 14 groups** (per-row would be ≥14). Zero residue.
+- Server `tsc --noEmit` exit 0; client `tsc --noEmit` exit 0; client
+  `npm run build` pass (3.20s); `git diff --check` exit 0.
+- Live census AFTER: identical `1/44/22/20/88/265/POPULATED(0.205Z)/0/0/0/0/0`
+  → zero term/requirement/assignment/ownership/Teaching Load/run/publication
+  writes. No login performed.
+
+### Changed files (executor, SCA-03E-R2 scope only)
+
+- `atlas-server/src/services/curriculum-decision-candidates.service.ts`
+- `atlas-server/src/__tests__/curriculum-decision-candidates.test.ts`
+- `atlas-client/src/lib/decision-draft.ts`
+- `atlas-client/src/lib/__tests__/decision-draft.test.ts`
+- `atlas-client/src/pages/DecisionWorkspace.tsx`
+- `atlas-client/src/components/decision-workspace/DraftPreviewPanel.tsx`
+- this ledger (SCA-03E-R2 rows)
+
+No router change required (service signature unchanged); no `App.tsx`/
+`CurriculumRequirements.tsx`/TL/TT/EVAL/schema/migration/auth/`.env`/
+companion edits.
+
+### Advisory review (03E-R2.5)
+
+Reviewer context: fresh reviewer spawned via the Task tool; spawn ID
+`ses_f7e296099ffeUVD2s2UDBOskRN` captured from the spawn return envelope,
+relayed to the reviewer in the resumed session, and repeated verbatim in the
+artifact (header line 4 + body). Artifact:
+`docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03e-r2-advisory-review-01.md`
+(14815 bytes). Verdict `zeroFix: true` — no material findings; independently
+reran both tscs (0/0), client 35/35, server 59/59 (zero residue, query-shape
+8/14), `git diff --check` 0, pins match, all 8 same-count mutation classes +
+count/timestamp mutant control pass, hash gate rejects stale drafts, no
+code-matched subject gains authority, census unchanged. One informational
+note O1: escape-obfuscated duplicate JSON keys (e.g. `"\u0061"`) escape the
+pre-parse scanner, but `restoreDraft` validates the collapsed object so it is
+not a reachable authority bypass — zero fixes required. Advisory only: no
+formal GO, no SCA-04 unlock. SCA-04 stays LOCKED; this prompt authorizes no
+apply, no term write, no Teaching Load/generation/publication/schema
+mutation, and no deployment.
+
+## SCA-03E-R3 narrow semantic-hardening closure (2026-09-08, same executor session)
+
+Narrow correction (20-min budget). Closes the O1-class duplicate-key gap plus
+three related hardening items. No SCA-04.1 work; SCA-04 stays LOCKED; no
+apply/term/Teaching Load/generation/publication/schema/restart/deployment.
+
+### Fixes (four)
+
+1. `decision-draft.ts` duplicate scanner now DECODES JSON escapes before
+   comparing keys — raw-equivalent keys such as `"schoolId"` and
+   `"\u0073choolId"` are rejected before `JSON.parse` (string values never
+   mistaken for keys). `decodeJsonString` handles the standard escape set +
+   `\uXXXX`.
+2. `restoreDraft` requires `sourceRevisionHash` to be exactly 64 hexadecimal
+   characters (`/^[0-9A-Fa-f]{64}$/`) before equality comparison; absent,
+   blank, wrong-type, short, non-hex, and mismatched hashes reject.
+3. `restoreDraft` requires the saved row-key set to EXACTLY equal the current
+   candidate group-key set: missing rows reject (added), additional rows
+   reject (existing unknown-row rule), duplicate-equivalent rows reject
+   (scanner). Failure applies nothing — the current UI draft is unchanged.
+4. `curriculum-decision-candidates.service.ts` canonically sorts set-like
+   subject arrays (`gradeLevels` asc numeric, `programScopes` lexicographic)
+   before hashing; ordered `termIdentities` remain order-preserved.
+
+### RED/GREEN evidence
+
+- RED (before fixes): client suite failed on the `/hexadecimal/` and
+  escape-equivalent-duplicate assertions; server suite failed 2 R8
+  assertions (reordered arrays changed the hash).
+- GREEN (after fixes): client `decision-draft` **38/38** exit 0 (D8: escaped
+  top-level + row-key duplicates rejected pre-parse; short/non-hex/lowercase
+  hash reject; missing row rejects; failed restore leaves UI draft
+  unchanged). Server `curriculum-decision-candidates` **61/61** exit 0 (R8:
+  reordered gradeLevels/programScopes with pinned updatedAt hash identically;
+  restore keeps hash stable). Both tsc `--noEmit` exit 0; client build pass
+  (3.02s); `git diff --check` exit 0. Zero residue; disposable schools only.
+
+### Changed files (R3 scope)
+
+- `atlas-client/src/lib/decision-draft.ts` (scanner unescape, 64-hex hash
+  gate, exact row-set)
+- `atlas-client/src/lib/__tests__/decision-draft.test.ts` (D8 + D6 hash
+  assertions)
+- `atlas-server/src/services/curriculum-decision-candidates.service.ts`
+  (canonical gradeLevels/programScopes sort)
+- `atlas-server/src/__tests__/curriculum-decision-candidates.test.ts` (R8)
+- this ledger (R3 rows)
+
+### Advisory review (R3)
+
+Reviewer context: fresh reviewer; capture → relay → reviewer-write ordering.
+Spawn ID `ses_f7e0f63d5ffeoEGJteGc8UiZre` captured via identity handshake,
+relayed to the reviewer before it wrote, and repeated verbatim in the
+artifact. Artifact:
+`docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03e-r3-advisory-review-01.md`
+(10893 bytes). Verdict `zeroFix: true` — no material findings; independently
+reran client 38/38 + server 61/61 (zero residue) + tsc ×2 (0/0) + `git diff
+--check` (0); adversarial bypasses: escape-equivalent duplicates (top-level,
+row-key, nested, escaped-first, multi-escape) rejected pre-parse with
+string-value content immune; 64-hex hash gate rejects absent/null/blank/
+wrong-type/short/65-char/non-hex/mismatch; exact row-set equality rejects
+missing/additional/duplicate-equivalent rows with zero UI mutation on
+failure; canonical set sorting hashes reordered gradeLevels/programScopes
+identically while ordered termIdentities stay order-sensitive (R7 #4). Pins
+verified (manifest `A0EAFFAB…03` == sidecar). Advisory only — no formal GO;
+SCA-04 stays LOCKED.

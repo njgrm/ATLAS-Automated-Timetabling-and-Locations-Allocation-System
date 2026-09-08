@@ -20,6 +20,7 @@ import {
 	Star
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveTeachingActualHours } from '@/lib/faculty-assignment-helpers';
 import type { FacultySummary, Subject, TeachingLoadCoverageTotals } from '@/types';
 
 type StaffingAuditSheetProps = {
@@ -32,6 +33,9 @@ type StaffingAuditSheetProps = {
 	coverageStateDescription: string;
 	workspaceStateLabel: string;
 	workspaceStateNextAction: string;
+	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
+	teachingStandardHours: number | null;
+	policyReady: boolean;
 	onNavigateToAllocation?: () => void;
 };
 
@@ -71,6 +75,8 @@ export function StaffingAuditSheet({
 	coverageStateDescription,
 	workspaceStateLabel,
 	workspaceStateNextAction,
+	teachingStandardHours,
+	policyReady,
 	onNavigateToAllocation
 }: StaffingAuditSheetProps) {
 	const completenessPercent = useMemo(() => {
@@ -81,8 +87,12 @@ export function StaffingAuditSheet({
 	const unassignedCount = coverageTotals?.unassignedPairs ?? 0;
 	const hasCoverageData = Boolean(coverageTotals && coverageTotals.totalPairs > 0);
 
-	// Phase 4.9: plain-language derived figures.
-	const overloadCount = faculty.filter(f => !f.isPlaceholder && (f.policyCreditedHours ?? 0) > 30).length;
+	// Canonical excess-teaching count: actual teaching above the explicit
+	// effective standard. Unknown standard yields no count (readiness copy).
+	// Advisory/ancillary credit never contributes to this figure.
+	const overloadCount = teachingStandardHours == null
+		? null
+		: faculty.filter(f => !f.isPlaceholder && resolveTeachingActualHours(f) > teachingStandardHours).length;
 	const specialProgramSubjects = subjects.filter(s => s.programType != null && s.programType !== 'REGULAR').length;
 	const activeFacultyCount = faculty.filter(f => !f.isPlaceholder).length;
 	const substituteCount = coverageTotals?.syntheticPlaceholderPairs ?? 0;
@@ -163,12 +173,12 @@ export function StaffingAuditSheet({
 								<div className="flex items-center gap-3">
 									<Clock className="size-5 text-amber-600" />
 									<div className="min-w-0">
-										<p className="text-xs font-semibold uppercase tracking-tight">Teachers above 30h</p>
-										<p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Over the standard</p>
+										<p className="text-xs font-semibold uppercase tracking-tight">Teachers above {policyReady && teachingStandardHours != null ? `${teachingStandardHours}h` : 'standard'}</p>
+										<p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{policyReady ? 'Over the effective standard' : 'Standard not configured'}</p>
 									</div>
 								</div>
 								<span className="text-lg font-semibold text-amber-700">
-									{overloadCount}
+									{overloadCount ?? '—'}
 								</span>
 							</div>
 

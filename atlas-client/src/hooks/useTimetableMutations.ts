@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
-import atlasApi from '@/lib/api';
+import atlasApiClient from '@/lib/api';
+import { createTimetableScopedClient } from '@/components/timetable/timetableSchoolScope';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
@@ -36,8 +37,6 @@ import type {
 	Violation,
 	ViolationReport,
 } from '@/types';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 type RoomInfo = {
 	id: number;
@@ -414,6 +413,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		facultyMap,
 		roomMap,
 	} = input;
+	const schoolId = schoolYearContext?.schoolId ?? null;
+	const atlasApi = useMemo(() => createTimetableScopedClient(schoolId, atlasApiClient), [schoolId]);
 
 	// Fix C: internal swap preview state — loaded when swap confirm dialog opens
 	const [swapPreview, setSwapPreview] = useState<SwapPreviewState | null>(null);
@@ -478,7 +479,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setSelectedRequestId(request.id);
 		setRequestPreviewLoading(true);
 		try {
-			const { data } = await atlasApi.post<RoomPreferencePreviewResponse>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/preview`);
+			const { data } = await atlasApi.post<RoomPreferencePreviewResponse>(`/room-preferences/${schoolId}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/preview`);
 			if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 			setRequestPreview({
 				...data,
@@ -491,7 +492,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setRequestReviewerNotes(data.request.reviewerNotes ?? '');
 			setAppealsLoading(true);
 			try {
-				const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/appeals`);
+				const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${schoolId}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/appeals`);
 				if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 				setRequestAppeals(appealsRes.data.appeals);
 			} catch {
@@ -522,8 +523,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 		setAppealSubmitting(true);
 		try {
-			await atlasApi.post(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`, { reason: appealReason.trim() });
-			const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`);
+			await atlasApi.post(`/room-preferences/${schoolId}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`, { reason: appealReason.trim() });
+			const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${schoolId}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`);
 			setRequestAppeals(appealsRes.data.appeals);
 			setAppealReason('');
 			toast.success('Appeal submitted.');
@@ -539,8 +540,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const updateAppealStatus = useCallback(async (appealId: number, status: RoomRequestAppealStatus) => {
 		if (!schoolYearId || !requestPreview) return;
 		try {
-			await atlasApi.patch(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals/${appealId}/status`, { status });
-			const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`);
+			await atlasApi.patch(`/room-preferences/${schoolId}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals/${appealId}/status`, { status });
+			const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${schoolId}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`);
 			setRequestAppeals(appealsRes.data.appeals);
 			await loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
 			toast.success('Appeal status updated.');
@@ -558,7 +559,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 		setRequestReviewSaving(true);
 		try {
-			await atlasApi.patch(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/review`, {
+			await atlasApi.patch(`/room-preferences/${schoolId}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/review`, {
 				decisionStatus,
 				reviewerNotes: requestReviewerNotes || null,
 				expectedRunVersion: roomRequestSummary.runVersion,
@@ -614,7 +615,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return next;
 		});
 		try {
-			await atlasApi.put(`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${draft.runId}/flags/${entryId}`);
+			await atlasApi.put(`/follow-up-flags/${schoolId}/${schoolYearId}/runs/${draft.runId}/flags/${entryId}`);
 		} catch {
 			setFollowUps((prev) => {
 				const next = new Set(prev);
@@ -634,7 +635,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setGenerating(true);
 		const lockedAnchorCount = draftBoardSummary?.draft ?? 0;
 		try {
-			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`, {
+			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${schoolId}/${schoolYearId}/runs`, {
 				ignoreRoomRequestGate,
 				enforceShiftWindows: enforceShiftWindowsFlag,
 			});
@@ -644,7 +645,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				let summary = run.summary as RunSummary | null;
 				if (!summary && run.id != null) {
 					try {
-						const { data: generatedDraft } = await atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${run.id}/draft`);
+						const { data: generatedDraft } = await atlasApi.get<DraftReport>(`/generation/${schoolId}/${schoolYearId}/runs/${run.id}/draft`);
 						summary = generatedDraft.summary as RunSummary | null;
 					} catch {
 						summary = null;
@@ -724,7 +725,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenPreviewError(null);
 		setPreGenAllowSoftOverride(false);
 		if (!resetExisting) {
-			const loadDraftBoard = () => void atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts?preferCachedSections=true`)
+			const loadDraftBoard = () => void atlasApi.get<DraftBoardState>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts?preferCachedSections=true`)
 				.then(({ data }) => {
 					setDraftBoard(data);
 					setDraftBoardSummary(data.counts);
@@ -738,7 +739,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return;
 		}
 		try {
-			const { data } = await atlasApi.post<DraftBoardMutationResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`);
+			const { data } = await atlasApi.post<DraftBoardMutationResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/clear`);
 			setDraftBoard(data.board);
 			setDraftBoardSummary(data.board.counts);
 			toast.success('Draft planning reset. Choose an unassigned session, then choose a timetable slot.');
@@ -769,7 +770,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 		try {
 			const { data } = await atlasApi.post<{ run: import('@/types').GenerationRun }>(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${draft.runId}/publish`,
+				`/generation/${schoolId}/${schoolYearId}/runs/${draft.runId}/publish`,
 				{
 					acknowledgeSoftViolations: softViolationCount > 0 && publishAcknowledged,
 				},
@@ -820,11 +821,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const apiBase = useMemo(() => {
 		if (!schoolYearId || !runIdNumeric) return null;
-		return `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/manual-edits`;
+		return `/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/manual-edits`;
 	}, [schoolYearId, runIdNumeric]);
 	const teachingLoadRepairBase = useMemo(() => {
 		if (!schoolYearId || !runIdNumeric) return null;
-		return `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/teaching-load-repairs`;
+		return `/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/teaching-load-repairs`;
 	}, [schoolYearId, runIdNumeric]);
 
 	const fetchEditHistory = useCallback(async () => {
@@ -886,7 +887,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
@@ -929,7 +930,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
@@ -987,7 +988,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setDraft(data.draft);
 			setSelectedEntry((current) => current ? data.draft.entries.find((entry) => entry.entryId === current.entryId) ?? current : current);
 			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
@@ -1044,7 +1045,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
@@ -1145,11 +1146,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					);
 					const [{ data: sourcePreviewRaw }, { data: displacedPreviewRaw }] = await Promise.all([
 						atlasApi.post<PreviewResult>(
-							`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+							`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`,
 							{ ...sourcePending, excludePlacementIds: [displaced.id] },
 						),
 						atlasApi.post<PreviewResult>(
-							`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+							`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`,
 							{ ...displacedPending, excludePlacementIds: [source.placement.id] },
 						),
 					]);
@@ -1166,7 +1167,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					return;
 				}
 				const { data } = await atlasApi.post<PreviewResult>(
-					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+					`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`,
 					{ ...sourcePending, excludePlacementIds: [displaced.id] },
 				);
 				setSwapPreview({
@@ -1264,7 +1265,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenPreviewLoading(true);
 		setPreGenPreviewError(null);
 		try {
-			const { data } = await atlasApi.post<PreviewResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`, pending);
+			const { data } = await atlasApi.post<PreviewResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`, pending);
 			setPreGenPreview(scopePreviewToCandidate(data, { day: pending.day, startTime: pending.startTime, endTime: pending.endTime }));
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1346,7 +1347,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenPreviewLoading(true);
 		try {
 			const { data: previewRaw } = await atlasApi.post<PreviewResult>(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+				`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`,
 				pending,
 			);
 			const preview = scopePreviewToCandidate(previewRaw, { day, startTime, endTime });
@@ -1406,7 +1407,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
 		const body = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
 		try {
-			const { data } = await atlasApi.post<PreviewResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`, body);
+			const { data } = await atlasApi.post<PreviewResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/preview`, body);
 			setConfirmRawPreview(data);
 			setConfirmPreview(scopePreviewToCandidate(data, { day, startTime, endTime }));
 		} catch (err) {
@@ -1452,7 +1453,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
 		const baseBody = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
 		try {
-			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, baseBody);
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/commit`, baseBody);
 			setDraftBoard(data.board);
 			setDraftBoardSummary(data.board.counts);
 			setShowPreGenConfirm(false);
@@ -1512,7 +1513,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		try {
 			if (swapAction.displacementMode === 'to-source-slot' && swapAction.source.type === 'draftPlacement') {
 				const { data } = await atlasApi.post<DraftPlacementSwapResult>(
-					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/swap`,
+					`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/swap`,
 					{
 						sourcePlacementId: swapAction.source.placement.id,
 						targetPlacementId: swapAction.displaced.id,
@@ -1550,7 +1551,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 					swapAction.target.roomId,
 				);
 				const { data } = await atlasApi.post<DraftPlacementCommitResult>(
-					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/replace`,
+					`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/replace`,
 					{
 						displacedPlacementId: swapAction.displaced.id,
 						displacedExpectedVersion: swapAction.displaced.version,
@@ -1622,7 +1623,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
@@ -1651,7 +1652,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId) return;
 		setDeletingPlacementId(placementId);
 		try {
-			const { data } = await atlasApi.delete<DraftBoardMutationResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${placementId}`);
+			const { data } = await atlasApi.delete<DraftBoardMutationResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/${placementId}`);
 			setDraftBoard(data.board);
 			setDraftBoardSummary(data.board.counts);
 			setSelectedEntry(null);
@@ -1677,7 +1678,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId || !preGenPending) return null;
 		setPreGenSaving(true);
 		try {
-			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, preGenPending);
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${schoolId}/${schoolYearId}/pre-generation-drafts/commit`, preGenPending);
 			setDraftBoard(data.board);
 			setDraftBoardSummary(data.board.counts);
 			setPreGenPreview(data.preview);

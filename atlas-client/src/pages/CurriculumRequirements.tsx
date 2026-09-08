@@ -460,6 +460,9 @@ export default function CurriculumRequirements() {
 				</div>
 				<div className="ml-auto flex items-center gap-2 text-xs">
 					<span className="text-muted-foreground">Year {schoolYearId ?? '…'}</span>
+					<Button asChild variant="outline" size="sm">
+						<Link to="/subjects/decision-workspace">Decision workspace</Link>
+					</Button>
 					{readiness && (
 						<TooltipProvider>
 							<Tooltip>

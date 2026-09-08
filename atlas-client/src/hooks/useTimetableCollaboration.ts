@@ -8,12 +8,103 @@ import {
 import type { CollaborationPresence, CollaborationSelection, ScheduledEntry } from '@/types';
 
 type TimetableCollaborationOptions = {
-	schoolId: number;
+	schoolId: number | null;
 	schoolYearId: number | null;
 	runId: number | null;
 	selectedEntry: ScheduledEntry | null;
 	onTimetableEvent: () => void;
 };
+
+type TimetableCollaborationHookRuntime = {
+	useEffect: typeof useEffect;
+	useRef: typeof useRef;
+	useState: typeof useState;
+};
+
+type TimetableCollaborationDependencies = {
+	getAccessToken: typeof getPreferredAccessToken;
+	createSocket: CollaborationSocketFactory;
+};
+
+type CollaborationSocketFactory = typeof createRoomPreferenceCollaborationSocket;
+
+export type TimetableCollaborationConnection = {
+	readonly schoolId: number;
+	readonly schoolYearId: number;
+	readonly runId: number;
+	readonly socket: CollaborationSocket;
+	readonly active: () => boolean;
+	close: () => void;
+};
+
+type CreateTimetableCollaborationConnectionOptions = {
+	schoolId: number | null;
+	schoolYearId: number | null;
+	runId: number | null;
+	accessToken: string | null;
+	createSocket?: CollaborationSocketFactory;
+	onEvent: Parameters<CollaborationSocketFactory>[0]['onEvent'];
+	onReset: () => void;
+};
+
+const isPositiveInteger = (value: number | null): value is number => (
+	typeof value === 'number' && Number.isInteger(value) && value > 0
+);
+
+export function createTimetableCollaborationConnection({
+	schoolId,
+	schoolYearId,
+	runId,
+	accessToken,
+	createSocket = createRoomPreferenceCollaborationSocket,
+	onEvent,
+	onReset,
+}: CreateTimetableCollaborationConnectionOptions): TimetableCollaborationConnection | null {
+	if (!isPositiveInteger(schoolId) || !isPositiveInteger(schoolYearId) || !isPositiveInteger(runId) || !accessToken) return null;
+
+	const resolvedSchoolId = schoolId;
+	let isActive = true;
+	let socket: CollaborationSocket;
+	socket = createSocket({
+		accessToken,
+		onEvent: (event) => {
+			if (!isActive) return;
+			if (event.type === 'open') {
+				socket.join({ schoolId: resolvedSchoolId, schoolYearId, runId, viewMode: 'SCHEDULER_REVIEW' });
+			}
+			onEvent(event);
+		},
+	});
+
+	return {
+		schoolId: resolvedSchoolId,
+		schoolYearId,
+		runId,
+		socket,
+		active: () => isActive,
+		close: () => {
+			if (!isActive) return;
+			isActive = false;
+			socket.close();
+			onReset();
+		},
+	};
+}
+
+export function sendTimetableCollaborationSelection(
+	connection: TimetableCollaborationConnection | null,
+	entryId: string,
+): boolean {
+	if (!connection?.active() || !isPositiveInteger(connection.schoolId) || !isPositiveInteger(connection.schoolYearId) || !isPositiveInteger(connection.runId)) return false;
+	connection.socket.sendSelection({
+		schoolId: connection.schoolId,
+		schoolYearId: connection.schoolYearId,
+		runId: connection.runId,
+		entryId,
+		source: 'SESSION',
+	});
+	return true;
+}
 
 export function useTimetableCollaboration({
 	schoolId,
@@ -21,23 +112,31 @@ export function useTimetableCollaboration({
 	runId,
 	selectedEntry,
 	onTimetableEvent,
-}: TimetableCollaborationOptions) {
-	const [connected, setConnected] = useState(false);
-	const [presence, setPresence] = useState<CollaborationPresence[]>([]);
-	const [remoteSelections, setRemoteSelections] = useState<Record<string, CollaborationSelection>>({});
-	const [lastError, setLastError] = useState<string | null>(null);
-	const socketRef = useRef<CollaborationSocket | null>(null);
-	const selfConnectionIdRef = useRef<string | null>(null);
-	const lastSelectionSentAtRef = useRef(0);
-	const pendingSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+}: TimetableCollaborationOptions,
+	runtime: TimetableCollaborationHookRuntime = { useEffect, useRef, useState },
+	dependencies: TimetableCollaborationDependencies = {
+		getAccessToken: getPreferredAccessToken,
+		createSocket: createRoomPreferenceCollaborationSocket,
+	},
+) {
+	const [connected, setConnected] = runtime.useState(false);
+	const [presence, setPresence] = runtime.useState<CollaborationPresence[]>([]);
+	const [remoteSelections, setRemoteSelections] = runtime.useState<Record<string, CollaborationSelection>>({});
+	const [lastError, setLastError] = runtime.useState<string | null>(null);
+	const socketRef = runtime.useRef<CollaborationSocket | null>(null);
+	const connectionRef = runtime.useRef<TimetableCollaborationConnection | null>(null);
+	const selfConnectionIdRef = runtime.useRef<string | null>(null);
+	const lastSelectionSentAtRef = runtime.useRef(0);
+	const pendingSelectionTimerRef = runtime.useRef<ReturnType<typeof setTimeout> | null>(null);
+	const accessToken = dependencies.getAccessToken();
 
-	useEffect(() => {
-		if (!schoolYearId || !runId || Number.isNaN(runId)) return;
-		const token = getPreferredAccessToken();
-		if (!token) return;
-
-		const socket = createRoomPreferenceCollaborationSocket({
-			accessToken: token,
+	runtime.useEffect(() => {
+		const connection = createTimetableCollaborationConnection({
+			schoolId,
+			schoolYearId,
+			runId,
+			accessToken,
+			createSocket: dependencies.createSocket,
 			onEvent: (event) => {
 				if (event.type === 'connected') {
 					selfConnectionIdRef.current = event.payload.connectionId;
@@ -47,7 +146,6 @@ export function useTimetableCollaboration({
 				if (event.type === 'open') {
 					setConnected(true);
 					setLastError(null);
-					socket.join({ schoolId, schoolYearId, runId, viewMode: 'SCHEDULER_REVIEW' });
 					return;
 				}
 				if (event.type === 'snapshot') {
@@ -91,34 +189,38 @@ export function useTimetableCollaboration({
 				}
 				if (event.type === 'close') setConnected(false);
 			},
+			onReset: () => {
+				setConnected(false);
+				setPresence([]);
+				setRemoteSelections({});
+				setLastError(null);
+				selfConnectionIdRef.current = null;
+				lastSelectionSentAtRef.current = 0;
+				if (pendingSelectionTimerRef.current) {
+					clearTimeout(pendingSelectionTimerRef.current);
+					pendingSelectionTimerRef.current = null;
+				}
+			},
 		});
+		if (!connection) return;
 
-		socketRef.current = socket;
+		connectionRef.current = connection;
+		socketRef.current = connection.socket;
 		return () => {
-			socket.close();
-			if (socketRef.current === socket) socketRef.current = null;
+			connection.close();
+			if (connectionRef.current === connection) connectionRef.current = null;
+			if (socketRef.current === connection.socket) socketRef.current = null;
 			if (pendingSelectionTimerRef.current) {
 				clearTimeout(pendingSelectionTimerRef.current);
 				pendingSelectionTimerRef.current = null;
 			}
-			setConnected(false);
-			setPresence([]);
-			setRemoteSelections({});
 		};
-	}, [onTimetableEvent, runId, schoolId, schoolYearId]);
+	}, [accessToken, dependencies.createSocket, onTimetableEvent, runId, schoolId, schoolYearId]);
 
-	useEffect(() => {
-		if (!connected || !socketRef.current || !selectedEntry || !runId || !schoolYearId) return;
-		const selection = {
-			schoolId,
-			schoolYearId,
-			runId,
-			entryId: selectedEntry.entryId,
-			source: 'SESSION',
-		} as const;
+	runtime.useEffect(() => {
+		if (!connected || !connectionRef.current || !selectedEntry) return;
 		const send = () => {
-			if (!socketRef.current) return;
-			socketRef.current.sendSelection(selection);
+			if (!sendTimetableCollaborationSelection(connectionRef.current, selectedEntry.entryId)) return;
 			lastSelectionSentAtRef.current = Date.now();
 			pendingSelectionTimerRef.current = null;
 		};

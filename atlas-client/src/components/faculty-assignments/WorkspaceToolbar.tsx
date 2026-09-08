@@ -15,6 +15,9 @@ type WorkspaceToolbarProps = {
 	unassignedPairs: number;
 	totalPairs: number;
 	overCapCount: number;
+	excessTeachingCount: number;
+	policyReady: boolean;
+	onShowExcessTeachingLoad: () => void;
 	autoFillLoading: boolean;
 	staffingNeedsLoading: boolean;
 	autoFillEnabled: boolean;
@@ -56,6 +59,9 @@ export function WorkspaceToolbar({
 	unassignedPairs,
 	totalPairs,
 	overCapCount,
+	excessTeachingCount,
+	policyReady,
+	onShowExcessTeachingLoad,
 	autoFillLoading,
 	staffingNeedsLoading,
 	autoFillEnabled,
@@ -123,7 +129,8 @@ export function WorkspaceToolbar({
 	}, [autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource]);
 
 	// State-driven alert chip: surfaces only when something needs attention.
-	// Priority: above-weekly-maximum classes (generation blocker) > temporary teacher placeholders.
+	// Priority: above-weekly-maximum classes (generation blocker) > excess teaching
+	// load (actual teaching above the standard) > temporary teacher placeholders.
 	const alertChip = useMemo(() => {
 		if (overCapCount > 0) {
 			return {
@@ -134,6 +141,17 @@ export function WorkspaceToolbar({
 				onClick: onViewStaffingNeedsClick,
 				disabled: staffingNeedsLoading,
 				testId: 'teaching-load-alert-over-cap',
+			};
+		}
+		if (policyReady && excessTeachingCount > 0) {
+			return {
+				key: 'excess',
+				label: `Excess teaching load: ${excessTeachingCount}`,
+				tone: 'warning' as const,
+				tooltip: 'Active teachers with actual teaching above the standard. Advisory credit never counts toward this figure.',
+				onClick: onShowExcessTeachingLoad,
+				disabled: false,
+				testId: 'teaching-load-alert-excess',
 			};
 		}
 		if (syntheticPlaceholderPairs > 0) {
@@ -148,7 +166,7 @@ export function WorkspaceToolbar({
 			};
 		}
 		return null;
-	}, [overCapCount, syntheticPlaceholderPairs, onViewStaffingNeedsClick, staffingNeedsLoading]);
+	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onViewStaffingNeedsClick, onShowExcessTeachingLoad, staffingNeedsLoading]);
 
 	return (
 		<div className="rounded-xl border border-border/40 bg-background px-2 py-1 shadow-sm" data-testid="teaching-load-command-header">

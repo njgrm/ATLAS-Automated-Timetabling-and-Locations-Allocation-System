@@ -5,11 +5,20 @@ const db = () => getDataContext();
 export type TeachingLoadCycleSource = {
 	schoolId: number;
 	schoolYearId: number;
-	state: 'EMPTY' | 'POPULATED';
+	state: 'EMPTY' | 'POPULATED' | 'UNCONFIGURED';
 	version: number;
 	initializedAt: string;
 	updatedAt: string;
 };
+
+export type TeachingLoadCycleReadDiagnostic =
+	| { mismatched: false }
+	| { mismatched: true; code: 'CYCLE_STATE_MISMATCH'; persistedState: 'EMPTY' | 'POPULATED'; observedState: 'EMPTY' | 'POPULATED' };
+
+export interface TeachingLoadCycleReadResult {
+	source: TeachingLoadCycleSource;
+	diagnostic: TeachingLoadCycleReadDiagnostic | null;
+}
 
 export async function ensureTeachingLoadCycle(schoolId: number, schoolYearId: number) {
 	const ownershipCount = await db().subjectSectionOwnership.count({
@@ -48,6 +57,58 @@ export async function getOrCreateTeachingLoadCycleSource(schoolId: number, schoo
 		version: cycle.version,
 		initializedAt: cycle.initializedAt.toISOString(),
 		updatedAt: cycle.updatedAt.toISOString(),
+	};
+}
+
+/**
+ * Genuinely read-only cycle source for passive GET paths. Serializes an
+ * existing cycle without mutation; a missing cycle yields a typed UNCONFIGURED
+ * readiness source; a persisted-state/observed-state mismatch is reported as a
+ * diagnostic and never repaired during GET. Creation and version updates happen
+ * only on explicit setup or mutation paths (ensure/refresh).
+ */
+export async function readTeachingLoadCycleSource(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<TeachingLoadCycleReadResult> {
+	const cycle = await db().teachingLoadCycle.findUnique({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+	});
+	if (!cycle) {
+		return {
+			source: {
+				schoolId,
+				schoolYearId,
+				state: 'UNCONFIGURED',
+				version: 0,
+				initializedAt: '',
+				updatedAt: '',
+			},
+			diagnostic: null,
+		};
+	}
+	const source: TeachingLoadCycleSource = {
+		schoolId: cycle.schoolId,
+		schoolYearId: cycle.schoolYearId,
+		state: cycle.state,
+		version: cycle.version,
+		initializedAt: cycle.initializedAt.toISOString(),
+		updatedAt: cycle.updatedAt.toISOString(),
+	};
+	const ownershipCount = await db().subjectSectionOwnership.count({
+		where: { schoolId, schoolYearId },
+	});
+	const observedState = ownershipCount > 0 ? 'POPULATED' : 'EMPTY';
+	return {
+		source,
+		diagnostic: cycle.state === observedState
+			? { mismatched: false }
+			: {
+				mismatched: true,
+				code: 'CYCLE_STATE_MISMATCH',
+				persistedState: cycle.state,
+				observedState,
+			},
 	};
 }
 

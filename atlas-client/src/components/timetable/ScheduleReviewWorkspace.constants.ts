@@ -6,7 +6,6 @@ import type {
 	ViolationCode,
 } from '@/types';
 
-export const DEFAULT_SCHOOL_ID = 1;
 
 export const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 export const DAY_SHORT: Record<string, string> = {

@@ -13,7 +13,6 @@ import {
 	ListFilter
 } from 'lucide-react';
 import { Button } from '@/ui/button';
-import { departmentLabel } from '@/lib/deped-glossary';
 import { Badge } from '@/ui/badge';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
@@ -23,7 +22,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
-import { getFacultyComparableLoadHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import {
+	resolveTeachingActualHours,
+	teachingUtilizationPercentFor,
+	type FacultyOwnershipState,
+	type TeachingLoadStatusFilter,
+	type TeachingLoadLoadFilter,
+	type TeachingLoadFacet,
+} from '@/lib/faculty-assignment-helpers';
 import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection } from '@/types';
 import { SubjectRow } from './SubjectRow';
 
@@ -55,13 +61,21 @@ type TeacherGridModeProps = {
 	onResetAssignments: () => void;
 	searchQuery: string;
 	onSearchQueryChange: (q: string) => void;
-	filterStatus: string;
-	onFilterStatusChange: (s: any) => void;
-	loadFilter: string;
-	onLoadFilterChange: (s: any) => void;
+	filterStatus: TeachingLoadStatusFilter;
+	onFilterStatusChange: (s: TeachingLoadStatusFilter) => void;
+	statusFacetCounts: Record<TeachingLoadFacet, number>;
+	loadFilter: TeachingLoadLoadFilter;
+	loadFacetCounts: Record<'below-standard' | 'at-standard' | 'excess', number>;
+	onLoadFilterChange: (s: TeachingLoadLoadFilter) => void;
 	departmentFilter: string;
 	onDepartmentFilterChange: (d: string) => void;
-	departmentOptions: string[];
+	departmentOptions: { value: string; label: string; count: number }[];
+	filterAnnouncement: string;
+	onClearTeachingLoadFilters: () => void;
+	effectiveActualHours: Map<number, number>;
+	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
+	teachingStandardHours: number | null;
+	policyReady: boolean;
 	sortOrder: string;
 	onSortOrderChange: (o: any) => void;
 	showFilters: boolean;
@@ -106,11 +120,18 @@ export function TeacherGridMode({
 	onSearchQueryChange,
 	filterStatus,
 	onFilterStatusChange,
+	statusFacetCounts,
 	loadFilter,
+	loadFacetCounts,
 	onLoadFilterChange,
 	departmentFilter,
 	onDepartmentFilterChange,
 	departmentOptions,
+	filterAnnouncement,
+	onClearTeachingLoadFilters,
+	effectiveActualHours,
+	teachingStandardHours,
+	policyReady,
 	sortOrder,
 	onSortOrderChange,
 	showFilters,
@@ -179,17 +200,18 @@ export function TeacherGridMode({
 						/>
 					</div>
 
-					<Select value={filterStatus} onValueChange={onFilterStatusChange}>
-						<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+					<Select value={filterStatus} onValueChange={(value) => onFilterStatusChange(value as TeachingLoadStatusFilter)}>
+						<SelectTrigger className="w-44 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 							<div className="flex items-center gap-2">
 								<ListFilter className="size-3.5 opacity-50" />
 								<SelectValue placeholder="Status" />
 							</div>
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Status</SelectItem>
-							<SelectItem value="assigned" className="text-xs font-bold uppercase tracking-tight">Has Assignments</SelectItem>
-							<SelectItem value="unassigned" className="text-xs font-bold uppercase tracking-tight">No Assignments</SelectItem>
+							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All status</SelectItem>
+							<SelectItem value="teaching-assigned" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['teaching-assigned'] ?? 0) === 0}>Teaching assigned ({statusFacetCounts['teaching-assigned'] ?? 0})</SelectItem>
+							<SelectItem value="no-teaching" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['no-teaching'] ?? 0) === 0}>No teaching load ({statusFacetCounts['no-teaching'] ?? 0})</SelectItem>
+							<SelectItem value="adviser-only" className="text-xs font-bold uppercase tracking-tight" disabled={(statusFacetCounts['adviser-only'] ?? 0) === 0}>Adviser only ({statusFacetCounts['adviser-only'] ?? 0}, subset)</SelectItem>
 						</SelectContent>
 					</Select>
 
@@ -206,35 +228,79 @@ export function TeacherGridMode({
 					</Button>
 				</div>
 
+				{(searchQuery.trim() || filterStatus !== 'all' || departmentFilter !== 'all' || loadFilter !== 'all') && (
+					<div className="flex flex-wrap items-center gap-1.5" data-testid="teaching-load-active-filters">
+						<span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Active filters:</span>
+						{searchQuery.trim() && (
+							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+								Search: {searchQuery.trim()}
+							</Badge>
+						)}
+						{filterStatus !== 'all' && (
+							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+								{filterStatus === 'teaching-assigned' ? 'Teaching assigned' : filterStatus === 'no-teaching' ? 'No teaching load' : 'Adviser only'}
+							</Badge>
+						)}
+						{departmentFilter !== 'all' && (
+							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+								{departmentOptions.find((option) => option.value === departmentFilter)?.label ?? departmentFilter}
+							</Badge>
+						)}
+						{loadFilter !== 'all' && (
+							<Badge variant="secondary" className="gap-1 text-[11px] font-bold">
+								{loadFilter === 'excess' ? 'Excess teaching load' : loadFilter === 'at-standard' ? 'At standard' : 'Below standard'}
+							</Badge>
+						)}
+						<Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] font-bold uppercase" onClick={onClearTeachingLoadFilters}>
+							<RotateCcw className="size-3.5" />
+							Clear all
+						</Button>
+					</div>
+				)}
+				<p className="sr-only" role="status" aria-live="polite" data-testid="teaching-load-filter-announcement">
+					{filterAnnouncement}
+				</p>
+				{!policyReady && (
+					<div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900" data-testid="teaching-load-policy-readiness">
+						<div className="flex items-start gap-3">
+							<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+							<div>
+								<p className="text-sm font-semibold">Teaching standard not configured</p>
+								<p className="text-xs font-medium text-amber-800/80">ATLAS has no persisted workload policy for this school year, so utilization, remaining, and excess figures are unavailable. Teaching assignments and department filters still work. Ask an administrator to configure the teaching standard before generating.</p>
+							</div>
+						</div>
+					</div>
+				)}
+
 				{showFilters && (
 					<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/80 p-2 shadow-sm">
 						<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-							<SelectTrigger className="w-45 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+							<SelectTrigger className="w-48 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 								<div className="flex items-center gap-2">
 									<LayoutGrid className="size-3.5 opacity-50" />
 									<SelectValue placeholder="Department" />
 								</div>
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Departments</SelectItem>
-								{departmentOptions.map(dept => (
-									<SelectItem key={dept} value={dept} className="text-xs font-bold uppercase tracking-tight">{departmentLabel(dept)}</SelectItem>
+								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All departments</SelectItem>
+								{departmentOptions.map(option => (
+									<SelectItem key={option.value} value={option.value} disabled={option.count === 0} className="text-xs font-bold uppercase tracking-tight">{option.label} ({option.count})</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
 
-						<Select value={loadFilter} onValueChange={onLoadFilterChange}>
-							<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+						<Select value={loadFilter} onValueChange={(value) => onLoadFilterChange(value as TeachingLoadLoadFilter)}>
+							<SelectTrigger className="w-48 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 								<div className="flex items-center gap-2">
 									<Star className="size-3.5 opacity-50" />
 									<SelectValue placeholder="Load" />
 								</div>
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Loads</SelectItem>
-								<SelectItem value="overloaded" className="text-xs font-bold uppercase tracking-tight text-amber-700">Overload ({">"}30h)</SelectItem>
-								<SelectItem value="optimal" className="text-xs font-bold uppercase tracking-tight text-emerald-700">Optimal (25-30h)</SelectItem>
-								<SelectItem value="underloaded" className="text-xs font-bold uppercase tracking-tight text-sky-700">Underload ({"<"}25h)</SelectItem>
+								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All loads</SelectItem>
+								<SelectItem value="excess" className="text-xs font-bold uppercase tracking-tight text-amber-700" disabled={!policyReady || (loadFacetCounts.excess ?? 0) === 0}>Excess teaching load ({policyReady ? (loadFacetCounts.excess ?? 0) : '—'})</SelectItem>
+								<SelectItem value="at-standard" className="text-xs font-bold uppercase tracking-tight text-emerald-700" disabled={!policyReady || (loadFacetCounts['at-standard'] ?? 0) === 0}>At standard ({policyReady ? (loadFacetCounts['at-standard'] ?? 0) : '—'})</SelectItem>
+								<SelectItem value="below-standard" className="text-xs font-bold uppercase tracking-tight text-sky-700" disabled={!policyReady || (loadFacetCounts['below-standard'] ?? 0) === 0}>Below standard ({policyReady ? (loadFacetCounts['below-standard'] ?? 0) : '—'})</SelectItem>
 							</SelectContent>
 						</Select>
 
@@ -308,7 +374,7 @@ export function TeacherGridMode({
 							>
 								<div className="flex items-center gap-2">
 									{isCollapsed ? <ChevronRight className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-									<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{dept === 'UNSTAFFED TEMPORARY ROLES' || dept === 'UNASSIGNED DEPARTMENT' ? dept : departmentLabel(dept)}</h3>
+									<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">{dept}</h3>
 								</div>
 								<div className="flex-1 h-px bg-border/30" />
 								<Badge variant="outline" className="text-[10px] font-bold bg-muted/30 text-muted-foreground shadow-none">{members.length}</Badge>
@@ -320,8 +386,13 @@ export function TeacherGridMode({
 										const isSelected = selectedId === member.id;
 										const isExpanded = expandedId === member.id;
 										const hasDraft = Boolean(effectiveDraftAssignmentsByFaculty[member.id]);
-										const displayHours = getFacultyComparableLoadHours(member);
-										const loadPercentage = member.isPlaceholder ? 0 : Math.round(member.policyLoadPercentage ?? 0);
+										// Canonical row signal: actual teaching hours + teaching utilization
+										// against the explicit effective standard. Advisory/ancillary credit
+										// never inflates it. Unknown standard shows hours without a percent.
+										const displayHours = resolveTeachingActualHours(member, effectiveActualHours);
+										const utilization = member.isPlaceholder || teachingStandardHours == null
+											? null
+											: teachingUtilizationPercentFor(member, teachingStandardHours, effectiveActualHours);
 										
 										const subjectsCount = effectiveAssignmentsByFaculty[member.id]?.length || 0;
 										const sectionsCount = effectiveAssignmentsByFaculty[member.id]?.reduce((acc, a) => acc + a.sectionIds.length, 0) || 0;
@@ -373,20 +444,29 @@ export function TeacherGridMode({
 															{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 														</div>
 														<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
-															{departmentLabel(member.department)}
+															{member.departmentLabel || member.department || 'Unmapped'}
 														</p>
 													</div>
 
 													{/* Load Signals: compact on mobile, full on desktop */}
 													<div className="flex items-center gap-3 shrink-0 sm:gap-6 sm:px-4">
 														<div className="text-right">
-															<p className={cn(
-																"text-xs font-semibold tabular-nums",
-																displayHours > 40 ? "text-rose-600" : displayHours > 30 ? "text-amber-600" : "text-emerald-600"
-															)}>
-																{member.isPlaceholder ? `${displayHours.toFixed(1)}h` : `${loadPercentage}%`}
-															</p>
-															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter hidden sm:block">Load Status</p>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<p className={cn(
+																		"text-xs font-semibold tabular-nums cursor-help",
+																		!policyReady || teachingStandardHours == null
+																			? "text-muted-foreground"
+																			: displayHours > member.maxHoursPerWeek ? "text-rose-600" : displayHours > teachingStandardHours ? "text-amber-600" : "text-emerald-600"
+																	)}>
+																		{member.isPlaceholder || utilization == null ? `${displayHours.toFixed(1)}h` : `${displayHours.toFixed(1)}h · ${utilization}%`}
+																	</p>
+																</TooltipTrigger>
+																<TooltipContent side="bottom" className="max-w-64 p-3">
+																	<p className="text-xs font-medium">{policyReady && teachingStandardHours != null ? `Actual teaching load versus the ${teachingStandardHours}h teaching standard. Advisory and ancillary credits are counted separately and never inflate this figure.` : 'Teaching standard is not configured for this school year, so utilization cannot be computed.'}</p>
+																</TooltipContent>
+															</Tooltip>
+															<p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter hidden sm:block">Teaching load</p>
 														</div>
 														<div className="text-right min-w-10 hidden sm:block">
 															<p className="text-xs font-semibold tabular-nums">{subjectsCount}</p>

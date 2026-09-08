@@ -1,0 +1,18 @@
+SUPERSEDED_NON_APPLICABLE — TL-C01R3 verdict boundary
+=======================================================
+
+Rejected artifact:
+  D:/ATLAS/docs/reviews/teaching-load-corrective-parallel-2026-09-08/department-remediation-preview-1254230c7809.json
+  SHA-256: 1254230c78090251f7e0a9f4292dd0d15d7968d71271341d3edeeea89e7a70bb
+
+Reason: the preview proposed eight identity aliases (FIL → FIL, …) and
+code-as-label rows (AP → "AP", …). Identity aliases carry no necessity evidence
+and code-as-label rows are not human-readable operator decisions.
+
+Replacement (read-only, authorizes nothing):
+  D:/ATLAS/docs/verification/department-authority-decision-5147d2adef09.json
+  SHA-256: 5147D2ADEF09822134F420179E074584245CDCE0644236F78FF4D66B3A85EFE3
+  Sidecar: department-authority-decision-5147d2adef09.sha256 (independently recomputed: match)
+
+The rejected file is preserved unmodified for audit history. It authorizes nothing.
+No alias/label rows were written. No mutation was performed.

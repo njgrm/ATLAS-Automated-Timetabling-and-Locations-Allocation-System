@@ -164,7 +164,8 @@ const SOURCE_REPAIR_LINKS = [
 	{ href: '/map', label: 'Rooms' },
 ] as const;
 
-function pickNextStep(args: {
+// Exported for focused lifecycle-truth tests: the next-action decision path.
+export function pickNextStep(args: {
 	phase: LifecyclePhase;
 	subjectCount: number | null;
 	facultyCount: number | null;
@@ -174,6 +175,8 @@ function pickNextStep(args: {
 	buildingsDone: boolean;
 	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
 	violationCount: number | null;
+	curriculumMissing: boolean;
+	degraded: boolean;
 }): NextStep {
 	const {
 		phase,
@@ -185,9 +188,22 @@ function pickNextStep(args: {
 		buildingsDone,
 		latestRunStatus,
 		violationCount,
+		curriculumMissing,
+		degraded,
 	} = args;
 
+	// EVAL-C01: one clear next action. A degraded snapshot never guides
+	// toward publish — it asks for a recheck first, in plain language.
+	if (degraded) {
+		return { title: 'Check the connection', body: 'Some checks are unavailable, so this view may be out of date. Review what is visible, then check for updates before generating or publishing.', cta: 'Review setup', href: '/sections', warn: 'Saved data' };
+	}
+
 	if (phase === 'SETUP') {
+		// EVAL-C01: missing term setup or Curriculum Requirements block
+		// generation. This repair comes first with a direct link.
+		if (curriculumMissing) {
+			return { title: 'Set up Curriculum Requirements', body: 'Add the term setup and required subjects for each grade and program. The timetable cannot be generated until this is done.', cta: 'Open Curriculum Requirements', href: '/subjects/requirements' };
+		}
 		if ((subjectCount ?? 0) === 0) {
 			return { title: 'Add the curriculum', body: 'Load the subject catalog before assigning teachers or generating.', cta: 'Open subjects', href: '/subjects' };
 		}
@@ -234,19 +250,23 @@ export default function Dashboard() {
 	const rolloverBlocking = rolloverStatus !== null && !rolloverAligned;
 
 	const {
-		loading, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
+		loading, actorScopeBlocked, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
 		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
 		activeTermUnassignedCount, activeTermHardViolationCount,
 		latestRunStatus, violationCount,
-		assignedCount, unassignedCount, hardViolationCount,
-		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard,
+		assignedCount, unassignedCount, hardViolationCount, curriculum,
+		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard, retryActorScope,
 	} = useDashboardData();
+
+	// EVAL-C01: every surface below derives from this one coherent snapshot.
+	const curriculumMissing = curriculum !== null && !curriculum.ready;
+	const degraded = readinessSourceState === 'partial_degraded';
 
 	const next = pickNextStep({
 		phase: lifecyclePhase, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingsDone: buildingSetupStatus.done,
-		latestRunStatus, violationCount,
+		latestRunStatus, violationCount, curriculumMissing, degraded,
 	});
 
 	const stats: StatTile[] = [
@@ -261,9 +281,14 @@ export default function Dashboard() {
 		{ label: 'Subjects added', done: (subjectCount ?? 0) > 0, href: '/subjects' },
 		{ label: 'Teachers synced from EnrollPro', done: (facultyCount ?? 0) > 0, href: '/teachers' },
 		{ label: 'Every subject has a teacher', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
+		// EVAL-C01: missing term setup or Curriculum Requirements is a
+		// setup/generation blocker with a direct repair link.
+		{ label: 'Curriculum Requirements ready', done: curriculum !== null && curriculum.ready, href: '/subjects/requirements', hint: curriculum !== null && !curriculum.ready ? (curriculum.blockerMessage ?? 'Term setup or required subjects are missing') : undefined },
 		{ label: 'Buildings and rooms ready', done: buildingSetupStatus.done, href: '/map', hint: buildingSetupStatus.subMessage },
 		{ label: 'Timetable generated and reviewed', done: latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
-		{ label: 'Ready to publish', done: lifecyclePhase === 'PUBLISHED' || (latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0), href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing' },
+		// EVAL-C01: only a resolved published schedule counts as published.
+		// A reviewed timetable is "ready to publish", not published.
+		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing' },
 	];
 
 	const doneCount = checklist.filter((c) => c.done).length;
@@ -418,6 +443,22 @@ export default function Dashboard() {
 							</div>
 						</div>
 					</div>
+
+					{/* EVAL-C01: unresolved actor school — bounded blocked state
+					    with clear recovery. No school data is shown here. */}
+					{actorScopeBlocked ? (
+						<Card data-testid='dashboard-scope-blocked'>
+							<CardContent className='p-6'>
+								<h2 className='text-lg font-bold text-slate-900'>We could not confirm your school</h2>
+								<p className='mt-2 text-sm leading-relaxed text-slate-500'>{actorScopeBlocked} Sign in again, then try once more.</p>
+								<div className='mt-4'>
+									<Button type='button' onClick={retryActorScope} className='h-10 rounded-xl px-4 text-sm font-semibold'>
+										Try again
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					) : null}
 
 					{/* Year status guidance */}
 					{rolloverStatus === null || rolloverBlocking ? (

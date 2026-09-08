@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "ATLAS-RC01.1",
+  "promptId": "RC-01",
+  "promptPath": "docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md",
+  "promptSha256": "3D2313779086290D24BFA7DBFEDBA4858AFFBDDA80F482CCE5923329B28C8D61",
+  "risk": "MEDIUM",
+  "timeBudgetMinutes": 25,
+  "authorizesNoMutation": true,
+  "formalVerdictOwnedByPlanner": true,
+  "streams": [
+    "SCA-03E-R3",
+    "TL-C01R4B",
+    "TT-C01B-R",
+    "EVAL-C01R1"
+  ],
+  "requiredOutputs": [
+    "docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json",
+    "docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256",
+    "docs/progress/atlas-core-integration-rc01-progress.md"
+  ],
+  "forbidden": [
+    "source modification",
+    "git staging or commit",
+    "service restart or deployment",
+    "database or configuration mutation",
+    "curriculum or department-authority apply",
+    "generation or publication",
+    "schema or migration change",
+    "external repository edit",
+    "successor prompt execution"
+  ],
+  "successors": {
+    "RC-02": "LOCKED",
+    "SCA-04": "LOCKED",
+    "TL-C02": "LOCKED",
+    "TT-C02": "LOCKED"
+  },
+  "reviewPolicy": {
+    "executorAdvisoryReviewRequired": false,
+    "plannerFormalReviewRequired": true,
+    "reason": "Bounded read-only integration inventory; avoid ceremonial executor review latency."
+  }
+}

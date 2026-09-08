@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react';
 import type { useSearchParams } from 'react-router-dom';
+import type { TeachingLoadStatusFilter, TeachingLoadLoadFilter } from '@/lib/faculty-assignment-helpers';
 
 export type TeachingLoadViewMode = 'teacher' | 'allocation' | 'subjects';
 
@@ -18,8 +19,8 @@ type ApplyIntentParams = {
 	setSectionModeFilter: (filter: 'all' | 'unassigned' | 'constrained') => void;
 	setSelectedSubjectId: (id: number | null) => void;
 	setSubjectSearch: (search: string) => void;
-	setLoadFilter: (filter: 'all' | 'overloaded' | 'optimal' | 'underloaded') => void;
-	setFilterStatus: (status: 'all' | 'assigned' | 'unassigned') => void;
+	setLoadFilter: (filter: TeachingLoadLoadFilter) => void;
+	setFilterStatus: (status: TeachingLoadStatusFilter) => void;
 	setShowTemporaryRoles: (show: boolean) => void;
 };
 
@@ -187,12 +188,12 @@ export function useTeachingLoadRouteIntent(
 			apply.setSubjectSearch('');
 		}
 
-		// Apply task-specific filters
+		// Apply task-specific filters (canonical TL-C01 vocabulary)
 		if (intent.task === 'over-cap') {
-			apply.setLoadFilter('overloaded');
+			apply.setLoadFilter('excess');
 			apply.setFilterStatus('all');
 		} else if (intent.task === 'missing-load') {
-			apply.setFilterStatus('unassigned');
+			apply.setFilterStatus('no-teaching');
 			apply.setLoadFilter('all');
 		} else if (intent.task === 'review-placeholders') {
 			apply.setShowTemporaryRoles(true);

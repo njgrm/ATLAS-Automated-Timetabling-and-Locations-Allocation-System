@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "SCA-03E-R2.1",
+  "promptId": "SCA-03E-R2",
+  "promptPath": "docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md",
+  "promptSha256": "DA17ADF5F9C66AEE5E489AA610D81ED5F83D90CFF950714372E4CB4C2701FE9B",
+  "risk": "MEDIUM",
+  "timeBudgetMinutes": 30,
+  "authorizesNoMutation": true,
+  "formalVerdictOwnedByPlanner": true,
+  "requiredAuthority": {
+    "codeOwnedDecisions": "FORBIDDEN",
+    "draftRevisionGate": "CANONICAL_SEMANTIC_HASH",
+    "diagnosticCountsAsAuthority": false
+  },
+  "successor": {
+    "promptId": "SCA-04",
+    "status": "LOCKED",
+    "unlockRequires": [
+      "formal planner acceptance of SCA-03E-R2",
+      "persisted operator term and curriculum decisions",
+      "fresh post-decision preview and explicit fingerprint approval",
+      "Teaching Load integration stream frozen and reconciled"
+    ]
+  },
+  "forbidden": [
+    "curriculum requirement apply",
+    "term configuration write",
+    "Teaching Load mutation",
+    "generation or publication",
+    "schema or migration change",
+    "port 5001 restart",
+    "external repository edit"
+  ]
+}

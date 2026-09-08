@@ -22,7 +22,6 @@ import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
-import { DEFAULT_SCHOOL_ID } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 
@@ -82,6 +81,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		selectedRunId,
 		handleRunChange,
 		runs,
+		schoolId,
 		centerView,
 		newDraftLoading,
 		schoolYearId,
@@ -146,7 +146,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		setSyncing(true);
 		try {
 			const { data } = await atlasApi.post(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/sync-setup`
+				`/generation/${schoolId}/${schoolYearId}/runs/${activeGeneratedRunId}/sync-setup`
 			);
 			setSyncResult(data);
 			if (data.displacedEntriesCount > 0 || data.addedUnassignedCount > 0) {
@@ -173,7 +173,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		setShowPostSyncOffer(false);
 		try {
 			const { data } = await atlasApi.post(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/quick-place/preview`
+				`/generation/${schoolId}/${schoolYearId}/runs/${activeGeneratedRunId}/quick-place/preview`
 			);
 			setQuickPlacePlaced(data.placed);
 			setQuickPlaceUnplaced(data.unplaced);
@@ -190,7 +190,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		setQuickPlaceLoading(true);
 		try {
 			const { data } = await atlasApi.post(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/quick-place/apply`,
+				`/generation/${schoolId}/${schoolYearId}/runs/${activeGeneratedRunId}/quick-place/apply`,
 				{ expectedRunVersion: draft.version }
 			);
 			toast.success(`Successfully placed ${data.placedCount} sessions!`);

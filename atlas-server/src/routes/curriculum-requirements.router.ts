@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as termConfigService from '../services/term-config.service.js';
 import * as offeringService from '../services/school-year-offering.service.js';
+import * as decisionCandidatesService from '../services/curriculum-decision-candidates.service.js';
 
 const router = Router();
 
@@ -190,6 +191,23 @@ router.get('/:schoolYearId/requirement-suggestions', authenticate, async (req: R
 		if (actorSchoolId === null || schoolYearId === null) return;
 		const result = await offeringService.suggestRequirementsFromCatalog(actorSchoolId, schoolYearId);
 		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// GET /curriculum-requirements/:schoolYearId/decision-candidates — SCA-03E
+// operator decision workspace source (read-only). Candidates are
+// reconstructed dynamically from current subjects, active sections, and
+// annual ownership evidence; ownership is SUGGESTION_ONLY provenance.
+// Performs zero writes and authorizes no mutation.
+router.get('/:schoolYearId/decision-candidates', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const actorSchoolId = requireActorSchool(req, res);
+		const schoolYearId = resolveSchoolYearId(req, res);
+		if (actorSchoolId === null || schoolYearId === null) return;
+		const candidates = await decisionCandidatesService.getDecisionCandidates(actorSchoolId, schoolYearId);
+		res.json({ candidates });
 	} catch (err) {
 		next(err);
 	}

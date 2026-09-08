@@ -685,16 +685,6 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 													{newDraftLoading ? <Loader2 className="size-4 animate-spin" /> : <CalendarClock className="size-4" />}
 													Start Pre-Generation Draft
 												</Button>
-												<Button
-													type="button"
-													variant="outline"
-													className="h-11 gap-2"
-													disabled={generating || !schoolYearId}
-													onClick={handleTriggerGenerate}
-												>
-													{generating ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-													Generate when ready
-												</Button>
 											</div>
 										) : null}
 									</div>

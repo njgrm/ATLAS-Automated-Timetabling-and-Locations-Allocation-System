@@ -415,7 +415,7 @@ export default function ScheduleReviewWorkspace() {
 						commitTeachingLoadRepair={state.commitTeachingLoadRepair}
 						onSaved={state.handleRefresh}
 						isPublished={isDraftPublished}
-						schoolId={1}
+						schoolId={state.headerContext.schoolId}
 						schoolYearId={state.centerWorkspaceContext.schoolYearId}
 						runId={state.draft?.runId ?? null}
 						onHighlightEntries={setTeacherDepartureFocusedEntryIds}

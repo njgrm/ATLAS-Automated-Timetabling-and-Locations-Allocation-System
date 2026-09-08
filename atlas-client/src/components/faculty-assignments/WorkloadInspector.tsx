@@ -28,6 +28,9 @@ type WorkloadInspectorProps = {
 	isReadOnlyMode: boolean;
 	writeBlockedReason?: string | null;
 	activeTermIndex?: number | null;
+	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
+	teachingStandardHours: number | null;
+	policyReady: boolean;
 	onToggleCanTeachOutsideDepartment?: (checked: boolean) => void;
 	onClose?: () => void;
 };
@@ -48,10 +51,12 @@ export function WorkloadInspector({
 	isReadOnlyMode,
 	writeBlockedReason,
 	activeTermIndex,
+	teachingStandardHours,
+	policyReady,
 	onToggleCanTeachOutsideDepartment,
 	onClose
 }: WorkloadInspectorProps) {
-	if (!selected || !loadProfile) {
+	if (!selected) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center bg-muted/5">
 				<div className="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -59,6 +64,35 @@ export function WorkloadInspector({
 				</div>
 				<p className="text-sm font-semibold text-muted-foreground">Select a teacher to inspect workload.</p>
 				<p className="mt-2 text-xs font-medium text-muted-foreground/70">Use By teacher mode to review assignments, capacity, and the next safe action for one teacher.</p>
+			</div>
+		);
+	}
+
+	if (!policyReady || !loadProfile || teachingStandardHours == null) {
+		return (
+			<div className="flex h-full flex-col bg-background border-l border-border/50">
+				<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
+					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
+					<div className="flex items-center gap-4">
+						<div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-semibold text-primary border border-primary/20">
+							{selected.firstName[0]}{selected.lastName[0]}
+						</div>
+						<div className="min-w-0">
+							<h4 className="text-base font-semibold uppercase tracking-tight truncate leading-tight">
+								{selected.lastName}, {selected.firstName}
+							</h4>
+							<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
+								{selected.department || 'No Department'}
+							</p>
+						</div>
+					</div>
+				</div>
+				<div className="flex-1 overflow-auto p-6" data-testid="teaching-load-profile-readiness">
+					<div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-amber-900">
+						<p className="text-sm font-semibold">Teaching standard not configured</p>
+						<p className="mt-1 text-xs font-medium text-amber-800/80">Utilization, remaining, and excess figures need a persisted workload policy for this school year. Assignment details below remain available.</p>
+					</div>
+				</div>
 			</div>
 		);
 	}
@@ -129,32 +163,48 @@ export function WorkloadInspector({
 			</div>
 
 			<div className="flex-1 overflow-auto p-6 space-y-8 no-scrollbar">
-				{/* Capacity Gauge */}
+				{/* Teaching utilization gauge: actual teaching vs the effective standard. */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Credited Workload</span>
-						<span className="text-sm font-semibold tabular-nums">{loadProfile.creditedTotalHours} / {selected.maxHoursPerWeek}h</span>
+						<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Teaching load</span>
+						<span className="text-sm font-semibold tabular-nums">{loadProfile.actualTeachingHours} / {teachingStandardHours}h standard</span>
 					</div>
 					<StackedWorkloadBar
 						teachingHours={loadProfile.actualTeachingHours}
 						creditHours={loadProfile.equivalentHours}
 						maxHours={selected.maxHoursPerWeek}
+						standardHours={teachingStandardHours}
 						hoverHours={hoveredIncomingMinutes / 60}
 					/>
+					{loadProfile.equivalentHours > 0 && (
+						<p className="text-xs font-medium text-muted-foreground">+{loadProfile.equivalentHours.toFixed(1)}h advisory/ancillary credited separately. Credited total {loadProfile.creditedTotalHours.toFixed(1)}h is not teaching load.</p>
+					)}
 				</section>
 
 				{/* Primary Stats Grid */}
 				<div className="grid grid-cols-2 gap-3">
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Credited workload</span>
-						<p className="text-xl font-black tracking-tight tabular-nums">{loadProfile.creditedTotalHours}h</p>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Teaching load</span>
+						<p className="text-xl font-black tracking-tight tabular-nums">{loadProfile.actualTeachingHours}h</p>
 					</div>
-					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Remaining</span>
-						<p className={cn("text-xl font-black tracking-tight tabular-nums", loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-600')}>
-							{loadProfile.remainingHours.toFixed(1)}h
-						</p>
-					</div>
+					{loadProfile.status === 'overload-allowed' || loadProfile.status === 'over-cap' ? (
+						<div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-1">
+							<span className="text-xs font-bold text-amber-700/80 uppercase tracking-widest block">Excess teaching load</span>
+							<p className="text-xl font-black tracking-tight tabular-nums text-amber-700">+{(loadProfile.excessTeachingHours ?? loadProfile.overloadHours ?? 0).toFixed(1)}h</p>
+						</div>
+					) : loadProfile.status === 'compliant' ? (
+						<div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 space-y-1">
+							<span className="text-xs font-bold text-emerald-700/80 uppercase tracking-widest block">At standard</span>
+							<p className="text-xl font-black tracking-tight tabular-nums text-emerald-700">0.0h</p>
+						</div>
+					) : (
+						<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
+							<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Remaining teaching time</span>
+							<p className="text-xl font-black tracking-tight tabular-nums text-emerald-600">
+								{loadProfile.remainingHours.toFixed(1)}h
+							</p>
+						</div>
+					)}
 				</div>
 
 				{/* Cross-Department Teaching Switch */}
@@ -315,9 +365,8 @@ export function WorkloadInspector({
 								const bucket = family.termBuckets.find(b => b.termRank === activeTermIndex);
 								if (bucket) currentTermMinutes += bucket.creditedMinutesPerWeek;
 							}
-							const currentTermHours = currentTermMinutes / 60;
-							const STANDARD_WEEKLY_HOURS = 30;
-							const isOverStandard = currentTermHours > STANDARD_WEEKLY_HOURS;
+						const currentTermHours = currentTermMinutes / 60;
+							const isOverStandard = teachingStandardHours != null && currentTermHours > teachingStandardHours;
 							if (!isOverStandard) return null;
 							return (
 								<div className="p-3 rounded-xl border border-amber-200 bg-amber-50/70">
@@ -328,7 +377,7 @@ export function WorkloadInspector({
 										</span>
 									</div>
 									<p className="mt-1 text-xs text-amber-700">
-										Current term load is {currentTermHours.toFixed(1)}h, exceeding the {STANDARD_WEEKLY_HOURS}h standard.
+										Current term load is {currentTermHours.toFixed(1)}h, exceeding the {teachingStandardHours}h standard.
 									</p>
 								</div>
 							);
@@ -342,9 +391,9 @@ export function WorkloadInspector({
 					</h6>
 					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed italic">
 						{loadProfile.status === 'over-cap' 
-							? "This teacher exceeds the 40h legal limit. Reduce their assignments immediately to ensure timetable feasibility."
+							? `This teacher exceeds the ${selected.maxHoursPerWeek}h weekly maximum. Reduce their assignments immediately to ensure timetable feasibility.`
 							: loadProfile.status === 'overload-allowed'
-							? "Load is within overload boundaries (31-40h). Ensure this is approved by the department head."
+							? `Load is above the ${teachingStandardHours}h teaching standard and within the ${selected.maxHoursPerWeek}h maximum. Ensure this is approved by the department head.`
 							: loadProfile.status === 'below-standard'
 							? "Capacity remains for additional assignments. Prioritize unassigned sections from the shortage grid."
 							: "Teacher load is optimal."}

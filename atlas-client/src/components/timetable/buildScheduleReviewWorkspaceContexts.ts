@@ -7,6 +7,7 @@ import type { TutorialStep } from '@/components/TutorialOverlay';
 import type { TimetableToolbarGroup } from '@/components/timetable/TimetableToolbar';
 import type { DraftBoardState, DraftReport, HumanConflict, ScheduledEntry, UnassignedItem, UnassignedReason, Violation } from '@/types';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import type { TimetableCurriculumReadinessState } from '@/hooks/useTimetableData';
 import type { DragSource, PreGenDragSource } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { LeftRailContentContext, ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 
@@ -14,7 +15,6 @@ import {
 	CONFLICT_CODES,
 	DAYS,
 	DAY_SHORT,
-	DEFAULT_SCHOOL_ID,
 	ENTRY_KIND_FILTER_OPTIONS,
 	GRADE_BADGE,
 	GRADE_CARD_BG,
@@ -54,6 +54,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	runs: Array<{ id: number; createdAt: string; durationMs?: number | null; status?: string }>;
 	schoolYearContext: ActiveSchoolYearContext | null;
 	schoolId: number;
+	curriculumReadiness?: TimetableCurriculumReadinessState;
 	centerView: string;
 	newDraftLoading: boolean;
 	schoolYearId: number | null;
@@ -172,8 +173,9 @@ type BuildLeftRailContextArgs = Omit<
 	| 'DAY_SHORT'
 	| 'GRADE_BADGE'
 	| 'GRADE_CARD_BG'
->;
+> & { schoolId: number };
 type BuildCenterWorkspaceContextArgs = Omit<CenterWorkspaceContext, 'defaultSchoolId' | 'draftEntries' | 'dayShort'> & {
+	schoolId: number;
 	draft?: { entries?: unknown[] } | null;
 	tacticalSandboxOpen: boolean;
 	setTacticalSandboxOpen: (v: boolean) => void;
@@ -201,7 +203,7 @@ export function buildLeftRailContext(args: BuildLeftRailContextArgs): LeftRailCo
 		...args,
 		UNASSIGNED_REASON_LABELS,
 		buildUnassignedKey,
-		defaultSchoolId: DEFAULT_SCHOOL_ID,
+		defaultSchoolId: args.schoolId,
 		formatTime,
 		DAY_SHORT,
 		GRADE_BADGE,
@@ -212,7 +214,7 @@ export function buildLeftRailContext(args: BuildLeftRailContextArgs): LeftRailCo
 export function buildCenterWorkspaceContext(args: BuildCenterWorkspaceContextArgs): CenterWorkspaceContext {
 	return {
 		...args,
-		defaultSchoolId: DEFAULT_SCHOOL_ID,
+		defaultSchoolId: args.schoolId,
 		draftEntries: args.draft?.entries ?? [],
 		dayShort: DAY_SHORT,
 	};

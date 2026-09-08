@@ -20,8 +20,92 @@ import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
 import { prisma } from '../lib/prisma.js';
 import { getOrCreateTeachingLoadCycleSource, getTeachingLoadCycle } from '../services/teaching-load-cycle.service.js';
+import * as departmentAuthorityService from '../services/department-authority.service.js';
+import { parseStrictPositiveInt } from '../services/department-authority.service.js';
 
 const router = Router();
+
+function actorSchoolIdOf(req: Request): number | null {
+	const schoolId = req.user?.schoolId;
+	return typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
+}
+
+function rejectSchoolScopeConflict(req: Request, schoolId: number, res: Response): boolean {
+	const actorSchoolId = actorSchoolIdOf(req);
+	if (actorSchoolId != null && actorSchoolId !== schoolId) {
+		res.status(403).json({ code: 'SCHOOL_MISMATCH', message: 'Request school does not match the authenticated actor school.' });
+		return true;
+	}
+	return false;
+}
+
+// Auth: GET /faculty-assignments/department-authority?schoolId=X
+// Deliberately documented integration-token read surface: strictly read-only.
+// School scope is enforced by the service read (single-school queries) and
+// covered by an explicit school-isolation test.
+router.get('/department-authority', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.query.schoolId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId must be a positive integer.' });
+			return;
+		}
+		if (rejectSchoolScopeConflict(req, schoolId, res)) return;
+		res.json(await departmentAuthorityService.listDepartmentAuthority(schoolId));
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/department-authority/preview (operator JWT only)
+router.post('/department-authority/preview', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.body?.schoolId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId must be a positive integer.' });
+			return;
+		}
+		if (rejectSchoolScopeConflict(req, schoolId, res)) return;
+		res.json(await departmentAuthorityService.previewDepartmentAuthority(schoolId, {
+			actorSchoolId: actorSchoolIdOf(req),
+			aliases: req.body?.aliases,
+			labels: req.body?.labels,
+		}));
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/department-authority/apply (operator JWT only;
+// system-token-only application is rejected: no machine-mutation contract exists)
+router.post('/department-authority/apply', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.body?.schoolId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId must be a positive integer.' });
+			return;
+		}
+		if (rejectSchoolScopeConflict(req, schoolId, res)) return;
+		res.json(await departmentAuthorityService.applyDepartmentAuthority({
+			actorSchoolId: actorSchoolIdOf(req),
+			// Pass the already validated/normalized positive integer, never the raw body value.
+			schoolId,
+			expectedFingerprint: req.body?.expectedFingerprint,
+			expectedSourceRevision: req.body?.expectedSourceRevision,
+			aliases: req.body?.aliases,
+			labels: req.body?.labels,
+			confirmationText: req.body?.confirmationText,
+		}));
+	} catch (err) {
+		next(err);
+	}
+});
 
 function parseCoverageMode(value: unknown): CoverageMode | null {
 	if (value == null) {
@@ -177,6 +261,9 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 			coverageTotals: summary.coverageTotals,
 			integrityDiagnostics: summary.integrityDiagnostics,
 			source: summary.source,
+			cycleDiagnostic: (summary as { cycleDiagnostic?: unknown }).cycleDiagnostic ?? null,
+			workloadPolicy: summary.workloadPolicy,
+			workloadPolicyStatus: summary.workloadPolicyStatus,
 			schoolYearId,
 			fetchedAt,
 		});

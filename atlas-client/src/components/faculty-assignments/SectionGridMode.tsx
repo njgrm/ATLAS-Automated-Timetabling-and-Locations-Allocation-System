@@ -25,7 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from '@/ui/popover';
 import { cn } from '@/lib/utils';
-import { getAssignmentOwnershipKey, matchesOwnershipDepartment, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import { getAssignmentOwnershipKey, matchesOwnershipDepartment, teachingUtilizationPercentFor, resolveTeachingActualHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
 import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
 
 export type SectionGridModeProps = {
@@ -55,6 +55,8 @@ export type SectionGridModeProps = {
 	workspaceStateNextAction: string;
 	writeBlockedReason: string | null;
 	completedSectionIds?: Set<number>;
+	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
+	teachingStandardHours: number | null;
 };
 
 
@@ -85,6 +87,7 @@ export function SectionGridMode({
 	workspaceStateNextAction,
 	writeBlockedReason,
 	completedSectionIds = new Set(),
+	teachingStandardHours,
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
 
@@ -375,8 +378,11 @@ export function SectionGridMode({
 																		{candidates.length === 0 ? (
 																			<p className="p-4 text-center text-xs font-bold text-muted-foreground italic uppercase">No qualified owners found</p>
 																		) : candidates.map(f => {
-																			const isCurrentOwner = owner?.facultyId === f.id;
-																			const loadPct = Math.round(f.policyLoadPercentage ?? 0);
+																		const isCurrentOwner = owner?.facultyId === f.id;
+																		// Canonical candidate signal: teaching utilization against the
+																		// explicit effective standard. Unknown standard shows hours only.
+																		const candidateHours = resolveTeachingActualHours(f);
+																		const loadPct = f.isPlaceholder || teachingStandardHours == null ? null : Math.round(teachingUtilizationPercentFor(f, teachingStandardHours));
 																			const hasDraftChanges = (effectiveAssignmentsByFaculty[f.id]?.length ?? 0) > 0;
 																			return (
 																				<PopoverClose asChild key={f.id}>
@@ -398,9 +404,9 @@ export function SectionGridMode({
 																							<div className="flex items-center gap-2 mt-0.5">
 																								<span className={cn(
 																									"text-[10px] font-bold uppercase tracking-tighter",
-																									loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
+																									loadPct == null ? "text-muted-foreground" : loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
 																								)}>
-																									{loadPct}% Load{hasDraftChanges ? ' *' : ''}
+																									{loadPct == null ? `${candidateHours.toFixed(1)}h teaching` : `${loadPct}% Load`}{hasDraftChanges ? ' *' : ''}
 																								</span>
 																								<span className="text-muted-foreground/30">•</span>
 																								<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">

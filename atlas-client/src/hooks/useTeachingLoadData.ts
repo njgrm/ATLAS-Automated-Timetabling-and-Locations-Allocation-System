@@ -11,9 +11,6 @@ import {
 	buildPendingOwnershipMap,
 	buildEffectiveOwnershipMap,
 	buildSectionMap,
-	buildTeachingLoadProfile,
-	CLASS_ADVISER_EQUIVALENT_HOURS,
-	getFacultyComparableLoadHours,
 	normalizeDraftAssignments,
 	type FacultyAssignmentDraft,
 	type SubjectSectionOwnershipIndexEntry,
@@ -23,6 +20,8 @@ import {
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
+import { resolveActorSchoolId } from '@/lib/settings';
+import { teachingLoadScopeParams } from '@/lib/faculty-assignment-helpers';
 import {
 	getCachedFacultyAssignmentsSummary,
 	getCachedSectionSummary,
@@ -32,6 +31,9 @@ import {
 	setCachedFacultyAssignmentsSummary,
 	setCachedSectionSummary,
 	setCachedSubjects,
+	type FacultySummarySnapshot,
+	type EffectiveWorkloadPolicyState,
+	type WorkloadPolicyReadiness,
 } from '@/lib/faculty-teaching-load-cache';
 import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
 import type {
@@ -47,16 +49,18 @@ import type {
 	TeachingLoadSplitBrainReconcileResult,
 } from '@/types';
 
-const DEFAULT_SCHOOL_ID = 1;
-
 export function useTeachingLoadData() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
+	const [schoolId, setSchoolId] = useState<number | null>(null);
+	const [activeSchoolYearLabel, setActiveSchoolYearLabel] = useState<string | null>(null);
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [sectionSummary, setSectionSummary] = useState<SectionSummaryResponse | null>(null);
 	const [sectionAssignedClassesIndex, setSectionAssignedClassesIndex] = useState<SectionAssignedClassesIndexResult | null>(null);
 	const [savedOwnershipIndex, setSavedOwnershipIndex] = useState<SubjectSectionOwnershipIndexEntry[]>([]);
 	const [coverageTotals, setCoverageTotals] = useState<TeachingLoadCoverageTotals | null>(null);
+	const [workloadPolicy, setWorkloadPolicy] = useState<EffectiveWorkloadPolicyState | null>(null);
+	const [workloadPolicyStatus, setWorkloadPolicyStatus] = useState<WorkloadPolicyReadiness>('UNCONFIGURED');
 	const [integrityDiagnostics, setIntegrityDiagnostics] = useState<TeachingLoadIntegrityDiagnostics | null>(null);
 	const [splitBrainIncident, setSplitBrainIncident] = useState<TeachingLoadSplitBrainReconcileResult | null>(null);
 	const [splitBrainLoading, setSplitBrainLoading] = useState(false);
@@ -108,13 +112,13 @@ export function useTeachingLoadData() {
 
 	const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
 
-	const fetchSplitBrainIncident = useCallback(async (schoolYearId: number) => {
+	const fetchSplitBrainIncident = useCallback(async (splitBrainSchoolId: number, schoolYearId: number) => {
 		setSplitBrainLoading(true);
 		try {
 			const { data } = await atlasApi.post<TeachingLoadSplitBrainReconcileResult>(
 				'/faculty-assignments/integrity/reconcile-split-brain',
 				{
-					schoolId: DEFAULT_SCHOOL_ID,
+					schoolId: splitBrainSchoolId,
 					schoolYearId,
 					previewOnly: true,
 				},
@@ -133,23 +137,33 @@ export function useTeachingLoadData() {
 		setError(null);
 
 		let schoolYearId: number | null = null;
+		let resolvedSchoolId: number | null = null;
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 
 		try {
+			// Actor school first: the authenticated session owns the school scope.
+			// No fallback to a hardcoded school literal — unresolved stays an error.
+			const actorSchoolId = await resolveActorSchoolId();
 			const schoolYearContext = await resolveActiveSchoolYearContext({
 				forceRefresh,
 				allowEnrollProFallback: false,
 			});
-			schoolYearId = schoolYearContext.activeSchoolYearId;
+			const scope = teachingLoadScopeParams(actorSchoolId, schoolYearContext.activeSchoolYearId);
+			resolvedSchoolId = scope.schoolId;
+			// Local const: non-null inside this try block (also safe inside closures below).
+			const school = scope.schoolId;
+			setSchoolId(school);
+			setActiveSchoolYearLabel(schoolYearContext.activeSchoolYearLabel ?? null);
+			schoolYearId = scope.schoolYearId;
 			yearContextSource = schoolYearContext.source;
 			setActiveTermIndex(schoolYearContext.activeTerm?.termIndex ?? null);
 
 			if (!forceRefresh) {
-				const cachedSummary = getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+				const cachedSummary = getCachedFacultyAssignmentsSummary(school, schoolYearId, {
 					maxAgeMs: 3 * 60 * 1000,
 				});
-				const cachedSubjects = getCachedSubjects(DEFAULT_SCHOOL_ID, { maxAgeMs: 3 * 60 * 1000 });
-				const cachedSections = getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, { maxAgeMs: 3 * 60 * 1000 });
+				const cachedSubjects = getCachedSubjects(school, { maxAgeMs: 3 * 60 * 1000 });
+				const cachedSections = getCachedSectionSummary(school, schoolYearId, { maxAgeMs: 3 * 60 * 1000 });
 
 				if (cachedSummary && cachedSubjects && cachedSections) {
 					setActiveSchoolYearId(schoolYearId);
@@ -157,6 +171,8 @@ export function useTeachingLoadData() {
 					setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
 					setCoverageTotals(cachedSummary.data.coverageTotals ?? null);
 					setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
+					setWorkloadPolicy(cachedSummary.data.workloadPolicy ?? null);
+					setWorkloadPolicyStatus(cachedSummary.data.workloadPolicyStatus ?? 'UNCONFIGURED');
 					setSubjects(cachedSubjects.data);
 					setSectionSummary(cachedSections.data);
 					setDataSource(isOnline ? 'refreshing' : 'cached');
@@ -177,24 +193,26 @@ export function useTeachingLoadData() {
 							ownershipIndex?: SubjectSectionOwnershipIndexEntry[];
 							coverageTotals?: TeachingLoadCoverageTotals;
 							integrityDiagnostics?: TeachingLoadIntegrityDiagnostics;
+							workloadPolicy?: EffectiveWorkloadPolicyState | null;
+							workloadPolicyStatus?: WorkloadPolicyReadiness;
 							fetchedAt?: string | null;
-						}>(
+						}>						(
 							'/faculty-assignments/summary',
-							{ params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId } },
+							{ params: { schoolId: school, schoolYearId } },
 						),
 					{ attempts: 2, delayMs: 400 },
 				),
 				requestWithRetry(
-					() => atlasApi.get<{ subjects: Subject[] }>('/subjects', { params: { schoolId: DEFAULT_SCHOOL_ID } }),
+					() => atlasApi.get<{ subjects: Subject[] }>('/subjects', { params: { schoolId: school } }),
 					{ attempts: 2, delayMs: 300 },
 				),
 				requestWithRetry(
-					() => atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}`, { params: { schoolId: DEFAULT_SCHOOL_ID } }),
+					() => atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}`, { params: { schoolId: school } }),
 					{ attempts: 2, delayMs: 400 },
 				),
 				requestWithRetry(
 					() => atlasApi.get<SectionAssignedClassesIndexResult>('/sections/assigned-classes', {
-						params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId, includeDiagnostics: true },
+						params: { schoolId: school, schoolYearId, includeDiagnostics: true },
 					}),
 					{ attempts: 2, delayMs: 400 },
 				),
@@ -205,6 +223,8 @@ export function useTeachingLoadData() {
 				ownershipIndex: facultyRes.data.ownershipIndex ?? [],
 				coverageTotals: facultyRes.data.coverageTotals,
 				integrityDiagnostics: facultyRes.data.integrityDiagnostics,
+				workloadPolicy: facultyRes.data.workloadPolicy ?? null,
+				workloadPolicyStatus: facultyRes.data.workloadPolicyStatus ?? 'UNCONFIGURED',
 				fetchedAt: facultyRes.data.fetchedAt ?? null,
 				schoolYearId,
 			});
@@ -224,12 +244,14 @@ export function useTeachingLoadData() {
 			setSavedOwnershipIndex(normalizedSummary.ownershipIndex);
 			setCoverageTotals(normalizedSummary.coverageTotals ?? null);
 			setIntegrityDiagnostics(normalizedSummary.integrityDiagnostics ?? null);
+			setWorkloadPolicy(normalizedSummary.workloadPolicy ?? null);
+			setWorkloadPolicyStatus(normalizedSummary.workloadPolicyStatus ?? 'UNCONFIGURED');
 			setSubjects(normalizedSubjects);
 			setSectionSummary(normalizedSectionSummary as SectionSummaryResponse);
 			setSectionAssignedClassesIndex(sectionAssignedClassesRes.data);
-			setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSummary);
-			setCachedSubjects(DEFAULT_SCHOOL_ID, normalizedSubjects);
-			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
+			setCachedFacultyAssignmentsSummary(school, schoolYearId, normalizedSummary);
+			setCachedSubjects(school, normalizedSubjects);
+			setCachedSectionSummary(school, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
 			const isUpstreamContext = isUpstreamBackedSchoolYearSource(yearContextSource);
 			const isUpstreamBacked = isUpstreamContext && normalizedSectionSummary.source === 'enrollpro';
 			setDataSource(isUpstreamBacked ? 'live' : 'cached');
@@ -242,12 +264,12 @@ export function useTeachingLoadData() {
 			);
 			setError(null);
 			if (schoolYearId) {
-				void fetchSplitBrainIncident(schoolYearId);
+				void fetchSplitBrainIncident(school, schoolYearId);
 			}
 		} catch (requestError: any) {
-			const cachedSummary = schoolYearId ? getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
-			const cachedSubjects = getCachedSubjects(DEFAULT_SCHOOL_ID);
-			const cachedSections = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
+			const cachedSummary = schoolYearId && resolvedSchoolId ? getCachedFacultyAssignmentsSummary(resolvedSchoolId, schoolYearId) : null;
+			const cachedSubjects = resolvedSchoolId ? getCachedSubjects(resolvedSchoolId) : null;
+			const cachedSections = schoolYearId && resolvedSchoolId ? getCachedSectionSummary(resolvedSchoolId, schoolYearId) : null;
 
 			if (schoolYearId && cachedSummary && cachedSubjects && cachedSections) {
 				setActiveSchoolYearId(schoolYearId);
@@ -255,17 +277,21 @@ export function useTeachingLoadData() {
 				setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
 				setCoverageTotals(cachedSummary.data.coverageTotals ?? null);
 				setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
+				setWorkloadPolicy(cachedSummary.data.workloadPolicy ?? null);
+				setWorkloadPolicyStatus(cachedSummary.data.workloadPolicyStatus ?? 'UNCONFIGURED');
 				setSubjects(cachedSubjects.data);
 				setSectionSummary(cachedSections.data);
 				setSectionAssignedClassesIndex(null);
 				setDataSource('cached');
 				setDegradedNotice('Live teaching load data is unavailable. You are viewing your last saved snapshot in read-only mode.');
 				setError(null);
-				void fetchSplitBrainIncident(schoolYearId);
+				if (resolvedSchoolId) void fetchSplitBrainIncident(resolvedSchoolId, schoolYearId);
 			} else {
 				setDataSource('none');
 				setCoverageTotals(null);
 				setIntegrityDiagnostics(null);
+				setWorkloadPolicy(null);
+				setWorkloadPolicyStatus('UNCONFIGURED');
 				setSplitBrainIncident(null);
 				setSectionAssignedClassesIndex(null);
 				setDegradedNotice(null);
@@ -441,10 +467,14 @@ export function useTeachingLoadData() {
 
 	return {
 		faculty,
+		schoolId,
+		activeSchoolYearLabel,
 		subjects,
 		sectionSummary,
 		sectionAssignedClassesIndex,
 		coverageTotals,
+		workloadPolicy,
+		workloadPolicyStatus,
 		integrityDiagnostics,
 		splitBrainIncident,
 		splitBrainLoading,

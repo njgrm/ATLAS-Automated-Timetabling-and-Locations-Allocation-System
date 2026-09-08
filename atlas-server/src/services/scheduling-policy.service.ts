@@ -875,6 +875,81 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 	}
 }
 
+// ─── Read-only effective workload policy (no creation on read paths) ───
+
+export type WorkloadPolicyReadiness = 'CONFIGURED' | 'UNCONFIGURED';
+
+export interface EffectiveWorkloadPolicy {
+	teachingStandardMinutes: number;
+	advisoryCreditMinutes: number;
+	hardCapMinutes: number;
+}
+
+export interface EffectiveWorkloadPolicyResolution {
+	status: WorkloadPolicyReadiness;
+	policy: EffectiveWorkloadPolicy | null;
+}
+
+type PersistedWorkloadPolicyRow = {
+	teachingStandardMinutes: number | null | undefined;
+	advisoryCreditMinutes: number | null | undefined;
+	hardCapMinutes: number | null | undefined;
+} | null | undefined;
+
+/**
+ * Pure resolver: a persisted school/year workload policy row is the effective
+ * policy. A missing row (or missing/invalid workload fields) yields a typed
+ * UNCONFIGURED readiness state — never invented defaults, never a UI constant.
+ */
+export function resolveEffectiveWorkloadPolicy(
+	row: PersistedWorkloadPolicyRow,
+): EffectiveWorkloadPolicyResolution {
+	const teachingStandardMinutes = typeof row?.teachingStandardMinutes === 'number' && Number.isFinite(row.teachingStandardMinutes) && row.teachingStandardMinutes > 0
+		? Math.round(row.teachingStandardMinutes)
+		: null;
+	const advisoryCreditMinutes = typeof row?.advisoryCreditMinutes === 'number' && Number.isFinite(row.advisoryCreditMinutes) && row.advisoryCreditMinutes >= 0
+		? Math.round(row.advisoryCreditMinutes)
+		: null;
+	const hardCapMinutes = typeof row?.hardCapMinutes === 'number' && Number.isFinite(row.hardCapMinutes) && row.hardCapMinutes > 0
+		? Math.round(row.hardCapMinutes)
+		: null;
+	if (teachingStandardMinutes == null || advisoryCreditMinutes == null || hardCapMinutes == null) {
+		return { status: 'UNCONFIGURED', policy: null };
+	}
+	return { status: 'CONFIGURED', policy: { teachingStandardMinutes, advisoryCreditMinutes, hardCapMinutes } };
+}
+
+/**
+ * Read-only effective workload policy for a school/year. Performs zero writes:
+ * no row creation, no normalization updates, no column ensures, no fallback
+ * invention. Passive Teaching Load reads must use this instead of
+ * `getOrCreatePolicy`. Schema drift surfaces as UNCONFIGURED (never partial
+ * invented values) because the configuration state is unknowable.
+ */
+export async function getEffectiveWorkloadPolicy(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<EffectiveWorkloadPolicyResolution> {
+	try {
+		const row = await db().schedulingPolicy.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+			select: {
+				teachingStandardMinutes: true,
+				advisoryCreditMinutes: true,
+				hardCapMinutes: true,
+			},
+		});
+		return resolveEffectiveWorkloadPolicy(row);
+	} catch (e: unknown) {
+		if (isSchemaDriftError(e)) {
+			// Schema behind: configuration state is unknown, so report
+			// UNCONFIGURED rather than inventing effective values.
+			return { status: 'UNCONFIGURED', policy: null };
+		}
+		throw e;
+	}
+}
+
 // ─── Upsert ───
 
 export async function upsertPolicy(schoolId: number, schoolYearId: number, input: PolicyInput) {

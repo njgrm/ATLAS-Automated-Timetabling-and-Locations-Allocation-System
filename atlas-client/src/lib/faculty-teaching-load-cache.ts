@@ -8,7 +8,7 @@ import type {
 	TeachingLoadIntegrityDiagnostics,
 } from '@/types';
 
-const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v4';
+const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v5';
 const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
 const SECTION_SUMMARY_CACHE_PREFIX = 'atlas:section-summary:v1';
 const SECTION_HOME_ROOMS_CACHE_PREFIX = 'atlas:section-home-rooms:v1';
@@ -31,11 +31,23 @@ export type CachedResult<T> = {
 	stale: boolean;
 };
 
+export type EffectiveWorkloadPolicyState = {
+	teachingStandardMinutes: number;
+	advisoryCreditMinutes: number;
+	hardCapMinutes: number;
+};
+
+export type WorkloadPolicyReadiness = 'CONFIGURED' | 'UNCONFIGURED';
+
 export type FacultySummarySnapshot = {
 	faculty: FacultySummary[];
 	ownershipIndex: SubjectSectionOwnershipIndexEntry[];
 	coverageTotals?: TeachingLoadCoverageTotals;
 	integrityDiagnostics?: TeachingLoadIntegrityDiagnostics;
+	/** Effective school/year workload policy from the summary contract (null when UNCONFIGURED). */
+	workloadPolicy?: EffectiveWorkloadPolicyState | null;
+	/** Typed readiness state for the effective workload policy. */
+	workloadPolicyStatus?: WorkloadPolicyReadiness;
 	fetchedAt: string | null;
 	schoolYearId: number;
 };
@@ -60,6 +72,31 @@ function isRotationFamilyLoadDetail(value: unknown): value is RotationFamilyLoad
 		&& Array.isArray(candidate.subjectCodes)
 		&& Array.isArray(candidate.subjectIds)
 	);
+}
+
+function normalizeWorkloadPolicy(value: unknown): EffectiveWorkloadPolicyState | null {
+	if (!value || typeof value !== 'object') return null;
+	const candidate = value as Partial<EffectiveWorkloadPolicyState>;
+	const teachingStandardMinutes = candidate.teachingStandardMinutes;
+	const advisoryCreditMinutes = candidate.advisoryCreditMinutes;
+	const hardCapMinutes = candidate.hardCapMinutes;
+	if (
+		typeof teachingStandardMinutes !== 'number' || !Number.isFinite(teachingStandardMinutes) || teachingStandardMinutes <= 0
+		|| typeof advisoryCreditMinutes !== 'number' || !Number.isFinite(advisoryCreditMinutes) || advisoryCreditMinutes < 0
+		|| typeof hardCapMinutes !== 'number' || !Number.isFinite(hardCapMinutes) || hardCapMinutes <= 0
+	) {
+		return null;
+	}
+	return {
+		teachingStandardMinutes: Math.round(teachingStandardMinutes),
+		advisoryCreditMinutes: Math.round(advisoryCreditMinutes),
+		hardCapMinutes: Math.round(hardCapMinutes),
+	};
+}
+
+function normalizeWorkloadPolicyStatus(value: unknown, policy: EffectiveWorkloadPolicyState | null): WorkloadPolicyReadiness {
+	if (value === 'CONFIGURED' && policy != null) return 'CONFIGURED';
+	return 'UNCONFIGURED';
 }
 
 function normalizeCoverageTotals(value: unknown): TeachingLoadCoverageTotals | undefined {
@@ -135,6 +172,11 @@ export function normalizeFacultySummarySnapshot(value: unknown): FacultySummaryS
 		ownershipIndex: toArray<SubjectSectionOwnershipIndexEntry>(candidate.ownershipIndex),
 		coverageTotals: normalizeCoverageTotals(candidate.coverageTotals),
 		integrityDiagnostics: normalizeIntegrityDiagnostics(candidate.integrityDiagnostics),
+		workloadPolicy: normalizeWorkloadPolicy((candidate as Record<string, unknown>).workloadPolicy),
+		workloadPolicyStatus: normalizeWorkloadPolicyStatus(
+			(candidate as Record<string, unknown>).workloadPolicyStatus,
+			normalizeWorkloadPolicy((candidate as Record<string, unknown>).workloadPolicy),
+		),
 		fetchedAt: typeof candidate.fetchedAt === 'string' || candidate.fetchedAt === null ? candidate.fetchedAt : null,
 		schoolYearId,
 	};

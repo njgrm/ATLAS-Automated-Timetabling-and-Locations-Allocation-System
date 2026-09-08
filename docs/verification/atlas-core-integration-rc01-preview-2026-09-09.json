@@ -1,0 +1,2891 @@
+{
+  "promptId": "RC-01R",
+  "title": "Core Stream Integration Seal — Release-Candidate Preview",
+  "date": "2026-09-09",
+  "risk": "MEDIUM",
+  "verdictBoundary": "REVIEW_REQUIRED",
+  "authorizesNoMutation": true,
+  "approvalSentence": null,
+  "manifestSha256": "F0851FEE3E056B6D1D06CA860BC194325CD967B78A9A5AED89663EF6E49B9762",
+  "promptSha256": "3D2313779086290D24BFA7DBFEDBA4858AFFBDDA80F482CCE5923329B28C8D61",
+  "streams": [
+    "SCA-03E-R3",
+    "TL-C01R4B",
+    "TT-C01B-R",
+    "EVAL-C01R1"
+  ],
+  "head": "f4ec1e766b4805d9333ce0827692fa1e6086ea77",
+  "branch": "main",
+  "rc01rStartedUtc": "2026-09-08T17:36:26.522Z",
+  "runtimeSignature": {
+    "port5001": {
+      "pid": 31648,
+      "note": "ATLAS server listener (PID differs from TT-C01 ledger 37132; no restart performed — observed at probe time)"
+    },
+    "port5174": {
+      "pid": 24884,
+      "note": "ATLAS Vite dev listener (IPv4 + IPv6)"
+    },
+    "command": "npx tsx --env-file=.env C:/Users/njgro/AppData/Local/Temp/opencode/rc01r-census.ts (read-only Prisma counts against the configured DATABASE_URL)",
+    "utc": "2026-09-08T17:39:19.573Z",
+    "databaseName": "atlas_recovery_clean_rebuild_20260905",
+    "databaseHost": "localhost:5432",
+    "actorSchool": 1,
+    "activeYear": 8,
+    "activeYearLabel": "2029-2030",
+    "activeYearMirrorId": 1,
+    "activeYearArchived": false,
+    "results": {
+      "curriculumRequirements": 0,
+      "activeTermConfigs": 0,
+      "annualTeachingLoadOwnerships": 265,
+      "teachingLoadCycle": {
+        "state": "POPULATED",
+        "version": 4,
+        "updatedAt": "2026-09-07T00:23:47.205Z"
+      },
+      "departmentAliases": 0,
+      "departmentLabels": 0,
+      "generationRuns": 0,
+      "publishedRevisions": 0
+    },
+    "mutation": "NONE — read-only SELECT/COUNT only; no writes, login, restart, migration, generation, or publication."
+  },
+  "payloadFrozen": {
+    "total": 95,
+    "missing": 0,
+    "hashMismatch": 0,
+    "duplicates": 0,
+    "note": "All 95 payload paths exist and their SHA-256 hashes, owners, kinds, and tracked flags are unchanged from RC-01."
+  },
+  "changelog": {
+    "statement": "CHANGELOG.md contains an RC-01 entry \"Core Integration RC-01 Seal\" beginning at line 3040 (2026-09-09). CHANGELOG.md is excluded from the 98-path package pending a separate planner packaging decision. Prior RC-01 report claims that no RC-01 changelog entry exists are RETRACTED."
+  },
+  "inventory": {
+    "totalFiles": 95,
+    "byOwner": {
+      "SCA": 27,
+      "TL": 31,
+      "TT": 22,
+      "EVAL": 10,
+      "SHARED": 5
+    },
+    "trackedModified": 37,
+    "untrackedNew": 58,
+    "production": 44,
+    "test": 15,
+    "evidence": 35,
+    "config": 1,
+    "files": [
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/App.tsx",
+        "k": "production",
+        "r": "SCA-03E decision-workspace route + prior SCA-02 requirements route hunks",
+        "sha256": "BC5C09E7AF7FAD7D67302B0477DA72058E4ABEBFA47DC59E5A16E61ECF5587AA",
+        "tracked": true
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/pages/CurriculumRequirements.tsx",
+        "k": "production",
+        "r": "SCA-02/03E Curriculum Requirements + decision entry surface",
+        "sha256": "D3CBDAB62C42EDF6219C1438E08629A103A6C1EBED069FF1DC8D9A1D3F6290DA",
+        "tracked": true
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-server/src/routes/curriculum-requirements.router.ts",
+        "k": "production",
+        "r": "SCA-02/03E requirement + decision candidate routes",
+        "sha256": "A18452D8E85D0619F6DD77735F09E812A46151EC9B47D5458B45744195DA079D",
+        "tracked": true
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/components/decision-workspace/CandidateRow.tsx",
+        "k": "production",
+        "r": "SCA-03E decision workspace",
+        "sha256": "E03E0015EB14B0706B539E9F49E6F087A5E57A522A748A5D621AA7691F9E20FC",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/components/decision-workspace/CandidateTable.tsx",
+        "k": "production",
+        "r": "SCA-03E decision workspace",
+        "sha256": "F2362236D4C15E5F233706C9D6789F31F41870DDC5EEDA8259AA0601F459F4DA",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/components/decision-workspace/DraftPreviewPanel.tsx",
+        "k": "production",
+        "r": "SCA-03E decision workspace",
+        "sha256": "DE55A02923C76D9E0C1C6BCBDEB270D97972F2CB89D7545E81FE5B7B47932D31",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/components/decision-workspace/TermDraftEditor.tsx",
+        "k": "production",
+        "r": "SCA-03E decision workspace",
+        "sha256": "834E09D248DB45713A1AF0BEB23DD366D041FE59A04A60DE8C059C54A07D2D83",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/lib/decision-draft.ts",
+        "k": "production",
+        "r": "SCA-03E-R3 draft restore guards",
+        "sha256": "6F2280BEB364300A60ED0B84D228DAC4FCA789A108E07A9398849A3DA45BC28E",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/pages/DecisionWorkspace.tsx",
+        "k": "production",
+        "r": "SCA-03E decision workspace page",
+        "sha256": "E8BAB75961D56B07B2181D02A0D138365229020D195EEB8993A425EA634FA69A",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-server/src/services/curriculum-decision-candidates.service.ts",
+        "k": "production",
+        "r": "SCA-03E decision candidates service",
+        "sha256": "FAFC8FF2BDD5972CB4A218E3BA120DC3407F8330279BA89504D44F0EE3E69756",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/lib/__tests__/decision-draft.test.ts",
+        "k": "test",
+        "r": "SCA-03E-R3 decision-draft guards suite",
+        "sha256": "6114E9DB25D9FA59A545B39C3CD50500378C680D367068950286A8FF4D9312C9",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-server/src/__tests__/curriculum-decision-candidates.test.ts",
+        "k": "test",
+        "r": "SCA-03E decision candidates suite",
+        "sha256": "E771EA65D93BA5F5A080FA318F58A3C6F5184752673F88D43C7BB571EE2238B2",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/lib/__tests__/subject-school-scope.test.ts",
+        "k": "test",
+        "r": "SCA-01 actor-scope suite (ledger packaging note)",
+        "sha256": "66ECCB5757537502DB04376D61B78B0C2EBB89908AA8742E2F4074F3874D28E2",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-client/src/lib/__tests__/subject-create-payload.test.ts",
+        "k": "test",
+        "r": "SCA-01R2 create-payload suite (ledger packaging note)",
+        "sha256": "53362706212F5E1411288581C1851A257CB17F0EED10F1CDD94317C20C8642AC",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "atlas-server/src/__tests__/subject-catalog-truth.test.ts",
+        "k": "test",
+        "r": "SCA-01..R4 catalog-truth suite (ledger packaging note)",
+        "sha256": "DDEDF4050A44671F0CEFC31E83661B669ECB4EBAADB16975546DD2F00B7BD9D6",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/progress/subjects-curriculum-authority-2026-09-07-progress.md",
+        "k": "evidence",
+        "r": "SCA stream progress ledger (tracked-modified)",
+        "sha256": "5545D5DAF505CCE80713EF5A8C92C2E89025B5D9ABBD13B2E092018B6821CE83",
+        "tracked": true
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03e-r3-advisory-review-01.md",
+        "k": "evidence",
+        "r": "SCA-03E-R3 advisory review (latest)",
+        "sha256": "EC8BF3FA8A145832BE9ACA29E7A2551C73D66A2112B247745CB80A87B9F3B2C4",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03e-r2-advisory-review-01.md",
+        "k": "evidence",
+        "r": "SCA-03E-R2 advisory review (R3 chain)",
+        "sha256": "F61FC6A8C84D1FC33627CCF2484AA0C3CB27A41C736804894FB65719FC5E30FB",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03e-r-advisory-review-01.md",
+        "k": "evidence",
+        "r": "SCA-03E-R advisory review (R3 chain)",
+        "sha256": "D043D6B9B3862001131EA4108C67A2621C328DBD60B7DF9756BE85AC02440462",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md",
+        "k": "evidence",
+        "r": "SCA-03E-R2 directive prompt",
+        "sha256": "DA17ADF5F9C66AEE5E489AA610D81ED5F83D90CFF950714372E4CB4C2701FE9B",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md.sha256",
+        "k": "evidence",
+        "r": "SCA-03E-R2 prompt sidecar",
+        "sha256": "212E40E86FAEDD3203CAD39888D45A90A755CA3E207107204D99D169B333153E",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md",
+        "k": "evidence",
+        "r": "SCA-03E-R directive prompt",
+        "sha256": "011055A61DC953C46F26AB44640735467725C0838D6FECE29FBAF18E23659F2A",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md.sha256",
+        "k": "evidence",
+        "r": "SCA-03E-R prompt sidecar",
+        "sha256": "7154C471E12D559764C4D1513461EE1BD7006A41060703AFC5B76022B576DACC",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json",
+        "k": "evidence",
+        "r": "SCA-03E-R2 planner manifest",
+        "sha256": "A0EAFFAB992395A115A1DAE3335C494DE345AD6C1632F3F6E1C88038BD422903",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json.sha256",
+        "k": "evidence",
+        "r": "SCA-03E-R2 manifest sidecar",
+        "sha256": "CE969EB869DCB91F62CB4B46E61F65FC2C4BF8AA151E4689F7D008AF8F0F9979",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json",
+        "k": "evidence",
+        "r": "SCA-03E-R planner manifest",
+        "sha256": "4DDF20587C378CE4EE9E992410746E4518115913E67CA5C5A03E3A6353F978BD",
+        "tracked": false
+      },
+      {
+        "owner": "SCA",
+        "p": "docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json.sha256",
+        "k": "evidence",
+        "r": "SCA-03E-R manifest sidecar",
+        "sha256": "4418CAEAA8C064FA4729BD97C484B670EEAD313CDD104B8649D07010F0905AAC",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/components/faculty-assignments/SectionGridMode.tsx",
+        "k": "production",
+        "r": "TL-C01 workload facets",
+        "sha256": "7DCB78F65F01A17D6AE696ADD17EA80E945C8B7611FFA542C2FD201C558B7308",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/components/faculty-assignments/StackedWorkloadBar.tsx",
+        "k": "production",
+        "r": "TL-C01R actual-hours bar",
+        "sha256": "D304EFF5D46CCF3C58B403C5721EA684D34A14D08A4F09FC02B07DBB445D8226",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/components/faculty-assignments/StaffingAuditSheet.tsx",
+        "k": "production",
+        "r": "TL-C01 actual-utilization badges",
+        "sha256": "93A9CC31E9D8E94A152F1355240E76E562877A895C0C4490D3140DBD157D1895",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/components/faculty-assignments/TeacherGridMode.tsx",
+        "k": "production",
+        "r": "TL-C01 canonical status",
+        "sha256": "D0BB63E3E6DDB091DC0DFCBB226812181F409823DAA6FF3B8D46D5458F93688F",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx",
+        "k": "production",
+        "r": "TL-C01 canonical workload display",
+        "sha256": "2F2348825E427DD68DF08AFACCFA071EF51276C11AABA56929828DAB6EF64DCF",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx",
+        "k": "production",
+        "r": "TL-C01 excess-load chip",
+        "sha256": "0FDBE68F14347A8FE62006F7C4A1E90AE492984FC1E038CB56A2053D52B20891",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/hooks/useTeachingLoadData.ts",
+        "k": "production",
+        "r": "TL-C01R actor school scope",
+        "sha256": "14ACDA9521539F84B9D575527D8EBE41FE2B0D3A3FF18B736BC69F04C0140C72",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/hooks/useTeachingLoadRouteIntent.ts",
+        "k": "production",
+        "r": "TL-C01 route-intent vocabulary",
+        "sha256": "184E63688BB5E1C40780418278729DBE9A2842D43BE48D4A395023A6BCFBC66B",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/hooks/useTeachingLoadUI.ts",
+        "k": "production",
+        "r": "TL-C01 canonical UI state",
+        "sha256": "33973AF549E622F014859A0DD289A287EC61B48CC394B17AE2DF5534DC43466B",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/lib/faculty-assignment-helpers.ts",
+        "k": "production",
+        "r": "TL-C01 canonical workload helpers",
+        "sha256": "DC244B112D11A95A6B4D6B0A0A4F844E707F3C9B96F9E0CDC2E93817F3A26440",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/lib/faculty-teaching-load-cache.ts",
+        "k": "production",
+        "r": "TL-C01R cache v5 scope",
+        "sha256": "CCAC4603EB1F836DB8C3675CE9C4988C0F121F6C6DD8B2D2EF7B54A17922FB38",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/pages/TeachingLoad.tsx",
+        "k": "production",
+        "r": "TL-C01 page wiring",
+        "sha256": "9B6B859CE6629ABD788DAE8E37245A8C08E71AA6F2E96C52E953E7D19CB07E29",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/types.ts",
+        "k": "production",
+        "r": "TL-C01 derived-field types",
+        "sha256": "54E52AB14BE9884BAB1E33E9D532E7B96707EFF5F44AA386F431B2EBF74971F6",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/routes/faculty-assignment.router.ts",
+        "k": "production",
+        "r": "TL-C01R4/R4B department-authority + summary routes",
+        "sha256": "1BD576C8DA4D6617EF5CA66C4DADB907FFFD60DA4DEAB37BBE73C853B720AAC2",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/services/department-authority.service.ts",
+        "k": "production",
+        "r": "TL-C01R4 department authority service",
+        "sha256": "27495D688CE656E6DB5E9C192FA360914DD29D9C1A5D2B25C3079D0C79FFF930",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/services/faculty-assignment.service.ts",
+        "k": "production",
+        "r": "TL-C01R canonical summary read path",
+        "sha256": "B613EBC2516355151AB9E10E11EE53515D5822FCAC691EBC3428161B0C0F3694",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/services/scheduling-policy.service.ts",
+        "k": "production",
+        "r": "TL-C01R read-only policy resolver",
+        "sha256": "F8935A57A242CEF976303314D265F12A153EAEF89E5E55FF31CAB3AE88502017",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/services/teaching-load-cycle.service.ts",
+        "k": "production",
+        "r": "TL-C01R2 passive cycle source",
+        "sha256": "AB0AB52D7E7B6ECED41A63C742A64668F4E3DE385CDC97A9AE787D78ADDDA4DC",
+        "tracked": true
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/lib/__tests__/faculty-assignment-helpers.test.ts",
+        "k": "test",
+        "r": "TL-C01 helper suite",
+        "sha256": "BD2FF47C190921EB1E6561517E325387FD5808C2CAAFF4B00515269D26ABEFD4",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-client/src/lib/__tests__/teaching-load-canonical-workload.test.ts",
+        "k": "test",
+        "r": "TL-C01 canonical suite",
+        "sha256": "B63D83A8A9B87D426E76754F59A883D7AF167779BCBE0D42D7477478A8087B3B",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/__tests__/department-authority-apply.test.ts",
+        "k": "test",
+        "r": "TL-C01R4 apply suite",
+        "sha256": "488C3B54DFE9C2E0270D7D83A9C5B18C7004800F1DA5696FC1E22D25166990C1",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/__tests__/department-authority-gates.test.ts",
+        "k": "test",
+        "r": "TL-C01R4A/R4B gates suite",
+        "sha256": "9E2DC26E1BCC751D6B04A2D82363683A1D4AD1FE8F8D13FA89E584E30FA3C16C",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/__tests__/teaching-load-effective-workload-policy.test.ts",
+        "k": "test",
+        "r": "TL-C01R effective-policy suite",
+        "sha256": "EB3056BE511E7340F385CE2E595C0CCCC1828DEDE19CB632CA3EC9B6C21CD62A",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "atlas-server/src/__tests__/teaching-load-summary-zero-write-route.test.ts",
+        "k": "test",
+        "r": "TL-C01R2 zero-write suite",
+        "sha256": "0189A31887FB6018149BDDBEB4F1E058FC5AED1DDE9A7FD4B81D534A66D2B025",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/progress/teaching-load-corrective-parallel-2026-09-08-progress.md",
+        "k": "evidence",
+        "r": "TL-C01 stream progress ledger",
+        "sha256": "140B74F3A8F57C96260103EB1CAA3347D0321B4A06FA1649A6A7FE34A2B865F6",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-08.md",
+        "k": "evidence",
+        "r": "TL-C01R4B latest review",
+        "sha256": "6524E5E35EBAB1992AA89D7C85F230C7FB69A9A2CAEE73D62E40F7BEEE67DF74",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-07.md",
+        "k": "evidence",
+        "r": "TL-C01R4A review (chain)",
+        "sha256": "B103D4F62F6D5574B2585C1951AE2D5153E89E33A5213E0F1203326807E41721",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-06.md",
+        "k": "evidence",
+        "r": "TL-C01R4A review (chain)",
+        "sha256": "A4EA353A518134569396599A4DE60BA5CBBE6C6C36744FCDAFD72018E77A2F0C",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-05.md",
+        "k": "evidence",
+        "r": "TL-C01R4 review (chain)",
+        "sha256": "B9FC323D7755A9977278FEFF5C2D5B0EDFB234583495559D898AB690601E2184",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/department-remediation-preview-1254230c7809.json",
+        "k": "evidence",
+        "r": "TL-C01R3 rejected preview (preserved)",
+        "sha256": "7C6178D06FDD2C99F7E76530B86F501D1CA741B9AD1D03AF1EC33C699DED6191",
+        "tracked": false
+      },
+      {
+        "owner": "TL",
+        "p": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/department-remediation-preview-1254230c7809.SUPERSEDED_NON_APPLICABLE",
+        "k": "evidence",
+        "r": "TL-C01R3 supersede marker",
+        "sha256": "C6A111EB82C9F15174FC338E9572F96CC1B12DCFFCF239817BAECF5D049C32AC",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/CenterWorkspace.tsx",
+        "k": "production",
+        "r": "TT-C01 actor-scoped collaboration center",
+        "sha256": "87CB3A890F01BFB4608E34599B107B8F096408586E8785A44C569AEB0B72D2EB",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts",
+        "k": "production",
+        "r": "TT-C01 readiness/constant work",
+        "sha256": "2C2CA48B5123D0A1AD881171CEE906532D7A988598D8A4E72CAD31806E9F8822",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx",
+        "k": "production",
+        "r": "TT-C01 review workspace",
+        "sha256": "4699B84045C33E5DCD2D126E862B7211F89327B4F104E8233DE5D4C7386545A0",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx",
+        "k": "production",
+        "r": "TT-C01 review header",
+        "sha256": "4EF11A5E2DB2C34535A0F4925B4AFA0C36C9E4B9E7CBED18CE872669D8783B91",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/TimetableSimpleHeader.tsx",
+        "k": "production",
+        "r": "TT-C01 simple header",
+        "sha256": "7DDC06F03853ABB80531BCCF40DF5DC4026B2D89363A3055907139FDCD04E3C5",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/TimetableTaskDrawer.tsx",
+        "k": "production",
+        "r": "TT-C01 task drawer",
+        "sha256": "8DFE29066837FF5BE91AA336CF791985FE905DDBC4BC696CBF4D28AA0CCA3565",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/buildScheduleReviewWorkspaceContexts.ts",
+        "k": "production",
+        "r": "TT-C01 context builder",
+        "sha256": "61769A049F0C81A9AA3ECAFF19959180E5574972745237CECE1A03257E1C94E4",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/components/timetable/timetableSchoolScope.ts",
+        "k": "production",
+        "r": "TT-C01 actor-school scope builder",
+        "sha256": "D11FE674BC2F587502B924434FEC73A941362C470F6F9AEEDF9D87497A013AC7",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/hooks/useScheduleReviewWorkspaceState.ts",
+        "k": "production",
+        "r": "TT-C01 state hook",
+        "sha256": "F48558D4F578352DD98CB1B9D266E53F5999DC0F71D261A2F25454C882A88D88",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/hooks/useTimetableCollaboration.ts",
+        "k": "production",
+        "r": "TT-C01B-R sealed collaboration hook",
+        "sha256": "5AD9F45A4401B14A42212528679EA5FF186DC5D0E635D7A6A1BD9E4E58D1B973",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/hooks/useTimetableData.ts",
+        "k": "production",
+        "r": "TT-C01 actor-scoped data hook",
+        "sha256": "AAF85B6107916D72E936A2A64630C58FCCA16599C58E72C4605BD66A5AF81353",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/hooks/useTimetableMutations.ts",
+        "k": "production",
+        "r": "TT-C01 scoped mutations",
+        "sha256": "AA0E18C0F33853A5823DF0BD1FD9C82A58744FF160F076651CA777E1EC20B9C2",
+        "tracked": true
+      },
+      {
+        "owner": "TT",
+        "p": "atlas-client/src/hooks/__tests__/useTimetableCollaboration.test.ts",
+        "k": "test",
+        "r": "TT-C01B collaboration lifecycle suite",
+        "sha256": "1C2F541343D6C1F627C346E2359C1687E20BFA6FEEC6599EFB38BB6DD1E8F434",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/progress/timetable-corrective-parallel-2026-09-08-progress.md",
+        "k": "evidence",
+        "r": "TT-C01 stream progress ledger",
+        "sha256": "AB4A1DA15EDCB4C93F60C79780CEC298964F1CB130FC49C8DFAEE273FD7544D0",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01b-r-restore-seal-review-root-tt-c01b-restore-review.md",
+        "k": "evidence",
+        "r": "TT-C01B-R latest seal review",
+        "sha256": "39DBBAC9BAD65DBD60C47E1DCDF22FEFACAEAD551BB7C1EFA76BBCDE7DB1EC58",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01b-final-collaboration-state-review-root-tt-c01b-review.md",
+        "k": "evidence",
+        "r": "TT-C01B review (chain)",
+        "sha256": "9597AE46269912135676B45C5F19D56AF93A8E36E96D3E324EFA431C81455C8A",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01a-final-zero-fix-review-root-tt-c01a-final-review.md",
+        "k": "evidence",
+        "r": "TT-C01A final review (chain)",
+        "sha256": "2C7C0A16745FB43EA8B6E8A6A1E9EDEBB5DC55633B598BDE983B3A7860E2D64C",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01a-changed-scope-review-root-tt-c01a-review.md",
+        "k": "evidence",
+        "r": "TT-C01A review (chain)",
+        "sha256": "66F48A265F2FFDE3F537FD92653E42A6F0A15C4A8A5E4C8F97B39605454A38B1",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01-zero-fix-review-root-tt-c01-zero-fix-review.md",
+        "k": "evidence",
+        "r": "TT-C01 review (chain)",
+        "sha256": "32776D936E80E1E377582D7CDAC9FFF1170C3284838DDD4C38F8144A0CB23835",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01-final-changed-scope-review-root-tt-c01-final-review-reset.md",
+        "k": "evidence",
+        "r": "TT-C01 review (chain)",
+        "sha256": "4AF11820C540924EB45A68D15DB5A164D370D17BA09F005897505FE5EB1A1284",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01-changed-scope-rereview-root-tt-c01-rereview.md",
+        "k": "evidence",
+        "r": "TT-C01 review (chain)",
+        "sha256": "2269993066B61F00355496690EA12AAE141A7CA08F4BB064BFFD0555AE408E06",
+        "tracked": false
+      },
+      {
+        "owner": "TT",
+        "p": "docs/reviews/timetable-corrective-parallel-2026-09-08/tt-c01-advisory-review-root-tt-c01-review.md",
+        "k": "evidence",
+        "r": "TT-C01 review (chain)",
+        "sha256": "04AE602E6D86BBECB3F6A8FF6B7EAE0B0E0AAE7E0F0814CDD34ABB7DC36BD03B",
+        "tracked": false
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-client/src/hooks/useDashboardData.ts",
+        "k": "production",
+        "r": "EVAL-C01 actor-scoped dashboard data",
+        "sha256": "FCA07EB896D6A0AF858339218BC3C953EBB0A74B3B803110B0A1B27BF0F3A45E",
+        "tracked": true
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-client/src/pages/Dashboard.tsx",
+        "k": "production",
+        "r": "EVAL-C01 lifecycle decision page",
+        "sha256": "5988E2407A7BD4BC13D0F14C8B23D21DA36AD5F7F64BBD1910248128385085CE",
+        "tracked": true
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-server/src/routes/dashboard.router.ts",
+        "k": "production",
+        "r": "EVAL-C01/R actor-scoped dashboard route",
+        "sha256": "5C890898944941A326C483099F5DD02BBC7DA66C7D5CE37B83679EA4AB0706E2",
+        "tracked": true
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-server/src/services/dashboard-readiness.service.ts",
+        "k": "production",
+        "r": "EVAL-C01R1 lifecycle/publication authority",
+        "sha256": "497C3152F7E869732574C32456B7CAA27302BED232798A667243FFB5C966233A",
+        "tracked": true
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-client/src/hooks/__tests__/dashboard-lifecycle-truth.test.ts",
+        "k": "test",
+        "r": "EVAL-C01 client lifecycle suite",
+        "sha256": "7FDFE87B5B6C560B6B292A65F5CF518A42881BEECF707F650B91D9D739C583F4",
+        "tracked": false
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-server/src/__tests__/dashboard-lifecycle-truth.test.ts",
+        "k": "test",
+        "r": "EVAL-C01R hermetic lifecycle suite",
+        "sha256": "2B536CFBC789F7AB2E84F7FEBEBD35DA15596C3635ED219F368D215854F2DE4F",
+        "tracked": false
+      },
+      {
+        "owner": "EVAL",
+        "p": "atlas-server/src/__tests__/dashboard-http-authority.test.ts",
+        "k": "test",
+        "r": "EVAL-C01R HTTP authority suite",
+        "sha256": "29C9FBE36CA4AD351BF725F124FCE8B1A7B0B6B798CDCBAD9F80319797EE05F9",
+        "tracked": false
+      },
+      {
+        "owner": "EVAL",
+        "p": "docs/progress/eval-dashboard-lifecycle-truth-2026-09-08-progress.md",
+        "k": "evidence",
+        "r": "EVAL-C01 stream progress ledger",
+        "sha256": "80B61ABCE69E34153AD8AA6F82957F465344CE7AD290A68F24C3AE5BA0366A8C",
+        "tracked": false
+      },
+      {
+        "owner": "EVAL",
+        "p": "docs/reviews/eval-dashboard-lifecycle-truth-2026-09-08/advisory-review-c01r-01.md",
+        "k": "evidence",
+        "r": "EVAL-C01R latest review",
+        "sha256": "D66480D5A88D75EB3CDBFB28F088CF84760C1E4DE1E655B51B534D674172B893",
+        "tracked": false
+      },
+      {
+        "owner": "EVAL",
+        "p": "docs/reviews/eval-dashboard-lifecycle-truth-2026-09-08/advisory-review-01.md",
+        "k": "evidence",
+        "r": "EVAL-C01 review (chain)",
+        "sha256": "1DD30A8818A68ACAC93D16F69814AEA05F0AE432F4209BFFC2CA96B864AFA173",
+        "tracked": false
+      },
+      {
+        "owner": "SHARED",
+        "p": ".gitignore",
+        "k": "config",
+        "r": "Expose RC-01 prompt/manifest + tests/docs; tests are durable evidence",
+        "sha256": "77734E0CBEBE40FB344FD52329439803570A804AD468D15090F73C42D3A43D92",
+        "tracked": true
+      },
+      {
+        "owner": "SHARED",
+        "p": "docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md",
+        "k": "evidence",
+        "r": "RC-01 directive prompt",
+        "sha256": "3D2313779086290D24BFA7DBFEDBA4858AFFBDDA80F482CCE5923329B28C8D61",
+        "tracked": false
+      },
+      {
+        "owner": "SHARED",
+        "p": "docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md.sha256",
+        "k": "evidence",
+        "r": "RC-01 prompt sidecar",
+        "sha256": "779879D3AC4E508D051F455BB5B1368FE41D72DF2E25C4A72D419BD666E50713",
+        "tracked": false
+      },
+      {
+        "owner": "SHARED",
+        "p": "docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json",
+        "k": "evidence",
+        "r": "RC-01 planner manifest",
+        "sha256": "F0851FEE3E056B6D1D06CA860BC194325CD967B78A9A5AED89663EF6E49B9762",
+        "tracked": false
+      },
+      {
+        "owner": "SHARED",
+        "p": "docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json.sha256",
+        "k": "evidence",
+        "r": "RC-01 manifest sidecar",
+        "sha256": "974253001838CEF236ACE88CFB7594348FC9CA2CA0803E931D0DB51EC2A0AFFB",
+        "tracked": false
+      }
+    ]
+  },
+  "exactExclusions": {
+    "universe": {
+      "diffNameOnly": 37,
+      "untracked": 416,
+      "universeUnique": 453
+    },
+    "payload": 95,
+    "excludedTotal": 358,
+    "excludedUnique": 358,
+    "excluded": [
+      {
+        "path": ".github/copilot-instructions.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/instructions/api.instructions.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/instructions/architecture.instructions.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/instructions/database.instructions.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/instructions/frontend.instructions.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/instructions/planner.instructions.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/README.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-21st-dev-frontend/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-algorithm-benchmark-gate/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-copy-and-microcopy/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-design-system-enforcer/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-express-api/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-faculty-usability-first/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-genetic-scheduler/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-interservice-http/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-mobile-faculty-ux/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-mvc-enforcement/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-offline-realtime-reliability/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-phase-gate-enforcer/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-prisma-database/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-pwa-service-worker/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-react-view-patterns/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-shared-browser-qa/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/skills/atlas-ux-audit-gate/SKILL.md",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": ".github/workflows/visual-regression.yml",
+        "category": "unrelated-github",
+        "reason": "GitHub instructions/skills/workflow files unrelated to the four streams; un-ignored by .gitignore exposure only."
+      },
+      {
+        "path": "ATLAS_AGENT_KI.md",
+        "category": "coordination-docs",
+        "reason": "Root coordination/planning documents (phasePlan.md, ATLAS_AGENT_KI.md); not part of the release payload."
+      },
+      {
+        "path": "CHANGELOG.md",
+        "category": "coordination-changelog",
+        "reason": "CHANGELOG.md contains an RC-01 entry (line 3040) but is excluded from the 98-path package pending a separate planner packaging decision."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/actionable-api-error.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/auth-session.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/coverage-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/deped-glossary.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/notification-sse.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/public-schedule-grade.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/schedule-review-helpers.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/simple-publish-readiness.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/simple-timetable-state.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/simple-timetable-undo-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/tactical-sandbox-dock-helpers.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/timetable-display-slots.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/timetable-live-conflict.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/timetable-runtime-truth.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/timetable-swap-routing.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/timetable-term-filter.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-client/src/lib/__tests__/ux-guardrails.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/docs/verification/prompt03-baseline-manifest-2026-09-04.json",
+        "category": "other-stream-server-docs",
+        "reason": "atlas-server/docs verification artifact from a prior prompt (prompt03 baseline manifest), unrelated."
+      },
+      {
+        "path": "atlas-server/src/__tests__/active-term-notification-metadata.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/aims-teaching-load-proposal-isolation.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/allocation.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/ancillary-load-policy.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/annual-teaching-load-isolated-fixture.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/assignment-security.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/async-data-context.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/auth-login-integration.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/blocksAncillaryLoadMutation.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/canonical-faculty-unavailability.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/class-program-matrix.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/class-program-slot-resolver.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-backup-operations.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05ar-reconstruction.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r5-proposal-commands.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r6-repro.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r7-integrity.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r7a-integrity.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r7b-integrity.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r7c-integrity.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-05r7d-integrity.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/database-recovery-evidence-gate.test.ts",
+        "category": "historical-recovery-tests",
+        "reason": "Historical database-recovery test corpus; excluded per RC-01.1."
+      },
+      {
+        "path": "atlas-server/src/__tests__/drift-alignment.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/effective-scheduled-resources.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/effective-teaching-load-contract-v2.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/enrollpro-rollover-conflict-recovery.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/enrollpro-rollover-crash-hardening.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/enrollpro-rollover-health-semantics.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/enrollpro-rollover-readiness.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/enrollpro-rollover-reconfigure-gate.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/enumerate-offering-backfill.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/error-url-sanitizer.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/negative/test-plan-deferred-progress.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/passing-debug-1788577411875/reviews/review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/passing-debug-1788577411875/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/passing/test-plan-passing-progress.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577038707/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577039423/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577040094/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577040780/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577041462/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577042174/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577042876/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577042876/test-reviews/review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577043558/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577043558/test-reviews/review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577044263/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577044947/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577044947/test-reviews/review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577045651/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577045651/test-reviews/review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577046360/test-ledger.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-ledger-1788577046360/test-reviews/review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577038706.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577039422.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577040094.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577040780.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577041462.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577042173.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577042875.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577043558.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577044262.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577044946.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577045651.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/test-manifest-1788577046360.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/dump-abs.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/dump-rel.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/evidence.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/fixture.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/probe-output-a.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/probe-output-b.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/proposal.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/receipt.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/reviewed-a.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/reviews/prompt-05r7-review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/summary.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/test-05r7-planner-contract.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805410-791804-05r7/toc-rel.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805417-05r7-transitive/manifest.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788664805417-05r7-transitive/manifest.json.sha256",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/dump-abs.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/dump-rel.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/evidence.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/fixture.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/probe-output-a.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/probe-output-b.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/proposal.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/receipt.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/reviewed-a.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/reviews/prompt-05r7-review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/summary.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/test-05r7-planner-contract.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638617-567131-05r7/toc-rel.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638625-05r7-transitive/manifest.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788666638625-05r7-transitive/manifest.json.sha256",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/advisory/prompt-05r7b-advisory-iter1.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/advisory/prompt-05r7b-advisory-iter2.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/dump-abs.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/dump-rel.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/evidence.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/fixture.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/probe-output-a.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/probe-output-b.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/proposal.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/receipt.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/reviewed-a.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/reviews/prompt-05r7b-review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/src/helper.ts",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/src/root.ts",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/summary.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/test-05r7b-planner-contract.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/tests/database-recovery-fixture-a.test.ts",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/tests/database-recovery-fixture-b.test.ts",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733954-735477-05r7b/toc-rel.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733957-05r7b-consumption/manifest.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788671733957-05r7b-consumption/manifest.json.sha256",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/dump.bin",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/evidence.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/fixture.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/probe-output.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/proposal.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/receipt.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/reviewed-a.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/reviewed-b.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/reviews/prompt-05r6-review.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/summary.md",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/test-05r6-planner-contract.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558638-230590-05r6/toc.txt",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558644-05r6-enforcement/manifest.json",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-fixtures/v3-1788697558644-05r6-enforcement/manifest.json.sha256",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate-v2.test.ts",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/execution-gate.test.ts",
+        "category": "execution-gate-fixtures",
+        "reason": "Execution-gate validator fixtures and synthetic ledgers/receipts; test-harness artifacts."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-assignment-pass5-regression.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-assignment-summary-list.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-dashboard-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-draft-run-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-identity-resolution.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-route-restrictions.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/faculty-sync-reconciliation.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/generate-composite-fingerprint.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/generate-remediation-manifests.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/generated-undo-isolated-fixture.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/generation-input-snapshot.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/generation-zero-subject-writes.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/home-room-auto-assign.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/hybrid-scheduler.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/local-auth.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/manual-edit.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/notification-events.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/offering-resolution.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase1-active-draft-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase1-request-gate.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase1-request-sync.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase1-unified-request.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase2-concurrency-conflict.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase2-home-room-strategy.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase2-websocket-collaboration.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase3-day-shape-and-qualification-authority.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase3-regression.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase3-room-mismatch-semantics.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase3-wellbeing-semantics-alignment.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/phase4-cohort-review.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/policy-special-event.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/pre-generation-undo-isolated-fixture.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/preference-lifecycle-lock.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/preference-sse-bilateral.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/preference-wellbeing.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/program-specific-template-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03-baseline-manifest.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03b-generate-composite-fingerprint.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03b-generate-offering-evidence.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03b-generate-remediation-rollout.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03b-preflight-evidence.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03c-author-classification-record.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03c-generate-composite-fingerprint.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03c-generate-demand-shadow.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03c-generate-offering-evidence.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03c-generate-remediation-rollout.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/prompt03c-hash-utils.ts",
+        "category": "artifact-generators",
+        "reason": "Standalone TS artifact/evidence generators (generate-*, enumerate-*, prompt03*/**); not executable product tests."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-revision-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-schedule-current-year.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-schedule-effective-date.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-schedule-events.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-schedule-external-id-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-schedule-legacy-scoped-routes.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/published-schedule-school-year-routes.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/qualification-evaluator.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/reconciliation-classifier.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/reconciliation-service.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/room-preference-sse.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/room-preference-sync.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/run-resolver-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/runtime-context-active-term.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/runtime-context-priority.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/schedule-constructor-shift-events.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/schedule-constructor-term-load.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/scheduling-policy.validation.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/seed-email-rules.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/specialization-catalog-logic.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/sse-auth-token.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/subject-http-integration.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/subjects-atomicity.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/subjects-crud-source-authority.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/system-token-auth.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/teaching-load-cap-enforcement.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/teaching-load-suggestion-preview.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/term-config-offering.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/term-scoped-violations.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/timetable-quick-place.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/timetable-sync-setup.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/timetable-teaching-load-repair.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/timetable-undo-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/tri-sem-modular-contract.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/upstream-token-forwarding.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/workbook-export-content.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "atlas-server/src/__tests__/workload-policy.test.ts",
+        "category": "unrelated-earlier-stream-tests",
+        "reason": "Executable tests owned by earlier/completed streams (Simple Timetable, published-schedule, preference, rollover, etc.), not part of the SCA/TL/TT/EVAL RC-01 payload."
+      },
+      {
+        "path": "capstonePaperchapt1-424.pdf",
+        "category": "unrelated-user-files",
+        "reason": "User documents (capstone PDF, Facebook letter DOCX) unrelated to the release."
+      },
+      {
+        "path": "docs/progress/atlas-core-integration-rc01-progress.md",
+        "category": "control-artifact-rc01-progress-ledger",
+        "reason": "RC-01 control-plane progress ledger; excluded from the 95-file payload but part of the future 98-path staging set."
+      },
+      {
+        "path": "docs/progress/atlas-database-recovery-05r3-baseline-proposal-progress.md",
+        "category": "other-stream-progress-ledger",
+        "reason": "Progress ledgers owned by other streams/sequences, not in the RC-01 payload."
+      },
+      {
+        "path": "docs/progress/atlas-database-recovery-2026-09-05-progress.md",
+        "category": "other-stream-progress-ledger",
+        "reason": "Progress ledgers owned by other streams/sequences, not in the RC-01 payload."
+      },
+      {
+        "path": "docs/progress/teaching-load-consumer-readiness-06r3a-2026-09-07-progress.md",
+        "category": "other-stream-progress-ledger",
+        "reason": "Progress ledgers owned by other streams/sequences, not in the RC-01 payload."
+      },
+      {
+        "path": "docs/progress/teaching-load-dynamic-recovery-00-sequence-2026-09-05-progress.md",
+        "category": "other-stream-progress-ledger",
+        "reason": "Progress ledgers owned by other streams/sequences, not in the RC-01 payload."
+      },
+      {
+        "path": "docs/progress/teaching-load-effective-consumer-contract-enrichment-06r3c-2026-09-07-progress.md",
+        "category": "other-stream-progress-ledger",
+        "reason": "Progress ledgers owned by other streams/sequences, not in the RC-01 payload."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/05r3-proposal-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05a-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05ar-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05b0-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05b0r-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05b0r2-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05b0r3-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r5-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r5-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r6-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r6-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7a-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7a-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7b-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7b-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7c-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7c-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7d-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7d-advisory-iter2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7d-advisory-iter3.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-05r7d-advisory-iter4.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-06-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-06-closure-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-06-elevated-closure-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/advisory/prompt-06r-advisory-iter1.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-01r-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-02-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-03-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-04-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05a-gate-receipt.json",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05a-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05b-gate-receipt.json",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05b-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05r-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05r4-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05r7d-gate-receipt.json",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05r7d-review-receipt.json",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-05r7d-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-06-gate-receipt.json",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/gate-valid/prompt-06-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/database-recovery-2026-09-05/prompt-01-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-01-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-01-advisory-review-02.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-01r-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-01r2-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-01r3-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-01r4-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-02-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-02r-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03d-advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-01.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-02.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-03.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/teaching-load-corrective-parallel-2026-09-08/advisory-review-04.md",
+        "category": "other",
+        "reason": "Older SCA advisory review artifacts and superseded TL advisory review artifacts; their code is already committed; evidence retained locally."
+      },
+      {
+        "path": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05/phase-a-database-preflight.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05/phase-b-task-matrix.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05/phase-c-final-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05/task-06r0-validator-review-v2.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05/task-06r0-validator-review.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "docs/reviews/teaching-load-dynamic-recovery-2026-09-05/task-06r0-validator-v2-codex-qa.md",
+        "category": "other-stream-reviews",
+        "reason": "Review artifacts for other streams (database-recovery, teaching-load-dynamic-recovery) and superseded SCA/TL advisory reviews not in the RC-01 chain."
+      },
+      {
+        "path": "letter-for-facebook-page.docx",
+        "category": "unrelated-user-files",
+        "reason": "User documents (capstone PDF, Facebook letter DOCX) unrelated to the release."
+      },
+      {
+        "path": "opencode.json",
+        "category": "tooling-config",
+        "reason": "opencode.json external-directory permission configuration; tooling only."
+      },
+      {
+        "path": "phasePlan.md",
+        "category": "coordination-docs",
+        "reason": "Root coordination/planning documents (phasePlan.md, ATLAS_AGENT_KI.md); not part of the release payload."
+      },
+      {
+        "path": "playwright.config.ts",
+        "category": "unrelated-playwright-config",
+        "reason": "playwright.config.ts test-runner configuration; unrelated."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/core-09.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/core-10.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/core-11.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/core-12.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-43.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-44.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-45.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-46.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-47.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-48.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-49.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-50.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-51.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-52.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-53.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/design-54.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/paper.txt",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/tests-90.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/tests-91.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      },
+      {
+        "path": "tmp/pdfs/capstone-audit/tests-92.png",
+        "category": "temporary-work",
+        "reason": "tmp/pdfs/** working artifacts; temporary."
+      }
+    ],
+    "note": "Excluded = (git diff --name-only + git ls-files --others --exclude-standard) - 95-file payload. Every excluded path is listed explicitly with one non-overlapping category and a concise reason. No approximate counts, ranges, globs, ~N, or examples were substituted. RC-01R output files created after the pre-write snapshot are control-plane artifacts and were not members of the pre-write universe."
+  },
+  "collisionAudit": {
+    "result": "NO_SAME_FILE_MULTI_OWNER",
+    "note": "Every candidate path has exactly one owner (SCA/TL/TT/EVAL/SHARED). No hunk is silently assigned to two streams. Four-stream production surfaces do not overlap each other (verified by owner attribution in inventory).",
+    "crossStreamFilesChecked": [
+      "atlas-client/src/App.tsx -> SCA (decision/requirements routes only; EVAL Dashboard page is routed in App.tsx but owned by EVAL at page level — App.tsx single owner SCA as the route registrar)",
+      "atlas-client/src/types.ts -> TL (row derived fields); timetable + dashboard consume additively without owning"
+    ]
+  },
+  "focusedGates": [
+    {
+      "gate": "SCA curriculum-decision-candidates (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/curriculum-decision-candidates.test.ts",
+      "result": "61/61 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "SCA decision-draft (client)",
+      "cmd": "npx tsx src/lib/__tests__/decision-draft.test.ts",
+      "result": "38/38 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TL department-authority-gates (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/department-authority-gates.test.ts",
+      "result": "82/82 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TL department-authority-apply (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/department-authority-apply.test.ts",
+      "result": "63/63 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TL teaching-load-effective-workload-policy (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/teaching-load-effective-workload-policy.test.ts",
+      "result": "56/56 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TL teaching-load-summary-zero-write-route (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/teaching-load-summary-zero-write-route.test.ts",
+      "result": "12/12 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TL client canonical-workload + helpers",
+      "cmd": "npx tsx --test src/lib/__tests__/teaching-load-canonical-workload.test.ts src/lib/__tests__/faculty-assignment-helpers.test.ts",
+      "result": "48/48 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TT collaboration lifecycle (client)",
+      "cmd": "npx tsx --test src/hooks/__tests__/useTimetableCollaboration.test.ts",
+      "result": "5/5 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "TT runtime-truth + affected state/decision/undo/swap/term/display + live-conflict",
+      "cmd": "npx tsx --test src/lib/__tests__/timetable-runtime-truth.test.ts src/lib/__tests__/simple-timetable-state.test.ts src/lib/__tests__/simple-timetable-undo-contract.test.ts src/lib/__tests__/timetable-swap-routing.test.ts src/lib/__tests__/timetable-term-filter.test.ts src/lib/__tests__/timetable-display-slots.test.ts src/lib/__tests__/timetable-live-conflict.test.ts",
+      "result": "78/78 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "EVAL dashboard lifecycle hermetic (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/dashboard-lifecycle-truth.test.ts",
+      "result": "11/11 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "EVAL dashboard HTTP authority (server)",
+      "cmd": "npx tsx --env-file=.env src/__tests__/dashboard-http-authority.test.ts",
+      "result": "38/38 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "EVAL client dashboard lifecycle",
+      "cmd": "npx tsx --test src/hooks/__tests__/dashboard-lifecycle-truth.test.ts",
+      "result": "7/7 PASS",
+      "exit": 0
+    },
+    {
+      "gate": "server tsc --noEmit",
+      "cmd": "npx tsc --noEmit (atlas-server)",
+      "result": "clean",
+      "exit": 0
+    },
+    {
+      "gate": "client tsc --noEmit",
+      "cmd": "npx tsc --noEmit (atlas-client)",
+      "result": "clean",
+      "exit": 0
+    },
+    {
+      "gate": "server production build",
+      "cmd": "npm run build (atlas-server)",
+      "result": "success",
+      "exit": 0
+    },
+    {
+      "gate": "client production build",
+      "cmd": "npm run build (atlas-client)",
+      "result": "success",
+      "exit": 0
+    },
+    {
+      "gate": "git diff --check",
+      "cmd": "git diff --check",
+      "result": "clean (CRLF notices only)",
+      "exit": 0
+    },
+    {
+      "gate": "scoped secret/debug-output scan over candidate production paths",
+      "cmd": "Select-String console.log/debugger/password/secret/api-key/Bearer over 22 candidate prod paths",
+      "result": "0 hits",
+      "exit": 0
+    }
+  ],
+  "allGatesPassed": true,
+  "reachabilityAuthorityAudit": {
+    "decisionWorkspaceRoute": {
+      "found": true,
+      "evidence": "atlas-client/src/App.tsx:12 lazy import, :74 element <DecisionWorkspace />"
+    },
+    "curriculumDecisionCandidatesRoute": {
+      "found": true,
+      "evidence": "atlas-server/src/routes/curriculum-requirements.router.ts:204 GET /:schoolYearId/decision-candidates (SCA-03E)"
+    },
+    "departmentAuthorityRoutes": {
+      "found": true,
+      "evidence": "atlas-server/src/routes/faculty-assignment.router.ts:46 GET, :63 preview, :85 apply /department-authority"
+    },
+    "actorScopedTimetableCollaboration": {
+      "found": true,
+      "evidence": "atlas-client/src/hooks/useTimetableCollaboration.ts (positive-integer school/year/run gate, token-gated)"
+    },
+    "dashboardLifecycleAuthority": {
+      "found": true,
+      "evidence": "dashboard-readiness.service.ts publication findFirst minimal select + strict isStrictlyPublishedRun; dashboard.router.ts actor-school 403"
+    },
+    "noDEFAULT_SCHOOL_IDInCandidates": {
+      "found": true,
+      "note": "All DEFAULT_SCHOOL_ID hits are in unrelated legacy pages (Sections, Map, Preferences, Faculty, PublicPublishedSchedule, etc.) outside the four-stream candidate set"
+    },
+    "noCodeOwnedCurriculumDecisions": {
+      "found": true,
+      "note": "decision rows require operator draft via decision-draft.ts + service; no code-owned decisions"
+    },
+    "noEnrollProOfferingAuthority": {
+      "found": true,
+      "note": "candidate services contain no enrollpro-offering import/authority; subject sync routes unchanged/fail-closed pre-existing"
+    },
+    "noAdvisoryInclusiveUtilization": {
+      "found": true,
+      "note": "no advisoryInclusive/creditedUtilization in candidate services"
+    },
+    "noCatalogMutationDuringGeneration": {
+      "found": true,
+      "note": "generation engine (generation.service.ts) is not part of candidate diff; candidate services import no generation.service on write path"
+    },
+    "noUnassignedRepairInventingDemand": {
+      "found": true,
+      "note": "TL repair reads canonical ownership; no demand invention"
+    },
+    "successorsLocked": {
+      "SCA04": "LOCKED",
+      "TLC02": "LOCKED",
+      "TTC02": "LOCKED",
+      "generation": "LOCKED (no new route; existing only)",
+      "publication": "LOCKED (no new route; existing only)",
+      "RC02": "LOCKED"
+    }
+  },
+  "mutationProof": {
+    "gitStaged": false,
+    "gitCommitted": false,
+    "gitStash": false,
+    "serviceRestart": false,
+    "databaseWrites": false,
+    "configWrites": false,
+    "curriculumApply": false,
+    "departmentApply": false,
+    "generationOrPublication": false,
+    "schemaOrMigration": false,
+    "externalRepoEdit": false,
+    "sourceFileEdit": false,
+    "note": "RC-01 executor performed read-only probes, test suites with disposable fixtures (zero-residue patterns), type-checks, and builds only. No candidate file was edited; the only files written are the three required RC-01 outputs."
+  },
+  "controlArtifacts": {
+    "rc01OutputsCreatedBeforeR": [
+      "docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json",
+      "docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256",
+      "docs/progress/atlas-core-integration-rc01-progress.md"
+    ],
+    "note": "These three control-plane artifacts were created by RC-01 AFTER the RC-01 pre-write snapshot and are therefore not members of the 414-file RC-01 pre-write universe. The RC-01R files regenerated here were likewise created after the RC-01R pre-write snapshot and are not members of the 453-file RC-01R pre-write universe.",
+    "rc02StagingSet": {
+      "totalExpected": 98,
+      "composition": {
+        "payload": 95,
+        "preview": 1,
+        "previewSidecar": 1,
+        "progressLedger": 1
+      },
+      "previewPath": "docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json",
+      "previewSidecarPath": "docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256",
+      "progressLedgerPath": "docs/progress/atlas-core-integration-rc01-progress.md"
+    },
+    "stagingProcedure": [
+      "1. Stage the 95 payload paths with explicit git add <path> per allowlist (never git add . / -A / directory / wildcard).",
+      "2. Because docs/verification/* and docs/progress/* are gitignored (only specific manifests/prompts are exposed), force-add the three control artifacts with narrowly scoped git add -f:",
+      "   git add -f docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256 docs/progress/atlas-core-integration-rc01-progress.md",
+      "3. Verify git diff --cached --name-only equals exactly 98 paths (95 payload + 3 control).",
+      "4. Verify git diff --cached --check clean.",
+      "5. Single combined commit with the expected message; then backup + deploy + Tailnet verification (RC-02)."
+    ],
+    "twoTierIntegrity": {
+      "payloadIntegrity": "SHA-256 of each of the 95 payload files recorded inside the preview inventory.files[].sha256.",
+      "previewIntegrity": "Exact preview-byte SHA-256 recorded by docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256.",
+      "note": "Preview-byte hash is authoritative for the preview artifact; payload hashes are authoritative for the 95 payload files."
+    }
+  },
+  "proposedRC02Procedure": {
+    "summary": "Exact 98-path staging: 95-file release payload plus 3 control-plane artifacts (preview JSON, preview .sha256 sidecar, RC-01 progress ledger). No git add . / -A / directory / wildcard staging.",
+    "totalExpected": 98,
+    "composition": {
+      "payload": 95,
+      "preview": 1,
+      "previewSidecar": 1,
+      "progressLedger": 1
+    },
+    "steps": [
+      "1. Stage the 95 payload paths with explicit git add <path> per allowlist (never git add . / -A / directory / wildcard).",
+      "2. Because docs/verification/* and docs/progress/* are gitignored (only specific manifests/prompts are exposed), force-add the three control artifacts with narrowly scoped git add -f:",
+      "   git add -f docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256 docs/progress/atlas-core-integration-rc01-progress.md",
+      "3. Verify git diff --cached --name-only equals exactly 98 paths (95 payload + 3 control).",
+      "4. Verify git diff --cached --check clean.",
+      "5. Single combined commit with the expected message; then backup + deploy + Tailnet verification (RC-02)."
+    ],
+    "twoTierIntegrity": {
+      "payloadIntegrity": "SHA-256 of each of the 95 payload files recorded inside the preview inventory.files[].sha256.",
+      "previewIntegrity": "Exact preview-byte SHA-256 recorded by docs/verification/atlas-core-integration-rc01-preview-2026-09-09.json.sha256.",
+      "note": "Preview-byte hash is authoritative for the preview artifact; payload hashes are authoritative for the 95 payload files."
+    }
+  },
+  "expectedSingleCommitMessage": "feat(core): integrate curriculum, teaching-load, timetable, and dashboard authority fixes",
+  "rollbackBasis": "Single combined commit on current HEAD f4ec1e76. Rollback = git revert of that commit (no data migration involved; all four streams are source/test/doc only). Database rows are NOT touched by this release; curriculum/department apply remain locked behind SCA-04/TL-C02. Published/generation state is unchanged (0 runs / unpublished)."
+}

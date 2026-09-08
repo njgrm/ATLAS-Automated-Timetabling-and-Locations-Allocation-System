@@ -14,6 +14,16 @@ import { isDepartmentMatch } from './grade-labels';
 
 export type { FacultyAssignmentDraft, FacultyOwnershipState, LoadStatus, SubjectSectionOwnershipIndexEntry };
 
+/**
+ * LEGACY client policy constants — retained ONLY for non-Teaching-Load surfaces
+ * (Teachers page, timetable sandbox) that have not yet been migrated to
+ * effective school/year policy consumption. The Teaching Load client path must
+ * NOT reference these: it consumes the effective policy returned by
+ * GET /faculty-assignments/summary (`workloadPolicy` + `workloadPolicyStatus`)
+ * through `EffectiveTeachingPolicy`, `deriveTeachingWorkload`, and
+ * `deriveTeachingLoadStatus`. Follow-up: migrate the legacy surfaces and
+ * delete these constants.
+ */
 export const STANDARD_WEEKLY_TEACHING_HOURS = 30;
 export const MAX_WEEKLY_TEACHING_HOURS = 40;
 export const CLASS_ADVISER_EQUIVALENT_HOURS = 5;
@@ -57,7 +67,6 @@ export function matchesOwnershipDepartment(facultyDepartment: string | null | un
 		const normalizedFaculty = normalizeDepartmentCode(facultyDepartment);
 		if (!normalizedFaculty) return false;
 		if (ownerDepartments.includes(normalizedFaculty)) return true;
-		if ((ownerDepartments.includes('ENG') || ownerDepartments.includes('FIL')) && normalizedFaculty === 'ENG') return true;
 		return false;
 	}
 
@@ -68,7 +77,222 @@ export function getFacultyComparableLoadHours(member: FacultySummary): number {
 	if (member.isPlaceholder) {
 		return member.gradeTeachingHours ?? member.syntheticCoverageHours ?? 0;
 	}
-	return member.actualTeachingHours ?? member.sectionTeachingHours ?? member.policyCreditedHours ?? member.subjectHours ?? 0;
+	// Canonical: actual instructional teaching hours only. Credited fallbacks
+	// (policyCreditedHours / subjectHours) mix advisory/ancillary credit into
+	// teaching load and created false overloads — they must never apply here.
+	return member.actualTeachingHours ?? member.sectionTeachingHours ?? 0;
+}
+
+/**
+ * Actual teaching hours for a faculty row, preferring an explicitly computed
+ * effective (draft-aware) value when the caller supplies one.
+ */
+export function resolveTeachingActualHours(
+	member: FacultySummary,
+	effectiveHours?: Map<number, number>,
+): number {
+	if (member.isPlaceholder) {
+		return member.gradeTeachingHours ?? member.syntheticCoverageHours ?? 0;
+	}
+	const effective = effectiveHours?.get(member.id);
+	if (typeof effective === 'number' && Number.isFinite(effective)) {
+		return Math.max(0, effective);
+	}
+	return member.actualTeachingHours ?? member.sectionTeachingHours ?? 0;
+}
+
+/**
+ * Teaching utilization percent from actual teaching hours only.
+ * Advisory/ancillary credit never inflates this figure.
+ * The standard is always explicit (effective school/year policy) — no default.
+ */
+export function teachingUtilizationPercentFor(
+	member: FacultySummary,
+	standardHours: number,
+	effectiveHours?: Map<number, number>,
+): number {
+	const actual = resolveTeachingActualHours(member, effectiveHours);
+	if (!(standardHours > 0)) return 0;
+	return Math.round((actual / standardHours) * 1000) / 10;
+}
+
+/**
+ * Effective school/year workload policy as returned by
+ * GET /faculty-assignments/summary (no client-side defaults).
+ */
+export interface EffectiveTeachingPolicy {
+	teachingStandardMinutes: number;
+	advisoryCreditMinutes: number;
+	hardCapMinutes: number;
+}
+
+export function teachingStandardHoursOf(policy: EffectiveTeachingPolicy): number {
+	return policy.teachingStandardMinutes / 60;
+}
+
+export function advisoryCreditHoursOf(policy: EffectiveTeachingPolicy): number {
+	return policy.advisoryCreditMinutes / 60;
+}
+
+export function hardCapHoursOf(policy: EffectiveTeachingPolicy): number {
+	return policy.hardCapMinutes / 60;
+}
+
+/**
+ * Advisory credit authority: for a valid class adviser (validity is decided
+ * server-side and surfaced as `isClassAdviser`), credit equals the persisted
+ * effective school/year `advisoryCreditMinutes`. The EnrollPro mirror field
+ * `advisoryEquivalentHours` is display-only faculty data and must never
+ * silently override ATLAS workload policy — there is no persisted ATLAS
+ * per-faculty advisory override model.
+ */
+export function resolveAdvisoryCreditHours(
+	member: Pick<FacultySummary, 'isClassAdviser'>,
+	policy: EffectiveTeachingPolicy,
+): number {
+	if (!member.isClassAdviser) return 0;
+	return advisoryCreditHoursOf(policy);
+}
+
+/**
+ * Canonical teaching-load status from ACTUAL teaching hours against the
+ * explicit effective standard. All parameters required — no local defaults.
+ */
+export function deriveTeachingLoadStatus(
+	actualTeachingHours: number,
+	standardHours: number,
+	maxHoursPerWeek: number,
+): { status: LoadStatus; label: string; instruction?: string } {
+	if (actualTeachingHours > maxHoursPerWeek) {
+		return { status: 'over-cap', label: 'Over maximum', instruction: 'Move classes before generating.' };
+	}
+	if (actualTeachingHours > standardHours) {
+		return { status: 'overload-allowed', label: 'Above standard', instruction: 'Review before generating.' };
+	}
+	if (actualTeachingHours === standardHours) {
+		return { status: 'compliant', label: 'At standard' };
+	}
+	return { status: 'below-standard', label: 'Below standard' };
+}
+
+export interface TeachingWorkloadSummary {
+	teachingHours: number;
+	creditHours: number;
+	creditedTotalHours: number;
+	remainingTeachingHours: number;
+	excessTeachingHours: number;
+	overCapHours: number;
+	status: LoadStatus;
+	statusLabel: string;
+	statusInstruction?: string;
+}
+
+/**
+ * Canonical workload summary for the Teaching Load client. The teaching
+ * standard and cap come from the effective school/year policy argument —
+ * advisory/ancillary credit is display-only and never creates teaching
+ * overload or shrinks teaching remaining.
+ */
+export function deriveTeachingWorkload(
+	teachingHours: number,
+	creditHours: number,
+	policy: EffectiveTeachingPolicy,
+	maxHoursPerWeek: number,
+): TeachingWorkloadSummary {
+	const normalizedTeachingHours = roundHours(Math.max(teachingHours, 0));
+	const normalizedCreditHours = roundHours(Math.max(creditHours, 0));
+	const creditedTotalHours = roundHours(normalizedTeachingHours + normalizedCreditHours);
+	const standardHours = teachingStandardHoursOf(policy);
+	const { status, label, instruction } = deriveTeachingLoadStatus(normalizedTeachingHours, standardHours, maxHoursPerWeek);
+
+	return {
+		teachingHours: normalizedTeachingHours,
+		creditHours: normalizedCreditHours,
+		creditedTotalHours,
+		remainingTeachingHours: roundHours(Math.max(standardHours - normalizedTeachingHours, 0)),
+		excessTeachingHours: roundHours(Math.max(normalizedTeachingHours - standardHours, 0)),
+		overCapHours: roundHours(Math.max(normalizedTeachingHours - maxHoursPerWeek, 0)),
+		status,
+		statusLabel: label,
+		statusInstruction: instruction,
+	};
+}
+
+export type WorkloadBarTone = 'below-standard' | 'at-standard' | 'excess' | 'over-cap' | 'unconfigured';
+
+export interface WorkloadBarState {
+	teachingWidthPercent: number;
+	creditWidthPercent: number;
+	standardMarkerPercent: number | null;
+	tone: WorkloadBarTone;
+	isOverCap: boolean;
+	excessTeachingHours: number;
+	/** Projected teaching = actual + incoming teaching (credit never included). */
+	projectedTeachingHours: number;
+	projectedTone: WorkloadBarTone;
+	projectedOverCap: boolean;
+}
+
+function percentOfCap(value: number, maxHours: number): number {
+	return Math.min(100, Math.max(0, (value / Math.max(maxHours, 1)) * 100));
+}
+
+/**
+ * Pure workload-bar state. Teaching width, tone, marker, excess, and over-cap
+ * derive from ACTUAL teaching hours against the explicit effective standard;
+ * credit widens only the neutral segment. Unknown standard yields the
+ * unconfigured state (never a local-standard claim). Projected status uses
+ * actual + incoming TEACHING only — credit never triggers projected excess/cap.
+ */
+export function resolveWorkloadBarState(input: {
+	teachingHours: number;
+	creditHours: number;
+	maxHours: number;
+	standardHours?: number | null;
+	incomingTeachingHours?: number;
+}): WorkloadBarState {
+	const teaching = Math.max(input.teachingHours, 0);
+	const credit = Math.max(input.creditHours, 0);
+	const incoming = Math.max(input.incomingTeachingHours ?? 0, 0);
+	const cap = Math.max(input.maxHours, 1);
+	const standard = input.standardHours;
+	const teachingWidthPercent = percentOfCap(teaching, cap);
+	const creditWidthPercent = Math.max(0, percentOfCap(teaching + credit, cap) - teachingWidthPercent);
+	const projectedTeachingHours = Math.round((teaching + incoming) * 10) / 10;
+	const projectedOverCap = projectedTeachingHours > input.maxHours;
+	const toneFor = (value: number): WorkloadBarTone => {
+		if (standard == null || !(standard > 0)) return 'unconfigured';
+		if (value > input.maxHours) return 'over-cap';
+		if (value > standard) return 'excess';
+		if (value === standard) return 'at-standard';
+		return 'below-standard';
+	};
+	if (standard == null || !(standard > 0)) {
+		return {
+			teachingWidthPercent,
+			creditWidthPercent,
+			standardMarkerPercent: null,
+			tone: 'unconfigured',
+			isOverCap: teaching > input.maxHours,
+			excessTeachingHours: 0,
+			projectedTeachingHours,
+			projectedTone: 'unconfigured',
+			projectedOverCap,
+		};
+	}
+	const isOverCap = teaching > input.maxHours;
+	const excessTeachingHours = Math.max(0, Math.round((teaching - standard) * 10) / 10);
+	return {
+		teachingWidthPercent,
+		creditWidthPercent,
+		standardMarkerPercent: percentOfCap(standard, cap),
+		tone: toneFor(teaching),
+		isOverCap,
+		excessTeachingHours,
+		projectedTeachingHours,
+		projectedTone: toneFor(projectedTeachingHours),
+		projectedOverCap,
+	};
 }
 
 function resolveRotationFamily(subject: Pick<Subject, 'code' | 'rotationFamily'>): string | null {
@@ -172,7 +396,7 @@ export function deriveLoadStatus(actualTeachingHours: number, maxHoursPerWeek = 
 export function getFacultyLoadSortRank(
 	faculty: Pick<FacultySummary, 'isActiveForScheduling' | 'actualTeachingHours' | 'sectionTeachingHours' | 'policyCreditedHours' | 'subjectCount' | 'maxHoursPerWeek'>,
 ): number {
-	const weeklyHours = faculty.actualTeachingHours ?? faculty.sectionTeachingHours ?? faculty.policyCreditedHours ?? 0;
+	const weeklyHours = faculty.actualTeachingHours ?? faculty.sectionTeachingHours ?? 0;
 	const subjectCount = faculty.subjectCount ?? 0;
 	const maxHours = faculty.maxHoursPerWeek ?? MAX_WEEKLY_TEACHING_HOURS;
 	const loadStatus = deriveLoadStatus(weeklyHours, maxHours);
@@ -211,20 +435,274 @@ export function deriveWorkloadCapacity(
 	const normalizedTeachingHours = roundHours(Math.max(teachingHours, 0));
 	const normalizedCreditHours = roundHours(Math.max(creditHours, 0));
 	const creditedTotalHours = roundHours(normalizedTeachingHours + normalizedCreditHours);
-	const { status, label, instruction } = deriveLoadStatus(creditedTotalHours, maxHours);
+	// Canonical: teaching standard, remaining, and excess derive from ACTUAL
+	// teaching hours only. Advisory/ancillary credit is display-only workload
+	// and must never create teaching overload or shrink teaching remaining.
+	const { status, label, instruction } = deriveLoadStatus(normalizedTeachingHours, maxHours);
 
 	return {
 		teachingHours: normalizedTeachingHours,
 		creditHours: normalizedCreditHours,
 		creditedTotalHours,
-		toStandardHours: roundHours(Math.max(STANDARD_WEEKLY_TEACHING_HOURS - creditedTotalHours, 0)),
-		toCapHours: roundHours(Math.max(maxHours - creditedTotalHours, 0)),
-		overStandardHours: roundHours(Math.max(creditedTotalHours - STANDARD_WEEKLY_TEACHING_HOURS, 0)),
-		overCapHours: roundHours(Math.max(creditedTotalHours - maxHours, 0)),
+		toStandardHours: roundHours(Math.max(STANDARD_WEEKLY_TEACHING_HOURS - normalizedTeachingHours, 0)),
+		toCapHours: roundHours(Math.max(maxHours - normalizedTeachingHours, 0)),
+		overStandardHours: roundHours(Math.max(normalizedTeachingHours - STANDARD_WEEKLY_TEACHING_HOURS, 0)),
+		overCapHours: roundHours(Math.max(normalizedTeachingHours - maxHours, 0)),
 		status,
 		statusLabel: label,
 		statusInstruction: instruction,
 	};
+}
+
+/**
+ * Request scope for Teaching Load reads/writes. The actor school comes from
+ * the authenticated session (/auth/me) and the year from runtime context —
+ * never a hardcoded school literal. Missing scope throws a typed error the
+ * caller must surface instead of falling back to school 1.
+ */
+export function teachingLoadScopeParams(
+	actorSchoolId: number | null | undefined,
+	schoolYearId: number | null | undefined,
+): { schoolId: number; schoolYearId: number } {
+	if (typeof actorSchoolId !== 'number' || !Number.isInteger(actorSchoolId) || actorSchoolId <= 0) {
+		throw Object.assign(new Error('Teaching Load needs a signed-in scheduler account with a school assignment.'), {
+			code: 'SCHOOL_UNRESOLVED',
+		});
+	}
+	if (typeof schoolYearId !== 'number' || !Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+		throw Object.assign(new Error('Teaching Load needs an active school year before loading data.'), {
+			code: 'SCHOOL_YEAR_UNRESOLVED',
+		});
+	}
+	return { schoolId: actorSchoolId, schoolYearId };
+}
+
+/**
+ * Guided empty-state message with the dynamic active school-year label.
+ * No hardcoded year literals.
+ */
+export function buildGuidedEmptyTeachingLoadMessage(schoolYearLabel: string | null): string {
+	const year = schoolYearLabel?.trim() ? schoolYearLabel.trim() : 'the active school year';
+	return `Build ${year} Teaching Load first. Start with the suggested draft or use the guided repair queue.`;
+}
+
+/**
+ * LEGACY local department comparison (client alias table). Retained only for
+ * non-Teaching-Load consumers. The Teaching Load path compares the
+ * server-supplied canonical `departmentCode` with exact equality.
+ */
+export function isSameDepartment(
+	left: string | null | undefined,
+	right: string | null | undefined,
+): boolean {
+	const normalizedLeft = normalizeDepartmentCode(left);
+	const normalizedRight = normalizeDepartmentCode(right);
+	if (!normalizedLeft || !normalizedRight) return false;
+	return normalizedLeft === normalizedRight;
+}
+
+export type TeachingLoadStatusFilter = 'all' | 'teaching-assigned' | 'no-teaching' | 'adviser-only';
+export type TeachingLoadLoadFilter = 'all' | 'below-standard' | 'at-standard' | 'excess';
+
+export type TeachingLoadFacet =
+	| 'teaching-assigned'
+	| 'no-teaching'
+	| 'adviser-only'
+	| 'below-standard'
+	| 'at-standard'
+	| 'excess'
+	| 'unmapped';
+
+export interface TeachingLoadFacetSelection {
+	department?: string;
+	status?: TeachingLoadStatusFilter;
+	load?: TeachingLoadLoadFilter;
+}
+
+export interface TeachingLoadFacetCounts {
+	/** Status counts on the department+load+search base (excludes only status). */
+	statusCounts: Record<TeachingLoadFacet, number>;
+	/** Load-band counts on the department+status+search base (excludes only load). */
+	loadCounts: Record<'below-standard' | 'at-standard' | 'excess', number>;
+	/** Department counts on the status+load+search base (excludes only department). */
+	departmentCounts: { value: string; label: string; count: number }[];
+}
+
+/**
+ * Canonical per-faculty teaching-load facet from actual teaching hours and the
+ * SERVER-SUPPLIED canonical department code. Precedence: unmapped department
+ * (data quality) > adviser-only > no-teaching > below/at/excess standard.
+ * Credited workload never influences the outcome. standardHours is explicit
+ * (effective school/year policy) and may be null when UNCONFIGURED.
+ */
+export function deriveTeachingLoadFacet(
+	member: FacultySummary,
+	standardHours: number | null,
+	effectiveHours?: Map<number, number>,
+): TeachingLoadFacet {
+	if (!member.departmentCode || member.departmentCode === 'UNMAPPED') return 'unmapped';
+	const actual = resolveTeachingActualHours(member, effectiveHours);
+	if (actual <= 0) {
+		return member.isClassAdviser ? 'adviser-only' : 'no-teaching';
+	}
+	if (standardHours == null) return 'teaching-assigned';
+	if (actual < standardHours) return 'below-standard';
+	if (actual === standardHours) return 'at-standard';
+	return 'excess';
+}
+
+function canonicalDepartmentKey(member: FacultySummary): string {
+	return member.departmentCode && member.departmentCode.trim() ? member.departmentCode.trim() : 'UNMAPPED';
+}
+
+function matchesDepartmentSelection(
+	member: FacultySummary,
+	department: string | undefined,
+): boolean {
+	const selection = (department ?? 'all').trim();
+	if (!selection || selection === 'all') return true;
+	// Server-supplied canonical identity: exact code equality only. No alias
+	// tables, no keyword or prefix inference on the Teaching Load path.
+	return canonicalDepartmentKey(member) === selection;
+}
+
+function matchesStatusSelection(
+	member: FacultySummary,
+	status: TeachingLoadStatusFilter | undefined,
+	_standardHours: number | null,
+	effectiveHours?: Map<number, number>,
+): boolean {
+	if (!status || status === 'all') return true;
+	const actual = resolveTeachingActualHours(member, effectiveHours);
+	if (status === 'teaching-assigned') return actual > 0;
+	if (status === 'no-teaching') return actual <= 0;
+	return member.isClassAdviser && actual <= 0;
+}
+
+function matchesLoadSelection(
+	member: FacultySummary,
+	load: TeachingLoadLoadFilter | undefined,
+	standardHours: number | null,
+	effectiveHours?: Map<number, number>,
+): boolean {
+	if (!load || load === 'all') return true;
+	if (standardHours == null) return false;
+	const actual = resolveTeachingActualHours(member, effectiveHours);
+	if (actual <= 0) return false;
+	if (load === 'below-standard') return actual < standardHours;
+	if (load === 'at-standard') return actual === standardHours;
+	return actual > standardHours;
+}
+
+/**
+ * Contextual facet counts with an exact count/row contract:
+ * - statusCounts are computed on the department+load+search base, so selecting
+ *   a status option yields exactly its displayed count;
+ * - loadCounts are computed on the department+status+search base;
+ * - departmentCounts are computed on the status+load+search base.
+ * `No teaching load` includes every zero-teaching faculty member; `Adviser only`
+ * is its adviser subset (counted separately, filtered as a subset).
+ * standardHours is the explicit effective standard (null when UNCONFIGURED).
+ */
+export function computeTeachingLoadFacets(
+	members: FacultySummary[],
+	selection: TeachingLoadFacetSelection = {},
+	effectiveHours?: Map<number, number>,
+	standardHours: number | null = null,
+): TeachingLoadFacetCounts {
+	const department = selection.department ?? 'all';
+	const status = selection.status ?? 'all';
+	const load = selection.load ?? 'all';
+
+	const matchesDept = (row: FacultySummary) => matchesDepartmentSelection(row, department);
+	const matchesStat = (row: FacultySummary) => matchesStatusSelection(row, status, standardHours, effectiveHours);
+	const matchesLd = (row: FacultySummary) => matchesLoadSelection(row, load, standardHours, effectiveHours);
+
+	const statusBase = members.filter((row) => matchesDept(row) && matchesLd(row));
+	const statusCounts: Record<TeachingLoadFacet, number> = {
+		'teaching-assigned': 0,
+		'no-teaching': 0,
+		'adviser-only': 0,
+		'below-standard': 0,
+		'at-standard': 0,
+		excess: 0,
+		unmapped: 0,
+	};
+	for (const row of statusBase) {
+		const actual = resolveTeachingActualHours(row, effectiveHours);
+		if (actual > 0) {
+			statusCounts['teaching-assigned'] += 1;
+		} else {
+			// Contract: No teaching load includes ALL zero-teaching faculty;
+			// Adviser only is its adviser subset.
+			statusCounts['no-teaching'] += 1;
+			if (row.isClassAdviser) statusCounts['adviser-only'] += 1;
+		}
+		if (canonicalDepartmentKey(row) === 'UNMAPPED') statusCounts['unmapped'] += 1;
+		const facet = deriveTeachingLoadFacet(row, standardHours, effectiveHours);
+		if (facet === 'below-standard' || facet === 'at-standard' || facet === 'excess') {
+			statusCounts[facet] += 1;
+		}
+	}
+
+	const loadBase = members.filter((row) => matchesDept(row) && matchesStat(row));
+	const loadCounts: Record<'below-standard' | 'at-standard' | 'excess', number> = {
+		'below-standard': 0,
+		'at-standard': 0,
+		excess: 0,
+	};
+	if (standardHours != null) {
+		for (const row of loadBase) {
+			const actual = resolveTeachingActualHours(row, effectiveHours);
+			if (actual <= 0) continue;
+			if (actual < standardHours) loadCounts['below-standard'] += 1;
+			else if (actual === standardHours) loadCounts['at-standard'] += 1;
+			else loadCounts['excess'] += 1;
+		}
+	}
+
+	const departmentBase = members.filter((row) => matchesStat(row) && matchesLd(row));
+	const byCode = new Map<string, { value: string; label: string; count: number }>();
+	for (const row of departmentBase) {
+		const key = canonicalDepartmentKey(row);
+		const existing = byCode.get(key);
+		if (existing) {
+			existing.count += 1;
+		} else {
+			byCode.set(key, {
+				value: key,
+				label: key === 'UNMAPPED' ? 'Unmapped' : (row.departmentLabel?.trim() || row.department?.trim() || key),
+				count: 1,
+			});
+		}
+	}
+	return {
+		statusCounts,
+		loadCounts,
+		departmentCounts: Array.from(byCode.values()).sort((left, right) => left.label.localeCompare(right.label)),
+	};
+}
+
+/**
+ * Pure row filter behind the Teaching Load grid. The hook and the
+ * count/row-equality tests share this function so displayed counts and
+ * resulting rows match exactly by construction.
+ */
+export function applyTeachingLoadFilters(
+	members: FacultySummary[],
+	selection: TeachingLoadFacetSelection = {},
+	effectiveHours?: Map<number, number>,
+	standardHours: number | null = null,
+): FacultySummary[] {
+	const department = selection.department ?? 'all';
+	const status = selection.status ?? 'all';
+	const load = selection.load ?? 'all';
+	return members.filter(
+		(row) =>
+			matchesDepartmentSelection(row, department)
+			&& matchesStatusSelection(row, status, standardHours, effectiveHours)
+			&& matchesLoadSelection(row, load, standardHours, effectiveHours),
+	);
 }
 
 export function buildSectionMap(sections: ExternalSection[]): Map<number, ExternalSection> {
@@ -431,8 +909,10 @@ export function computeSectionAssignmentDeltaMinutes(
 	subjects: Subject[],
 	sectionMap: Map<number, ExternalSection>,
 	equivalentHours: number,
+	policy: EffectiveTeachingPolicy,
+	maxHoursPerWeek: number,
 ): number {
-	const currentProfile = buildTeachingLoadProfile(currentAssignments, subjects, sectionMap, equivalentHours);
+	const currentProfile = buildTeachingLoadProfile(currentAssignments, subjects, sectionMap, equivalentHours, policy, maxHoursPerWeek);
 	const currentMinutes = currentProfile.actualTeachingHours * 60;
 
 	const nextAssignments = currentAssignments.map((a) =>
@@ -444,7 +924,7 @@ export function computeSectionAssignmentDeltaMinutes(
 		nextAssignments.push({ subjectId: subject.id, sectionIds: [sectionId], gradeLevels: [] });
 	}
 
-	const nextProfile = buildTeachingLoadProfile(nextAssignments, subjects, sectionMap, equivalentHours);
+	const nextProfile = buildTeachingLoadProfile(nextAssignments, subjects, sectionMap, equivalentHours, policy, maxHoursPerWeek);
 	const nextMinutes = nextProfile.actualTeachingHours * 60;
 
 	return Math.max(0, nextMinutes - currentMinutes);
@@ -455,6 +935,8 @@ export function buildTeachingLoadProfile(
 	subjects: Subject[],
 	sectionMap: Map<number, ExternalSection>,
 	equivalentHours = 0,
+	policy: EffectiveTeachingPolicy,
+	maxHoursPerWeek: number,
 ): LoadProfile {
 	const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
 	const breakdown: LoadBreakdownItem[] = [];
@@ -630,9 +1112,10 @@ export function buildTeachingLoadProfile(
 	const actualTeachingHours = Math.round((creditedMinutes / 60) * 10) / 10;
 	const rawTeachingHours = Math.round((rawMinutes / 60) * 10) / 10;
 	const rotationOvercountHours = Math.round(Math.max(0, rawTeachingHours - actualTeachingHours) * 10) / 10;
-	const workloadCapacity = deriveWorkloadCapacity(actualTeachingHours, equivalentHours);
-	const normalizedEquivalentHours = workloadCapacity.creditHours;
-	const creditedTotalHours = workloadCapacity.creditedTotalHours;
+	// Canonical TL workload: explicit effective policy, actual-teaching basis.
+	const workload = deriveTeachingWorkload(actualTeachingHours, equivalentHours, policy, maxHoursPerWeek);
+	const normalizedEquivalentHours = workload.creditHours;
+	const creditedTotalHours = workload.creditedTotalHours;
 	const rotationFamilies: RotationFamilyBreakdownItem[] = rotationFamilyComputations
 		.map((entry) => entry.detail)
 		.sort((left, right) => right.overcountHours - left.overcountHours || left.family.localeCompare(right.family));
@@ -643,12 +1126,13 @@ export function buildTeachingLoadProfile(
 		rotationOvercountHours,
 		equivalentHours: normalizedEquivalentHours,
 		creditedTotalHours,
-		overloadHours: workloadCapacity.overStandardHours,
-		overCapHours: workloadCapacity.overCapHours,
-		remainingHours: workloadCapacity.toCapHours,
-		status: workloadCapacity.status,
-		statusLabel: workloadCapacity.statusLabel,
-		statusInstruction: workloadCapacity.statusInstruction,
+		overloadHours: workload.excessTeachingHours,
+		overCapHours: workload.overCapHours,
+		remainingHours: workload.remainingTeachingHours,
+		excessTeachingHours: workload.excessTeachingHours,
+		status: workload.status,
+		statusLabel: workload.statusLabel,
+		statusInstruction: workload.statusInstruction,
 		rotationFamilies,
 		breakdown: breakdown.sort(
 			(left, right) =>

@@ -102,6 +102,9 @@ function TimetableSimpleHeaderImpl({
 	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
 	const readiness = readinessLabel(context);
+	const curriculumReadiness = context.curriculumReadiness ?? { state: 'unavailable' as const, message: 'Curriculum readiness is unavailable.' };
+	const generationReady = curriculumReadiness.state === 'ready';
+	const generationBlocked = curriculumReadiness.state === 'blocked';
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
 	const ActiveIcon = activeTaskDefinition.icon;
 	const currentEntityIsValid = hasPivotValue(context, context.entityFilter);
@@ -163,7 +166,9 @@ function TimetableSimpleHeaderImpl({
 	const handleLifecycleAction = () => {
 		switch (lifecycleAction.kind) {
 			case 'start-draft': void startTask('plan-draft'); break;
-			case 'generate': context.handleTriggerGenerate(); break;
+			case 'generate':
+				if (generationReady) context.handleTriggerGenerate();
+				break;
 			case 'fix-blockers': setReadinessSheetOpen(true); break;
 			case 'review-warnings': void startTask('review-issues'); break;
 			case 'publish': handlePublishClick(); break;
@@ -378,7 +383,7 @@ function TimetableSimpleHeaderImpl({
 						const mobileLabel = !hasGeneratedRun && !context.isPreGenerationWorkspace
 							? 'Generate'
 							: context.generating
-								? 'Generatingâ€¦'
+								? 'Generating…'
 								: isRunPublished
 									? 'Published'
 									: publishBlocked
@@ -456,7 +461,7 @@ function TimetableSimpleHeaderImpl({
 						data-testid="timetable-simple-generate-action"
 					>
 						{context.generating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
-						<span className="hidden sm:inline">{context.generating ? 'Generatingâ€¦' : 'Generate'}</span>
+						<span className="hidden sm:inline">{context.generating ? 'Generating…' : 'Generate'}</span>
 						<span className="sr-only sm:hidden">{context.generating ? 'Generating' : 'Generate schedule'}</span>
 					</Button>
 
@@ -794,7 +799,10 @@ function TimetableSimpleHeaderImpl({
 						<div className="min-w-0">
 							<p className="hidden text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground sm:block">Get started</p>
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
-								No timetable yet â€” start with a draft
+								No timetable exists for {visibleYearLabel ?? 'the active school year'}
+							</p>
+							<p className="hidden max-w-xl truncate text-xs text-muted-foreground sm:block" data-testid="timetable-curriculum-readiness-message">
+								{curriculumReadiness.message}
 							</p>
 						</div>
 					</div>
@@ -811,6 +819,14 @@ function TimetableSimpleHeaderImpl({
 							<CalendarClock className="size-3.5" aria-hidden="true" />
 							<span>Start draft</span>
 						</Button>
+						{generationBlocked ? (
+							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-readiness-repair-action">
+								<Link to="/curriculum-requirements">
+									<BookOpen className="size-3.5" aria-hidden="true" />
+									Fix Curriculum Requirements
+								</Link>
+							</Button>
+						) : null}
 						<Button
 							type="button"
 							size="sm"
@@ -864,7 +880,7 @@ function TimetableSimpleHeaderImpl({
 							data-testid="timetable-publish-readiness-summary"
 						>
 							<CheckCircle2 className="size-3 shrink-0" aria-hidden="true" />
-							<span className="truncate">Published â€” {context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} remain</span>
+							<span className="truncate">Published — {context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} remain</span>
 						</div>
 					)}
 

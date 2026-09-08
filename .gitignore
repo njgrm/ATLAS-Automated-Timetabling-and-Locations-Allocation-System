@@ -1,13 +1,10 @@
 # Private planning/customization artifacts
-.github/
 .agents/
 .codex/
 .cursor/
+# AGENTS.md remains local because it contains operator-only QA access details.
 AGENTS.md
-ATLAS_AGENT_KI.md
-CHANGELOG.md
 GEMINI.md
-phasePlan.md
 projectIntro.md
 # Local tooling configs
 .gemini/
@@ -22,7 +19,31 @@ questions.md
 
 # Local documentation, reference material, and external tool checkouts
 api/
-docs/
+# Keep the historical documentation tree local by default, but preserve the
+# evidence needed for executor -> reviewer -> planner handoffs. Progress files
+# use a suffix so unrelated local checklists are not exposed accidentally.
+docs/*
+!docs/progress/
+docs/progress/*
+!docs/progress/*-progress.md
+!docs/reviews/
+!docs/reviews/**
+!docs/prompts/
+docs/prompts/*
+!docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md
+!docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md.sha256
+!docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md
+!docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md.sha256
+!docs/verification/
+docs/verification/*
+!docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json
+!docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json.sha256
+!docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json
+!docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json.sha256
+!docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md
+!docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md.sha256
+!docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json
+!docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json.sha256
 mcp-servers/
 SMART/
 SSE-PLAN/
@@ -61,15 +82,12 @@ qa-artifacts/
 atlas-client/qa-artifacts/
 atlas-client/test-results/
 
-# Local-only tests
-**/__tests__/
-*.test.*
-*.spec.*
-playwright.config.*
+# Tests and test configuration are durable product evidence and must be
+# tracked. Keep only explicitly named scratch probes local.
+**/__tests__/tmp-*
+**/__tests__/**/tmp-*
 
-# Durable Teaching Load remediation regressions
-!atlas-client/src/hooks/__tests__/
-!atlas-client/src/hooks/__tests__/useTeachingLoadRouteIntent.test.ts
+# Durable Playwright remediation regression
 !qa-artifacts/
 qa-artifacts/*
 !qa-artifacts/playwright/

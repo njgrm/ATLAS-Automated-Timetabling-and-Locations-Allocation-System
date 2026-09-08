@@ -258,6 +258,12 @@ export type FacultySummary = {
 	ancillaryMinutesPerWeek: number;
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
+	/** Canonical department code from persisted alias/label authority (UNMAPPED when unknown). */
+	departmentCode: string | null;
+	/** Display label from persisted department labels (falls back to the code). */
+	departmentLabel: string | null;
+	/** Mapping status for the canonical department identity. */
+	departmentStatus?: 'MAPPED' | 'UNMAPPED' | null;
 	localNotes?: string | null;
 	version: number;
 	subjectCount: number;
@@ -280,14 +286,14 @@ export type FacultySummary = {
 	policyLoadPercentage: number;
 	/** Actual teaching hours (sectionTeachingHours) — used for teaching utilization comparison. */
 	actualTeachingHours: number;
-	/** Teaching utilization as percentage of standard (actualTeaching / standard * 100). */
-	teachingUtilizationPercent: number;
-	/** Remaining teaching capacity in minutes before reaching the standard. */
-	teachingCapacityRemainingMinutes: number;
-	/** Excess teaching minutes above the standard. */
-	excessTeachingMinutes: number;
-	/** Total credited workload minutes (teaching + advisory + ancillary). */
-	creditedWorkloadMinutes: number;
+	/** Teaching utilization as percentage of the effective standard. Null when the workload policy is UNCONFIGURED. */
+	teachingUtilizationPercent: number | null;
+	/** Remaining teaching capacity in minutes before reaching the effective standard. Null when UNCONFIGURED. */
+	teachingCapacityRemainingMinutes: number | null;
+	/** Excess teaching minutes above the effective standard. Null when UNCONFIGURED. */
+	excessTeachingMinutes: number | null;
+	/** Total credited workload minutes (teaching + advisory + ancillary). Null when UNCONFIGURED. */
+	creditedWorkloadMinutes: number | null;
 	syntheticCoverageHours: number;
 	loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
 	assignments: FacultyAssignmentRecord[];
@@ -2044,6 +2050,8 @@ export type LoadProfile = {
 	overloadHours: number;
 	overCapHours: number;
 	remainingHours: number;
+	/** Positive excess teaching hours above the standard; 0 at/below standard. Never negative. */
+	excessTeachingHours?: number;
 	status: LoadStatus;
 	statusLabel: string;
 	statusInstruction?: string;

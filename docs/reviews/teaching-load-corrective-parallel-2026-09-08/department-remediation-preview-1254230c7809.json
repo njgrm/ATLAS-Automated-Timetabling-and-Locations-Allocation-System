@@ -1,0 +1,315 @@
+{
+  "artifact": "TL-C01R2 department remediation preview",
+  "generatedAt": "2026-09-08T06:19:58.622Z",
+  "schoolId": 1,
+  "schoolYearId": 8,
+  "yearLabel": "2029-2030",
+  "authorizesMutation": false,
+  "sourceState": {
+    "activeFacultyMirrors": 42,
+    "existingAliasRows": 0,
+    "existingLabelRows": 0,
+    "persistedSubjectOwnerPrefixes": [],
+    "crossDepartmentPermissionRows": 0,
+    "distinctFacultyDepartments": [
+      [
+        "AP",
+        3
+      ],
+      [
+        "ENG",
+        5
+      ],
+      [
+        "ESP",
+        4
+      ],
+      [
+        "FIL",
+        5
+      ],
+      [
+        "MAPEH",
+        6
+      ],
+      [
+        "MATH",
+        3
+      ],
+      [
+        "SCI",
+        11
+      ],
+      [
+        "TLE",
+        5
+      ]
+    ],
+    "distinctSubjectOwnershipCodes": [
+      "AP",
+      "ENG",
+      "ESP",
+      "FIL",
+      "MAPEH",
+      "MATH",
+      "SCI",
+      "TLE"
+    ]
+  },
+  "proposedAliases": [
+    {
+      "alias": "AP",
+      "department": "AP",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 3,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "ENG",
+      "department": "ENG",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 5,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "ESP",
+      "department": "ESP",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 4,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "FIL",
+      "department": "FIL",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 5,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "MAPEH",
+      "department": "MAPEH",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 6,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "MATH",
+      "department": "MATH",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 3,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "SCI",
+      "department": "SCI",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 11,
+      "inSubjectOwnership": true,
+      "approved": false
+    },
+    {
+      "alias": "TLE",
+      "department": "TLE",
+      "basis": "observed-code-identity",
+      "affectedFaculty": 5,
+      "inSubjectOwnership": true,
+      "approved": false
+    }
+  ],
+  "proposedLabels": [
+    {
+      "code": "AP",
+      "label": "AP",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 3,
+      "approved": false
+    },
+    {
+      "code": "ENG",
+      "label": "ENG",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 5,
+      "approved": false
+    },
+    {
+      "code": "ESP",
+      "label": "ESP",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 4,
+      "approved": false
+    },
+    {
+      "code": "FIL",
+      "label": "FIL",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 5,
+      "approved": false
+    },
+    {
+      "code": "MAPEH",
+      "label": "MAPEH",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 6,
+      "approved": false
+    },
+    {
+      "code": "MATH",
+      "label": "MATH",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 3,
+      "approved": false
+    },
+    {
+      "code": "SCI",
+      "label": "SCI",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 11,
+      "approved": false
+    },
+    {
+      "code": "TLE",
+      "label": "TLE",
+      "basis": "code-as-initial-label-text-operator-must-confirm",
+      "affectedFaculty": 5,
+      "approved": false
+    }
+  ],
+  "rollback": [
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "AP"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "AP"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "ENG"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "ENG"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "ESP"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "ESP"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "FIL"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "FIL"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "MAPEH"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "MAPEH"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "MATH"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "MATH"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "SCI"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "SCI"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_aliases",
+      "key": {
+        "schoolId": 1,
+        "alias": "TLE"
+      }
+    },
+    {
+      "op": "delete",
+      "table": "department_labels",
+      "key": {
+        "schoolId": 1,
+        "code": "TLE"
+      }
+    }
+  ],
+  "unresolvedRequiringDecision": [],
+  "sha256": "1254230c78090251f7e0a9f4292dd0d15d7968d71271341d3edeeea89e7a70bb"
+}

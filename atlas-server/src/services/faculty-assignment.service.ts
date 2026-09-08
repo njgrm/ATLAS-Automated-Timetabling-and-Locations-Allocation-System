@@ -19,9 +19,9 @@ import {
   type AssignmentScopeInput,
   type NormalizedAssignmentScope,
 } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy } from './scheduling-policy.service.js';
-import { computeWorkload, WORKLOAD_DEFAULTS } from './workload-policy.service.js';
-import { getOrCreateTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { getOrCreatePolicy, getEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import { computeWorkload } from './workload-policy.service.js';
+import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
 const db = () => getDataContext();
 
@@ -228,7 +228,7 @@ export type EffectiveTeachingLoadAssignmentV2 = SubjectSectionOwnershipIndexEntr
 export type EffectiveTeachingLoadSourceV2 = {
   schoolId: number;
   schoolYearId: number;
-  state: 'EMPTY' | 'POPULATED';
+  state: 'EMPTY' | 'POPULATED' | 'UNCONFIGURED';
   version: number;
   contractVersion: number;
   initializedAt: string;
@@ -1233,7 +1233,61 @@ export interface PlaceholderCoverageRepairResult {
   stillUncoveredSubjectCodes: string[];
 }
 
-const STANDARD_WEEKLY_TEACHING_HOURS = WORKLOAD_DEFAULTS.teachingStandardMinutes / 60;
+export interface CanonicalDepartmentMap {
+  aliases: Map<string, string>;
+  labels: Map<string, string>;
+  codes: Set<string>;
+}
+
+export interface CanonicalDepartmentIdentity {
+  code: string;
+  label: string;
+  status: 'MAPPED' | 'UNMAPPED';
+}
+
+/**
+ * Batched read-only load of persisted department authority for a school.
+ * One batched operation (two set-based reads, never N+1).
+ */
+export async function loadCanonicalDepartmentMap(schoolId: number): Promise<CanonicalDepartmentMap> {
+  const [aliasRows, labelRows] = await Promise.all([
+    db().departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
+    db().departmentLabel.findMany({ where: { schoolId }, select: { code: true, label: true } }),
+  ]);
+  const aliases = new Map<string, string>();
+  for (const row of aliasRows) {
+    aliases.set(row.alias.trim().toUpperCase(), row.department.trim().toUpperCase());
+  }
+  const labels = new Map<string, string>();
+  for (const row of labelRows) {
+    labels.set(row.code.trim().toUpperCase(), row.label);
+  }
+  const codes = new Set<string>([...labels.keys(), ...aliases.values()]);
+  return { aliases, labels, codes };
+}
+
+/**
+ * Pure canonical department resolution. Persisted alias/label data is the only
+ * authority: an alias hit or exact code hit maps; anything else (missing,
+ * blank, ambiguous) is UNMAPPED. No keyword lists, no subject-prefix
+ * inference, no cross-language shortcuts.
+ */
+export function resolveCanonicalDepartmentIdentity(
+  raw: string | null | undefined,
+  map: CanonicalDepartmentMap,
+): CanonicalDepartmentIdentity {
+  const upper = (raw ?? '').trim().toUpperCase();
+  if (!upper) return { code: 'UNMAPPED', label: 'Unmapped', status: 'UNMAPPED' };
+  const aliased = map.aliases.get(upper);
+  if (aliased && map.codes.has(aliased)) {
+    return { code: aliased, label: map.labels.get(aliased) ?? aliased, status: 'MAPPED' };
+  }
+  if (map.codes.has(upper)) {
+    return { code: upper, label: map.labels.get(upper) ?? upper, status: 'MAPPED' };
+  }
+  return { code: 'UNMAPPED', label: 'Unmapped', status: 'UNMAPPED' };
+}
+
 const DEFAULT_ASSIGNMENT_SUMMARY_PAGE_SIZE = 25;
 const MAX_ASSIGNMENT_SUMMARY_PAGE_SIZE = 100;
 
@@ -1334,15 +1388,19 @@ function normalizeAssignmentSummaryListOptions(options?: AssignmentSummaryListOp
   };
 }
 
-function getAssignmentSummaryLoadSortRank(row: AssignmentSummaryListRow): number {
+function getAssignmentSummaryLoadSortRank(row: AssignmentSummaryListRow, standardHours: number | null): number {
   const actualTeachingHours = row.sectionTeachingHours ?? 0;
   const subjectCount = row.subjectCount ?? 0;
 
   if (!row.isActiveForScheduling) return 5;
   if (actualTeachingHours === 0 || subjectCount === 0) return 4;
   if (actualTeachingHours > row.maxHoursPerWeek) return 0;
-  if (actualTeachingHours > STANDARD_WEEKLY_TEACHING_HOURS) return 1;
-  if (actualTeachingHours === STANDARD_WEEKLY_TEACHING_HOURS) return 2;
+  // Standard-relative tiers require the resolved school/year policy. When the
+  // effective standard is unknown (UNCONFIGURED), above-standard and at-standard
+  // collapse into the below-standard lane instead of inventing a comparison.
+  if (standardHours == null) return 3;
+  if (actualTeachingHours > standardHours) return 1;
+  if (actualTeachingHours === standardHours) return 2;
   return 3;
 }
 
@@ -1350,14 +1408,16 @@ function compareAssignmentSummaryName(left: AssignmentSummaryListRow, right: Ass
   return `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`);
 }
 
-function computeAssignmentSummaryRosterStats(rows: AssignmentSummaryListRow[]): AssignmentSummaryRosterStats {
+function computeAssignmentSummaryRosterStats(rows: AssignmentSummaryListRow[], standardHours: number | null): AssignmentSummaryRosterStats {
   const activeCount = rows.filter((row) => row.isActiveForScheduling).length;
   const assignedCount = rows.filter((row) => (row.subjectCount ?? 0) > 0).length;
   const unassignedCount = rows.filter((row) => row.isActiveForScheduling && (row.subjectCount ?? 0) === 0).length;
-  const reviewCount = rows.filter((row) => {
-    const actualTeaching = row.sectionTeachingHours ?? 0;
-    return row.isActiveForScheduling && actualTeaching > STANDARD_WEEKLY_TEACHING_HOURS && actualTeaching <= row.maxHoursPerWeek;
-  }).length;
+  const reviewCount = standardHours == null
+    ? 0
+    : rows.filter((row) => {
+      const actualTeaching = row.sectionTeachingHours ?? 0;
+      return row.isActiveForScheduling && actualTeaching > standardHours && actualTeaching <= row.maxHoursPerWeek;
+    }).length;
   const overCapCount = rows.filter((row) => row.isActiveForScheduling && (row.sectionTeachingHours ?? 0) > row.maxHoursPerWeek).length;
 
   return {
@@ -1373,6 +1433,7 @@ function computeAssignmentSummaryRosterStats(rows: AssignmentSummaryListRow[]): 
 function buildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
   rows: T[],
   options?: AssignmentSummaryListOptions,
+  standardHours?: number | null,
 ): AssignmentSummaryPageResult<T> {
   const normalized = normalizeAssignmentSummaryListOptions(options);
   const query = normalized.query.toLowerCase();
@@ -1420,7 +1481,7 @@ function buildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
         cmp = (left.policyCreditedHours ?? 0) - (right.policyCreditedHours ?? 0);
         break;
       case 'status':
-        cmp = getAssignmentSummaryLoadSortRank(left) - getAssignmentSummaryLoadSortRank(right);
+        cmp = getAssignmentSummaryLoadSortRank(left, standardHours ?? null) - getAssignmentSummaryLoadSortRank(right, standardHours ?? null);
         break;
       case 'name':
       default:
@@ -1456,7 +1517,7 @@ function buildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
       dir: normalized.sortDir,
     },
     departments,
-    rosterStats: computeAssignmentSummaryRosterStats(rows),
+    rosterStats: computeAssignmentSummaryRosterStats(rows, standardHours ?? null),
   };
 }
 
@@ -4259,8 +4320,9 @@ export function __testResolveOwnedCurrentYearSectionScope(
 export function __testBuildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
   rows: T[],
   options?: AssignmentSummaryListOptions,
+  standardHours?: number | null,
 ): AssignmentSummaryPageResult<T> {
-  return buildAssignmentSummaryPage(rows, options);
+  return buildAssignmentSummaryPage(rows, options, standardHours);
 }
 
 export function __testNormalizeAssignmentSummaryListOptions(options?: AssignmentSummaryListOptions) {
@@ -4936,12 +4998,16 @@ export async function getAssignmentSummary(
   authToken?: string,
   listOptions?: AssignmentSummaryListOptions,
 ) {
-  const source = await getOrCreateTeachingLoadCycleSource(schoolId, schoolYearId);
-  const workloadPolicy = await getOrCreatePolicy(schoolId, schoolYearId).then((p) => ({
-    teachingStandardMinutes: p.teachingStandardMinutes ?? WORKLOAD_DEFAULTS.teachingStandardMinutes,
-    advisoryCreditMinutes: p.advisoryCreditMinutes ?? WORKLOAD_DEFAULTS.advisoryCreditMinutes,
-    hardCapMinutes: p.hardCapMinutes ?? WORKLOAD_DEFAULTS.hardCapMinutes,
-  }));
+  const cycleRead = await readTeachingLoadCycleSource(schoolId, schoolYearId);
+  const source = cycleRead.source;
+  const cycleDiagnostic = cycleRead.diagnostic?.mismatched ? cycleRead.diagnostic : null;
+  // Read-only effective workload policy: passive Teaching Load reads must not
+  // create policy rows. An absent/invalid persisted policy yields a typed
+  // UNCONFIGURED readiness state instead of invented defaults.
+  const workloadResolution = await getEffectiveWorkloadPolicy(schoolId, schoolYearId);
+  const workloadPolicy = workloadResolution.policy;
+  const workloadPolicyStatus = workloadResolution.status;
+  const effectiveStandardHours = workloadPolicy != null ? workloadPolicy.teachingStandardMinutes / 60 : null;
   const rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
   const currentYearSectionScope = Array.from(rosterIndex.sectionMap.values()).map((section) => ({
     id: section.id,
@@ -4952,7 +5018,7 @@ export async function getAssignmentSummary(
   const currentYearSectionIdSet = new Set(currentYearSectionIds);
   const sectionDisplayOrderMap = new Map(currentYearSectionScope.map((section) => [section.id, section.gradeLevel]));
 
-  const [faculty, ownershipRows, activeSubjects] = await Promise.all([
+  const [faculty, ownershipRows, activeSubjects, departmentMap] = await Promise.all([
     db().facultyMirror.findMany({
       where: { schoolId, isStale: false },
       include: {
@@ -5010,6 +5076,7 @@ export async function getAssignmentSummary(
         programScopes: true,
       },
     }),
+    loadCanonicalDepartmentMap(schoolId),
   ]);
 
   const ownershipFacultyIds = Array.from(new Set(ownershipRows.map((row) => row.facultyId)));
@@ -5387,23 +5454,32 @@ export async function getAssignmentSummary(
     const sectionTeachingHoursRaw = roundHours(sectionLoadComputation.rawMinutes);
     const rotationFamilyOvercountHours = roundHours(Math.max(0, sectionLoadComputation.rawMinutes - sectionLoadComputation.creditedMinutes));
     const gradeTeachingHours = roundHours(gradeMinutes);
-    const advisoryHours = isValidAdviser ? Math.round(Math.max(0, Number(member.advisoryEquivalentHours || 0)) * 10) / 10 : 0;
+    const advisoryHours = isValidAdviser && workloadPolicy != null
+      ? Math.round((workloadPolicy.advisoryCreditMinutes / 60) * 10) / 10
+      : 0;
     const ancillaryHours = Math.round((Math.max(0, Number(member.ancillaryMinutesPerWeek || 0)) / 60) * 10) / 10;
     const policyCreditedHours = Math.round((sectionTeachingHours + advisoryHours + ancillaryHours) * 10) / 10;
     const policyLoadPercentage = member.maxHoursPerWeek > 0
       ? Math.round((policyCreditedHours / member.maxHoursPerWeek) * 100)
       : 0;
 
-    // Canonical workload computation — advisory/ancillary do NOT leak into teaching utilization
-    const workload = computeWorkload(
-      sectionMinutes,
-      advisoryHours * 60,
-      ancillaryHours * 60,
-      workloadPolicy,
-    );
+    // Canonical workload computation — advisory/ancillary do NOT leak into teaching utilization.
+    // Requires the resolved school/year policy; when UNCONFIGURED the
+    // policy-derived metrics stay null and the client renders a readiness state.
+    const workload = workloadPolicy != null
+      ? computeWorkload(
+        sectionMinutes,
+        advisoryHours * 60,
+        ancillaryHours * 60,
+        workloadPolicy,
+      )
+      : null;
 
     const loadSignalMode = member.isPlaceholder ? 'SYNTHETIC_PLACEHOLDER' : 'STANDARD';
     const syntheticCoverageHours = member.isPlaceholder ? sectionTeachingHours : 0;
+    // Canonical department identity from persisted alias/label authority.
+    // Missing or ambiguous mappings are UNMAPPED — never inferred.
+    const canonicalDepartment = resolveCanonicalDepartmentIdentity(member.department, departmentMap);
 
     return {
       id: member.id,
@@ -5413,6 +5489,9 @@ export async function getAssignmentSummary(
       firstName: member.firstName,
       lastName: member.lastName,
       department: member.department,
+      departmentCode: canonicalDepartment.code,
+      departmentLabel: canonicalDepartment.label,
+      departmentStatus: canonicalDepartment.status,
       specialization: member.specialization,
       employmentStatus: member.employmentStatus,
       isClassAdviser: isValidAdviser,
@@ -5467,12 +5546,13 @@ export async function getAssignmentSummary(
       syntheticCoverageHours,
       loadSignalMode,
       assignments,
-      // Canonical workload metrics — advisory/ancillary separated from teaching utilization
+      // Canonical workload metrics — advisory/ancillary separated from teaching utilization.
+      // Null when the effective school/year policy is UNCONFIGURED (no invented standard).
       actualTeachingHours: sectionTeachingHours,
-      teachingUtilizationPercent: workload.teachingUtilizationPercent,
-      teachingCapacityRemainingMinutes: workload.teachingCapacityRemainingMinutes,
-      excessTeachingMinutes: workload.excessTeachingMinutes,
-      creditedWorkloadMinutes: workload.creditedWorkloadMinutes,
+      teachingUtilizationPercent: workload?.teachingUtilizationPercent ?? null,
+      teachingCapacityRemainingMinutes: workload?.teachingCapacityRemainingMinutes ?? null,
+      excessTeachingMinutes: workload?.excessTeachingMinutes ?? null,
+      creditedWorkloadMinutes: workload?.creditedWorkloadMinutes ?? Math.round((sectionMinutes + advisoryHours * 60 + ancillaryHours * 60) * 10) / 10,
     };
   });
 
@@ -5510,10 +5590,13 @@ export async function getAssignmentSummary(
     staleAdvisorySamples,
   };
 
-  const listPage = buildAssignmentSummaryPage(facultySummary, listOptions);
+  const listPage = buildAssignmentSummaryPage(facultySummary, listOptions, effectiveStandardHours);
 
   return {
     source,
+    cycleDiagnostic,
+    workloadPolicy,
+    workloadPolicyStatus,
     faculty: facultySummary,
     listPage,
     ownershipIndex,

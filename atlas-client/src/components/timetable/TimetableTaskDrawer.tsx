@@ -545,8 +545,8 @@ function SimpleDraftQueueRow({
 					{status.key !== 'ready' && (
 						<p className="mt-1 text-[0.65rem] leading-tight text-muted-foreground" data-testid="timetable-row-reason-stack">
 							<span className="font-medium text-foreground/80">First fix:</span> {status.actionLabel}
-							{status.key === 'needs-room' && ' â€” ATLAS cannot test slots until the room is known.'}
-							{status.key === 'needs-owner' && ' â€” ATLAS cannot evaluate placement without a teacher owner.'}
+							{status.key === 'needs-room' && ' — ATLAS cannot test slots until the room is known.'}
+							{status.key === 'needs-owner' && ' — ATLAS cannot evaluate placement without a teacher owner.'}
 						</p>
 					)}
 				</div>

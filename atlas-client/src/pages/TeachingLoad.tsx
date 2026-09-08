@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import atlasApi from '@/lib/api';
 import {
 	computeSectionAssignmentDeltaMinutes,
+	buildGuidedEmptyTeachingLoadMessage,
+	resolveAdvisoryCreditHours,
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, resolveCoverageState } from '@/lib/teaching-load-helpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -35,8 +37,6 @@ import type {
 	SectionAssignedClassesResult
 } from '@/types';
 
-const DEFAULT_SCHOOL_ID = 1;
-
 export default function TeachingLoad() {
 	const data = useTeachingLoadData();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -51,6 +51,8 @@ export default function TeachingLoad() {
 		pendingOwnershipMap: data.pendingOwnershipMap,
 		activeFacultyIds: data.activeFacultyIds,
 		sectionMap: data.sectionMap,
+		workloadPolicy: data.workloadPolicy,
+		workloadPolicyStatus: data.workloadPolicyStatus,
 	});
 
 	const [autoFillResult, setAutoFillResult] = useState<AutoFillSummaryResult | null>(null);
@@ -70,8 +72,8 @@ export default function TeachingLoad() {
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
 
 	useEffect(() => {
-		if (data.activeSchoolYearId) {
-			atlasApi.get(`/generation/${DEFAULT_SCHOOL_ID}/${data.activeSchoolYearId}/runs`, { params: { limit: 1 } })
+		if (data.schoolId && data.activeSchoolYearId) {
+			atlasApi.get(`/generation/${data.schoolId}/${data.activeSchoolYearId}/runs`, { params: { limit: 1 } })
 				.then(({ data: res }) => {
 					setHasGeneratedRuns(res.runs && res.runs.length > 0);
 				})
@@ -79,7 +81,7 @@ export default function TeachingLoad() {
 					setHasGeneratedRuns(false);
 				});
 		}
-	}, [data.activeSchoolYearId]);
+	}, [data.schoolId, data.activeSchoolYearId]);
 
 	// Apply inbound route intent exactly once per navigation entry.
 	// User actions (clicking tabs, selecting teachers/sections) immediately
@@ -129,7 +131,8 @@ export default function TeachingLoad() {
 	);
 
 	const handleSave = useCallback(async (force?: boolean) => {
-		if (!data.activeSchoolYearId) return;
+		if (!data.schoolId || !data.activeSchoolYearId) return;
+		const schoolId = data.schoolId;
 		const draftEntries = Object.entries(data.effectiveDraftAssignmentsByFaculty);
 		if (draftEntries.length === 0) return;
 
@@ -147,7 +150,7 @@ export default function TeachingLoad() {
 				const facultyRow = data.faculty.find((member) => member.id === facultyId);
 				if (!facultyRow) continue;
 				await atlasApi.put(`/faculty-assignments/${facultyId}`, {
-					schoolId: DEFAULT_SCHOOL_ID,
+					schoolId,
 					schoolYearId: data.activeSchoolYearId,
 					version: facultyRow.version,
 					facultyId,
@@ -259,11 +262,11 @@ export default function TeachingLoad() {
 	}, [data]);
 
 	const applyGlobalReset = useCallback(async () => {
-		if (!data.activeSchoolYearId) return;
+		if (!data.schoolId || !data.activeSchoolYearId) return;
 		setResetLoading(true);
 		try {
 			await atlasApi.post('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
+				schoolId: data.schoolId,
 				schoolYearId: data.activeSchoolYearId,
 				confirmText: ui.resetConfirmText,
 			});
@@ -279,7 +282,7 @@ export default function TeachingLoad() {
 	}, [data, ui]);
 
 	const handlePreviewSuggestedTeachingLoad = useCallback(async () => {
-		if (!data.activeSchoolYearId) return;
+		if (!data.schoolId || !data.activeSchoolYearId) return;
 		ui.setAutoFillDialogOpen(false);
 		setSuggestionLoading(true);
 		setAutoFillResult(null);
@@ -293,7 +296,7 @@ export default function TeachingLoad() {
 			}>(
 				'/faculty-assignments/suggestion-proposals',
 				{
-					schoolId: DEFAULT_SCHOOL_ID,
+					schoolId: data.schoolId,
 					schoolYearId: data.activeSchoolYearId,
 					coverageMode: ui.coverageMode,
 				},
@@ -405,13 +408,13 @@ export default function TeachingLoad() {
 	}, [handleCancelPendingSuggestionProposal, ui]);
 
 	const handleViewStaffingNeeds = useCallback(async () => {
-		if (!data.activeSchoolYearId) return;
+		if (!data.schoolId || !data.activeSchoolYearId) return;
 		const toastId = toast.loading('Generating detailed staffing needs report...');
 		try {
 			const { data: result } = await atlasApi.post<AutoFillSummaryResult>(
 				'/faculty-assignments/report/staffing-needs',
 				{
-					schoolId: DEFAULT_SCHOOL_ID,
+					schoolId: data.schoolId,
 					schoolYearId: data.activeSchoolYearId,
 					coverageMode: ui.coverageMode,
 				},
@@ -423,7 +426,7 @@ export default function TeachingLoad() {
 		} catch (error: any) {
 			toast.error(error?.response?.data?.message ?? 'Failed to generate staffing needs report.', { id: toastId });
 		}
-	}, [data.activeSchoolYearId, ui.coverageMode, ui.setSummaryModalOpen]);
+	}, [data.schoolId, data.activeSchoolYearId, ui.coverageMode, ui.setSummaryModalOpen]);
 
 	const handleToggleCanTeachOutsideDepartment = useCallback(async (checked: boolean) => {
 		if (!data.selected) return;
@@ -464,19 +467,23 @@ export default function TeachingLoad() {
 	}, [data]);
 
 	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number) => {
+		// Hover preview needs the effective policy; without it there is no honest preview.
+		if (!ui.policyReady || ui.workloadPolicy == null || data.selected == null) return 0;
 		return computeSectionAssignmentDeltaMinutes(
 			subject,
 			sectionId,
 			data.effectiveAssignmentsByFaculty[data.selectedId ?? 0] ?? [],
 			data.subjects,
 			data.sectionMap,
-			(data.selected?.isClassAdviser ? data.selected.advisoryEquivalentHours || 5 : 0) + ((data.selected?.ancillaryMinutesPerWeek || 0) / 60),
+			resolveAdvisoryCreditHours(data.selected, ui.workloadPolicy) + ((data.selected.ancillaryMinutesPerWeek || 0) / 60),
+			ui.workloadPolicy,
+			data.selected.maxHoursPerWeek,
 		);
-	}, [data]);
+	}, [data, ui.policyReady, ui.workloadPolicy]);
 
 	const previewLoadHours = useMemo(() => {
-		return ui.loadProfile.creditedTotalHours + (ui.hoveredIncomingMinutes / 60);
-	}, [ui.loadProfile.creditedTotalHours, ui.hoveredIncomingMinutes]);
+		return (ui.loadProfile?.creditedTotalHours ?? 0) + (ui.hoveredIncomingMinutes / 60);
+	}, [ui.loadProfile, ui.hoveredIncomingMinutes]);
 
 	const coverageHeadline = useMemo(() => {
 		if (data.coverageTotals) {
@@ -505,14 +512,25 @@ export default function TeachingLoad() {
 		if (!guidedDefaultApplied && emptyActiveYearTeachingLoad) {
 			setAdvancedGridVisible(false);
 			setGuidedDefaultApplied(true);
-			setDraftStatusMessage('Build 2026-2027 Teaching Load first. Start with the suggested draft or use the guided repair queue.');
+			setDraftStatusMessage(buildGuidedEmptyTeachingLoadMessage(data.activeSchoolYearLabel));
 		}
-	}, [emptyActiveYearTeachingLoad, guidedDefaultApplied]);
+	}, [emptyActiveYearTeachingLoad, guidedDefaultApplied, data.activeSchoolYearLabel]);
 
 	const overCapCount = useMemo(
 		() => data.faculty.filter((member) => member.isActiveForScheduling && (member.actualTeachingHours ?? member.sectionTeachingHours ?? 0) > member.maxHoursPerWeek).length,
 		[data.faculty],
 	);
+
+	// Canonical excess-teaching count (actual teaching above the standard) for the
+	// summary strip. Under no active department/status/load filter this equals the
+	// row-level excess count exactly; with filters active it follows the facet context.
+	const excessTeachingCount = ui.statusFacetCounts['excess'] ?? 0;
+
+	const showExcessTeachingLoad = useCallback(() => {
+		ui.setViewMode('teacher');
+		ui.setLoadFilter('excess');
+		ui.setFilterStatus('all');
+	}, [ui]);
 
 	const showSubjectCoverageView = useCallback(() => {
 		ui.setViewMode('subjects');
@@ -533,14 +551,14 @@ export default function TeachingLoad() {
 
 	const showOverloadedTeachers = useCallback(() => {
 		ui.setViewMode('teacher');
-		ui.setLoadFilter('overloaded');
+		ui.setLoadFilter('excess');
 		ui.setFilterStatus('all');
 		ui.setShowFilters(false);
 	}, [ui]);
 
 	const showTeachersWithoutLoad = useCallback(() => {
 		ui.setViewMode('teacher');
-		ui.setFilterStatus('unassigned');
+		ui.setFilterStatus('no-teaching');
 		ui.setLoadFilter('all');
 		ui.setShowFilters(false);
 	}, [ui]);
@@ -649,10 +667,7 @@ export default function TeachingLoad() {
 		return data.sectionAssignedClassesIndex?.sections.find((section) => section.sectionId === ui.selectedSectionId) ?? null;
 	}, [data.sectionAssignedClassesIndex, ui.selectedSectionId]);
 
-	const departmentOptions = useMemo(() => {
-		const depts = new Set(data.faculty.map((f) => f.department).filter(Boolean) as string[]);
-		return Array.from(depts).sort();
-	}, [data.faculty]);
+	const departmentOptions = ui.departmentFacetOptions;
 
 	const coverageState = useMemo(() => resolveCoverageState({
 		loading: data.loading,
@@ -695,9 +710,12 @@ export default function TeachingLoad() {
 						unassignedPairs={coverageHeadline.unassigned}
 						totalPairs={coverageHeadline.total}
 						overCapCount={overCapCount}
+						excessTeachingCount={excessTeachingCount}
+						policyReady={ui.policyReady}
+						onShowExcessTeachingLoad={showExcessTeachingLoad}
 						autoFillLoading={data.loading || suggestionLoading}
 						staffingNeedsLoading={data.loading}
-						autoFillEnabled={Boolean(data.activeSchoolYearId) && data.canPersistAssignments}
+						autoFillEnabled={Boolean(data.schoolId && data.activeSchoolYearId) && data.canPersistAssignments}
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
 						onViewStaffingNeedsClick={handleViewStaffingNeeds}
 						viewMode={ui.viewMode}
@@ -786,14 +804,21 @@ export default function TeachingLoad() {
 								resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 							onResetAssignments={data.handleResetAssignments}
 							searchQuery={ui.searchQuery}
-								onSearchQueryChange={ui.setSearchQuery}
-								filterStatus={ui.filterStatus}
-								onFilterStatusChange={ui.setFilterStatus}
-								loadFilter={ui.loadFilter}
-								onLoadFilterChange={ui.setLoadFilter}
-								departmentFilter={ui.departmentFilter}
-								onDepartmentFilterChange={ui.setDepartmentFilter}
-								departmentOptions={departmentOptions}
+							onSearchQueryChange={ui.setSearchQuery}
+							filterStatus={ui.filterStatus}
+							onFilterStatusChange={ui.setFilterStatus}
+							statusFacetCounts={ui.statusFacetCounts}
+							loadFilter={ui.loadFilter}
+							loadFacetCounts={ui.loadFacetCounts}
+							onLoadFilterChange={ui.setLoadFilter}
+							departmentFilter={ui.departmentFilter}
+							onDepartmentFilterChange={ui.setDepartmentFilter}
+							departmentOptions={departmentOptions}
+							filterAnnouncement={ui.filterAnnouncement}
+							onClearTeachingLoadFilters={ui.clearTeachingLoadFilters}
+							effectiveActualHours={ui.effectiveActualHours}
+							teachingStandardHours={ui.teachingStandardHours}
+							policyReady={ui.policyReady}
 								sortOrder={ui.sortOrder}
 								onSortOrderChange={ui.setSortOrder}
 								showFilters={ui.showFilters}
@@ -832,6 +857,7 @@ export default function TeachingLoad() {
 								sectionModeFilter={ui.sectionModeFilter}
 								onSectionModeFilterChange={ui.setSectionModeFilter}
 								effectiveAssignmentsByFaculty={data.effectiveAssignmentsByFaculty}
+								teachingStandardHours={ui.teachingStandardHours}
 								selectedSectionId={ui.selectedSectionId}
 								onSelectSection={ui.setSelectedSectionId}
 								onSave={handleSave}
@@ -858,6 +884,8 @@ export default function TeachingLoad() {
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}
 								activeTermIndex={data.activeTermIndex}
+								teachingStandardHours={ui.teachingStandardHours}
+								policyReady={ui.policyReady}
 								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
@@ -924,6 +952,8 @@ export default function TeachingLoad() {
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}
 								activeTermIndex={data.activeTermIndex}
+								teachingStandardHours={ui.teachingStandardHours}
+								policyReady={ui.policyReady}
 								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
@@ -988,6 +1018,8 @@ export default function TeachingLoad() {
 				coverageStateDescription={coverageState.description}
 				workspaceStateLabel={workspaceState.label}
 				workspaceStateNextAction={workspaceState.nextAction}
+				teachingStandardHours={ui.teachingStandardHours}
+				policyReady={ui.policyReady}
 				onNavigateToAllocation={handleNavigateToAllocation}
 			/>
 		</TooltipProvider>
