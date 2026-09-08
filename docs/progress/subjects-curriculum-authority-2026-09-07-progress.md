@@ -924,5 +924,196 @@ stream meets this bar.
   residue 0, school 1 read-only; one reviewer-side over-expectation
   adjudicated in source (unknown-prefix null department is pre-existing
   contract behavior); single-hunk boundary confirmed; §10 environmental
-  note verified (409 here, not a finding). No required fixes. SCA-02
-  remains locked for planner QA.
+   note verified (409 here, not a finding). No required fixes. SCA-02
+   remains locked for planner QA.
+
+## SCA-03D live deployment (2026-09-08, executor — HIGH, no data mutation)
+
+Objective: deploy reviewed SCA-02/SCA-02R2 source to port-5001 runtime;
+preserve database state (0 term configs, 0 requirements, 0 term
+assignments, 265 ownership rows, POPULATED cycle v4, 0 runs).
+SCA-04: LOCKED. No curriculum/Teaching Load/generation/publication/
+schema/migration/external-subsystem mutation authorized.
+
+### TODO (SCA-03D)
+
+- [x] SCA-03D.0 packaging commit (7 SCA-03R artifacts) — DONE
+- [x] SCA-03D.1 preflight + pre-deployment DB signature — DONE
+- [x] SCA-03D.2 fresh backup — DONE
+- [x] SCA-03D.3 focused gates — DONE
+- [x] SCA-03D.4 rollback preparation — DONE
+- [x] SCA-03D.5 bounded restart — DONE
+- [x] SCA-03D.6 API verification + signature recompute — DONE
+- [x] SCA-03D.7 browser verification — DONE
+- [x] SCA-03D.8 advisory review (fresh context) — DONE, zeroFix:true
+
+### SCA-03D.8 advisory review
+
+- Spawn ID `ses_f812fa548ffeZUX3DsIsvUdQTn` captured from the task
+  envelope, relayed post-artifact, repeated verbatim in artifact lines
+  3/5 (amendment confirmed in same reviewer session; status
+  REVIEW_IDENTITY_VERIFIED with relay note). Ledger, artifact agree.
+- Artifact:
+  `docs/reviews/subjects-curriculum-authority-2026-09-07/sca-03d-advisory-review-01.md`
+  (reviewer-written, gitignored path). Verdict `zeroFix: true` — all
+  seven items PASS on reviewer-executed evidence (health 200, unauth
+  curriculum 401, single listener PID 50192, Disabled-log present /
+  Starting absent, no `.env` diff, signature `1/22/0/0/0/265/
+  POPULATED-v4/0/0` byte-identical, login-only writes, Tailnet
+  requirements path 200 read-only, ATLAS-only boundary).
+- Informational only: O1 (ledger worktree wording vs authorized
+  tracked-ledger evidence update — no action; the +172/-2 ledger diff
+  is this prompt's own evidence record, zero product-source hunks);
+  O2 (officer lastLoginAt advanced by continued permitted probes —
+  expected login-effect class, counts/signature unaffected).
+- Authorizes no curriculum mutation; does not unlock SCA-04.
+
+### SCA-03D.0 packaging
+
+Staged set verified exact (7 paths, `git diff --cached --check` clean,
+sidecar hashes match via certutil: preview `8865a3c4…59496`, worksheet
+`e4b638d7…8278`). `a942f85f` verified 6/6 files incl.
+`school-year-offering.service.ts`. Committed as `a61bb5e5`
+`docs(curriculum): correct SCA-03 authority and add operator decision
+package`. Worktree clean after. No product source in commit.
+
+### SCA-03D.1 preflight
+
+- DB target (name only): `localhost:5432` /
+  `atlas_recovery_clean_rebuild_20260905` — matches recovered candidate;
+  not `atlas_db`. GO.
+- Port 5001: single listener PID 34052 (`node dist/server.js`, parent
+  5580 dead, started 2026-09-07 00:52:44). Stray portless ATLAS
+  `dist/server.js` PID 30004 (started 09-06 23:40) noted for shutdown.
+- Vite client PID 1236 (`--host --port 5174`) left running throughout.
+- HEAD at deploy: `a61bb5e5`.
+- Deployed behavior pre-restart: health 200; correct-path curriculum
+  probes `GET /api/v1/curriculum-requirements/8/requirements` and
+  `/8/readiness` → 404 (routes absent — stale runtime; an earlier 404 on
+  a wrong `/1/8/...` path was discarded as path error, re-probed
+  correctly). Rollover env unset → old runtime default-enabled.
+- Pre-deployment signature (read-only SELECT/COUNT): schools 1,
+  authAccounts 44, subjects(s1) 22, activeSections(y8) 20,
+  facultySubject(y8) 88, ownership(y8) 265, cycle POPULATED v4
+  updatedAt 2026-09-07T00:23:47.205Z, termConfigs 0, requirements 0,
+  termAssignments 0, runs 0, revisions 0, maxUpdatedAt
+  subject 2026-09-06T15:34:50.103Z / ownership 2026-09-07T00:23:47.202Z /
+  facultySubject 2026-09-07T00:23:47.203Z. Matches reference.
+
+### SCA-03D.2 backup
+
+`npm run backup` (atlas-server) → BACKUP_OK
+target `localhost:5432/atlas_recovery_clean_rebuild_20260905`
+archive `atlas-backup-atlas_recovery_clean_rebuild_20260905-20260907-172647.dump`
+bytes 239935 sha256
+`3ff1c8508994d7a3fad4ab8ab8fb9d4aa86e723591fa3735935e08d147a079e0`
+restoreListEntries 463. Manifest + archive under
+`D:\ATLAS-database-recovery\backups\` (941-byte manifest).
+Independently: `pg_restore --list` exit True ($?=True). No overwrite
+(new timestamped name). Read-only for the database.
+
+### SCA-03D.3 focused gates (all exit True)
+
+- Server `npx tsc --noEmit` clean; `npm run build` pass.
+- curriculum-requirements-truth 68/68; concurrency 27/27 (once);
+  subject-http-integration 24/24.
+- Client `npx tsc --noEmit` clean; `npm run build` pass;
+  curriculum-scope-states 25/25.
+- `git diff --check` + `git diff --cached --check` clean; worktree
+  clean. No historical/Teaching Load/generator/timetable suites run.
+
+### SCA-03D.4 rollback material
+
+- Prior runtime recorded: PID 34052 (+ stray 30004), command lines,
+  start times, single-listener proof, 404 route proof, HEAD lineage
+  (running artifact predates SCA-02 route mount).
+- HONEST DEVIATION: the authorized Phase-3 `npm run build` replaced
+  on-disk `dist/` before Phase 4, so prior bytes were not capturable.
+  Recorded as superseded-by-authorized-build, not as captured.
+- New artifact preserved (deployment candidate):
+  `D:\ATLAS-database-recovery\deploy-backups\sca03d-20260908-0135\dist-new`
+  — 843 files, SHA-256 inventory CSV, copy-vs-source compare 843/843
+  with 0 mismatches.
+- Rollback target (exact, bounded): detached worktree
+  `C:\Users\njgro\AppData\Local\Temp\opencode\sca03d-rollback-src` at
+  `bb58a78d` (newest commit predating the running server start;
+  verified: tree contains no curriculum-requirements router —
+  behavior-matches prior 404 runtime). `node_modules` junction wired
+  to `D:\ATLAS\atlas-server\node_modules` (read-only reuse).
+- Rollback procedure: stop new tree → build in rollback-src →
+  copy dist back → start one hidden server with
+  `ROLLOVER_AUTO_SYNC_ENABLED=false` → health + single-listener +
+  signature → report ROLLBACK_COMPLETE — NO-GO. Not executed (no
+  trigger fired).
+
+### SCA-03D.5 restart
+
+- Stopped PIDs 34052 + 30004 (both ATLAS `dist/server.js`; 30004
+  portless with default-enabled automation — shutdown rationale
+  recorded). Left Vite 1236, tsx-watch, and unrelated port-3001
+  process untouched. Port 5001 verified free.
+- Started exactly one hidden server: PID 50192
+  (`node dist/server.js`, cwd `D:\ATLAS\atlas-server`, process env
+  `ROLLOVER_AUTO_SYNC_ENABLED=false`, no `.env` write). Logs:
+  `deploy-backups\sca03d-20260908-0135\server-new-{stdout,stderr}.log`.
+- Log evidence: `[ATLAS] Server listening on http://localhost:5001`;
+  `[prisma] ✔ DB connected, 1 school(s) found`;
+  `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false`
+  present; `[rollover-automation] Starting` absent.
+- Single listener 50192 on 5001; health 200 ×3 across sleeps; process
+  alive. Interruption: stop-to-listening under ~1 min (stop 34052/30004
+  → free verified → PID 50192 listening).
+- Launch-tooling note: the first spawn command's harness session was
+  killed after Start-Process detached the server (log flush delayed,
+  0 bytes at first read, 261 bytes after); no second restart was
+  needed — same PID 50192 verified healthy throughout.
+
+### SCA-03D.6 API verification (Tailnet, officer session)
+
+Matrix via `https://njgrm.buru-degree.ts.net` (password never recorded):
+health 200; login 200 (role officer, local); auth/me school 1;
+runtime context year 8 / 2029-2030; requirements-no-auth 401 (not 404);
+requirements 200 with 0 rows + termConfig null; readiness 200
+ready False, termConfigPresent False, requirementCount 0; subjects 22;
+sections summary 20 (G7/G8/G9/G10 ×5); effective Teaching Load 200
+with 265 assignments; generation runs 200 with 0 rows.
+No GET term-config route exists in source (only privileged PUT, never
+called) — term-absent proof via snapshot termConfig null +
+readiness termConfigPresent False, per no-invented-endpoints rule.
+- Post-probe signature: identical to pre-deployment on all 13 tracked
+  fields (counts, cycle v4 + same updatedAt, maxUpdatedAt same).
+- Permitted login effects only: officer `1234501`
+  lastLoginAt 2026-09-08T02:06:48Z + one `LOCAL_LOGIN_SUCCESS` audit
+  row (actorId 46, same timestamp). No other writes.
+
+### SCA-03D.7 browser verification (headless Chromium, officer session)
+
+- Login ok; `/subjects` 200 with catalog; Subjects page exposes
+  `Curriculum Requirements` nav link (toolbar Link, SCA-02.2 design —
+  no left-rail item by design).
+- `/subjects/requirements` 200 (no 404): heading + honest sub-copy
+  ("ATLAS-owned required subjects…"), "Terms: not configured ·
+  Scopes: 16 · Requirements: 0", "Step 1 · Term configuration —
+  missing", 16 Missing scope chips, "No persisted term configuration
+  exists…", Add (`+ Add`) disabled, no EnrollPro-offering claims, no
+  two-specialization text, no error signals.
+- Mobile 390px (same tab — token is per-tab sessionStorage, a second
+  tab correctly appeared logged-out): usable rendering, missing-term
+  state present, no mojibake. Screenshots:
+  `deploy-backups\sca03d-20260908-0135\req-{desktop,mobile}.png`.
+- Observation only: no terms saved, no requirement created, no
+  suggestion accepted, no batch applied.
+
+### Task log (SCA-03D)
+
+| Task | Risk | Status | Evidence | Review |
+|---|---|---|---|---|
+| 03D.0 packaging | LOW | DONE | a61bb5e5, 7 files, hashes match | prompt-boundary batch |
+| 03D.1 preflight | HIGH | DONE | DB name/host, PID tree, 404 proof, signature match | prompt-boundary batch |
+| 03D.2 backup | HIGH | DONE | 239935 bytes, sha256, restore-list True | prompt-boundary batch |
+| 03D.3 gates | MEDIUM | DONE | 68/68, 27/27, 24/24, 25/25, tsc/builds, diff-check | prompt-boundary batch |
+| 03D.4 rollback | HIGH | DONE | 843-file inventory 0 mismatches; bb58a78d worktree + junction | prompt-boundary batch |
+| 03D.5 restart | HIGH | DONE | PID 50192, disabled-log present, Starting absent, 1 listener, 200×3 | prompt-boundary batch |
+| 03D.6 API | HIGH | DONE | 12/12 probes; signature identical; login-only effects | prompt-boundary batch |
+| 03D.7 browser | MEDIUM | DONE | heading/missing-state/gating proof + 2 screenshots | prompt-boundary batch |
+| 03D.8 advisory | MEDIUM | PENDING | — | fresh context required |
