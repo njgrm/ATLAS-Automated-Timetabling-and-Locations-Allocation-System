@@ -175,3 +175,51 @@ Base candidate: `e9329d0efb659e3d8cd150c4286e04f257944959`. Same branch/worktree
 - No replacement live preview was generated. Final preview remains deferred until the separate department-label decision is settled because that apply changes reconciliation source revision.
 - No live Teaching Load or department-authority data changed; no generation, publication, migration, restart, external-repository edit, or other-stream contact occurred.
 - Fresh changed-scope advisory review G (`advisory-review-G-tlc02r2.md`): `zeroFix:true`, no material findings. Reviewer independently reproduced reconciliation 168/168, mounted route 54/54, server type-check/build, diff-check, error precedence, transaction-client closure, source-revision binding, mutant sensitivity, zero-write ambiguity handling, and the preview lifecycle boundary.
+
+## TL-C02D — Apply Department Labels and Pin Fresh Reconciliation Preview
+
+Prompt: `docs/prompts/teaching-load-department-authority-apply-tlc02d-2026-09-09.md` (+ `.sha256`, verified). Base: `b96b8ccd` (origin/main, contains `e62f784e`). Worktree: `D:\ATLAS-worktrees\teaching-load-dept-apply` on `work/teaching-load-dept-apply`. HIGH-risk bounded shared-data mutation authorized by the embedded operator approval of fingerprint `D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A`. Terminal verdict: `REVIEW_REQUIRED` (never GO). No push, no merge, no Teaching Load apply.
+
+### Pre-action gate (all read-only, all passed)
+- Prompt SHA-256 `F64800FDE33B37D37D99EE6DD69CDAD6448D7B84EE182014AFA1047374955BA6` matches its sidecar.
+- Artifact `department-authority-apply-r4a.json` byte SHA-256 `D1D8E74E2FA18D3BBFC10E8A169FB1786F879C94805BD8A5D27B929937FFBBCF` matches its sidecar; semantic hash of `.semanticPayload` recomputed via server `canonicalHash` = `EAF49D08141E9B2F37E685D1B94A93BEA1B66E7D620755C37CFAAC6E352950BE`; decision fingerprint `5147D2AD…`; approved preview fingerprint `D99894F1…`.
+- DB target resolved from `atlas-server/.env`: host `localhost` (Postgres on Tailnet node `njgrm` / `100.88.55.125`), database `atlas_recovery_clean_rebuild_20260905` (required target). No credentials captured in artifacts.
+- Actor: live `/auth/login` (identifier `1234501`, officer) then `/auth/me` → school 1, userId 46, role officer, authSource local.
+- Active-year authority: exactly one active, non-archived `EnrollProSchoolYearMirror` for school 1 = year 8 / `2029-2030`.
+- Current department authority: zero aliases + zero labels for school 1.
+- Live preview `POST /faculty-assignments/department-authority/preview` (school 1, eight labels, `aliases: []`): HTTP 200, eight `create` / zero `conflict`, fingerprint `D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A`, sourceRevision `003539328945376ABB850D60D21AD8354DDB65312E252EF80FF316F9425B2C71` (0/0 rows) — exactly the artifact's expected revision.
+
+### Focused suites run pre-apply (live school 1 still 0/0)
+- department-authority-apply: 63/63 exit 0.
+- department-authority-gates: 82/82 exit 0 (includes E9/E10 artifact binding and the live-school-1-untouched assertion).
+- teaching-load-reconciliation: 168/168 exit 0.
+- teaching-load-reconciliation-route: 54/54 exit 0.
+- Server `tsc --noEmit` exit 0, production build exit 0 (clean worktree; the main checkout's `tsc` noise comes from untracked scratch files not in the committed tree).
+
+### Authorized apply (exactly one production mutation)
+`POST /faculty-assignments/department-authority/apply` with schoolId 1, eight approved labels, `aliases: []`, `expectedFingerprint` = approved `D99894F1…`, `expectedSourceRevision` = `00353932…` (fresh preview), `confirmationText: "APPLY DEPARTMENT AUTHORITY"`. HTTP 200. Receipt: created 8 labels / unchanged 0 / conflicting 0; before {0,0} → after {0,8}; `replayed:false`; `revalidatedInTransaction:true`; rollback limited to deletion of the exact eight `department_labels` rows (school 1, codes AP/ENG/ESP/FIL/MAPEH/MATH/SCI/TLE). Rollback recipe recorded, NOT executed.
+
+### Post-action verification
+- Persisted (read-only): DepartmentAlias count 0; DepartmentLabel count 8 with exact pairs AP=Araling Panlipunan, ENG=English, ESP=Edukasyon sa Pagpapakatao, FIL=Filipino, MAPEH=MAPEH, MATH=Mathematics, SCI=Science, TLE=Technology and Livelihood Education.
+- Fresh preview re-run: eight `unchanged`, zero `create`, zero conflicts; new sourceRevision `0B021EB20CC48144431B55E6AAAE4448CC89E48CDB02A7B69721073287939C39`; new fingerprint `E0F98B90934EBF599ED0AFD0780E6487D85C2E1377339E33E24A833811D48C4D`.
+- Idempotent replay via the same production apply route with the FRESH fingerprint/revision: HTTP 200, `replayed:true`, created 0 / unchanged 8, before {0,8} after {0,8}, `revalidatedInTransaction:true`.
+- Non-department invariants unchanged (see deterministic signature method below). No Teaching Load ownership, FacultySubject, cycle, curriculum, run, or publication mutation.
+
+### Deterministic non-department invariant signature (TL-C02D evidence basis)
+Method (reproducible): Prisma read-only on school 1 / year 8; `FacultySubject` rows normalized to `{facultyId, subjectId, version, gradeLevels[], sectionIds[]}` with arrays sorted ascending numerically and rows sorted by (facultyId, subjectId, version); `SubjectSectionOwnership` rows normalized to `{facultySubjectId, facultyId, subjectId, sectionId, specializationCode}` sorted by (facultySubjectId, subjectId, sectionId, facultyId); each set hashed with the server's `canonicalHash` (SHA-256 over recursively key-sorted canonical JSON).
+- FacultySubject: count 88, hash `80128C7620DB34ACFC212384B08752D0CF6CA5E72DC342290132E73BE9A4834A`; max createdAt/updatedAt `2026-09-07T00:23:47.201Z/.203Z` (pre-apply, proving zero post-apply touch).
+- SubjectSectionOwnership: count 265, hash `4FC60A3871DEE833CD8AE4FE3C2CAAA46F4A1BF6F4E67A1AF0AAC878C7BB3927`; max createdAt/updatedAt `2026-09-07T00:23:47.202Z` (pre-apply).
+- TeachingLoadCycle: id 1, state POPULATED, version 4, updatedAt `2026-09-07T00:23:47.205Z`.
+- SchoolYearTermConfig id 71 (termCount 3, active); SchoolYearOffering 216 (all active); OfferingTermAssignment 96.
+- EnrollProSchoolYearMirror: sole active non-archived = year 8 / 2029-2030.
+- GenerationRun 0 (school total and year 8); PublishedScheduleRevision 0 (school total and year 8).
+
+### Fresh Teaching Load reconciliation preview (zero write)
+- Readiness `GET /faculty-assignments/reconciliation/readiness?schoolId=1&schoolYearId=8`: HTTP 200, ready false with sole blocker `TL_RECONCILIATION_PENDING` (30 proposed moves not yet applied), demandCount 264, ownedDemandCount 264, unresolvedDemand 0, validOwnership 234.
+- Preview `POST /faculty-assignments/reconciliation/preview` `{schoolId:1, schoolYearId:8}`: HTTP 200. Endpoint fingerprint `F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446`; sourceRevision `90EC80845D32CA0EDBF5651644A10C5DC28AF0D643D632179DD9CDD5BDC7E50F`; generatedAt `2026-09-09T14:10:50.736Z`; plan RETAIN 234 / INSERT 0 / MOVE 30 / RETIRE 1 / UNRESOLVED 0 (invariant 264 = 264 demand; owned 264 ≤ 264); classification VALID_RETAIN 264 / OUTSIDE_CURRICULUM 1; cycle POPULATED → POPULATED v4; advisers 20/20 satisfied; HG found 0; departmentAuthority CONFIGURED (0 aliases / 8 labels, revision `0B021EB2…`); zeroWriteProof {preview true, writes 0}; `authorizesMutation` false.
+- Post-preview read-only signature recapture identical to the pre-apply baseline for every non-department model (labels are the only added rows) → preview executed zero writes.
+- All older TL-C02 / TL-C02R / TL-C02R1 preview fingerprints remain `NON_APPLICABLE` (markers preserved); never reused.
+- Durable artifact `docs/verification/teaching-load-current-year-reconciliation-preview-tlc02d-2026-09-09.json` (+ `.sha256`): byte SHA-256 `0BBAC2BC532CBD884D41A015C87533036744EDFCBD6BBADA77E8ACF74FCA3BE9`; `applied:false`; `authorizesNoMutation:true`; embeds endpoint fingerprint, source revision, full preview payload, and the future approval sentence.
+
+### TL-C02D advisory review H (post-action)
+`docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/advisory-review-H-tlc02d-post-action.md` — fresh reviewer did not perform the apply. Verdict: `zeroFix:false` (NO-GO) on ONE documentation-grade finding: the first-pass invariant hash literals (`CD8BA55B…`, `9132BC87…`) used an under-specified row ordering and were not reproducible by an independent method. Data-level checks all PASSED (counts, cycle, offerings, term config, mirrors, runs, published, persisted label inventory, readiness, preview artifact binding, Git boundary). Fix (documentation only): replaced the under-specified literals with the fully deterministic method and recomputed hashes recorded in this ledger (FS `80128C76…`, SSO `4FC60A38…`) plus max-updatedAt immutability proof; reviewer H independently recomputed exactly those same literals from persisted data, and changed-scope reviewer I then verified the documented deterministic method reproduces them. No source change; no second live mutation.

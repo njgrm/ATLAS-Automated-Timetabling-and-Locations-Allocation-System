@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-09-09] — TL-C02D Department Labels Applied + Reconciliation Preview Pinned
+
+### Added
+- Applied the operator-approved eight `DepartmentLabel` rows for school 1 (AP=Araling Panlipunan, ENG=English, ESP=Edukasyon sa Pagpapakatao, FIL=Filipino, MAPEH=MAPEH, MATH=Mathematics, SCI=Science, TLE=Technology and Livelihood Education) through the fingerprinted production apply route under approval fingerprint `D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A`; zero aliases; one in-transaction revalidated apply (`replayed:false`) plus one idempotent replay (`replayed:true`, zero created).
+- Fresh zero-write Teaching Load reconciliation preview pinned at `docs/verification/teaching-load-current-year-reconciliation-preview-tlc02d-2026-09-09.json` (+ `.sha256`): fingerprint `F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446`, source revision `90EC80845D32CA0EDBF5651644A10C5DC28AF0D643D632179DD9CDD5BDC7E50F`, RETAIN 234 / INSERT 0 / MOVE 30 / RETIRE 1 / UNRESOLVED 0, advisers 20/20, HG 0, `applied:false`, `authorizesNoMutation:true`.
+- Deterministic non-department invariant signature documented in the progress ledger (FacultySubject 88 / `80128C76…`, SubjectSectionOwnership 265 / `4FC60A38…`, cycle POPULATED v4, offerings 216, term assignments 96, sole active year 8 / 2029-2030, runs 0, published 0) with pre-apply max updatedAt immutability proof.
+- Post-action review H (NO-GO on a documentation-grade irreproducible-hash finding) and changed-scope review I (GO / zeroFix:true closing the finding) under `docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/`.
+
+### Changed
+- All older TL-C02 / TL-C02R / TL-C02R1 reconciliation preview fingerprints remain `NON_APPLICABLE`; the tlc02d preview supersedes them and authorizes no mutation on its own.
+
+### Decisions Made
+- The apply was limited to the eight fingerprinted department-label rows for school 1; rollback is limited to deleting those exact eight rows and was recorded but not executed.
+- No Teaching Load reconciliation apply, generation, publication, deployment/restart, schema/migration, or external-repository mutation occurred in this prompt.
+
+### Open Questions
+- Planner/QA review of the TL-C02D committed range; the fresh Teaching Load preview requires its own explicit operator approval before any reconciliation apply.
+
 ## [2026-09-09] — TT-C02R1 Preview-Only Cleanup
 
 ### Added
