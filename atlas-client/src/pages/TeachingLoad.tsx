@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, UserRound } from 'lucide-react';
+import { AlertTriangle, RefreshCw, UserRound } from 'lucide-react';
 import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/ui/sheet';
+import { Badge } from '@/ui/badge';
 import { cn } from '@/lib/utils';
 
 import atlasApi from '@/lib/api';
@@ -28,13 +29,16 @@ import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignme
 import { SubjectCoverageMode } from '@/components/faculty-assignments/SubjectCoverageMode';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
+import { TeachingLoadReconciliationPanel } from '@/components/faculty-assignments/TeachingLoadReconciliationPanel';
+import { readinessChipState } from '@/lib/teaching-load-reconciliation-helpers';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import type {
 	AutoFillSummaryResult, 
 	Subject,
-	SectionAssignedClassesResult
+	SectionAssignedClassesResult,
+	TeachingLoadReconciliationReadiness
 } from '@/types';
 
 export default function TeachingLoad() {
@@ -70,6 +74,31 @@ export default function TeachingLoad() {
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
+	const [reconciliationOpen, setReconciliationOpen] = useState(false);
+	const [reconciliationReadiness, setReconciliationReadiness] = useState<TeachingLoadReconciliationReadiness | null>(null);
+	const [readinessLoading, setReadinessLoading] = useState(false);
+
+	useEffect(() => {
+		if (!data.schoolId || !data.activeSchoolYearId) return;
+		let cancelled = false;
+		setReadinessLoading(true);
+		atlasApi
+			.get<TeachingLoadReconciliationReadiness>('/faculty-assignments/reconciliation/readiness', {
+				params: { schoolId: data.schoolId, schoolYearId: data.activeSchoolYearId },
+			})
+			.then(({ data: result }) => {
+				if (!cancelled) setReconciliationReadiness(result);
+			})
+			.catch(() => {
+				if (!cancelled) setReconciliationReadiness(null);
+			})
+			.finally(() => {
+				if (!cancelled) setReadinessLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [data.schoolId, data.activeSchoolYearId]);
 
 	useEffect(() => {
 		if (data.schoolId && data.activeSchoolYearId) {
@@ -740,6 +769,29 @@ export default function TeachingLoad() {
 						onSave={handleSave}
 						onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					/>
+					<div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+						{readinessChipState(reconciliationReadiness, readinessLoading).tone === 'warn' && (
+							<Badge
+								variant="outline"
+								className="bg-amber-50 text-amber-800 border-amber-200"
+								data-testid="teaching-load-coverage-readiness"
+							>
+								{readinessChipState(reconciliationReadiness, readinessLoading).label}
+							</Badge>
+						)}
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-11 gap-2 font-bold"
+							disabled={!data.schoolId || !data.activeSchoolYearId}
+							onClick={() => setReconciliationOpen(true)}
+							data-testid="teaching-load-open-reconciliation"
+						>
+							<RefreshCw className="size-4" />
+							Reconcile teaching load
+						</Button>
+					</div>
 					<p className="sr-only" aria-label="Teaching load workflow">
 						<span className="text-foreground">1. Choose a teacher or section</span>
 						<span aria-hidden="true" className="mx-2">→</span>
@@ -1021,6 +1073,21 @@ export default function TeachingLoad() {
 				teachingStandardHours={ui.teachingStandardHours}
 				policyReady={ui.policyReady}
 				onNavigateToAllocation={handleNavigateToAllocation}
+			/>
+
+			<TeachingLoadReconciliationPanel
+				open={reconciliationOpen}
+				onOpenChange={setReconciliationOpen}
+				schoolId={data.schoolId}
+				schoolYearId={data.activeSchoolYearId}
+				online={data.isOnline}
+				writable={data.canPersistAssignments}
+				readiness={reconciliationReadiness}
+				readinessLoading={readinessLoading}
+				onApplied={() => {
+					void data.fetchData({ forceRefresh: true });
+					setReconciliationReadiness(null);
+				}}
 			/>
 		</TooltipProvider>
 	);

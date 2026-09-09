@@ -1288,6 +1288,18 @@ export function resolveCanonicalDepartmentIdentity(
   return { code: 'UNMAPPED', label: 'Unmapped', status: 'UNMAPPED' };
 }
 
+/**
+ * Read-only set of HG subject ids for a school. HG is never Teaching Load
+ * demand, ownership, minutes, or consumer output.
+ */
+export async function loadHgSubjectIds(schoolId: number): Promise<Set<number>> {
+  const rows = await db().subject.findMany({
+    where: { schoolId, code: { equals: HG_SUBJECT_CODE, mode: 'insensitive' } },
+    select: { id: true },
+  });
+  return new Set(rows.map((row) => row.id));
+}
+
 const DEFAULT_ASSIGNMENT_SUMMARY_PAGE_SIZE = 25;
 const MAX_ASSIGNMENT_SUMMARY_PAGE_SIZE = 100;
 
@@ -5138,7 +5150,13 @@ export async function getAssignmentSummary(
       .map((member) => member.id),
   );
 
-  const activeOwnershipRows = ownershipRows.filter((row) => activeSchedulingFacultyIdSet.has(row.facultyId));
+  // HG (Homeroom Guidance) is never Teaching Load: exclude HG subject rows from
+  // the effective ownership index so consumers (AIMS/SMART effective contract)
+  // never receive an HG assignment.
+  const hgSubjectIds = await loadHgSubjectIds(schoolId);
+  const activeOwnershipRows = ownershipRows
+    .filter((row) => activeSchedulingFacultyIdSet.has(row.facultyId))
+    .filter((row) => !hgSubjectIds.has(row.subjectId));
 
   const ownershipIndex: SubjectSectionOwnershipIndexEntry[] = activeOwnershipRows.map((row) => {
     const owner = ownershipFacultyById.get(row.facultyId);

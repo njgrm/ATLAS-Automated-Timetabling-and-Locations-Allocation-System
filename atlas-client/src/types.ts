@@ -2071,3 +2071,113 @@ export type SubjectSectionOwnershipIndexEntry = {
 	facultyId: number;
 	facultyName: string;
 };
+
+
+// --- Teaching Load Reconciliation (TL-C02) -----------------------------------
+
+export type TeachingLoadReconciliationActionType = 'RETAIN' | 'INSERT' | 'MOVE' | 'RETIRE' | 'UNRESOLVED';
+
+export type TeachingLoadReconciliationPlanEntry = {
+	action: TeachingLoadReconciliationActionType;
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	classification: string;
+	weeklyMinutes: number;
+	termMode: string;
+	termIdentities: string[];
+	rotationFamily: string | null;
+	currentOwnerId: number | null;
+	proposedFacultyId: number | null;
+	currentOwnershipId: number | null;
+	diagnostics: string[];
+	reason: string;
+	unresolvedReason: string | null;
+	adviserPreferenceApplied: boolean;
+};
+
+export type TeachingLoadReconciliationFacultyWorkload = {
+	facultyId: number;
+	name: string;
+	isClassAdviser: boolean;
+	isActiveForScheduling: boolean;
+	isPlaceholder: boolean;
+	beforeMinutes: number;
+	afterMinutes: number;
+	beforeStatus: string;
+	afterStatus: string;
+};
+
+export type TeachingLoadReconciliationAdviserOutcome = {
+	facultyId: number;
+	sectionId: number;
+	satisfied: boolean;
+	reason: string;
+};
+
+export type TeachingLoadReconciliationPreview = {
+	schemaVersion: string;
+	schoolId: number;
+	schoolYearId: number;
+	fingerprint: string;
+	sourceRevision: string;
+	generatedAt: string;
+	before: {
+		ownershipCount: number;
+		demandCount: number;
+		activeFacultyCount: number;
+		activeSectionCount: number;
+		distribution: TeachingLoadDistribution;
+	};
+	demand: Array<{
+		key: string;
+		offeringId: number;
+		subjectId: number;
+		subjectCode: string;
+		sectionId: number;
+		gradeLevel: number;
+		programType: string;
+		classification: string;
+		weeklyMinutes: number;
+		termMode: string;
+		termIdentities: string[];
+		rotationFamily: string | null;
+		rotationOrder: number | null;
+		provenance: string;
+	}>;
+	actions: TeachingLoadReconciliationPlanEntry[];
+	actionTotals: Record<TeachingLoadReconciliationActionType, number>;
+	classificationTotals: Record<string, number>;
+	perFaculty: TeachingLoadReconciliationFacultyWorkload[];
+	after: { distribution: TeachingLoadDistribution };
+	adviserPreference: TeachingLoadReconciliationAdviserOutcome[];
+	hgRows: { found: number; removed: number; removedRows: Array<{ ownershipId: number; subjectId: number; sectionId: number; facultyId: number }> };
+	departmentAuthority: { status: string; aliasRows: number; labelRows: number; revisionHash: string };
+	workloadPolicy: { teachingStandardMinutes: number; advisoryCreditMinutes: number; hardCapMinutes: number; status: string };
+	cycleImpact: { stateBefore: string; stateAfter: string };
+	effectiveContractImpact: { hgRowsExcluded: boolean; stableExternalIdentifiers: boolean; rotationAndTermMetadataPreserved: boolean };
+	zeroWriteProof: { preview: boolean; writes: number };
+	confirmationText: string;
+	authorizesMutation: boolean;
+};
+
+export type TeachingLoadDistribution = {
+	zeroLoad: number;
+	adviserOnly: number;
+	belowStandard: number;
+	atStandard: number;
+	excess: number;
+	overCap: number;
+};
+
+export type TeachingLoadReconciliationReadiness = {
+	schoolId: number;
+	schoolYearId: number;
+	ready: boolean;
+	demandCount: number;
+	ownedDemandCount: number;
+	unresolvedDemandCount: number;
+	validOwnershipCount: number;
+	blockers: Array<{ code: string; message: string }>;
+	acceptedExceptions: number;
+};
