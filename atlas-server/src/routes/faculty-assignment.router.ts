@@ -22,6 +22,11 @@ import { prisma } from '../lib/prisma.js';
 import { getOrCreateTeachingLoadCycleSource, getTeachingLoadCycle } from '../services/teaching-load-cycle.service.js';
 import * as departmentAuthorityService from '../services/department-authority.service.js';
 import { parseStrictPositiveInt } from '../services/department-authority.service.js';
+import {
+	applyTeachingLoadReconciliation,
+	getTeachingLoadReconciliationReadiness,
+	previewTeachingLoadReconciliation,
+} from '../services/teaching-load-reconciliation.service.js';
 
 const router = Router();
 
@@ -100,6 +105,75 @@ router.post('/department-authority/apply', authenticate, requirePrivilegedRole, 
 			expectedSourceRevision: req.body?.expectedSourceRevision,
 			aliases: req.body?.aliases,
 			labels: req.body?.labels,
+			confirmationText: req.body?.confirmationText,
+		}));
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /faculty-assignments/reconciliation/readiness (read-only demand
+// coverage authority for the Teaching Load page and consumers).
+router.get('/reconciliation/readiness', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		let schoolYearId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.query.schoolId);
+			schoolYearId = parseStrictPositiveInt(req.query.schoolYearId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId and schoolYearId must be positive integers.' });
+			return;
+		}
+		if (rejectSchoolScopeConflict(req, schoolId, res)) return;
+		res.json(await getTeachingLoadReconciliationReadiness(schoolId, schoolYearId));
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/reconciliation/preview (operator JWT only,
+// zero-write). Returns the canonical reconciliation plan bound by a fingerprint.
+router.post('/reconciliation/preview', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		let schoolYearId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.body?.schoolId);
+			schoolYearId = parseStrictPositiveInt(req.body?.schoolYearId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId and schoolYearId must be positive integers.' });
+			return;
+		}
+		if (rejectSchoolScopeConflict(req, schoolId, res)) return;
+		res.json(await previewTeachingLoadReconciliation(schoolId, schoolYearId, actorSchoolIdOf(req)));
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/reconciliation/apply (operator JWT only).
+// Requires the exact preview fingerprint, the exact source revision, and an
+// explicit confirmation; runs inside one Serializable transaction.
+router.post('/reconciliation/apply', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		let schoolId: number;
+		let schoolYearId: number;
+		try {
+			schoolId = parseStrictPositiveInt(req.body?.schoolId);
+			schoolYearId = parseStrictPositiveInt(req.body?.schoolYearId);
+		} catch (error: any) {
+			res.status(error?.statusCode ?? 400).json({ code: error?.code ?? 'INVALID_PARAM', message: error?.message ?? 'schoolId and schoolYearId must be positive integers.' });
+			return;
+		}
+		if (rejectSchoolScopeConflict(req, schoolId, res)) return;
+		res.json(await applyTeachingLoadReconciliation({
+			actorSchoolId: actorSchoolIdOf(req),
+			actorId: req.user?.userId ?? 0,
+			schoolId,
+			schoolYearId,
+			expectedFingerprint: req.body?.expectedFingerprint,
+			expectedSourceRevision: req.body?.expectedSourceRevision,
 			confirmationText: req.body?.confirmationText,
 		}));
 	} catch (err) {
