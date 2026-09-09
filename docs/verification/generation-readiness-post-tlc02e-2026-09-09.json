@@ -1,0 +1,91 @@
+{
+  "artifact": "generation-readiness-post-tlc02e",
+  "capturedAt": "2026-09-09T15:22:06Z",
+  "schemaVersion": "TL-C02E.1",
+  "scope": { "schoolId": 1, "schoolYearId": 8, "activeSchoolYearLabel": "2029-2030" },
+  "authorizesNoMutation": true,
+  "readOnly": true,
+  "context": "Captured immediately after the TL-C02E Teaching Load reconciliation apply and idempotent replay verification. This artifact records the current generation-readiness baseline only; it authorizes no generation and no publication.",
+  "endpoints": {
+    "generationRoomRequestGate": { "status": 200, "blocked": false, "openCount": 0, "runId": null, "note": "Room-request gate only; not a full generation blocker gate." },
+    "currentYearRunList": { "status": 200, "count": 0, "runs": [] },
+    "timetableUnassignedWorkflowSummary": {
+      "status": 200,
+      "scope": { "schoolId": 1, "schoolYearId": 8 },
+      "termConfigPresent": true,
+      "dayShapePresent": true,
+      "periodLengthMinutes": 45,
+      "demand": { "totalLines": 552, "totalSessions": 2760, "totalsByTerm": { "Term 1": 920, "Term 2": 920, "Term 3": 920 } },
+      "ownership": { "cycleVersion": 5, "ownershipCount": 264, "hash": "3D31214E583BAE9468E3D90F7F5BA48C859F659AC6F0FE2AF76EF1FC73E94CC6" },
+      "curriculum": { "activeOfferingCount": 216, "hash": "7A90A16CF8D48C9919BE45E1A07EBB7FACC90FD0EE329FCC7BFEBD4C3673306A" },
+      "sections": { "activeSectionCount": 20, "hash": "DBDA4DC91307B73377389BC0296D398D0F7C50205B49D1A16FE7E2608137B5E7" },
+      "hgExcluded": { "offeringIds": [], "subjectCodes": [], "ownershipRows": 0 },
+      "breakdown": { "INDIVIDUALLY_PREVIEWABLE": 552 },
+      "insertionReadyLines": 552,
+      "unresolvedLines": 0,
+      "lineStateCount": 552,
+      "note": "INDIVIDUALLY_PREVIEWABLE is a bounded read-only candidate preview, not canonical generator validation."
+    },
+    "dashboardLifecycleReadiness": {
+      "status": 200,
+      "schoolId": 1,
+      "activeSchoolYearId": 8,
+      "activeSchoolYearLabel": "2029-2030",
+      "resolvedAt": "2026-09-09T15:22:06.151Z",
+      "sourceState": "using_saved_data",
+      "sourceMessage": "Using saved readiness data."
+    },
+    "effectiveTeachingLoad": {
+      "status": 200,
+      "source": { "schoolId": 1, "schoolYearId": 8, "state": "POPULATED", "version": 5, "contractVersion": 2, "isActiveSchoolYear": true },
+      "assignmentCount": 264,
+      "coverageTotals": { "assignedPairs": 264, "activeAssignedPairs": 264, "realFacultyAssignedPairs": 264, "syntheticPlaceholderPairs": 0, "rawAssignedPairs": 264, "totalPairs": 265, "unassignedPairs": 1, "rawUnassignedPairs": 1 }
+    },
+    "curriculumReadiness": { "status": 200, "ready": true, "requirementCount": 216, "scopeStatesConfigured": 16, "blockers": [] },
+    "curriculumRequirements": { "status": 200, "total": 216, "active": 216 },
+    "subjects": { "status": 200, "total": 22, "active": 22, "codes": ["AP", "DEVL_READING", "ENG", "ESP", "FIL", "HG", "MAPEH", "MATH", "SCI_BIO", "SCI_CHEM", "SCI_ES", "SPA_SPEC", "SPS_SPEC", "STE_APPLIED_CHEM", "STE_APPLIED_PHYS", "STE_BIOTECH", "STE_ENV_SCI", "STE_RESEARCH", "STE_ROBOTICS", "TLE_AFA_EXP", "TLE_FCS_EXP", "TLE_ICT_EXP"] },
+    "sections": { "status": 200, "total": 20, "active": 20, "gradeProgramCombos": 16 },
+    "roomBuildingInventory": { "status": 200, "buildingCount": 8, "roomCount": 103, "teachingRoomCount": 98 },
+    "runtimeContext": {
+      "status": 200,
+      "activeSchoolYearId": 8,
+      "activeSchoolYearLabel": "2029-2030",
+      "source": "atlas-persisted",
+      "stale": true,
+      "upstreamReachable": false,
+      "upstreamVerified": false,
+      "activeYearDrift": { "status": "aligned", "atlasSchoolYearId": 8, "enrollProSchoolYearId": 8, "mirrorSyncedAt": "2026-09-06T15:34:56.046Z" }
+    },
+    "rolloverStatus": {
+      "status": 200,
+      "atlasSchoolYearId": 8,
+      "enrollProActiveYear": null,
+      "driftStatus": "enrollpro-unreachable",
+      "driftRecommendedAction": "RETRY_ENROLLPRO",
+      "conflicts": [],
+      "archivedYears": [],
+      "testModeEnabled": false,
+      "canResetDummyYear": false
+    },
+    "specializationAliases": { "status": 200, "count": 11 }
+  },
+  "blockerMatrix": {
+    "processGateBlockers": [
+      { "code": "GENERATION_NOT_STARTED", "count": "0 generation runs", "detail": "No current-year GenerationRun exists; no timetable has been generated or published for year 8." }
+    ],
+    "hardSchedulingConstraints": [],
+    "unassignedDemand": [],
+    "dataSourceAuthorityGaps": [
+      { "code": "ENROLLPRO_UNREACHABLE", "count": 1, "detail": "Runtime context upstream.reachable=false and rollover drift=enrollpro-unreachable at capture time (integration health check timeout). ATLAS continues on saved setup data. Not caused by this reconciliation apply." },
+      { "code": "DASHBOARD_SOURCE_STATE", "count": 1, "detail": "dashboard readiness sourceState=using_saved_data (saved-data mode) because EnrollPro was unreachable at capture time." }
+    ],
+    "uxOnlyGaps": []
+  },
+  "postTlc02eTeachingLoadTruth": {
+    "reconciliationReadiness": { "ready": true, "demandCount": 264, "ownedDemandCount": 264, "unresolvedDemandCount": 0, "validOwnershipCount": 264, "blockers": [], "acceptedExceptions": 0 },
+    "postApplyPreview": { "fingerprint": "587FD51E4CD018ACF35900D1419FF5BA02BD45C8720E45869EFB9C1164B3E15E", "sourceRevision": "BAA0044EAAE2295C21F5A07CF31AAA14A08952752736ADC979512810E8496A4A", "actionTotals": { "RETAIN": 264, "INSERT": 0, "MOVE": 0, "RETIRE": 0, "UNRESOLVED": 0 } },
+    "cycle": { "state": "POPULATED", "version": 5, "updatedAt": "2026-09-09T15:15:36.746Z" }
+  },
+  "generationAllowedByThisArtifact": false,
+  "publicationAllowedByThisArtifact": false
+}

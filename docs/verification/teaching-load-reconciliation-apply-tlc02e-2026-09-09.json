@@ -1,0 +1,146 @@
+{
+  "artifact": "teaching-load-reconciliation-apply-tlc02e",
+  "generatedAt": "2026-09-09T15:15:36.744Z",
+  "schemaVersion": "TL-C02.1",
+  "promptSha256": "29E73193C93ED37267341557A2FEFB902DF307D9874AB340117681158AA75E35",
+  "approvedPreviewArtifactByteSha256": "0BBAC2BC532CBD884D41A015C87533036744EDFCBD6BBADA77E8ACF74FCA3BE9",
+  "operatorApproval": {
+    "sentence": "APPROVE PREVIEW F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446: apply the Teaching Load reconciliation for school 1 / year 8 (2029-2030) exactly as fingerprinted by the reconciliation preview endpoint. This authorizes NO department-label mutation.",
+    "schoolId": 1,
+    "schoolYearId": 8,
+    "fingerprint": "F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446",
+    "sourceRevision": "90EC80845D32CA0EDBF5651644A10C5DC28AF0D643D632179DD9CDD5BDC7E50F",
+    "plan": "RETAIN 234 / INSERT 0 / MOVE 30 / RETIRE 1 / UNRESOLVED 0"
+  },
+  "preActionGate": {
+    "databaseTarget": "atlas_recovery_clean_rebuild_20260905",
+    "databaseTargetVerified": true,
+    "actor": { "userId": 46, "role": "officer", "schoolId": 1, "authSource": "local" },
+    "activeYearAuthority": { "enrollProSchoolYearId": 8, "yearLabel": "2029-2030", "isActive": true, "isArchived": false, "soleActiveNonArchived": true },
+    "departmentAuthority": { "aliasRows": 0, "labelRows": 8, "revisionHash": "0B021EB20CC48144431B55E6AAAE4448CC89E48CDB02A7B69721073287939C39" },
+    "liveReadiness": { "ready": false, "demandCount": 264, "ownedDemandCount": 264, "unresolvedDemandCount": 0, "validOwnershipCount": 234, "blocker": "TL_RECONCILIATION_PENDING" },
+    "livePreview": {
+      "fingerprint": "F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446",
+      "sourceRevision": "90EC80845D32CA0EDBF5651644A10C5DC28AF0D643D632179DD9CDD5BDC7E50F",
+      "actionTotals": { "RETAIN": 234, "INSERT": 0, "MOVE": 30, "RETIRE": 1, "UNRESOLVED": 0 },
+      "demandCount": 264,
+      "adviserSatisfied": "20/20",
+      "hgFound": 0,
+      "unmappedFaculty": 0,
+      "configuredScopes": 16,
+      "activeRequirements": 216,
+      "zeroWriteProof": { "preview": true, "writes": 0 }
+    }
+  },
+  "apply": {
+    "endpoint": "POST /api/v1/faculty-assignments/reconciliation/apply",
+    "httpStatus": 200,
+    "body": {
+      "schoolId": 1,
+      "schoolYearId": 8,
+      "expectedFingerprint": "F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446",
+      "expectedSourceRevision": "90EC80845D32CA0EDBF5651644A10C5DC28AF0D643D632179DD9CDD5BDC7E50F",
+      "confirmationText": "APPLY TEACHING LOAD RECONCILIATION"
+    },
+    "receipt": {
+      "schoolId": 1,
+      "schoolYearId": 8,
+      "fingerprint": "F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446",
+      "inserted": 0,
+      "moved": 30,
+      "retired": 1,
+      "retained": 234,
+      "unresolved": 0,
+      "hgRemoved": 0,
+      "replayed": false,
+      "revalidatedInTransaction": true,
+      "operationId": 252,
+      "affectedFacultyIdsCount": 42,
+      "ownershipIdsWrittenCount": 31,
+      "facultySubjectIdsWrittenCount": 61
+    }
+  },
+  "postActionVerification": {
+    "ownership": {
+      "countBefore": 265,
+      "countAfter": 264,
+      "uniqueDemandedPairsAfter": 264,
+      "demandCount": 264,
+      "outsideCurriculumRowsRemaining": 0
+    },
+    "planConformance": {
+      "movesMatchingProposedFaculty": 30,
+      "movesMismatch": 0,
+      "retainsMatching": 234,
+      "retainsMismatch": 0,
+      "retireRemoved": true,
+      "inserts": 0
+    },
+    "facultySubjectDerivedParity": { "activeKeysChecked": 94, "issues": 0, "danglingOrCrossSchool": 0 },
+    "cycle": { "state": "POPULATED", "versionBefore": 4, "versionAfter": 5, "id": 1 },
+    "audit": {
+      "teachLoadReconciliationAuditRows": 1,
+      "operationId": 252,
+      "actorId": 46,
+      "authenticationAuditRowsDisclosedSeparately": true
+    },
+    "protectedDomainInvariants": {
+      "departmentAliasCount": 0,
+      "departmentLabelCount": 8,
+      "departmentRevisionHash": "0B021EB20CC48144431B55E6AAAE4448CC89E48CDB02A7B69721073287939C39",
+      "subjectActiveCount": 22,
+      "sectionCount": 20,
+      "termConfigId": 71,
+      "schoolYearOfferingActive": 216,
+      "offeringTermAssignment": 96,
+      "generationRun": 0,
+      "publishedRevision": 0,
+      "prePostByteEquivalent": true
+    }
+  },
+  "postApplyReadiness": {
+    "ready": true,
+    "demandCount": 264,
+    "ownedDemandCount": 264,
+    "unresolvedDemandCount": 0,
+    "validOwnershipCount": 264,
+    "blockers": [],
+    "acceptedExceptions": 0
+  },
+  "postApplyPreview": {
+    "fingerprint": "587FD51E4CD018ACF35900D1419FF5BA02BD45C8720E45869EFB9C1164B3E15E",
+    "sourceRevision": "BAA0044EAAE2295C21F5A07CF31AAA14A08952752736ADC979512810E8496A4A",
+    "actionTotals": { "RETAIN": 264, "INSERT": 0, "MOVE": 0, "RETIRE": 0, "UNRESOLVED": 0 },
+    "adviserSatisfied": "20/20",
+    "hgFound": 0,
+    "unmappedFaculty": 0,
+    "distribution": { "zeroLoad": 0, "adviserOnly": 0, "belowStandard": 38, "atStandard": 4, "excess": 0, "overCap": 0 }
+  },
+  "replay": {
+    "fingerprint": "587FD51E4CD018ACF35900D1419FF5BA02BD45C8720E45869EFB9C1164B3E15E",
+    "httpStatus": 200,
+    "replayed": true,
+    "retained": 264,
+    "inserted": 0,
+    "moved": 0,
+    "retired": 0,
+    "unresolved": 0,
+    "ownershipIdsWrittenCount": 0,
+    "facultySubjectIdsWrittenCount": 0,
+    "operationId": 0,
+    "byteIdenticalSignaturesBeforeVsAfterReplay": true,
+    "authAuditRowsAddedByProbeLoginDisclosed": true
+  },
+  "rollbackPackage": {
+    "recorded": true,
+    "executed": false,
+    "note": "Rollback derived from the pre-apply snapshot (pre-apply-boundary.json) but NOT executed. Any rollback requires a new explicit operator instruction."
+  },
+  "authorizesNoMutation": true,
+  "gitBoundary": {
+    "worktree": "D:\\ATLAS-worktrees\\teaching-load-apply",
+    "branch": "work/teaching-load-apply",
+    "base": "0522c8168a50dc181b0ed4ba93f2857f869e45c1",
+    "baseContains": "5020050b7c93be6c3c1ee55d5dc1355409b5f71f"
+  }
+}

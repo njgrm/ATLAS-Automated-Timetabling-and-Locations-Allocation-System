@@ -1,5 +1,27 @@
 # Changelog
 
+## [2026-09-09] — TL-C02E Current-Year Teaching Load Reconciliation Applied
+
+### Added
+- Applied the operator-approved Teaching Load reconciliation for school 1 / year 8 (`2029-2030`) through the fingerprinted production route `POST /api/v1/faculty-assignments/reconciliation/apply` under approval fingerprint `F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446` / source revision `90EC80845D32CA0EDBF5651644A10C5DC28AF0D643D632179DD9CDD5BDC7E50F`. Receipt: HTTP 200, inserted 0, moved 30, retired 1, retained 234, unresolved 0, hgRemoved 0, `replayed:false`, `revalidatedInTransaction:true`, one reconciliation audit operation ID 252. No department-label, curriculum, subject, section, generation, or publication mutation.
+- Post-state ownership 265 → 264 unique demanded subject-section pairs (0 outside-curriculum rows); all 30 MOVE pairs now owned by the approved proposed faculty and the single RETIRE removed; `FacultySubject.sectionIds`/`gradeLevels` derived parity 0 issues across 94 keys; cycle POPULATED v4 → v5 (authorized refresh only); protected-domain invariants byte/semantic-equivalent before vs after.
+- Post-apply readiness `ready:true` (demand 264 / owned 264 / valid 264 / unresolved 0 / no blockers); post-apply preview fresh fingerprint `587FD51E4CD018ACF35900D1419FF5BA02BD45C8720E45869EFB9C1164B3E15E` with all 264 RETAIN, 20/20 advisers, distribution zero-load 0 / adviser-only 0 / below-standard 38 / at-standard 4 / excess 0 / over-cap 0.
+- One idempotent replay with the fresh fingerprint/revision: HTTP 200, `replayed:true`, retained 264, all write-ID arrays empty, operationId 0, byte-identical ownership/FacultySubject/cycle signatures before vs after replay (zero-write proof).
+- Durable evidence: `docs/verification/teaching-load-reconciliation-apply-tlc02e-2026-09-09.json` (+ `.sha256`, byte SHA-256 `E8D891B5D74CE9C12EAB168BEA1E5690EAAA8EB84103D9518E642370B680B8F3`) and `docs/verification/generation-readiness-post-tlc02e-2026-09-09.json` (+ `.sha256`, byte SHA-256 `34DC0675BCAAFD2E5C6F5E56D78B4204EA28595D421F4F6610CB6FBBDFE8FBCD`, `authorizesNoMutation:true`) recording the read-only generation-readiness baseline and blocker matrix.
+- Focused gates: teaching-load-reconciliation 168/168, teaching-load-reconciliation-route 54/54, department-authority-gates 82/82, department-authority-apply 63/63, server `tsc --noEmit` clean, server production build clean, `git diff --cached --check` clean.
+- Independent post-apply review J (`docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/advisory-review-J-tlc02e.md`, reviewer handle `ses_f7936c373ffeGITH29zkoN97At`) verified receipt, live DB post-state, derived parity, replay zero-write, protected invariants, readiness baseline, and Git boundary: `zeroFix:true`, `ACCEPT`.
+
+### Changed
+- TeachingLoadCycle version advanced 4 → 5 and SubjectSectionOwnership/FacultySubject rows were refreshed by the single authorized reconciliation apply at `2026-09-09T15:15:36Z`; the pre-apply baseline signatures are recorded in the TL-C02E ledger section.
+
+### Decisions Made
+- The apply executed exactly the fingerprinted plan (RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0); rollback was derived from the pre-apply snapshot but NOT executed (a rollback requires a new explicit operator instruction).
+- Authentication audit effects (`LOCAL_LOGIN_SUCCESS` rows from probe/reviewer logins) are disclosed separately from the single `TEACHING_LOAD_RECONCILIATION` audit row 252.
+- No generation, publication, department-label mutation, curriculum mutation, schema/migration work, deployment/restart, or external-repository edit occurred.
+
+### Open Questions
+- Formal planner/QA review of the TL-C02E committed range (terminal verdict `REVIEW_REQUIRED`; never GO on this prompt). Generation and publication remain separately gated and unauthorized by this prompt's readiness artifact.
+
 ## [2026-09-09] — TL-C02D Department Labels Applied + Reconciliation Preview Pinned
 
 ### Added
