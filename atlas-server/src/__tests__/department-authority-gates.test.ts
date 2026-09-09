@@ -105,6 +105,22 @@ async function main() {
   const run = (fn: () => Promise<any>): Promise<any> =>
     (dataContext as any).withDataContext(instrumented, fn);
 
+  // Capture the current shared-school authority without assuming a particular
+  // deployment phase. The suite must prove it leaves that state unchanged,
+  // whether the approved labels are not yet applied or already persisted.
+  const liveDepartmentBefore = {
+    aliases: await instrumented.departmentAlias.findMany({
+      where: { schoolId: 1 },
+      select: { alias: true, department: true },
+      orderBy: { alias: 'asc' },
+    }),
+    labels: await instrumented.departmentLabel.findMany({
+      where: { schoolId: 1 },
+      select: { code: true, label: true },
+      orderBy: { code: 'asc' },
+    }),
+  };
+
   const FIXTURE_NAME = 'TL-C01R4A FIXTURE SCHOOL — SAFE TO DELETE';
   let fixtureSchoolId = 0;
   try {
@@ -411,11 +427,25 @@ async function main() {
         await callRoute('R4B apply missing-actor rejected', 'POST', '/api/v1/faculty-assignments/department-authority/apply', officerJwt(null), validApply, 403, 'ACTOR_SCHOOL_REQUIRED');
         await callRoute('R4B apply system-token rejected', 'POST', '/api/v1/faculty-assignments/department-authority/apply', systemToken, validApply, 401);
       }
-      // R4B: no department or unrelated rows remain after fixtures (live school untouched).
+      // R4B: disposable route fixtures must not alter the current live-school
+      // authority state. Do not hardcode a pre-apply 0/0 lifecycle snapshot.
       {
-        const liveAliases = await instrumented.departmentAlias.count({ where: { schoolId: 1 } });
-        const liveLabels = await instrumented.departmentLabel.count({ where: { schoolId: 1 } });
-        assert(liveAliases === 0 && liveLabels === 0, `live school department tables unchanged (aliases=${liveAliases}, labels=${liveLabels})`);
+        const liveDepartmentAfter = {
+          aliases: await instrumented.departmentAlias.findMany({
+            where: { schoolId: 1 },
+            select: { alias: true, department: true },
+            orderBy: { alias: 'asc' },
+          }),
+          labels: await instrumented.departmentLabel.findMany({
+            where: { schoolId: 1 },
+            select: { code: true, label: true },
+            orderBy: { code: 'asc' },
+          }),
+        };
+        assert(
+          JSON.stringify(liveDepartmentAfter) === JSON.stringify(liveDepartmentBefore),
+          `live school department authority unchanged during suite (aliases=${liveDepartmentAfter.aliases.length}, labels=${liveDepartmentAfter.labels.length})`,
+        );
       }
     } finally {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
