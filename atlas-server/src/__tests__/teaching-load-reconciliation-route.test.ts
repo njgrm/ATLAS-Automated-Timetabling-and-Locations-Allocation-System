@@ -13,7 +13,7 @@
  *  - missing-school and cross-school JWTs fail with typed 403;
  *  - system token cannot call preview/apply (401), but can read readiness;
  *  - malformed identifiers fail with typed 400;
- *  - missing / archived / inactive years fail BEFORE any writes;
+ *  - missing / archived / unavailable / historical / ambiguous years fail BEFORE any writes;
  *  - exact-fingerprint apply succeeds once and replay is zero-write;
  *  - sensitivity control: deactivating the mirror flips the same preview to 409,
  *    and re-activating it succeeds — proving the active-year gate is load-bearing;
@@ -234,30 +234,67 @@ async function main() {
       const afterWrites = await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
       assertEqual(afterWrites, beforeWrites, 'missing-year rejection writes nothing');
     }
-    // Inactive historical year → 409 (sensitivity control: reactivation succeeds).
+    // No active mirror → 409 ACTIVE_YEAR_UNAVAILABLE.
     {
       await base.enrollProSchoolYearMirror.update({
         where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
         data: { isActive: false },
       });
       const beforeWrites = await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
-      await callRoute('R6 inactive year preview rejected', 'POST', previewPath, officerJwt(fixtureSchoolId), previewBody(), 409, 'INACTIVE_HISTORICAL_YEAR');
-      await callRoute('R6 inactive year apply rejected', 'POST', applyPath, officerJwt(fixtureSchoolId), {
+      await callRoute('R6 unavailable year readiness rejected', 'GET', `${readinessPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(fixtureSchoolId), undefined, 409, 'ACTIVE_YEAR_UNAVAILABLE');
+      await callRoute('R6 unavailable year preview rejected', 'POST', previewPath, officerJwt(fixtureSchoolId), previewBody(), 409, 'ACTIVE_YEAR_UNAVAILABLE');
+      await callRoute('R6 unavailable year apply rejected', 'POST', applyPath, officerJwt(fixtureSchoolId), {
         schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
         expectedFingerprint: replayPreview.fingerprint, expectedSourceRevision: replayPreview.sourceRevision,
         confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
-      }, 409, 'INACTIVE_HISTORICAL_YEAR');
+      }, 409, 'ACTIVE_YEAR_UNAVAILABLE');
       const afterWrites = await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
-      assertEqual(afterWrites, beforeWrites, 'inactive-year rejection writes nothing');
-      // Sensitivity control: re-activating the mirror makes the same call succeed —
-      // proving the 409 comes from the active-year gate (removing the validation
-      // would make the historical-year rejection test fail).
+      assertEqual(afterWrites, beforeWrites, 'unavailable-year rejection writes nothing');
+
+      // A different sole active mirror makes the requested row historical.
+      const alternateYearId = fixtureYearId + 1;
+      await base.enrollProSchoolYearMirror.create({
+        data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: alternateYearId, yearLabel: '2030-2031', isActive: true, isArchived: false, syncStatus: 'synced' },
+      });
+      await callRoute('R6 historical requested year rejected', 'POST', previewPath, officerJwt(fixtureSchoolId), previewBody(), 409, 'INACTIVE_HISTORICAL_YEAR');
+
+      // Reactivating the requested mirror now creates a genuinely ambiguous
+      // same-school active set. A requested-row-only mutant would accept it.
       await base.enrollProSchoolYearMirror.update({
         where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
         data: { isActive: true },
       });
-      const reactivated: any = await callRoute('R6 reactivated year preview succeeds', 'POST', previewPath, officerJwt(fixtureSchoolId), previewBody(), 200);
-      assert(typeof reactivated.fingerprint === 'string', 'reactivated year preview returns a fingerprint');
+      const requestedRow = await base.enrollProSchoolYearMirror.findUnique({
+        where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
+      });
+      assert(Boolean((requestedRow as any)?.isActive && !(requestedRow as any)?.isArchived), 'R6 mutant: requested-row-only implementation would accept two active mirrors');
+      const mutationSignatureBefore = {
+        ownership: await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+        facultySubjects: await base.facultySubject.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+        cycles: await base.teachingLoadCycle.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+        audits: await base.auditLog.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      };
+      await callRoute('R6 ambiguous year readiness rejected', 'GET', `${readinessPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(fixtureSchoolId), undefined, 409, 'ACTIVE_YEAR_AMBIGUOUS');
+      await callRoute('R6 ambiguous year preview rejected', 'POST', previewPath, officerJwt(fixtureSchoolId), previewBody(), 409, 'ACTIVE_YEAR_AMBIGUOUS');
+      await callRoute('R6 ambiguous year apply rejected', 'POST', applyPath, officerJwt(fixtureSchoolId), {
+        schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        expectedFingerprint: replayPreview.fingerprint, expectedSourceRevision: replayPreview.sourceRevision,
+        confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+      }, 409, 'ACTIVE_YEAR_AMBIGUOUS');
+      const mutationSignatureAfter = {
+        ownership: await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+        facultySubjects: await base.facultySubject.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+        cycles: await base.teachingLoadCycle.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+        audits: await base.auditLog.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      };
+      assertEqual(JSON.stringify(mutationSignatureAfter), JSON.stringify(mutationSignatureBefore), 'ambiguous route matrix writes no ownership, FacultySubject, cycle, or audit rows');
+
+      await base.enrollProSchoolYearMirror.update({
+        where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: alternateYearId } },
+        data: { isActive: false, isArchived: true, archivedAt: new Date(), archivedBy: 0, archiveReason: 'ambiguity resolved' },
+      });
+      const restored: any = await callRoute('R6 archived competitor restores intended year', 'POST', previewPath, officerJwt(fixtureSchoolId), previewBody(), 200);
+      assert(typeof restored.fingerprint === 'string', 'sole active intended year returns a fingerprint after competitor archive');
     }
     // Archived year → 409, no writes.
     {

@@ -182,6 +182,7 @@ export type CycleStateSnapshot = {
 };
 
 export type SchoolYearAuthoritySnapshot = {
+	authorityMode: 'SOLE_ACTIVE_NON_ARCHIVED';
 	mirrorId: number;
 	enrollProSchoolYearId: number;
 	yearLabel: string;
@@ -1222,6 +1223,7 @@ export async function buildReconciliationSourceRevision(snapshot: Reconciliation
 		schoolId: snapshot.schoolId,
 		schoolYearId: snapshot.schoolYearId,
 		schoolYearAuthority: {
+			authorityMode: snapshot.schoolYearAuthority.authorityMode,
 			mirrorId: snapshot.schoolYearAuthority.mirrorId,
 			enrollProSchoolYearId: snapshot.schoolYearAuthority.enrollProSchoolYearId,
 			yearLabel: snapshot.schoolYearAuthority.yearLabel,
@@ -1360,28 +1362,44 @@ export async function readSchoolYearAuthoritySnapshot(
 	schoolYearId: number,
 ): Promise<SchoolYearAuthoritySnapshot> {
 	const tx = client as any;
-	const mirror = await tx.enrollProSchoolYearMirror.findFirst({
-		where: { schoolId, enrollProSchoolYearId: schoolYearId },
-		select: {
-			id: true,
-			enrollProSchoolYearId: true,
-			yearLabel: true,
-			isActive: true,
-			isArchived: true,
-			syncStatus: true,
-			updatedAt: true,
-		},
-	});
-	if (!mirror) {
+	const select = {
+		id: true,
+		enrollProSchoolYearId: true,
+		yearLabel: true,
+		isActive: true,
+		isArchived: true,
+		syncStatus: true,
+		updatedAt: true,
+	} as const;
+	const [requestedMirror, activeMirrors] = await Promise.all([
+		tx.enrollProSchoolYearMirror.findUnique({
+			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
+			select,
+		}),
+		tx.enrollProSchoolYearMirror.findMany({
+			where: { schoolId, isActive: true, isArchived: false },
+			select,
+			orderBy: [{ enrollProSchoolYearId: 'asc' }, { id: 'asc' }],
+		}),
+	]);
+	if (!requestedMirror) {
 		throw err(404, 'YEAR_MIRROR_NOT_FOUND', 'No school-year mirror exists for this school and year.');
 	}
-	if (mirror.isArchived) {
+	if (requestedMirror.isArchived) {
 		throw err(409, 'ARCHIVED_YEAR', 'This school year is archived and cannot be reconciled.');
 	}
-	if (!mirror.isActive) {
+	if (activeMirrors.length === 0) {
+		throw err(409, 'ACTIVE_YEAR_UNAVAILABLE', 'No active, non-archived school-year mirror exists for this school.');
+	}
+	if (activeMirrors.length > 1) {
+		throw err(409, 'ACTIVE_YEAR_AMBIGUOUS', 'More than one active, non-archived school-year mirror exists for this school. Resolve the school-year authority before reconciling.');
+	}
+	const [mirror] = activeMirrors;
+	if (mirror.enrollProSchoolYearId !== schoolYearId) {
 		throw err(409, 'INACTIVE_HISTORICAL_YEAR', 'This school year is not the currently active year and cannot be reconciled.');
 	}
 	return {
+		authorityMode: 'SOLE_ACTIVE_NON_ARCHIVED',
 		mirrorId: mirror.id,
 		enrollProSchoolYearId: mirror.enrollProSchoolYearId,
 		yearLabel: mirror.yearLabel,

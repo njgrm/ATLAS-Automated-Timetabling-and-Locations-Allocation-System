@@ -65,7 +65,7 @@ function buildSnapshot(overrides: Record<string, unknown> = {}) {
   return {
     schoolId: 1,
     schoolYearId: 9001,
-    schoolYearAuthority: { mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
+    schoolYearAuthority: { authorityMode: 'SOLE_ACTIVE_NON_ARCHIVED', mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
     termConfig: { id: 71, termCount: 3, termIdentities: ['Term 1', 'Term 2', 'Term 3'], updatedAt: '2026-09-08T20:43:57.400Z' },
     offerings: [
       {
@@ -159,7 +159,7 @@ function focusedSnapshot(input: {
   return {
     schoolId: 1,
     schoolYearId: 9001,
-    schoolYearAuthority: { mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
+    schoolYearAuthority: { authorityMode: 'SOLE_ACTIVE_NON_ARCHIVED', mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
     termConfig: { id: 71, termCount: 3, termIdentities: ['Term 1', 'Term 2', 'Term 3'], updatedAt: '2026-09-08T20:43:57.400Z' },
     offerings: input.offerings,
     sections,
@@ -389,6 +389,12 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
     const planC = await svc.buildReconciliationPlan(drifted, stubResolver());
     assert(planC.sourceRevision !== planA.sourceRevision, 'offering version drift flips the source revision');
     assert(planC.fingerprint !== planA.fingerprint, 'offering version drift flips the fingerprint');
+    const authorityDrifted = buildSnapshot({
+      schoolYearAuthority: { ...(buildSnapshot() as any).schoolYearAuthority, mirrorId: 8 },
+    });
+    const planD = await svc.buildReconciliationPlan(authorityDrifted, stubResolver());
+    assert(planD.sourceRevision !== planA.sourceRevision, 'resolved sole-active mirror identity is bound to the source revision');
+    assert(planD.fingerprint !== planA.fingerprint, 'resolved sole-active mirror identity is bound transitively to the apply fingerprint');
   }
 
   section('A11. final-action model: one action per demanded pair (264 never reports 278)');
@@ -1036,7 +1042,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     await instrumented.schoolYearOffering.deleteMany({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, subjectId: (apSubject as any).id as number } });
     await instrumented.subject.delete({ where: { id: (apSubject as any).id as number } });
 
-    section('B11. active-year authority: missing / inactive / archived / cross-school');
+    section('B11. active-year authority: complete same-school active-mirror set');
     // Missing year mirror → 404, before any writes.
     await instrumented.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
     resetRecording();
@@ -1056,7 +1062,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
       threw = error?.code === 'YEAR_MIRROR_NOT_FOUND' && error?.statusCode === 404;
     }
     assert(threw, 'unknown (cross-school) year → 404 YEAR_MIRROR_NOT_FOUND');
-    // Known but inactive historical year → 409.
+    // Known requested mirror but no active year → 409 ACTIVE_YEAR_UNAVAILABLE.
     await instrumented.enrollProSchoolYearMirror.create({
       data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2028-2029', isActive: false, isArchived: false, syncStatus: 'synced' },
     });
@@ -1064,9 +1070,75 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     try {
       await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
     } catch (error: any) {
+      threw = error?.code === 'ACTIVE_YEAR_UNAVAILABLE' && error?.statusCode === 409;
+    }
+    assert(threw, 'zero active mirrors → 409 ACTIVE_YEAR_UNAVAILABLE');
+
+    // A sole active mirror for another year makes the requested row historical.
+    const alternateYearId = fixtureYearId + 1;
+    await instrumented.enrollProSchoolYearMirror.create({
+      data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: alternateYearId, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced' },
+    });
+    threw = false;
+    try {
+      await run(() => svc.getTeachingLoadReconciliationReadiness(fixtureSchoolId, fixtureYearId));
+    } catch (error: any) {
       threw = error?.code === 'INACTIVE_HISTORICAL_YEAR' && error?.statusCode === 409;
     }
-    assert(threw, 'known inactive historical year → 409 INACTIVE_HISTORICAL_YEAR');
+    assert(threw, 'sole active mirror differs from requested year → 409 INACTIVE_HISTORICAL_YEAR');
+
+    // Two same-school active, non-archived mirrors are ambiguous. The old
+    // requested-row-only implementation would accept this fixture because the
+    // requested row itself is active and non-archived.
+    await instrumented.enrollProSchoolYearMirror.update({
+      where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
+      data: { isActive: true },
+    });
+    const requestedRow = await instrumented.enrollProSchoolYearMirror.findUnique({
+      where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
+    });
+    assert(Boolean((requestedRow as any)?.isActive && !(requestedRow as any)?.isArchived), 'mutant: requested-row-only authority would accept the ambiguous fixture');
+    const ambiguityBefore = {
+      ownership: await instrumented.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      facultySubjects: await instrumented.facultySubject.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      cycles: await instrumented.teachingLoadCycle.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      audits: await instrumented.auditLog.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+    };
+    resetRecording();
+    for (const [label, operation] of [
+      ['readiness', () => svc.getTeachingLoadReconciliationReadiness(fixtureSchoolId, fixtureYearId)],
+      ['preview', () => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId)],
+      ['apply', () => svc.applyTeachingLoadReconciliation({
+        actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        expectedFingerprint: '0'.repeat(64), expectedSourceRevision: '0'.repeat(64),
+        confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+      })],
+    ] as Array<[string, () => Promise<unknown>]>) {
+      threw = false;
+      try {
+        await run(operation);
+      } catch (error: any) {
+        threw = error?.code === 'ACTIVE_YEAR_AMBIGUOUS' && error?.statusCode === 409;
+      }
+      assert(threw, `${label} rejects multiple active mirrors → 409 ACTIVE_YEAR_AMBIGUOUS`);
+    }
+    const ambiguityAfter = {
+      ownership: await instrumented.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      facultySubjects: await instrumented.facultySubject.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      cycles: await instrumented.teachingLoadCycle.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+      audits: await instrumented.auditLog.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } }),
+    };
+    assertEqual(JSON.stringify(ambiguityAfter), JSON.stringify(ambiguityBefore), 'ambiguous-year rejection preserves ownership, FacultySubject, cycle, and audit state');
+    assert(writes().length === 0, 'ambiguous readiness/preview/apply issue no writes through the supplied client');
+
+    // Deactivating the competing mirror restores sole-active authority.
+    await instrumented.enrollProSchoolYearMirror.update({
+      where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: alternateYearId } },
+      data: { isActive: false },
+    });
+    const soleActive = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    assert(soleActive.fingerprint.length === 64, 'deactivating the competing mirror restores the intended active year');
+
     // Archived year → 409.
     await instrumented.enrollProSchoolYearMirror.update({
       where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
