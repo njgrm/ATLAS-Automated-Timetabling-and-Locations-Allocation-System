@@ -78,34 +78,34 @@ Authority rules: Curriculum demand comes ONLY from persisted SchoolYearOffering 
 - No live Teaching Load apply, no department-label apply, no generation, no publication, no prisma reset, no main work, no external repo edits.
 - Fingerprint not applied; approval sentences recorded but never treated as granted.
 
-## TL-C02R — Formal-QA correction commit
+## TL-C02R â€” Formal-QA correction commit
 
 Base reviewed candidate: `3d210335c8eee7f39efbfbf21d326649289bee34`. Same branch `work/teaching-load-tlc02`. No amend/rebase/merge/push/live apply.
 
-### R1 — Final-action model
+### R1 â€” Final-action model
 - `buildReconciliationPlan` now keeps `actionsByPair` (one action per demanded pair). A retained pair that becomes a rebalance or adviser-transfer MOVE REPLACES its RETAIN action. Invariant RETAIN+INSERT+MOVE+UNRESOLVED === demandCount; owned (RETAIN+MOVE+INSERT) <= demandCount.
 - Readiness uses unique final actions; regression A11 proves 264 demand can never report 278 owned (the pre-fix live readiness reported ownedDemandCount 278 for demandCount 264).
 
-### R2 — Transaction closure
-- `readReconciliationSourceSnapshot` now reads every source through the supplied client (offerings, sections, subjects, faculty, ownership, department rows, subjectOwnerPrefixes, schedulingPolicy, cycle) — no global-db workload/department/cached-policy readers inside apply.
-- `buildQualificationResolver` builds a persisted-only policy snapshot from snapshot rows and evaluates through the canonical evaluator — zero DB access.
+### R2 â€” Transaction closure
+- `readReconciliationSourceSnapshot` now reads every source through the supplied client (offerings, sections, subjects, faculty, ownership, department rows, subjectOwnerPrefixes, schedulingPolicy, cycle) â€” no global-db workload/department/cached-policy readers inside apply.
+- `buildQualificationResolver` builds a persisted-only policy snapshot from snapshot rows and evaluates through the canonical evaluator â€” zero DB access.
 - B9 negative controls: concurrent schedulingPolicy mutation and departmentLabel mutation between preview and apply each yield 409 SOURCE_DRIFT with zero writes and unchanged ownership.
 
-### R3 — Atomic derived state
+### R3 â€” Atomic derived state
 - `refreshTeachingLoadCycle` runs INSIDE the Serializable transaction (client-injected). Injected failure rolls back every write (B10: ownership count unchanged, cycle version unchanged, no audit row). Replay remains genuinely zero-write (B6).
 
-### R4 — Canonical qualification
+### R4 â€” Canonical qualification
 - Reconciliation routes through `qualification-evaluator.service.ts` (`buildQualificationPolicySnapshot` + `evaluateQualificationWithPolicy`), persisted-only (no name/prefix/glossary/legacy inference). Added additive persisted-only DEPARTMENT_MATCH tier mirroring the production `matchesSubjectOwnershipDepartment` path. Differential A13 proves resolver eligibility+tier equal the canonical evaluator for department, specialization alias, cross-department permission, program mismatch, inactive/stale faculty, and canTeachOutsideDepartment.
 
-### R5 — Adviser-own-section priority
+### R5 â€” Adviser-own-section priority
 - New adviser-transfer pass: a qualified active adviser with no demanded subject in their advisory section receives ONE safely-transferable valid pair (hard-cap safe, one grant per section, no duplicate action, persistent grant map through fill/rebalance/transfer). Truthful typed unsatisfied reasons (ADVISER_NOT_QUALIFIED / HARD_CAP_CONFLICT_OR_NO_SAFE_TRANSFER). A12 fixture proves a validly-owned pair transfers to the adviser. Live outcome improved 4/20 ? 20/20 satisfied.
 
-### R6 — Cycle truth
+### R6 â€” Cycle truth
 - Preview `cycleImpact.stateBefore` reads the real TeachingLoadCycle via the client (MISSING / EMPTY / POPULATED / MISMATCH) plus version. B2b proves MISSING/MISMATCH/POPULATED.
 
-### R7 — Preview/UI truth + regeneration
+### R7 â€” Preview/UI truth + regeneration
 - Final actions are unique per pair (UI shows one final action per pair).
-- Old artifact `...preview-2026-09-09.json` (fingerprint D5A200C2…) marked NON_APPLICABLE.
+- Old artifact `...preview-2026-09-09.json` (fingerprint D5A200C2â€¦) marked NON_APPLICABLE.
 - New live preview: `docs/verification/teaching-load-current-year-reconciliation-preview-tlc02r-2026-09-09.json` (+ sidecar).
   - fingerprint `0563926BCF59E3CFF04AF51F8887FD2B99BBCD8C448D9F97D7419D5263FCCFDB`
   - sourceRevision `0DC5BE9C93033414F8D39C45BF15EC2AC903F8B16694E1FE2140F0895314E039`
@@ -119,31 +119,59 @@ Base reviewed candidate: `3d210335c8eee7f39efbfbf21d326649289bee34`. Same branch
 - Fresh whole-candidate advisory review + changed-scope zero-fix review recorded under `docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/`.
 
 ### TL-C02R advisory reviews + browser QA
-- Whole-candidate review D (`advisory-review-D-whole.md`, `REVIEWER_D_WHOLE_ADVISORY`): zeroFix:false — material D-1: the adviser-transfer hard-cap gate used `pair.weeklyMinutes` (offering minutes) instead of the credited `subject.minMinutesPerWeek` (sibling gates at pickCandidate and rebalance already used credited minutes). FIXED; regression A14 added (offering 120 < credited 240, adviser at 60, cap 240 ? transfer refused, adviser stays <= cap).
-- Changed-scope review E (`advisory-review-E-changed-scope.md`, `REVIEWER_E_CHANGED_SCOPE_ADVISORY`): zeroFix:true — all three hard-cap gates now use credited minutes; adversarial probes (boundary inclusivity, multiple qualified pairs, A14 discriminator) pass 21/21; server 134/0 + tsc clean.
-- Authenticated browser QA (built client via Vite proxy -> corrected built server on isolated port 5098, live Tailnet DB; Tailnet-identical login) at desktop 1280x720 and mobile 390x844: 20/20 PASS — panel opens, preview renders the live plan (Stays 234 / Added 0 / Moved 30 / Removed 1 / Needs review 0), no horizontal overflow at both widths, 44px targets, keyboard reaches the confirmation input and enables Apply (approval boundary reached, Apply NOT pressed), no mojibake, no app errors. Screenshots in TEMP (uncommitted).
+- Whole-candidate review D (`advisory-review-D-whole.md`, `REVIEWER_D_WHOLE_ADVISORY`): zeroFix:false â€” material D-1: the adviser-transfer hard-cap gate used `pair.weeklyMinutes` (offering minutes) instead of the credited `subject.minMinutesPerWeek` (sibling gates at pickCandidate and rebalance already used credited minutes). FIXED; regression A14 added (offering 120 < credited 240, adviser at 60, cap 240 ? transfer refused, adviser stays <= cap).
+- Changed-scope review E (`advisory-review-E-changed-scope.md`, `REVIEWER_E_CHANGED_SCOPE_ADVISORY`): zeroFix:true â€” all three hard-cap gates now use credited minutes; adversarial probes (boundary inclusivity, multiple qualified pairs, A14 discriminator) pass 21/21; server 134/0 + tsc clean.
+- Authenticated browser QA (built client via Vite proxy -> corrected built server on isolated port 5098, live Tailnet DB; Tailnet-identical login) at desktop 1280x720 and mobile 390x844: 20/20 PASS â€” panel opens, preview renders the live plan (Stays 234 / Added 0 / Moved 30 / Removed 1 / Needs review 0), no horizontal overflow at both widths, 44px targets, keyboard reaches the confirmation input and enables Apply (approval boundary reached, Apply NOT pressed), no mojibake, no app errors. Screenshots in TEMP (uncommitted).
 - Final live preview (regenerated after all corrections): fingerprint `0563926BCF59E3CFF04AF51F8887FD2B99BBCD8C448D9F97D7419D5263FCCFDB`, sourceRevision `0DC5BE9C93033414F8D39C45BF15EC2AC903F8B16694E1FE2140F0895314E039`, byte SHA-256 (sidecar verified) `53FC5D0BE29FC4CAB9AD12B230F187EBF7551975D5C0E3EE13703552CAB57CAC`, plan RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0, invariant 264=264, owned 264, cycle POPULATED v4, advisers 20/20, hg 0, applied:false.
 - Old artifact `...preview-2026-09-09.json` marked NON_APPLICABLE (marker file) with the superseded fingerprint.
 
 
-## TL-C02R1 — Narrow correction (active-year authority, FacultySubject gradeLevels, mounted-route integration)
+## TL-C02R1 â€” Narrow correction (active-year authority, FacultySubject gradeLevels, mounted-route integration)
 
 Base candidate: `e67b684fb72decb9ef2834b5566e66f5cf56f08f`. Same branch. No amend/merge/push/live apply.
 
-### F1 — Active-year authority
+### F1 â€” Active-year authority
 - `readSchoolYearAuthoritySnapshot` (client-injected) requires a known, same-school, non-archived, currently active `EnrollProSchoolYearMirror`: missing/cross-school ? 404 `YEAR_MIRROR_NOT_FOUND`; archived ? 409 `ARCHIVED_YEAR`; known-but-inactive ? 409 `INACTIVE_HISTORICAL_YEAR`. Enforced in readiness, preview, and apply (apply revalidates inside the Serializable tx via the same tx client).
 - Mirror identity + authority state bound into the canonical source revision (rollover/archival invalidates an outstanding preview).
 - B11 fixtures + route R6 prove all year states fail before writes; sensitivity control (deactivate ? 409, reactivate ? 200) proves the gate is load-bearing.
 
-### F2 — FacultySubject derived consistency
+### F2 â€” FacultySubject derived consistency
 - `FacultySubjectSnapshot` + source revision now carry `gradeLevels`; set-valued arrays (gradeLevels, programScopes, allowedSpecializations, sectionIds) are canonicalized (sorted unique) in the revision while ordered term identities keep order.
 - Apply derives exact sorted-unique gradeLevels from the resulting sectionIds via the SectionMirror mapping, updating sectionIds + gradeLevels atomically on insert/move/retire.
 - B12 proves cross-grade insert ([7,8]), move (donor drops grade 8, recipient [8]), and retire (drops grade 8) plus replay leaves both arrays unchanged with zero writes.
 
-### F3 — Mounted-route integration
+### F3 â€” Mounted-route integration
 - New `teaching-load-reconciliation-route.test.ts` (47 assertions): real app boot + real `authenticate` middleware + hand-signed JWTs. Own-school preview/apply succeed; numeric-string ids normalize to one fingerprint; missing/cross-school JWT ? 403; system token cannot preview/apply (401) but reads readiness; malformed ids ? 400; missing/archived/inactive years fail before writes; exact-fingerprint apply once + replay zero-write; zero-residue cleanup.
 
 ### Gates
 - Server reconciliation 158/0 (was 134), route suite 47/0, client UI 5/5, server+client tsc clean, server+client production builds pass.
-- Fresh live preview regenerated (contract changed): fingerprint `F0F29E217DF14EA8E87C0F38CD640D9943E5AE3DEC2A907765198A9216023BC0`, sourceRevision `247B8494D6049536BC606A147A1C37B4564B321E90CC59C30ECECE06298C6490`, byte SHA-256 (sidecar verified) `341D8A2B898C2B5F5277F6CCF076D87117789CAEBEDFA65B4A177729A00520BB`. Plan RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0 (invariant 264=264, owned 264), cycle POPULATED v4, advisers 20/20, hg 0, applied:false. Prior fingerprint `0563926B…` marked NON_APPLICABLE.
+- Fresh live preview regenerated (contract changed): fingerprint `F0F29E217DF14EA8E87C0F38CD640D9943E5AE3DEC2A907765198A9216023BC0`, sourceRevision `247B8494D6049536BC606A147A1C37B4564B321E90CC59C30ECECE06298C6490`, byte SHA-256 (sidecar verified) `341D8A2B898C2B5F5277F6CCF076D87117789CAEBEDFA65B4A177729A00520BB`. Plan RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0 (invariant 264=264, owned 264), cycle POPULATED v4, advisers 20/20, hg 0, applied:false. Prior fingerprint `0563926Bâ€¦` marked NON_APPLICABLE.
 - Changed-scope advisory review recorded under `docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/`.
+
+## TL-C02R2 â€” Complete active-year-set authority
+
+Base candidate: `e9329d0efb659e3d8cd150c4286e04f257944959`. Same branch/worktree. No amend/rebase/merge/push or live apply.
+
+### Authority correction
+- `readSchoolYearAuthoritySnapshot` now uses only its supplied client to read both the requested same-school mirror and the complete same-school active, non-archived mirror set.
+- Typed precedence: missing requested mirror â†’ 404 `YEAR_MIRROR_NOT_FOUND`; requested archived â†’ 409 `ARCHIVED_YEAR`; zero active mirrors â†’ 409 `ACTIVE_YEAR_UNAVAILABLE`; multiple active mirrors â†’ 409 `ACTIVE_YEAR_AMBIGUOUS`; one active mirror for a different requested year â†’ 409 `INACTIVE_HISTORICAL_YEAR`.
+- The returned snapshot is the resolved sole-active mirror, carries `authorityMode: SOLE_ACTIVE_NON_ARCHIVED`, and binds that authority plus mirror identity/state/version to the source revision and apply fingerprint.
+- Apply repeats the same complete-set read through the supplied Serializable transaction client before comparing source revision or writing.
+
+### Failing-first and negative controls
+- RED against TL-C02R1 production code: reconciliation suite 162 passed / 4 failed, exactly `ACTIVE_YEAR_UNAVAILABLE` plus readiness/preview/apply `ACTIVE_YEAR_AMBIGUOUS`.
+- Disposable fixtures prove a requested-row-only mutant would accept the two-active-mirror state, while the corrected service and mounted routes reject it.
+- Ambiguous readiness, preview, and apply preserve exact ownership, `FacultySubject`, cycle, and audit counts and issue zero recorded writes. Deactivating/archiving the competing mirror restores the intended year.
+- Source-revision controls prove changing the resolved sole-active mirror identity changes both source revision and fingerprint.
+
+### Focused gates
+- Server reconciliation: 168/168 (all prior 158 preserved; 10 authority assertions added), exit 0.
+- Mounted reconciliation route: 54/54 (all prior 47 preserved; 7 authority assertions added), exit 0.
+- Server `tsc --noEmit`, production build, and `git diff --check`: exit 0.
+- No client gate run because the client contract did not change.
+
+### Preview lifecycle and boundaries
+- `teaching-load-current-year-reconciliation-preview-tlc02r1-2026-09-09.json` is preserved but has a `NON_APPLICABLE` marker. Its fingerprint and source revision authorize no mutation.
+- No replacement live preview was generated. Final preview remains deferred until the separate department-label decision is settled because that apply changes reconciliation source revision.
+- No live Teaching Load or department-authority data changed; no generation, publication, migration, restart, external-repository edit, or other-stream contact occurred.
+- Fresh changed-scope advisory review G (`advisory-review-G-tlc02r2.md`): `zeroFix:true`, no material findings. Reviewer independently reproduced reconciliation 168/168, mounted route 54/54, server type-check/build, diff-check, error precedence, transaction-client closure, source-revision binding, mutant sensitivity, zero-write ambiguity handling, and the preview lifecycle boundary.
