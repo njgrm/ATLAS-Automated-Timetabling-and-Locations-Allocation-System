@@ -1,0 +1,190 @@
+{
+  "semanticPayload": {
+    "schemaVersion": "TL-C01R4A.1",
+    "scope": {
+      "schoolId": 1,
+      "schoolYearId": 8,
+      "yearLabel": "2029-2030"
+    },
+    "decisionFingerprint": "5147D2ADEF09822134F420179E074584245CDCE0644236F78FF4D66B3A85EFE3",
+    "previewFingerprint": "D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A",
+    "sourceRevision": {
+      "revisionHash": "003539328945376ABB850D60D21AD8354DDB65312E252EF80FF316F9425B2C71",
+      "aliasRows": 0,
+      "labelRows": 0,
+      "aliasMaxCreatedAt": null,
+      "labelMaxCreatedAt": null
+    },
+    "proposedAliases": [],
+    "proposedLabels": [
+      {
+        "code": "AP",
+        "label": "Araling Panlipunan",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "ENG",
+        "label": "English",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "ESP",
+        "label": "Edukasyon sa Pagpapakatao",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "FIL",
+        "label": "Filipino",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "MAPEH",
+        "label": "MAPEH",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "MATH",
+        "label": "Mathematics",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "SCI",
+        "label": "Science",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      },
+      {
+        "code": "TLE",
+        "label": "Technology and Livelihood Education",
+        "decisionStatus": "PENDING_OPERATOR_DECISION"
+      }
+    ],
+    "changes": [
+      {
+        "kind": "label",
+        "key": "AP",
+        "value": "Araling Panlipunan",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "ENG",
+        "value": "English",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "ESP",
+        "value": "Edukasyon sa Pagpapakatao",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "FIL",
+        "value": "Filipino",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "MAPEH",
+        "value": "MAPEH",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "MATH",
+        "value": "Mathematics",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "SCI",
+        "value": "Science",
+        "action": "create",
+        "existingValue": null
+      },
+      {
+        "kind": "label",
+        "key": "TLE",
+        "value": "Technology and Livelihood Education",
+        "action": "create",
+        "existingValue": null
+      }
+    ],
+    "rollback": [
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "AP"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "ENG"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "ESP"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "FIL"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "MAPEH"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "MATH"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "SCI"
+        }
+      },
+      {
+        "op": "delete",
+        "table": "department_labels",
+        "key": {
+          "schoolId": 1,
+          "code": "TLE"
+        }
+      }
+    ],
+    "approvalSentence": "APPROVE PREVIEW D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A: create the 8 DepartmentLabel rows for school 1 exactly as fingerprinted by the department-authority preview endpoint.",
+    "authorizesMutation": false
+  },
+  "generatedAt": "2026-09-08T10:41:59.916Z",
+  "semanticHash": "EAF49D08141E9B2F37E685D1B94A93BEA1B66E7D620755C37CFAAC6E352950BE"
+}

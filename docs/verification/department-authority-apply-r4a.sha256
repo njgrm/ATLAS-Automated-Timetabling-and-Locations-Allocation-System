@@ -1,0 +1,5 @@
+# department-authority-apply-r4a hash sidecar (explicit meanings):
+# 1. byte SHA-256 of department-authority-apply-r4a.json (exact file bytes): D1D8E74E2FA18D3BBFC10E8A169FB1786F879C94805BD8A5D27B929937FFBBCF
+# 2. semantic payload hash = canonicalHash(.semanticPayload): EAF49D08141E9B2F37E685D1B94A93BEA1B66E7D620755C37CFAAC6E352950BE
+# 3. preview fingerprint accepted by POST /faculty-assignments/department-authority/apply: D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A
+D1D8E74E2FA18D3BBFC10E8A169FB1786F879C94805BD8A5D27B929937FFBBCF  department-authority-apply-r4a.json
