@@ -3264,3 +3264,24 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - None.
+
+## [2026-09-09] — Teaching Load Department Authority Apply Handoff
+
+### Added
+- Added a fingerprint-bound high-risk executor prompt for applying the eight
+  operator-approved school 1 department labels.
+- Added post-action verification, idempotent replay, rollback evidence, and a
+  fresh zero-write Teaching Load reconciliation preview boundary.
+
+### Changed
+- The next Teaching Load action is now explicitly separated into department
+  label application followed by preview-only reconciliation evidence.
+
+### Decisions Made
+- The operator approved the endpoint fingerprint
+  `D99894F169FD556C3379CFA7B404EF5105B40F6C8A15F062932A8982ED56F32A`.
+- This approval creates eight labels and zero aliases and does not authorize
+  Teaching Load reconciliation apply, generation, or publication.
+
+### Open Questions
+- The Teaching Load apply decision remains pending the fresh post-label preview.
