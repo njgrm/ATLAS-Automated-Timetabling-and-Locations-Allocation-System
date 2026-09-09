@@ -65,13 +65,16 @@ export async function getOrCreateTeachingLoadCycleSource(schoolId: number, schoo
  * existing cycle without mutation; a missing cycle yields a typed UNCONFIGURED
  * readiness source; a persisted-state/observed-state mismatch is reported as a
  * diagnostic and never repaired during GET. Creation and version updates happen
- * only on explicit setup or mutation paths (ensure/refresh).
+ * only on explicit setup or mutation paths (ensure/refresh). An optional
+ * transaction client keeps the read inside the caller's transaction.
  */
 export async function readTeachingLoadCycleSource(
 	schoolId: number,
 	schoolYearId: number,
+	client?: { teachingLoadCycle: { findUnique(args: unknown): Promise<unknown> }; subjectSectionOwnership: { count(args: unknown): Promise<number> } },
 ): Promise<TeachingLoadCycleReadResult> {
-	const cycle = await db().teachingLoadCycle.findUnique({
+	const tx = client ?? (db() as never);
+	const cycle = await (tx as any).teachingLoadCycle.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 	});
 	if (!cycle) {
@@ -95,7 +98,7 @@ export async function readTeachingLoadCycleSource(
 		initializedAt: cycle.initializedAt.toISOString(),
 		updatedAt: cycle.updatedAt.toISOString(),
 	};
-	const ownershipCount = await db().subjectSectionOwnership.count({
+	const ownershipCount = await (tx as any).subjectSectionOwnership.count({
 		where: { schoolId, schoolYearId },
 	});
 	const observedState = ownershipCount > 0 ? 'POPULATED' : 'EMPTY';
@@ -112,11 +115,16 @@ export async function readTeachingLoadCycleSource(
 	};
 }
 
-export async function refreshTeachingLoadCycle(schoolId: number, schoolYearId: number) {
-	const ownershipCount = await db().subjectSectionOwnership.count({
+export async function refreshTeachingLoadCycle(
+	schoolId: number,
+	schoolYearId: number,
+	client?: { teachingLoadCycle: { upsert(args: unknown): Promise<unknown> }; subjectSectionOwnership: { count(args: unknown): Promise<number> } },
+) {
+	const tx = client ?? (db() as never);
+	const ownershipCount = await (tx as any).subjectSectionOwnership.count({
 		where: { schoolId, schoolYearId },
 	});
-	return db().teachingLoadCycle.upsert({
+	return (tx as any).teachingLoadCycle.upsert({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		create: { schoolId, schoolYearId, state: ownershipCount > 0 ? 'POPULATED' : 'EMPTY' },
 		update: {
