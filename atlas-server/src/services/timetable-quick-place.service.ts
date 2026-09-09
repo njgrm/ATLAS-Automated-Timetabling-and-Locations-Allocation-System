@@ -16,6 +16,10 @@ import {
 	buildUnassignedBySubjectGrade,
 } from './generation.service.js';
 import { computeGenerationInputSnapshot } from './generation-input-snapshot.service.js';
+import {
+	evaluateCandidateInvariants,
+	type TimetableCandidateInvariantInput,
+} from './timetable-candidate-domain.js';
 
 interface ServiceError extends Error {
 	statusCode: number;
@@ -38,6 +42,27 @@ function timeToMinutes(t: string): number {
 
 function minutesBetween(start: string, end: string): number {
 	return timeToMinutes(end) - timeToMinutes(start);
+}
+
+export function evaluateQuickPlaceCandidate(input: TimetableCandidateInvariantInput) {
+	return evaluateCandidateInvariants(input);
+}
+
+export function evaluateQuickPlaceCandidateAgainstEntries(
+	input: TimetableCandidateInvariantInput,
+	entries: ScheduledEntry[],
+) {
+	return evaluateQuickPlaceCandidate({
+		...input,
+		occupied: entries.map((entry) => ({
+			facultyId: entry.facultyId ?? -1,
+			sectionId: entry.sectionId,
+			roomId: entry.roomId,
+			day: entry.day,
+			startTime: entry.startTime,
+			endTime: entry.endTime,
+		})),
+	});
 }
 
 export type PlacedSessionResult = {
@@ -196,24 +221,23 @@ export async function solveQuickPlace(
 		// Search conflict-free slots
 		for (const day of DAYS) {
 			for (const slot of activeTimeSlots) {
-				// Fast pre-check: Is section busy?
-				const isSectionBusy = currentEntries.some(
-					e => e.sectionId === item.sectionId && e.day === day && e.startTime === slot.startTime
-				);
-				if (isSectionBusy) continue;
-
-				// Fast pre-check: Is teacher busy?
-				const isTeacherBusy = currentEntries.some(
-					e => e.facultyId === facultyId && e.day === day && e.startTime === slot.startTime
-				);
-				if (isTeacherBusy) continue;
-
 				// Find first free room in our prioritized list
 				for (const room of candidateRooms) {
-					const isRoomBusy = currentEntries.some(
-						e => e.roomId === room.id && e.day === day && e.startTime === slot.startTime
-					);
-					if (isRoomBusy) continue;
+					const candidateVerdict = evaluateQuickPlaceCandidateAgainstEntries({
+						facultyId,
+						sectionId: item.sectionId,
+						roomId: room.id,
+						day,
+						startTime: slot.startTime,
+						endTime: slot.endTime,
+						subjectCode: subCode,
+						enrolledCount: item.cohortExpectedEnrollment ?? refData.sectionEnrollment.get(item.sectionId) ?? 0,
+						room,
+						gradeLevel: sectionMap.get(item.sectionId)?.displayOrder ?? item.gradeLevel,
+						// Quick-place deliberately permits its existing deferred fallback room type.
+						allowedRoomTypes: [room.type],
+					}, currentEntries);
+					if (!candidateVerdict.accepted) continue;
 
 					// Construct temporary placement
 					const tempEntry: ScheduledEntry = {

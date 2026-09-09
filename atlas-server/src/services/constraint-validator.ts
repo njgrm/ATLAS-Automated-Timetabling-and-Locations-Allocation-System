@@ -1,3 +1,10 @@
+import {
+	evaluateCandidateInvariants,
+	intervalsOverlap,
+	roomCanFitEnrollment,
+	type TimetableCandidateInvariantInput,
+} from './timetable-candidate-domain.js';
+
 /**
  * Hard-constraint validator for timetable generation runs.
  * Deterministic, unit-testable. No transport or persistence concerns.
@@ -219,9 +226,10 @@ export interface ValidationResult {
 
 // ─── Time helpers ───
 
-function timesOverlap(a: { day: string; startTime: string; endTime: string }, b: { day: string; startTime: string; endTime: string }): boolean {
-	if (a.day !== b.day) return false;
-	return a.startTime < b.endTime && b.startTime < a.endTime;
+const timesOverlap = intervalsOverlap;
+
+export function evaluateManualCandidateInvariants(input: TimetableCandidateInvariantInput) {
+	return evaluateCandidateInvariants(input);
 }
 
 function timeToMinutes(t: string): number {
@@ -445,10 +453,10 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			const room = roomMap.get(e.roomId);
 			if (!room || room.capacity == null) continue;
 			const enrolled = e.cohortExpectedEnrollment ?? ctx.sectionEnrollment.get(e.sectionId) ?? 0;
-			if (enrolled > room.capacity) {
+			if (!roomCanFitEnrollment(room.capacity, enrolled)) {
 				violations.push({
 					...base,
-					severity: 'SOFT',
+					severity: 'HARD',
 					code: 'ROOM_CAPACITY_EXCEEDED',
 					message: e.entryKind === 'COHORT' && e.cohortCode
 						? `Entry ${e.entryId}: cohort ${e.cohortCode} has ${enrolled} learners but room ${e.roomId} capacity is only ${room.capacity}.`

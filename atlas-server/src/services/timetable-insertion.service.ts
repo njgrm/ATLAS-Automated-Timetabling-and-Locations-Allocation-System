@@ -20,7 +20,13 @@
 import { createHash } from 'node:crypto';
 import { getDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
-import { roomCanFitEnrollment } from './schedule-constructor.js';
+import {
+  evaluateCandidateInvariants,
+  intervalsOverlap,
+  isRoomInTeachingScope,
+  roomCanFitEnrollment,
+  type TimetableCandidateInvariantInput,
+} from './timetable-candidate-domain.js';
 import {
   buildCanonicalTimetableDemand,
   HG_SUBJECT_CODE,
@@ -227,10 +233,13 @@ export function isRoomCompatibleForSubject(
   room: CandidateRoom,
   subject: { preferredRoomType: string; gradeLevel: number; enrolledCount: number },
 ): boolean {
-  if (!room.isTeachingSpace || room.isSharedFacility) return false;
-  if (room.buildingGradeScope.length > 0 && !room.buildingGradeScope.includes(subject.gradeLevel)) return false;
+  if (!isRoomInTeachingScope(room, subject.gradeLevel)) return false;
   if (!roomCanFitEnrollment(room.capacity, subject.enrolledCount)) return false;
   return room.type === subject.preferredRoomType || room.type === 'CLASSROOM';
+}
+
+export function evaluateInsertionCandidateInvariants(input: TimetableCandidateInvariantInput) {
+  return evaluateCandidateInvariants(input);
 }
 
 export function filterCompatibleRooms(
@@ -358,7 +367,7 @@ export function searchCandidateSlots(
     if (evaluated >= maxEvaluated) break;
     evaluated += 1;
     const overlaps = (entry: { id: number; day: string; startTime: string; endTime: string }, id: number) =>
-      entry.id === id && entry.day === slot.day && toMinutes(entry.startTime) < toMinutes(slot.endTime) && toMinutes(slot.startTime) < toMinutes(entry.endTime);
+      entry.id === id && intervalsOverlap(slot, entry);
     const teacherFree = !occupancy.teacher.some((entry) => overlaps(entry, teacher));
     const sectionFree = !occupancy.section.some((entry) => overlaps(entry, section));
     if (!teacherFree) {
@@ -369,7 +378,23 @@ export function searchCandidateSlots(
       sectionBusySlots += 1;
       continue;
     }
-    const room = compatibleRooms.find((candidate) => !occupancy.room.some((entry) => overlaps(entry, candidate.id)));
+    const room = compatibleRooms.find((candidate) => {
+      if (occupancy.room.some((entry) => overlaps(entry, candidate.id))) return false;
+      return evaluateInsertionCandidateInvariants({
+        facultyId: teacher,
+        sectionId: section,
+        roomId: candidate.id,
+        day: slot.day,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        subjectCode: line.subjectCode,
+        enrolledCount: subject.enrolledCount,
+        room: candidate,
+        gradeLevel: subject.gradeLevel,
+        // Preview deliberately preserves the established classroom fallback.
+        allowedRoomTypes: [...new Set([subject.preferredRoomType, 'CLASSROOM'])],
+      }).accepted;
+    });
     if (!room) {
       roomBusySlots += 1;
       continue;

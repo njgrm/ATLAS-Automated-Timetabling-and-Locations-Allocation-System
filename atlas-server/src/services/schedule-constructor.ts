@@ -28,6 +28,16 @@ import {
 } from './subject-ownership.service.js';
 import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
 import { getEffectiveEvents, type SpecialEventRowLike } from '../lib/policy-special-events.js';
+import {
+	evaluateCandidateInvariants,
+	intervalsOverlap,
+	isHomeroomGuidanceCandidate,
+	isRoomGradeScopeCompatible as matchesRoomGradeScope,
+	roomCanFitEnrollment,
+	type TimetableCandidateInvariantInput,
+} from './timetable-candidate-domain.js';
+
+export { roomCanFitEnrollment } from './timetable-candidate-domain.js';
 
 // ─── Standard time grid (JHS 8-period day) ───
 
@@ -153,9 +163,7 @@ function intersectCandidateLists(candidateLists: number[][]): number[] {
 
 /** A room is grade-scope compatible if its building scope is empty (any grade) or includes the section grade. */
 function isRoomGradeScopeCompatible(room: RoomInput, sectionGradeLevel: number): boolean {
-	const scope = room.buildingGradeScope;
-	if (!scope || scope.length === 0) return true;
-	return scope.includes(sectionGradeLevel);
+	return matchesRoomGradeScope(room, sectionGradeLevel);
 }
 
 export interface PreferenceSlotInput {
@@ -732,9 +740,8 @@ export interface DemandItem {
 	modularExpectedCount?: number;
 }
 
-/** Canonical generator capacity predicate. Unknown room capacity is unrestricted. */
-export function roomCanFitEnrollment(roomCapacity: number | null, enrolledCount: number): boolean {
-	return roomCapacity == null || roomCapacity >= enrolledCount;
+export function evaluateConstructorCandidateInvariants(input: TimetableCandidateInvariantInput) {
+	return evaluateCandidateInvariants(input);
 }
 
 export function computeDemand(
@@ -767,6 +774,7 @@ export function computeDemand(
 		const modularSubjectIds = new Set<number>();
 
 		for (const subject of sortedSubjects) {
+			if (isHomeroomGuidanceCandidate(subject.code)) continue;
 			if (!gradeLevelMatches(subject.gradeLevels, gradeNum)) continue;
 			if (!subject.modularGroupId) continue;
 			const groupId = subject.modularGroupId.trim().toUpperCase();
@@ -832,6 +840,7 @@ export function computeDemand(
 		}
 
 		for (const subject of sortedSubjects) {
+			if (isHomeroomGuidanceCandidate(subject.code)) continue;
 			if (!gradeLevelMatches(subject.gradeLevels, gradeNum)) continue;
 			if (modularSubjectIds.has(subject.id)) continue;
 
@@ -1049,23 +1058,22 @@ function normalizeDemandSessionsForActiveSlots(
 // ─── Occupancy tracker ───
 
 class OccupancyTracker {
-	private occupied = new Map<string, Array<{ start: number; end: number }>>();
+	private occupied = new Map<string, Array<{ startTime: string; endTime: string }>>();
 
 	isOccupied(entityId: number, day: string, startTime: string, endTime: string): boolean {
 		const key = `${entityId}:${day}`;
-		const start = timeToMinutes(startTime);
-		const end = timeToMinutes(endTime);
 		const intervals = this.occupied.get(key);
 		if (!intervals) return false;
-		return intervals.some((interval) => interval.start < end && start < interval.end);
+		return intervals.some((interval) => intervalsOverlap(
+			{ day, startTime, endTime },
+			{ day, startTime: interval.startTime, endTime: interval.endTime },
+		));
 	}
 
 	mark(entityId: number, day: string, startTime: string, endTime: string): void {
 		const key = `${entityId}:${day}`;
-		const start = timeToMinutes(startTime);
-		const end = timeToMinutes(endTime);
 		const intervals = this.occupied.get(key) ?? [];
-		intervals.push({ start, end });
+		intervals.push({ startTime, endTime });
 		this.occupied.set(key, intervals);
 	}
 }
@@ -2095,6 +2103,23 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						}
 						if (canBypassCapacityForHomeRoom) {
 							capacityOverrideUsedForPlacement = true;
+						}
+						if (!isModularUnified && room.type === 'CLASSROOM' && !canBypassCapacityForHomeRoom) {
+							const invariantVerdict = evaluateConstructorCandidateInvariants({
+								facultyId: facId,
+								sectionId: item.sectionId,
+								roomId: room.id,
+								day: slotCandidate.day,
+								startTime: slot.startTime,
+								endTime: slot.endTime,
+								subjectCode: item.subjectCode,
+								enrolledCount: item.enrolledCount,
+								room,
+								gradeLevel: item.gradeLevel,
+								// Specialized and homeroom fallback strategy remains path-specific below.
+								allowedRoomTypes: [room.type],
+							});
+							if (!invariantVerdict.accepted) continue;
 						}
 
 						if (!deferSpecializedRoomTypePreference && subject.requiredFeatures && subject.requiredFeatures.length > 0) {
