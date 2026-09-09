@@ -77,3 +77,50 @@ Authority rules: Curriculum demand comes ONLY from persisted SchoolYearOffering 
 
 - No live Teaching Load apply, no department-label apply, no generation, no publication, no prisma reset, no main work, no external repo edits.
 - Fingerprint not applied; approval sentences recorded but never treated as granted.
+
+## TL-C02R — Formal-QA correction commit
+
+Base reviewed candidate: `3d210335c8eee7f39efbfbf21d326649289bee34`. Same branch `work/teaching-load-tlc02`. No amend/rebase/merge/push/live apply.
+
+### R1 — Final-action model
+- `buildReconciliationPlan` now keeps `actionsByPair` (one action per demanded pair). A retained pair that becomes a rebalance or adviser-transfer MOVE REPLACES its RETAIN action. Invariant RETAIN+INSERT+MOVE+UNRESOLVED === demandCount; owned (RETAIN+MOVE+INSERT) <= demandCount.
+- Readiness uses unique final actions; regression A11 proves 264 demand can never report 278 owned (the pre-fix live readiness reported ownedDemandCount 278 for demandCount 264).
+
+### R2 — Transaction closure
+- `readReconciliationSourceSnapshot` now reads every source through the supplied client (offerings, sections, subjects, faculty, ownership, department rows, subjectOwnerPrefixes, schedulingPolicy, cycle) — no global-db workload/department/cached-policy readers inside apply.
+- `buildQualificationResolver` builds a persisted-only policy snapshot from snapshot rows and evaluates through the canonical evaluator — zero DB access.
+- B9 negative controls: concurrent schedulingPolicy mutation and departmentLabel mutation between preview and apply each yield 409 SOURCE_DRIFT with zero writes and unchanged ownership.
+
+### R3 — Atomic derived state
+- `refreshTeachingLoadCycle` runs INSIDE the Serializable transaction (client-injected). Injected failure rolls back every write (B10: ownership count unchanged, cycle version unchanged, no audit row). Replay remains genuinely zero-write (B6).
+
+### R4 — Canonical qualification
+- Reconciliation routes through `qualification-evaluator.service.ts` (`buildQualificationPolicySnapshot` + `evaluateQualificationWithPolicy`), persisted-only (no name/prefix/glossary/legacy inference). Added additive persisted-only DEPARTMENT_MATCH tier mirroring the production `matchesSubjectOwnershipDepartment` path. Differential A13 proves resolver eligibility+tier equal the canonical evaluator for department, specialization alias, cross-department permission, program mismatch, inactive/stale faculty, and canTeachOutsideDepartment.
+
+### R5 — Adviser-own-section priority
+- New adviser-transfer pass: a qualified active adviser with no demanded subject in their advisory section receives ONE safely-transferable valid pair (hard-cap safe, one grant per section, no duplicate action, persistent grant map through fill/rebalance/transfer). Truthful typed unsatisfied reasons (ADVISER_NOT_QUALIFIED / HARD_CAP_CONFLICT_OR_NO_SAFE_TRANSFER). A12 fixture proves a validly-owned pair transfers to the adviser. Live outcome improved 4/20 ? 20/20 satisfied.
+
+### R6 — Cycle truth
+- Preview `cycleImpact.stateBefore` reads the real TeachingLoadCycle via the client (MISSING / EMPTY / POPULATED / MISMATCH) plus version. B2b proves MISSING/MISMATCH/POPULATED.
+
+### R7 — Preview/UI truth + regeneration
+- Final actions are unique per pair (UI shows one final action per pair).
+- Old artifact `...preview-2026-09-09.json` (fingerprint D5A200C2…) marked NON_APPLICABLE.
+- New live preview: `docs/verification/teaching-load-current-year-reconciliation-preview-tlc02r-2026-09-09.json` (+ sidecar).
+  - fingerprint `0563926BCF59E3CFF04AF51F8887FD2B99BBCD8C448D9F97D7419D5263FCCFDB`
+  - sourceRevision `0DC5BE9C93033414F8D39C45BF15EC2AC903F8B16694E1FE2140F0895314E039`
+  - byte SHA-256 (sidecar) `70FEC771D162181E28358967454AA6C483E51BAC21D3185DF918D154E21315FC`
+  - plan RETAIN 234 / INSERT 0 / MOVE 30 / RETIRE 1 / UNRESOLVED 0; final-action invariant RETAIN+INSERT+MOVE+UNRESOLVED = 234+0+30+0 = 264 = demandCount; owned (R+I+M) 264 <= 264; RETIRE 1 is a non-demand row
+  - cycle POPULATED v4; before {5,5,27,3,7,0} after {0,0,38,4,0,0}; advisers 20/20; hg 0
+  - `applied:false`; approval sentence records the exact fingerprint; NOT granted.
+
+### R-gates
+- Server reconciliation 129/129 (was 86; +43 new failing-first assertions), effective-policy 56/56, summary-zero-write 12/12, department gates 82/82, department apply 63/63, workload-policy 8/8, pass5 54/54. Client UI 5/5. Server + client tsc clean. Server + client production builds pass. `git diff --cached --check` clean.
+- Fresh whole-candidate advisory review + changed-scope zero-fix review recorded under `docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/`.
+
+### TL-C02R advisory reviews + browser QA
+- Whole-candidate review D (`advisory-review-D-whole.md`, `REVIEWER_D_WHOLE_ADVISORY`): zeroFix:false — material D-1: the adviser-transfer hard-cap gate used `pair.weeklyMinutes` (offering minutes) instead of the credited `subject.minMinutesPerWeek` (sibling gates at pickCandidate and rebalance already used credited minutes). FIXED; regression A14 added (offering 120 < credited 240, adviser at 60, cap 240 ? transfer refused, adviser stays <= cap).
+- Changed-scope review E (`advisory-review-E-changed-scope.md`, `REVIEWER_E_CHANGED_SCOPE_ADVISORY`): zeroFix:true — all three hard-cap gates now use credited minutes; adversarial probes (boundary inclusivity, multiple qualified pairs, A14 discriminator) pass 21/21; server 134/0 + tsc clean.
+- Authenticated browser QA (built client via Vite proxy -> corrected built server on isolated port 5098, live Tailnet DB; Tailnet-identical login) at desktop 1280x720 and mobile 390x844: 20/20 PASS — panel opens, preview renders the live plan (Stays 234 / Added 0 / Moved 30 / Removed 1 / Needs review 0), no horizontal overflow at both widths, 44px targets, keyboard reaches the confirmation input and enables Apply (approval boundary reached, Apply NOT pressed), no mojibake, no app errors. Screenshots in TEMP (uncommitted).
+- Final live preview (regenerated after all corrections): fingerprint `0563926BCF59E3CFF04AF51F8887FD2B99BBCD8C448D9F97D7419D5263FCCFDB`, sourceRevision `0DC5BE9C93033414F8D39C45BF15EC2AC903F8B16694E1FE2140F0895314E039`, byte SHA-256 (sidecar verified) `53FC5D0BE29FC4CAB9AD12B230F187EBF7551975D5C0E3EE13703552CAB57CAC`, plan RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0, invariant 264=264, owned 264, cycle POPULATED v4, advisers 20/20, hg 0, applied:false.
+- Old artifact `...preview-2026-09-09.json` marked NON_APPLICABLE (marker file) with the superseded fingerprint.

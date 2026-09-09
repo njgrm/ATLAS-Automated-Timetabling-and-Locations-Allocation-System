@@ -109,8 +109,12 @@ function buildSnapshot(overrides: Record<string, unknown> = {}) {
     ownership: [],
     specializationAliases: [],
     crossDepartmentPermissions: [],
+    departmentAliases: [],
+    departmentLabels: [],
+    subjectOwnerPrefixes: [],
     workloadPolicy: { teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400, status: 'CONFIGURED' },
     departmentRevision: { revisionHash: 'DEADBEEF', aliasRows: 0, labelRows: 0 },
+    cycleState: { state: 'POPULATED', version: 1 },
     ...overrides,
   } as any;
 }
@@ -140,6 +144,12 @@ function focusedSnapshot(input: {
   faculty: any[];
   ownership?: any[];
   workloadPolicy?: any;
+  specializationAliases?: any[];
+  crossDepartmentPermissions?: any[];
+  departmentAliases?: any[];
+  departmentLabels?: any[];
+  subjectOwnerPrefixes?: any[];
+  cycleState?: any;
 }) {
   const sections = input.sections ?? [
     { id: 501, externalId: 101, gradeLevel: 7, programType: 'REGULAR', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 },
@@ -156,11 +166,15 @@ function focusedSnapshot(input: {
     faculty: input.faculty,
     facultySubjects: [],
     ownership: input.ownership ?? [],
-    specializationAliases: [],
-    crossDepartmentPermissions: [],
+    specializationAliases: input.specializationAliases ?? [],
+    crossDepartmentPermissions: input.crossDepartmentPermissions ?? [],
+    departmentAliases: input.departmentAliases ?? [],
+    departmentLabels: input.departmentLabels ?? [],
+    subjectOwnerPrefixes: input.subjectOwnerPrefixes ?? [],
     workloadPolicy: input.workloadPolicy ?? { teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400, status: 'CONFIGURED' },
-    departmentRevision: { revisionHash: 'DEADBEEF', aliasRows: 0, labelRows: 0 },
-  } as never;
+    departmentRevision: { revisionHash: 'DEADBEEF', aliasRows: (input.departmentAliases?.length ?? 0), labelRows: (input.departmentLabels?.length ?? 0) },
+    cycleState: input.cycleState ?? { state: 'POPULATED', version: 1 },
+  } as any;
 }
 
 function regularOffering(id: number, subjectId: number, classification = 'CORE', minutes = 240, termMode = 'ALL', termAssignments: Array<{ termIdentity: string }> = [], rotationFamily: string | null = null) {
@@ -374,6 +388,200 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
     assert(planC.sourceRevision !== planA.sourceRevision, 'offering version drift flips the source revision');
     assert(planC.fingerprint !== planA.fingerprint, 'offering version drift flips the fingerprint');
   }
+
+  section('A11. final-action model: one action per demanded pair (264 never reports 278)');
+  {
+    // Two demanded pairs, both owned by faculty 1 (over-standard). Rebalance
+    // must move one pair — REPLACING that pair's RETAIN with a MOVE — so the
+    // final plan has exactly one action per pair and owned never exceeds demand.
+    const snapshot = focusedSnapshot({
+      subjects: [focusedSubject(11, 'MATH', 'MATH', 240)],
+      offerings: [regularOffering(1001, 11)],
+      faculty: [
+        { id: 1, firstName: 'Over', lastName: 'One', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 2, firstName: 'Under', lastName: 'Two', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+      ],
+      ownership: [
+        { id: 1, subjectId: 11, sectionId: 101, facultyId: 1, facultySubjectId: 1, specializationCode: null, specializationLabel: null },
+        { id: 2, subjectId: 11, sectionId: 102, facultyId: 1, facultySubjectId: 2, specializationCode: null, specializationLabel: null },
+      ],
+      workloadPolicy: { teachingStandardMinutes: 240, advisoryCreditMinutes: 0, hardCapMinutes: 480, status: 'CONFIGURED' },
+    });
+    const resolver = stubResolver([
+      { facultyId: 1, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+      { facultyId: 2, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+    ]);
+    const plan = await svc.buildReconciliationPlan(snapshot, resolver);
+
+    const pairKeys = plan.actions.map((entry) => `${entry.subjectId}:${entry.sectionId}`);
+    assertEqual(new Set(pairKeys).size, pairKeys.length, 'every final action has a unique subject-section pair');
+
+    const demandCount = plan.demand.length;
+    const retained = plan.actions.filter((entry) => entry.action === 'RETAIN').length;
+    const inserted = plan.actions.filter((entry) => entry.action === 'INSERT').length;
+    const moved = plan.actions.filter((entry) => entry.action === 'MOVE').length;
+    const unresolved = plan.actions.filter((entry) => entry.action === 'UNRESOLVED').length;
+    assertEqual(retained + inserted + moved + unresolved, demandCount, 'RETAIN + INSERT + MOVE + UNRESOLVED === demandCount (final-action invariant)');
+    assert(retained + moved + inserted <= demandCount, 'owned demand pairs never exceed demand (264 cannot report 278)');
+
+    const rebalanceMove = plan.actions.find((entry) => entry.action === 'MOVE' && entry.diagnostics.includes('OVER_STANDARD'));
+    assert(!!rebalanceMove, 'rebalance move produced');
+    const samePair = plan.actions.filter((entry) => entry.subjectId === rebalanceMove!.subjectId && entry.sectionId === rebalanceMove!.sectionId);
+    assertEqual(samePair.length, 1, 'the moved pair appears exactly once (its RETAIN was replaced, not appended)');
+    assertEqual(samePair[0].action, 'MOVE', 'the surviving action for the moved pair is MOVE');
+  }
+
+  section('A12. adviser-own-section preference transfers a validly-owned pair');
+  {
+    // All demand pairs are validly owned by a non-adviser; the qualified adviser
+    // of the section owns nothing. The plan must safely transfer ONE pair to the
+    // adviser (hard-cap safe, one grant per section, no duplicate action).
+    const snapshot = focusedSnapshot({
+      subjects: [focusedSubject(11, 'MATH', 'MATH', 240)],
+      offerings: [regularOffering(1001, 11)],
+      sections: [{ id: 501, externalId: 101, gradeLevel: 7, programType: 'REGULAR', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 }],
+      faculty: [
+        { id: 1, firstName: 'Non', lastName: 'Adviser', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 2, firstName: 'Ms', lastName: 'Adviser', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: true, advisedSectionId: 101, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+      ],
+      ownership: [
+        { id: 1, subjectId: 11, sectionId: 101, facultyId: 1, facultySubjectId: 1, specializationCode: null, specializationLabel: null },
+      ],
+      workloadPolicy: { teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400, status: 'CONFIGURED' },
+    });
+    const resolver = stubResolver([
+      { facultyId: 1, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+      { facultyId: 2, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+    ]);
+    const plan = await svc.buildReconciliationPlan(snapshot, resolver);
+    const transfer = plan.actions.find((entry) => entry.action === 'MOVE' && entry.adviserPreferenceApplied);
+    assert(!!transfer, 'a validly-owned pair is transferred to the qualified adviser');
+    assertEqual(transfer!.currentOwnerId, 1, 'transfer donor is the previous valid owner');
+    assertEqual(transfer!.proposedFacultyId, 2, 'transfer recipient is the section adviser');
+    const adviserOutcome = plan.adviserPreference.find((outcome) => outcome.facultyId === 2);
+    assert(adviserOutcome?.satisfied === true, 'adviser satisfied after the transfer');
+    const adviserAfter = plan.facultyWorkloads.find((row) => row.facultyId === 2);
+    assertEqual(adviserAfter!.afterMinutes, 240, 'adviser load after transfer respects minutes');
+  }
+
+  section('A13. reconciliation routes through the canonical qualification evaluator (differential)');
+  {
+    const snapshot = focusedSnapshot({
+      subjects: [
+        focusedSubject(11, 'MATH', 'MATH'),
+        { ...focusedSubject(13, 'SCI_BIO', 'SCI'), allowedSpecializations: ['SCIENCE'] },
+        { ...focusedSubject(14, 'ENG', 'ENG'), programScopes: ['STE'] },
+      ],
+      offerings: [regularOffering(1001, 11), regularOffering(1002, 13), regularOffering(1003, 14)],
+      sections: [
+        { id: 501, externalId: 101, gradeLevel: 7, programType: 'REGULAR', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 },
+      ],
+      faculty: [
+        { id: 1, firstName: 'Dept', lastName: 'Only', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 2, firstName: 'Spec', lastName: 'Alias', department: 'SCI', specialization: 'BIO-SCI', canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 3, firstName: 'Cross', lastName: 'Dept', department: 'FIL', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 4, firstName: 'Stale', lastName: 'Faculty', department: 'FIL', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: true, version: 1 },
+        { id: 5, firstName: 'Outside', lastName: 'Override', department: 'FIL', specialization: null, canTeachOutsideDepartment: true, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+      ],
+      specializationAliases: [{ alias: 'BIO-SCI', canonical: 'SCIENCE' }],
+      crossDepartmentPermissions: [{ facultyId: 3, subjectId: 11 }],
+      departmentLabels: [{ code: 'MATH', label: 'Mathematics' }, { code: 'SCI', label: 'Science' }, { code: 'ENG', label: 'English' }, { code: 'FIL', label: 'Filipino' }],
+    });
+    const resolver = svc.buildQualificationResolver(snapshot);
+
+    const cases = [
+      { label: 'department match', facultyId: 1, subjectId: 11, programType: 'REGULAR', expectEligible: true },
+      { label: 'specialization alias (tier 1)', facultyId: 2, subjectId: 13, programType: 'REGULAR', expectEligible: true },
+      { label: 'cross-department permission (tier 3)', facultyId: 3, subjectId: 11, programType: 'REGULAR', expectEligible: true },
+      { label: 'program mismatch', facultyId: 1, subjectId: 14, programType: 'REGULAR', expectEligible: false },
+      { label: 'inactive/stale faculty', facultyId: 4, subjectId: 11, programType: 'REGULAR', expectEligible: false },
+      { label: 'canTeachOutsideDepartment (tier 3)', facultyId: 5, subjectId: 11, programType: 'REGULAR', expectEligible: true },
+    ];
+
+    const qe = await import('../services/qualification-evaluator.service.js') as typeof import('../services/qualification-evaluator.service.js');
+    const canonicalPolicy = qe.buildQualificationPolicySnapshot(snapshot.schoolId, {
+      departmentAliases: snapshot.departmentAliases,
+      departmentLabels: snapshot.departmentLabels,
+      subjectOwnerPrefixes: snapshot.subjectOwnerPrefixes,
+      crossDepartmentPermissions: snapshot.crossDepartmentPermissions,
+      legacyCrossLanguageException: false,
+      persistedOnly: true,
+    });
+
+    for (const testCase of cases) {
+      const member = (snapshot as any).faculty.find((f: any) => f.id === testCase.facultyId);
+      const subject = (snapshot as any).subjects.find((s: any) => s.id === testCase.subjectId);
+      const resolved = await resolver(testCase.facultyId, testCase.subjectId, testCase.programType);
+      const canonical = qe.evaluateQualificationWithPolicy(
+        {
+          facultyId: member.id,
+          facultyDepartment: member.department,
+          facultySpecialization: member.specialization,
+          canTeachOutsideDepartment: member.canTeachOutsideDepartment,
+          subjectId: subject.id,
+          subjectCode: subject.code,
+          subjectName: subject.name,
+          subjectOwnerDepartment: subject.ownerDepartment,
+          subjectAllowedDepartments: subject.ownerDepartment ? [subject.ownerDepartment] : [],
+          subjectAllowedSpecializations: subject.allowedSpecializations,
+          subjectProgramScopes: subject.programScopes,
+          sectionProgramType: testCase.programType as never,
+          specializationAliases: snapshot.specializationAliases,
+        },
+        canonicalPolicy,
+      );
+      assertEqual(resolved.eligible, canonical.eligible, `${testCase.label}: resolver eligibility equals canonical evaluator`);
+      assertEqual(resolved.tier, canonical.tier, `${testCase.label}: resolver tier equals canonical evaluator`);
+      assertEqual(resolved.eligible, testCase.expectEligible, `${testCase.label}: expected eligibility`);
+    }
+  }
+
+  section('A14. adviser-transfer hard-cap gate uses credited minutes, not offering minutes');
+  {
+    // MATH is credited 240 but its offering declares 120. The adviser already
+    // carries 60 minutes (GEN in section 102). With hardCap 240, granting the
+    // MATH:101 transfer using the offering value (60+120<=240) would push the
+    // adviser to 300 > cap. The gate must use the credited 240 → no transfer.
+    const snapshot = focusedSnapshot({
+      subjects: [focusedSubject(11, 'MATH', 'MATH', 240), { ...focusedSubject(15, 'GEN', 'MATH', 60), programScopes: ['STE'] }],
+      offerings: [
+        regularOffering(1001, 11, 'CORE', 120),
+        {
+          id: 1002, subjectId: 15, gradeLevel: 7, programType: 'STE', sectionMirrorId: null, cohortId: null,
+          classification: 'CORE', weeklyMinutes: 60, rotationFamily: null, rotationOrder: null, termMode: 'ALL',
+          isActive: true, version: 1, termAssignments: [],
+        },
+      ],
+      sections: [
+        { id: 501, externalId: 101, gradeLevel: 7, programType: 'REGULAR', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 },
+        { id: 502, externalId: 102, gradeLevel: 7, programType: 'STE', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 },
+      ],
+      faculty: [
+        { id: 1, firstName: 'Non', lastName: 'Adviser', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 2, firstName: 'Ms', lastName: 'Adviser', department: 'MATH', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: true, advisedSectionId: 101, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+      ],
+      ownership: [
+        { id: 1, subjectId: 11, sectionId: 101, facultyId: 1, facultySubjectId: 1, specializationCode: null, specializationLabel: null },
+        { id: 2, subjectId: 15, sectionId: 102, facultyId: 2, facultySubjectId: 2, specializationCode: null, specializationLabel: null },
+      ],
+      workloadPolicy: { teachingStandardMinutes: 240, advisoryCreditMinutes: 0, hardCapMinutes: 240, status: 'CONFIGURED' },
+    });
+    const resolver = stubResolver([
+      { facultyId: 1, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+      { facultyId: 2, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+      { facultyId: 1, subjectId: 15, programType: 'STE', eligible: true, tier: 2 },
+      { facultyId: 2, subjectId: 15, programType: 'STE', eligible: true, tier: 2 },
+    ]);
+    const plan = await svc.buildReconciliationPlan(snapshot, resolver);
+    const transfer = plan.actions.find((entry) => entry.action === 'MOVE' && entry.adviserPreferenceApplied);
+    assert(!transfer, 'no adviser transfer is granted because the credited minutes would exceed the hard cap');
+    const adviserOutcome = plan.adviserPreference.find((outcome) => outcome.facultyId === 2);
+    assertEqual(adviserOutcome?.satisfied, false, 'adviser preference unsatisfied under hard-cap conflict');
+    assertEqual(adviserOutcome?.reason, 'HARD_CAP_CONFLICT_OR_NO_SAFE_TRANSFER', 'truthful typed reason returned');
+    const adviserAfter = plan.facultyWorkloads.find((row) => row.facultyId === 2);
+    assert(adviserAfter!.afterMinutes <= 240, 'adviser load never exceeds the hard cap');
+    assertEqual(adviserAfter!.afterMinutes, 60, 'adviser load stays at the pre-existing 60 minutes');
+  }
 }
 
 // ─── Part B: disposable-fixture DB integration ──────────────────────────────
@@ -556,12 +764,28 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     await instrumented.departmentLabel.create({ data: { schoolId: fixtureSchoolId, code: 'ENG', label: 'English' } });
     resetRecording();
 
+    section('B2b. cycle truth: MISSING / MISMATCH / POPULATED are reported truthfully, never hardcoded');
+    const missingCyclePreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    assertEqual(missingCyclePreview.cycleImpact.stateBefore, 'MISSING', 'no cycle row → MISSING');
+    await instrumented.teachingLoadCycle.create({
+      data: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, state: 'EMPTY' },
+    });
+    const mismatchPreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    assertEqual(mismatchPreview.cycleImpact.stateBefore, 'MISMATCH', 'persisted EMPTY with ownership present → MISMATCH');
+    await instrumented.teachingLoadCycle.update({
+      where: { schoolId_schoolYearId: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } },
+      data: { state: 'POPULATED' },
+    });
+    const populatedPreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    assertEqual(populatedPreview.cycleImpact.stateBefore, 'POPULATED', 'persisted POPULATED with ownership present → POPULATED');
+    resetRecording();
+
     section('B2. preview is zero-write and produces a demand-aware plan');
     const preview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
     assert(writes().length === 0, 'preview performs zero writes');
     const readOps = recorded.filter((stmt) => !WRITE_ACTIONS.has(stmt.action));
     assert(readOps.length < 30, `preview read query count is bounded and set-based (${readOps.length} read ops, no N+1)`);
-    assert(readOps.every((stmt) => ['findMany', 'findFirst', 'aggregate', 'findUnique'].includes(stmt.action)), 'preview uses set-based/batched reads only');
+    assert(readOps.every((stmt) => ['findMany', 'findFirst', 'aggregate', 'findUnique', 'count'].includes(stmt.action)), 'preview uses set-based/batched reads only');
     assertEqual(preview.before.ownershipCount, 2, 'census ownership count');
     assertEqual(preview.before.demandCount, 4, 'mechanical demand count (2 subjects x 2 sections)');
     assertEqual(preview.actionTotals.RETAIN, 1, 'MATH:101 retains');
@@ -700,6 +924,99 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     assertEqual(readiness.demandCount, 4, 'readiness demand count');
     assertEqual(readiness.unresolvedDemandCount, 0, 'readiness unresolved');
     assertEqual(readiness.ready, true, 'readiness ready with full valid coverage');
+    assert(readiness.ownedDemandCount <= readiness.demandCount, 'readiness ownedDemandCount never exceeds demandCount (unique final actions)');
+
+    section('B9. transaction closure: concurrent policy / department mutation → typed 409, zero writes');
+    const closurePreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+
+    // Concurrent workload-policy mutation between preview and apply.
+    await instrumented.schedulingPolicy.create({
+      data: {
+        schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        teachingStandardMinutes: 1700, advisoryCreditMinutes: 300, hardCapMinutes: 2300,
+      },
+    });
+    resetRecording();
+    threw = false;
+    try {
+      await run(() => svc.applyTeachingLoadReconciliation({
+        actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        expectedFingerprint: closurePreview.fingerprint, expectedSourceRevision: closurePreview.sourceRevision,
+        confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+      }));
+    } catch (error: any) {
+      threw = error?.code === 'SOURCE_DRIFT' && error?.statusCode === 409;
+    }
+    assert(threw, 'workload-policy mutation after preview → 409 SOURCE_DRIFT');
+    assert(writes().length === 0, 'policy-drift apply performs zero writes');
+    const policyOwnerships = await instrumented.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
+    assertEqual(policyOwnerships, 4, 'ownership rows unchanged after policy-drift rejection');
+
+    // Concurrent department-authority mutation between preview and apply.
+    const closurePreview2 = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    await instrumented.departmentLabel.create({ data: { schoolId: fixtureSchoolId, code: 'FIL', label: 'Filipino' } });
+    resetRecording();
+    threw = false;
+    try {
+      await run(() => svc.applyTeachingLoadReconciliation({
+        actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        expectedFingerprint: closurePreview2.fingerprint, expectedSourceRevision: closurePreview2.sourceRevision,
+        confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+      }));
+    } catch (error: any) {
+      threw = error?.code === 'SOURCE_DRIFT' && error?.statusCode === 409;
+    }
+    assert(threw, 'department-label mutation after preview → 409 SOURCE_DRIFT');
+    assert(writes().length === 0, 'department-drift apply performs zero writes');
+
+    section('B10. atomic derived state: injected cycle-refresh failure rolls back every write');
+    // Force a pending mutation so the apply actually writes before the cycle
+    // refresh runs: add a new AP subject + offering (new demanded pairs).
+    const apSubject = await instrumented.subject.create({
+      data: {
+        schoolId: fixtureSchoolId, code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 240,
+        programScopes: ['REGULAR'], gradeLevels: [7], ownerDepartment: 'MATH', isActive: true,
+      },
+      select: { id: true },
+    });
+    await instrumented.schoolYearOffering.create({
+      data: {
+        schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, termConfigId: fixtureTermConfigId,
+        subjectId: (apSubject as any).id as number, gradeLevel: 7, programType: 'REGULAR',
+        classification: 'CORE', weeklyMinutes: 240, termMode: 'ALL', isActive: true,
+      },
+    });
+    const atomicPreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    assert(atomicPreview.actionTotals.INSERT > 0, 'atomic preview has pending inserts');
+    const cycleBefore = await instrumented.teachingLoadCycle.findUnique({
+      where: { schoolId_schoolYearId: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } },
+    });
+    const cycleVersionBefore = (cycleBefore as any)?.version ?? 0;
+    const ownershipBeforeAtomic = await instrumented.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
+    svc.__setCycleRefreshOverrideForTest(async () => {
+      throw new Error('INJECTED_CYCLE_REFRESH_FAILURE');
+    });
+    let rollbackThrew = false;
+    try {
+      await run(() => svc.applyTeachingLoadReconciliation({
+        actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        expectedFingerprint: atomicPreview.fingerprint, expectedSourceRevision: atomicPreview.sourceRevision,
+        confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+      }));
+    } catch (error: any) {
+      rollbackThrew = /INJECTED_CYCLE_REFRESH_FAILURE/.test(error?.message ?? '');
+    } finally {
+      svc.__setCycleRefreshOverrideForTest(null);
+    }
+    assert(rollbackThrew, 'injected cycle-refresh failure propagates');
+    const ownershipsAfterRollback = await instrumented.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
+    assertEqual(ownershipsAfterRollback, ownershipBeforeAtomic, 'cycle-refresh failure rolls back every ownership write (count unchanged)');
+    const cycleAfter = await instrumented.teachingLoadCycle.findUnique({
+      where: { schoolId_schoolYearId: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } },
+    });
+    assertEqual((cycleAfter as any)?.version ?? 0, cycleVersionBefore, 'cycle version unchanged after rollback');
+    const auditCountBefore = await instrumented.auditLog.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, action: 'TEACHING_LOAD_RECONCILIATION' } });
+    assert(auditCountBefore === 1, 'no reconciliation audit row was added by the rolled-back apply');
   } finally {
     section('B8. fixture cleanup (zero residue)');
     const cleanup = await instrumented.$transaction(async (tx: any) => {
@@ -712,6 +1029,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
       await tx.sectionMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.facultyMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.departmentLabel.deleteMany({ where: { schoolId: fixtureSchoolId } });
+      await tx.schedulingPolicy.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.subject.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.auditLog.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.school.delete({ where: { id: fixtureSchoolId } });

@@ -26,10 +26,10 @@ import { getDataContext } from '../lib/data-context.js';
 import { Prisma } from '@prisma/client';
 import { canonicalHash } from '../lib/canonical-json.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
-import { getEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
-import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
-import { readDepartmentAuthoritySourceRevision } from './department-authority.service.js';
-import { isProgramScopeCompatible } from './qualification-evaluator.service.js';
+import { resolveEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { buildDepartmentAuthoritySourceRevision } from './department-authority.service.js';
+import { buildQualificationPolicySnapshot, evaluateQualificationWithPolicy, type QualificationPolicy } from './qualification-evaluator.service.js';
 import { computeTeachingLoadMinutes } from './faculty-assignment.service.js';
 import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
 
@@ -160,6 +160,26 @@ export type CrossDepartmentPermissionSnapshot = {
 	subjectId: number;
 };
 
+export type DepartmentRowSnapshot = {
+	alias: string;
+	department: string;
+};
+
+export type DepartmentLabelRowSnapshot = {
+	code: string;
+	label: string;
+};
+
+export type SubjectOwnerPrefixSnapshot = {
+	prefix: string;
+	department: string;
+};
+
+export type CycleStateSnapshot = {
+	state: 'MISSING' | 'EMPTY' | 'POPULATED' | 'MISMATCH';
+	version: number;
+};
+
 export type ReconciliationSourceSnapshot = {
 	schoolId: number;
 	schoolYearId: number;
@@ -173,8 +193,12 @@ export type ReconciliationSourceSnapshot = {
 	ownership: OwnershipSnapshot[];
 	specializationAliases: Array<{ alias: string; canonical: string }>;
 	crossDepartmentPermissions: CrossDepartmentPermissionSnapshot[];
+	departmentAliases: DepartmentRowSnapshot[];
+	departmentLabels: DepartmentLabelRowSnapshot[];
+	subjectOwnerPrefixes: SubjectOwnerPrefixSnapshot[];
 	workloadPolicy: WorkloadPolicySnapshot;
 	departmentRevision: DepartmentRevisionSnapshot;
+	cycleState: CycleStateSnapshot;
 };
 
 export type DemandPair = {
@@ -282,6 +306,11 @@ export function pairKeyOf(subjectId: number, sectionId: number): string {
 
 export function demandSortKey(demand: DemandPair): string {
 	return `${String(demand.sectionId).padStart(8, '0')}:${String(demand.subjectId).padStart(8, '0')}`;
+}
+
+export function demandSortKeyForAction(pairKey: string): string {
+	const [subjectIdRaw, sectionIdRaw] = pairKey.split(':');
+	return `${String(Number(sectionIdRaw)).padStart(8, '0')}:${String(Number(subjectIdRaw)).padStart(8, '0')}`;
 }
 
 /**
@@ -552,44 +581,29 @@ export function computeWorkloadDistribution(
 	return { zeroLoad, adviserOnly, belowStandard, atStandard, excess, overCap };
 }
 
-// ─── Qualification (persisted department/program/specialization policy) ─────
+// ─── Qualification (canonical evaluator over persisted policy) ──────────────
 
 type QualificationResolver = (facultyId: number, subjectId: number, sectionProgramType: string) => Promise<{ eligible: boolean; tier: number | null }>;
 
 /**
- * Canonical persisted-policy qualification resolver. Department identity uses
- * ONLY persisted DepartmentAlias/DepartmentLabel data via the canonical identity
- * function (no name/prefix/keyword inference). A faculty member is qualified for
- * a pair when the program scope is compatible and any of: department match,
- * specialization match (persisted aliases), persisted cross-department
- * permission, or the canTeachOutsideDepartment override holds.
+ * Canonical persisted-policy qualification resolver. Routes through the shared
+ * `qualification-evaluator.service.ts` tier evaluator with a policy snapshot
+ * built ONLY from persisted rows supplied in the reconciliation snapshot — no
+ * database access, no per-school cache, no subject-name/prefix/glossary or
+ * legacy inference (persisted-only mode). A faculty member is qualified for a
+ * pair when the canonical evaluator returns a tier for it.
  */
-export async function buildQualificationResolver(snapshot: ReconciliationSourceSnapshot): Promise<QualificationResolver> {
-	const { loadCanonicalDepartmentMap } = await import('./faculty-assignment.service.js');
-	const departmentMap = await loadCanonicalDepartmentMap(snapshot.schoolId);
+export function buildQualificationResolver(snapshot: ReconciliationSourceSnapshot): QualificationResolver {
+	const policy: QualificationPolicy = buildQualificationPolicySnapshot(snapshot.schoolId, {
+		departmentAliases: snapshot.departmentAliases,
+		departmentLabels: snapshot.departmentLabels,
+		subjectOwnerPrefixes: snapshot.subjectOwnerPrefixes,
+		crossDepartmentPermissions: snapshot.crossDepartmentPermissions,
+		legacyCrossLanguageException: false,
+		persistedOnly: true,
+	});
 	const subjectById = new Map(snapshot.subjects.map((subject) => [subject.id, subject]));
 	const facultyById = new Map(snapshot.faculty.map((member) => [member.id, member]));
-	const crossDepartmentPermissions = new Map<number, Set<number>>();
-	for (const row of snapshot.crossDepartmentPermissions) {
-		const set = crossDepartmentPermissions.get(row.facultyId) ?? new Set<number>();
-		set.add(row.subjectId);
-		crossDepartmentPermissions.set(row.facultyId, set);
-	}
-	const aliasToCanonical = new Map<string, string>();
-	for (const alias of snapshot.specializationAliases) {
-		aliasToCanonical.set(alias.alias.trim().toUpperCase(), alias.canonical.trim().toUpperCase());
-	}
-
-	// Department identity uses persisted aliases first, then exact trimmed
-	// uppercase equality of the persisted values. This never infers a department
-	// from a name, subject description, prefix, or glossary. Department LABELS
-	// stay a display concern (the summary path reports UNMAPPED until label rows
-	// exist) and are not required for qualification matching.
-	const resolveDepartmentCode = (raw: string | null | undefined): string | null => {
-		const upper = (raw ?? '').trim().toUpperCase();
-		if (!upper) return null;
-		return departmentMap.aliases.get(upper) ?? upper;
-	};
 
 	const cache = new Map<string, { eligible: boolean; tier: number | null }>();
 
@@ -600,7 +614,12 @@ export async function buildQualificationResolver(snapshot: ReconciliationSourceS
 
 		const subject = subjectById.get(subjectId);
 		const member = facultyById.get(facultyId);
-		if (!subject || !member || member.isPlaceholder || member.isStale || !member.isActiveForScheduling) {
+		// No staleness/placeholder/active short-circuit here: the canonical
+		// evaluator is the single qualification authority and the differential
+		// contract requires identical results. Candidate selection and ownership
+		// disposition filter inactive/stale/placeholder faculty separately
+		// (classifyOwnershipRows + pickCandidate).
+		if (!subject || !member) {
 			cache.set(cacheKey, { eligible: false, tier: null });
 			return { eligible: false, tier: null };
 		}
@@ -608,37 +627,28 @@ export async function buildQualificationResolver(snapshot: ReconciliationSourceS
 			cache.set(cacheKey, { eligible: false, tier: null });
 			return { eligible: false, tier: null };
 		}
-		if (!isProgramScopeCompatible(subject.programScopes as never, normalizeSectionProgramType(sectionProgramType) as never)) {
-			cache.set(cacheKey, { eligible: false, tier: null });
-			return { eligible: false, tier: null };
-		}
 
-		if (member.canTeachOutsideDepartment) {
-			cache.set(cacheKey, { eligible: true, tier: 3 });
-			return { eligible: true, tier: 3 };
-		}
-
-		const facultyDepartment = resolveDepartmentCode(member.department);
-		const subjectDepartment = resolveDepartmentCode(subject.ownerDepartment);
-
-		// Department match (persisted-value equality only).
-		const departmentMatch = facultyDepartment != null && subjectDepartment != null && facultyDepartment === subjectDepartment;
-
-		// Specialization match (persisted alias-aware).
-		let specializationMatch = false;
-		if (member.specialization && subject.allowedSpecializations.length > 0) {
-			const facultySpec = member.specialization.trim().toUpperCase();
-			const subjectSpecs = new Set(subject.allowedSpecializations.map((entry) => entry.trim().toUpperCase()));
-			specializationMatch = subjectSpecs.has(facultySpec) || subjectSpecs.has(aliasToCanonical.get(facultySpec) ?? facultySpec);
-		}
-
-		// Persisted cross-department permission.
-		const crossDepartmentMatch = (crossDepartmentPermissions.get(member.id)?.has(subject.id)) === true;
-
-		const eligible = departmentMatch || specializationMatch || crossDepartmentMatch;
-		const tier = departmentMatch || specializationMatch ? 2 : crossDepartmentMatch ? 3 : null;
-		cache.set(cacheKey, { eligible, tier });
-		return { eligible, tier };
+		const result = evaluateQualificationWithPolicy(
+			{
+				facultyId: member.id,
+				facultyDepartment: member.department,
+				facultySpecialization: member.specialization,
+				canTeachOutsideDepartment: member.canTeachOutsideDepartment,
+				subjectId: subject.id,
+				subjectCode: subject.code,
+				subjectName: subject.name,
+				subjectOwnerDepartment: subject.ownerDepartment,
+				subjectAllowedDepartments: subject.ownerDepartment ? [subject.ownerDepartment] : [],
+				subjectAllowedSpecializations: subject.allowedSpecializations,
+				subjectProgramScopes: subject.programScopes as never,
+				sectionProgramType: normalizeSectionProgramType(sectionProgramType) as never,
+				specializationAliases: snapshot.specializationAliases,
+			},
+			policy,
+		);
+		const value = { eligible: result.eligible, tier: result.tier };
+		cache.set(cacheKey, value);
+		return value;
 	};
 }
 
@@ -709,10 +719,18 @@ async function pickCandidate(
 
 /**
  * Build the deterministic reconciliation plan over the canonical demand graph.
+ *
+ * Final-action model: every demanded subject-section pair appears EXACTLY ONCE
+ * in the final plan. A retained pair that later becomes a rebalance or
+ * adviser-preference MOVE REPLACES its RETAIN action (never appends a second
+ * action). Invariant: RETAIN + INSERT + MOVE + UNRESOLVED === demandCount.
+ *
  * Simulated load is updated after every proposed assignment (never stale), every
  * zero-load active faculty enters candidate evaluation, and ranking prefers the
  * qualified adviser of the section, then balance toward the standard, then the
- * stable faculty-id tie-break.
+ * stable faculty-id tie-break. The adviser-own-section grant map persists
+ * through fill, rebalance, and the adviser-transfer pass so a section is never
+ * granted twice and no pair is moved twice.
  */
 export async function buildReconciliationPlan(
 	snapshot: ReconciliationSourceSnapshot,
@@ -725,12 +743,16 @@ export async function buildReconciliationPlan(
 	const demandByKey = new Map(demand.map((pair) => [pair.key, pair]));
 	const classifications = classifyOwnershipRows(snapshot, demand, snapshot.ownership);
 
-	const actions: ReconciliationPlanEntry[] = [];
+	const actionsByPair = new Map<string, ReconciliationPlanEntry>();
+	const putAction = (pairKey: string, entry: ReconciliationPlanEntry) => {
+		actionsByPair.set(pairKey, entry);
+	};
 	const hgRowsFound: ReconciliationPlan['hgRowsFound'] = [];
 	const assignedPairsByFaculty = new Map<number, AssignedPairInput[]>();
 	const assignedFacultyByPair = new Map<string, number>();
 	const releasedPairs = new Map<string, { ownershipId: number; fromFacultyId: number; diagnostics: OwnershipDiagnostic[] }>();
 	const adviserPreferenceGrantedBySection = new Map<number, number>();
+	const adviserTransferBlockers = new Map<number, string>();
 
 	const totalMinutesByFaculty = () => computeFacultyTeachingMinutes(assignedPairsByFaculty, subjectById);
 
@@ -739,6 +761,15 @@ export async function buildReconciliationPlan(
 		const list = assignedPairsByFaculty.get(facultyId) ?? [];
 		list.push({ subject: subjectById.get(pair.subjectId)!, sectionId: pair.sectionId });
 		assignedPairsByFaculty.set(facultyId, list);
+	};
+
+	const unassignPair = (pairKey: string, facultyId: number, subjectId: number, sectionId: number) => {
+		assignedFacultyByPair.delete(pairKey);
+		const list = assignedPairsByFaculty.get(facultyId) ?? [];
+		assignedPairsByFaculty.set(
+			facultyId,
+			list.filter((item) => !(item.subject.id === subjectId && item.sectionId === sectionId)),
+		);
 	};
 
 	// 1. Existing ownership disposition.
@@ -763,7 +794,7 @@ export async function buildReconciliationPlan(
 		}
 		if (classification.primaryAction === 'RETAIN' && pair) {
 			registerAssignment(pair, row.facultyId);
-			actions.push({
+			putAction(pair.key, {
 				action: 'RETAIN',
 				subjectId: pair.subjectId,
 				subjectCode: pair.subjectCode,
@@ -786,7 +817,7 @@ export async function buildReconciliationPlan(
 			if (isHg) {
 				hgRowsFound.push({ ownershipId: row.id, subjectId: row.subjectId, sectionId: row.sectionId, facultyId: row.facultyId });
 			}
-			actions.push({
+			putAction(pair?.key ?? `${row.subjectId}:${row.sectionId}`, {
 				action: 'RETIRE',
 				subjectId: row.subjectId,
 				subjectCode: subjectById.get(row.subjectId)?.code ?? `subject-${row.subjectId}`,
@@ -813,7 +844,7 @@ export async function buildReconciliationPlan(
 			if (pair) {
 				releasedPairs.set(pair.key, { ownershipId: row.id, fromFacultyId: row.facultyId, diagnostics: classification.diagnostics });
 			} else {
-				actions.push({
+				putAction(`${row.subjectId}:${row.sectionId}`, {
 					action: 'RETIRE',
 					subjectId: row.subjectId,
 					subjectCode: subjectById.get(row.subjectId)?.code ?? `subject-${row.subjectId}`,
@@ -847,7 +878,7 @@ export async function buildReconciliationPlan(
 				adviserPreferenceGrantedBySection.set(pair.sectionId, candidate.facultyId);
 			}
 			if (released) {
-				actions.push({
+				putAction(pair.key, {
 					action: 'MOVE',
 					subjectId: pair.subjectId,
 					subjectCode: pair.subjectCode,
@@ -866,7 +897,7 @@ export async function buildReconciliationPlan(
 					adviserPreferenceApplied: candidate.adviserPreferenceApplied,
 				});
 			} else {
-				actions.push({
+				putAction(pair.key, {
 					action: 'INSERT',
 					subjectId: pair.subjectId,
 					subjectCode: pair.subjectCode,
@@ -888,10 +919,8 @@ export async function buildReconciliationPlan(
 		} else {
 			const unresolvedReason = released
 				? 'RELEASED_OWNER_NO_CANDIDATE'
-				: snapshot.workloadPolicy.status === 'CONFIGURED'
-				? 'NO_QUALIFIED_CANDIDATE'
 				: 'NO_QUALIFIED_CANDIDATE';
-			actions.push({
+			putAction(pair.key, {
 				action: 'UNRESOLVED',
 				subjectId: pair.subjectId,
 				subjectCode: pair.subjectCode,
@@ -914,7 +943,8 @@ export async function buildReconciliationPlan(
 
 	// 3. Rebalance: move pairs away from excess/over-cap faculty to qualified
 	//    underloaded faculty when this reduces overload without breaking coverage.
-	const rebalanceActions: ReconciliationPlanEntry[] = [];
+	//    The adviser-grant map persists here so rebalance never re-moves a pair
+	//    that already satisfied an adviser preference.
 	const facultyMinutes = totalMinutesByFaculty();
 	const policy = snapshot.workloadPolicy.status === 'CONFIGURED' ? snapshot.workloadPolicy : null;
 	const standard = policy?.teachingStandardMinutes ?? Number.POSITIVE_INFINITY;
@@ -942,25 +972,26 @@ export async function buildReconciliationPlan(
 				resolveQualification,
 				assignedPairsByFaculty,
 				facultyMinutes,
-				new Map(),
+				adviserPreferenceGrantedBySection,
 			);
 			if (!recipient || recipient.facultyId === donor.facultyId) continue;
 			const recipientMinutes = facultyMinutes.get(recipient.facultyId) ?? 0;
 			if (recipientMinutes + pair.subject.minMinutesPerWeek > hardCap) continue;
 			// Only move when it reduces total overload and does not create excess.
 			if (recipientMinutes + pair.subject.minMinutesPerWeek > standard) continue;
-			const ownershipId = [...classifications.entries()].find(([, classification]) =>
-				classification.pairKey === demandPair.key && classification.primaryAction === 'RETAIN')?.[1].ownershipId ?? null;
-			// Remove from donor, add to recipient in simulation.
-			assignedPairsByFaculty.set(
-				donor.facultyId,
-				(assignedPairsByFaculty.get(donor.facultyId) ?? []).filter((item) => !(item.subject.id === pair.subject.id && item.sectionId === pair.sectionId)),
-			);
+			const existingAction = actionsByPair.get(demandPair.key);
+			const currentOwnershipId = existingAction?.currentOwnershipId ?? null;
+			// Remove from donor, add to recipient in simulation (final-action
+			// model: REPLACE the pair's action with the MOVE, never append).
+			unassignPair(demandPair.key, donor.facultyId, pair.subject.id, pair.sectionId);
 			registerAssignment(demandPair, recipient.facultyId);
+			if (recipient.adviserPreferenceApplied) {
+				adviserPreferenceGrantedBySection.set(demandPair.sectionId, recipient.facultyId);
+			}
 			const nextMinutes = totalMinutesByFaculty();
 			facultyMinutes.set(donor.facultyId, nextMinutes.get(donor.facultyId) ?? 0);
 			facultyMinutes.set(recipient.facultyId, nextMinutes.get(recipient.facultyId) ?? 0);
-			rebalanceActions.push({
+			putAction(demandPair.key, {
 				action: 'MOVE',
 				subjectId: pair.subject.id,
 				subjectCode: demandPair.subjectCode,
@@ -972,7 +1003,7 @@ export async function buildReconciliationPlan(
 				rotationFamily: demandPair.rotationFamily,
 				currentOwnerId: donor.facultyId,
 				proposedFacultyId: recipient.facultyId,
-				currentOwnershipId: ownershipId,
+				currentOwnershipId,
 				diagnostics: ['OVER_STANDARD'],
 				reason: 'Rebalance: reduced an over-standard faculty load without breaking curriculum coverage.',
 				unresolvedReason: null,
@@ -980,14 +1011,84 @@ export async function buildReconciliationPlan(
 			});
 		}
 	}
-	actions.push(...rebalanceActions);
 
-	// 4. Adviser-section preference outcomes.
-	const activeSectionIds = new Set(snapshot.sections.map((section) => section.externalId));
-	const actionByPair = new Map<string, ReconciliationPlanEntry>();
-	for (const entry of actions) {
-		actionByPair.set(pairKeyOf(entry.subjectId, entry.sectionId), entry);
+	// 4. Adviser-own-section pass: when a qualified active adviser still has no
+	//    demanded subject in their advisory section, safely transfer ONE valid
+	//    pair to them (hard-cap safe; never over the cap; never a second grant
+	//    for the same section). This considers safe reassignment of an
+	//    already-valid ownership, not only missing/released pairs.
+	const advisers = snapshot.faculty
+		.filter((member) => member.isClassAdviser && member.advisedSectionId != null && !member.isPlaceholder && member.isStale === false && member.isActiveForScheduling)
+		.sort((a, b) => a.id - b.id);
+	for (const adviser of advisers) {
+		const sectionId = adviser.advisedSectionId!;
+		if (adviserPreferenceGrantedBySection.has(sectionId)) continue;
+		if (adviserPreferenceGrantedBySection.get(sectionId) === adviser.id) continue;
+		const ownsAnyInSection = (assignedPairsByFaculty.get(adviser.id) ?? []).some((pair) => pair.sectionId === sectionId);
+		if (ownsAnyInSection) {
+			adviserPreferenceGrantedBySection.set(sectionId, adviser.id);
+			continue;
+		}
+		const sectionPairs = demand
+			.filter((pair) => pair.sectionId === sectionId && assignedFacultyByPair.has(pair.key))
+			.sort((a, b) => a.weeklyMinutes - b.weeklyMinutes || a.subjectId - b.subjectId);
+		const sectionProgramType = normalizeSectionProgramType(sectionByExternal.get(sectionId)?.programType);
+		let qualifiedOptions = 0;
+		let transferTarget: DemandPair | null = null;
+		for (const pair of sectionPairs) {
+			const qual = await resolveQualification(adviser.id, pair.subjectId, sectionProgramType);
+			if (!qual.eligible) continue;
+			qualifiedOptions += 1;
+			const currentOwnerId = assignedFacultyByPair.get(pair.key);
+			if (currentOwnerId == null || currentOwnerId === adviser.id) continue;
+			// The cap gate MUST use the same minutes the simulated load credits
+			// (subject.minMinutesPerWeek), matching pickCandidate and the
+			// rebalance gate — an offering value smaller than the credited
+			// minutes could otherwise push the adviser over the hard cap.
+			const gateSubject = subjectById.get(pair.subjectId);
+			const gateMinutes = gateSubject ? Math.max(0, gateSubject.minMinutesPerWeek) : pair.weeklyMinutes;
+			const adviserMinutes = facultyMinutes.get(adviser.id) ?? 0;
+			if (adviserMinutes + gateMinutes > hardCap) continue;
+			transferTarget = pair;
+			break;
+		}
+		if (transferTarget) {
+			const currentOwnerId = assignedFacultyByPair.get(transferTarget.key)!;
+			const currentOwnershipId = actionsByPair.get(transferTarget.key)?.currentOwnershipId ?? null;
+			unassignPair(transferTarget.key, currentOwnerId, transferTarget.subjectId, transferTarget.sectionId);
+			registerAssignment(transferTarget, adviser.id);
+			adviserPreferenceGrantedBySection.set(sectionId, adviser.id);
+			const nextMinutes = totalMinutesByFaculty();
+			facultyMinutes.set(adviser.id, nextMinutes.get(adviser.id) ?? 0);
+			facultyMinutes.set(currentOwnerId, nextMinutes.get(currentOwnerId) ?? 0);
+			putAction(transferTarget.key, {
+				action: 'MOVE',
+				subjectId: transferTarget.subjectId,
+				subjectCode: transferTarget.subjectCode,
+				sectionId: transferTarget.sectionId,
+				classification: transferTarget.classification,
+				weeklyMinutes: transferTarget.weeklyMinutes,
+				termMode: transferTarget.termMode,
+				termIdentities: transferTarget.termIdentities,
+				rotationFamily: transferTarget.rotationFamily,
+				currentOwnerId,
+				proposedFacultyId: adviser.id,
+				currentOwnershipId,
+				diagnostics: ['ADVISER_SECTION_PREFERENCE_UNSATISFIED'],
+				reason: 'Adviser-own-section preference: transferred one demanded subject in the advisory section to the qualified adviser.',
+				unresolvedReason: null,
+				adviserPreferenceApplied: true,
+			});
+		} else {
+			adviserTransferBlockers.set(
+				adviser.id,
+				qualifiedOptions === 0 ? 'ADVISER_NOT_QUALIFIED_FOR_DEMANDED_SUBJECTS' : 'HARD_CAP_CONFLICT_OR_NO_SAFE_TRANSFER',
+			);
+		}
 	}
+
+	// 5. Adviser-section preference outcomes.
+	const activeSectionIds = new Set(snapshot.sections.map((section) => section.externalId));
 	const adviserPreference: AdviserPreferenceOutcome[] = [];
 	for (const member of snapshot.faculty) {
 		if (!member.isClassAdviser || member.advisedSectionId == null) continue;
@@ -1019,21 +1120,20 @@ export async function buildReconciliationPlan(
 			});
 			continue;
 		}
-		// Not satisfied: distinguish a free pair that went elsewhere from a
-		// section whose pairs are all already validly owned (no churn).
-		const freePairWentElsewhere = sectionPairs.some((pair) => {
-			const entry = actionByPair.get(pair.key);
-			return entry?.action === 'INSERT' && entry.proposedFacultyId !== member.id;
-		});
 		adviserPreference.push({
 			facultyId: member.id,
 			sectionId: member.advisedSectionId,
 			satisfied: false,
-			reason: freePairWentElsewhere ? 'CAPACITY_OR_RANKING' : 'ALL_SECTION_PAIRS_ALREADY_OWNED',
+			reason: adviserTransferBlockers.get(member.id) ?? 'NO_SAFE_TRANSFER',
 		});
 	}
 
-	// 5. Classification totals (including pair-level MISSING_OWNER).
+	// 6. Final action list from the unique-pair map (deterministic order).
+	const actions = Array.from(actionsByPair.entries())
+		.sort((a, b) => demandSortKeyForAction(a[0]).localeCompare(demandSortKeyForAction(b[0])))
+		.map(([, entry]) => entry);
+
+	// 7. Classification totals (including pair-level MISSING_OWNER).
 	const classificationTotals: Record<string, number> = {};
 	const seenPairs = new Map<string, OwnershipRowClassification>();
 	for (const classification of classifications.values()) {
@@ -1049,7 +1149,7 @@ export async function buildReconciliationPlan(
 		}
 	}
 
-	// 6. Per-faculty before/after workloads.
+	// 8. Per-faculty before/after workloads.
 	const beforeMinutes = new Map<number, number>();
 	for (const member of snapshot.faculty) {
 		const owned = snapshot.ownership
@@ -1176,6 +1276,9 @@ export async function buildReconciliationSourceRevision(snapshot: Reconciliation
 		specializationAliases: snapshot.specializationAliases
 			.map((row) => ({ alias: row.alias, canonical: row.canonical }))
 			.sort((a, b) => a.alias.localeCompare(b.alias) || a.canonical.localeCompare(b.canonical)),
+		subjectOwnerPrefixes: snapshot.subjectOwnerPrefixes
+			.map((row) => ({ prefix: row.prefix, department: row.department }))
+			.sort((a, b) => a.prefix.localeCompare(b.prefix) || a.department.localeCompare(b.department)),
 		departmentRevision: snapshot.departmentRevision.revisionHash,
 		workloadPolicy: snapshot.workloadPolicy.status === 'CONFIGURED'
 			? {
@@ -1219,7 +1322,7 @@ export async function readReconciliationSourceSnapshot(
 	client: Prisma.TransactionClient | typeof import('../lib/data-context.js') = db(),
 ): Promise<ReconciliationSourceSnapshot> {
 	const tx = client as any;
-	const [termConfig, offerings, sections, cohorts, subjects, faculty, facultySubjects, ownership, specializationAliases, crossDepartmentPermissions, workloadResolution, departmentRevision] = await Promise.all([
+	const [termConfig, offerings, sections, cohorts, subjects, faculty, facultySubjects, ownership, specializationAliases, crossDepartmentPermissions, departmentAliasRows, departmentLabelRows, subjectOwnerPrefixRows, policyRow, cycleRead] = await Promise.all([
 		tx.schoolYearTermConfig.findFirst({ where: { schoolId, schoolYearId, isActive: true } }),
 		tx.schoolYearOffering.findMany({
 			where: { schoolId, schoolYearId, isActive: true },
@@ -1233,9 +1336,29 @@ export async function readReconciliationSourceSnapshot(
 		tx.subjectSectionOwnership.findMany({ where: { schoolId, schoolYearId } }),
 		tx.specializationAlias.findMany({ where: { schoolId }, select: { alias: true, canonical: true } }),
 		tx.crossDepartmentPermission.findMany({ where: { schoolId }, select: { facultyId: true, subjectId: true } }),
-		getEffectiveWorkloadPolicy(schoolId, schoolYearId),
-		readDepartmentAuthoritySourceRevision(schoolId),
+		tx.departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
+		tx.departmentLabel.findMany({ where: { schoolId }, select: { code: true, label: true } }),
+		tx.subjectOwnerPrefix.findMany({ where: { schoolId }, select: { prefix: true, department: true } }),
+		tx.schedulingPolicy.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+			select: { teachingStandardMinutes: true, advisoryCreditMinutes: true, hardCapMinutes: true },
+		}),
+		readTeachingLoadCycleSource(schoolId, schoolYearId, tx),
 	]);
+
+	const workloadResolution = resolveEffectiveWorkloadPolicy(policyRow);
+	const departmentRevision = await buildDepartmentAuthoritySourceRevision(
+		schoolId,
+		departmentAliasRows,
+		departmentLabelRows,
+		null,
+		null,
+	);
+	const cycleState: CycleStateSnapshot = cycleRead.source.state === 'UNCONFIGURED'
+		? { state: 'MISSING', version: 0 }
+		: cycleRead.diagnostic?.mismatched
+		? { state: 'MISMATCH', version: cycleRead.source.version }
+		: { state: cycleRead.source.state, version: cycleRead.source.version };
 
 	return {
 		schoolId,
@@ -1324,6 +1447,9 @@ export async function readReconciliationSourceSnapshot(
 		})),
 		specializationAliases: specializationAliases.map((row: any) => ({ alias: row.alias, canonical: row.canonical })),
 		crossDepartmentPermissions: crossDepartmentPermissions.map((row: any) => ({ facultyId: row.facultyId, subjectId: row.subjectId })),
+		departmentAliases: departmentAliasRows.map((row: any) => ({ alias: row.alias, department: row.department })),
+		departmentLabels: departmentLabelRows.map((row: any) => ({ code: row.code, label: row.label })),
+		subjectOwnerPrefixes: subjectOwnerPrefixRows.map((row: any) => ({ prefix: row.prefix, department: row.department })),
 		workloadPolicy: workloadResolution.policy
 			? {
 				teachingStandardMinutes: workloadResolution.policy.teachingStandardMinutes,
@@ -1337,6 +1463,7 @@ export async function readReconciliationSourceSnapshot(
 			aliasRows: departmentRevision.aliasRows,
 			labelRows: departmentRevision.labelRows,
 		},
+		cycleState,
 	};
 }
 
@@ -1369,7 +1496,7 @@ export interface TeachingLoadReconciliationPreview {
 	hgRows: { found: number; removed: number; removedRows: Array<{ ownershipId: number; subjectId: number; sectionId: number; facultyId: number }> };
 	departmentAuthority: { status: string; aliasRows: number; labelRows: number; revisionHash: string };
 	workloadPolicy: WorkloadPolicySnapshot;
-	cycleImpact: { stateBefore: string; stateAfter: string };
+	cycleImpact: { stateBefore: 'MISSING' | 'EMPTY' | 'POPULATED' | 'MISMATCH'; stateAfter: string; cycleVersion: number };
 	effectiveContractImpact: { hgRowsExcluded: boolean; stableExternalIdentifiers: boolean; rotationAndTermMetadataPreserved: boolean };
 	zeroWriteProof: { preview: boolean; writes: number };
 	confirmationText: string;
@@ -1410,8 +1537,6 @@ export async function previewTeachingLoadReconciliation(
 	const before = computeWorkloadDistribution(activeFaculty, beforeMinutes, snapshot.workloadPolicy, activeSectionIds);
 	const after = computeWorkloadDistribution(activeFaculty, afterMinutes, snapshot.workloadPolicy, activeSectionIds);
 
-	const stateBefore = 'POPULATED'; // the census reads the persisted cycle; preview reads ownership directly.
-
 	return {
 		schemaVersion: SCHEMA_VERSION,
 		schoolId,
@@ -1448,7 +1573,7 @@ export async function previewTeachingLoadReconciliation(
 			revisionHash: snapshot.departmentRevision.revisionHash,
 		},
 		workloadPolicy: snapshot.workloadPolicy,
-		cycleImpact: { stateBefore, stateAfter: 'POPULATED' },
+		cycleImpact: { stateBefore: snapshot.cycleState.state, stateAfter: 'POPULATED', cycleVersion: snapshot.cycleState.version },
 		effectiveContractImpact: {
 			hgRowsExcluded: plan.hgRowsFound.length > 0 || snapshot.ownership.every((row) => (snapshot.subjects.find((subject) => subject.id === row.subjectId)?.code ?? '').toUpperCase() !== HG_SUBJECT_CODE),
 			stableExternalIdentifiers: true,
@@ -1506,6 +1631,14 @@ function assertActorScope(actorSchoolId: number | null | undefined, schoolId: nu
 	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0 || actorSchoolId !== schoolId) {
 		throw err(403, 'SCHOOL_MISMATCH', 'Request school does not match the authenticated actor school.');
 	}
+}
+
+// Test-only hook: lets tests inject a cycle-refresh failure and prove the whole
+// transaction rolls back. NEVER set outside a test harness.
+let cycleRefreshOverride: ((schoolId: number, schoolYearId: number, client: Prisma.TransactionClient) => Promise<unknown>) | null = null;
+
+export function __setCycleRefreshOverrideForTest(fn: ((schoolId: number, schoolYearId: number, client: Prisma.TransactionClient) => Promise<unknown>) | null): void {
+	cycleRefreshOverride = fn;
 }
 
 async function executePlanInTransaction(
@@ -1673,6 +1806,15 @@ async function executePlanInTransaction(
 		},
 	});
 
+	// Refresh the annual Teaching Load cycle INSIDE the same transaction as the
+	// ownership/FacultySubject/audit writes so an injected failure (or any
+	// concurrent abort) rolls back every write atomically.
+	if (cycleRefreshOverride) {
+		await cycleRefreshOverride(schoolId, schoolYearId, tx);
+	} else {
+		await refreshTeachingLoadCycle(schoolId, schoolYearId, tx);
+	}
+
 	return {
 		inserted: writes.inserted,
 		moved: writes.moved,
@@ -1754,10 +1896,9 @@ export async function applyTeachingLoadReconciliation(input: ApplyTeachingLoadRe
 			};
 		}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-		// Refresh the annual Teaching Load cycle once after a successful apply.
-		if (!result.replayed) {
-			await refreshTeachingLoadCycle(schoolId, schoolYearId);
-		}
+		// Cycle refresh happens INSIDE the Serializable transaction (see
+		// executePlanInTransaction). Replay performs zero writes and refreshes
+		// nothing. Nothing runs against the global client from here on.
 		return result;
 	} catch (error: unknown) {
 		if (isTransactionConflictError(error)) {
@@ -1793,7 +1934,10 @@ export async function getTeachingLoadReconciliationReadiness(
 	const unresolvedCount = plan.actions.filter((entry) => entry.action === 'UNRESOLVED').length;
 	const insertedCount = plan.actions.filter((entry) => entry.action === 'INSERT').length;
 	const movedCount = plan.actions.filter((entry) => entry.action === 'MOVE').length;
-	const ownedDemandCount = plan.actions.filter((entry) => entry.action === 'RETAIN' || entry.action === 'MOVE' || entry.action === 'INSERT').length;
+	const retainedCount = plan.actions.filter((entry) => entry.action === 'RETAIN').length;
+	// Unique final-action model: each demanded pair has exactly one action among
+	// RETAIN/INSERT/MOVE/UNRESOLVED, so owned <= demand always holds.
+	const ownedDemandCount = retainedCount + movedCount + insertedCount;
 
 	const blockers: Array<{ code: string; message: string }> = [];
 	if (!snapshot.termConfig) {
@@ -1822,7 +1966,7 @@ export async function getTeachingLoadReconciliationReadiness(
 		demandCount,
 		ownedDemandCount,
 		unresolvedDemandCount: unresolvedCount,
-		validOwnershipCount: plan.actions.filter((entry) => entry.action === 'RETAIN').length,
+		validOwnershipCount: retainedCount,
 		blockers,
 		acceptedExceptions: 0,
 	};

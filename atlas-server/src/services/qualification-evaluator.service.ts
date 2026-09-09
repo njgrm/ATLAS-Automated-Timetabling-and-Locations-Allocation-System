@@ -43,64 +43,95 @@ export interface QualificationResult {
 
 // ─── Policy Cache (per school) ───
 
-interface QualificationPolicy {
+export interface QualificationPolicy {
   schoolId: number;
   departmentAliases: Map<string, string>;
   departmentLabels: Map<string, string>;
   subjectOwnerPrefixes: Map<string, string>;
   crossDepartmentPermissions: Map<number, Set<number>>; // facultyId -> Set<subjectId>
   legacyCrossLanguageException: boolean;
+  /** Persisted-only mode: never fall back to the legacy name/prefix tables. */
+  persistedOnly: boolean;
   revision: number;
+}
+
+export interface QualificationPolicySnapshotInput {
+  departmentAliases?: Array<{ alias: string; department: string }>;
+  departmentLabels?: Array<{ code: string; label: string }>;
+  subjectOwnerPrefixes?: Array<{ prefix: string; department: string }>;
+  crossDepartmentPermissions?: Array<{ facultyId: number; subjectId: number }>;
+  legacyCrossLanguageException?: boolean;
+  persistedOnly?: boolean;
+}
+
+/**
+ * Build a canonical qualification policy snapshot from PERSISTED rows only.
+ * The caller supplies the rows (read through the caller's client/transaction);
+ * nothing here reads the database or consults legacy name/prefix tables.
+ */
+export function buildQualificationPolicySnapshot(
+  schoolId: number,
+  input: QualificationPolicySnapshotInput = {},
+): QualificationPolicy {
+  const departmentAliases = new Map<string, string>();
+  for (const row of input.departmentAliases ?? []) {
+    departmentAliases.set(row.alias.trim().toUpperCase(), row.department.trim().toUpperCase());
+  }
+  const departmentLabels = new Map<string, string>();
+  for (const row of input.departmentLabels ?? []) {
+    departmentLabels.set(row.code.trim().toUpperCase(), row.label.trim());
+  }
+  const subjectOwnerPrefixes = new Map<string, string>();
+  for (const row of input.subjectOwnerPrefixes ?? []) {
+    subjectOwnerPrefixes.set(row.prefix.trim().toUpperCase(), row.department.trim().toUpperCase());
+  }
+  const crossDepartmentPermissions = new Map<number, Set<number>>();
+  for (const row of input.crossDepartmentPermissions ?? []) {
+    const set = crossDepartmentPermissions.get(row.facultyId) ?? new Set<number>();
+    set.add(row.subjectId);
+    crossDepartmentPermissions.set(row.facultyId, set);
+  }
+  return {
+    schoolId,
+    departmentAliases,
+    departmentLabels,
+    subjectOwnerPrefixes,
+    crossDepartmentPermissions,
+    legacyCrossLanguageException: input.legacyCrossLanguageException ?? false,
+    persistedOnly: input.persistedOnly ?? true,
+    revision: (input.departmentAliases?.length ?? 0)
+      + (input.departmentLabels?.length ?? 0)
+      + (input.subjectOwnerPrefixes?.length ?? 0)
+      + (input.crossDepartmentPermissions?.length ?? 0),
+  };
 }
 
 const policyCache = new Map<number, QualificationPolicy>();
 const POLICY_TTL_MS = 30_000;
 let policyTimestamps = new Map<number, number>();
 
-async function getPolicy(schoolId: number): Promise<QualificationPolicy> {
+async function getPolicy(schoolId: number, client?: unknown): Promise<QualificationPolicy> {
   const now = Date.now();
   const cached = policyCache.get(schoolId);
   const ts = policyTimestamps.get(schoolId) ?? 0;
   if (cached && now - ts < POLICY_TTL_MS) return cached;
 
+  const tx = client ?? db();
   const [aliasRows, labelRows, prefixRows, permRows] = await Promise.all([
-    db().departmentAlias.findMany({ where: { schoolId } }),
-    db().departmentLabel.findMany({ where: { schoolId } }),
-    db().subjectOwnerPrefix.findMany({ where: { schoolId } }),
-    db().crossDepartmentPermission.findMany({ where: { schoolId } }),
+    (tx as any).departmentAlias.findMany({ where: { schoolId } }),
+    (tx as any).departmentLabel.findMany({ where: { schoolId } }),
+    (tx as any).subjectOwnerPrefix.findMany({ where: { schoolId } }),
+    (tx as any).crossDepartmentPermission.findMany({ where: { schoolId } }),
   ]);
 
-  const departmentAliases = new Map<string, string>();
-  for (const row of aliasRows) {
-    departmentAliases.set(row.alias.toUpperCase(), row.department.toUpperCase());
-  }
-
-  const departmentLabels = new Map<string, string>();
-  for (const row of labelRows) {
-    departmentLabels.set(row.code.toUpperCase(), row.label);
-  }
-
-  const subjectOwnerPrefixes = new Map<string, string>();
-  for (const row of prefixRows) {
-    subjectOwnerPrefixes.set(row.prefix.toUpperCase(), row.department.toUpperCase());
-  }
-
-  const crossDepartmentPermissions = new Map<number, Set<number>>();
-  for (const row of permRows) {
-    const set = crossDepartmentPermissions.get(row.facultyId) ?? new Set();
-    set.add(row.subjectId);
-    crossDepartmentPermissions.set(row.facultyId, set);
-  }
-
-  const policy: QualificationPolicy = {
-    schoolId,
-    departmentAliases,
-    departmentLabels,
-    subjectOwnerPrefixes,
-    crossDepartmentPermissions,
+  const policy = buildQualificationPolicySnapshot(schoolId, {
+    departmentAliases: aliasRows,
+    departmentLabels: labelRows,
+    subjectOwnerPrefixes: prefixRows,
+    crossDepartmentPermissions: permRows,
     legacyCrossLanguageException: true, // preserved from existing behavior
-    revision: aliasRows.length + labelRows.length + prefixRows.length + permRows.length,
-  };
+    persistedOnly: false,
+  });
 
   policyCache.set(schoolId, policy);
   policyTimestamps.set(schoolId, now);
@@ -150,6 +181,8 @@ export function normalizeDepartmentCode(value: string | null | undefined, policy
   // Check persisted aliases first
   const aliasTarget = policy.departmentAliases.get(upper);
   if (aliasTarget) return aliasTarget;
+  // Persisted-only mode never falls back to the legacy name table.
+  if (policy.persistedOnly) return upper;
   // Fall back to legacy normalization
   return LEGACY_DEPARTMENT_NORMALIZATION[upper] ?? upper;
 }
@@ -276,9 +309,22 @@ export interface QualificationInput {
 export async function evaluateQualification(
   input: QualificationInput,
   schoolId: number,
+  client?: unknown,
 ): Promise<QualificationResult> {
-  const policy = await getPolicy(schoolId);
+  const policy = await getPolicy(schoolId, client);
+  return evaluateQualificationWithPolicy(input, policy);
+}
 
+/**
+ * Pure canonical tier evaluation against an injected policy snapshot. No
+ * database access, no per-school cache. Callers that need a transaction-bound
+ * persisted-policy evaluation build the snapshot with
+ * `buildQualificationPolicySnapshot` and pass it here.
+ */
+export function evaluateQualificationWithPolicy(
+  input: QualificationInput,
+  policy: QualificationPolicy,
+): QualificationResult {
   const facultyDept = normalizeDepartmentCode(input.facultyDepartment, policy);
   const subjectDept = normalizeDepartmentCode(input.subjectOwnerDepartment, policy);
   const allowedDepts = input.subjectAllowedDepartments.map((d) => normalizeDepartmentCode(d, policy)!).filter(Boolean);
@@ -341,6 +387,20 @@ export async function evaluateQualification(
     result.eligible = true;
     result.tier = 2;
     result.reason = 'SPECIALIZATION_AND_DEPARTMENT_MATCH';
+    return result;
+  }
+
+  // Department match tier (persisted-only): a faculty whose persisted
+  // department equals the subject's persisted owner department is qualified.
+  // This mirrors the production manual-assignment path
+  // (`resolveQualificationTierForManual` / `matchesSubjectOwnershipDepartment`),
+  // which treats department ownership as the primary gate even when the subject
+  // also declares specialization metadata. The tier is additive: tiers 1, 2 and
+  // 3 semantics are unchanged.
+  if (deptMatch) {
+    result.eligible = true;
+    result.tier = 2;
+    result.reason = 'DEPARTMENT_MATCH';
     return result;
   }
 
