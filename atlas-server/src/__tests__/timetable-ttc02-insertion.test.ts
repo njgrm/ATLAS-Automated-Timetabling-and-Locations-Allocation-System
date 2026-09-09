@@ -21,6 +21,7 @@ import {
   type WeeklySlot,
 } from '../services/timetable-insertion.service.js';
 import type { SectionMirror } from '@prisma/client';
+import timetableUnassignedRouter from '../routes/timetable-unassigned.router.js';
 
 const TERM_CONFIG = {
   id: 1,
@@ -64,6 +65,31 @@ function makeSection(overrides: Partial<SectionMirror> = {}): SectionMirror {
   };
 }
 
+test('room capacity uses canonical enrollment rule', () => {
+  const subject = { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: 35 };
+  const candidates = filterCompatibleRooms(
+    [
+      { ...rooms()[0], id: 10, name: 'Too Small', capacity: 34 },
+      { ...rooms()[0], id: 11, name: 'Exact Fit', capacity: 35 },
+    ],
+    subject,
+  );
+  assert.deepEqual(candidates.map((room) => room.name), ['Exact Fit']);
+  const verdict = searchCandidateSlots(makeLine({ enrolledCount: 35, sessionsPerWeek: 1 }), buildWeeklyDayShape(dayShapePolicy()), candidates, emptyOccupancy(), subject);
+  assert.equal(verdict.reason, 'INDIVIDUALLY_PREVIEWABLE');
+  assert.equal(verdict.candidates[0]?.roomName, 'Exact Fit');
+});
+
+test('production router exposes summary and preview only', () => {
+  const routes = (timetableUnassignedRouter as unknown as { stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }> }).stack
+    .flatMap((layer) => layer.route ? Object.keys(layer.route.methods).map((method) => `${method.toUpperCase()} ${layer.route?.path}`) : []);
+  assert.deepEqual(routes, [
+    'GET /:schoolId/:schoolYearId/unassigned-workflow/summary',
+    'POST /:schoolId/:schoolYearId/unassigned-workflow/preview',
+  ]);
+  assert.equal(routes.some((route) => route.includes('/apply')), false);
+});
+
 function makeLine(overrides: Partial<TimetableDemandLine> = {}): TimetableDemandLine {
   return {
     demandKey: buildDemandLineKey({ subjectId: 1, sectionExternalId: 9001, termIdentity: 'T1' }),
@@ -87,6 +113,7 @@ function makeLine(overrides: Partial<TimetableDemandLine> = {}): TimetableDemand
     homeRoomId: null,
     buildingZoneId: null,
     maxCapacity: 40,
+    enrolledCount: 35,
     weeklyMinutes: 270,
     periodLengthMinutes: 45,
     sessionsPerWeek: 6,
@@ -262,7 +289,7 @@ test('HG exclusion negative control: an HG line can never become a candidate and
     weeklySlots,
     rooms(),
     emptyOccupancy(),
-    { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
+    { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount },
   );
   assert.equal(verdict.reason, 'HG_FORBIDDEN');
   assert.equal(verdict.feasible, false);
@@ -338,7 +365,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
     weeklySlots,
     [],
     emptyOccupancy(),
-    { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
+    { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount },
   );
   assert.equal(noRooms.reason, 'NO_COMPATIBLE_ROOM', 'zero compatible rooms => NO_COMPATIBLE_ROOM');
   assert.equal(noRooms.diagnostic.compatibleRoomCount, 0);
@@ -354,7 +381,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
     weeklySlots,
     rooms(),
     occupancyTeacherFull,
-    { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
+    { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount },
   );
   assert.equal(teacherFull.reason, 'NO_AVAILABLE_SLOT', 'teacher full on every slot => NO_AVAILABLE_SLOT');
 
@@ -367,7 +394,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
     weeklySlots,
     rooms(),
     occupancySectionBusy,
-    { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
+    { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount },
   );
   assert.equal(sectionBusy.reason, 'HARD_CONFLICT', 'section occupied on every candidate slot => HARD_CONFLICT');
 
@@ -376,7 +403,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
     weeklySlots,
     rooms(),
     emptyOccupancy(),
-    { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
+    { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount },
   );
   assert.equal(free.reason, 'INDIVIDUALLY_PREVIEWABLE');
   assert.equal(free.feasible, true);
@@ -387,7 +414,7 @@ test('deterministic bounded-search ordering with stable tie-breakers', () => {
   const policy = dayShapePolicy();
   const weeklySlots = buildWeeklyDayShape(policy);
   const line = makeLine({ sessionsPerWeek: 3 });
-  const subject = { preferredRoomType: 'CLASSROOM', gradeLevel: 7 };
+  const subject = { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount };
   const compatibleRooms = filterCompatibleRooms(rooms(), subject);
 
   const first = searchCandidateSlots(line, weeklySlots, compatibleRooms, emptyOccupancy(), subject);
@@ -419,7 +446,7 @@ test('locked-session occupancy turns a free slot into a hard conflict', () => {
     weeklySlots,
     rooms(),
     occupied,
-    { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
+    { preferredRoomType: 'CLASSROOM', gradeLevel: 7, enrolledCount: line.enrolledCount },
   );
   assert.equal(occupied.teacher.some((entry) => entry.id === line.ownerFacultyId && entry.startTime === '06:55'), true);
   assert.notEqual(verdict.candidates[0].startTime, '07:00', 'an intersecting lock with a different start time must block Monday 07:00');

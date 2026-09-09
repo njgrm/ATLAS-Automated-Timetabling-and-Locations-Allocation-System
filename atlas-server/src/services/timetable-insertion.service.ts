@@ -13,18 +13,14 @@
  *   SOURCE_STALE | HG_FORBIDDEN
  *
  * Ownership is read-only here (the Teaching Load owner is authoritative and
- * is never silently changed). The preview is zero-write; apply is privileged,
- * fingerprint-bound, runs in a Serializable transaction, touches ONLY
- * timetable draft state (pre-generation LockedSession rows), never Teaching
- * Load/curriculum/subjects/sections/publication, and is idempotent by
- * fingerprint. Run-bound unassigned placement deliberately delegates to the
- * existing generated-run manual-edit PLACE_UNASSIGNED flows.
+ * is never silently changed). Summary and preview are the only operations;
+ * this service contains no timetable write path.
  */
 
 import { createHash } from 'node:crypto';
-import { Prisma } from '@prisma/client';
 import { getDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
+import { roomCanFitEnrollment } from './schedule-constructor.js';
 import {
   buildCanonicalTimetableDemand,
   HG_SUBJECT_CODE,
@@ -229,17 +225,17 @@ export interface CandidateRoom {
 
 export function isRoomCompatibleForSubject(
   room: CandidateRoom,
-  subject: { preferredRoomType: string; gradeLevel: number },
+  subject: { preferredRoomType: string; gradeLevel: number; enrolledCount: number },
 ): boolean {
   if (!room.isTeachingSpace || room.isSharedFacility) return false;
   if (room.buildingGradeScope.length > 0 && !room.buildingGradeScope.includes(subject.gradeLevel)) return false;
-  if (room.capacity !== null && room.capacity < 1) return false;
+  if (!roomCanFitEnrollment(room.capacity, subject.enrolledCount)) return false;
   return room.type === subject.preferredRoomType || room.type === 'CLASSROOM';
 }
 
 export function filterCompatibleRooms(
   rooms: CandidateRoom[],
-  subject: { preferredRoomType: string; gradeLevel: number },
+  subject: { preferredRoomType: string; gradeLevel: number; enrolledCount: number },
 ): CandidateRoom[] {
   return rooms
     .filter((room) => isRoomCompatibleForSubject(room, subject))
@@ -324,7 +320,7 @@ export function searchCandidateSlots(
   weeklySlots: WeeklySlot[],
   compatibleRooms: CandidateRoom[],
   occupancy: OccupancyState,
-  subject: { preferredRoomType: string; gradeLevel: number },
+  subject: { preferredRoomType: string; gradeLevel: number; enrolledCount: number },
   options?: { maxEvaluatedSlots?: number },
 ): InsertionSearchResult {
   const needed = Math.max(1, line.sessionsPerWeek);
@@ -571,7 +567,7 @@ export async function summarizeUnassignedInsertionReadiness(
     const subject = subjectById.get(line.subjectId);
     const compatibleRooms =
       subject && policy
-        ? filterCompatibleRooms(candidateRooms, { preferredRoomType: subject.preferredRoomType, gradeLevel: line.gradeLevel })
+        ? filterCompatibleRooms(candidateRooms, { preferredRoomType: subject.preferredRoomType, gradeLevel: line.gradeLevel, enrolledCount: line.enrolledCount })
         : [];
     const slotVerdict =
       subject && policy
@@ -580,7 +576,7 @@ export async function summarizeUnassignedInsertionReadiness(
             weeklySlots,
             compatibleRooms,
             occupancy,
-            { preferredRoomType: subject.preferredRoomType, gradeLevel: line.gradeLevel },
+            { preferredRoomType: subject.preferredRoomType, gradeLevel: line.gradeLevel, enrolledCount: line.enrolledCount },
           )
         : {
             reason: 'NO_AVAILABLE_SLOT' as InsertionReason,
@@ -655,6 +651,13 @@ export interface InsertionPreviewResult {
   zeroWrite: true;
 }
 
+function previewError(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
+  const error = new Error(message) as Error & { statusCode: number; code: string };
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
 export function buildInsertionFingerprint(input: {
   scope: { schoolId: number; schoolYearId: number };
   demandKey: string;
@@ -696,7 +699,7 @@ export async function previewUnassignedInsertion(
   const summary = await summarizeUnassignedInsertionReadiness(schoolId, schoolYearId);
   const line = summary.lineStates.find((candidate) => candidate.demandKey === demandKey);
   if (!line) {
-    throw err(404, 'DEMAND_LINE_NOT_FOUND', `No demanded meeting line matches ${demandKey}.`);
+    throw previewError(404, 'DEMAND_LINE_NOT_FOUND', `No demanded meeting line matches ${demandKey}.`);
   }
   if (line.state !== 'INDIVIDUALLY_PREVIEWABLE' || line.candidates.length === 0) {
     const candidates: CandidateSlot[] = [];
@@ -749,275 +752,4 @@ export async function previewUnassignedInsertion(
     fingerprint,
     zeroWrite: true,
   };
-}
-
-// ─── Apply (privileged, fingerprint-bound, pre-generation draft only) ───
-
-export interface InsertionApplyInput {
-  schoolId: number;
-  schoolYearId: number;
-  actorId: number;
-  actorSchoolId: number;
-  previewFingerprint: string;
-  confirm: boolean;
-  demandKey: string;
-  candidateIndex: number;
-}
-
-export interface InsertionApplyResult {
-  applied: boolean;
-  alreadyApplied: boolean;
-  lockedSessionId: number | null;
-  auditLogId: number | null;
-  action: string;
-}
-
-function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
-  const error = new Error(message) as Error & { statusCode: number; code: string };
-  error.statusCode = statusCode;
-  error.code = code;
-  return error;
-}
-
-/**
- * Privileged, fingerprint-bound apply. Writes ONLY a pre-generation draft
- * LockedSession row (authorized timetable draft state) plus its
- * LockedSessionAction and one audit log. It never updates Teaching Load,
- * curriculum, subjects, sections, generation runs, or publication. All
- * authority is revalidated inside a Serializable transaction; stale or
- * conflicting source state fails with a typed 409; a repeated fingerprint is
- * idempotent (no duplicate row, no duplicate audit).
- *
- * Insertion semantics: each apply places exactly ONE weekly session of a
- * demanded line (one LockedSession row at one day/time/room), matching the
- * per-session manual PLACE_UNASSIGNED contract used for generated runs. A
- * line with `sessionsPerWeek > 1` requires one apply per session; because the
- * first insert changes draft occupancy, each additional session is placed
- * through a fresh preview whose fingerprint binds the updated candidate list.
- * A repeated apply of the same fingerprint + candidate index is a no-op.
- */
-async function experimentalApplyUnassignedInsertion(input: InsertionApplyInput): Promise<InsertionApplyResult> {
-  if (input.actorSchoolId !== input.schoolId) {
-    throw err(403, 'CROSS_SCHOOL_DENIED', 'Cannot insert timetable meetings for another school.');
-  }
-  if (input.confirm !== true) {
-    throw err(400, 'CONFIRM_REQUIRED', 'Insertion apply requires confirm=true.');
-  }
-  if (typeof input.previewFingerprint !== 'string' || !input.previewFingerprint.startsWith('TTI_')) {
-    throw err(400, 'FINGERPRINT_REQUIRED', 'A valid previewFingerprint is required to apply.');
-  }
-  if (!Number.isInteger(input.candidateIndex) || input.candidateIndex < 0) {
-    throw err(400, 'INVALID_CANDIDATE_INDEX', 'candidateIndex must be a non-negative integer.');
-  }
-
-  const client = db();
-
-  // 1. Idempotency guard FIRST: the exact preview fingerprint already applied
-  //    is a no-op. This must precede fingerprint recomputation because a prior
-  //    apply legitimately changed the draft occupancy the fingerprint covers.
-  const priorAudit = await client.auditLog.findFirst({
-    where: {
-      schoolId: input.schoolId,
-      schoolYearId: input.schoolYearId,
-      action: 'TIMETABLE_INSERTION_APPLIED',
-      metadata: { path: ['previewFingerprint'], equals: input.previewFingerprint },
-    },
-    select: { id: true },
-    orderBy: { createdAt: 'desc' },
-  });
-  if (priorAudit) {
-    return {
-      applied: false,
-      alreadyApplied: true,
-      lockedSessionId: null,
-      auditLogId: priorAudit.id,
-      action: 'TIMETABLE_INSERTION_ALREADY_APPLIED',
-    };
-  }
-
-  // 2. Recompute the canonical fingerprint against CURRENT COMMITTED authority
-  //    before opening the write transaction. Any drift from the previewed
-  //    fingerprint rejects with a typed 409 (stale or conflicting source).
-  const demand = await buildCanonicalTimetableDemand(input.schoolId, input.schoolYearId);
-  const line = demand.demandLines.find((candidate) => candidate.demandKey === input.demandKey);
-  if (!line) {
-    throw err(404, 'DEMAND_LINE_NOT_FOUND', `No demanded meeting line matches ${input.demandKey}.`);
-  }
-  if (line.subjectCode === HG_SUBJECT_CODE) {
-    throw err(409, 'HG_FORBIDDEN', 'Homeroom Guidance can never become a timetable meeting.');
-  }
-  const summary = await summarizeUnassignedInsertionReadiness(input.schoolId, input.schoolYearId);
-  const targetLine = summary.lineStates.find((candidate) => candidate.demandKey === input.demandKey);
-  if (!targetLine || targetLine.state !== 'INDIVIDUALLY_PREVIEWABLE') {
-    throw err(409, 'INSERTION_NOT_PLACEABLE', `Meeting is not placeable (${targetLine?.state ?? 'unknown'}).`);
-  }
-  const candidate = targetLine.candidates[input.candidateIndex];
-  if (!candidate) {
-    throw err(409, 'INSERTION_CANDIDATE_CHANGED', 'The chosen candidate no longer exists. Re-preview.');
-  }
-
-  // searchCandidateSlots is deterministic, so re-searching under the same
-  // committed authority reproduces the exact previewed candidate list.
-  const expected = buildInsertionFingerprint({
-    scope: { schoolId: input.schoolId, schoolYearId: input.schoolYearId },
-    demandKey: input.demandKey,
-    sourceRevisionSha256: demand.sourceRevision.sha256,
-    cycleVersion: demand.sourceRevision.teachingLoad.cycleVersion,
-    ownershipHash: demand.sourceRevision.teachingLoad.hash,
-    candidates: targetLine.candidates,
-  });
-  if (expected !== input.previewFingerprint) {
-    const details = {
-      previewFingerprint: input.previewFingerprint,
-      recomputedFingerprint: expected,
-      recomputedCandidates: targetLine.candidates.map((c) => `${c.day}|${c.startTime}|${c.roomId}`).join(','),
-      slotDiagnostic: targetLine.slotDiagnostic,
-      sourceRevisionSha256: demand.sourceRevision.sha256,
-      ownershipHash: demand.sourceRevision.teachingLoad.hash,
-      cycleVersion: demand.sourceRevision.teachingLoad.cycleVersion,
-    };
-    const error = err(
-      409,
-      'INSERTION_STALE_AUTHORITY',
-      'Curriculum, Teaching Load, policy, or rooms changed since the preview. Refresh and re-preview before applying.',
-    ) as Error & { statusCode: number; code: string; details?: unknown };
-    error.details = details;
-    throw error;
-  }
-
-  // 2. Serializable write transaction: idempotency guard, occupancy recheck
-  //    for the exact candidate, then commit ONLY the draft row + its action +
-  //    one audit log atomically. Concurrent duplicates are also blocked by the
-  //    locked_session unique key.
-  return client.$transaction(
-    async (tx) => {
-      const priorAudit = await tx.auditLog.findFirst({
-        where: {
-          schoolId: input.schoolId,
-          schoolYearId: input.schoolYearId,
-          action: 'TIMETABLE_INSERTION_APPLIED',
-          metadata: { path: ['previewFingerprint'], equals: input.previewFingerprint },
-        },
-        select: { id: true },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (priorAudit) {
-        return {
-          applied: false,
-          alreadyApplied: true,
-          lockedSessionId: null,
-          auditLogId: priorAudit.id,
-          action: 'TIMETABLE_INSERTION_ALREADY_APPLIED',
-        };
-      }
-
-      const slotScope = {
-        schoolId: input.schoolId,
-        schoolYearId: input.schoolYearId,
-        status: 'DRAFT' as const,
-        day: candidate.day as never,
-        startTime: candidate.startTime,
-      };
-      const [sectionBusy, teacherBusy, roomBusy] = await Promise.all([
-        tx.lockedSession.findFirst({
-          where: { ...slotScope, entryKind: 'SECTION', sectionId: line.sectionExternalId },
-          select: { id: true },
-        }),
-        line.ownerFacultyId === null
-          ? Promise.resolve(null)
-          : tx.lockedSession.findFirst({
-              where: { ...slotScope, facultyId: line.ownerFacultyId },
-              select: { id: true },
-            }),
-        tx.lockedSession.findFirst({ where: { ...slotScope, roomId: candidate.roomId }, select: { id: true } }),
-      ]);
-      if (sectionBusy || teacherBusy || roomBusy) {
-        throw err(409, 'HARD_CONFLICT', 'That weekly slot is already occupied for this section, owner, or room.');
-      }
-
-      try {
-        const lock = await tx.lockedSession.create({
-          data: {
-            schoolId: input.schoolId,
-            schoolYearId: input.schoolYearId,
-            entryKind: 'SECTION',
-            sectionId: line.sectionExternalId,
-            subjectId: line.subjectId,
-            facultyId: line.ownerFacultyId,
-            roomId: candidate.roomId,
-            cohortCode: null,
-            status: 'DRAFT',
-            notes: 'TT-C02 unassigned insertion',
-            day: candidate.day as never,
-            startTime: candidate.startTime,
-            endTime: candidate.endTime,
-            termIndex: line.termIndex,
-            createdBy: input.actorId,
-          },
-        });
-
-        await tx.lockedSessionAction.create({
-          data: {
-            lockId: lock.id,
-            schoolId: input.schoolId,
-            schoolYearId: input.schoolYearId,
-            actorId: input.actorId,
-            actionType: 'INSERT_UNASSIGNED_MEETING',
-            beforePayload: Prisma.JsonNull,
-            afterPayload: {
-              demandKey: input.demandKey,
-              day: candidate.day,
-              startTime: candidate.startTime,
-              endTime: candidate.endTime,
-              roomId: candidate.roomId,
-              subjectId: line.subjectId,
-              sectionId: line.sectionExternalId,
-              facultyId: line.ownerFacultyId,
-            } as unknown as Prisma.InputJsonValue,
-          },
-        });
-
-        const audit = await tx.auditLog.create({
-          data: {
-            schoolId: input.schoolId,
-            schoolYearId: input.schoolYearId,
-            action: 'TIMETABLE_INSERTION_APPLIED',
-            actorId: input.actorId,
-            targetIds: [lock.id],
-            metadata: {
-              previewFingerprint: input.previewFingerprint,
-              demandKey: input.demandKey,
-              day: candidate.day,
-              startTime: candidate.startTime,
-              endTime: candidate.endTime,
-              roomId: candidate.roomId,
-              lockedSessionId: lock.id,
-            } as unknown as Prisma.InputJsonValue,
-          },
-        });
-
-        return {
-          applied: true,
-          alreadyApplied: false,
-          lockedSessionId: lock.id,
-          auditLogId: audit.id,
-          action: 'TIMETABLE_INSERTION_APPLIED',
-        };
-      } catch (error) {
-        if (isUniqueConstraintError(error)) {
-          throw err(409, 'HARD_CONFLICT', 'That weekly slot already exists for this section and subject.');
-        }
-        throw error;
-      }
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 },
-  );
-}
-
-function isUniqueConstraintError(error: unknown): boolean {
-  if (error && typeof error === 'object') {
-    const candidate = error as { code?: string };
-    return candidate.code === 'P2002';
-  }
-  return false;
 }

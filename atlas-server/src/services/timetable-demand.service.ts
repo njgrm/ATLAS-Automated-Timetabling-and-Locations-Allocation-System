@@ -95,6 +95,7 @@ export interface TimetableDemandLine {
   homeRoomId: number | null;
   buildingZoneId: string | null;
   maxCapacity: number;
+  enrolledCount: number;
   weeklyMinutes: number;
   periodLengthMinutes: number;
   sessionsPerWeek: number;
@@ -534,6 +535,7 @@ export async function buildCanonicalTimetableDemand(
           homeRoomId: section.homeRoomId,
           buildingZoneId: section.buildingZoneId,
           maxCapacity: section.maxCapacity,
+          enrolledCount: section.enrolledCount,
           weeklyMinutes: offering.weeklyMinutes,
           periodLengthMinutes,
           sessionsPerWeek: sessions,

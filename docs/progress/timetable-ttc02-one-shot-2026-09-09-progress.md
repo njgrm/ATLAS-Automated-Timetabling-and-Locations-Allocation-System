@@ -48,8 +48,8 @@ Live year 8 (school 1) readiness: 552 demand lines / 2760 weekly sessions, 552 i
 
 ## Decisions and risks
 
-- No production apply route is mounted. The old apply implementation remains non-exported experimental code
-  with no production consumer; it confers no write authority.
+- No production apply route is mounted, and TT-C02R1 removes the dead experimental writable implementation entirely.
+- Room capacity reuses the canonical generator predicate (`null` capacity is unrestricted; otherwise room capacity must be at least section enrollment).
 - Run-bound unassigned placement deliberately delegates to the existing generated-run manual-edit flows;
   TT-C02 owns the pre-generation insertion path.
 - Risks: the bounded preview is intentionally not canonical generator validation and does not prove global

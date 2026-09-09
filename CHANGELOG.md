@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-09-09] — TT-C02R1 Preview-Only Cleanup
+
+### Added
+- Added a production-router assertion pinning the TT-C02 surface to summary GET and preview POST only.
+- Added a failing-first room-capacity control proving undersized rooms are excluded while a sufficient room remains individually previewable.
+
+### Changed
+- Removed the complete dead writable-apply implementation and apply-only imports, interfaces, and comments.
+- Reused the canonical generator room-capacity predicate and carried section enrollment into timetable demand.
+
+### Decisions Made
+- TT-C02 remains read-only and contains no timetable write implementation.
+
+### Open Questions
+- None for TT-C02R1; formal planner review remains required.
+
 ## [2026-09-09] — TT-C02R Preview-Only Correction
 
 ### Added

@@ -732,6 +732,11 @@ export interface DemandItem {
 	modularExpectedCount?: number;
 }
 
+/** Canonical generator capacity predicate. Unknown room capacity is unrestricted. */
+export function roomCanFitEnrollment(roomCapacity: number | null, enrolledCount: number): boolean {
+	return roomCapacity == null || roomCapacity >= enrolledCount;
+}
+
 export function computeDemand(
 	sectionsByGrade: SectionsByGrade[],
 	subjects: SubjectInput[],
@@ -1993,13 +1998,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						}
 					}
 
-					const hasCapacityCompliantClassroom = compatibleRooms.some((room) => room.capacity == null || room.capacity >= item.enrolledCount);
+					const hasCapacityCompliantClassroom = compatibleRooms.some((room) => roomCanFitEnrollment(room.capacity, item.enrolledCount));
 					sawCapacityOverflow = compatibleRooms.length > 0 && !hasCapacityCompliantClassroom;
 					if (!hasCapacityCompliantClassroom) {
 						const overflowRooms = teachingRooms
 							.filter((room) => !room.isSharedFacility)
 							.filter((room) => room.type !== 'CLASSROOM')
-							.filter((room) => room.capacity == null || room.capacity >= item.enrolledCount)
+							.filter((room) => roomCanFitEnrollment(room.capacity, item.enrolledCount))
 							.filter((room) => isRoomGradeScopeCompatible(room, item.gradeLevel))
 							.sort((left, right) => {
 								const leftZoneMatch = preferredZone != null && (left.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;
@@ -2076,7 +2081,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							continue;
 						}
 						sawOpenRoomForFaculty = true;
-						const exceedsRoomCapacity = room.capacity != null && item.enrolledCount > room.capacity;
+						const exceedsRoomCapacity = !roomCanFitEnrollment(room.capacity, item.enrolledCount);
 						const canBypassCapacityForHomeRoom = exceedsRoomCapacity
 							&& useHomeRoomPriority
 							&& item.entryKind === 'SECTION'
