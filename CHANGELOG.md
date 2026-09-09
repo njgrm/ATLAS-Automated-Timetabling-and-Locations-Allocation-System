@@ -3241,3 +3241,26 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - None.
+
+## [2026-09-09] — Planner/QA Continuity Rule
+
+### Added
+- Required every planner/QA verdict to include pending executor returns, the
+  single next action, safe parallel work, and dependency-locked successors.
+- Required copy-ready successor handoffs to identify the session, worktree,
+  branch, and accepted base, or explicitly state that integration must happen
+  first.
+
+### Changed
+- Planner/QA work no longer ends with a bare `GO`, `NO-GO`, or
+  `REVIEW_REQUIRED` verdict.
+
+### Decisions Made
+- Successor execution must not begin from a stale base when an accepted
+  candidate still requires integration.
+- Ordinary formally accepted candidates are integrated and pushed by the
+  planner/integration owner under standing user authorization unless the user
+  explicitly withholds that action. Separate `HIGH` approval gates remain.
+
+### Open Questions
+- None.

@@ -8,10 +8,10 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 |---|---|---|
 | RC-02 integration | DONE | `main` and `origin/main` at `4559eb13bbd371dd7945b39128f8c0dcdacd430a`; 499 focused assertions, both type-checks/builds, isolated built-server health passed |
 | RC-02D live deployment | DONE | Planner accepted `396a7275..6d537148`; integrated and pushed through `7d5142c0`. Built server is live on Tailnet port 5001 with rollover automation disabled. |
-| SCA-04A decision preview | IN PROGRESS | Operator decisions captured 2026-09-09 (terms 3x Term 1/2/3; SCIENCE + TLE_ROTATION rotation orders; 216 creates / 17 excluded); zero-write preview fingerprint written — see SCA-04A ledger rows |
-| SCA-04B curriculum apply | LOCKED | Requires complete decisions, fresh fingerprint, and exact user approval |
-| TL-C02 allocation/rebalance | LOCKED | Requires verified SCA-04B authority |
-| TT-C02 unassigned insertion | LOCKED | Requires verified SCA-04B and canonical TL contract |
+| SCA-04B curriculum apply | DONE | Term config id 71 and 216 approved requirements are persisted; readiness is 16/16 CONFIGURED with zero blockers |
+| TL-C02 allocation/rebalance | IN PROGRESS | Executor correction stream remains active in `work/teaching-load-tlc02`; await its immutable handoff before review or integration |
+| TT-C02 unassigned insertion | DONE | Accepted through `7f7aa814`; preview-only workflow, dead apply path removed, canonical room-capacity predicate shared with construction |
+| TT-C03 shared candidate domain | READY | May run from current `origin/main`; must remain source/test-only and must not touch TL-C02-owned files or generate a timetable |
 | EVAL-C02 integrated UX/objectives QA | LOCKED | Runs after TL-C02 and TT-C02 source candidates integrate |
 | RC-03 generation/readiness | LOCKED | Requires accepted SCA/TL/TT and explicit generation approval |
 
@@ -69,12 +69,13 @@ Authoritative sequence: `docs/prompts/atlas-core-readiness-next-sequence-2026-09
 
 ## Next action
 
-Run
-`docs/prompts/subjects-curriculum-authority-04a-operator-decision-preview-2026-09-09.md`
-in a fresh isolated executor worktree from current `origin/main`. No generation
-is authorized; generation remains process-locked until SCA-04B establishes
-persisted term configuration (Curriculum Requirements currently reports
-`OFFERING_TERM_CONFIG_MISSING`).
+Run `docs/prompts/timetable-corrective-03-shared-candidate-domain-2026-09-09.md`
+in a fresh isolated executor worktree from current `origin/main`, in parallel
+with the already-running TL-C02 correction. TT-C03 must consume the canonical
+persisted curriculum and annual ownership contracts without editing TL-owned
+files. EVAL-C02 remains locked until TL-C02 and TT-C03 are accepted and
+integrated. TT-C04/RC-03 remain locked because timetable generation is a
+separate HIGH-risk action requiring explicit operator approval.
 
 ## SCA-04A operator decisions + apply preview (2026-09-09, executor)
 
