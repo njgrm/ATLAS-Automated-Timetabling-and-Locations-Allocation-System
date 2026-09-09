@@ -7,7 +7,7 @@ import {
   type InsertionReadinessSummary,
 } from '../timetable-ttc02-insertion';
 
-function sampleLine(state: 'MISSING_TEACHING_LOAD_OWNER' | 'PLACEABLE' | 'HG_FORBIDDEN', index: number) {
+function sampleLine(state: 'MISSING_TEACHING_LOAD_OWNER' | 'INDIVIDUALLY_PREVIEWABLE' | 'HG_FORBIDDEN', index: number) {
   return {
     demandKey: `${state}-${index}`,
     subjectCode: 'MATH',
@@ -18,7 +18,7 @@ function sampleLine(state: 'MISSING_TEACHING_LOAD_OWNER' | 'PLACEABLE' | 'HG_FOR
     termIdentity: 'T1',
     termIndex: 1,
     sessionsPerWeek: 4,
-    ownerFacultyName: state === 'PLACEABLE' ? 'Probe Owner' : null,
+    ownerFacultyName: state === 'INDIVIDUALLY_PREVIEWABLE' ? 'Probe Owner' : null,
     state,
     guidance: {
       reason: state,
@@ -34,11 +34,11 @@ test('reason grouping is deterministic and orders owners before slots', () => {
   const summary = {
     scope: { schoolId: 1, schoolYearId: 8 },
     demand: { totalLines: 4, totalSessions: 16, totalsByTerm: { T1: 16 } },
-    breakdown: { MISSING_TEACHING_LOAD_OWNER: 2, PLACEABLE: 1, HG_FORBIDDEN: 1 },
+    breakdown: { MISSING_TEACHING_LOAD_OWNER: 2, INDIVIDUALLY_PREVIEWABLE: 1, HG_FORBIDDEN: 1 },
     insertionReadyLines: 1,
     unresolvedLines: 3,
     lineStates: [
-      sampleLine('PLACEABLE', 0),
+      sampleLine('INDIVIDUALLY_PREVIEWABLE', 0),
       sampleLine('MISSING_TEACHING_LOAD_OWNER', 1),
       sampleLine('HG_FORBIDDEN', 2),
       sampleLine('MISSING_TEACHING_LOAD_OWNER', 3),
@@ -49,7 +49,7 @@ test('reason grouping is deterministic and orders owners before slots', () => {
   const groups = groupInsertionReadiness(summary);
   assert.deepEqual(
     groups.map((group) => group.reason),
-    ['HG_FORBIDDEN', 'MISSING_TEACHING_LOAD_OWNER', 'PLACEABLE'],
+    ['HG_FORBIDDEN', 'MISSING_TEACHING_LOAD_OWNER', 'INDIVIDUALLY_PREVIEWABLE'],
     'HG must surface first, then owner problems, then placeable',
   );
   assert.equal(groups[1].count, 2);
@@ -61,12 +61,12 @@ test('save boundary is clearly labelled and disabled when apply is not enabled',
   assert.equal(blocked.canSave, false);
   assert.equal(blocked.label, 'Save blocked');
 
-  const previewOnly = placementSaveAvailability({ state: 'PLACEABLE', hasCandidates: true, allowApply: false });
+  const previewOnly = placementSaveAvailability({ state: 'INDIVIDUALLY_PREVIEWABLE', hasCandidates: true, allowApply: false });
   assert.equal(previewOnly.canSave, false);
   assert.match(previewOnly.label, /preview only/);
-  assert.match(previewOnly.detail, /fixtures/);
+  assert.match(previewOnly.detail, /No production apply endpoint/);
 
-  const enabled = placementSaveAvailability({ state: 'PLACEABLE', hasCandidates: true, allowApply: true });
+  const enabled = placementSaveAvailability({ state: 'INDIVIDUALLY_PREVIEWABLE', hasCandidates: true, allowApply: true });
   assert.equal(enabled.canSave, true);
   assert.equal(enabled.label, 'Save placement');
 });

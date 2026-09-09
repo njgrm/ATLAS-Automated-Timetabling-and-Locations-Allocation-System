@@ -49,7 +49,7 @@ export type InsertionReason =
   | 'SOURCE_STALE'
   | 'HG_FORBIDDEN';
 
-export type LinePlacementState = InsertionReason | 'PLACEABLE';
+export type LinePlacementState = InsertionReason | 'INDIVIDUALLY_PREVIEWABLE';
 
 export const INSERTION_REASONS: InsertionReason[] = [
   'MISSING_TEACHING_LOAD_OWNER',
@@ -65,7 +65,7 @@ export const INSERTION_REASONS: InsertionReason[] = [
 ];
 
 export interface ReasonGuidance {
-  reason: InsertionReason | 'PLACEABLE';
+  reason: InsertionReason | 'INDIVIDUALLY_PREVIEWABLE';
   action:
     | 'FIX_TEACHING_LOAD'
     | 'REVIEW_OWNER_SCOPE'
@@ -156,15 +156,15 @@ const REASON_GUIDANCE: Record<InsertionReason, ReasonGuidance> = {
 };
 
 export const PLACEABLE_GUIDANCE: ReasonGuidance = {
-  reason: 'PLACEABLE',
+  reason: 'INDIVIDUALLY_PREVIEWABLE',
   action: 'OPEN_DRAFT',
-  message: 'Ownership, rooms, and free weekly slots exist for this meeting.',
-  prerequisite: 'None.',
-  primaryAction: 'Preview a candidate placement.',
+  message: 'A bounded individual preview found candidate slots without interval conflicts against persisted draft locks.',
+  prerequisite: 'This is not canonical generator validation or proof that all demand can coexist.',
+  primaryAction: 'Inspect the read-only candidate preview.',
 };
 
-export function guidanceFor(reason: InsertionReason | 'PLACEABLE'): ReasonGuidance {
-  return reason === 'PLACEABLE' ? PLACEABLE_GUIDANCE : REASON_GUIDANCE[reason];
+export function guidanceFor(reason: InsertionReason | 'INDIVIDUALLY_PREVIEWABLE'): ReasonGuidance {
+  return reason === 'INDIVIDUALLY_PREVIEWABLE' ? PLACEABLE_GUIDANCE : REASON_GUIDANCE[reason];
 }
 
 // ─── Deterministic helpers ───
@@ -257,13 +257,13 @@ function roomSortPrefix(room: CandidateRoom): string {
 // ─── Occupancy state ───
 
 export interface OccupancyState {
-  teacher: Set<string>;
-  section: Set<string>;
-  room: Set<string>;
+  teacher: Array<{ id: number; day: string; startTime: string; endTime: string }>;
+  section: Array<{ id: number; day: string; startTime: string; endTime: string }>;
+  room: Array<{ id: number; day: string; startTime: string; endTime: string }>;
 }
 
 export function emptyOccupancy(): OccupancyState {
-  return { teacher: new Set(), section: new Set(), room: new Set() };
+  return { teacher: [], section: [], room: [] };
 }
 
 export function addLockedSessionOccupancy(
@@ -279,14 +279,14 @@ export function addLockedSessionOccupancy(
   }>,
 ): OccupancyState {
   const next: OccupancyState = {
-    teacher: new Set(state.teacher),
-    section: new Set(state.section),
-    room: new Set(state.room),
+    teacher: [...state.teacher],
+    section: [...state.section],
+    room: [...state.room],
   };
   for (const lock of locks) {
-    if (lock.facultyId !== null) next.teacher.add(`${lock.facultyId}|${lock.day}|${lock.startTime}`);
-    next.section.add(`${lock.sectionId}|${lock.day}|${lock.startTime}`);
-    if (lock.roomId !== null) next.room.add(`${lock.roomId}|${lock.day}|${lock.startTime}`);
+    if (lock.facultyId !== null) next.teacher.push({ id: lock.facultyId, day: lock.day, startTime: lock.startTime, endTime: lock.endTime });
+    next.section.push({ id: lock.sectionId, day: lock.day, startTime: lock.startTime, endTime: lock.endTime });
+    if (lock.roomId !== null) next.room.push({ id: lock.roomId, day: lock.day, startTime: lock.startTime, endTime: lock.endTime });
   }
   return next;
 }
@@ -297,7 +297,7 @@ export interface CandidateSlot extends WeeklySlot {
 }
 
 export interface InsertionSearchResult {
-  reason: InsertionReason | 'PLACEABLE';
+  reason: InsertionReason | 'INDIVIDUALLY_PREVIEWABLE';
   feasible: boolean;
   freeSlots: number;
   neededSlots: number;
@@ -336,7 +336,7 @@ export function searchCandidateSlots(
     candidates: [],
     diagnostic: { compatibleRoomCount: 0, teacherBusySlots: 0, sectionBusySlots: 0, roomBusySlots: 0, evaluatedSlots: 0 },
   });
-  if (line.subjectCode === HG_SUBJECT_CODE) {
+  if (line.subjectCode.trim().toUpperCase() === HG_SUBJECT_CODE) {
     return {
       reason: 'HG_FORBIDDEN',
       feasible: false,
@@ -361,9 +361,10 @@ export function searchCandidateSlots(
   for (const slot of weeklySlots) {
     if (evaluated >= maxEvaluated) break;
     evaluated += 1;
-    const slotId = `${slot.day}|${slot.startTime}`;
-    const teacherFree = !occupancy.teacher.has(`${teacher}|${slotId}`);
-    const sectionFree = !occupancy.section.has(`${section}|${slotId}`);
+    const overlaps = (entry: { id: number; day: string; startTime: string; endTime: string }, id: number) =>
+      entry.id === id && entry.day === slot.day && toMinutes(entry.startTime) < toMinutes(slot.endTime) && toMinutes(slot.startTime) < toMinutes(entry.endTime);
+    const teacherFree = !occupancy.teacher.some((entry) => overlaps(entry, teacher));
+    const sectionFree = !occupancy.section.some((entry) => overlaps(entry, section));
     if (!teacherFree) {
       teacherBusySlots += 1;
       continue;
@@ -372,7 +373,7 @@ export function searchCandidateSlots(
       sectionBusySlots += 1;
       continue;
     }
-    const room = compatibleRooms.find((candidate) => !occupancy.room.has(`${candidate.id}|${slotId}`));
+    const room = compatibleRooms.find((candidate) => !occupancy.room.some((entry) => overlaps(entry, candidate.id)));
     if (!room) {
       roomBusySlots += 1;
       continue;
@@ -384,7 +385,7 @@ export function searchCandidateSlots(
   const freeSlots = candidates.length;
   if (freeSlots >= needed) {
     return {
-      reason: 'PLACEABLE',
+      reason: 'INDIVIDUALLY_PREVIEWABLE',
       feasible: true,
       freeSlots,
       neededSlots: needed,
@@ -437,7 +438,7 @@ export function classifyInsertionLine(
   slotVerdict: InsertionSearchResult,
   context: ClassificationContext,
 ): { state: LinePlacementState; guidance: ReasonGuidance } {
-  if (line.subjectCode === HG_SUBJECT_CODE) {
+  if (line.subjectCode.trim().toUpperCase() === HG_SUBJECT_CODE) {
     return { state: 'HG_FORBIDDEN', guidance: guidanceFor('HG_FORBIDDEN') };
   }
   if (
@@ -462,10 +463,10 @@ export function classifyInsertionLine(
     case 'VALID':
       break;
   }
-  if (slotVerdict.reason !== 'PLACEABLE') {
+  if (slotVerdict.reason !== 'INDIVIDUALLY_PREVIEWABLE') {
     return { state: slotVerdict.reason, guidance: guidanceFor(slotVerdict.reason) };
   }
-  return { state: 'PLACEABLE', guidance: guidanceFor('PLACEABLE') };
+  return { state: 'INDIVIDUALLY_PREVIEWABLE', guidance: guidanceFor('INDIVIDUALLY_PREVIEWABLE') };
 }
 
 // ─── Readiness summary (read-only) ───
@@ -606,7 +607,7 @@ export async function summarizeUnassignedInsertionReadiness(
   let insertionReadyLines = 0;
   let unresolvedLines = 0;
   for (const line of lineStates) {
-    if (line.state === 'PLACEABLE') insertionReadyLines += 1;
+    if (line.state === 'INDIVIDUALLY_PREVIEWABLE') insertionReadyLines += 1;
     else unresolvedLines += 1;
   }
 
@@ -697,7 +698,7 @@ export async function previewUnassignedInsertion(
   if (!line) {
     throw err(404, 'DEMAND_LINE_NOT_FOUND', `No demanded meeting line matches ${demandKey}.`);
   }
-  if (line.state !== 'PLACEABLE' || line.candidates.length === 0) {
+  if (line.state !== 'INDIVIDUALLY_PREVIEWABLE' || line.candidates.length === 0) {
     const candidates: CandidateSlot[] = [];
     return {
       scope: { schoolId, schoolYearId },
@@ -738,7 +739,7 @@ export async function previewUnassignedInsertion(
     demandKey,
     line,
     candidates,
-    state: 'PLACEABLE',
+    state: 'INDIVIDUALLY_PREVIEWABLE',
     bound: {
       sourceRevisionSha256: summary.sourceRevisionSha256,
       cycleVersion: summary.ownership.cycleVersion,
@@ -795,7 +796,7 @@ function err(statusCode: number, code: string, message: string): Error & { statu
  * through a fresh preview whose fingerprint binds the updated candidate list.
  * A repeated apply of the same fingerprint + candidate index is a no-op.
  */
-export async function applyUnassignedInsertion(input: InsertionApplyInput): Promise<InsertionApplyResult> {
+async function experimentalApplyUnassignedInsertion(input: InsertionApplyInput): Promise<InsertionApplyResult> {
   if (input.actorSchoolId !== input.schoolId) {
     throw err(403, 'CROSS_SCHOOL_DENIED', 'Cannot insert timetable meetings for another school.');
   }
@@ -847,7 +848,7 @@ export async function applyUnassignedInsertion(input: InsertionApplyInput): Prom
   }
   const summary = await summarizeUnassignedInsertionReadiness(input.schoolId, input.schoolYearId);
   const targetLine = summary.lineStates.find((candidate) => candidate.demandKey === input.demandKey);
-  if (!targetLine || targetLine.state !== 'PLACEABLE') {
+  if (!targetLine || targetLine.state !== 'INDIVIDUALLY_PREVIEWABLE') {
     throw err(409, 'INSERTION_NOT_PLACEABLE', `Meeting is not placeable (${targetLine?.state ?? 'unknown'}).`);
   }
   const candidate = targetLine.candidates[input.candidateIndex];

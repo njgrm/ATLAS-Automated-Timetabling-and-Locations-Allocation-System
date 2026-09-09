@@ -5,7 +5,6 @@ import { authenticate } from '../middleware/authenticate.js';
 import {
   summarizeUnassignedInsertionReadiness,
   previewUnassignedInsertion,
-  applyUnassignedInsertion,
 } from '../services/timetable-insertion.service.js';
 
 const router = Router();
@@ -37,7 +36,11 @@ function assertPrivilegedAndScoped(req: Request, res: Response, schoolId: number
     return false;
   }
   const actorSchool = actorSchoolId(req);
-  if (actorSchool !== null && actorSchool !== schoolId) {
+  if (actorSchool === null) {
+    res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
+    return false;
+  }
+  if (actorSchool !== schoolId) {
     res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot read another school\u2019s unassigned insertion state.' });
     return false;
   }
@@ -80,50 +83,6 @@ router.post(
         return;
       }
       const result = await previewUnassignedInsertion(scope.schoolId, scope.schoolYearId, demandKey);
-      res.json(result);
-    } catch (e) {
-      next(e);
-    }
-  },
-);
-
-router.post(
-  '/:schoolId/:schoolYearId/unassigned-workflow/apply',
-  authenticate,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const scope = parseScope(req.params as Record<string, string>);
-      if (typeof scope === 'string') {
-        res.status(400).json({ code: 'INVALID_PARAM', message: scope });
-        return;
-      }
-      if (!assertPrivilegedAndScoped(req, res, scope.schoolId)) return;
-      const actorId = req.user?.userId;
-      const actorSchool = actorSchoolId(req);
-      if (!actorId || actorSchool === null) {
-        res.status(401).json({ code: 'NO_USER', message: 'Authenticated scoped user required.' });
-        return;
-      }
-      const body = (req.body ?? {}) as {
-        previewFingerprint?: unknown;
-        confirm?: unknown;
-        demandKey?: unknown;
-        candidateIndex?: unknown;
-      };
-      if (typeof body.previewFingerprint !== 'string') {
-        res.status(400).json({ code: 'INVALID_PARAM', message: 'previewFingerprint is required.' });
-        return;
-      }
-      const result = await applyUnassignedInsertion({
-        schoolId: scope.schoolId,
-        schoolYearId: scope.schoolYearId,
-        actorId,
-        actorSchoolId: actorSchool,
-        previewFingerprint: body.previewFingerprint,
-        confirm: body.confirm === true,
-        demandKey: typeof body.demandKey === 'string' ? body.demandKey : '',
-        candidateIndex: Number(body.candidateIndex),
-      });
       res.json(result);
     } catch (e) {
       next(e);

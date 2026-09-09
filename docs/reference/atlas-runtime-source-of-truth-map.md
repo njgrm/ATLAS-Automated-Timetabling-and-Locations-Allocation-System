@@ -838,8 +838,9 @@ Minimum required update fields for each change:
 - which phase gate or prompt sequence it affects
 
 
-TT-C02 unassigned insertion (`2026-09-09`, candidate):
-- New read/write surface mounted under `/api/v1/generation/:schoolId/:schoolYearId/unassigned-workflow/*` (summary GET; preview POST zero-write; apply POST privileged, fixture-tested only). Summary/preview are read-only; apply writes ONLY pre-generation `LockedSession` draft rows + `LockedSessionAction` + `TIMETABLE_INSERTION_APPLIED` audit, never Teaching Load/curriculum/subjects/sections/runs/publication.
-- Canonical timetable demand is now derived (read-only) from persisted curriculum authority (`SchoolYearTermConfig`/`SchoolYearOffering`/`OfferingTermAssignment`) + annual Teaching Load ownership semantics; HG is excluded from demand entirely. Live year 8 (school 1): 552 demand lines / 2760 weekly sessions (920/term), all currently PLACEABLE, zero runs.
-- `/timetable` no-run header gains an `Unassigned insertion` preview workflow (save boundary disabled pending planner approval of apply).
+TT-C02 unassigned preview (`2026-09-09`, corrected candidate):
+- The production surface is read-only: summary GET and preview POST are mounted under `/api/v1/generation/:schoolId/:schoolYearId/unassigned-workflow/*`; no apply route is mounted. Both routes require resolved same-school actor scope.
+- Timetable demand is derived from persisted curriculum authority (`SchoolYearTermConfig`/`SchoolYearOffering`/`OfferingTermAssignment`) + annual Teaching Load ownership semantics. HG exclusion uses trimmed, uppercase canonical-code matching. Live year 8 (school 1): 552 demand lines / 2760 weekly sessions (920/term), 552 individually previewable, 0 unresolved, 0 globally scheduled because no run exists.
+- Candidate preview checks compatible rooms and interval overlap against persisted draft locks. It does not execute the canonical generator's full constraint policy and is not a global feasibility proof.
+- `/timetable` no-run header exposes searchable, paginated preview of every demand line. No save/apply action is enabled.
 - Consumers/UI: timetable page (ScheduleReview workspace); affects timetable/insertion domain only.

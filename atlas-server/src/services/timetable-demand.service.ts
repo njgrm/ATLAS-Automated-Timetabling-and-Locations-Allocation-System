@@ -43,6 +43,10 @@ const db = () => getDataContext();
 export const HG_SUBJECT_CODE = 'HG';
 export const VALID_GRADE_LEVELS = new Set([7, 8, 9, 10]);
 
+export function isHomeroomGuidanceCode(code: string | null | undefined): boolean {
+  return (code ?? '').trim().toUpperCase() === HG_SUBJECT_CODE;
+}
+
 export interface TermReference {
   id: number;
   termCount: number;
@@ -394,7 +398,7 @@ export async function buildCanonicalTimetableDemand(
   let hgOwnershipRows = 0;
   for (const row of scopedOwnership) {
     const subject = subjectById.get(row.subjectId);
-    if (subject && subject.code === HG_SUBJECT_CODE) {
+    if (subject && isHomeroomGuidanceCode(subject.code)) {
       hgOwnershipRows += 1;
       continue; // HG ownership is advisory evidence only, never timetable demand.
     }
@@ -427,7 +431,7 @@ export async function buildCanonicalTimetableDemand(
       if (offering.subjectId === null) return true; // explicit EMPTY marker row
       const subject = subjectById.get(offering.subjectId);
       if (!subject) return false;
-      if (subject.code === HG_SUBJECT_CODE) return false; // HG never timetable demand
+      if (isHomeroomGuidanceCode(subject.code)) return false; // HG never timetable demand
       return subject.isActive;
     });
 
@@ -436,7 +440,7 @@ export async function buildCanonicalTimetableDemand(
   for (const offering of offerings) {
     if (!offering.isActive) continue;
     const subject = offering.subjectId === null ? undefined : subjectById.get(offering.subjectId);
-    if (subject && subject.code === HG_SUBJECT_CODE) {
+    if (subject && isHomeroomGuidanceCode(subject.code)) {
       hgExcludedOfferingIds.push(offering.id);
       hgExcludedSubjectCodes.push(subject.code);
     }
@@ -456,7 +460,7 @@ export async function buildCanonicalTimetableDemand(
   for (const offering of activeOfferings) {
     if (offering.subjectId === null || offering.termMode === 'EMPTY') continue;
     const subject = subjectById.get(offering.subjectId);
-    if (!subject || subject.code === HG_SUBJECT_CODE) continue;
+    if (!subject || isHomeroomGuidanceCode(subject.code)) continue;
     if (!termConfig) continue;
 
     const applicableTerms = resolveOfferingTerms(offering, termConfig);
@@ -580,7 +584,7 @@ export async function buildCanonicalTimetableDemand(
     ownershipRows: scopedOwnership
       .filter((row) => {
         const subject = subjectById.get(row.subjectId);
-        return !subject || subject.code !== HG_SUBJECT_CODE;
+        return !subject || !isHomeroomGuidanceCode(subject.code);
       })
       .map((row) => ({
         id: row.id,

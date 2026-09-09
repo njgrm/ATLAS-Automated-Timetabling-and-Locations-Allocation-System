@@ -18,7 +18,7 @@ export type InsertionReason =
   | 'TERM_APPLICABILITY_MISMATCH'
   | 'SOURCE_STALE'
   | 'HG_FORBIDDEN'
-  | 'PLACEABLE';
+  | 'INDIVIDUALLY_PREVIEWABLE';
 
 export interface InsertionGuidance {
   reason: InsertionReason;
@@ -89,7 +89,7 @@ export function groupInsertionReadiness(summary: InsertionReadinessSummary): Rea
   for (const reason of orderedReasons) {
     void reason;
   }
-  const reasons = new Set<InsertionReason>([...REASON_ORDER, 'PLACEABLE']);
+  const reasons = new Set<InsertionReason>([...REASON_ORDER, 'INDIVIDUALLY_PREVIEWABLE']);
   const groups: ReadinessGroup[] = [];
   for (const reason of reasons) {
     const lines = byReason.get(reason) ?? [];
@@ -99,7 +99,7 @@ export function groupInsertionReadiness(summary: InsertionReadinessSummary): Rea
       reason,
       count: lines.length,
       guidance: sample.guidance ?? null,
-      samples: lines.slice(0, 5),
+      samples: lines,
     });
   }
   return groups;
@@ -126,7 +126,7 @@ export function placementSaveAvailability(input: {
   hasCandidates: boolean;
   allowApply: boolean;
 }): { canSave: boolean; label: string; detail: string } {
-  if (input.state !== 'PLACEABLE') {
+  if (input.state !== 'INDIVIDUALLY_PREVIEWABLE') {
     return { canSave: false, label: 'Save blocked', detail: 'Resolve the blocker above before saving.' };
   }
   if (!input.hasCandidates) {
@@ -136,7 +136,7 @@ export function placementSaveAvailability(input: {
     return {
       canSave: false,
       label: 'Save placement (preview only)',
-      detail: 'Apply is fingerprint-bound and exercised on disposable fixtures in this release. Save is not enabled on the live year.',
+      detail: 'TT-C02 is preview-only. No production apply endpoint is mounted and this action cannot write timetable data.',
     };
   }
   return {

@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-09-09] — TT-C02R Preview-Only Correction
+
+### Added
+- Search and pagination across all demand lines; interval-overlap regression coverage; explicit total, individually previewable, unresolved, and globally scheduled terminology.
+
+### Changed
+- Removed the production apply route and writable fixture suite. Summary and preview now fail closed when actor-school scope is unresolved or cross-school.
+- Renamed `PLACEABLE` to `INDIVIDUALLY_PREVIEWABLE` and documented that bounded candidates do not run the canonical generator's full policy set or prove global coexistence.
+- Normalized HG exclusion by trimming and uppercasing the canonical subject code.
+
+### Decisions Made
+- TT-C02 remains preview-only. No timetable writes, schema changes, generation, publication, or Teaching Load behavior are included.
+
+### Open Questions
+- Canonical joint feasibility and any future writable insertion contract require a separate authorized phase.
+
 ## [2026-09-09] — TT-C02 Unassigned Insertion
 
 ### Added

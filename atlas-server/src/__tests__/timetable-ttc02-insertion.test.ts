@@ -275,7 +275,7 @@ test('HG exclusion negative control: an HG line can never become a candidate and
 
 test('classification decision table: owner-state reasons map truthfully', () => {
   const placeableVerdict = {
-    reason: 'PLACEABLE' as const,
+    reason: 'INDIVIDUALLY_PREVIEWABLE' as const,
     feasible: true,
     freeSlots: 6,
     neededSlots: 6,
@@ -297,7 +297,7 @@ test('classification decision table: owner-state reasons map truthfully', () => 
 test('classification: term mismatch surfaces when no term config is configured', () => {
   const line = makeLine({ ownerState: 'VALID' });
   const verdict = {
-    reason: 'PLACEABLE' as const,
+    reason: 'INDIVIDUALLY_PREVIEWABLE' as const,
     feasible: true,
     freeSlots: 6,
     neededSlots: 6,
@@ -311,7 +311,7 @@ test('classification: term mismatch surfaces when no term config is configured',
 test('classification: stale source revision rejects with SOURCE_STALE', () => {
   const line = makeLine({ ownerState: 'VALID' });
   const verdict = {
-    reason: 'PLACEABLE' as const,
+    reason: 'INDIVIDUALLY_PREVIEWABLE' as const,
     feasible: true,
     freeSlots: 6,
     neededSlots: 6,
@@ -347,7 +347,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
   void busyTeacher;
   const occupancyTeacherFull = emptyOccupancy();
   for (const slot of weeklySlots) {
-    occupancyTeacherFull.teacher.add(`${line.ownerFacultyId}|${slot.day}|${slot.startTime}`);
+    occupancyTeacherFull.teacher.push({ id: line.ownerFacultyId as number, day: slot.day, startTime: slot.startTime, endTime: slot.endTime });
   }
   const teacherFull = searchCandidateSlots(
     line,
@@ -360,7 +360,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
 
   const occupancySectionBusy = emptyOccupancy();
   for (const slot of weeklySlots) {
-    occupancySectionBusy.section.add(`${line.sectionExternalId}|${slot.day}|${slot.startTime}`);
+    occupancySectionBusy.section.push({ id: line.sectionExternalId, day: slot.day, startTime: slot.startTime, endTime: slot.endTime });
   }
   const sectionBusy = searchCandidateSlots(
     line,
@@ -378,7 +378,7 @@ test('no-slot / no-room / hard-conflict separation stays truthful', () => {
     emptyOccupancy(),
     { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
   );
-  assert.equal(free.reason, 'PLACEABLE');
+  assert.equal(free.reason, 'INDIVIDUALLY_PREVIEWABLE');
   assert.equal(free.feasible, true);
   assert.ok(free.candidates.length >= 30);
 });
@@ -410,8 +410,8 @@ test('locked-session occupancy turns a free slot into a hard conflict', () => {
       facultyId: line.ownerFacultyId as number,
       roomId: 1,
       day: 'MONDAY',
-      startTime: '07:00',
-      endTime: '07:45',
+      startTime: '06:55',
+      endTime: '07:15',
     },
   ]);
   const verdict = searchCandidateSlots(
@@ -421,8 +421,8 @@ test('locked-session occupancy turns a free slot into a hard conflict', () => {
     occupied,
     { preferredRoomType: 'CLASSROOM', gradeLevel: 7 },
   );
-  assert.equal(occupied.teacher.has(`${line.ownerFacultyId}|MONDAY|07:00`), true);
-  assert.notEqual(verdict.candidates[0].startTime, '07:00', 'Monday 07:00 must not be proposed while occupied');
+  assert.equal(occupied.teacher.some((entry) => entry.id === line.ownerFacultyId && entry.startTime === '06:55'), true);
+  assert.notEqual(verdict.candidates[0].startTime, '07:00', 'an intersecting lock with a different start time must block Monday 07:00');
 });
 
 test('preview fingerprint is canonical and binds authority and candidates', () => {

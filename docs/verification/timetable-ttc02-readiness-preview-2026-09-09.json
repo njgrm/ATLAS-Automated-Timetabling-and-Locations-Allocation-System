@@ -41,7 +41,7 @@
     }
   },
   "reasonBreakdown": {
-    "PLACEABLE": 552
+    "INDIVIDUALLY_PREVIEWABLE": 552
   },
   "insertionReadyLines": 552,
   "unresolvedLines": 0,
@@ -70,7 +70,8 @@
   },
   "zeroWriteProof": {
     "previewZeroWrite": true,
-    "fixtureAssertions": "zero-write preview negative control, tampered-fingerprint 409 rejection, idempotent retry, ownership immutability, and cleanup residue assertions all PASS on an isolated disposable school (timetable-ttc02-apply-fixture.test.ts)",
+    "productionApplyRouteMounted": false,
+    "fixtureAssertions": "Not applicable: the production apply route and its disposable writable fixture suite were removed for the preview-only correction.",
     "liveProbeWasReadOnly": true
   },
   "truthfulRunStatement": "No live generation run exists for (school 1, year 8): liveGenerationRunCount=0 and publishedRevisionCount=0. This artifact does not create or approve one.",
@@ -78,7 +79,7 @@
     "An operator-approved generation action through the existing generation route; this artifact authorizes no mutation.",
     "Teaching Load cycle/ownership must remain as read at generation time (cycleVersion=4, ownershipCount=265).",
     "Curriculum term config and the 216 persisted requirements must remain as read.",
-    "All 552 projected demand lines resolve PLACEABLE today; a fresh run is still required to produce draft entries and any real unassigned items.",
+    "All 552 projected demand lines resolve INDIVIDUALLY_PREVIEWABLE against room compatibility and persisted-lock interval overlap only; a canonical generation run is required to establish globally scheduled demand.",
     "Publish lifecycle and public published endpoints remain out of TT-C02 scope."
   ]
 }
