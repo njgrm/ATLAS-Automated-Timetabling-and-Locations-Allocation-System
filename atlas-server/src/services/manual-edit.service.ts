@@ -199,7 +199,15 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 		}),
 		prisma.room.findMany({
 			where: { isTeachingSpace: true, building: { schoolId, isTeachingBuilding: true } },
-			select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true },
+			select: {
+				id: true,
+				type: true,
+				isTeachingSpace: true,
+				isSharedFacility: true,
+				capacity: true,
+				buildingId: true,
+				building: { select: { gradeScope: true } },
+			},
 		}),
 		prisma.subject.findMany({
 			where: { schoolId, isActive: true },
@@ -257,7 +265,7 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 		unassignedItems,
 		faculty,
 		facultySubjects,
-		rooms,
+		rooms: rooms.map((room) => ({ ...room, buildingGradeScope: room.building.gradeScope })),
 		subjects,
 		policyRecord,
 		buildings,
