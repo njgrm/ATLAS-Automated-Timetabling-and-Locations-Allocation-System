@@ -124,6 +124,7 @@ export type FacultySubjectSnapshot = {
 	facultyId: number;
 	subjectId: number;
 	sectionIds: number[];
+	gradeLevels: number[];
 	version: number;
 };
 
@@ -180,9 +181,20 @@ export type CycleStateSnapshot = {
 	version: number;
 };
 
+export type SchoolYearAuthoritySnapshot = {
+	mirrorId: number;
+	enrollProSchoolYearId: number;
+	yearLabel: string;
+	isActive: boolean;
+	isArchived: boolean;
+	syncStatus: string;
+	updatedAt: string;
+};
+
 export type ReconciliationSourceSnapshot = {
 	schoolId: number;
 	schoolYearId: number;
+	schoolYearAuthority: SchoolYearAuthoritySnapshot;
 	termConfig: TermConfigSnapshot | null;
 	offerings: OfferingSnapshot[];
 	sections: SectionSnapshot[];
@@ -1194,11 +1206,30 @@ export async function buildReconciliationPlan(
 
 // ─── Source revision + fingerprint ───────────────────────────────────────────
 
+/** Sorted unique set for integer-valued arrays (set semantics, not order). */
+export function canonicalIntSet(values: number[]): number[] {
+	return [...new Set(values)].filter((value) => Number.isInteger(value)).sort((a, b) => a - b);
+}
+
+/** Sorted unique set for string-valued arrays (set semantics, not order). */
+export function canonicalStringSet(values: string[]): string[] {
+	return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
 export async function buildReconciliationSourceRevision(snapshot: ReconciliationSourceSnapshot): Promise<string> {
 	return canonicalHash({
 		schemaVersion: SCHEMA_VERSION,
 		schoolId: snapshot.schoolId,
 		schoolYearId: snapshot.schoolYearId,
+		schoolYearAuthority: {
+			mirrorId: snapshot.schoolYearAuthority.mirrorId,
+			enrollProSchoolYearId: snapshot.schoolYearAuthority.enrollProSchoolYearId,
+			yearLabel: snapshot.schoolYearAuthority.yearLabel,
+			isActive: snapshot.schoolYearAuthority.isActive,
+			isArchived: snapshot.schoolYearAuthority.isArchived,
+			syncStatus: snapshot.schoolYearAuthority.syncStatus,
+			updatedAt: snapshot.schoolYearAuthority.updatedAt,
+		},
 		termConfig: snapshot.termConfig
 			? {
 				id: snapshot.termConfig.id,
@@ -1244,9 +1275,9 @@ export async function buildReconciliationSourceRevision(snapshot: Reconciliation
 				code: subject.code,
 				rotationFamily: subject.rotationFamily,
 				minMinutesPerWeek: subject.minMinutesPerWeek,
-				programScopes: subject.programScopes,
-				gradeLevels: subject.gradeLevels,
-				allowedSpecializations: subject.allowedSpecializations,
+				programScopes: canonicalStringSet(subject.programScopes),
+				gradeLevels: canonicalIntSet(subject.gradeLevels),
+				allowedSpecializations: canonicalStringSet(subject.allowedSpecializations),
 				ownerDepartment: subject.ownerDepartment,
 				isActive: subject.isActive,
 			}))
@@ -1265,7 +1296,14 @@ export async function buildReconciliationSourceRevision(snapshot: Reconciliation
 			}))
 			.sort((a, b) => a.id - b.id),
 		facultySubjects: snapshot.facultySubjects
-			.map((row) => ({ id: row.id, facultyId: row.facultyId, subjectId: row.subjectId, sectionIds: [...row.sectionIds].sort((a, b) => a - b), version: row.version }))
+			.map((row) => ({
+				id: row.id,
+				facultyId: row.facultyId,
+				subjectId: row.subjectId,
+				sectionIds: canonicalIntSet(row.sectionIds),
+				gradeLevels: canonicalIntSet(row.gradeLevels ?? []),
+				version: row.version,
+			}))
 			.sort((a, b) => a.id - b.id),
 		ownership: snapshot.ownership
 			.map((row) => ({ id: row.id, subjectId: row.subjectId, sectionId: row.sectionId, facultyId: row.facultyId, facultySubjectId: row.facultySubjectId }))
@@ -1316,12 +1354,51 @@ export async function buildReconciliationFingerprint(
 
 // ─── Snapshot read (set-based, batched, never N+1) ──────────────────────────
 
+export async function readSchoolYearAuthoritySnapshot(
+	client: Prisma.TransactionClient,
+	schoolId: number,
+	schoolYearId: number,
+): Promise<SchoolYearAuthoritySnapshot> {
+	const tx = client as any;
+	const mirror = await tx.enrollProSchoolYearMirror.findFirst({
+		where: { schoolId, enrollProSchoolYearId: schoolYearId },
+		select: {
+			id: true,
+			enrollProSchoolYearId: true,
+			yearLabel: true,
+			isActive: true,
+			isArchived: true,
+			syncStatus: true,
+			updatedAt: true,
+		},
+	});
+	if (!mirror) {
+		throw err(404, 'YEAR_MIRROR_NOT_FOUND', 'No school-year mirror exists for this school and year.');
+	}
+	if (mirror.isArchived) {
+		throw err(409, 'ARCHIVED_YEAR', 'This school year is archived and cannot be reconciled.');
+	}
+	if (!mirror.isActive) {
+		throw err(409, 'INACTIVE_HISTORICAL_YEAR', 'This school year is not the currently active year and cannot be reconciled.');
+	}
+	return {
+		mirrorId: mirror.id,
+		enrollProSchoolYearId: mirror.enrollProSchoolYearId,
+		yearLabel: mirror.yearLabel,
+		isActive: mirror.isActive,
+		isArchived: mirror.isArchived,
+		syncStatus: mirror.syncStatus,
+		updatedAt: new Date(mirror.updatedAt).toISOString(),
+	};
+}
+
 export async function readReconciliationSourceSnapshot(
 	schoolId: number,
 	schoolYearId: number,
 	client: Prisma.TransactionClient | typeof import('../lib/data-context.js') = db(),
 ): Promise<ReconciliationSourceSnapshot> {
 	const tx = client as any;
+	const schoolYearAuthority = await readSchoolYearAuthoritySnapshot(tx, schoolId, schoolYearId);
 	const [termConfig, offerings, sections, cohorts, subjects, faculty, facultySubjects, ownership, specializationAliases, crossDepartmentPermissions, departmentAliasRows, departmentLabelRows, subjectOwnerPrefixRows, policyRow, cycleRead] = await Promise.all([
 		tx.schoolYearTermConfig.findFirst({ where: { schoolId, schoolYearId, isActive: true } }),
 		tx.schoolYearOffering.findMany({
@@ -1363,6 +1440,7 @@ export async function readReconciliationSourceSnapshot(
 	return {
 		schoolId,
 		schoolYearId,
+		schoolYearAuthority,
 		termConfig: termConfig
 			? {
 				id: termConfig.id,
@@ -1434,6 +1512,7 @@ export async function readReconciliationSourceSnapshot(
 			facultyId: row.facultyId,
 			subjectId: row.subjectId,
 			sectionIds: row.sectionIds,
+			gradeLevels: row.gradeLevels,
 			version: row.version,
 		})),
 		ownership: ownership.map((row: any) => ({
@@ -1668,17 +1747,33 @@ async function executePlanInTransaction(
 		facultySubjectsByKey.set(facultySubjectKey(row.facultyId, row.subjectId), row);
 	}
 
+	// Derive gradeLevels from the row's resulting sectionIds using the current
+	// SectionMirror mapping (externalId -> displayOrder).
+	const sectionGradeByExternal = new Map<number, number>();
+	for (const section of snapshot.sections) {
+		sectionGradeByExternal.set(section.externalId, section.gradeLevel);
+	}
+	const deriveGradeLevels = (sectionIds: number[]): number[] => {
+		return canonicalIntSet(sectionIds.map((id) => sectionGradeByExternal.get(id)).filter((grade): grade is number => grade != null));
+	};
+
 	const ensureFacultySubject = async (facultyId: number, subjectId: number, sectionId: number, gradeLevel: number) => {
 		const key = facultySubjectKey(facultyId, subjectId);
 		const existing = facultySubjectsByKey.get(key);
 		if (existing) {
 			if (!existing.sectionIds.includes(sectionId)) {
+				const nextSectionIds = canonicalIntSet([...existing.sectionIds, sectionId]);
+				const nextGradeLevels = deriveGradeLevels(nextSectionIds);
 				const updated = await tx.facultySubject.update({
 					where: { id: existing.id },
-					data: { sectionIds: { set: [...existing.sectionIds, sectionId].sort((a, b) => a - b) }, version: { increment: 1 } },
-					select: { id: true, sectionIds: true },
+					data: {
+						sectionIds: { set: nextSectionIds },
+						gradeLevels: { set: nextGradeLevels },
+						version: { increment: 1 },
+					},
+					select: { id: true, sectionIds: true, gradeLevels: true },
 				});
-				facultySubjectsByKey.set(key, { ...existing, sectionIds: updated.sectionIds, version: existing.version + 1 });
+				facultySubjectsByKey.set(key, { ...existing, sectionIds: updated.sectionIds, gradeLevels: updated.gradeLevels, version: existing.version + 1 });
 				writes.facultySubjectIdsWritten.push(updated.id);
 			}
 			return existing.id;
@@ -1689,13 +1784,20 @@ async function executePlanInTransaction(
 				subjectId,
 				schoolId,
 				schoolYearId,
-				gradeLevels: [gradeLevel],
+				gradeLevels: deriveGradeLevels([sectionId]).length > 0 ? deriveGradeLevels([sectionId]) : [gradeLevel],
 				sectionIds: [sectionId],
 				assignedBy: actorId,
 			},
 			select: { id: true },
 		});
-		facultySubjectsByKey.set(key, { id: created.id, facultyId, subjectId, sectionIds: [sectionId], version: 1 });
+		facultySubjectsByKey.set(key, {
+			id: created.id,
+			facultyId,
+			subjectId,
+			sectionIds: [sectionId],
+			gradeLevels: deriveGradeLevels([sectionId]).length > 0 ? deriveGradeLevels([sectionId]) : [gradeLevel],
+			version: 1,
+		});
 		writes.facultySubjectIdsWritten.push(created.id);
 		return created.id;
 	};
@@ -1710,12 +1812,17 @@ async function executePlanInTransaction(
 			facultySubjectsByKey.delete(key);
 			writes.facultySubjectIdsWritten.push(existing.id);
 		} else {
+			const nextGradeLevels = deriveGradeLevels(nextSectionIds);
 			const updated = await tx.facultySubject.update({
 				where: { id: existing.id },
-				data: { sectionIds: { set: nextSectionIds }, version: { increment: 1 } },
+				data: {
+					sectionIds: { set: nextSectionIds },
+					gradeLevels: { set: nextGradeLevels },
+					version: { increment: 1 },
+				},
 				select: { id: true },
 			});
-			facultySubjectsByKey.set(key, { ...existing, sectionIds: nextSectionIds, version: existing.version + 1 });
+			facultySubjectsByKey.set(key, { ...existing, sectionIds: nextSectionIds, gradeLevels: nextGradeLevels, version: existing.version + 1 });
 			writes.facultySubjectIdsWritten.push(updated.id);
 		}
 	};
