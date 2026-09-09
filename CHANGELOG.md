@@ -1,5 +1,29 @@
 # Changelog
 
+## [2026-09-09] — TT-C02 Unassigned Insertion
+
+### Added
+- `timetable-demand.service.ts`: canonical curriculum → timetable demand expansion (persisted `SchoolYearTermConfig`/`SchoolYearOffering`/`OfferingTermAssignment`) across matching active sections with exact term/rotation preservation; resolves owners through annual Teaching Load ownership semantics (active, non-stale); excludes HG (never demand); set-based reads; canonical source revision SHA-256.
+- `timetable-insertion.service.ts`: truthful 10-reason classifier (owner/stale/scope/qualification/slot/room/conflict/term/stale-source/HG) each with one plain-language next action; deterministic bounded weekly-slot search with no-owner vs no-slot vs no-room vs hard-conflict separation; read-only readiness summary; zero-write preview with canonical `TTI_` SHA-256 binding (school, year, curriculum revision, Teaching Load cycle/version + ownership hash, candidates); privileged Serializable apply that writes only pre-generation `LockedSession` + action + audit, revalidates occupancy in-transaction, rejects stale fingerprints with typed 409, and is idempotent by fingerprint.
+- `timetable-unassigned.router.ts` mounted under `/api/v1/generation`: `GET /:schoolId/:schoolYearId/unassigned-workflow/summary`, `POST …/preview`, `POST …/apply` (authenticate + privileged + actor-school scope).
+- Tests: hermetic server suite 15/15; disposable-school fixture 1/1 (zero-write, guarded apply, ownership immutability, idempotency, stale 409, catch-all cleanup); client helper tests 2/2.
+- Client: `UnassignedInsertionWorkflow` dialog on `/timetable` no-run state showing real blocking reason, plain-language prerequisite, one primary action, candidate preview, and a clearly labelled save boundary (disabled; apply is fixture-tested only).
+- Evidence: `docs/verification/timetable-ttc02-readiness-preview-2026-09-09.json` + `.sha256`; advisory review under `docs/reviews/timetable-ttc02-one-shot-2026-09-09/`; progress ledger.
+
+### Changed
+- `atlas-server/src/app.ts`: mounted the TT-C02 router.
+- `TimetableSimpleHeader.tsx`: additive "Unassigned insertion" action in the no-run state.
+- Fixture cleanup hardened with a catch-all disposable school/year delete; apply occupancy recheck aligned to `status:'DRAFT'`; per-session apply semantics documented after advisory review.
+
+### Decisions Made
+- Apply is per-weekly-session into the pre-generation draft only; run-bound placement delegates to existing generated-run manual-edit flows.
+- Idempotency audit lookup precedes fingerprint recomputation (a prior apply changes the occupancy the fingerprint covers).
+- Live year was only read; apply was exercised solely on a disposable school; save boundary stays disabled until planner approval.
+
+### Open Questions
+- Planner/QA review of `<base>…<candidate>` and decision on enabling the apply/save boundary (advisory P-01 partial-placement semantics) before any live apply use.
+
+
 ## [2026-09-09] — SCA-04A Stage 2 Applied
 
 ### Added

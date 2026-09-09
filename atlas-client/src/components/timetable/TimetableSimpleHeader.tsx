@@ -42,6 +42,7 @@ import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/time
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
+import { UnassignedInsertionWorkflow } from '@/components/timetable/UnassignedInsertionWorkflow';
 import {
 	chooseRecommendedTask,
 	hasPivotValue,
@@ -95,6 +96,7 @@ function TimetableSimpleHeaderImpl({
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
+const [insertionOpen, setInsertionOpen] = useState(false);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
 	const tasks = useSimpleTasks(context);
 	const recommendedTask = chooseRecommendedTask(tasks, context);
@@ -785,6 +787,15 @@ function TimetableSimpleHeaderImpl({
 				</DialogContent>
 			</Dialog>
 
+			{context.schoolYearId ? (
+				<UnassignedInsertionWorkflow
+					open={insertionOpen}
+					onOpenChange={setInsertionOpen}
+					schoolId={context.schoolId}
+					schoolYearId={context.schoolYearId}
+				/>
+			) : null}
+
 			{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (
 				<div
 					className="mx-3 mb-0 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-0 shadow-sm sm:px-3"
@@ -826,7 +837,20 @@ function TimetableSimpleHeaderImpl({
 									Fix Curriculum Requirements
 								</Link>
 							</Button>
-						) : null}
+						) : (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-11 gap-1.5 px-3 text-sm"
+								disabled={context.loading || !context.schoolYearId}
+								onClick={() => setInsertionOpen(true)}
+								data-testid="timetable-unassigned-insertion-action"
+							>
+								<CalendarClock className="size-3.5" aria-hidden="true" />
+								<span>Unassigned insertion</span>
+							</Button>
+						)}
 						<Button
 							type="button"
 							size="sm"

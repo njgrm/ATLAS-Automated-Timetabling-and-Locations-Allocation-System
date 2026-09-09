@@ -836,3 +836,10 @@ Minimum required update fields for each change:
 - new source of truth
 - whether the change is persisted, derived, or fallback-only
 - which phase gate or prompt sequence it affects
+
+
+TT-C02 unassigned insertion (`2026-09-09`, candidate):
+- New read/write surface mounted under `/api/v1/generation/:schoolId/:schoolYearId/unassigned-workflow/*` (summary GET; preview POST zero-write; apply POST privileged, fixture-tested only). Summary/preview are read-only; apply writes ONLY pre-generation `LockedSession` draft rows + `LockedSessionAction` + `TIMETABLE_INSERTION_APPLIED` audit, never Teaching Load/curriculum/subjects/sections/runs/publication.
+- Canonical timetable demand is now derived (read-only) from persisted curriculum authority (`SchoolYearTermConfig`/`SchoolYearOffering`/`OfferingTermAssignment`) + annual Teaching Load ownership semantics; HG is excluded from demand entirely. Live year 8 (school 1): 552 demand lines / 2760 weekly sessions (920/term), all currently PLACEABLE, zero runs.
+- `/timetable` no-run header gains an `Unassigned insertion` preview workflow (save boundary disabled pending planner approval of apply).
+- Consumers/UI: timetable page (ScheduleReview workspace); affects timetable/insertion domain only.

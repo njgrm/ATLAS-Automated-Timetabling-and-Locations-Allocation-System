@@ -1,0 +1,84 @@
+{
+  "kind": "TT_C02_LIVE_READ_ONLY_READINESS_PREVIEW_V1",
+  "generatedAt": "2026-09-09T02:22:32.472Z",
+  "authorizesMutation": false,
+  "runtimeScope": {
+    "schoolId": 1,
+    "schoolYearId": 8,
+    "activeYearLabel": "2029-2030",
+    "enrollProSchoolYearId": 8,
+    "mirrorSyncStatus": "synced",
+    "liveGenerationRunCount": 0,
+    "publishedRevisionCount": 0,
+    "termConfig": {
+      "termCount": 3,
+      "termIdentities": [
+        "Term 1",
+        "Term 2",
+        "Term 3"
+      ]
+    }
+  },
+  "curriculumReadiness": {
+    "termConfigPresent": true,
+    "dayShapePresent": true,
+    "periodLengthMinutes": 45,
+    "activeOfferingCount": 216,
+    "sectionsActiveCount": 20
+  },
+  "teachingLoad": {
+    "cycleVersion": 4,
+    "ownershipCount": 265,
+    "ownershipHash": "D5D45CFBBDCDC7DBA70669BE3676423A053F7FF9D5C9A94C60E7894148237073"
+  },
+  "expectedTimetableDemand": {
+    "totalLines": 552,
+    "totalSessionsPerWeek": 2760,
+    "totalsByTerm": {
+      "Term 1": 920,
+      "Term 2": 920,
+      "Term 3": 920
+    }
+  },
+  "reasonBreakdown": {
+    "PLACEABLE": 552
+  },
+  "insertionReadyLines": 552,
+  "unresolvedLines": 0,
+  "missingOwnerAndInvalidOwnerTotals": {
+    "MISSING_TEACHING_LOAD_OWNER": 0,
+    "OWNER_INACTIVE_OR_STALE": 0,
+    "OWNER_OUTSIDE_SCOPE": 0,
+    "NO_QUALIFIED_OWNER": 0
+  },
+  "hgExcluded": {
+    "offeringIds": [],
+    "subjectCodes": [],
+    "ownershipRows": 0
+  },
+  "rooms": {
+    "teachingRoomCount": 98,
+    "compatibleRoomCount": 98
+  },
+  "draftLockedSessionCount": 0,
+  "sourceRevisionSha256": "49B0A89D07D7596DD6BD399579B701E6550338100558C2512AE51E504367433D",
+  "queryShapeEvidence": {
+    "readsAreSetBased": true,
+    "perLineDatabaseAccess": 0,
+    "note": "canonical demand uses set-based findMany/findUnique reads per domain (offerings, active sections, cohorts, subjects, scoped ownership, faculty, facultySubjects, cycle, policy, rooms, buildings, draft locks); no per-line DB loop; latest-run JSON payloads are never loaded; locked-session occupancy is one filtered findMany.",
+    "sqlPushdownNote": "filters (schoolId, schoolYearId, isActive, isStale, status) are pushed into WHERE clauses; active section reads restrict to isActiveForScheduling=true AND isStale=false."
+  },
+  "zeroWriteProof": {
+    "previewZeroWrite": true,
+    "fixtureAssertions": "zero-write preview negative control, tampered-fingerprint 409 rejection, idempotent retry, ownership immutability, and cleanup residue assertions all PASS on an isolated disposable school (timetable-ttc02-apply-fixture.test.ts)",
+    "liveProbeWasReadOnly": true
+  },
+  "truthfulRunStatement": "No live generation run exists for (school 1, year 8): liveGenerationRunCount=0 and publishedRevisionCount=0. This artifact does not create or approve one.",
+  "conditionsStillRequiredBeforeGeneration": [
+    "An operator-approved generation action through the existing generation route; this artifact authorizes no mutation.",
+    "Teaching Load cycle/ownership must remain as read at generation time (cycleVersion=4, ownershipCount=265).",
+    "Curriculum term config and the 216 persisted requirements must remain as read.",
+    "All 552 projected demand lines resolve PLACEABLE today; a fresh run is still required to produce draft entries and any real unassigned items.",
+    "Publish lifecycle and public published endpoints remain out of TT-C02 scope."
+  ]
+}

@@ -42,6 +42,7 @@ import dashboardRouter from './routes/dashboard.router.js';
 import policySpecialEventRouter from './routes/policy-special-event.router.js';
 import timetableSyncSetupRouter from './routes/timetable-sync-setup.router.js';
 import timetableQuickPlaceRouter from './routes/timetable-quick-place.router.js';
+import timetableUnassignedRouter from './routes/timetable-unassigned.router.js';
 import notificationRouter from './routes/notification.router.js';
 import { initializeNotificationEventBridges } from './services/notification-events.service.js';
 
@@ -108,6 +109,7 @@ app.use('/api/v1/generation', gradeWindowRouter);
 app.use('/api/v1/generation', publishedRevisionRouter);
 app.use('/api/v1/generation', timetableSyncSetupRouter);
 app.use('/api/v1/generation', timetableQuickPlaceRouter);
+app.use('/api/v1/generation', timetableUnassignedRouter);
 app.use('/api/v1/cohorts', cohortRouter);
 app.use('/api/v1/faculty-portal', facultyPortalRouter);
 app.use('/api/v1', publishedScheduleRouter);
