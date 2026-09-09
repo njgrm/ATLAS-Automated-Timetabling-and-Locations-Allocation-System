@@ -3303,3 +3303,25 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - The Teaching Load apply decision remains pending the fresh post-label preview.
+
+## [2026-09-09] — Teaching Load Reconciliation Apply Handoff
+
+### Added
+- Added the fingerprint-bound TL-C02E high-risk handoff for the approved
+  current-year Teaching Load reconciliation.
+- Added post-apply derived-state, replay, rollback-evidence, and fresh
+  generation-readiness verification boundaries.
+
+### Changed
+- Teaching Load reconciliation may now apply the exact approved 234-retain,
+  30-move, one-retirement plan before stopping ahead of generation.
+
+### Decisions Made
+- The operator approved fingerprint
+  `F78595BDB625E39190A0D834CD878EA93705CCE6CA7855C62F6626260BDDB446`
+  for school 1/year 8 only.
+- Generation and publication remain separately gated high-risk actions.
+
+### Open Questions
+- The live generation-readiness baseline must be recomputed after the apply
+  before the next implementation streams are issued.
