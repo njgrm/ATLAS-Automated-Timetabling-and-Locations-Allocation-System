@@ -95,9 +95,11 @@ export async function solveQuickPlace(
 	runId: number,
 	schoolId: number,
 	schoolYearId: number,
+	dependencies: { loadRunContext: typeof loadRunContext; prisma: typeof prisma } = { loadRunContext, prisma },
 ) {
 	// 1. Load active run context
-	const refData = await loadRunContext(runId, schoolId, schoolYearId);
+	const refData = await dependencies.loadRunContext(runId, schoolId, schoolYearId);
+	const dataAccess = dependencies.prisma;
 	const { run } = refData;
 
 	const oldEntries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
@@ -114,7 +116,7 @@ export async function solveQuickPlace(
 	}
 
 	// 2. Load live teaching load ownerships to find teacher assignments
-	const ownerships = await prisma.subjectSectionOwnership.findMany({
+	const ownerships = await dataAccess.subjectSectionOwnership.findMany({
 		where: { schoolId, schoolYearId },
 	});
 
@@ -124,7 +126,7 @@ export async function solveQuickPlace(
 	}
 
 	// Load sections to get section names
-	const sections = await prisma.sectionSnapshot.findUnique({
+	const sections = await dataAccess.sectionSnapshot.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		select: { payload: true },
 	});
