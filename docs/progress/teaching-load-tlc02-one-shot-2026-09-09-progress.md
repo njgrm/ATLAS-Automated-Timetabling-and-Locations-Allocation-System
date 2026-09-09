@@ -124,3 +124,26 @@ Base reviewed candidate: `3d210335c8eee7f39efbfbf21d326649289bee34`. Same branch
 - Authenticated browser QA (built client via Vite proxy -> corrected built server on isolated port 5098, live Tailnet DB; Tailnet-identical login) at desktop 1280x720 and mobile 390x844: 20/20 PASS — panel opens, preview renders the live plan (Stays 234 / Added 0 / Moved 30 / Removed 1 / Needs review 0), no horizontal overflow at both widths, 44px targets, keyboard reaches the confirmation input and enables Apply (approval boundary reached, Apply NOT pressed), no mojibake, no app errors. Screenshots in TEMP (uncommitted).
 - Final live preview (regenerated after all corrections): fingerprint `0563926BCF59E3CFF04AF51F8887FD2B99BBCD8C448D9F97D7419D5263FCCFDB`, sourceRevision `0DC5BE9C93033414F8D39C45BF15EC2AC903F8B16694E1FE2140F0895314E039`, byte SHA-256 (sidecar verified) `53FC5D0BE29FC4CAB9AD12B230F187EBF7551975D5C0E3EE13703552CAB57CAC`, plan RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0, invariant 264=264, owned 264, cycle POPULATED v4, advisers 20/20, hg 0, applied:false.
 - Old artifact `...preview-2026-09-09.json` marked NON_APPLICABLE (marker file) with the superseded fingerprint.
+
+
+## TL-C02R1 — Narrow correction (active-year authority, FacultySubject gradeLevels, mounted-route integration)
+
+Base candidate: `e67b684fb72decb9ef2834b5566e66f5cf56f08f`. Same branch. No amend/merge/push/live apply.
+
+### F1 — Active-year authority
+- `readSchoolYearAuthoritySnapshot` (client-injected) requires a known, same-school, non-archived, currently active `EnrollProSchoolYearMirror`: missing/cross-school ? 404 `YEAR_MIRROR_NOT_FOUND`; archived ? 409 `ARCHIVED_YEAR`; known-but-inactive ? 409 `INACTIVE_HISTORICAL_YEAR`. Enforced in readiness, preview, and apply (apply revalidates inside the Serializable tx via the same tx client).
+- Mirror identity + authority state bound into the canonical source revision (rollover/archival invalidates an outstanding preview).
+- B11 fixtures + route R6 prove all year states fail before writes; sensitivity control (deactivate ? 409, reactivate ? 200) proves the gate is load-bearing.
+
+### F2 — FacultySubject derived consistency
+- `FacultySubjectSnapshot` + source revision now carry `gradeLevels`; set-valued arrays (gradeLevels, programScopes, allowedSpecializations, sectionIds) are canonicalized (sorted unique) in the revision while ordered term identities keep order.
+- Apply derives exact sorted-unique gradeLevels from the resulting sectionIds via the SectionMirror mapping, updating sectionIds + gradeLevels atomically on insert/move/retire.
+- B12 proves cross-grade insert ([7,8]), move (donor drops grade 8, recipient [8]), and retire (drops grade 8) plus replay leaves both arrays unchanged with zero writes.
+
+### F3 — Mounted-route integration
+- New `teaching-load-reconciliation-route.test.ts` (47 assertions): real app boot + real `authenticate` middleware + hand-signed JWTs. Own-school preview/apply succeed; numeric-string ids normalize to one fingerprint; missing/cross-school JWT ? 403; system token cannot preview/apply (401) but reads readiness; malformed ids ? 400; missing/archived/inactive years fail before writes; exact-fingerprint apply once + replay zero-write; zero-residue cleanup.
+
+### Gates
+- Server reconciliation 158/0 (was 134), route suite 47/0, client UI 5/5, server+client tsc clean, server+client production builds pass.
+- Fresh live preview regenerated (contract changed): fingerprint `F0F29E217DF14EA8E87C0F38CD640D9943E5AE3DEC2A907765198A9216023BC0`, sourceRevision `247B8494D6049536BC606A147A1C37B4564B321E90CC59C30ECECE06298C6490`, byte SHA-256 (sidecar verified) `341D8A2B898C2B5F5277F6CCF076D87117789CAEBEDFA65B4A177729A00520BB`. Plan RETAIN 234 / MOVE 30 / RETIRE 1 / UNRESOLVED 0 (invariant 264=264, owned 264), cycle POPULATED v4, advisers 20/20, hg 0, applied:false. Prior fingerprint `0563926B…` marked NON_APPLICABLE.
+- Changed-scope advisory review recorded under `docs/reviews/teaching-load-tlc02-one-shot-2026-09-09/`.

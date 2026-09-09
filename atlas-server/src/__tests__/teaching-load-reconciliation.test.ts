@@ -65,6 +65,7 @@ function buildSnapshot(overrides: Record<string, unknown> = {}) {
   return {
     schoolId: 1,
     schoolYearId: 9001,
+    schoolYearAuthority: { mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
     termConfig: { id: 71, termCount: 3, termIdentities: ['Term 1', 'Term 2', 'Term 3'], updatedAt: '2026-09-08T20:43:57.400Z' },
     offerings: [
       {
@@ -158,6 +159,7 @@ function focusedSnapshot(input: {
   return {
     schoolId: 1,
     schoolYearId: 9001,
+    schoolYearAuthority: { mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
     termConfig: { id: 71, termCount: 3, termIdentities: ['Term 1', 'Term 2', 'Term 3'], updatedAt: '2026-09-08T20:43:57.400Z' },
     offerings: input.offerings,
     sections,
@@ -629,6 +631,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
   let fixtureSubjectEng = 0;
   let fixtureFaculty1 = 0;
   let fixtureFaculty2 = 0;
+  let fixtureFaculty3 = 0;
 
   try {
     section('B1. fixture setup (disposable school/year, zero live impact)');
@@ -638,6 +641,17 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     });
     fixtureSchoolId = (created as any).id as number;
     assert(fixtureSchoolId > 0, `fixture school created (id=${fixtureSchoolId})`);
+
+    await instrumented.enrollProSchoolYearMirror.create({
+      data: {
+        schoolId: fixtureSchoolId,
+        enrollProSchoolYearId: fixtureYearId,
+        yearLabel: '2029-2030',
+        isActive: true,
+        isArchived: false,
+        syncStatus: 'synced',
+      },
+    });
 
     const termConfig = await instrumented.schoolYearTermConfig.create({
       data: {
@@ -1017,6 +1031,201 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     assertEqual((cycleAfter as any)?.version ?? 0, cycleVersionBefore, 'cycle version unchanged after rollback');
     const auditCountBefore = await instrumented.auditLog.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, action: 'TEACHING_LOAD_RECONCILIATION' } });
     assert(auditCountBefore === 1, 'no reconciliation audit row was added by the rolled-back apply');
+    // Restore the B10 scaffold (AP subject + offering) back to a clean state:
+    // the rolled-back apply left the AP demand unowned.
+    await instrumented.schoolYearOffering.deleteMany({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, subjectId: (apSubject as any).id as number } });
+    await instrumented.subject.delete({ where: { id: (apSubject as any).id as number } });
+
+    section('B11. active-year authority: missing / inactive / archived / cross-school');
+    // Missing year mirror → 404, before any writes.
+    await instrumented.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
+    resetRecording();
+    threw = false;
+    try {
+      await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    } catch (error: any) {
+      threw = error?.code === 'YEAR_MIRROR_NOT_FOUND' && error?.statusCode === 404;
+    }
+    assert(threw, 'missing year mirror → 404 YEAR_MIRROR_NOT_FOUND');
+    assert(writes().length === 0, 'missing-year preview performs zero writes');
+    // Cross-school / unknown year id → 404 (scoped mirror lookup).
+    threw = false;
+    try {
+      await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId + 100, fixtureSchoolId));
+    } catch (error: any) {
+      threw = error?.code === 'YEAR_MIRROR_NOT_FOUND' && error?.statusCode === 404;
+    }
+    assert(threw, 'unknown (cross-school) year → 404 YEAR_MIRROR_NOT_FOUND');
+    // Known but inactive historical year → 409.
+    await instrumented.enrollProSchoolYearMirror.create({
+      data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2028-2029', isActive: false, isArchived: false, syncStatus: 'synced' },
+    });
+    threw = false;
+    try {
+      await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    } catch (error: any) {
+      threw = error?.code === 'INACTIVE_HISTORICAL_YEAR' && error?.statusCode === 409;
+    }
+    assert(threw, 'known inactive historical year → 409 INACTIVE_HISTORICAL_YEAR');
+    // Archived year → 409.
+    await instrumented.enrollProSchoolYearMirror.update({
+      where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
+      data: { isArchived: true, archivedAt: new Date(), archivedBy: 0, archiveReason: 'test' },
+    });
+    threw = false;
+    try {
+      await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    } catch (error: any) {
+      threw = error?.code === 'ARCHIVED_YEAR' && error?.statusCode === 409;
+    }
+    assert(threw, 'archived year → 409 ARCHIVED_YEAR');
+    // Apply repeats the same validation through the Serializable tx client.
+    threw = false;
+    try {
+      await run(() => svc.applyTeachingLoadReconciliation({
+        actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+        expectedFingerprint: '0'.repeat(64), expectedSourceRevision: '0'.repeat(64),
+        confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+      }));
+    } catch (error: any) {
+      threw = error?.code === 'ARCHIVED_YEAR' && error?.statusCode === 409;
+    }
+    assert(threw, 'apply rejects the archived year through the in-transaction validation');
+    // Restore an active mirror for the remaining tests.
+    await instrumented.enrollProSchoolYearMirror.update({
+      where: { schoolId_enrollProSchoolYearId: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId } },
+      data: { isArchived: false, archivedAt: null, archivedBy: null, archiveReason: null, isActive: true },
+    });
+    const restored = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    assert(restored.fingerprint.length === 64, 'restored active year preview succeeds');
+    resetRecording();
+
+    section('B12. FacultySubject derived gradeLevels across cross-grade insert, move, retire');
+    // Add a grade-8 section and a MATH grade-8 offering (cross-grade demand).
+    await instrumented.sectionMirror.create({
+      data: {
+        schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 201, name: 'Grade 8 - A',
+        gradeLevelId: 8, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+        isActiveForScheduling: true, isStale: false,
+      },
+    });
+    await instrumented.schoolYearOffering.create({
+      data: {
+        schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, termConfigId: fixtureTermConfigId,
+        subjectId: fixtureSubjectMath, gradeLevel: 8, programType: 'REGULAR',
+        classification: 'CORE', weeklyMinutes: 240, termMode: 'ALL', isActive: true,
+      },
+    });
+
+    // B12a INSERT cross-grade: MATH:201 has no owner → f1 (the only MATH faculty) receives it.
+    const insertPreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    const math201Insert = insertPreview.actions.find((entry: any) => entry.subjectId === fixtureSubjectMath && entry.sectionId === 201);
+    assert(!!math201Insert && math201Insert.action === 'INSERT', 'MATH:201 proposed as a cross-grade INSERT');
+    const insertApply = await run(() => svc.applyTeachingLoadReconciliation({
+      actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+      expectedFingerprint: insertPreview.fingerprint, expectedSourceRevision: insertPreview.sourceRevision,
+      confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+    }));
+    assertEqual(insertApply.replayed, false, 'cross-grade insert apply executes');
+    {
+      const f1MathFs = await instrumented.facultySubject.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, facultyId: fixtureFaculty1, subjectId: fixtureSubjectMath },
+      });
+      assertEqual(JSON.stringify((f1MathFs as any).sectionIds), JSON.stringify([101, 102, 201]), 'f1 MATH sectionIds after cross-grade insert');
+      assertEqual(JSON.stringify((f1MathFs as any).gradeLevels), JSON.stringify([7, 8]), 'f1 MATH gradeLevels derived from resulting sections (cross-grade insert)');
+    }
+    // Replay after the insert: zero writes and BOTH arrays unchanged.
+    const insertReplayPreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    const replayApply = await run(() => svc.applyTeachingLoadReconciliation({
+      actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+      expectedFingerprint: insertReplayPreview.fingerprint, expectedSourceRevision: insertReplayPreview.sourceRevision,
+      confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+    }));
+    assertEqual(replayApply.replayed, true, 'replay after cross-grade insert is zero-write');
+    {
+      const f1MathFs = await instrumented.facultySubject.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, facultyId: fixtureFaculty1, subjectId: fixtureSubjectMath },
+      });
+      assertEqual(JSON.stringify((f1MathFs as any).sectionIds), JSON.stringify([101, 102, 201]), 'replay leaves f1 MATH sectionIds unchanged');
+      assertEqual(JSON.stringify((f1MathFs as any).gradeLevels), JSON.stringify([7, 8]), 'replay leaves f1 MATH gradeLevels unchanged');
+    }
+
+    // B12b MOVE cross-grade: a new grade-8 adviser (f3, MATH, advises 201) receives MATH:201
+    // via the adviser-own-section preference; f1's MATH FS drops the grade-8 section.
+    const f3 = await instrumented.facultyMirror.create({
+      data: {
+        schoolId: fixtureSchoolId, externalId: 7003, employeeId: 'EMP7003', firstName: 'G8', lastName: 'Adviser',
+        department: 'MATH', isActiveForScheduling: true, isClassAdviser: true, advisedSectionId: 201, maxHoursPerWeek: 30,
+      },
+      select: { id: true },
+    });
+    fixtureFaculty3 = (f3 as any).id as number;
+    const movePreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    const math201Move = movePreview.actions.find((entry: any) => entry.subjectId === fixtureSubjectMath && entry.sectionId === 201);
+    assert(!!math201Move && math201Move.action === 'MOVE' && math201Move.proposedFacultyId === fixtureFaculty3, 'MATH:201 moves to the grade-8 adviser (cross-grade MOVE)');
+    const moveApply = await run(() => svc.applyTeachingLoadReconciliation({
+      actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+      expectedFingerprint: movePreview.fingerprint, expectedSourceRevision: movePreview.sourceRevision,
+      confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+    }));
+    assertEqual(moveApply.replayed, false, 'cross-grade move apply executes');
+    {
+      const f3MathFs = await instrumented.facultySubject.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, facultyId: fixtureFaculty3, subjectId: fixtureSubjectMath },
+      });
+      assertEqual(JSON.stringify((f3MathFs as any).gradeLevels), JSON.stringify([8]), 'f3 MATH gradeLevels after move = [8]');
+      const f1MathFs = await instrumented.facultySubject.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, facultyId: fixtureFaculty1, subjectId: fixtureSubjectMath },
+      });
+      assertEqual(JSON.stringify((f1MathFs as any).sectionIds), JSON.stringify([101, 102]), 'f1 MATH sectionIds after move');
+      assertEqual(JSON.stringify((f1MathFs as any).gradeLevels), JSON.stringify([7]), 'f1 MATH gradeLevels recomputed after move (drops grade 8)');
+    }
+
+    // B12c RETIRE cross-grade: an inconsistent grade-8 ownership (MATH:202, no offering)
+    // is retired and the owner's FS arrays are recomputed.
+    await instrumented.sectionMirror.create({
+      data: {
+        schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 202, name: 'Grade 8 - B',
+        gradeLevelId: 8, gradeLevelName: 'Grade 8', displayOrder: 8, programType: 'STE', maxCapacity: 50, enrolledCount: 50,
+        isActiveForScheduling: true, isStale: false,
+      },
+    });
+    {
+      const f1MathFs = await instrumented.facultySubject.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, facultyId: fixtureFaculty1, subjectId: fixtureSubjectMath },
+      });
+      const updatedFs = await instrumented.facultySubject.update({
+        where: { id: (f1MathFs as any).id as number },
+        data: { sectionIds: { set: [101, 102, 202] }, gradeLevels: { set: [7, 8] } },
+        select: { id: true },
+      });
+      await instrumented.subjectSectionOwnership.create({
+        data: {
+          schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, subjectId: fixtureSubjectMath,
+          sectionId: 202, facultyId: fixtureFaculty1, facultySubjectId: (updatedFs as any).id as number,
+        },
+      });
+    }
+    const retirePreview = await run(() => svc.previewTeachingLoadReconciliation(fixtureSchoolId, fixtureYearId, fixtureSchoolId));
+    const math202Retire = retirePreview.actions.find((entry: any) => entry.subjectId === fixtureSubjectMath && entry.sectionId === 202);
+    assert(!!math202Retire && math202Retire.action === 'RETIRE', 'MATH:202 (no offering) proposed as RETIRE');
+    const retireApply = await run(() => svc.applyTeachingLoadReconciliation({
+      actorSchoolId: fixtureSchoolId, actorId: 1, schoolId: fixtureSchoolId, schoolYearId: fixtureYearId,
+      expectedFingerprint: retirePreview.fingerprint, expectedSourceRevision: retirePreview.sourceRevision,
+      confirmationText: 'APPLY TEACHING LOAD RECONCILIATION',
+    }));
+    assertEqual(retireApply.replayed, false, 'cross-grade retire apply executes');
+    {
+      const f1MathFs = await instrumented.facultySubject.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, facultyId: fixtureFaculty1, subjectId: fixtureSubjectMath },
+      });
+      assertEqual(JSON.stringify((f1MathFs as any).sectionIds), JSON.stringify([101, 102]), 'f1 MATH sectionIds after retire');
+      assertEqual(JSON.stringify((f1MathFs as any).gradeLevels), JSON.stringify([7]), 'f1 MATH gradeLevels recomputed after retire (drops grade 8)');
+      const math202 = await instrumented.subjectSectionOwnership.findFirst({
+        where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, subjectId: fixtureSubjectMath, sectionId: 202 },
+      });
+      assert(math202 == null, 'MATH:202 ownership removed');
+    }
   } finally {
     section('B8. fixture cleanup (zero residue)');
     const cleanup = await instrumented.$transaction(async (tx: any) => {
@@ -1031,6 +1240,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
       await tx.departmentLabel.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.schedulingPolicy.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.subject.deleteMany({ where: { schoolId: fixtureSchoolId } });
+      await tx.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.auditLog.deleteMany({ where: { schoolId: fixtureSchoolId } });
       await tx.school.delete({ where: { id: fixtureSchoolId } });
     });
