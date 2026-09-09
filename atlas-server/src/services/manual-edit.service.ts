@@ -19,6 +19,7 @@ import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { assertUndoHead } from './timetable-undo-contract.js';
+import { evaluateCandidateInvariants, type CandidateInvariantReason } from './timetable-candidate-domain.js';
 
 // ─── Helpers ───
 
@@ -211,7 +212,7 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 		}),
 		prisma.subject.findMany({
 			where: { schoolId, isActive: true },
-			select: { id: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
+			select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
 		}),
 		getOrCreatePolicy(schoolId, schoolYearId),
 		prisma.building.findMany({
@@ -258,6 +259,9 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 	const sectionEnrollment = new Map(
 		snapshotPayload.flatMap((grade) => grade.sections.map((section) => [section.id, section.enrolledCount] as const)),
 	);
+	const sectionGradeLevel = new Map(
+		snapshotPayload.flatMap((grade) => grade.sections.map((section) => [section.id, grade.displayOrder] as const)),
+	);
 
 	return {
 		run,
@@ -274,7 +278,100 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 		subjectNameMap,
 		subjectNameDetailMap,
 		sectionEnrollment,
+		sectionGradeLevel,
 	};
+}
+
+const MANUAL_INVARIANT_CODE: Record<CandidateInvariantReason, Violation['code']> = {
+	INVALID_IDENTIFIER: 'UNASSIGNED_SECTION',
+	INVALID_INTERVAL: 'SECTION_TIME_CONFLICT',
+	HG_FORBIDDEN: 'UNASSIGNED_SECTION',
+	NON_TEACHING_ROOM: 'ROOM_TYPE_MISMATCH',
+	ROOM_SCOPE_MISMATCH: 'ROOM_TYPE_MISMATCH',
+	ROOM_TYPE_MISMATCH: 'ROOM_TYPE_MISMATCH',
+	ROOM_CAPACITY_EXCEEDED: 'ROOM_CAPACITY_EXCEEDED',
+	FACULTY_TIME_CONFLICT: 'FACULTY_TIME_CONFLICT',
+	SECTION_TIME_CONFLICT: 'SECTION_TIME_CONFLICT',
+	ROOM_TIME_CONFLICT: 'ROOM_TIME_CONFLICT',
+};
+
+export function validateManualCandidateInvariants(
+	entry: ScheduledEntry,
+	entries: ScheduledEntry[],
+	refData: Pick<Awaited<ReturnType<typeof loadRunContext>>, 'rooms' | 'subjects' | 'sectionEnrollment' | 'sectionGradeLevel'>,
+	scope: { schoolId: number; schoolYearId: number; runId: number },
+): Violation[] {
+	const room = refData.rooms.find((candidate) => candidate.id === entry.roomId);
+	const subject = refData.subjects.find((candidate) => candidate.id === entry.subjectId);
+	if (!room || !subject) {
+		return [{
+			...scope,
+			code: 'ROOM_TYPE_MISMATCH',
+			severity: 'HARD',
+			message: `Entry ${entry.entryId} references unavailable room or subject authority.`,
+			entities: { roomId: entry.roomId, subjectId: entry.subjectId, sectionId: entry.sectionId, entryIds: [entry.entryId] },
+		}];
+	}
+
+	const allowedRoomTypes = entry.metadata?.deferredRoomTypePreference === true
+		? [subject.preferredRoomType, room.type]
+		: [subject.preferredRoomType];
+	const verdict = evaluateCandidateInvariants({
+		facultyId: entry.facultyId ?? 0,
+		sectionId: entry.sectionId,
+		roomId: entry.roomId,
+		day: entry.day,
+		startTime: entry.startTime,
+		endTime: entry.endTime,
+		subjectCode: subject.code,
+		enrolledCount: entry.cohortExpectedEnrollment ?? refData.sectionEnrollment.get(entry.sectionId) ?? 0,
+		room,
+		gradeLevel: refData.sectionGradeLevel.get(entry.sectionId) ?? 0,
+		allowedRoomTypes,
+		occupied: entries
+			.filter((candidate) => candidate.entryId !== entry.entryId)
+			.map((candidate) => ({
+				facultyId: candidate.facultyId ?? -1,
+				sectionId: candidate.sectionId,
+				roomId: candidate.roomId,
+				day: candidate.day,
+				startTime: candidate.startTime,
+				endTime: candidate.endTime,
+			})),
+	});
+
+	return verdict.reasons.map((reason) => ({
+		...scope,
+		code: MANUAL_INVARIANT_CODE[reason],
+		severity: 'HARD' as const,
+		message: `Manual candidate ${entry.entryId} rejected by shared invariant: ${reason}.`,
+		entities: {
+			facultyId: entry.facultyId ?? undefined,
+			roomId: entry.roomId,
+			subjectId: entry.subjectId,
+			sectionId: entry.sectionId,
+			day: entry.day,
+			startTime: entry.startTime,
+			endTime: entry.endTime,
+			entryIds: [entry.entryId],
+		},
+		meta: { candidateInvariant: reason },
+	}));
+}
+
+function appendManualCandidateViolations(
+	validation: ValidationResult,
+	afterEntries: Array<ScheduledEntry | null>,
+	entries: ScheduledEntry[],
+	refData: Awaited<ReturnType<typeof loadRunContext>>,
+	scope: { schoolId: number; schoolYearId: number; runId: number },
+): ValidationResult {
+	const additions = afterEntries.flatMap((entry) => entry ? validateManualCandidateInvariants(entry, entries, refData, scope) : []);
+	if (additions.length === 0) return validation;
+	const violations = [...validation.violations, ...additions];
+	const byCode = { ...validation.counts.byCode };
+	for (const violation of additions) byCode[violation.code] = (byCode[violation.code] ?? 0) + 1;
+	return { violations, counts: { total: violations.length, byCode } };
 }
 
 export function isPublishedSummary(summary: unknown): boolean {
@@ -810,8 +907,9 @@ export async function previewManualEdit(
 	schoolId: number,
 	schoolYearId: number,
 	proposal: ManualEditProposal,
+	dependencies: { loadRunContext: typeof loadRunContext } = { loadRunContext },
 ): Promise<PreviewResult> {
-	const refData = await loadRunContext(runId, schoolId, schoolYearId);
+	const refData = await dependencies.loadRunContext(runId, schoolId, schoolYearId);
 	const { entries, unassignedItems } = refData;
 
 	// Validate current state
@@ -821,7 +919,13 @@ export async function previewManualEdit(
 	// Apply proposal and validate new state
 	const { newEntries, beforeEntry, afterEntry } = applyProposal(entries, unassignedItems, proposal);
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
-	const newValidation = validateHardConstraints(newCtx);
+	const newValidation = appendManualCandidateViolations(
+		validateHardConstraints(newCtx),
+		[afterEntry],
+		newEntries,
+		refData,
+		{ schoolId, schoolYearId, runId },
+	);
 
 	const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
 	const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD').length;
@@ -893,7 +997,13 @@ export async function previewManualEditBatch(
 	const errorCount = items.filter((item) => item.status === 'FAILED').length;
 
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
-	const newValidation = validateHardConstraints(newCtx);
+	const newValidation = appendManualCandidateViolations(
+		validateHardConstraints(newCtx),
+		applied.map((edit) => edit.afterEntry),
+		newEntries,
+		refData,
+		{ schoolId, schoolYearId, runId },
+	);
 
 	const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
 	const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD').length;
@@ -1020,7 +1130,13 @@ export async function commitManualEdit(
 
 	// Validate new state
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
-	const newValidation = validateHardConstraints(newCtx);
+	const newValidation = appendManualCandidateViolations(
+		validateHardConstraints(newCtx),
+		[afterEntry],
+		newEntries,
+		refData,
+		{ schoolId, schoolYearId, runId },
+	);
 
 	const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD');
 	const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT');
@@ -1167,7 +1283,13 @@ export async function commitManualEditBatch(
 	}
 
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
-	const newValidation = validateHardConstraints(newCtx);
+	const newValidation = appendManualCandidateViolations(
+		validateHardConstraints(newCtx),
+		applied.map((edit) => edit.afterEntry),
+		newEntries,
+		refData,
+		{ schoolId, schoolYearId, runId },
+	);
 	const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD');
 	const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT');
 	const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
