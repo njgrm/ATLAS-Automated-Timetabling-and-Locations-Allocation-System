@@ -10,10 +10,28 @@ import {
 	assertTeachingLoadWriteAuthority,
 	setAssignments,
 } from '../services/faculty-assignment.service.js';
-import { autoFill, type AutoFillResult } from '../services/teaching-load-automation.service.js';
-import { applyTeachingLoadSuggestionProposal } from '../services/teaching-load-suggestion-proposal.service.js';
+import { autoFill, previewOrApplyOverCapRebalance, type AutoFillResult } from '../services/teaching-load-automation.service.js';
+import {
+	applyTeachingLoadSuggestionProposal,
+	cancelTeachingLoadSuggestionProposal,
+	createTeachingLoadSuggestionProposal,
+} from '../services/teaching-load-suggestion-proposal.service.js';
 
 type WriteProbe = { count: number };
+type ProtectedWriteCounts = {
+	facultySubject: number;
+	subjectSectionOwnership: number;
+	teachingLoadCycle: number;
+	teachingLoadSuggestionProposal: number;
+	auditLog: number;
+};
+
+type YearMirrorFixture = {
+	schoolId: number;
+	enrollProSchoolYearId: number;
+	isActive: boolean;
+	isArchived: boolean;
+};
 
 const now = new Date('2026-09-10T00:00:00.000Z');
 
@@ -29,10 +47,10 @@ function yearClient(mode: 'active' | 'archived' | 'inactive', writes: WriteProbe
 	return {
 		enrollProSchoolYearMirror: {
 			findMany: async () => mode === 'active'
-				? [{ isActive: true, isArchived: false }]
+				? [{ enrollProSchoolYearId: 9, isActive: true, isArchived: false }]
 				: mode === 'archived'
-					? [{ isActive: false, isArchived: true }]
-					: [{ isActive: false, isArchived: false }],
+					? [{ enrollProSchoolYearId: 9, isActive: false, isArchived: true }]
+					: [{ enrollProSchoolYearId: 9, isActive: false, isArchived: false }],
 		},
 		sectionMirror: { findMany: async () => [] },
 		sectionSnapshot: {
@@ -61,6 +79,61 @@ function yearClient(mode: 'active' | 'archived' | 'inactive', writes: WriteProbe
 		teachingLoadSuggestionProposal: { create: write, update: write, updateMany: write },
 		$transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(yearClient(mode, writes)),
 	};
+}
+
+function ambiguousAuthorityFixture(mirrors: YearMirrorFixture[]) {
+	const writes: ProtectedWriteCounts = {
+		facultySubject: 0,
+		subjectSectionOwnership: 0,
+		teachingLoadCycle: 0,
+		teachingLoadSuggestionProposal: 0,
+		auditLog: 0,
+	};
+	const recordWrite = (model: keyof ProtectedWriteCounts) => async () => {
+		writes[model] += 1;
+		throw new Error(`unexpected ${model} write`);
+	};
+	const findMirrors = async (args?: { where?: Record<string, unknown> }) => {
+		const where = args?.where ?? {};
+		return mirrors.filter((mirror) => {
+			if (where.schoolId !== undefined && mirror.schoolId !== where.schoolId) return false;
+			if (where.enrollProSchoolYearId !== undefined && mirror.enrollProSchoolYearId !== where.enrollProSchoolYearId) return false;
+			if (where.isActive !== undefined && mirror.isActive !== where.isActive) return false;
+			if (where.isArchived !== undefined && mirror.isArchived !== where.isArchived) return false;
+			return true;
+		}).map((mirror) => ({ ...mirror }));
+	};
+	const client: any = {
+		enrollProSchoolYearMirror: { findMany: findMirrors },
+		sectionMirror: { findMany: async () => [] },
+		sectionSnapshot: { findUnique: async () => ({ payload: [], fetchedAt: now }) },
+		facultyMirror: {
+			findUnique: async () => ({
+				id: 11, schoolId: 1, isActiveForScheduling: true, version: 1,
+				isClassAdviser: false, advisedSectionId: null, specialization: null,
+				department: null, canTeachOutsideDepartment: false,
+			}),
+		},
+		facultySubject: {
+			create: recordWrite('facultySubject'), update: recordWrite('facultySubject'),
+			delete: recordWrite('facultySubject'), deleteMany: recordWrite('facultySubject'),
+			createManyAndReturn: recordWrite('facultySubject'),
+		},
+		subjectSectionOwnership: {
+			createMany: recordWrite('subjectSectionOwnership'), deleteMany: recordWrite('subjectSectionOwnership'),
+		},
+		teachingLoadCycle: {
+			create: recordWrite('teachingLoadCycle'), update: recordWrite('teachingLoadCycle'), upsert: recordWrite('teachingLoadCycle'),
+		},
+		teachingLoadSuggestionProposal: {
+			findUnique: async () => structuredClone(proposalRow),
+			create: recordWrite('teachingLoadSuggestionProposal'), update: recordWrite('teachingLoadSuggestionProposal'),
+			updateMany: recordWrite('teachingLoadSuggestionProposal'),
+		},
+		auditLog: { create: recordWrite('auditLog') },
+		$transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(client),
+	};
+	return { client, writes: () => structuredClone(writes), findMirrors };
 }
 
 async function withMountedRouter<T>(client: unknown, run: (baseUrl: string, token: string) => Promise<T>): Promise<T> {
@@ -120,7 +193,7 @@ function manualClient(initial: ManualState, failAudit = false) {
 		$transaction: async (callback: (tx: any) => Promise<unknown>) => {
 			const draft = structuredClone(state);
 			const tx: any = {
-				enrollProSchoolYearMirror: { findMany: async () => [{ isActive: true, isArchived: false }] },
+				enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 9, isActive: true, isArchived: false }] },
 				facultyMirror: {
 					findUnique: async () => ({ id: 11, schoolId: 1, isActiveForScheduling: true, version: draft.version }),
 					updateMany: async () => { draft.version += 1; return { count: 1 }; },
@@ -160,13 +233,13 @@ function proposalClient(initial: ProposalState, failAudit = false) {
 	let transactionCount = 0;
 	let nextFacultySubjectId = 100;
 	const client: any = {
-		enrollProSchoolYearMirror: { findMany: async () => [{ isActive: true, isArchived: false }] },
+		enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 9, isActive: true, isArchived: false }] },
 		teachingLoadSuggestionProposal: { findUnique: async () => structuredClone(state.proposal) },
 		$transaction: async (callback: (tx: any) => Promise<unknown>) => {
 			transactionCount += 1;
 			const draft = structuredClone(state);
 			const tx: any = {
-				enrollProSchoolYearMirror: { findMany: async () => [{ isActive: true, isArchived: false }] },
+				enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 9, isActive: true, isArchived: false }] },
 				teachingLoadSuggestionProposal: {
 					findUnique: async () => structuredClone(draft.proposal),
 					updateMany: async ({ where, data }: any) => {
@@ -261,13 +334,114 @@ async function run(): Promise<void> {
 		(error) => serviceCode(error) === 'ARCHIVED_YEAR_READ_ONLY',
 	);
 	assert.equal(authorityWrites.count, 0);
+
+	const targetYear: YearMirrorFixture = { schoolId: 1, enrollProSchoolYearId: 9, isActive: true, isArchived: false };
+	const competingActiveYear: YearMirrorFixture = { schoolId: 1, enrollProSchoolYearId: 10, isActive: true, isArchived: false };
+	const ambiguous = ambiguousAuthorityFixture([targetYear, competingActiveYear]);
+	const requestedRowsOnly = await ambiguous.findMirrors({ where: { schoolId: 1, enrollProSchoolYearId: 9 } });
+	assert.equal(
+		requestedRowsOnly.length === 1 && requestedRowsOnly[0].isActive && !requestedRowsOnly[0].isArchived,
+		true,
+		'sensitivity: the old requested-row-only predicate accepts the ambiguous fixture',
+	);
+	const noProtectedWrites = (): ProtectedWriteCounts => ({
+		facultySubject: 0,
+		subjectSectionOwnership: 0,
+		teachingLoadCycle: 0,
+		teachingLoadSuggestionProposal: 0,
+		auditLog: 0,
+	});
+	const expectAmbiguousZeroWrite = async (label: string, operation: () => Promise<unknown>) => {
+		const before = ambiguous.writes();
+		await assert.rejects(operation, (error) => serviceCode(error) === 'ACTIVE_YEAR_AMBIGUOUS', label);
+		assert.deepEqual(ambiguous.writes(), before, `${label}: protected writes remain zero`);
+	};
+
+	await expectAmbiguousZeroWrite('shared authority rejects two active years', () => withDataContext(
+		ambiguous.client,
+		() => assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 }),
+	));
+	await withMountedRouter(ambiguous.client, async (baseUrl, token) => {
+		const before = ambiguous.writes();
+		const autoFillResponse = await post(baseUrl, token, '/api/v1/faculty-assignments/auto-fill', { schoolId: 1, schoolYearId: 9 });
+		assert.equal(autoFillResponse.status, 409);
+		assert.equal((await autoFillResponse.json() as { code: string }).code, 'ACTIVE_YEAR_AMBIGUOUS');
+		assert.deepEqual(ambiguous.writes(), before, 'mounted auto-fill ambiguity rejection writes nothing');
+
+		const manualResponse = await put(baseUrl, token, '/api/v1/faculty-assignments/11', { schoolId: 1, schoolYearId: 9, version: 1, assignments: [] });
+		assert.equal(manualResponse.status, 409);
+		assert.equal((await manualResponse.json() as { code: string }).code, 'ACTIVE_YEAR_AMBIGUOUS');
+		assert.deepEqual(ambiguous.writes(), before, 'mounted manual-save ambiguity rejection writes nothing');
+
+		const proposalResponse = await post(baseUrl, token, '/api/v1/faculty-assignments/suggestion-proposals/41/apply', {});
+		assert.equal(proposalResponse.status, 409);
+		assert.equal((await proposalResponse.json() as { code: string }).code, 'ACTIVE_YEAR_AMBIGUOUS');
+		assert.deepEqual(ambiguous.writes(), before, 'mounted proposal-apply ambiguity rejection writes nothing');
+	});
+	await expectAmbiguousZeroWrite('proposal creation rejects two active years', () => withDataContext(
+		ambiguous.client,
+		() => createTeachingLoadSuggestionProposal({ schoolId: 1, schoolYearId: 9, actorId: 77, actorSchoolId: 1 }),
+	));
+	await expectAmbiguousZeroWrite('proposal apply rejects two active years', () => withDataContext(
+		ambiguous.client,
+		() => applyTeachingLoadSuggestionProposal({ proposalId: 41, actorId: 77, actorSchoolId: 1 }),
+	));
+	await expectAmbiguousZeroWrite('proposal cancel rejects two active years', () => withDataContext(
+		ambiguous.client,
+		() => cancelTeachingLoadSuggestionProposal({ proposalId: 41, actorId: 77, actorSchoolId: 1 }),
+	));
+	await expectAmbiguousZeroWrite('over-cap apply rejects two active years', () => withDataContext(
+		ambiguous.client,
+		() => previewOrApplyOverCapRebalance({ schoolId: 1, schoolYearId: 9, actorId: 77, actorSchoolId: 1, previewOnly: false }),
+	));
+	assert.deepEqual(ambiguous.writes(), noProtectedWrites());
+
+	for (const competingYear of [
+		{ ...competingActiveYear, isActive: false },
+		{ ...competingActiveYear, isActive: false, isArchived: true },
+	]) {
+		const resolved = ambiguousAuthorityFixture([targetYear, competingYear]);
+		await withDataContext(resolved.client, () => assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 }));
+		await withMountedRouter(resolved.client, async (baseUrl, token) => {
+			const response = await post(baseUrl, token, '/api/v1/faculty-assignments/auto-fill', { schoolId: 1, schoolYearId: 9 });
+			assert.equal(response.status, 409);
+			assert.equal((await response.json() as { code: string }).code, 'TEACHING_LOAD_PROPOSAL_REQUIRED');
+		});
+		assert.deepEqual(resolved.writes(), noProtectedWrites(), 'inactive or archived competing mirror restores sole-active authority');
+	}
+
+	const requestedArchived = ambiguousAuthorityFixture([
+		{ ...targetYear, isActive: false, isArchived: true },
+		competingActiveYear,
+	]);
+	await assert.rejects(
+		withDataContext(requestedArchived.client, () => assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 })),
+		(error) => serviceCode(error) === 'ARCHIVED_YEAR_READ_ONLY',
+		'requested archived mirror takes precedence over the other active year',
+	);
+
+	const historical = ambiguousAuthorityFixture([{ ...targetYear, isActive: false }, competingActiveYear]);
+	await assert.rejects(
+		withDataContext(historical.client, () => assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 })),
+		(error) => serviceCode(error) === 'INACTIVE_HISTORICAL_YEAR',
+	);
+	const unavailable = ambiguousAuthorityFixture([{ ...targetYear, isActive: false }]);
+	await assert.rejects(
+		withDataContext(unavailable.client, () => assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 })),
+		(error) => serviceCode(error) === 'ACTIVE_YEAR_UNAVAILABLE',
+	);
+	const missing = ambiguousAuthorityFixture([competingActiveYear]);
+	await assert.rejects(
+		withDataContext(missing.client, () => assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 })),
+		(error) => serviceCode(error) === 'YEAR_MIRROR_NOT_FOUND',
+	);
 	await assert.rejects(
 		assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 2 }, yearClient('active', authorityWrites) as any),
 		(error) => serviceCode(error) === 'SCHOOL_MISMATCH',
 	);
 	await assert.rejects(
 		assertTeachingLoadWriteAuthority({ schoolId: 1, schoolYearId: 9, actorSchoolId: 1 }, yearClient('inactive', authorityWrites) as any),
-		(error) => serviceCode(error) === 'ACTIVE_SCHOOL_YEAR_REQUIRED',
+		(error) => serviceCode(error) === 'ACTIVE_YEAR_UNAVAILABLE',
 	);
 	assert.equal(authorityWrites.count, 0);
 

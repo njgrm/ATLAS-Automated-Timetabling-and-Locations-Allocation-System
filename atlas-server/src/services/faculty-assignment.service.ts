@@ -27,7 +27,7 @@ const db = () => getDataContext();
 
 type TeachingLoadWriteAuthorityClient = {
   enrollProSchoolYearMirror: {
-    findMany(args: unknown): Promise<Array<{ isActive: boolean; isArchived: boolean }>>;
+    findMany(args: unknown): Promise<Array<{ enrollProSchoolYearId: number; isActive: boolean; isArchived: boolean }>>;
   };
 };
 
@@ -51,14 +51,25 @@ export async function assertTeachingLoadWriteAuthority(
 
   const target = client ?? (db() as unknown as TeachingLoadWriteAuthorityClient);
   const mirrors = await target.enrollProSchoolYearMirror.findMany({
-    where: { schoolId: input.schoolId, enrollProSchoolYearId: input.schoolYearId },
-    select: { isActive: true, isArchived: true },
+    where: { schoolId: input.schoolId },
+    select: { enrollProSchoolYearId: true, isActive: true, isArchived: true },
   });
-  if (mirrors.some((mirror) => mirror.isArchived)) {
+  const requestedMirror = mirrors.find((mirror) => mirror.enrollProSchoolYearId === input.schoolYearId);
+  if (!requestedMirror) {
+    throw authorityError(404, 'YEAR_MIRROR_NOT_FOUND', 'No school-year mirror exists for this school and year.');
+  }
+  if (requestedMirror.isArchived) {
     throw authorityError(409, 'ARCHIVED_YEAR_READ_ONLY', 'Archived school-year Teaching Load is read-only.');
   }
-  if (mirrors.length !== 1 || !mirrors[0].isActive) {
-    throw authorityError(409, 'ACTIVE_SCHOOL_YEAR_REQUIRED', 'Teaching Load writes require exactly one active, non-archived school year.');
+  const activeMirrors = mirrors.filter((mirror) => mirror.isActive && !mirror.isArchived);
+  if (activeMirrors.length === 0) {
+    throw authorityError(409, 'ACTIVE_YEAR_UNAVAILABLE', 'No active, non-archived school-year mirror exists for this school.');
+  }
+  if (activeMirrors.length > 1) {
+    throw authorityError(409, 'ACTIVE_YEAR_AMBIGUOUS', 'More than one active, non-archived school-year mirror exists for this school. Resolve school-year authority before changing Teaching Load.');
+  }
+  if (activeMirrors[0].enrollProSchoolYearId !== input.schoolYearId) {
+    throw authorityError(409, 'INACTIVE_HISTORICAL_YEAR', 'This school year is not the currently active year and cannot be changed.');
   }
 }
 
