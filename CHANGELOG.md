@@ -80,6 +80,24 @@
 ### Open Questions
 - Planner QA: Tailnet login-flow, keyboard-only, 200%-zoom, overflow, and
   no-write-request verification at 1280x720 and 390x844.
+## [2026-09-10] — PUB-C01R3 PostgreSQL Publication Concurrency
+
+### Added
+- Added a durable real-PostgreSQL publication concurrency suite covering bound advisory-lock casts, Int32 guards, database-visible overlap, original/replay convergence, stale-source rejection, notification cardinality, and zero-write authority controls.
+- Added a bounded whole-transaction Serializable retry boundary for Prisma `P2034` and PostgreSQL SQLSTATE `40001`, with a stable typed conflict after three exhausted attempts.
+
+### Changed
+- Both initial publication and post-publication revision creation now acquire PostgreSQL's two-key transaction advisory lock through bound parameters explicitly cast to `integer`.
+- Publication school and school-year identifiers now reject values outside PostgreSQL's positive signed-Int32 range before raw SQL executes.
+
+### Decisions Made
+- Serialization conflicts retry the complete authority and write transaction, never an individual statement inside an aborted transaction.
+- Typed application errors are never retried, and post-commit notifications remain outside the retry boundary so replay cannot duplicate delivery attempts.
+- Live publication, generation, schema changes, port 5001, and companion systems remained out of scope; proof used a deleted disposable database and isolated runtime port 5128.
+
+### Open Questions
+- Formal Terra QA review of the committed R2/R3 correction range remains required before integration.
+
 ## [2026-09-10] — PUB-C01R Publication Authority Correction
 
 ### Added

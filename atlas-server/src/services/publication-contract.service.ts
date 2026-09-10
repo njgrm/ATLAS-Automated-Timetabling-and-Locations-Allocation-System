@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
+import { runSerializablePublicationTransaction } from './serializable-transaction-retry.js';
 import {
 	compareGenerationInputSnapshots,
 	computeGenerationInputSnapshot,
@@ -63,6 +64,10 @@ function isPositiveInteger(value: unknown): value is number {
 	return Number.isInteger(value) && Number(value) > 0;
 }
 
+function isPositiveInt32(value: unknown): value is number {
+	return isPositiveInteger(value) && Number(value) <= 2_147_483_647;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === 'object' && !Array.isArray(value)
 		? value as Record<string, unknown>
@@ -107,8 +112,8 @@ function validateScheduleEntries(entries: unknown): asserts entries is Array<Rec
 }
 
 function validateInput(input: PublishScheduleInput): void {
-	if (!isPositiveInteger(input.schoolId)) throw fail(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive integer.');
-	if (!isPositiveInteger(input.schoolYearId)) throw fail(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive integer.');
+	if (!isPositiveInt32(input.schoolId)) throw fail(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive Int32 integer.');
+	if (!isPositiveInt32(input.schoolYearId)) throw fail(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive Int32 integer.');
 	if (!isPositiveInteger(input.runId)) throw fail(400, 'INVALID_RUN_ID', 'runId must be a positive integer.');
 	if (!isPositiveInteger(input.actorId)) throw fail(401, 'NO_USER', 'Authenticated user required.');
 	if (!isPositiveInteger(input.actorSchoolId)) throw fail(403, 'ACTOR_SCHOOL_UNRESOLVED', 'Publication requires an authenticated school scope.');
@@ -138,10 +143,10 @@ export async function publishSchedule(
 	const computeSnapshot = dependencies.computeInputSnapshot ?? computeGenerationInputSnapshot;
 	const publishEvent = dependencies.publishEvent ?? publishPublishedScheduleEvent;
 
-	const committed = await client.$transaction(async (tx) => {
+	const committed = await runSerializablePublicationTransaction(client, async (tx) => {
 		// One publisher per school/year enters the decision boundary at a time. This closes the
 		// no-schema-change concurrency gap and makes duplicate request replay deterministic.
-		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1, $2)', input.schoolId, input.schoolYearId);
+		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
 
 		const activeYears = await tx.enrollProSchoolYearMirror.findMany({
 			where: { schoolId: input.schoolId, isActive: true, isArchived: false },
@@ -369,7 +374,7 @@ export async function publishSchedule(
 			auditId: audit.id,
 			replayed: false,
 		};
-	}, { isolationLevel: 'Serializable' });
+	});
 
 	if (committed.replayed) return { ...committed, notificationDelivery: 'DELIVERED' };
 
