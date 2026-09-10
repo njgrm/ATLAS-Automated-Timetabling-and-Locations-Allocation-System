@@ -76,9 +76,12 @@ function suppliedDisplayLabel(value: unknown): string | null {
 	return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
-function normalizedIdentity(value: unknown): string | null {
-	const text = nonEmptyString(value);
-	return text ? text.toUpperCase() : null;
+function suppliedIdentity(value: unknown): string | null {
+	return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function canonicalComparisonKey(value: unknown): string | null {
+	return typeof value === 'string' && value.trim().length > 0 ? value.trim().toUpperCase() : null;
 }
 
 function normalizeDate(value: unknown): { ok: true; value: string | null } | { ok: false } {
@@ -97,7 +100,7 @@ function buildFlatTerms(data: Record<string, unknown>, format: EnrollProTermForm
 	const count = FORMAT_TERM_COUNT[format];
 	const terms: VerifiedTerm[] = [];
 	for (let index = 1; index <= count; index += 1) {
-		const identity = normalizedIdentity(data[`term${index}Identity`]);
+		const identity = suppliedIdentity(data[`term${index}Identity`]);
 		const displayLabel = suppliedDisplayLabel(data[`term${index}Label`]);
 		if (!identity || !displayLabel) {
 			return fail('TERM_ENTRY_INVALID', `EnrollPro term ${index} must supply an identity and display label.`);
@@ -127,7 +130,7 @@ function buildExplicitTerms(rawTerms: unknown[], format: EnrollProTermFormat): T
 			return fail('TERM_ENTRY_INVALID', `EnrollPro term ${index + 1} is not an object.`);
 		}
 		const item = raw as Record<string, unknown>;
-		const identity = normalizedIdentity(item.identity ?? item.id);
+		const identity = suppliedIdentity(item.identity ?? item.id);
 		const displayLabel = suppliedDisplayLabel(item.displayLabel ?? item.label);
 		const suppliedOrder = item.order === undefined ? index + 1 : positiveInteger(item.order);
 		if (!identity || !displayLabel || suppliedOrder !== index + 1) {
@@ -177,7 +180,7 @@ export function normalizeEnrollProTermContract(input: {
 	if (!activeYearId || activeYearId !== upstreamYearId) {
 		return fail('ACTIVE_TERM_YEAR_MISMATCH', `EnrollPro active-term year ${String(activeTerm.schoolYearId ?? 'missing')} does not match school year ${upstreamYearId}.`);
 	}
-	const normalizedFormat = normalizedIdentity(schoolYear.termFormat);
+	const normalizedFormat = canonicalComparisonKey(schoolYear.termFormat);
 	if (normalizedFormat !== 'TRIMESTER' && normalizedFormat !== 'QUARTERS') {
 		return fail('TERM_FORMAT_UNSUPPORTED', `EnrollPro returned unsupported term format ${String(schoolYear.termFormat ?? 'missing')}.`);
 	}
@@ -185,12 +188,13 @@ export function normalizeEnrollProTermContract(input: {
 		? buildExplicitTerms(schoolYear.terms, normalizedFormat)
 		: buildFlatTerms(schoolYear, normalizedFormat);
 	if (!Array.isArray(builtTerms)) return builtTerms;
-	const identities = builtTerms.map((term) => term.identity);
-	if (new Set(identities).size !== identities.length) {
+	const identityKeys = builtTerms.map((term) => canonicalComparisonKey(term.identity));
+	if (new Set(identityKeys).size !== identityKeys.length) {
 		return fail('TERM_IDENTITIES_DUPLICATE', 'EnrollPro returned duplicate term identities.');
 	}
-	const activeIdentity = normalizedIdentity(activeTerm.activeTerm ?? activeTerm.termIdentity);
-	const resolvedActive = activeIdentity ? builtTerms.find((term) => term.identity === activeIdentity) : null;
+	const activeIdentityKey = canonicalComparisonKey(activeTerm.activeTerm ?? activeTerm.termIdentity);
+	const activeTermIndex = activeIdentityKey ? identityKeys.indexOf(activeIdentityKey) : -1;
+	const resolvedActive = activeTermIndex >= 0 ? builtTerms[activeTermIndex] : null;
 	if (!resolvedActive) {
 		return fail('ACTIVE_TERM_OUTSIDE_CONTRACT', `EnrollPro active term ${String(activeTerm.activeTerm ?? activeTerm.termIdentity ?? 'missing')} is outside the ordered term contract.`);
 	}

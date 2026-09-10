@@ -20,6 +20,9 @@
 - QA correction: flat EnrollPro responses must explicitly supply every ordered
   term identity and display label. ATLAS no longer invents `T1..Tn` identities
   or generic Term/Quarter labels for an incomplete live response.
+- QA correction: authoritative term identities retain their exact upstream case
+  and spelling through verification, caching, hashing, API output, and Subject
+  rotation resolution. Canonical keys are comparison-only.
 
 ### Decisions Made
 - EnrollPro is the sole term-structure authority. ATLAS may use only an exact

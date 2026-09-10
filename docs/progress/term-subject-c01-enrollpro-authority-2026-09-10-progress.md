@@ -8,22 +8,29 @@ Status: `REVIEW_REQUIRED`
 - Branch: `work/term-subject-c01`
 - Clean base: `e39da52013c78013a2ac7c0dd96b00f774014acd`
 - Initial candidate: `40266644df8910a19b2fbefd3308ee52d8029f0b`.
-- QA correction candidate: the one additive commit carrying this updated ledger;
-  use `git rev-parse HEAD`.
+- Metadata-completeness correction: `d4e56bc8e59736dbdb6809051f3b68e0664791c2`.
+- Identity-preservation correction: the one additive commit carrying this ledger;
+  use `git rev-parse HEAD`. Recovery of the interrupted identity-preservation
+  pass found and repaired a TypeScript control-flow error in the new mixed-
+  identity test (`cached?.contract` narrowed to `never`); the test now captures
+  cache writes in an array, and `tsc` passes again.
 - Companion inspection was read-only. No live migration, generation, demand
   materialization, Teaching Load apply, publication, merge, rebase, amend, or
   push was performed.
 
 ## Delivered contract
 
-- EnrollPro school-year plus active-term responses normalize into a single
-  school/year-bound contract with format, ordered identities, preserved labels,
-  optional dates, active term, verification state, and SHA-256 semantic revision.
+- EnrollPro school-year plus active-term responses produce a single
+  school/year-bound contract with format, exact supplied ordered identities and
+  labels, optional dates, active term, verification state, and SHA-256 semantic
+  revision over those exact authoritative values.
 - `TRIMESTER` and `QUARTERS` are supported without a T1–T3 ceiling. Every live
   shape must supply its complete ordered identities and display labels; ATLAS
-  does not invent missing term identities or labels. Missing entries, unsupported
-  formats, duplicate identities, school/year mismatch, and an active term outside
-  the ordered contract return typed blocked outcomes.
+  does not invent or rewrite term identities or labels. Case-insensitive canonical
+  keys are used only to reject ambiguous duplicate identities and to match the
+  active term back to its exact ordered-contract identity. Missing entries,
+  duplicates, unsupported formats, school/year mismatch, and an active term
+  outside the ordered contract return typed blocked outcomes.
 - Only a verified live contract is cached on the exact
   `EnrollProSchoolYearMirror`. A matching cache is visibly degraded; wrong-year,
   wrong-school, tampered, missing, or unreadable cache state blocks.
@@ -44,6 +51,9 @@ Status: `REVIEW_REQUIRED`
 
 - Three-term fixture: `TRIMESTER`, `T1/T2/T3`, preserved labels “First/Second/
   Third Trimester”, date ranges, active `T2`.
+- Mixed-identity fixture: exact `Term-A/term-b/term_C` identities and nonstandard
+  labels; active input `TERM-B` resolves back to authoritative `term-b`, and the
+  exact values remain stable through cache, semantic revision, API, and Subject view.
 - Four-term fixture: `QUARTERS`, explicit `Q-A/Q-B/Q-C/Q-D` identities,
   upstream labels including “Fourth Quarter / Capstone”, date ranges, active
   `Q-D`; the client-facing scheduling view preserves that label exactly.
@@ -74,7 +84,7 @@ database and all live/Tailnet data remained untouched.
 
 ## Verification
 
-- `npm exec -- tsx src/__tests__/term-subject-authority.test.ts` — 12/12 pass.
+- `npm exec -- tsx src/__tests__/term-subject-authority.test.ts` — 13/13 pass.
 - Existing disposable Subject catalog truth suite — 106/106 pass after updating
   the expected protected-term outcome.
 - `npm exec -- tsx --test src/lib/__tests__/subject-create-payload.test.ts` —
@@ -83,8 +93,18 @@ database and all live/Tailnet data remained untouched.
 - Compiled `dist/__tests__/term-subject-authority-http.test.js` against the
   disposable PostgreSQL database — 1/1 pass through the mounted production route.
 - `prisma validate` with a non-live validation URL — pass.
-- Server `npm run build` (`tsc`) — pass.
-- Client `npm run build` (`vite build`) — pass.
+- `prisma migrate diff --from-url <disposable> --to-schema-datamodel prisma/schema.prisma --exit-code` — "No difference detected." (exit 0).
+- Migration proof on a fresh disposable database: baseline, four synthetic
+  subjects, candidate migration (HG→REFERENCE_ONLY, ALT_HG/MATH/SCI stay
+  scheduled, cache columns and enum added), documented rollback (zero remaining
+  columns/enum), then full drop/recreate + `prisma migrate deploy` rebuild.
+- Server `npm run build` (`tsc`) — pass. Recovery RED: the interrupted
+  mixed-identity test failed `tsc` with `TS2339: Property 'contract' does not
+  exist on type 'never'`; GREEN after the array capture.
+- Client `npm run build` (`vite build`) — pass; client `npx tsc --noEmit` — pass.
+- Built-server smoke on non-live port `5993` with
+  `ROLLOVER_AUTO_SYNC_ENABLED=false`: `GET /api/v1/health` → 200
+  `{"status":"ok","service":"atlas"}`, process alive after the request.
 - `git diff --check` — pass before candidate commit.
 
 ## Known risks and follow-up

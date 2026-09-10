@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import test from 'node:test';
 
@@ -69,6 +70,62 @@ test('real adapter fixture preserves the ordered three-term EnrollPro contract',
 		assert.equal(result.contract.activeTerm.identity, 'T2');
 		assert.equal(result.contract.activeTerm.order, 2);
 		assert.match(result.contract.semanticRevision, /^[a-f0-9]{64}$/);
+	});
+});
+
+test('mixed authoritative identities and labels remain exact through active resolution, cache, revision, and Subject view', async () => {
+	const expectedTerms = [
+		{ identity: 'Term-A', displayLabel: 'Launch / Foundations', order: 1, startDate: null, endDate: null },
+		{ identity: 'term-b', displayLabel: 'Studio Cycle β', order: 2, startDate: null, endDate: null },
+		{ identity: 'term_C', displayLabel: 'Capstone + Defense', order: 3, startDate: null, endDate: null },
+	];
+	await withEnrollProFixture({
+		'/integration/v1/school-year': { body: { data: {
+			id: 77,
+			schoolId: SCHOOL_ID,
+			yearLabel: '2030-2031',
+			termFormat: 'TRIMESTER',
+			terms: expectedTerms.map(({ identity, displayLabel }) => ({ identity, displayLabel })),
+		} } },
+		'/integration/v1/active-term': { body: { data: { schoolId: SCHOOL_ID, schoolYearId: 77, activeTerm: 'TERM-B' } } },
+	}, async (baseUrl) => {
+		const live = await fetchEnrollProTermContract({ baseUrl, authToken: 'fixture-token', schoolId: SCHOOL_ID, schoolYearId: 77 });
+		assert.equal(live.ok, true);
+		if (!live.ok) return;
+		assert.deepEqual(live.contract.terms, expectedTerms);
+		assert.equal(live.contract.activeTerm.identity, 'term-b');
+		assert.equal(live.contract.activeTerm.displayLabel, 'Studio Cycle β');
+
+		const expectedSemantic = {
+			schoolId: SCHOOL_ID,
+			schoolYear: { id: 77, yearLabel: '2030-2031' },
+			format: 'TRIMESTER',
+			terms: expectedTerms,
+			activeTerm: { identity: 'term-b', displayLabel: 'Studio Cycle β', order: 2 },
+		};
+		assert.equal(
+			live.contract.semanticRevision,
+			createHash('sha256').update(JSON.stringify(expectedSemantic)).digest('hex'),
+		);
+
+		const cacheWrites: CachedTermContractRecord[] = [];
+		const resolved = await resolveTermContractWithDependencies(
+			{ schoolId: SCHOOL_ID, schoolYearId: 77, authToken: 'fixture-token' },
+			{
+				fetchLive: async () => live,
+				loadCache: async () => null,
+				saveCache: async (record) => { cacheWrites.push(record); },
+			},
+		);
+		assert.equal(resolved.state, 'VERIFIED_LIVE');
+		assert.equal(cacheWrites.length, 1);
+		assert.deepEqual(cacheWrites[0].contract, live.contract);
+
+		const view = buildSubjectSchedulingAuthorityView([
+			{ id: 42, code: 'SCI_MIXED', rotationFamily: 'SCIENCE', modularOrder: 2, schedulingDisposition: 'SCHEDULED_TEACHING' as const },
+		], resolved);
+		assert.equal(view.subjects[0].rotationTermIdentity, 'term-b');
+		assert.equal(view.subjects[0].rotationTermLabel, 'Studio Cycle β');
 	});
 });
 
@@ -151,7 +208,7 @@ test('flat live contracts fail closed when ordered identities or labels are miss
 	}
 });
 
-test('normalization fails closed for unsupported formats and duplicate identities', async () => {
+test('normalization fails closed for unsupported formats and duplicate identities by canonical comparison key', async () => {
 	for (const fixture of [
 		{
 			name: 'unsupported format',
@@ -159,13 +216,13 @@ test('normalization fails closed for unsupported formats and duplicate identitie
 			schoolYear: { ...trimesterSchoolYear(), data: { ...trimesterSchoolYear().data, termFormat: 'SEMESTER' } },
 		},
 		{
-			name: 'duplicate identities',
+			name: 'duplicate canonical identities make active resolution ambiguous',
 			code: 'TERM_IDENTITIES_DUPLICATE',
 			schoolYear: {
 				...trimesterSchoolYear(),
 				data: {
 					...trimesterSchoolYear().data,
-					terms: trimesterSchoolYear().data.terms.map((term, index) => ({ ...term, identity: index === 2 ? 'T2' : term.identity })),
+					terms: trimesterSchoolYear().data.terms.map((term, index) => ({ ...term, identity: index === 2 ? 't2' : term.identity })),
 				},
 			},
 		},

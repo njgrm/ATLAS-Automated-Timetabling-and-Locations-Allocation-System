@@ -24,15 +24,15 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 				yearLabel: '2030-2031',
 				termFormat: 'TRIMESTER',
 				terms: [
-					{ identity: 'T1', displayLabel: 'First Trimester', startDate: '2030-06-03', endDate: '2030-09-13' },
-					{ identity: 'T2', displayLabel: 'Second Trimester', startDate: '2030-09-16', endDate: '2031-01-10' },
-					{ identity: 'T3', displayLabel: 'Third Trimester', startDate: '2031-01-13', endDate: '2031-04-04' },
+					{ identity: 'Term-A', displayLabel: 'Launch / Foundations', startDate: '2030-06-03', endDate: '2030-09-13' },
+					{ identity: 'term-b', displayLabel: 'Studio Cycle β', startDate: '2030-09-16', endDate: '2031-01-10' },
+					{ identity: 'term_C', displayLabel: 'Capstone + Defense', startDate: '2031-01-13', endDate: '2031-04-04' },
 				],
 			} }));
 			return;
 		}
 		if (req.url === '/integration/v1/active-term') {
-			res.end(JSON.stringify({ data: { schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, activeTerm: 'T2' } }));
+			res.end(JSON.stringify({ data: { schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, activeTerm: 'TERM-B' } }));
 			return;
 		}
 		res.statusCode = 404;
@@ -73,9 +73,13 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 		assert.equal(response.status, 200);
 		const body = await response.json() as any;
 		assert.equal(body.termAuthority.state, 'VERIFIED_LIVE');
-		assert.deepEqual(body.termAuthority.contract.terms.map((term: any) => term.displayLabel), [
-			'First Trimester', 'Second Trimester', 'Third Trimester',
+		assert.deepEqual(body.termAuthority.contract.terms.map((term: any) => term.identity), [
+			'Term-A', 'term-b', 'term_C',
 		]);
+		assert.deepEqual(body.termAuthority.contract.terms.map((term: any) => term.displayLabel), [
+			'Launch / Foundations', 'Studio Cycle β', 'Capstone + Defense',
+		]);
+		assert.equal(body.termAuthority.contract.activeTerm.identity, 'term-b');
 		assert.equal(body.subjects.find((subject: any) => subject.code === 'HG').createsTimetableDemand, false);
 		assert.equal(body.subjects.find((subject: any) => subject.code === 'HG').createsTeachingLoad, false);
 		assert.equal(body.subjects.find((subject: any) => subject.code === 'MATH').createsTimetableDemand, true);
@@ -123,6 +127,9 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 		});
 		assert.ok(cached?.termContractCache);
 		assert.ok(cached?.termContractCachedAt);
+		assert.deepEqual((cached?.termContractCache as any).terms.map((term: any) => term.identity), [
+			'Term-A', 'term-b', 'term_C',
+		]);
 	} finally {
 		await prisma.subject.deleteMany({ where: { schoolId: SCHOOL_ID } });
 		await prisma.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: SCHOOL_ID } });
