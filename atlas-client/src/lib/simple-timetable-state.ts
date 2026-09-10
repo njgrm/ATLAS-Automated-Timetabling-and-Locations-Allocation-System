@@ -44,9 +44,13 @@ export function reduceSimplePlacementState(
 }
 
 export type SimpleLifecycleKind =
+	| 'resolve-scope'
+	| 'fix-setup'
 	| 'start-draft'
 	| 'generate'
 	| 'generating'
+	| 'retry-generate'
+	| 'retry-readiness'
 	| 'fix-blockers'
 	| 'review-warnings'
 	| 'publish'
@@ -61,6 +65,14 @@ export type SimpleLifecycleInput = {
 	unassignedCount?: number;
 	softCount?: number;
 	isPublished?: boolean;
+	/** False while the actor school/year scope is still unresolved. No
+	 * timetable request may be treated as actionable in that state. */
+	scopeResolved?: boolean;
+	/** Curriculum Requirements gate: 'blocked' means setup inputs are not
+	 * ready and generation must not be offered as the next action. */
+	curriculumState?: 'loading' | 'ready' | 'blocked' | 'unavailable' | 'failed';
+	/** True when the newest run failed and no generated run is reviewable. */
+	latestRunFailed?: boolean;
 };
 
 export type SimpleLifecycleAction = {
@@ -71,13 +83,34 @@ export type SimpleLifecycleAction = {
 };
 
 export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): SimpleLifecycleAction {
+	// Unresolved actor/school/year scope: nothing below is actionable and no
+	// timetable request should be treated as in flight.
+	if (input.scopeResolved === false) {
+		return { kind: 'resolve-scope', label: 'Check school scope', disabled: true, interactive: false };
+	}
 	if (input.generating) {
 		return { kind: 'generating', label: 'Generating…', disabled: true, interactive: false };
+	}
+	if (input.curriculumState === 'loading') {
+		return { kind: 'retry-readiness', label: 'Checking setup…', disabled: true, interactive: false };
+	}
+	if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
+		return { kind: 'retry-readiness', label: 'Retry setup check', disabled: false, interactive: true };
+	}
+	// Setup inputs blocked: the single next action is repairing setup, never
+	// generation or publish.
+	if (input.curriculumState === 'blocked') {
+		return { kind: 'fix-setup', label: 'Fix Curriculum Requirements', disabled: false, interactive: true };
 	}
 	if (input.isPreGeneration) {
 		return { kind: 'generate', label: 'Generate when ready', disabled: false, interactive: true };
 	}
 	if (!input.hasGeneratedRun) {
+		// A failed newest run is history, not a reviewable timetable: the next
+		// action is an explicit retry, never publish or review.
+		if (input.latestRunFailed) {
+			return { kind: 'retry-generate', label: 'Try generating again', disabled: false, interactive: true };
+		}
 		return { kind: 'start-draft', label: 'Start draft', disabled: false, interactive: true };
 	}
 	if (input.isPublished) {

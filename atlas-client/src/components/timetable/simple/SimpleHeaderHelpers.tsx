@@ -111,6 +111,11 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		return 'Published';
 	}
 	if (context.hardCount > 0) return `${context.hardCount} blocker${context.hardCount === 1 ? '' : 's'}`;
+	// Unresolved sessions block publish exactly like hard blockers: individual
+	// previewability is not joint feasibility, so never report ready while any
+	// session still needs fixing.
+	const unassigned = context.summary?.unassignedCount ?? 0;
+	if (unassigned > 0) return `${unassigned} unresolved`;
 	if (context.softCount > 0) return `${context.softCount} warning${context.softCount === 1 ? '' : 's'}`;
 	return 'Ready to publish';
 }
@@ -433,9 +438,13 @@ export function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): S
 				id: 'publish',
 				label: 'Publish',
 				primaryLabel: 'Publish schedule',
-				helper: context.hardCount > 0 ? 'Publishing is blocked until hard issues are cleared.' : 'Publish when the schedule is clean.',
+				helper: context.hardCount > 0
+					? 'Publishing is blocked until hard issues are cleared.'
+					: (context.summary?.unassignedCount ?? 0) > 0
+						? 'Publishing is blocked until every session is placed.'
+						: 'Publish when the schedule is clean.',
 				icon: Send,
-				disabled: !context.draft || context.hardCount > 0 || context.isPreGenerationWorkspace,
+				disabled: !context.draft || context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0 || context.isPreGenerationWorkspace,
 			},
 		];
 	}, [context.draft, context.draftPlacementCount, context.hardCount, context.isPreGenerationWorkspace, context.newDraftLoading, context.schoolYearContext?.activeSchoolYearLabel, context.schoolYearId, context.softCount, context.summary?.unassignedCount]);

@@ -45,6 +45,9 @@ export type SimplePublishReadiness = {
 	hasBlockers: boolean;
 	hasWarnings: boolean;
 	isClean: boolean;
+	/** False when no generated run exists. A missing run is never clean and
+	 * never publishable: readiness evidence alone cannot publish. */
+	hasGeneratedRun: boolean;
 };
 
 const REASON_TO_PLAIN_LABEL: Record<string, string> = {
@@ -265,7 +268,9 @@ export function deriveSimplePublishReadiness(
 	const totalSoftWarnings = warningGroups.reduce((sum, g) => sum + g.count, 0);
 
 	let summaryText: string;
-	if (totalHardBlockers > 0) {
+	if (!draft) {
+		summaryText = `No timetable generated yet\nGenerate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.`;
+	} else if (totalHardBlockers > 0) {
 		summaryText = `Cannot publish yet\n${totalUnresolved} session${totalUnresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.\nFix blockers first. Warnings can be reviewed after blockers are clear.`;
 	} else if (totalSoftWarnings > 0) {
 		summaryText = `Ready except for warnings\nNo hard blockers remain. Review the warnings, then publish if the schedule is acceptable.`;
@@ -282,6 +287,7 @@ export function deriveSimplePublishReadiness(
 		summaryText,
 		hasBlockers: totalHardBlockers > 0,
 		hasWarnings: totalSoftWarnings > 0,
-		isClean: totalHardBlockers === 0 && totalSoftWarnings === 0,
+		isClean: draft != null && totalHardBlockers === 0 && totalSoftWarnings === 0,
+		hasGeneratedRun: draft != null,
 	};
 }

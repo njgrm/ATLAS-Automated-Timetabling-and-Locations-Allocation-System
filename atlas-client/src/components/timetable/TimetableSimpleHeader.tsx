@@ -106,7 +106,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const readiness = readinessLabel(context);
 	const curriculumReadiness = context.curriculumReadiness ?? { state: 'unavailable' as const, message: 'Curriculum readiness is unavailable.' };
 	const generationReady = curriculumReadiness.state === 'ready';
-	const generationBlocked = curriculumReadiness.state === 'blocked';
+	const scopeResolved = Number.isInteger(context.schoolId) && context.schoolId > 0
+		&& Number.isInteger(context.schoolYearId) && (context.schoolYearId ?? 0) > 0;
+	const canPlanOrGenerate = scopeResolved && generationReady && !context.generating && !context.loading;
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
 	const ActiveIcon = activeTaskDefinition.icon;
 	const currentEntityIsValid = hasPivotValue(context, context.entityFilter);
@@ -137,6 +139,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	// A failed or invalidated run is history, not a timetable that can be reviewed or published.
 	const hasGeneratedRun = Boolean(context.draft);
+	// Newest run failed while nothing reviewable exists: name it explicitly so
+	// operators do not read this as "nothing ever happened".
+	const latestRunFailed = !hasGeneratedRun && (context.runs?.[0]?.status === 'FAILED');
 	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
 	const isRunPublished = draftSummaryRaw?.isPublished === true;
 	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
@@ -153,6 +158,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		unassignedCount: context.summary?.unassignedCount ?? 0,
 		softCount: context.softCount,
 		isPublished: isRunPublished,
+		scopeResolved,
+		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		latestRunFailed,
 	});
 
 	const handlePublishClick = () => {
@@ -167,10 +175,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	const handleLifecycleAction = () => {
 		switch (lifecycleAction.kind) {
+			case 'resolve-scope': break;
+			case 'fix-setup': navigate('/curriculum-requirements'); break;
 			case 'start-draft': void startTask('plan-draft'); break;
 			case 'generate':
 				if (generationReady) context.handleTriggerGenerate();
 				break;
+			case 'retry-generate': context.handleTriggerGenerate(); break;
+			case 'retry-readiness': context.handleRefresh(); break;
 			case 'fix-blockers': setReadinessSheetOpen(true); break;
 			case 'review-warnings': void startTask('review-issues'); break;
 			case 'publish': handlePublishClick(); break;
@@ -297,6 +309,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				onTaskChange('review-issues');
 				return;
 			}
+			// Unresolved sessions block publish exactly like hard blockers: route
+			// to the single readiness summary instead of opening publish.
+			if ((context.summary?.unassignedCount ?? 0) > 0) {
+				setReadinessSheetOpen(true);
+				return;
+			}
 			context.setPublishAcknowledged(false);
 			context.setShowPublishDialog(true);
 		}
@@ -381,91 +399,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						onEntityChange={handleEntityChange}
 					/>
 					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} />
-					{(() => {
-						const mobileLabel = !hasGeneratedRun && !context.isPreGenerationWorkspace
-							? 'Generate'
-							: context.generating
-								? 'Generating…'
-								: isRunPublished
-									? 'Published'
-									: publishBlocked
-										? 'Fix blockers'
-										: (context.summary?.unassignedCount ?? 0) > 0
-											? 'Review warnings'
-											: hasGeneratedRun
-												? 'Publish'
-												: 'Generate';
-						const mobileDisabled = context.generating || context.loading || !context.schoolYearId
-							|| (publishBlocked && mobileLabel !== 'Fix blockers')
-							|| (isRunPublished && mobileLabel === 'Published');
-						const mobileIcon = context.generating
-							? Loader2
-							: isRunPublished
-								? CheckCircle2
-								: publishBlocked
-									? AlertTriangle
-									: hasGeneratedRun
-										? Send
-										: Play;
-						const MobileIcon = mobileIcon;
-						return (
-							<TooltipProvider delayDuration={300}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											type="button"
-											variant={isRunPublished ? 'outline' : publishBlocked ? 'outline' : 'default'}
-											size="sm"
-											className={cn(
-											'hidden',
-												isRunPublished && 'border-emerald-200 bg-emerald-50 text-emerald-800',
-												!isRunPublished && !publishBlocked && 'bg-emerald-600 text-white hover:bg-emerald-700',
-											)}
-											disabled={mobileDisabled}
-											onClick={() => {
-												if (!hasGeneratedRun && !context.isPreGenerationWorkspace) {
-													context.handleTriggerGenerate();
-												} else if (publishBlocked) {
-													setReadinessSheetOpen(true);
-												} else if (hasGeneratedRun && !isRunPublished) {
-													handlePublishClick();
-												}
-											}}
-											data-testid="timetable-simple-mobile-lifecycle-action"
-										>
-											<MobileIcon className={cn('size-3.5', context.generating && 'animate-spin')} aria-hidden="true" />
-											<span className="hidden min-[420px]:inline">{mobileLabel}</span>
-										</Button>
-									</TooltipTrigger>
-									{publishBlocked && (
-										<TooltipContent side="bottom" className="max-w-xs">
-											<p>{publishBlockedReason}</p>
-											<p className="mt-1 text-xs opacity-80">Tap to review and fix issues.</p>
-										</TooltipContent>
-									)}
-									{isRunPublished && (context.summary?.unassignedCount ?? 0) > 0 && (
-										<TooltipContent side="bottom" className="max-w-xs">
-											<p>This schedule is published.</p>
-											<p className="mt-1 text-xs opacity-80">{context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need review.</p>
-										</TooltipContent>
-									)}
-								</Tooltip>
-							</TooltipProvider>
-						);
-					})()}
-					<Button
-						type="button"
-						variant="default"
-						size="sm"
-						className="hidden"
-						disabled={context.generating || context.loading || !context.schoolYearId}
-						onClick={context.handleTriggerGenerate}
-						data-testid="timetable-simple-generate-action"
-					>
-						{context.generating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
-						<span className="hidden sm:inline">{context.generating ? 'Generating…' : 'Generate'}</span>
-						<span className="sr-only sm:hidden">{context.generating ? 'Generating' : 'Generate schedule'}</span>
-					</Button>
 
 					{hasGeneratedRun && (
 						<TooltipProvider delayDuration={300}>
@@ -533,7 +466,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 										<ArrowRightLeft className="size-3.5" aria-hidden="true" />
 										Swap sessions
 									</DropdownMenuItem>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!canPlanOrGenerate} onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
 										<CalendarClock className="size-3.5" aria-hidden="true" />
 										Plan draft
 									</DropdownMenuItem>
@@ -577,7 +510,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
-										disabled={context.generating || context.loading || !context.schoolYearId}
+										disabled={!canPlanOrGenerate}
 										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.handleTriggerGenerate(); }}
 									>
 										<Play className="size-3.5" aria-hidden="true" />
@@ -815,54 +748,52 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<p className="hidden max-w-xl truncate text-xs text-muted-foreground sm:block" data-testid="timetable-curriculum-readiness-message">
 								{curriculumReadiness.message}
 							</p>
+							{latestRunFailed && (
+								<p className="hidden max-w-xl truncate text-xs font-medium text-red-700 sm:block" data-testid="timetable-last-generation-failed-message">
+									The last generation run failed. Review setup, then try generating again.
+								</p>
+							)}
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-11 gap-1.5 px-3 text-sm"
-							disabled={context.newDraftLoading || !context.schoolYearId}
-							onClick={() => void startTask('plan-draft')}
-							data-testid="timetable-empty-start-draft-action"
-						>
-							<CalendarClock className="size-3.5" aria-hidden="true" />
-							<span>Start draft</span>
-						</Button>
-						{generationBlocked ? (
-							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-readiness-repair-action">
+						{lifecycleAction.kind === 'fix-setup' ? (
+							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
 								<Link to="/curriculum-requirements">
 									<BookOpen className="size-3.5" aria-hidden="true" />
-									Fix Curriculum Requirements
+									{lifecycleAction.label}
 								</Link>
 							</Button>
 						) : (
 							<Button
 								type="button"
+								size="sm"
+								className="h-11 gap-1.5 px-3 text-sm"
+								disabled={lifecycleAction.disabled}
+								onClick={handleLifecycleAction}
+								data-testid="timetable-simple-primary-action"
+							>
+								{lifecycleAction.kind === 'generating' || (lifecycleAction.kind === 'retry-readiness' && lifecycleAction.disabled)
+									? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+									: lifecycleAction.kind === 'retry-generate' || lifecycleAction.kind === 'retry-readiness'
+										? <RefreshCw className="size-3.5" aria-hidden="true" />
+										: <CalendarClock className="size-3.5" aria-hidden="true" />}
+								<span>{lifecycleAction.label}</span>
+							</Button>
+						)}
+						{generationReady && (
+							<Button
+								type="button"
 								variant="outline"
 								size="sm"
 								className="h-11 gap-1.5 px-3 text-sm"
-								disabled={context.loading || !context.schoolYearId}
+								disabled={!canPlanOrGenerate}
 								onClick={() => setInsertionOpen(true)}
 								data-testid="timetable-unassigned-insertion-action"
 							>
 								<CalendarClock className="size-3.5" aria-hidden="true" />
-								<span>Unassigned insertion</span>
+								<span>Preview demand</span>
 							</Button>
 						)}
-						<Button
-							type="button"
-							size="sm"
-						className="hidden"
-							disabled={context.generating || context.loading || !context.schoolYearId}
-							onClick={context.handleTriggerGenerate}
-							data-testid="timetable-empty-generate-action"
-						>
-							{context.generating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
-							<span className="hidden sm:inline">Generate when ready</span>
-							<span className="sm:hidden">Generate</span>
-						</Button>
 					</div>
 				</div>
 			) : (

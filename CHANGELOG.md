@@ -6,14 +6,80 @@
 - Added `TT-C04R`, a narrow correction requiring the production no-run timetable header to consume the unified lifecycle decision and expose one truthful primary action.
 
 ### Changed
-- TT-C04 candidate `47305835` remains unintegrated after rendered QA showed that its helper returned `retry-generate` while the production no-run branch still displayed two hardcoded secondary actions and kept Generate hidden.
+- Rendered QA showed the initial `47305835` candidate's helper returned `retry-generate` while the production no-run branch still displayed hardcoded actions and kept Generate hidden. The two follow-up commits correct that production wiring and remove its dead hidden generation controls.
 
 ### Decisions Made
 - Current failed/no-run state must expose `Try generating again` through the existing guarded confirmation workflow; unresolved or unavailable readiness must fail closed and cannot dispatch generation.
 - The existing clean-checkout `test:timetable-conflict` packaging defect is evidence to report, not permission to copy ignored tests from another worktree.
 
 ### Open Questions
-- None for the correction boundary; live generation remains separately locked.
+- Live generation remains separately locked.
+
+## [2026-09-10] — TT-C04R No-Run Primary Action Correction
+
+### Changed
+- Wired the production no-run Timetable header to the shared lifecycle action,
+  so a failed latest run exposes `Try generating again` as the single primary
+  action instead of emphasizing a separate draft path and hiding generation.
+- Renamed the preview-only secondary action to `Preview demand` and gated both
+  header and More-menu planning/generation controls on resolved actor scope and
+  ready curriculum state.
+- Added fail-closed setup-loading and setup-retry lifecycle states plus a
+  production-consumer regression assertion.
+- Removed two dead hidden buttons that bypassed the shared lifecycle/readiness
+  gate, and extended the full-header regression guard to prevent their return.
+
+### Verification
+- Focused Timetable operator UX tests pass 24/24; client TypeScript, production
+  build, and diff-check pass.
+- Authenticated isolated-browser checks pass at desktop and 390x844 mobile; the
+  mobile page has no horizontal overflow and no generation action was invoked.
+
+### Decisions Made
+- The current no-run/failed-run primary action initiates the existing canonical
+  generation flow. Demand inspection remains preview-only and secondary.
+- Live generation, save, publication, server changes, and companion-system
+  changes remain outside TT-C04R.
+
+### Open Questions
+- An independent reviewer must accept the TT-C04R correction commit before
+  integration. The ignored-test packaging gap in `test:timetable-conflict`
+  remains separate work.
+
+## [2026-09-10] — TT-C04 Timetable Operator UX (REVIEW_REQUIRED)
+
+### Added
+- Unified the `/timetable` operator lifecycle (`deriveSimpleLifecycleAction`) across
+  unresolved scope (`resolve-scope`), blocked setup (`fix-setup`), failed newest
+  run (`retry-generate`), draft/generating/blockers/warnings/ready/published, so
+  exactly one primary next action is emphasized per state.
+- Added a no-run publish-readiness contract (`hasGeneratedRun`; a missing run is
+  never clean) and a client Homeroom Guidance guard (`isHomeroomGuidanceCode`;
+  HG-coded lines can never read as placeable or saveable).
+- Added `test:timetable-operator-ux` (20 state-machine/negative/guardrail tests).
+
+### Changed
+- Readiness chip, publish-readiness sheet/drawer, and publish dialog no longer
+  report `Ready to publish` for preview/readiness evidence: unresolved sessions
+  block publish exactly like hard blockers on every surface (simple task, simple
+  repair routing, advanced header, publish dialog).
+- Blocker groups now show plain issue + count + why-it-matters + one repair
+  action with progressive disclosure and 44px repair targets.
+- Workspace clears selection/preview/dialogs/inline-status/undo on actor
+  school/year/run transitions (collaboration resubscribes via its own keys).
+
+### Decisions Made
+- The original no-run primary-action choice was superseded by TT-C04R after
+  rendered QA: a failed latest run now leads with `Try generating again`.
+  No generation, save, publish, restart, or server/companion edits occur in
+  this stream.
+- Live Tailnet/browser login QA at both viewports is planner-QA follow-up;
+  this candidate carries hermetic gates only (tests, tsc, build, diff-check,
+  observation-only local health probe).
+
+### Open Questions
+- Planner QA: Tailnet login-flow, keyboard-only, 200%-zoom, overflow, and
+  no-write-request verification at 1280x720 and 390x844.
 
 ## [2026-09-10] — Post-Reconciliation Parallel Readiness Prompts
 

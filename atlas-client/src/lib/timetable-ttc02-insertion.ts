@@ -74,6 +74,17 @@ const REASON_ORDER: InsertionReason[] = [
 ];
 
 /**
+ * Homeroom Guidance detection shared by the timetable demand surfaces.
+ * Matches the Teaching Load exclusion contract (`HG` code or a
+ * homeroom-named subject) so HG can never read as placeable demand.
+ */
+export function isHomeroomGuidanceCode(subjectCode: string | null | undefined): boolean {
+  if (!subjectCode) return false;
+  const normalized = subjectCode.trim().toUpperCase();
+  return normalized === 'HG' || normalized.includes('HOMEROOM');
+}
+
+/**
  * Deterministically group the server readiness summary into reason groups,
  * ordered so authority/owner problems surface before slot/room/conflict
  * problems, with HG (if ever present) first as a hard stop.
@@ -125,7 +136,18 @@ export function placementSaveAvailability(input: {
   state: InsertionReason;
   hasCandidates: boolean;
   allowApply: boolean;
+  subjectCode?: string | null;
 }): { canSave: boolean; label: string; detail: string } {
+  // Homeroom Guidance is never timetable demand or teaching load. Even if a
+  // line ever arrives mislabeled as previewable, the client must refuse to
+  // present it as placeable and must point at Curriculum Requirements.
+  if (isHomeroomGuidanceCode(input.subjectCode)) {
+    return {
+      canSave: false,
+      label: 'Save blocked',
+      detail: 'Homeroom Guidance is never timetable demand. Remove the HG line from Curriculum Requirements instead of placing it.',
+    };
+  }
   if (input.state !== 'INDIVIDUALLY_PREVIEWABLE') {
     return { canSave: false, label: 'Save blocked', detail: 'Resolve the blocker above before saving.' };
   }

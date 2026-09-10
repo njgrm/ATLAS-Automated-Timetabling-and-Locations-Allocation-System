@@ -178,6 +178,10 @@ export type ScheduleReviewDialogsContext = {
 	publishAcknowledged: boolean;
 	setPublishAcknowledged: Dispatch<SetStateAction<boolean>>;
 	softCount: number;
+	/** Unresolved generated sessions when the dialog opens. Publish stays
+	 * disabled while any session still needs placing, even with zero hard
+	 * violations, because previewability is not joint feasibility. */
+	publishUnassignedCount: number;
 	policy: { teacherMoveEnabled: boolean } | null;
 	handlePublishConfirm: () => void;
 	captureReviewFocusReturn: (fallbackSelector?: string) => void;

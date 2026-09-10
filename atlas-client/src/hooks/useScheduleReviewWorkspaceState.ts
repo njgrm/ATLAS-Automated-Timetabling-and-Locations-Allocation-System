@@ -828,12 +828,83 @@ export function useScheduleReviewWorkspaceState() {
 		return null;
 	}, [draft?.entries, entityFilter, roomMap, sectionMap, viewMode]);
 
+	/** TT-C04: clear generated-run-scoped UI whenever the actor school, school
+	 * year, or selected run changes. Collaboration resubscribes through its own
+	 * schoolId/schoolYearId/runId keys; everything here is reset explicitly so
+	 * stale selection, preview, inline status, undo, and dialogs can never
+	 * present another scope's timetable as actionable. Draft-board ownership
+	 * (preGenPending/preGenPreview) is year-scoped and cleared on
+	 * school/year change only, so switching runs never discards draft work. */
+	const resetRunScopedUi = useCallback(() => {
+		setSelectedEntry(null);
+		setSelectedViolation(null);
+		setSelectedUnassignedForRepair(null);
+		setPreviewResult(null);
+		setAssignPickerTarget(null);
+		setAssignPickerFacultyId('');
+		setAssignPickerRoomId('');
+		setAssignPickerPreview(null);
+		setAssignPickerPreviewError(null);
+		setShowAssignmentPicker(false);
+		setInlineActionStatus(null);
+		setLastAutoSaveUndo(null);
+		setShowPublishDialog(false);
+		setPublishAcknowledged(false);
+		setShowSwapConfirm(false);
+		setSwapAction(null);
+		setShowSoftConfirm(false);
+		setSoftConfirmWarnings([]);
+		setPendingCommitProposal(null);
+		setShowPreGenConfirm(false);
+		setPreGenConfirmCtx(null);
+		setConfirmPreview(null);
+		setConfirmRawPreview(null);
+		setConfirmPreviewError(null);
+		setConfirmFacultyId('');
+		setConfirmRoomId('');
+		setConfirmAllowSoftOverride(false);
+		setConfirmAllowDailyOverride(false);
+		setShowUnassignConfirm(false);
+		setPendingUnassignId(null);
+		setShowGenerateConfirm(false);
+		setShowResetDraftDialog(false);
+		setShowLeavePreGenDialog(false);
+		setPendingCenterSwitch(null);
+		setTacticalSandboxOpen(false);
+		setBlockerModalData(null);
+		setDrawerViolation(null);
+		setDrawerUnassigned(null);
+		setSwapClassTimesMode(null);
+		setSwapClassAEntryId(null);
+		setSwapClassBEntryId(null);
+		setDragItem(null);
+		setPreGenKbSource(null);
+		setKbSelectedSource(null);
+		setFollowUps(new Set());
+		setEditHistory([]);
+		setShowEditHistory(false);
+	}, []);
+
+	const prevScopeRef = useRef<{ schoolId: number | null; schoolYearId: number | null }>({ schoolId: null, schoolYearId: null });
+
+	/** TT-C04: actor school/year transitions rebind the whole workspace. Clear
+	 * run-scoped UI plus year-scoped draft transients and re-pin run selection
+	 * to latest so the previous scope can never linger as actionable state. */
+	useEffect(() => {
+		const prev = prevScopeRef.current;
+		if (prev.schoolId === schoolId && prev.schoolYearId === schoolYearId) return;
+		prevScopeRef.current = { schoolId, schoolYearId };
+		resetRunScopedUi();
+		setSelectedRunId('latest');
+		setPreGenPending(null);
+		setPreGenPreview(null);
+		setPreGenPreviewError(null);
+		setPreGenAllowSoftOverride(false);
+	}, [schoolId, schoolYearId, resetRunScopedUi]);
+
 	const handleRunChange = useCallback(async (runId: string) => {
 		setSelectedRunId(runId);
-		setSelectedViolation(null);
-		setSelectedEntry(null);
-		setSelectedUnassignedForRepair(null);
-		setEditHistory([]);
+		resetRunScopedUi();
 		if (!schoolYearId) return;
 		setLoading(true);
 		try {
@@ -844,7 +915,7 @@ export function useScheduleReviewWorkspaceState() {
 		} finally {
 			setLoading(false);
 		}
-	}, [schoolYearId, fetchRunData]);
+	}, [schoolYearId, fetchRunData, resetRunScopedUi]);
 
 	/** Handle drop of item onto a timetable cell */
 	const placeGeneratedUnassigned = useCallback(async (
@@ -1491,7 +1562,7 @@ export function useScheduleReviewWorkspaceState() {
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView, openTacticalSandbox });
 		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, schoolId, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, refreshReferenceLabels, referenceLookupStatus, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, sectionLabel, subjectLabel, facultyLabel, setUnassignedReasonFilter, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, focusSection, sectionFocusId, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, termFilter, onTermFilterChange: handleTermFilterChange, activeTermIndex: schoolYearContext?.activeTerm?.termIndex ?? null, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, policyAlignmentWarning, showFullDay, setShowFullDay, hiddenRowCount, collaborationConnected, presence, remoteSelections });
 		headerContext.curriculumReadiness = curriculumReadiness;
-		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
+		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
 		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, revertEditById, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
 	})();
