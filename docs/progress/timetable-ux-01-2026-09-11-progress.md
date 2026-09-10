@@ -1,4 +1,4 @@
-# TT-UX01 â€” Timetable Operator Readiness One-Shot â€” Progress Ledger
+# TT-UX01 — Timetable Operator Readiness One-Shot — Progress Ledger
 
 Prompt: `docs/prompts/timetable-ux-one-shot-ttux01-2026-09-11.md`
 Worktree: `D:/ATLAS-worktrees/timetable-ux-01` Â· Branch: `work/timetable-ux-01`
@@ -122,14 +122,14 @@ candidate dev server on 5183 is stopped after QA.
 
 ---
 
-# TT-UX01R2 â€” Simple Timetable operator closure (overnight one-shot)
+# TT-UX01R2 — Simple Timetable operator closure (overnight one-shot)
 
 Prompt: `docs/prompts/timetable-simple-operator-one-shot-ttux01r2-2026-09-11.md`
 (from commit `0da881ca`; read only, not merged or cherry-picked).
 Review base: `aab8fb00`. Starting candidate: `aa38d784`.
 Branch/worktree: `work/timetable-ux-01` Â· `D:/ATLAS-worktrees/timetable-ux-01`.
 
-## Correction scope (R1â€“R8)
+## Correction scope (R1–R8)
 
 | ID | Status | Evidence |
 |---|---|---|
