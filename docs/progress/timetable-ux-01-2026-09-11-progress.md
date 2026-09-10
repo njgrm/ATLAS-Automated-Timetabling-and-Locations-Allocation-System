@@ -238,4 +238,3 @@ Branch/worktree: `work/timetable-ux-01` Â· `D:/ATLAS-worktrees/timetable-ux-01
 - Final code acceptance is at `cf03ed78` (Reviewer 02). `a1e1bce6` is a
   docs-only ledger encoding correction on top of it; rerun code gates only if
   integration rebases source.
-
