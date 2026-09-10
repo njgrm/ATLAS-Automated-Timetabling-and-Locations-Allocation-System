@@ -40,6 +40,7 @@ hard blockers before separately approving publication.
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify truthful blocked term authority | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with any TL-UX live browser run; EnrollPro ordered term contract may still be absent | Port 5001 health is 200 but `/subjects` returns no new disposition projection after migration, proving the live process predates integrated Wave-1 source | Prepare a bounded build/restart/Tailnet acceptance handoff; do not restart while another live-QA stream is using port 5001 |
 | TL-UX-C01 | Rebuild Teaching Load as an accessible remaining-height master-detail assignment workspace and remove contradictory/dead actions | `PLANNED` | MEDIUM UI plus HIGH-risk interaction guards | Fresh `D:/ATLAS-worktrees/teaching-load-ux-c01`, branch `work/teaching-load-ux-c01`, from refreshed `origin/main` | Migration preview may run concurrently; avoid term-schema migration and derived-demand implementation files | Full click-path audit: dormant split-brain preview remains; reconciliation can preview 265 removals with missing term authority; Change owner can silently exchange an unrelated section; sequential multi-teacher saves can partially persist; jump list is a no-op; mutable state is not fully scope-bound | Execute `docs/prompts/teaching-load-ux-one-shot-tluxc01-2026-09-11.md`; commit a bounded candidate after mandatory live Tailnet plus isolated-candidate Playwright QA and independent review |
+| TT-UX01 | Make Timetable no-run and Advanced states honest, single-action, dead-end-free, readable, and mobile-reachable | `CORRECTION_REQUIRED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...aa38d784` | Must not implement DEMAND-C01; avoid TL-UX shared paths | Planner review reproduced 34/34 focused, 155/155 tracked client tests, TypeScript/build/diff-check, but found dead `/curriculum-requirements` repair, Advanced generation readiness bypass, no-run task/teacher-recovery dead ends, over-broad capability gating, and context-insensitive tutorial | Execute `docs/prompts/timetable-ux-one-shot-ttux01r-2026-09-11.md` in the existing worktree and return an additive correction candidate |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `PLANNED` | MEDIUM | Fresh branch after Wave-1 integration | Accepted term contract and passive generation/TL boundaries | Governing sequence exists in `rollover-derived-demand-generation-readiness-sequence-2026-09-10.md` | Author and execute the bounded DEMAND-C01 prompt from the integrated Wave-1 base |
 | UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `BLOCKED` | MEDIUM preview; HIGH apply | Not started | DEMAND-C01 plus visible archived history | Carry-forward rules are defined in the governing sequence | Build zero-write preview after DEMAND-C01; require a separate approval for apply |
@@ -67,13 +68,14 @@ hard blockers before separately approving publication.
    SHA while TL-UX-C01 runs in a disjoint worktree.
 3. Run TL-UX-C01 in a disjoint client-focused worktree while term/upstream work
    continues.
-4. Execute DEMAND-C01 after the live term contract and required ATLAS migration
+4. Correct TT-UX01 on its existing branch; do not integrate `aa38d784`.
+5. Execute DEMAND-C01 after the live term contract and required ATLAS migration
    are available.
-5. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
+6. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
    their file ownership is disjoint.
-6. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
+7. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
    preview.
-7. Obtain explicit HIGH approval, generate once, verify the completed run, then
+8. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
@@ -83,6 +85,9 @@ hard blockers before separately approving publication.
 - MIG-GUARD-R1 source/test correction, with no live migration.
 - TL-UX-C01 client-focused correction, provided it does not touch term-schema,
   derived-demand, reconciliation authority, generation, or publication paths.
+- TT-UX01R in its existing client worktree. Avoid further shared primitive
+  changes that could collide with TL-UX-C01 unless the correction proves they
+  are necessary.
 
 Do not start DEMAND-C01, UX-C01, TL-RR01, GEN-C02, generation, or publication
 until their dependency rows above are satisfied. Do not restart the shared
@@ -95,6 +100,8 @@ runtime while TL-UX live QA is active.
   the complete term payload remain external decisions.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
+- TT-UX01 is awaiting an additive executor correction from `aa38d784`; the
+  current candidate is not integration-ready.
 
 ## Update protocol
 

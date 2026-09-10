@@ -1,5 +1,27 @@
 # Changelog
 
+## [2026-09-11] — TT-UX01 Planner Review and Correction Handoff
+
+### Added
+- Added a read-only live/source Timetable click-path audit, formal planner
+  review, and bounded TT-UX01R correction prompt.
+
+### Changed
+- Marked TT-UX01 `CORRECTION_REQUIRED` in the living delivery register after
+  independently reproducing its green focused gates but finding remaining
+  no-run, Advanced-mode, and repair-routing defects.
+
+### Decisions Made
+- Candidate `aa38d784` will not be integrated until the obsolete Curriculum
+  Requirements repair route, split-brain generation controls, and no-run task
+  dead ends are corrected and re-reviewed.
+- DEMAND-C01 and live generation remain separately blocked; TT-UX01R must not
+  invent their authority.
+
+### Open Questions
+- None for the bounded correction. EnrollPro's complete ordered term contract
+  remains an external dependency for derived demand and generation readiness.
+
 ## [2026-09-11] — TERM-LIVE-APPLY Guarded Migration Closure
 
 ### Changed
