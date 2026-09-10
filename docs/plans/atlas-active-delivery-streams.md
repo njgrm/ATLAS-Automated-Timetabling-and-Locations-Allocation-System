@@ -17,16 +17,18 @@ hard blockers before separately approving publication.
 ## Current coordination snapshot
 
 - Wave 1 and subsequent accepted planner evidence are integrated and pushed:
-  `origin/main` now points to `d2dce4a8d3995eb78e3a08ae897a730987d67d34`.
+  `origin/main` is `1da2b3d9b2da340c055c3086d83a9be5994cd2bb`
+  before this reconciliation update.
 - All three source lanes passed independent QA and the combined integration
   gates. The approved term schema migration is applied and verified; deploying
   the integrated runtime remains a separate service-lifecycle action.
-- The EnrollPro fork was fast-forwarded from upstream and its canonical
-  READ_ONLY reference clone now points to `396a9892`. The authoritative ordered
-  term implementation is present as the single commit
-  `3e282e2b...396a9892` and awaits independent contract QA; its database
-  migration remains unapplied. AIMS and SMART reference clones remain at their
-  last verified tips `a22c9c88` and `c3806e12`.
+- The EnrollPro fork and canonical READ_ONLY clone were fast-forwarded to
+  correction commit `5887d685`. Live probes confirm the authoritative ordered
+  three-term contract for year 9 / `2030-2031` and strict malformed-ID
+  rejection. The live typed `ACTIVE_TERM_UNRESOLVED` response is expected while
+  the host date remains in 2026; ATLAS currently mislabels it as unreachable.
+  AIMS and SMART reference clones remain at their last verified tips
+  `a22c9c88` and `c3806e12`.
 - No carry-forward, generation, or publication is authorized by this register.
 
 ## Stream register
@@ -37,10 +39,11 @@ hard blockers before separately approving publication.
 | RR-UX01 | Visible rollover awareness, one Year Setup status surface, and read-only archived Teaching Load | `INTEGRATED` | MEDIUM | `work/rollover-rrux01`; `00488bbf...ea44e155` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
 | TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | Live migration remains separate | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Prepare the separate live migration preview; do not apply without HIGH approval |
 | W1-INTEGRATION | Combine the three accepted Wave-1 source lanes | `INTEGRATED` | MEDIUM | `integration/rollover-derived-demand-w1`; `e39da520...36c5d3d1` | None | Shared-doc-only conflicts matched forecast; focused GEN/RR/TERM suites, both builds/type-checks, diff-check, and isolated server health passed | Closed and pushed to `origin/main` at `36c5d3d1` |
-| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `CORRECTION_REQUIRED` | External dependency; READ_ONLY QA | EnrollPro `3e282e2b...396a9892`; canonical mirror `D:\EnrollPro` | EnrollPro migration/deployment and ATLAS consumption wait for an upstream correction | Read-only QA accepted the core contract and pure service behavior, but proved loose `parseInt` year coercion and a mutation/read split: admin updates can persist blank, missing, overlapping, or format-incomplete term state that the integration route then rejects | EnrollPro developer executes `docs/handoffs/enrollpro-authoritative-term-contract-correction-2026-09-11.md`, adds and pushes a correction commit; ATLAS agents do not edit EnrollPro |
+| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `ACCEPT_READY` | External dependency; READ_ONLY QA | EnrollPro `396a9892...5887d685`; canonical mirror `D:\EnrollPro` clean at `5887d685` | ATLAS consumption and deployment remain separate | Source review confirms strict integer parsing and validate-before-write term mutation; live probes return the ordered three-term year-9 contract, reject malformed/duplicate IDs with typed 400s, and return truthful 409 `ACTIVE_TERM_UNRESOLVED` for the 2026/2030 calendar mismatch | Consume the corrected contract in ATLAS; do not edit the EnrollPro mirror |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify truthful blocked term authority | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with any TL-UX live browser run; EnrollPro ordered term contract may still be absent | Port 5001 health is 200 but `/subjects` returns no new disposition projection after migration, proving the live process predates integrated Wave-1 source | Prepare a bounded build/restart/Tailnet acceptance handoff; do not restart while another live-QA stream is using port 5001 |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with active TL/TT/Dashboard live browser runs | Port 5001 is healthy and serves saved year-9 readiness, but the visible Dashboard still exposes the superseded Curriculum Requirements workflow and the runtime contains the active-term error-classification defect | Integrate DASH-RESILIENCE-C01 first, then perform one bounded build/restart/Tailnet acceptance; do not restart during another live-QA run |
+| DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `PLANNED` | MEDIUM cross-layer read path | Fresh worktree from current `origin/main` | May run beside TL/TT UX; avoid their files and all data mutation | Live EnrollPro health/year routes are 200 and Dashboard saved counts are 20 sections/22 subjects/42 faculty/98 teaching rooms, but ATLAS maps typed active-term 409 to unreachable and its legacy fallback substitutes zeros/empties on failed reads | Execute `docs/prompts/dashboard-stale-readiness-correction-2026-09-11.md`; commit and return a reviewed read-only candidate |
 | TL-UX-C01 | Rebuild Teaching Load as an accessible assignment workspace and unify suggestion/balance authority | `CORRECTION_REQUIRED` | MEDIUM UI and HIGH write/concurrency guards | `work/teaching-load-ux-c01`; `36c5d3d1...1f867eb8` | Do not integrate current candidate; continue additively in the same worktree | Planner reran 11/11 ownership, 33/33 canonical, 21/21 route-intent, client type-check/build; live read-only production probes show 7 faculty at 37.5h, 5 zero-load ESP/FIL teachers, auto-fill 265 `KEPT_EXISTING`/0 suggestions, while rebalance finds 14 valid moves; candidate falsely claims everyone is within capacity and skipped adviser priority | Execute `docs/prompts/teaching-load-ux-allocation-correction-tluxc01r-2026-09-11.md`; return an additive reviewed candidate without live apply |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `CORRECTION_REQUIRED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...aa38d784` | Must not implement DEMAND-C01 or trigger live generation; avoid TL-UX shared paths | Live year 9 has no run; audit found contradictory no-run controls, dead Curriculum Requirements repair, Advanced generation bypass, missing Simple room repair, bulk teacher-leaving mislabeled as class reassignment, color-only placement cues, count-only swap explanations, and state-insensitive help | Execute `docs/prompts/timetable-simple-operator-one-shot-ttux01r2-2026-09-11.md` in the existing worktree; use controlled data-filled browser fixtures plus read-only Tailnet QA |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `PLANNED` | MEDIUM | Fresh branch after Wave-1 integration | Accepted term contract and passive generation/TL boundaries | Governing sequence exists in `rollover-derived-demand-generation-readiness-sequence-2026-09-10.md` | Author and execute the bounded DEMAND-C01 prompt from the integrated Wave-1 base |
@@ -63,17 +66,17 @@ hard blockers before separately approving publication.
 
 ## Dependency-ordered queue
 
-1. Correct the guarded command's default Prisma schema path and coordinate one
-   integrated Wave-1 runtime deployment without interrupting another live-QA
-   stream.
-2. Obtain and independently QA the bounded EnrollPro correction on top of
-   `396a9892`; only then prepare migration/deployment and ATLAS consumption.
+1. Execute DASH-RESILIENCE-C01 against the corrected live EnrollPro contract,
+   then coordinate one integrated Wave-1/runtime deployment without
+   interrupting another live-QA stream.
+2. Correct the guarded command's default Prisma schema path; do not re-run the
+   already applied migration.
 3. Correct TL-UX-C01 in its existing worktree so one reviewed suggestion can
    fill uncovered rows and rebalance avoidable excess without false success copy.
 4. Execute the expanded TT-UX01R2 Simple-operator closure on its existing
    branch; do not integrate `aa38d784`.
-5. Execute DEMAND-C01 after the live term contract and required ATLAS migration
-   are available.
+5. Execute DEMAND-C01 now that the live term contract and ATLAS migration are
+   available; keep its source boundary disjoint from Dashboard/TL/TT UX work.
 6. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
    their file ownership is disjoint.
 7. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
@@ -83,8 +86,10 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- EnrollPro developer correction for EP-TERM-01/02; ATLAS agents may review the
-  pushed commit read-only but must not edit the companion repository.
+- DASH-RESILIENCE-C01 in a fresh worktree, limited to Dashboard/runtime/
+  active-term read paths and focused tests.
+- DEMAND-C01 in a separate fresh worktree now that EnrollPro term authority is
+  available; avoid Dashboard, Teaching Load, and Timetable UX paths.
 - MIG-GUARD-R1 source/test correction, with no live migration.
 - TL-UX-C01R in its existing worktree, confined to Teaching Load client/server
   suggestion, allocation, exact ownership, and focused tests; no live apply.
@@ -100,9 +105,9 @@ runtime while TL-UX live QA is active.
 ## Awaited returns and decisions
 
 - No Wave-1 executor or QA result is awaited; all three candidates are integrated.
-- EnrollPro term implementation is delivered at `396a9892` but requires the
-  strict-ID and validate-before-write correction; await its pushed SHA before
-  migration/deployment or ATLAS consumption.
+- EnrollPro correction `5887d685` has been pulled and its live contract is
+  available. No EnrollPro executor return is awaited.
+- DASH-RESILIENCE-C01 is newly dispatchable; no executor result exists yet.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
 - TT-UX01 is awaiting the expanded additive executor correction from
