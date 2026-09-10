@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient, PublishedScheduleRevision } from '@prisma/cl
 import { createHash } from 'node:crypto';
 import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
+import { runSerializablePublicationTransaction } from './serializable-transaction-retry.js';
 
 const db = () => getDataContext();
 
@@ -66,6 +67,10 @@ function err(
 
 function isPositiveInteger(value: unknown): value is number {
 	return Number.isInteger(value) && Number(value) > 0;
+}
+
+function isPositiveInt32(value: unknown): value is number {
+	return isPositiveInteger(value) && Number(value) <= 2_147_483_647;
 }
 
 function asSummaryRecord(summary: unknown): Record<string, unknown> {
@@ -252,8 +257,8 @@ export async function createPublishedScheduleRevision(
 	input: CreatePublishedScheduleRevisionInput,
 	options?: { now?: Date; publishEvent?: (event: Parameters<typeof publishPublishedScheduleEvent>[0]) => unknown },
 ): Promise<CreatePublishedScheduleRevisionResult> {
-	if (!isPositiveInteger(input.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive integer.');
-	if (!isPositiveInteger(input.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive integer.');
+	if (!isPositiveInt32(input.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive Int32 integer.');
+	if (!isPositiveInt32(input.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive Int32 integer.');
 	if (!isPositiveInteger(input.sourceRunId)) throw err(400, 'INVALID_SOURCE_RUN_ID', 'sourceRunId must be a positive integer.');
 	if (input.sourceRevisionId != null && !isPositiveInteger(input.sourceRevisionId)) {
 		throw err(400, 'INVALID_SOURCE_REVISION_ID', 'sourceRevisionId must be a positive integer when provided.');
@@ -279,8 +284,8 @@ export async function createPublishedScheduleRevision(
 		reason,
 		changes,
 	});
-	const result = await db().$transaction(async (tx) => {
-		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1, $2)', input.schoolId, input.schoolYearId);
+	const result = await runSerializablePublicationTransaction(db(), async (tx) => {
+		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::integer, $2::integer)', input.schoolId, input.schoolYearId);
 
 		const activeYears = await tx.enrollProSchoolYearMirror.findMany({
 			where: { schoolId: input.schoolId, isActive: true, isArchived: false },
@@ -412,7 +417,7 @@ export async function createPublishedScheduleRevision(
 		});
 
 		return { revision, auditId: audit.id, replayed: false };
-	}, { isolationLevel: 'Serializable' });
+	});
 
 	// Fire notification event after successful commit
 	const affectedFacultyIdsSet = new Set<number>();
