@@ -1,5 +1,102 @@
 import type { CoverageMode, ExternalSection, SectionAssignedClassesIndexResult } from '@/types';
 
+export type TeachingLoadDraftAssignment = {
+	subjectId: number;
+	sectionIds: number[];
+	gradeLevels: number[];
+};
+
+export type TeachingLoadDraftMap = Record<number, TeachingLoadDraftAssignment[]>;
+
+export type ExactPairTransferResult =
+	| {
+			ok: true;
+			updates: TeachingLoadDraftMap;
+			moved: { subjectId: number; sectionId: number; fromFacultyId: number; toFacultyId: number };
+	  }
+	| {
+			ok: false;
+			code: 'NO_DESTINATION' | 'SAME_TEACHER' | 'DONOR_DOES_NOT_OWN';
+			message: string;
+	  };
+
+/**
+ * Exact-pair transfer. Moves exactly the subject-section pair the operator
+ * selected from the donor to the recipient.
+ *
+ * It never selects another section by array position, display order, or stale
+ * cached state, and it never converts the transfer into an implicit two-way
+ * exchange. A donor that does not own the exact pair is rejected.
+ */
+export function transferExactSectionPair(params: {
+	assignmentsByFaculty: TeachingLoadDraftMap;
+	savedAssignmentsByFaculty: TeachingLoadDraftMap;
+	subjectId: number;
+	sectionId: number;
+	fromFacultyId: number;
+	toFacultyId?: number | null;
+}): ExactPairTransferResult {
+	const { subjectId, sectionId, fromFacultyId } = params;
+	const toFacultyId = params.toFacultyId ?? null;
+
+	if (toFacultyId == null) {
+		return { ok: false, code: 'NO_DESTINATION', message: 'Select a destination teacher before transferring.' };
+	}
+	if (toFacultyId === fromFacultyId) {
+		return { ok: false, code: 'SAME_TEACHER', message: 'The destination teacher already owns this load.' };
+	}
+
+	const base = (facultyId: number): TeachingLoadDraftAssignment[] =>
+		params.assignmentsByFaculty[facultyId] ?? params.savedAssignmentsByFaculty[facultyId] ?? [];
+
+	const fromAssignments = base(fromFacultyId);
+	const donorOwnsPair = fromAssignments.some(
+		(assignment) => assignment.subjectId === subjectId && assignment.sectionIds.includes(sectionId),
+	);
+	if (!donorOwnsPair) {
+		return { ok: false, code: 'DONOR_DOES_NOT_OWN', message: 'The selected teacher does not own that subject-section pair.' };
+	}
+
+	const nextFrom = fromAssignments.map((assignment) => ({ ...assignment, sectionIds: [...assignment.sectionIds] }));
+	const fromIndex = nextFrom.findIndex((assignment) => assignment.subjectId === subjectId);
+	const remaining = nextFrom[fromIndex].sectionIds.filter((id) => id !== sectionId);
+	if (remaining.length === 0) nextFrom.splice(fromIndex, 1);
+	else nextFrom[fromIndex] = { ...nextFrom[fromIndex], sectionIds: remaining };
+
+	const nextTo = base(toFacultyId).map((assignment) => ({ ...assignment, sectionIds: [...assignment.sectionIds] }));
+	const toIndex = nextTo.findIndex((assignment) => assignment.subjectId === subjectId);
+	if (toIndex >= 0) {
+		nextTo[toIndex] = {
+			...nextTo[toIndex],
+			sectionIds: Array.from(new Set([...nextTo[toIndex].sectionIds, sectionId])),
+		};
+	} else {
+		nextTo.push({ subjectId, sectionIds: [sectionId], gradeLevels: [] });
+	}
+
+	return {
+		ok: true,
+		updates: { [fromFacultyId]: nextFrom, [toFacultyId]: nextTo },
+		moved: { subjectId, sectionId, fromFacultyId, toFacultyId },
+	};
+}
+
+/**
+ * Builds a truthful partial-commit receipt for a multi-teacher save when the
+ * single-faculty transactions could not run as one atomic batch. It names
+ * exactly which teachers committed and which did not.
+ */
+export function buildSaveCommitReceipt(params: {
+	committedLastNames: string[];
+	failedLastName: string | null;
+	error: string;
+}): string {
+	const { committedLastNames, failedLastName, error } = params;
+	const failedName = failedLastName ?? 'the next teacher';
+	if (committedLastNames.length === 0) return error;
+	return `${error} Committed before the failure: ${committedLastNames.join(', ')}. Not saved: ${failedName} and all later teachers.`;
+}
+
 export const COVERAGE_MODE_CONFIG: Record<CoverageMode, { label: string; description: string }> = {
 	REAL_FACULTY_STANDARD: {
 		label: 'Real teachers first, up to 30h/week',

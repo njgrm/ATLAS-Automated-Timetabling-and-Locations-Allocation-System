@@ -579,9 +579,6 @@ export function AutoFillSummaryModal({
 						</Button>
 						{!reviewOnly && (
 							<>
-								<Button type="button" variant="outline" onClick={onReviewManually} className="h-9 rounded-xl px-4 font-bold">
-									Review manually
-								</Button>
 								<Button
 									type="button"
 									onClick={onApplySuggestion}

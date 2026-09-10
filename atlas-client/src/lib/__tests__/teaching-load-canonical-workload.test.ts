@@ -326,7 +326,6 @@ const TL_POLICY_FREE_FILES = [
 	'../../components/faculty-assignments/WorkloadInspector.tsx',
 	'../../components/faculty-assignments/WorkspaceToolbar.tsx',
 	'../../components/faculty-assignments/SectionGridMode.tsx',
-	'../../components/faculty-assignments/StaffingAuditSheet.tsx',
 	'../../components/faculty-assignments/StackedWorkloadBar.tsx',
 	'../faculty-teaching-load-cache.ts',
 ];

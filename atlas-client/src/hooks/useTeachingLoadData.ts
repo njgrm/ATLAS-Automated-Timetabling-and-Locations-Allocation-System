@@ -46,7 +46,6 @@ import type {
 	FacultySummary,
 	TeachingLoadCoverageTotals,
 	TeachingLoadIntegrityDiagnostics,
-	TeachingLoadSplitBrainReconcileResult,
 } from '@/types';
 
 export function useTeachingLoadData() {
@@ -61,9 +60,6 @@ export function useTeachingLoadData() {
 	const [coverageTotals, setCoverageTotals] = useState<TeachingLoadCoverageTotals | null>(null);
 	const [workloadPolicy, setWorkloadPolicy] = useState<EffectiveWorkloadPolicyState | null>(null);
 	const [workloadPolicyStatus, setWorkloadPolicyStatus] = useState<WorkloadPolicyReadiness>('UNCONFIGURED');
-	const [integrityDiagnostics, setIntegrityDiagnostics] = useState<TeachingLoadIntegrityDiagnostics | null>(null);
-	const [splitBrainIncident, setSplitBrainIncident] = useState<TeachingLoadSplitBrainReconcileResult | null>(null);
-	const [splitBrainLoading, setSplitBrainLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -101,35 +97,15 @@ export function useTeachingLoadData() {
 		&& subjects.length > 0
 		&& faculty.length > 0,
 	);
-	const hasSettledRuntimeSource = dataSource === 'live' || dataSource === 'cached';
 	const degradedWriteEnabled = isOnline && dataSource === 'cached' && hasLocalWriteEvidence;
-	// Integrity diagnostics remain review guidance; they never freeze the whole
-	// workspace because editing is the operator's path to resolve affected rows.
 	const canPersistAssignments = isOnline && Boolean(activeSchoolYearId) && (dataSource === 'live' || hasLocalWriteEvidence);
-	const canRunStaffingNeeds = isOnline && hasSettledRuntimeSource && Boolean(activeSchoolYearId);
-	const canRunGlobalReset = isOnline && dataSource === 'live' && Boolean(activeSchoolYearId);
 	const isReadOnlyMode = !canPersistAssignments;
 
-	const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
+	// Every mutable draft, selection, and cache is keyed to the resolved actor
+	// scope so a rollover or school switch can never leak state across years.
+	const scopeKey = schoolId != null && activeSchoolYearId != null ? `${schoolId}:${activeSchoolYearId}` : null;
 
-	const fetchSplitBrainIncident = useCallback(async (splitBrainSchoolId: number, schoolYearId: number) => {
-		setSplitBrainLoading(true);
-		try {
-			const { data } = await atlasApi.post<TeachingLoadSplitBrainReconcileResult>(
-				'/faculty-assignments/integrity/reconcile-split-brain',
-				{
-					schoolId: splitBrainSchoolId,
-					schoolYearId,
-					previewOnly: true,
-				},
-			);
-			setSplitBrainIncident(data);
-		} catch {
-			setSplitBrainIncident(null);
-		} finally {
-			setSplitBrainLoading(false);
-		}
-	}, []);
+	const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
 
 	const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		const forceRefresh = options?.forceRefresh === true;
@@ -176,7 +152,6 @@ export function useTeachingLoadData() {
 					setFaculty(cachedSummary.data.faculty);
 					setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
 					setCoverageTotals(cachedSummary.data.coverageTotals ?? null);
-					setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
 					setWorkloadPolicy(cachedSummary.data.workloadPolicy ?? null);
 					setWorkloadPolicyStatus(cachedSummary.data.workloadPolicyStatus ?? 'UNCONFIGURED');
 					setSubjects(cachedSubjects.data);
@@ -249,7 +224,6 @@ export function useTeachingLoadData() {
 			setFaculty(normalizedSummary.faculty);
 			setSavedOwnershipIndex(normalizedSummary.ownershipIndex);
 			setCoverageTotals(normalizedSummary.coverageTotals ?? null);
-			setIntegrityDiagnostics(normalizedSummary.integrityDiagnostics ?? null);
 			setWorkloadPolicy(normalizedSummary.workloadPolicy ?? null);
 			setWorkloadPolicyStatus(normalizedSummary.workloadPolicyStatus ?? 'UNCONFIGURED');
 			setSubjects(normalizedSubjects);
@@ -269,9 +243,6 @@ export function useTeachingLoadData() {
 					: 'Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
 			setError(null);
-			if (schoolYearId) {
-				void fetchSplitBrainIncident(school, schoolYearId);
-			}
 		} catch (requestError: any) {
 			const cachedSummary = schoolYearId && resolvedSchoolId ? getCachedFacultyAssignmentsSummary(resolvedSchoolId, schoolYearId) : null;
 			const cachedSubjects = resolvedSchoolId ? getCachedSubjects(resolvedSchoolId) : null;
@@ -282,7 +253,6 @@ export function useTeachingLoadData() {
 				setFaculty(cachedSummary.data.faculty);
 				setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
 				setCoverageTotals(cachedSummary.data.coverageTotals ?? null);
-				setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
 				setWorkloadPolicy(cachedSummary.data.workloadPolicy ?? null);
 				setWorkloadPolicyStatus(cachedSummary.data.workloadPolicyStatus ?? 'UNCONFIGURED');
 				setSubjects(cachedSubjects.data);
@@ -291,14 +261,11 @@ export function useTeachingLoadData() {
 				setDataSource('cached');
 				setDegradedNotice('Live teaching load data is unavailable. You are viewing your last saved snapshot in read-only mode.');
 				setError(null);
-				if (resolvedSchoolId) void fetchSplitBrainIncident(resolvedSchoolId, schoolYearId);
 			} else {
 				setDataSource('none');
 				setCoverageTotals(null);
-				setIntegrityDiagnostics(null);
 				setWorkloadPolicy(null);
 				setWorkloadPolicyStatus('UNCONFIGURED');
-				setSplitBrainIncident(null);
 				setSectionAssignedClassesIndex(null);
 				setDegradedNotice(null);
 				setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
@@ -306,7 +273,7 @@ export function useTeachingLoadData() {
 		} finally {
 			setLoading(false);
 		}
-	}, [fetchSplitBrainIncident, isOnline]);
+	}, [isOnline]);
 
 	useEffect(() => {
 		fetchData();
@@ -438,6 +405,7 @@ export function useTeachingLoadData() {
 	);
 
 	const { canUndo, canRedo, pushHistory, handleUndo, handleRedo, handleResetAssignments } = useAssignmentHistory({
+		scopeKey,
 		selectedId: selected?.id ?? null,
 		subjects,
 		effectiveAssignmentsByFaculty,
@@ -445,6 +413,16 @@ export function useTeachingLoadData() {
 		sectionMap,
 		setDraftAssignmentsByFaculty,
 	});
+
+	// A resolved scope change invalidates every mutable draft and focus before
+	// any request or edit can act on the new school/year.
+	useEffect(() => {
+		setDraftAssignmentsByFaculty({});
+		setSelectedId(null);
+		setSubjectFocusId(null);
+		setSectionFocusId(null);
+		setHomeroomHint(null);
+	}, [scopeKey, setDraftAssignmentsByFaculty]);
 
 	useEffect(() => {
 		if (!selected) {
@@ -481,10 +459,8 @@ export function useTeachingLoadData() {
 		coverageTotals,
 		workloadPolicy,
 		workloadPolicyStatus,
-		integrityDiagnostics,
-		splitBrainIncident,
-		splitBrainLoading,
 		activeSchoolYearId,
+		scopeKey,
 		activeTermIndex,
 		loading,
 		saving,
@@ -505,10 +481,7 @@ export function useTeachingLoadData() {
 		error,
 		setError,
 		fetchData,
-		fetchSplitBrainIncident,
 		canPersistAssignments,
-		canRunStaffingNeeds,
-		canRunGlobalReset,
 		isReadOnlyMode,
 		activeFacultyIds,
 		allKnownSections,

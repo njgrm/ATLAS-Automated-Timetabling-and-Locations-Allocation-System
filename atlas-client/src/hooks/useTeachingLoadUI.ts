@@ -68,21 +68,15 @@ export function useTeachingLoadUI({
 	const [reviewDismissed, setReviewDismissed] = useState(false);
 	const [showTemporaryRoles, setShowTemporaryRoles] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
-	const [showJumpList, setShowJumpList] = useState(false);
-	const [viewMode, setViewMode] = useState<'teacher' | 'allocation' | 'subjects'>('teacher');
+	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('teacher');
 	const [showOutsideDept, setShowOutsideDept] = useState(false);
 	const [showUnmappedSpecialization, setShowUnmappedSpecialization] = useState(false);
 	const [sectionModeFilter, setSectionModeFilter] = useState<'all' | 'unassigned' | 'constrained'>('unassigned');
 	const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
 	const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
-	const [inspectorOpen, setInspectorOpen] = useState(false);
-	const [staffingAuditOpen, setStaffingAuditOpen] = useState(false);
 	const [coverageMode, setCoverageMode] = useState<CoverageMode>('REAL_FACULTY_THEN_TEACHER_X');
-	const [rotationSheetOpen, setRotationSheetOpen] = useState(false);
 	const [summaryModalOpen, setSummaryModalOpen] = useState(false);
 	const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
-	const [resetDialogOpen, setResetDialogOpen] = useState(false);
-	const [resetConfirmText, setResetConfirmText] = useState('');
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
 
 	const mappedSpecializations = useMemo(() => {
@@ -264,7 +258,9 @@ export function useTeachingLoadUI({
 		const outside: Subject[] = [];
 
 		for (const subject of subjects) {
-			const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
+			// Canonical persisted identity only. HG is the exact catalog code; a
+			// localized or display name is never authority for exemption.
+			const isHgSubject = subject.code === 'HG';
 			const departmentQualified = matchesOwnershipDepartment(selected?.department ?? null, subject);
 			if ((isHgSubject && selected?.isClassAdviser) || departmentQualified) {
 				qualified.push(subject);
@@ -273,16 +269,8 @@ export function useTeachingLoadUI({
 			}
 		}
 
-		const sortByHR = (a: Subject, b: Subject) => {
-			const aIsHR = a.name.toLowerCase().includes('homeroom') || a.code.toLowerCase().includes('homeroom');
-			const bIsHR = b.name.toLowerCase().includes('homeroom') || b.code.toLowerCase().includes('homeroom');
-			if (aIsHR && !bIsHR) return 1;
-			if (!aIsHR && bIsHR) return -1;
-			return a.name.localeCompare(b.name);
-		};
-
-		qualified.sort(sortByHR);
-		outside.sort(sortByHR);
+		qualified.sort((a, b) => a.name.localeCompare(b.name));
+		outside.sort((a, b) => a.name.localeCompare(b.name));
 
 		return {
 			departmentQualifiedSubjects: qualified,
@@ -341,42 +329,50 @@ export function useTeachingLoadUI({
 			.sort((a, b) => b.percent - a.percent);
 	}, [subjects, allKnownSections, savedOwnershipMap, pendingOwnershipMap, activeFacultyIds]);
 
-	const jumpListItems = useMemo(() => {
-		const items = [
-			...departmentQualifiedSubjects.map(s => ({ id: s.id, code: s.code, type: 'qualified' }))
-		];
-		if (showOutsideDept) {
-			items.push(...outsideDepartmentSubjects.map(s => ({ id: s.id, code: s.code, type: 'outside' })));
-		}
-		return items;
-	}, [departmentQualifiedSubjects, outsideDepartmentSubjects, showOutsideDept]);
+	// Scope change clears every mutable filter, dialog, selection, and hover so no
+	// stale UI state can act on a different school/year.
+	const resetForScope = useCallback(() => {
+		setSearchQuery('');
+		setFilterStatus('all');
+		setDepartmentFilter('all');
+		setSubjectSearch('');
+		setGradeLevelFilter('all');
+		setSortOrder('load-asc');
+		setLoadFilter('all');
+		setFilterAnnouncement('');
+		setShowTemporaryRoles(false);
+		setShowFilters(false);
+		setViewMode('teacher');
+		setShowOutsideDept(false);
+		setShowUnmappedSpecialization(false);
+		setSectionModeFilter('unassigned');
+		setSelectedSectionId(null);
+		setSelectedSubjectId(null);
+		setSummaryModalOpen(false);
+		setAutoFillDialogOpen(false);
+		setCoverageMode('REAL_FACULTY_THEN_TEACHER_X');
+		setHoveredIncomingMinutes(0);
+	}, []);
 
 	return {
 		searchQuery, setSearchQuery,
 		filterStatus, setFilterStatus,
 		departmentFilter, setDepartmentFilter,
 		subjectSearch, setSubjectSearch,
-		sectionFilter, setSectionFilter,
 		gradeLevelFilter, setGradeLevelFilter,
 		sortOrder, setSortOrder,
 		loadFilter, setLoadFilter,
 		reviewDismissed, setReviewDismissed,
 		showTemporaryRoles, setShowTemporaryRoles,
 		showFilters, setShowFilters,
-		showJumpList, setShowJumpList,
 		viewMode, setViewMode,
 		showOutsideDept, setShowOutsideDept,
 		showUnmappedSpecialization, setShowUnmappedSpecialization,
 		sectionModeFilter, setSectionModeFilter,
 		selectedSectionId, setSelectedSectionId,
 		selectedSubjectId, setSelectedSubjectId,
-		inspectorOpen, setInspectorOpen,
-		staffingAuditOpen, setStaffingAuditOpen,
-		rotationSheetOpen, setRotationSheetOpen,
 		summaryModalOpen, setSummaryModalOpen,
 		autoFillDialogOpen, setAutoFillDialogOpen,
-		resetDialogOpen, setResetDialogOpen,
-		resetConfirmText, setResetConfirmText,
 		hoveredIncomingMinutes, setHoveredIncomingMinutes,
 		coverageMode, setCoverageMode,
 		filteredFaculty,
@@ -385,13 +381,13 @@ export function useTeachingLoadUI({
 		outsideDepartmentSubjects,
 		loadProfile,
 		departmentStats,
-		jumpListItems,
 		effectiveActualHours,
 		departmentFacetOptions,
 		statusFacetCounts: facetCounts.statusCounts,
 		loadFacetCounts: facetCounts.loadCounts,
 		filterAnnouncement,
 		clearTeachingLoadFilters,
+		resetForScope,
 		policyReady,
 		teachingStandardHours,
 		advisoryCreditHours,

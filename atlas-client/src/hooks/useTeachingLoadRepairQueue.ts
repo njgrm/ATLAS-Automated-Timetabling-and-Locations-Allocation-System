@@ -19,14 +19,12 @@ type UseTeachingLoadRepairQueueParams = {
 	writeBlockedReason: string | null;
 	onSelectFaculty: (facultyId: number) => void;
 	onSave: () => void;
-	onShowUnassigned: () => void;
 	onShowSubjectCoverage: () => void;
 	onShowTeachersWithoutLoad: () => void;
 	onShowOverloaded: () => void;
 	onShowPlaceholder: () => void;
 	onOpenReview: () => void;
 	setAdvancedGridVisible: Dispatch<SetStateAction<boolean>>;
-	setDraftStatusMessage: (message: string) => void;
 };
 
 function formatTeacherName(member: { firstName: string; lastName: string }) {
@@ -47,17 +45,14 @@ export function useTeachingLoadRepairQueue({
 	writeBlockedReason,
 	onSelectFaculty,
 	onSave,
-	onShowUnassigned,
 	onShowSubjectCoverage,
 	onShowTeachersWithoutLoad,
 	onShowOverloaded,
 	onShowPlaceholder,
 	onOpenReview,
 	setAdvancedGridVisible,
-	setDraftStatusMessage,
 }: UseTeachingLoadRepairQueueParams) {
 	const [activeRepairId, setActiveRepairId] = useState<string | null>(null);
-	const [skippedRepairIds, setSkippedRepairIds] = useState<Set<string>>(() => new Set());
 	const teacherRepairIntent = searchParams.get('task');
 
 	const teachersWithoutLoad = useMemo(
@@ -171,7 +166,7 @@ export function useTeachingLoadRepairQueue({
 
 	const routedRepairId = useMemo(() => {
 		const viewParam = searchParams.get('view');
-		if (viewParam === 'subjects') return 'missing-load';
+		if (viewParam === 'subjects' || viewParam === 'allocation') return 'missing-load';
 		if (!selectedId) {
 			if (teacherRepairIntent === 'review-placeholders') return repairQueueItems.find((item) => item.kind === 'placeholder')?.id ?? null;
 			return null;
@@ -195,7 +190,7 @@ export function useTeachingLoadRepairQueue({
 		// Set the parameters appropriate for this repair item
 		if (item.facultyId) next.set('facultyId', String(item.facultyId));
 		if (item.kind === 'missing-load') {
-			next.set('view', 'subjects');
+			next.set('view', 'allocation');
 		} else if (item.kind === 'teacher-missing-load') {
 			next.set('task', 'missing-load');
 		} else if (item.kind === 'over-cap') {
@@ -224,7 +219,6 @@ export function useTeachingLoadRepairQueue({
 		onShowOverloaded,
 		onShowPlaceholder,
 		onShowTeachersWithoutLoad,
-		onShowUnassigned,
 		onShowSubjectCoverage,
 		setAdvancedGridVisible,
 		updateRepairRoute,
@@ -236,22 +230,11 @@ export function useTeachingLoadRepairQueue({
 		if (item.facultyId) onSelectFaculty(item.facultyId);
 	}, [onSelectFaculty, updateRepairRoute]);
 
-	const handleSkipRepairItem = useCallback((item: TeachingLoadRepairQueueItem) => {
-		setSkippedRepairIds((prev) => {
-			const next = new Set(prev);
-			next.add(item.id);
-			return next;
-		});
-		setDraftStatusMessage(`Skipped "${item.title}" for now. It stays in this local queue.`);
-	}, [setDraftStatusMessage]);
-
 	return {
 		activeRepairId,
 		routedRepairId,
-		skippedRepairIds,
 		repairQueueItems,
 		handleRepairPrimaryAction,
 		handleSelectRepairItem,
-		handleSkipRepairItem,
 	};
 }

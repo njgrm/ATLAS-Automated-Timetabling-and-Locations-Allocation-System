@@ -2,7 +2,7 @@ import { useEffect, useRef, useMemo } from 'react';
 import type { useSearchParams } from 'react-router-dom';
 import type { TeachingLoadStatusFilter, TeachingLoadLoadFilter } from '@/lib/faculty-assignment-helpers';
 
-export type TeachingLoadViewMode = 'teacher' | 'allocation' | 'subjects';
+export type TeachingLoadViewMode = 'teacher' | 'allocation';
 
 export type ParsedRouteIntent = {
 	viewMode: TeachingLoadViewMode | null;
@@ -54,10 +54,11 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 	const sectionIdParam = parseNumericParam(searchParams.get('sectionId'));
 	const subjectIdParam = parseNumericParam(searchParams.get('subjectId'));
 
-	// Highest precedence: explicit subjects view (school-wide, no facultyId)
-	if (viewParam === 'subjects' && facultyIdParam == null) {
+	// Highest precedence: explicit school-wide coverage view (legacy `view=subjects`
+	// token). Same current surface: Sections coverage/navigation, not a second editor.
+	if ((viewParam === 'subjects' || viewParam === 'allocation') && facultyIdParam == null) {
 		return {
-			viewMode: 'subjects',
+			viewMode: 'allocation',
 			facultyId: null,
 			sectionId: null,
 			subjectId: subjectIdParam,
@@ -65,10 +66,10 @@ export function parseRouteIntent(searchParams: URLSearchParams): ParsedRouteInte
 		};
 	}
 
-	// task=missing-load WITHOUT facultyId → subjects mode (school-wide missing coverage)
+	// task=missing-load WITHOUT facultyId → Sections coverage (school-wide missing coverage)
 	if (taskParam === 'missing-load' && facultyIdParam == null) {
 		return {
-			viewMode: 'subjects',
+			viewMode: 'allocation',
 			facultyId: null,
 			sectionId: null,
 			subjectId: subjectIdParam,

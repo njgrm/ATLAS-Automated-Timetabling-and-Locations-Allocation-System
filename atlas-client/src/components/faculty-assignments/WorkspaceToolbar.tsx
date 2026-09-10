@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Zap, Activity, Settings2, RotateCcw, Users, ChartColumn } from 'lucide-react';
+import { Zap, Activity, Settings2, Users } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
@@ -19,10 +19,8 @@ type WorkspaceToolbarProps = {
 	policyReady: boolean;
 	onShowExcessTeachingLoad: () => void;
 	autoFillLoading: boolean;
-	staffingNeedsLoading: boolean;
 	autoFillEnabled: boolean;
 	onAutoFillClick: () => void;
-	onViewStaffingNeedsClick: () => void;
 	viewMode: string;
 	onViewModeChange: (value: string) => void;
 	dataSource: 'live' | 'cached' | 'refreshing' | 'none';
@@ -30,13 +28,9 @@ type WorkspaceToolbarProps = {
 	isWorkspaceWritable: boolean;
 	isOnline: boolean;
 	dataSourceNotice: string | null;
-	showJumpList: boolean;
-	onToggleJumpList: () => void;
 	coverageMode: CoverageMode;
 	onCoverageModeChange: (mode: CoverageMode) => void;
 	coverageModeConfig: Record<CoverageMode, { label: string; description: string }>;
-	onGlobalResetClick: () => void;
-	canRunGlobalReset: boolean;
 	workspaceStateLabel: string;
 	workspaceStateDescription: string;
 	workspaceStateNextAction: string;
@@ -63,10 +57,8 @@ export function WorkspaceToolbar({
 	policyReady,
 	onShowExcessTeachingLoad,
 	autoFillLoading,
-	staffingNeedsLoading,
 	autoFillEnabled,
 	onAutoFillClick,
-	onViewStaffingNeedsClick,
 	viewMode,
 	onViewModeChange,
 	dataSource,
@@ -74,13 +66,9 @@ export function WorkspaceToolbar({
 	isWorkspaceWritable,
 	isOnline,
 	dataSourceNotice,
-	showJumpList,
-	onToggleJumpList,
 	coverageMode,
 	onCoverageModeChange,
 	coverageModeConfig,
-	onGlobalResetClick,
-	canRunGlobalReset,
 	workspaceStateLabel,
 	workspaceStateDescription,
 	workspaceStateNextAction,
@@ -120,11 +108,11 @@ export function WorkspaceToolbar({
 			};
 		}
 		return {
-			label: 'Suggest Teaching Load draft',
+			label: 'Preview suggested assignments',
 			onClick: onAutoFillClick,
 			disabled: autoFillLoading || !autoFillEnabled,
 			variant: 'secondary' as const,
-			helper: autoFillEnabled ? 'Preview ATLAS suggestions before any Teaching Load rows are saved.' : 'Suggestions need live writable data.',
+			helper: autoFillEnabled ? 'Preview ATLAS suggestions before any Teaching Load rows are saved. Nothing is applied until you confirm.' : 'Suggestions need live writable data.',
 		};
 	}, [autoFillEnabled, autoFillLoading, dataSource, isOnline, onAutoFillClick, onRetrySource]);
 
@@ -137,9 +125,9 @@ export function WorkspaceToolbar({
 				key: 'overcap',
 				label: `Above weekly max: ${overCapCount}`,
 				tone: 'danger' as const,
-				tooltip: 'Active teachers above the weekly maximum. Move classes before generating.',
-				onClick: onViewStaffingNeedsClick,
-				disabled: staffingNeedsLoading,
+				tooltip: 'Active teachers above the weekly maximum. Review the filtered teacher list and move classes before generating.',
+				onClick: onShowExcessTeachingLoad,
+				disabled: false,
 				testId: 'teaching-load-alert-over-cap',
 			};
 		}
@@ -166,7 +154,7 @@ export function WorkspaceToolbar({
 			};
 		}
 		return null;
-	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onViewStaffingNeedsClick, onShowExcessTeachingLoad, staffingNeedsLoading]);
+	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad]);
 
 	return (
 		<div className="rounded-xl border border-border/40 bg-background px-2 py-1 shadow-sm" data-testid="teaching-load-command-header">
@@ -226,12 +214,12 @@ export function WorkspaceToolbar({
 							size="sm"
 							onClick={primaryAction.onClick}
 							disabled={primaryAction.disabled}
-							data-testid={primaryAction.label === 'Suggest Teaching Load draft' ? 'teaching-load-suggest-draft-action' : undefined}
+							data-testid={primaryAction.label === 'Preview suggested assignments' ? 'teaching-load-suggest-draft-action' : undefined}
 							className="h-7 gap-1.5 border border-primary/20 bg-primary/5 px-2 text-xs font-bold uppercase tracking-tight text-primary shadow-sm transition-all hover:bg-primary/10 sm:px-3"
 						>
 							<Zap className="size-4" />
 							<span className="hidden sm:inline">{primaryAction.label}</span>
-							<span className="sm:hidden">{primaryAction.label === 'Suggest Teaching Load draft' ? 'Suggest' : primaryAction.label}</span>
+							<span className="sm:hidden">{primaryAction.label === 'Preview suggested assignments' ? 'Preview' : primaryAction.label}</span>
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
@@ -248,27 +236,6 @@ export function WorkspaceToolbar({
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end" className="w-64 p-2">
-									<DropdownMenuItem onSelect={onViewStaffingNeedsClick} disabled={staffingNeedsLoading} className="gap-2 font-semibold">
-										<ChartColumn className="size-4" />
-										Open staffing audit
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={onToggleJumpList} className="gap-2 font-semibold">
-										<Users className="size-4" />
-										{showJumpList ? 'Hide teacher jump list' : 'Show teacher jump list'}
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => onViewModeChange('teacher')} className="gap-2 font-semibold sm:hidden">
-										<Users className="size-4" />
-										Teachers
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => onViewModeChange('allocation')} className="gap-2 font-semibold sm:hidden">
-										<Users className="size-4" />
-										Sections
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => onViewModeChange('subjects')} className="gap-2 font-semibold sm:hidden">
-										<Users className="size-4" />
-										Subjects
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
 									<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Staffing mode</DropdownMenuLabel>
 									<DropdownMenuRadioGroup value={coverageMode} onValueChange={(v) => onCoverageModeChange(v as CoverageMode)}>
 										{Object.entries(coverageModeConfig || {}).map(([mode, config]) => (
@@ -278,19 +245,6 @@ export function WorkspaceToolbar({
 											</DropdownMenuRadioItem>
 										))}
 									</DropdownMenuRadioGroup>
-									<DropdownMenuSeparator />
-									<DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Maintenance</DropdownMenuLabel>
-									<DropdownMenuItem
-										onSelect={onGlobalResetClick}
-										disabled={!canRunGlobalReset}
-										className="text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer py-2"
-									>
-										<RotateCcw className="size-4 mr-2" />
-										<div className="flex flex-col gap-0.5">
-											<span className="text-xs font-bold uppercase tracking-tight">Global Reset</span>
-											<span className="text-xs opacity-80">Wipe all assignments for this year</span>
-										</div>
-									</DropdownMenuItem>
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</TooltipTrigger>
@@ -305,7 +259,6 @@ export function WorkspaceToolbar({
 					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
 						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
 						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
-						<TabsTrigger value="subjects" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Subjects</TabsTrigger>
 					</TabsList>
 				</Tabs>
 			</div>

@@ -322,7 +322,7 @@ export function SectionGridMode({
 											const isStaffed = owner && activeFacultyIds.has(owner.facultyId);
 											
 											const candidates = faculty
-												.filter(f => matchesOwnershipDepartment(f.department, subject))
+												.filter(f => activeFacultyIds.has(f.id) && matchesOwnershipDepartment(f.department, subject))
 												.sort((a, b) => a.lastName.localeCompare(b.lastName));
 
 											return (
@@ -381,9 +381,8 @@ export function SectionGridMode({
 																		const isCurrentOwner = owner?.facultyId === f.id;
 																		// Canonical candidate signal: teaching utilization against the
 																		// explicit effective standard. Unknown standard shows hours only.
-																		const candidateHours = resolveTeachingActualHours(f);
-																		const loadPct = f.isPlaceholder || teachingStandardHours == null ? null : Math.round(teachingUtilizationPercentFor(f, teachingStandardHours));
-																			const hasDraftChanges = (effectiveAssignmentsByFaculty[f.id]?.length ?? 0) > 0;
+																				const candidateHours = resolveTeachingActualHours(f);
+																				const loadPct = f.isPlaceholder || teachingStandardHours == null ? null : Math.round(teachingUtilizationPercentFor(f, teachingStandardHours));
 																			return (
 																				<PopoverClose asChild key={f.id}>
 																					<Button
@@ -403,10 +402,10 @@ export function SectionGridMode({
 																							</p>
 																							<div className="flex items-center gap-2 mt-0.5">
 																								<span className={cn(
-																									"text-[10px] font-bold uppercase tracking-tighter",
+																									"text-[11px] font-bold uppercase tracking-tighter",
 																									loadPct == null ? "text-muted-foreground" : loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
 																								)}>
-																									{loadPct == null ? `${candidateHours.toFixed(1)}h teaching` : `${loadPct}% Load`}{hasDraftChanges ? ' *' : ''}
+																									{loadPct == null ? `${candidateHours.toFixed(1)}h teaching` : `${loadPct}% Load`}
 																								</span>
 																								<span className="text-muted-foreground/30">•</span>
 																								<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
@@ -419,9 +418,6 @@ export function SectionGridMode({
 																				</PopoverClose>
 																			);
 																		})}
-																	{candidates.some(f => (effectiveAssignmentsByFaculty[f.id]?.length ?? 0) > 0) && (
-																		<p className="px-3 py-1.5 text-[10px] font-semibold text-amber-700 italic border-t border-border/20">* Load% may be higher — draft changes are pending save.</p>
-																	)}
 																	</div>
 																</PopoverContent>
 															</Popover>

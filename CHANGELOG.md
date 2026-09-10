@@ -1,5 +1,29 @@
 # Changelog
 
+## [2026-09-11] — TL-UX-C01 Teaching Load Workspace Consolidation
+
+### Added
+- `transferExactSectionPair` and `buildSaveCommitReceipt` production helpers for exact-pair ownership transfer and truthful multi-teacher save receipts.
+- Focused ownership-integrity tests plus scope/HG/dead-control guardrail tests.
+
+### Changed
+- Removed the Teaching Load split-brain preview request, state, and warning plumbing; the daily page no longer calls `integrity/reconcile-split-brain`.
+- Removed the daily current-year reconciliation panel, global reset, staffing-audit sheet, teacher jump list, duplicate mobile mode items, and the redundant Details/Skip/Find repair actions.
+- Collapsed the Subjects mode into the single Sections coverage/navigation surface; over-cap now filters the teacher list instead of opening a contradictory report.
+- `Change owner` transfers exactly the selected subject-section pair; the implicit `sectionIds[0]` two-way exchange is removed.
+- Bound drafts, history, filters, dialogs, selection, hover, and repair state to `(actorSchoolId, activeSchoolYearId)`; scope changes reset before any request or edit.
+- HG exclusion uses canonical catalog code `HG` only, never display-name matching.
+- Compacted the operator workspace so the assignment area receives the majority of remaining height at desktop and mobile viewports.
+
+### Verification
+- Client TypeScript and production build pass; ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21.
+- Live Tailnet read-only baseline and isolated candidate Playwright matrices through the Tailnet IP pass with zero candidate non-login writes; workspace height floors hold at 1440x900, 1280x720, 1024x768, 390x844, 360x800, and 640x360.
+- No live Teaching Load mutation, migration, generation, publication, or companion edit was performed.
+
+### Open Questions
+- Server-side advised-section suggestion priority (Pass E server half) remains deferred.
+- Multi-teacher save stays per-faculty atomic with an exact partial-commit receipt rather than one cross-faculty transaction.
+
 ## [2026-09-10] — RR-UX01 Rollover Awareness and Read-Only Teaching Load History
 
 ### Added

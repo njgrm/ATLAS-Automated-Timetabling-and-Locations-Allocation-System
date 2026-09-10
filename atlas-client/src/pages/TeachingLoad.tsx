@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, RefreshCw, UserRound } from 'lucide-react';
+import { AlertTriangle, UserRound } from 'lucide-react';
 import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/ui/sheet';
-import { Badge } from '@/ui/badge';
 import { cn } from '@/lib/utils';
 
 import atlasApi from '@/lib/api';
@@ -14,8 +13,8 @@ import {
 	buildGuidedEmptyTeachingLoadMessage,
 	resolveAdvisoryCreditHours,
 } from '@/lib/faculty-assignment-helpers';
-import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, resolveCoverageState } from '@/lib/teaching-load-helpers';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
+import { TooltipProvider } from '@/ui/tooltip';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
@@ -26,11 +25,7 @@ import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceTool
 import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/TeachingLoadRepairQueue';
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
-import { SubjectCoverageMode } from '@/components/faculty-assignments/SubjectCoverageMode';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
-import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
-import { TeachingLoadReconciliationPanel } from '@/components/faculty-assignments/TeachingLoadReconciliationPanel';
-import { readinessChipState } from '@/lib/teaching-load-reconciliation-helpers';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -38,7 +33,6 @@ import type {
 	AutoFillSummaryResult, 
 	Subject,
 	SectionAssignedClassesResult,
-	TeachingLoadReconciliationReadiness
 } from '@/types';
 
 export default function TeachingLoad() {
@@ -63,8 +57,6 @@ export default function TeachingLoad() {
 	const [suggestionProposalId, setSuggestionProposalId] = useState<number | null>(null);
 	const [suggestionLoading, setSuggestionLoading] = useState(false);
 	const [suggestionApplying, setSuggestionApplying] = useState(false);
-	const [summaryModalReviewOnly, setSummaryModalReviewOnly] = useState(false);
-	const [resetLoading, setResetLoading] = useState(false);
 	const [hasGeneratedRuns, setHasGeneratedRuns] = useState(false);
 	const [showSaveWarning, setShowSaveWarning] = useState(false);
 	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -74,31 +66,6 @@ export default function TeachingLoad() {
 	const [advancedGridVisible, setAdvancedGridVisible] = useState(true);
 	const [guidedDefaultApplied, setGuidedDefaultApplied] = useState(false);
 	const [draftStatusMessage, setDraftStatusMessage] = useState('No draft changes yet. Start with the next step below.');
-	const [reconciliationOpen, setReconciliationOpen] = useState(false);
-	const [reconciliationReadiness, setReconciliationReadiness] = useState<TeachingLoadReconciliationReadiness | null>(null);
-	const [readinessLoading, setReadinessLoading] = useState(false);
-
-	useEffect(() => {
-		if (!data.schoolId || !data.activeSchoolYearId) return;
-		let cancelled = false;
-		setReadinessLoading(true);
-		atlasApi
-			.get<TeachingLoadReconciliationReadiness>('/faculty-assignments/reconciliation/readiness', {
-				params: { schoolId: data.schoolId, schoolYearId: data.activeSchoolYearId },
-			})
-			.then(({ data: result }) => {
-				if (!cancelled) setReconciliationReadiness(result);
-			})
-			.catch(() => {
-				if (!cancelled) setReconciliationReadiness(null);
-			})
-			.finally(() => {
-				if (!cancelled) setReadinessLoading(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [data.schoolId, data.activeSchoolYearId]);
 
 	useEffect(() => {
 		if (data.schoolId && data.activeSchoolYearId) {
@@ -127,6 +94,14 @@ export default function TeachingLoad() {
 		setShowTemporaryRoles: ui.setShowTemporaryRoles,
 	});
 
+	// A rollover or school switch must reset every mutable filter, dialog, and
+	// selection before the new scope renders. Draft/history clearing lives in the
+	// data and history hooks.
+	const { resetForScope } = ui;
+	useEffect(() => {
+		resetForScope();
+	}, [data.scopeKey, resetForScope]);
+
 	const completedSectionIds = useMemo(() => {
 		const completed = new Set<number>();
 		for (const section of data.allKnownSections) {
@@ -152,13 +127,6 @@ export default function TeachingLoad() {
 		return completed;
 	}, [data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds]);
 
-	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
-	const splitBrainNeedsAttention = Boolean(
-		data.splitBrainIncident
-		&& data.splitBrainIncident.quarantine.severity !== 'NONE'
-		&& !ui.reviewDismissed
-	);
-
 	const handleSave = useCallback(async (force?: boolean) => {
 		if (!data.schoolId || !data.activeSchoolYearId) return;
 		const schoolId = data.schoolId;
@@ -172,33 +140,60 @@ export default function TeachingLoad() {
 		}
 
 		data.setSaving(true);
+		// Each PUT is one atomic, revision-checked, serializable transaction for a
+		// single teacher. Because a multi-teacher draft cannot be committed as one
+		// transaction through this contract, the save stops at the first failure
+		// and reports the exact teacher records that committed so the operator is
+		// never told a partial save succeeded.
+		const committed: number[] = [];
+		let failedFacultyId: number | null = null;
+		let readableError = '';
 		try {
 			for (const [facultyIdRaw, assignments] of draftEntries) {
 				const facultyId = Number(facultyIdRaw);
 				if (!Number.isFinite(facultyId)) continue;
 				const facultyRow = data.faculty.find((member) => member.id === facultyId);
 				if (!facultyRow) continue;
-				await atlasApi.put(`/faculty-assignments/${facultyId}`, {
-					schoolId,
-					schoolYearId: data.activeSchoolYearId,
-					version: facultyRow.version,
-					facultyId,
-					assignments,
-				});
+				try {
+					await atlasApi.put(`/faculty-assignments/${facultyId}`, {
+						schoolId,
+						schoolYearId: data.activeSchoolYearId,
+						version: facultyRow.version,
+						facultyId,
+						assignments,
+					});
+					committed.push(facultyId);
+				} catch (error: any) {
+					failedFacultyId = facultyId;
+					readableError = formatTeachingLoadSaveError(error);
+					throw error;
+				}
 			}
 			const message = draftEntries.length === 1 && data.selected
 				? `Saved Teaching Load for ${data.selected.lastName}.`
-				: `Saved ${draftEntries.length} Teaching Load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`;
+				: `Saved ${committed.length} Teaching Load draft ${committed.length === 1 ? 'change' : 'changes'}.`;
 			toast.success(message);
 			setDraftStatusMessage(message);
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
-			const readableError = formatTeachingLoadSaveError(error);
-			if (error?.response?.data?.code === 'VERSION_CONFLICT') {
+			const conflict = error?.response?.data?.code === 'VERSION_CONFLICT';
+			if (conflict || committed.length > 0) {
 				await data.fetchData({ forceRefresh: true });
 			}
-			toast.error(readableError);
-			setDraftStatusMessage(readableError);
+			const committedNames = committed
+				.map((id) => data.faculty.find((member) => member.id === id))
+				.filter((member): member is NonNullable<typeof member> => Boolean(member))
+				.map((member) => member.lastName);
+			const failedName = failedFacultyId != null
+				? data.faculty.find((member) => member.id === failedFacultyId)?.lastName ?? `faculty ${failedFacultyId}`
+				: null;
+			const receipt = buildSaveCommitReceipt({
+				committedLastNames: committedNames,
+				failedLastName: failedName,
+				error: readableError,
+			});
+			toast.error(receipt);
+			setDraftStatusMessage(receipt);
 		} finally {
 			data.setSaving(false);
 		}
@@ -223,92 +218,27 @@ export default function TeachingLoad() {
 	}, [data]);
 
 	const handleSwapRequest = useCallback((subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => {
-		const destinationFacultyId = toFacultyId ?? data.selectedId;
-		if (!destinationFacultyId) {
-			toast.error('Cannot swap: no destination teacher is selected. Select a teacher first, then retry the swap.');
+		// Exact-pair transfer only. The operator selected one subject-section pair;
+		// only that pair moves. We never pick another section by array position or
+		// display order, and we never silently convert this into a two-way exchange.
+		const result = transferExactSectionPair({
+			assignmentsByFaculty: data.effectiveAssignmentsByFaculty,
+			savedAssignmentsByFaculty: data.savedAssignmentsByFaculty,
+			subjectId,
+			sectionId,
+			fromFacultyId,
+			toFacultyId: toFacultyId ?? data.selectedId,
+		});
+		if (!result.ok) {
+			toast.error(result.message);
 			return;
 		}
 
-		// Check if recipient already owns any sections in this subject
-		const toAssignments = data.effectiveAssignmentsByFaculty[destinationFacultyId] ?? data.savedAssignmentsByFaculty[destinationFacultyId] ?? [];
-		const toSubjectAssignment = toAssignments.find((a) => a.subjectId === subjectId);
-		const sectionToGiveBack = toSubjectAssignment?.sectionIds[0];
-
-		try {
-			data.pushHistory();
-			data.setDraftAssignmentsByFaculty((prev) => {
-				const getBase = (id: number) => prev[id] ?? data.savedAssignmentsByFaculty[id] ?? [];
-				let fromCurrent = [...getBase(fromFacultyId)];
-				let toCurrent = [...getBase(destinationFacultyId)];
-
-				// Remove sectionId from donor
-				const fromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
-				if (fromIndex >= 0) {
-					const nextSectionIds = fromCurrent[fromIndex].sectionIds.filter((id: number) => id !== sectionId);
-					if (nextSectionIds.length === 0) fromCurrent.splice(fromIndex, 1);
-					else fromCurrent[fromIndex] = { ...fromCurrent[fromIndex], sectionIds: nextSectionIds };
-				}
-
-				// Add sectionId to recipient
-				const toIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
-				if (toIndex >= 0) {
-					toCurrent[toIndex] = { ...toCurrent[toIndex], sectionIds: Array.from(new Set([...toCurrent[toIndex].sectionIds, sectionId])) };
-				} else {
-					toCurrent.push({ subjectId, sectionIds: [sectionId], gradeLevels: [] });
-				}
-
-				// Two-way swap: if recipient had a section, give it back to donor
-				if (sectionToGiveBack != null) {
-					const updatedToIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
-					if (updatedToIndex >= 0) {
-						const remainingSections = toCurrent[updatedToIndex].sectionIds.filter((id: number) => id !== sectionToGiveBack);
-						if (remainingSections.length === 0) toCurrent.splice(updatedToIndex, 1);
-						else toCurrent[updatedToIndex] = { ...toCurrent[updatedToIndex], sectionIds: remainingSections };
-					}
-					const updatedFromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
-					if (updatedFromIndex >= 0) {
-						fromCurrent[updatedFromIndex] = { ...fromCurrent[updatedFromIndex], sectionIds: Array.from(new Set([...fromCurrent[updatedFromIndex].sectionIds, sectionToGiveBack])) };
-					} else {
-						fromCurrent.push({ subjectId, sectionIds: [sectionToGiveBack], gradeLevels: [] });
-					}
-				}
-
-				return { ...prev, [fromFacultyId]: fromCurrent, [destinationFacultyId]: toCurrent };
-			});
-
-			if (sectionToGiveBack != null) {
-				toast.success('Sections swapped in draft mode.');
-				setDraftStatusMessage('Sections swapped in draft mode. Save the draft when the review looks correct.');
-			} else {
-				toast.success('Section transferred in draft mode.');
-				setDraftStatusMessage('Section transferred in draft mode. Save the draft when the review looks correct.');
-			}
-		} catch (err: any) {
-			const readableError = formatTeachingLoadSaveError(err);
-			toast.error(readableError);
-			setDraftStatusMessage(readableError);
-		}
+		data.pushHistory();
+		data.setDraftAssignmentsByFaculty((prev) => ({ ...prev, ...result.updates }));
+		toast.success('Section transferred in draft mode.');
+		setDraftStatusMessage('Section transferred in draft mode. Save the draft when the review looks correct.');
 	}, [data]);
-
-	const applyGlobalReset = useCallback(async () => {
-		if (!data.schoolId || !data.activeSchoolYearId) return;
-		setResetLoading(true);
-		try {
-			await atlasApi.post('/faculty-assignments/reset', {
-				schoolId: data.schoolId,
-				schoolYearId: data.activeSchoolYearId,
-				confirmText: ui.resetConfirmText,
-			});
-			toast.success('All teaching loads for the current school year have been cleared.');
-			ui.setResetDialogOpen(false);
-			ui.setResetConfirmText('');
-			await data.fetchData({ forceRefresh: true });
-		} catch (error: any) {
-			toast.error(error?.response?.data?.message ?? 'Reset failed.');
-		} finally {
-			setResetLoading(false);
-		}
-	}, [data, ui]);
 
 	const handlePreviewSuggestedTeachingLoad = useCallback(async () => {
 		if (!data.schoolId || !data.activeSchoolYearId) return;
@@ -365,11 +295,6 @@ export default function TeachingLoad() {
 		if (suggestionApplying) return 'ATLAS is applying the suggested Teaching Load now.';
 		return null;
 	}, [autoFillResult, data.activeSchoolYearId, data.canPersistAssignments, data.dataSource, data.isOnline, suggestionApplying, suggestionProposalId]);
-
-	const suggestionReviewWarning = useMemo(() => {
-		if (!splitBrainNeedsAttention) return null;
-		return 'ATLAS found Teaching Load warnings. You may apply this draft, but review the warnings before generating or publishing.';
-	}, [splitBrainNeedsAttention]);
 
 	const handleApplySuggestedTeachingLoad = useCallback(async () => {
 		if (suggestionApplyDisabledReason || !data.activeSchoolYearId || !suggestionProposalId) {
@@ -431,61 +356,9 @@ export default function TeachingLoad() {
 	const handleSummaryModalOpenChange = useCallback((open: boolean) => {
 		ui.setSummaryModalOpen(open);
 		if (!open) {
-			setSummaryModalReviewOnly(false);
 			void handleCancelPendingSuggestionProposal();
 		}
 	}, [handleCancelPendingSuggestionProposal, ui]);
-
-	const handleViewStaffingNeeds = useCallback(async () => {
-		if (!data.schoolId || !data.activeSchoolYearId) return;
-		const toastId = toast.loading('Generating detailed staffing needs report...');
-		try {
-			const { data: result } = await atlasApi.post<AutoFillSummaryResult>(
-				'/faculty-assignments/report/staffing-needs',
-				{
-					schoolId: data.schoolId,
-					schoolYearId: data.activeSchoolYearId,
-					coverageMode: ui.coverageMode,
-				},
-			);
-			setAutoFillResult(result);
-			setSummaryModalReviewOnly(true);
-			ui.setSummaryModalOpen(true);
-			toast.success('Staffing needs report generated.', { id: toastId });
-		} catch (error: any) {
-			toast.error(error?.response?.data?.message ?? 'Failed to generate staffing needs report.', { id: toastId });
-		}
-	}, [data.schoolId, data.activeSchoolYearId, ui.coverageMode, ui.setSummaryModalOpen]);
-
-	const handleToggleCanTeachOutsideDepartment = useCallback(async (checked: boolean) => {
-		if (!data.selected) return;
-		try {
-			await atlasApi.patch(`/faculty/${data.selected.id}`, {
-				version: data.selected.version,
-				canTeachOutsideDepartment: checked,
-			});
-			toast.success(`Cross-department teaching updated for ${data.selected.lastName}.`);
-			await data.fetchData({ forceRefresh: true });
-		} catch (error: any) {
-			toast.error(error?.response?.data?.message ?? 'Failed to update cross-department teaching permission.');
-		}
-	}, [data]);
-
-	const handleNavigateToAllocation = useCallback(() => {
-		ui.setViewMode('allocation');
-		toast.info('Workflow switched to Section Allocation mode.');
-	}, [ui]);
-
-	const discardSelectedDraft = useCallback(() => {
-		if (!data.selectedId) return;
-		data.setDraftAssignmentsByFaculty((prev) => {
-			const next = { ...prev };
-			delete next[data.selectedId!];
-			return next;
-		});
-		setDraftStatusMessage('Draft changes for the selected teacher were discarded.');
-		toast.info('Draft changes discarded.');
-	}, [data]);
 
 	const discardAllDrafts = useCallback(() => {
 		if (data.activeDraftCount === 0) return;
@@ -559,18 +432,6 @@ export default function TeachingLoad() {
 		ui.setViewMode('teacher');
 		ui.setLoadFilter('excess');
 		ui.setFilterStatus('all');
-	}, [ui]);
-
-	const showSubjectCoverageView = useCallback(() => {
-		ui.setViewMode('subjects');
-	}, [ui]);
-
-	const handleFocusSectionFromSubject = useCallback((sectionId: number, subjectId: number) => {
-		ui.setViewMode('allocation');
-		ui.setSelectedSectionId(sectionId);
-		ui.setSectionModeFilter('all');
-		ui.setSelectedSubjectId(subjectId);
-		setAdvancedGridVisible(true);
 	}, [ui]);
 
 	const showUnassignedTeachingLoad = useCallback(() => {
@@ -651,11 +512,9 @@ export default function TeachingLoad() {
 	const {
 		activeRepairId,
 		routedRepairId,
-		skippedRepairIds,
 		repairQueueItems,
 		handleRepairPrimaryAction,
 		handleSelectRepairItem,
-		handleSkipRepairItem,
 	} = useTeachingLoadRepairQueue({
 		searchParams,
 		setSearchParams,
@@ -672,8 +531,9 @@ export default function TeachingLoad() {
 		onSave: () => {
 			void handleSave();
 		},
-		onShowUnassigned: showUnassignedTeachingLoad,
-		onShowSubjectCoverage: showSubjectCoverageView,
+		// Coverage repair now routes to the single Sections coverage/navigation
+		// surface; there is no separate Subjects editor.
+		onShowSubjectCoverage: showUnassignedTeachingLoad,
 		onShowTeachersWithoutLoad: showTeachersWithoutLoad,
 		onShowOverloaded: showOverloadedTeachers,
 		onShowPlaceholder: () => {
@@ -684,7 +544,6 @@ export default function TeachingLoad() {
 		},
 		onOpenReview: () => ui.setViewMode('teacher'),
 		setAdvancedGridVisible,
-		setDraftStatusMessage,
 	});
 
 	const sectionsBySubject = useMemo(() => {
@@ -697,22 +556,6 @@ export default function TeachingLoad() {
 	}, [data.sectionAssignedClassesIndex, ui.selectedSectionId]);
 
 	const departmentOptions = ui.departmentFacetOptions;
-
-	const coverageState = useMemo(() => resolveCoverageState({
-		loading: data.loading,
-		activeSchoolYearId: data.activeSchoolYearId,
-		coverageTotals: data.coverageTotals,
-		totalPairs: coverageHeadline.total,
-		realAssignedPairs: coverageHeadline.realAssigned,
-		syntheticPlaceholderPairs: coverageHeadline.syntheticAssigned,
-	}), [
-		coverageHeadline.realAssigned,
-		coverageHeadline.syntheticAssigned,
-		coverageHeadline.total,
-		data.activeSchoolYearId,
-		data.coverageTotals,
-		data.loading,
-	]);
 
 	if (data.error && data.dataSource === 'none') {
 		return (
@@ -743,24 +586,18 @@ export default function TeachingLoad() {
 						policyReady={ui.policyReady}
 						onShowExcessTeachingLoad={showExcessTeachingLoad}
 						autoFillLoading={data.loading || suggestionLoading}
-						staffingNeedsLoading={data.loading}
 						autoFillEnabled={Boolean(data.schoolId && data.activeSchoolYearId) && data.canPersistAssignments}
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
-						onViewStaffingNeedsClick={handleViewStaffingNeeds}
 						viewMode={ui.viewMode}
-						onViewModeChange={(value) => ui.setViewMode(value as 'teacher' | 'allocation' | 'subjects')}
+						onViewModeChange={(value) => ui.setViewMode(value as 'teacher' | 'allocation')}
 						dataSource={data.dataSource}
 						degradedWriteEnabled={data.degradedWriteEnabled}
 						isWorkspaceWritable={data.canPersistAssignments}
 						isOnline={data.isOnline}
 						dataSourceNotice={data.degradedNotice}
-						showJumpList={ui.showJumpList}
-						onToggleJumpList={() => ui.setShowJumpList(!ui.showJumpList)}
 						coverageMode={ui.coverageMode}
 						onCoverageModeChange={ui.setCoverageMode}
 						coverageModeConfig={COVERAGE_MODE_CONFIG}
-						onGlobalResetClick={() => ui.setResetDialogOpen(true)}
-						canRunGlobalReset={data.canRunGlobalReset}
 						workspaceStateLabel={workspaceState.label}
 						workspaceStateDescription={workspaceState.description}
 						workspaceStateNextAction={workspaceState.nextAction}
@@ -769,29 +606,6 @@ export default function TeachingLoad() {
 						onSave={handleSave}
 						onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					/>
-					<div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-						{readinessChipState(reconciliationReadiness, readinessLoading).tone === 'warn' && (
-							<Badge
-								variant="outline"
-								className="bg-amber-50 text-amber-800 border-amber-200"
-								data-testid="teaching-load-coverage-readiness"
-							>
-								{readinessChipState(reconciliationReadiness, readinessLoading).label}
-							</Badge>
-						)}
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-11 gap-2 font-bold"
-							disabled={!data.schoolId || !data.activeSchoolYearId}
-							onClick={() => setReconciliationOpen(true)}
-							data-testid="teaching-load-open-reconciliation"
-						>
-							<RefreshCw className="size-4" />
-							Reconcile teaching load
-						</Button>
-					</div>
 					<p className="sr-only" aria-label="Teaching load workflow">
 						<span className="text-foreground">1. Choose a teacher or section</span>
 						<span aria-hidden="true" className="mx-2">→</span>
@@ -803,31 +617,31 @@ export default function TeachingLoad() {
 
 				<div className="flex-1 flex min-h-0" data-testid="teaching-load-content-shell">
 					{/* Main Grid Area */}
-					<div className="flex-1 flex flex-col min-w-0">
-						<div className="shrink-0 px-3 pt-1 lg:px-5">
-							<RolloverGuidanceCard compact />
-						</div>
+					<div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
+						{data.schoolId != null && (
+							<div className="shrink-0 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
+								<RolloverGuidanceCard compact schoolId={data.schoolId} />
+							</div>
+						)}
 
 						{/* Phase 4.1: the standalone TeachingLoadTaskGuide is removed.
 							Its "next step" prompt duplicated the repair queue, and its
 							% staffed badge already lives in the readiness strip under
 							the command header. The repair queue is now the single
 							"next step" surface. */}
-						<TeachingLoadRepairQueue
-							items={repairQueueItems}
-							activeItemId={activeRepairId ?? routedRepairId}
-							skippedItemIds={skippedRepairIds}
-							isReadOnly={data.isReadOnlyMode}
-							canUndo={data.canUndo}
-							saving={data.saving}
-							advancedGridVisible={advancedGridVisible}
-							onPrimaryAction={handleRepairPrimaryAction}
-							onSelectItem={handleSelectRepairItem}
-							onSkipItem={handleSkipRepairItem}
-							onUndo={data.handleUndo}
-							onToggleAdvancedGrid={() => setAdvancedGridVisible(true)}
-						/>
+						<div className="shrink-0 [@media(max-height:640px)]:hidden">
+							<TeachingLoadRepairQueue
+								items={repairQueueItems}
+								activeItemId={activeRepairId ?? routedRepairId}
+								isReadOnly={data.isReadOnlyMode}
+								saving={data.saving}
+								advancedGridVisible={advancedGridVisible}
+								onPrimaryAction={handleRepairPrimaryAction}
+								onToggleAdvancedGrid={() => setAdvancedGridVisible(true)}
+							/>
+						</div>
 
+						<div className="flex min-h-[140px] flex-1 flex-col" data-testid="teaching-load-workspace">
 						{advancedGridVisible ? (ui.viewMode === 'teacher' ? (
 							<TeacherGridMode
 								loading={data.loading}
@@ -884,12 +698,6 @@ export default function TeachingLoad() {
 								workspaceStateNextAction={workspaceState.nextAction}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
-						) : ui.viewMode === 'subjects' ? (
-							<SubjectCoverageMode
-								activeSchoolYearId={data.activeSchoolYearId}
-								selectedSubjectId={ui.selectedSubjectId}
-								onFocusSection={handleFocusSectionFromSubject}
-							/>
 						) : (
 							<SectionGridMode
 								loading={data.loading}
@@ -923,10 +731,11 @@ export default function TeachingLoad() {
 						)) : (
 							<TeachingLoadGuidedModePlaceholder onOpenAdvancedGrid={() => setAdvancedGridVisible(true)} />
 					)}
+						</div>
 					</div>
 
 					{/* Persistent Inspector Area */}
-					<div className={cn("hidden w-80 shrink-0 border-l border-border/40 bg-background shadow-xl lg:block", (!advancedGridVisible || ui.viewMode === 'subjects') && "lg:hidden")}>
+					<div className={cn("hidden w-80 shrink-0 border-l border-border/40 bg-background shadow-xl lg:block", !advancedGridVisible && "lg:hidden")}>
 						{ui.viewMode === 'teacher' ? (
 							<WorkloadInspector
 								selected={data.selected}
@@ -938,7 +747,6 @@ export default function TeachingLoad() {
 								activeTermIndex={data.activeTermIndex}
 								teachingStandardHours={ui.teachingStandardHours}
 								policyReady={ui.policyReady}
-								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						) : (
@@ -969,7 +777,7 @@ export default function TeachingLoad() {
 				hidden below lg; this floating button opens the same profile in a
 				Sheet on small screens. Only visible in Teachers and Sections modes,
 				not Subjects (which has no meaningful inspector). */}
-			{advancedGridVisible && ui.viewMode !== 'subjects' && (
+			{advancedGridVisible && (
 				<Button
 					type="button"
 					variant="outline"
@@ -1006,7 +814,6 @@ export default function TeachingLoad() {
 								activeTermIndex={data.activeTermIndex}
 								teachingStandardHours={ui.teachingStandardHours}
 								policyReady={ui.policyReady}
-								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						) : (
@@ -1031,23 +838,8 @@ export default function TeachingLoad() {
 				onSummaryModalOpenChange={handleSummaryModalOpenChange}
 				autoFillResult={autoFillResult}
 				onApplySuggestion={handleApplySuggestedTeachingLoad}
-				onReviewSuggestionManually={() => {
-					void handleCancelPendingSuggestionProposal({ silent: true });
-					ui.setSummaryModalOpen(false);
-					setAdvancedGridVisible(true);
-					setDraftStatusMessage('Manual review opened. Use the grid to adjust teachers or sections before generating.');
-				}}
 				suggestionApplying={suggestionApplying}
 				suggestionApplyDisabledReason={suggestionApplyDisabledReason}
-				suggestionReviewWarning={suggestionReviewWarning}
-				summaryModalReviewOnly={summaryModalReviewOnly}
-				resetDialogOpen={ui.resetDialogOpen}
-				onResetDialogOpenChange={ui.setResetDialogOpen}
-				canRunGlobalReset={data.canRunGlobalReset}
-				resetLoading={resetLoading}
-				resetConfirmText={ui.resetConfirmText}
-				onResetConfirmTextChange={ui.setResetConfirmText}
-				onResetConfirm={applyGlobalReset}
 				saveWarningOpen={showSaveWarning}
 				onSaveWarningOpenChange={setShowSaveWarning}
 				onSaveConfirm={() => handleSave(true)}
@@ -1058,36 +850,6 @@ export default function TeachingLoad() {
 					setShowDiscardConfirm(false);
 				}}
 				activeDraftCount={data.activeDraftCount}
-			/>
-
-			<StaffingAuditSheet
-				open={ui.staffingAuditOpen}
-				onOpenChange={ui.setStaffingAuditOpen}
-				coverageTotals={data.coverageTotals}
-				faculty={data.faculty}
-				subjects={data.subjects}
-				coverageStateLabel={coverageState.label}
-				coverageStateDescription={coverageState.description}
-				workspaceStateLabel={workspaceState.label}
-				workspaceStateNextAction={workspaceState.nextAction}
-				teachingStandardHours={ui.teachingStandardHours}
-				policyReady={ui.policyReady}
-				onNavigateToAllocation={handleNavigateToAllocation}
-			/>
-
-			<TeachingLoadReconciliationPanel
-				open={reconciliationOpen}
-				onOpenChange={setReconciliationOpen}
-				schoolId={data.schoolId}
-				schoolYearId={data.activeSchoolYearId}
-				online={data.isOnline}
-				writable={data.canPersistAssignments}
-				readiness={reconciliationReadiness}
-				readinessLoading={readinessLoading}
-				onApplied={() => {
-					void data.fetchData({ forceRefresh: true });
-					setReconciliationReadiness(null);
-				}}
 			/>
 		</TooltipProvider>
 	);

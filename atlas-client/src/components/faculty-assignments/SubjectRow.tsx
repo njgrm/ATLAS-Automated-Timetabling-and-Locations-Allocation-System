@@ -398,36 +398,31 @@ export const SubjectRow = memo(({
 
 							return (
 								<div key={gradeLevel} className="group/grade">
-									<div 
-										role="button"
-										tabIndex={0}
-										aria-expanded={isOpen}
-										className={`flex items-center justify-between px-5 py-2.5 transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${isOpen ? 'bg-muted/20 border-b border-border/30' : 'hover:bg-muted/10'}`}
-										onClick={() =>
-											setOpenGrades((current) => ({
-												...current,
-												[gradeLevel]: !isOpen,
-											}))
-										}
-										onKeyDown={(event) => {
-											if (event.key === 'Enter' || event.key === ' ') {
-												event.preventDefault();
+									<div
+										className={`flex items-center justify-between px-5 py-2.5 transition-colors ${isOpen ? 'bg-muted/20 border-b border-border/30' : 'hover:bg-muted/10'}`}
+									>
+										{/* Disclosure is its own semantic control. The Assign Grade
+											button is a sibling, never a nested interactive control. */}
+										<button
+											type="button"
+											aria-expanded={isOpen}
+											aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${gradeLabel(gradeLevel)} sections`}
+											onClick={() =>
 												setOpenGrades((current) => ({
 													...current,
 													[gradeLevel]: !isOpen,
-												}));
+												}))
 											}
-										}}
-									>
-										<div className="flex items-center gap-3">
+											className="flex min-h-9 items-center gap-3 rounded-md px-1 py-1 select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+										>
 											{isOpen ? <ChevronDown className="size-4 text-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
 											<span className={cn("text-xs font-bold uppercase tracking-widest", isOpen ? "text-foreground" : "text-muted-foreground")}>
 												<span className={gradeColorClass}>
 													{gradeLabel(gradeLevel)}
 												</span>
 											</span>
-										</div>
-										
+										</button>
+
 										<div className="flex items-center gap-4">
 											<Badge variant="secondary" className="text-xs font-semibold h-6 px-2 bg-muted/60 text-muted-foreground shadow-none tabular-nums">
 												{selectedInGrade} / {gradeSections.length}
@@ -436,12 +431,10 @@ export const SubjectRow = memo(({
 												type="button"
 												variant="ghost"
 												size="xs"
-											disabled={disabled}
-												onClick={(e) => {
-													e.stopPropagation();
-													handleToggleGrade(gradeLevel, gradeSections);
-												}}
-												className="h-7 px-3 text-[11px] font-bold uppercase text-primary hover:bg-primary/5 border border-primary/20"
+												disabled={disabled}
+												onClick={() => handleToggleGrade(gradeLevel, gradeSections)}
+												aria-label={`${selectedInGrade > 0 ? 'Unassign' : 'Assign'} ${gradeLabel(gradeLevel)} (${gradeSections.length} sections)`}
+												className="h-9 px-3 text-[11px] font-bold uppercase text-primary hover:bg-primary/5 border border-primary/20"
 											>
 												{selectedInGrade > 0 ? 'Unassign Grade' : 'Assign Grade'}
 											</Button>
