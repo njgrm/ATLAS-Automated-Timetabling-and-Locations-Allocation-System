@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 
 import app from '../app.js';
 import { prisma } from '../lib/prisma.js';
+import { ensureDefaultSubjects } from '../services/subject.service.js';
 
 const SCHOOL_ID = 9_100_041;
 const SCHOOL_YEAR_ID = 77;
@@ -60,10 +61,13 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 			isActive: true,
 			syncStatus: 'synced',
 		} });
-		await prisma.subject.createMany({ data: [
-			{ schoolId: SCHOOL_ID, code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, schedulingDisposition: 'REFERENCE_ONLY' },
-			{ schoolId: SCHOOL_ID, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 300, schedulingDisposition: 'SCHEDULED_TEACHING' },
-		] });
+		// Controlled bootstrap authority: the exact code `HG` is reference-only;
+		// every other default stays scheduled teaching.
+		await ensureDefaultSubjects(SCHOOL_ID);
+		const bootstrappedHg = await prisma.subject.findFirst({ where: { schoolId: SCHOOL_ID, code: 'HG' } });
+		const bootstrappedMath = await prisma.subject.findFirst({ where: { schoolId: SCHOOL_ID, code: 'MATH' } });
+		assert.equal(bootstrappedHg?.schedulingDisposition, 'REFERENCE_ONLY');
+		assert.equal(bootstrappedMath?.schedulingDisposition, 'SCHEDULED_TEACHING');
 
 		const token = jwt.sign({ userId: 41, role: 'admin', authSource: 'local', schoolId: SCHOOL_ID }, process.env.JWT_SECRET!, { expiresIn: '5m' });
 		const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -80,28 +84,40 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 			'Launch / Foundations', 'Studio Cycle β', 'Capstone + Defense',
 		]);
 		assert.equal(body.termAuthority.contract.activeTerm.identity, 'term-b');
-		assert.equal(body.subjects.find((subject: any) => subject.code === 'HG').createsTimetableDemand, false);
-		assert.equal(body.subjects.find((subject: any) => subject.code === 'HG').createsTeachingLoad, false);
-		assert.equal(body.subjects.find((subject: any) => subject.code === 'MATH').createsTimetableDemand, true);
+		// The route exposes readable disposition/rotation metadata but must make
+		// no operative demand or Teaching Load claim.
+		assert.ok(!('demandProjection' in body), 'route must not expose demandProjection');
+		const hgRow = body.subjects.find((subject: any) => subject.code === 'HG');
+		const mathRow = body.subjects.find((subject: any) => subject.code === 'MATH');
+		assert.equal(hgRow.schedulingDisposition, 'REFERENCE_ONLY');
+		assert.equal(mathRow.schedulingDisposition, 'SCHEDULED_TEACHING');
+		for (const row of body.subjects) {
+			assert.ok(!('createsTimetableDemand' in row), `subject ${row.code} must not claim timetable demand`);
+			assert.ok(!('createsTeachingLoad' in row), `subject ${row.code} must not claim Teaching Load`);
+		}
 
-		const createResponse = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects`, {
+		const subjectCount = () => prisma.subject.count({ where: { schoolId: SCHOOL_ID } });
+		const countBeforeReject = await subjectCount();
+
+		const deferredCreate = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects`, {
 			method: 'POST', headers: authHeaders, body: JSON.stringify({
 				code: 'REF_NOTE', name: 'Reference note', minMinutesPerWeek: 60,
 				preferredRoomType: 'CLASSROOM', gradeLevels: [7], schedulingDisposition: 'REFERENCE_ONLY',
 			}),
 		});
-		assert.equal(createResponse.status, 201);
-		const createdBody = await createResponse.json() as any;
-		assert.equal(createdBody.subject.schedulingDisposition, 'REFERENCE_ONLY');
+		assert.equal(deferredCreate.status, 400);
+		assert.equal((await deferredCreate.json() as any).code, 'PROTECTED_SCHEDULING_DISPOSITION');
+		assert.equal(await subjectCount(), countBeforeReject, 'rejected create must write zero rows');
 
-		const invalidCreate = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects`, {
+		const invalidDispositionCreate = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects`, {
 			method: 'POST', headers: authHeaders, body: JSON.stringify({
 				code: 'BAD_DISP', name: 'Bad disposition', minMinutesPerWeek: 60,
 				preferredRoomType: 'CLASSROOM', gradeLevels: [7], schedulingDisposition: 'SOMETIMES',
 			}),
 		});
-		assert.equal(invalidCreate.status, 400);
-		assert.equal((await invalidCreate.json() as any).code, 'INVALID_SCHEDULING_DISPOSITION');
+		assert.equal(invalidDispositionCreate.status, 400);
+		assert.equal((await invalidDispositionCreate.json() as any).code, 'PROTECTED_SCHEDULING_DISPOSITION');
+		assert.equal(await subjectCount(), countBeforeReject, 'invalid disposition must write zero rows');
 
 		const protectedCreate = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects`, {
 			method: 'POST', headers: authHeaders, body: JSON.stringify({
@@ -112,15 +128,29 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 		assert.equal(protectedCreate.status, 400);
 		assert.equal((await protectedCreate.json() as any).code, 'PROTECTED_TERM_AUTHORITY');
 
-		const math = body.subjects.find((subject: any) => subject.code === 'MATH');
-		const patchResponse = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects/${math.id}`, {
+		// A non-HG code named "Homeroom Guidance" is an ordinary create and stays
+		// scheduled teaching — exact code authority, not name matching.
+		const altHgCreate = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects`, {
+			method: 'POST', headers: authHeaders, body: JSON.stringify({
+				code: 'HG_ALT', name: 'Homeroom Guidance', minMinutesPerWeek: 60,
+				preferredRoomType: 'CLASSROOM', gradeLevels: [7],
+			}),
+		});
+		assert.equal(altHgCreate.status, 201);
+		assert.equal((await altHgCreate.json() as any).subject.schedulingDisposition, 'SCHEDULED_TEACHING');
+
+		const mathBefore = await prisma.subject.findUniqueOrThrow({ where: { id: mathRow.id } });
+		const patchResponse = await fetch(`http://127.0.0.1:${address.port}/api/v1/subjects/${mathRow.id}`, {
 			method: 'PATCH', headers: authHeaders, body: JSON.stringify({
-				expectedUpdatedAt: math.updatedAt,
+				expectedUpdatedAt: mathRow.updatedAt,
 				schedulingDisposition: 'REFERENCE_ONLY',
 			}),
 		});
-		assert.equal(patchResponse.status, 200);
-		assert.equal((await patchResponse.json() as any).subject.schedulingDisposition, 'REFERENCE_ONLY');
+		assert.equal(patchResponse.status, 400);
+		assert.equal((await patchResponse.json() as any).code, 'PROTECTED_SCHEDULING_DISPOSITION');
+		const mathAfter = await prisma.subject.findUniqueOrThrow({ where: { id: mathRow.id } });
+		assert.equal(mathAfter.schedulingDisposition, 'SCHEDULED_TEACHING');
+		assert.equal(mathAfter.updatedAt.getTime(), mathBefore.updatedAt.getTime(), 'rejected patch must not bump updatedAt');
 
 		const cached = await prisma.enrollProSchoolYearMirror.findUnique({
 			where: { schoolId_enrollProSchoolYearId: { schoolId: SCHOOL_ID, enrollProSchoolYearId: SCHOOL_YEAR_ID } },

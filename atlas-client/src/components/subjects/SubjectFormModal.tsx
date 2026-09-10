@@ -389,27 +389,6 @@ export function SubjectFormModal({
 									<Badge variant="secondary" className="shadow-none">Archived</Badge>
 								)}
 							</div>
-
-							<div className="space-y-2">
-								<label htmlFor={`${formId}-disposition`} className="text-sm font-semibold text-foreground ml-0.5">Schedule use</label>
-								<Select
-									value={form.schedulingDisposition}
-									onValueChange={(value) => setForm((previous) => ({ ...previous, schedulingDisposition: value as SubjectFormValues['schedulingDisposition'] }))}
-								>
-									<SelectTrigger id={`${formId}-disposition`} className="h-10">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="SCHEDULED_TEACHING">Scheduled teaching</SelectItem>
-										<SelectItem value="REFERENCE_ONLY">Reference only</SelectItem>
-									</SelectContent>
-								</Select>
-								<p className="text-xs text-muted-foreground">
-									{form.schedulingDisposition === 'REFERENCE_ONLY'
-										? 'Reference-only subjects stay visible but create neither timetable demand nor Teaching Load.'
-										: 'Scheduled teaching subjects can contribute timetable demand and Teaching Load.'}
-								</p>
-							</div>
 						</div>
 
 						<Separator className="opacity-50" />

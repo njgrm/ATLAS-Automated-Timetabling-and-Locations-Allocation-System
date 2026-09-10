@@ -17,11 +17,12 @@ export type SubjectRotationIssue = {
 	message: string;
 };
 
-export function projectSubjectSchedulingDemand<T extends Pick<SubjectSchedulingInput, 'id' | 'code' | 'schedulingDisposition'>>(subjects: T[]) {
-	return subjects
-		.filter((subject) => subject.schedulingDisposition === 'SCHEDULED_TEACHING')
-		.map((subject) => ({ ...subject, createsTimetableDemand: true as const, createsTeachingLoad: true as const }));
-}
+// TERM-SUBJ-C01 planner decision: the scheduling-authority view exposes the
+// verified term/rotation metadata and the persisted `schedulingDisposition` as
+// readable state only. It must NOT project or claim that the disposition is
+// already enforced by generation, timetable demand, or Teaching Load — those
+// consumers still use their own HG-specific rules. Operative exclusion is
+// deferred to DEMAND-C01 (PENDING_DERIVED_DEMAND_INTEGRATION).
 
 export function resolveSubjectRotationIssues(subjects: SubjectSchedulingInput[], contract: VerifiedTermContract): SubjectRotationIssue[] {
 	const issues: SubjectRotationIssue[] = [];
@@ -65,7 +66,6 @@ export function buildSubjectSchedulingAuthorityView<T extends SubjectSchedulingI
 			}));
 	const issuesBySubject = new Map<number, SubjectRotationIssue[]>();
 	for (const issue of issues) issuesBySubject.set(issue.subjectId, [...(issuesBySubject.get(issue.subjectId) ?? []), issue]);
-	const projected = new Set(projectSubjectSchedulingDemand(subjects).map((subject) => subject.id));
 	return {
 		termAuthority,
 		subjects: subjects.map((subject) => {
@@ -81,14 +81,8 @@ export function buildSubjectSchedulingAuthorityView<T extends SubjectSchedulingI
 				rotationTermRank: resolvedTerm?.order ?? null,
 				rotationTermCount: termAuthority.contract?.terms.length ?? null,
 				schedulingIssues: issuesBySubject.get(subject.id) ?? [],
-				createsTimetableDemand: projected.has(subject.id),
-				createsTeachingLoad: projected.has(subject.id),
 			};
 		}),
 		issues,
-		demandProjection: {
-			scheduledSubjectIds: [...projected],
-			referenceOnlySubjectIds: subjects.filter((subject) => subject.schedulingDisposition === 'REFERENCE_ONLY').map((subject) => subject.id),
-		},
 	};
 }

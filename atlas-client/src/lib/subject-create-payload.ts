@@ -25,7 +25,6 @@ export function buildOperatorSubjectCreatePayload(values: SubjectFormValues): Re
 		allowedSpecializations: values.allowedSpecializations,
 		requiredFeatures: values.requiredFeatures,
 		qualificationPriority: values.qualificationPriority,
-		schedulingDisposition: values.schedulingDisposition,
 		outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
 		ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
 		allowedOwnerDepartments: values.allowedOwnerDepartments,

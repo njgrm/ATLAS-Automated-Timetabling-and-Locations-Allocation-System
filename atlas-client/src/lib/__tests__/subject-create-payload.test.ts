@@ -93,7 +93,7 @@ test('builder nulls modularOrder when no rotation family is set', () => {
 	assert.equal(payload.modularOrder, null);
 });
 
-test('builder forwards scheduling disposition but strips EnrollPro term authority fields', () => {
+test('builder omits deferred schedulingDisposition and strips EnrollPro term authority fields from hostile state', () => {
 	const hostile = {
 		...operatorForm(),
 		schedulingDisposition: 'REFERENCE_ONLY' as const,
@@ -104,7 +104,10 @@ test('builder forwards scheduling disposition but strips EnrollPro term authorit
 		term1Start: '2030-06-01',
 	};
 	const payload = buildOperatorSubjectCreatePayload(hostile as never);
-	assert.equal(payload.schedulingDisposition, 'REFERENCE_ONLY');
+	assert.ok(
+		!('schedulingDisposition' in payload),
+		'schedulingDisposition is PENDING_DERIVED_DEMAND_INTEGRATION and must not reach ordinary Subject create',
+	);
 	for (const key of ['termCount', 'termFormat', 'termIdentities', 'termLabels', 'term1Start']) {
 		assert.ok(!(key in payload), `${key} must not reach ordinary Subject create`);
 	}

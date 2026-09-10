@@ -383,7 +383,6 @@ export default function Subjects() {
 					ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
 					allowedOwnerDepartments: values.allowedOwnerDepartments,
 					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
-					schedulingDisposition: values.schedulingDisposition,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
 					// SCA-01R3: isSeedable/isSystemManaged are protected

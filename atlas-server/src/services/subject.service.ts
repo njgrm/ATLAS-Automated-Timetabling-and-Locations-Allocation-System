@@ -536,11 +536,20 @@ const VALID_PATCH_FIELDS = new Set([
 	'ownerDepartment',
 	'qualificationPriority',
 	'rotationFamily',
-	'schedulingDisposition',
 	'outputLabel',
 	'modularGroupId',
 	'modularOrder',
 	'termGroupId',
+]);
+
+// TERM-SUBJ-C01 planner decision: `schedulingDisposition` is NOT yet an
+// operative operator control. Generation, Teaching Load, and timetable demand
+// still enforce HG-specific rules, so an arbitrary REFERENCE_ONLY value would
+// make a false downstream-exclusion claim. It is readable internally as
+// PENDING_DERIVED_DEMAND_INTEGRATION, but ordinary Subject CRUD must never set
+// it. Only controlled bootstrap/migration authority (exact code `HG`) writes it.
+const PROTECTED_PENDING_AUTHORITY_FIELDS = new Set([
+	'schedulingDisposition',
 ]);
 
 const PROTECTED_TERM_AUTHORITY_FIELDS = new Set([
@@ -592,7 +601,6 @@ const VALID_PROGRAM_SCOPES = new Set(['REGULAR', 'STE', 'SPA', 'SPS', 'OTHER']);
 const VALID_GRADES = new Set([7, 8, 9, 10]);
 
 const VALID_QUALIFICATION_PRIORITIES = new Set(['DEPARTMENT_FIRST', 'SPECIALIZATION_PRIMARY']);
-const VALID_SCHEDULING_DISPOSITIONS = new Set(['SCHEDULED_TEACHING', 'REFERENCE_ONLY']);
 
 // SCA-01.3: Prisma stores minutes as Int32 — anything outside this range (or
 // non-integer) would explode inside Prisma instead of returning a typed 4xx.
@@ -656,8 +664,13 @@ export function validateAndFilterPatchFields(
 	const unknownFields: string[] = [];
 	const protectedFields: string[] = [];
 	const protectedTermFields: string[] = [];
+	const protectedPendingAuthorityFields: string[] = [];
 
 	for (const key of Object.keys(raw)) {
+		if (PROTECTED_PENDING_AUTHORITY_FIELDS.has(key)) {
+			protectedPendingAuthorityFields.push(key);
+			continue;
+		}
 		if (PROTECTED_TERM_AUTHORITY_FIELDS.has(key)) {
 			protectedTermFields.push(key);
 			continue;
@@ -671,6 +684,16 @@ export function validateAndFilterPatchFields(
 			continue;
 		}
 		data[key] = raw[key];
+	}
+	if (protectedPendingAuthorityFields.length > 0) {
+		return {
+			ok: false,
+			error: {
+				status: 400,
+				code: 'PROTECTED_SCHEDULING_DISPOSITION',
+				message: `schedulingDisposition is deferred scheduling authority (PENDING_DERIVED_DEMAND_INTEGRATION) and cannot be set through Subject CRUD: ${protectedPendingAuthorityFields.join(', ')}.`,
+			},
+		};
 	}
 	if (protectedTermFields.length > 0) {
 		return {
@@ -791,11 +814,6 @@ export function validateAndFilterPatchFields(
 	if (data.qualificationPriority !== undefined) {
 		if (typeof data.qualificationPriority !== 'string' || !VALID_QUALIFICATION_PRIORITIES.has(data.qualificationPriority)) {
 			return { ok: false, error: { status: 400, code: 'INVALID_QUALIFICATION_PRIORITY', message: `qualificationPriority must be one of: ${[...VALID_QUALIFICATION_PRIORITIES].join(', ')}.` } };
-		}
-	}
-	if (data.schedulingDisposition !== undefined) {
-		if (typeof data.schedulingDisposition !== 'string' || !VALID_SCHEDULING_DISPOSITIONS.has(data.schedulingDisposition)) {
-			return { ok: false, error: { status: 400, code: 'INVALID_SCHEDULING_DISPOSITION', message: 'schedulingDisposition must be SCHEDULED_TEACHING or REFERENCE_ONLY.' } };
 		}
 	}
 	if (data.modularOrder !== undefined && data.modularOrder !== null) {
@@ -1398,7 +1416,11 @@ export async function createSubject(
 		ownerDepartment?: string | null;
 		qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 		rotationFamily?: string | null;
-		schedulingDisposition?: 'SCHEDULED_TEACHING' | 'REFERENCE_ONLY';
+		// TERM-SUBJ-C01: schedulingDisposition is PENDING_DERIVED_DEMAND_INTEGRATION.
+		// Accepted by the TypeScript boundary only so direct callers receive the
+		// same typed runtime rejection as HTTP callers. Ordinary creates always
+		// persist SCHEDULED_TEACHING; this value is never used.
+		schedulingDisposition?: unknown;
 		outputLabel?: string | null;
 	},
 ) {
@@ -1415,6 +1437,11 @@ export async function createSubject(
 	const protectedTermFields = [...PROTECTED_TERM_AUTHORITY_FIELDS].filter((field) => rawCreate[field] !== undefined);
 	if (protectedTermFields.length > 0) {
 		invalid(400, 'PROTECTED_TERM_AUTHORITY', `EnrollPro term authority fields cannot be modified through Subject CRUD: ${protectedTermFields.join(', ')}.`);
+	}
+	if (rawCreate.schedulingDisposition !== undefined) {
+		// TERM-SUBJ-C01: reject before any write. Ordinary creates always persist
+		// SCHEDULED_TEACHING; reference-only authority is bootstrap/migration only.
+		invalid(400, 'PROTECTED_SCHEDULING_DISPOSITION', 'schedulingDisposition is deferred scheduling authority (PENDING_DERIVED_DEMAND_INTEGRATION) and cannot be set on Subject create.');
 	}
 
 	// SCA-01.3: server-side input validation with create/patch parity. The API
@@ -1501,9 +1528,6 @@ export async function createSubject(
 	if (data.qualificationPriority !== undefined && !VALID_QUALIFICATION_PRIORITIES.has(data.qualificationPriority)) {
 		invalid(400, 'INVALID_QUALIFICATION_PRIORITY', `qualificationPriority must be one of: ${[...VALID_QUALIFICATION_PRIORITIES].join(', ')}.`);
 	}
-	if (data.schedulingDisposition !== undefined && !VALID_SCHEDULING_DISPOSITIONS.has(data.schedulingDisposition)) {
-		invalid(400, 'INVALID_SCHEDULING_DISPOSITION', 'schedulingDisposition must be SCHEDULED_TEACHING or REFERENCE_ONLY.');
-	}
 	if (data.modularGroupId !== undefined && data.modularGroupId !== null && typeof data.modularGroupId !== 'string') {
 		invalid(400, 'INVALID_TERM_METADATA', 'modularGroupId must be a string or null.');
 	}
@@ -1570,7 +1594,11 @@ export async function createSubject(
 			ownerDepartment: contract.ownerDepartment,
 			qualificationPriority: contract.qualificationPriority,
 			rotationFamily: contract.rotationFamily,
-			schedulingDisposition: (data.schedulingDisposition ?? 'SCHEDULED_TEACHING') as any,
+			// TERM-SUBJ-C01: ordinary creates always persist SCHEDULED_TEACHING.
+			// REFERENCE_ONLY is written only by controlled bootstrap/migration
+			// (exact code `HG`); the protected-field guard above makes any
+			// caller-supplied value unreachable.
+			schedulingDisposition: 'SCHEDULED_TEACHING' as any,
 			outputLabel: contract.outputLabel,
 			// SCA-01R4: ordinary creates are always non-system-managed. The
 			// contract default derives true from `_EXP` / `TLE_SPEC_` codes
@@ -1606,7 +1634,9 @@ export async function updateSubject(
 		ownerDepartment: string | null;
 		qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 		rotationFamily: string | null;
-		schedulingDisposition: 'SCHEDULED_TEACHING' | 'REFERENCE_ONLY';
+		// TERM-SUBJ-C01: PENDING_DERIVED_DEMAND_INTEGRATION — always rejected
+		// below; present here only so direct callers hit the typed runtime error.
+		schedulingDisposition: unknown;
 		outputLabel: string | null;
 		isSystemManaged: boolean;
 	}>,
@@ -1623,10 +1653,10 @@ export async function updateSubject(
 			code: 'PROTECTED_FIELD',
 		});
 	}
-	if (data.schedulingDisposition !== undefined && !VALID_SCHEDULING_DISPOSITIONS.has(data.schedulingDisposition)) {
-		throw Object.assign(new Error('schedulingDisposition must be SCHEDULED_TEACHING or REFERENCE_ONLY.'), {
+	if (data.schedulingDisposition !== undefined) {
+		throw Object.assign(new Error('schedulingDisposition is deferred scheduling authority (PENDING_DERIVED_DEMAND_INTEGRATION) and cannot be set through Subject CRUD.'), {
 			statusCode: 400,
-			code: 'INVALID_SCHEDULING_DISPOSITION',
+			code: 'PROTECTED_SCHEDULING_DISPOSITION',
 		});
 	}
 	await ensureSubjectContractSchemaColumns();
@@ -1673,7 +1703,6 @@ export async function updateSubject(
 	if (data.ownerDepartment !== undefined) updateData.ownerDepartment = data.ownerDepartment;
 	if (data.qualificationPriority !== undefined) updateData.qualificationPriority = data.qualificationPriority;
 	if (data.rotationFamily !== undefined) updateData.rotationFamily = data.rotationFamily;
-	if (data.schedulingDisposition !== undefined) updateData.schedulingDisposition = data.schedulingDisposition;
 	if (data.outputLabel !== undefined) updateData.outputLabel = data.outputLabel;
 
 	return prisma.subject.update({ where: { id }, data: updateData });

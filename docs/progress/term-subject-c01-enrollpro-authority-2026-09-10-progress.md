@@ -14,6 +14,10 @@ Status: `REVIEW_REQUIRED`
   pass found and repaired a TypeScript control-flow error in the new mixed-
   identity test (`cached?.contract` narrowed to `never`); the test now captures
   cache writes in an array, and `tsc` passes again.
+- Deferred-disposition correction: a separate additive commit removes the
+  operator-facing reference-only selector/badges/copy, rejects
+  `schedulingDisposition` on POST/PATCH as protected pending authority, and
+  drops the operative demand/Teaching Load projection. Use `git rev-parse HEAD`.
 - Companion inspection was read-only. No live migration, generation, demand
   materialization, Teaching Load apply, publication, merge, rebase, amend, or
   push was performed.
@@ -35,17 +39,26 @@ Status: `REVIEW_REQUIRED`
   `EnrollProSchoolYearMirror`. A matching cache is visibly degraded; wrong-year,
   wrong-school, tampered, missing, or unreadable cache state blocks.
 - `Subject.schedulingDisposition` explicitly separates `SCHEDULED_TEACHING`
-  from `REFERENCE_ONLY`. The migration defaults existing rows to scheduled and
-  changes only subject code `HG` to reference-only.
-- Subject create/patch may edit disposition and reject EnrollPro-owned term
-  count, format, identities, labels, and dates. Bootstrap-only fields remain
-  protected.
+  from `REFERENCE_ONLY`, but its activation state is
+  `PENDING_DERIVED_DEMAND_INTEGRATION`: generation, timetable demand, and
+  Teaching Load still enforce HG-specific rules, so arbitrary reference-only
+  subjects are not yet excluded. The migration defaults existing rows to
+  scheduled and changes only subject code `HG` to reference-only.
+- Subject create/patch reject `schedulingDisposition` as a protected
+  pending-authority field (`PROTECTED_SCHEDULING_DISPOSITION`) before any write,
+  alongside EnrollPro-owned term count/format/identities/labels/dates and
+  protected bootstrap metadata. Ordinary creates persist `SCHEDULED_TEACHING`;
+  the client create/edit payloads omit the field even from hostile form state.
+- The Subjects desktop/mobile surfaces expose no reference-only badge, no
+  "no coverage"/"no timetable or Teaching Load" copy, and no Schedule use
+  selector.
 - Rotation families resolve their explicit order against the verified terms.
   Missing family/order, duplicate order, and out-of-range order are returned as
   actionable Subject issues; no term label is inferred while authority blocks.
 - The mounted Subject scheduling view exposes the term authority, each subject's
-  disposition, resolved term, issues, and pure demand projection. Reference-only
-  rows remain visible and advertise no timetable or Teaching Load demand.
+  readable disposition, and resolved term metadata. It makes no operative
+  demand or Teaching Load claim (`demandProjection`, `createsTimetableDemand`,
+  and `createsTeachingLoad` are removed).
 
 ## Contract examples
 
@@ -65,50 +78,54 @@ Status: `REVIEW_REQUIRED`
 The configured source database was inspected read-only first: local PostgreSQL
 at `::1:5432`, database `atlas_recovery_clean_rebuild_20260905`, one school,
 one migration. All schema/write proof used only
-`atlas_term_subj_c01_proof_20260910`.
+`atlas_term_subj_c01_defer_20260910` and `atlas_term_subj_c01_defer_rb_20260910`.
 
-1. Applied `0000_clean_baseline`, inserted four synthetic active subjects, then
+1. Applied `0000_clean_baseline`, inserted synthetic active subjects, then
    applied `0001_term_subject_authority`.
-2. Result: `HG=REFERENCE_ONLY`; `ALT_HG`, `MATH`, and `SCI` all remained
-   `SCHEDULED_TEACHING`; both cache columns existed.
+2. Result: exact code `HG` = `REFERENCE_ONLY`; `ALT_HG` (a non-HG subject named
+   "Homeroom Guidance"), `MATH`, and `SCI` all remained `SCHEDULED_TEACHING`;
+   both cache columns and the enum existed.
 3. Executed the documented rollback: all three added columns and the enum had
    zero remaining catalog entries.
 4. Dropped/recreated the disposable database and repeated baseline plus candidate
    migration successfully.
-5. The compiled mounted-route smoke created isolated school `9100041`, verified
-   live fixture terms, persisted the exact-year cache, exercised create/patch and
-   protected-term validation, then removed all isolated rows.
+5. The mounted-route smoke created isolated school `9100041`, bootstrapped
+   defaults, verified live fixture terms, persisted the exact-year cache,
+   rejected POST/PATCH `schedulingDisposition` with zero writes, kept a non-HG
+   "Homeroom Guidance" scheduled, and removed all isolated rows.
 
-The disposable database was dropped after the final proof. The configured source
-database and all live/Tailnet data remained untouched.
+Both disposable databases were dropped after the final proof. The configured
+source database and all live/Tailnet data remained untouched.
 
 ## Verification
 
 - `npm exec -- tsx src/__tests__/term-subject-authority.test.ts` — 13/13 pass.
-- Existing disposable Subject catalog truth suite — 106/106 pass after updating
-  the expected protected-term outcome.
-- `npm exec -- tsx --test src/lib/__tests__/subject-create-payload.test.ts` —
-  8/8 pass.
-- Client UX guardrails — 21/21 pass.
-- Compiled `dist/__tests__/term-subject-authority-http.test.js` against the
-  disposable PostgreSQL database — 1/1 pass through the mounted production route.
+- Disposable Subject catalog truth suite — 106/106 pass (106 passed, 0 failed).
+- Client `subject-create-payload` + `subject-deferred-disposition-ui` — 11/11 pass.
+- Client route-intent focused suite — 21/21 pass.
+- Mounted `term-subject-authority-http.test.ts` against the disposable
+  PostgreSQL database (`TERM_SUBJECT_HTTP_PROOF=1`, `ROLLOVER_AUTO_SYNC_ENABLED=false`)
+  — 1/1 pass through the mounted production route, including zero-write
+  POST/PATCH rejection and no operative demand/TL claim.
 - `prisma validate` with a non-live validation URL — pass.
 - `prisma migrate diff --from-url <disposable> --to-schema-datamodel prisma/schema.prisma --exit-code` — "No difference detected." (exit 0).
-- Migration proof on a fresh disposable database: baseline, four synthetic
-  subjects, candidate migration (HG→REFERENCE_ONLY, ALT_HG/MATH/SCI stay
-  scheduled, cache columns and enum added), documented rollback (zero remaining
-  columns/enum), then full drop/recreate + `prisma migrate deploy` rebuild.
-- Server `npm run build` (`tsc`) — pass. Recovery RED: the interrupted
+- Migration proof on a fresh disposable database: baseline, `HG`/`ALT_HG`
+  (name "Homeroom Guidance")/`MATH`/`SCI`, candidate migration
+  (`HG`→`REFERENCE_ONLY`, `ALT_HG`/`MATH`/`SCI` stay scheduled, cache columns and
+  enum added), documented rollback (zero remaining columns/enum), then full
+  drop/recreate + `prisma migrate deploy` rebuild.
+- Server `npm run build` (`tsc`) — pass. (Prior recovery RED: the interrupted
   mixed-identity test failed `tsc` with `TS2339: Property 'contract' does not
-  exist on type 'never'`; GREEN after the array capture.
+  exist on type 'never'`; GREEN after the array capture.)
 - Client `npm run build` (`vite build`) — pass; client `npx tsc --noEmit` — pass.
-- Built-server smoke on non-live port `5993` with
-  `ROLLOVER_AUTO_SYNC_ENABLED=false`: `GET /api/v1/health` → 200
-  `{"status":"ok","service":"atlas"}`, process alive after the request.
 - `git diff --check` — pass before candidate commit.
 
 ## Known risks and follow-up
 
+- `schedulingDisposition` is deferred (`PENDING_DERIVED_DEMAND_INTEGRATION`).
+  It remains readable schema state, but DEMAND-C01 must wire generation,
+  timetable demand, and Teaching Load to it before it becomes operator-editable
+  or advertised as enforced. Only exact code `HG` is reference-only today.
 - The read-only EnrollPro checkout at
   `d1f0aa1c4b02d86ece67c0a1e284e3859743bfef` currently returns only school-year
   id/label on its integration route, and no matching active-term integration

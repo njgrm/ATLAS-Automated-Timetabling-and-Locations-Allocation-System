@@ -12,7 +12,6 @@ import {
 } from '../services/enrollpro-term-contract.service.js';
 import {
 	buildSubjectSchedulingAuthorityView,
-	projectSubjectSchedulingDemand,
 	resolveSubjectRotationIssues,
 } from '../services/subject-scheduling-authority.service.js';
 import { createSubject, validateAndFilterPatchFields } from '../services/subject.service.js';
@@ -366,13 +365,21 @@ test('rotation resolution reports missing, duplicate, and out-of-range family or
 	assert.ok((view.subjects.find((subject) => subject.id === 3)?.schedulingIssues.length ?? 0) > 0);
 });
 
-test('reference-only subjects produce zero projected timetable and Teaching Load demand rows', () => {
-	const rows = projectSubjectSchedulingDemand([
+test('scheduling-authority view exposes readable disposition but makes no operative demand or Teaching Load claim', async () => {
+	const contract = await withResolvedFixtureContract();
+	const view = buildSubjectSchedulingAuthorityView([
 		{ id: 1, code: 'HG', schedulingDisposition: 'REFERENCE_ONLY' },
 		{ id: 2, code: 'MATH', schedulingDisposition: 'SCHEDULED_TEACHING' },
-	]);
-	assert.deepEqual(rows.map((row) => row.code), ['MATH']);
-	assert.equal(rows.some((row) => row.code === 'HG'), false);
+	], {
+		state: 'VERIFIED_LIVE', source: 'enrollpro', degraded: false, code: null,
+		message: 'verified', contract,
+	});
+	assert.ok(!('demandProjection' in view), 'the view must not expose a demandProjection');
+	for (const subject of view.subjects) {
+		assert.ok(!('createsTimetableDemand' in subject), 'a subject row must not claim timetable demand');
+		assert.ok(!('createsTeachingLoad' in subject), 'a subject row must not claim Teaching Load');
+		assert.equal(typeof subject.schedulingDisposition, 'string');
+	}
 });
 
 test('blocked term authority reports an issue and does not infer a term from modular order', () => {
@@ -387,12 +394,13 @@ test('blocked term authority reports an issue and does not infer a term from mod
 	assert.equal(view.subjects[0].schedulingIssues[0]?.code, 'TERM_CONTRACT_UNAVAILABLE');
 });
 
-test('ordinary Subject CRUD accepts disposition and rejects EnrollPro term authority fields', async () => {
-	const accepted = validateAndFilterPatchFields({ schedulingDisposition: 'REFERENCE_ONLY' });
-	assert.equal(accepted.ok, true);
-	const invalidDisposition = validateAndFilterPatchFields({ schedulingDisposition: 'SOMETIMES' });
-	assert.equal(invalidDisposition.ok, false);
-	if (!invalidDisposition.ok) assert.equal(invalidDisposition.error.code, 'INVALID_SCHEDULING_DISPOSITION');
+test('ordinary Subject CRUD rejects deferred schedulingDisposition and EnrollPro term authority fields', async () => {
+	for (const value of ['REFERENCE_ONLY', 'SCHEDULED_TEACHING', 'SOMETIMES']) {
+		const rejected = validateAndFilterPatchFields({ schedulingDisposition: value });
+		assert.equal(rejected.ok, false, value);
+		if (rejected.ok) continue;
+		assert.equal(rejected.error.code, 'PROTECTED_SCHEDULING_DISPOSITION', value);
+	}
 	for (const field of ['termCount', 'termFormat', 'termIdentities', 'termLabels', 'term1Start', 'term4End']) {
 		const rejected = validateAndFilterPatchFields({ [field]: field === 'termCount' ? 4 : 'hostile' });
 		assert.equal(rejected.ok, false, field);
@@ -405,6 +413,13 @@ test('ordinary Subject CRUD accepts disposition and rejects EnrollPro term autho
 			preferredRoomType: 'CLASSROOM', gradeLevels: [7], termCount: 4,
 		}),
 		(error: unknown) => (error as { code?: string }).code === 'PROTECTED_TERM_AUTHORITY',
+	);
+	await assert.rejects(
+		() => createSubject(SCHOOL_ID, {
+			code: 'HOSTILE_DISP', name: 'Hostile disposition', minMinutesPerWeek: 225,
+			preferredRoomType: 'CLASSROOM', gradeLevels: [7], schedulingDisposition: 'REFERENCE_ONLY',
+		}),
+		(error: unknown) => (error as { code?: string }).code === 'PROTECTED_SCHEDULING_DISPOSITION',
 	);
 });
 
