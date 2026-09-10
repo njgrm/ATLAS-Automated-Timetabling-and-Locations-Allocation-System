@@ -1,5 +1,26 @@
 # Changelog
 
+## [2026-09-10] — RR-UX01 Rollover Awareness and Read-Only Teaching Load History
+
+### Added
+- Privileged, actor-school-scoped school-level notification stream that delivers successful rollover completion events to a still-open old-year session.
+- Durable, school-scoped rollover notice naming the new active year and the prior read-only year, with links to archived Teaching Load and Year Setup.
+- Read-only Teaching Load history view plus ATLAS-owned `GET /api/v1/teaching-load/history-years` and `GET /api/v1/teaching-load/history-years/:schoolYearId` endpoints (no EnrollPro call).
+
+### Changed
+- Rollover awareness uses the authenticated actor school (no school-1 fallback), invalidates only that school's cached runtime/year context, verifies the new active year before switching, and rebinds/refetches active surfaces once per verified change.
+- Window focus, visibility restoration, browser online restoration, and SSE reconnect replay recover missed rollovers.
+- Year Setup presents one normal status card; the disposable reset is demoted behind an advanced, `aria-expanded` disclosure rendered only when `canResetDummyYear` is true.
+- Archived-year links open read-only history, which exposes no save/suggest/reconcile/reset/carry-forward action and performs GETs only.
+
+### Verification
+- Focused client tests (rollover detection, dedup, cache scoping/invalidation, transition gating, durable notice, UI guardrails) and hermetic server tests (event scoping, cross-school/faculty rejection, missed-event replay, mounted history route scoping and zero writes) pass.
+- Both TypeScript checks and production builds pass; isolated built-server `/api/v1/health` returns 200 with rollover disabled and an unreachable database.
+- Hermetic Playwright QA at 1280x720, 390x844, and 200% reflow passes with zero POST/PUT/PATCH/DELETE requests.
+
+### Open Questions
+- Live browser verification against a real rollover and real EnrollPro data remains separately locked.
+
 ## [2026-09-10] — GEN-ZW01 Passive Generation and Teaching Load Audit Closure
 
 ### Changed

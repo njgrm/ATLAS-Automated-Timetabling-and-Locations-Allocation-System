@@ -144,7 +144,13 @@ export function useTeachingLoadData() {
 			// Actor school first: the authenticated session owns the school scope.
 			// No fallback to a hardcoded school literal — unresolved stays an error.
 			const actorSchoolId = await resolveActorSchoolId();
+			if (actorSchoolId == null) {
+				throw Object.assign(new Error('Teaching Load needs a signed-in scheduler account with a school assignment.'), {
+					code: 'SCHOOL_UNRESOLVED',
+				});
+			}
 			const schoolYearContext = await resolveActiveSchoolYearContext({
+				schoolId: actorSchoolId,
 				forceRefresh,
 				allowEnrollProFallback: false,
 			});
