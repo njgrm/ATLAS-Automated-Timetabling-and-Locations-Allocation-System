@@ -119,3 +119,94 @@ No merge, push, migration, live mutation, generation, publication, server change
 term/Teaching Load/derived-demand change, or companion-repository edit was made.
 Port 5001 and the live Vite process on 5174 were not restarted. The isolated
 candidate dev server on 5183 is stopped after QA.
+
+---
+
+# TT-UX01R2 — Simple Timetable operator closure (overnight one-shot)
+
+Prompt: `docs/prompts/timetable-simple-operator-one-shot-ttux01r2-2026-09-11.md`
+(from commit `0da881ca`; read only, not merged or cherry-picked).
+Review base: `aab8fb00`. Starting candidate: `aa38d784`.
+Branch/worktree: `work/timetable-ux-01` · `D:/ATLAS-worktrees/timetable-ux-01`.
+
+## Correction scope (R1–R8)
+
+| ID | Status | Evidence |
+|---|---|---|
+| R1 | DONE | New `src/lib/timetable-capabilities.ts` is the single generation/capability decision; Simple + Advanced both call `deriveTimetableCapabilities`. Advanced Generate/Regenerate route through the gate and show the Year Setup repair when blocked. Generation confirmation now lists school year, source, retained anchors, unassigned, and what generation does/does not do. |
+| R2 | DONE | `/curriculum-requirements` removed from Timetable navigation/copy; `fix-setup` routes to `YEAR_SETUP_HREF` (`/admin/year-setup`). `describeSetupState` never names the superseded page. |
+| R3 | DONE | Selected-class menu adds `Change room` (manual-edit room) and `Change Teaching Load owner` deep-link; `Teacher leaving (all classes)` replaces the misleading one-class `Change teacher`. Details sheet mirrors the actions. |
+| R4 | DONE | `TimetableGrid` renders `placement-target-label` with `Place`/`Swap` icon+text; hard/soft cells keep `Blocked`/`Warning`; Simple header carries a persistent `TimetableStatusLegend`. |
+| R5 | DONE | `ConflictDetails` renders human conflict titles/details with bounded list + Expand; draft/generated swap commit disabled on any hard blocker; blocked generated swap lists decisive blockers and hides commit. |
+| R6 | PARTIAL | Tutorial/help now state the real review-or-one-click+Undo contract; stale/failure guidance preserved in dialog copy. No server contract change. Remaining risk: the clean one-click path still relies on the existing auto-save + Undo strip rather than a before/after review, which is one of the two contracts R6 permits. |
+| R7 | DONE | `simpleTutorialSteps(lifecycle)` yields no-run / generated / published step sets; no-run help teaches setup+generation only. |
+| R8 | DONE | Per-action gates (`viewSelection`, `setupInputStatus`, `roomRequests`, `move`, `changeRoom`, `swap`, `ownerRepair`, `issueReview`, `generation`, `publication`) each carry `enabled`, `reason`, `repair`. |
+
+## Gates (candidate worktree)
+
+- `npm run test:timetable-operator-ux` → 57/57 (exit 0); new capability 13/13 and
+  repair 10/10.
+- Full tracked client suite (`tsx --test` over `lib/__tests__` + `hooks/__tests__`)
+  → 178/178 (exit 0).
+- `npx tsc --noEmit` (atlas-client) → exit 0.
+- `npm run build` (atlas-client) → exit 0.
+- `git diff --check aab8fb00..HEAD` → clean.
+
+## Controlled Playwright fixtures (real production components)
+
+- Harness: `qa-artifacts/playwright/ttux01r2/fixtures.ts` (hermetic `/api/v1/**`
+  interception; no request forwarded).
+- Spec: `qa-artifacts/playwright/specs/ttux01r2-simple-operator.spec.ts` →
+  7/7 passed against the candidate dev server on `127.0.0.1:5183`.
+- Scenarios: setup-blocked, ready no-run + generation confirmation boundary,
+  failed latest run, generated-clean selected-class repair menu, generated-issues
+  readiness, published read-only, and a console/pageerror health sweep.
+- Every scenario asserts zero non-GET requests.
+- Screenshots: `qa-artifacts/ttux01r2-2026-09-11/generated-*.png`.
+
+## Live Tailnet read-only matrix
+
+- Spec: `qa-artifacts/playwright/specs/ttux01r2-live-readonly.spec.ts` →
+  1 passed; viewports 1280x720, 390x844, 720x720 (zoom-equivalent).
+- Runtime observed: school year 9 / `2030-2031` / `atlas-persisted` / drift
+  `aligned`.
+- Zero POST/PUT/PATCH/DELETE page requests; generation confirmation opened only
+  if reachable and cancelled. No live generation.
+- No global horizontal overflow, no mojibake, no page errors.
+- Screenshots: `qa-artifacts/ttux01r2-2026-09-11/live-*.png`.
+- Note: the live Tailnet bundle is `D:\ATLAS` (pre-correction); live evidence is
+  a read-only baseline, and corrected behavior is proven on the candidate.
+
+## Files changed (source/tests/docs)
+
+- `atlas-client/src/lib/timetable-capabilities.ts` (new)
+- `atlas-client/src/lib/__tests__/timetable-capabilities.test.ts` (new)
+- `atlas-client/src/lib/__tests__/timetable-operator-repair.test.ts` (new)
+- `atlas-client/src/lib/simple-timetable-state.ts`
+- `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
+- `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx`
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx`
+- `atlas-client/src/components/timetable/TimetableGrid.tsx`
+- `atlas-client/src/components/timetable/simple/SimpleHeaderHelpers.tsx`
+- `atlas-client/src/components/timetable/modals/TimetablePlacementDialogs.tsx`
+- `atlas-client/src/components/timetable/modals/TimetableWorkflowDialogs.tsx`
+- `atlas-client/src/components/timetable/timetableContexts.types.ts`
+- `atlas-client/src/hooks/useScheduleReviewWorkspaceState.ts`
+- `atlas-client/package.json` (test script)
+- `docs/verification/timetable-simple-operator-click-path-matrix-2026-09-11.md`
+- `CHANGELOG.md`, this ledger
+
+## Independent review
+
+- Pending: fresh independent reviewer over `aab8fb00...<candidate>` after the
+  implementation commit; a new fresh changed-scope reviewer after each bounded
+  correction. Results appended here when returned.
+
+## Remaining risks / next planner action
+
+- No React component-render test harness exists; R3/R4/R5/R7 component behavior
+  is covered by source-wiring tests plus Playwright. A rendered component test
+  harness is the durable follow-up.
+- R6 clean path is one-click + Undo (permitted contract); confirm the product
+  owner accepts it over explicit before/after review.

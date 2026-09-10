@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode, TdHTMLAttributes } from 'react';
-import { AlertCircle, AlertTriangle, Flag, GripVertical, Plus } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowRightLeft, Flag, GripVertical, Plus } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { toast } from 'sonner';
 
@@ -286,6 +286,14 @@ const GridCell = memo(function GridCell({
 	const isActive = activeInfo !== null;
 	const hasPlacementSource = hasKbSource || fullPreviewInfo !== null;
 	const dropFeedbackMode = hasPlacementSource ? (cellEntries.length > 0 ? 'swap' : 'place') : null;
+	// R4: label candidate cells with icon + text so placement state is never
+	// communicated by color alone. Hard/soft cells keep their conflict badge,
+	// which already renders "Blocked"/"Warning".
+	const placementLabel = hasPlacementSource && activeInfo?.kind === 'clean' && (isActive || isDropOver)
+		? (cellEntries.length > 0
+			? { text: 'Swap', className: 'bg-amber-100 text-amber-800', Icon: ArrowRightLeft }
+			: { text: 'Place', className: 'bg-emerald-100 text-emerald-700', Icon: Plus })
+		: null;
 	const visibleEntries = cellEntries.slice(0, 2);
 	const hiddenEntries = cellEntries.slice(2);
 	const hiddenAffectedCount = hiddenEntries.filter((entry) => teacherDepartureEntryIds?.has(entry.entryId)).length;
@@ -395,9 +403,14 @@ const GridCell = memo(function GridCell({
 					<span className="text-xs font-medium leading-none text-blue-700">Current</span>
 				</div>
 			)}
-			{isActive && activeInfo?.kind === 'clean' && cellEntries.length === 0 && isDropOver && (
-				<div className="flex h-4 items-center justify-center opacity-25">
-					<Plus className="size-3.5 text-emerald-700" />
+			{placementLabel && (
+				<div
+					className={cn('mb-0.5 flex h-4 items-center justify-center gap-0.5 rounded-sm px-1', placementLabel.className)}
+					data-testid="placement-target-label"
+					data-placement-state={placementLabel.text.toLowerCase()}
+				>
+					<placementLabel.Icon className="size-3" aria-hidden="true" />
+					<span className="text-[0.6rem] font-semibold leading-none">{placementLabel.text}</span>
 				</div>
 			)}
 			<div className="space-y-0.5 min-h-6 overflow-hidden">

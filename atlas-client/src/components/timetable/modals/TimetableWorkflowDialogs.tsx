@@ -13,6 +13,7 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 	const {
 		showUnassignConfirm, setShowUnassignConfirm, pendingUnassignId, setPendingUnassignId, unassignDraftPlacement,
 		showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate,
+		activeSchoolYearLabel, schoolYearSource,
 		showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace,
 		showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch,
 		requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason,
@@ -40,14 +41,38 @@ export function TimetableWorkflowDialogs({ context }: { context: ScheduleReviewD
 		</Dialog>
 
 		<Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader><DialogTitle>Generate updated schedule?</DialogTitle><DialogDescription>Generation uses the current Teaching Load, setup, and saved draft placements.</DialogDescription></DialogHeader>
+			<DialogContent className="sm:max-w-md" data-testid="timetable-generate-confirm-dialog">
+				<DialogHeader><DialogTitle>Generate updated schedule?</DialogTitle><DialogDescription>Generation uses the current Teaching Load, setup, and saved draft placements for this school year.</DialogDescription></DialogHeader>
 				<div className="space-y-3 text-sm">
-					{draftBoardSummary && <div className="grid grid-cols-2 gap-2 rounded-md border p-3 text-xs"><span>{draftBoardSummary.draft} saved anchors</span><span>{draftBoardSummary.unscheduled} unassigned</span></div>}
+					<div className="grid gap-1.5 rounded-md border bg-muted/20 p-3 text-xs" data-testid="timetable-generate-confirm-summary">
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-muted-foreground">Actor school year</span>
+							<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-year">{activeSchoolYearLabel ?? 'Active school year'}</span>
+						</div>
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-muted-foreground">Term authority</span>
+							<span className="font-semibold text-foreground">{schoolYearSource === 'enrollpro-verified' || schoolYearSource === 'enrollpro' ? 'Verified with EnrollPro' : 'Saved ATLAS data'}</span>
+						</div>
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-muted-foreground">Retained draft anchors</span>
+							<span className="font-semibold text-foreground">{draftBoardSummary?.draft ?? 0} locked session{(draftBoardSummary?.draft ?? 0) === 1 ? '' : 's'}</span>
+						</div>
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-muted-foreground">Still unassigned</span>
+							<span className="font-semibold text-foreground" data-testid="timetable-generate-confirm-unassigned">{draftBoardSummary?.unscheduled ?? 0} session{(draftBoardSummary?.unscheduled ?? 0) === 1 ? '' : 's'}</span>
+						</div>
+					</div>
+					<div className="rounded-md border p-3 text-xs text-muted-foreground" data-testid="timetable-generate-confirm-effects">
+						<p className="font-semibold text-foreground">What this does</p>
+						<p className="mt-1">Creates a new reviewable draft run from the current Teaching Load, term setup, and saved anchors.</p>
+						<p className="mt-1 font-medium text-foreground">What this does not do</p>
+						<p className="mt-1">It does not publish the schedule. Nothing is shared with teachers or students until you publish it.</p>
+						<p className="mt-1">Demand and Teaching Load coverage are read from the active school year&rsquo;s setup. If that data is unavailable, generation will stop and tell you what to fix.</p>
+					</div>
 					<label className="flex items-start gap-2 rounded-md border p-3 text-xs"><Checkbox checked={enforceShiftWindows} onCheckedChange={(value) => setEnforceShiftWindows(value === true)} /><span>Keep configured grade and program time windows.</span></label>
 					{followUps.size > 0 && <p className="text-xs text-amber-700">{followUps.size} flagged item{followUps.size === 1 ? '' : 's'} will remain available for review.</p>}
 				</div>
-				<DialogFooter><Button variant="outline" onClick={() => setShowGenerateConfirm(false)}>Cancel</Button><Button onClick={() => confirmGenerate(enforceShiftWindows)}>Generate schedule</Button></DialogFooter>
+				<DialogFooter><Button variant="outline" onClick={() => setShowGenerateConfirm(false)}>Cancel</Button><Button onClick={() => confirmGenerate(enforceShiftWindows)} data-testid="timetable-generate-confirm-submit">Generate schedule</Button></DialogFooter>
 			</DialogContent>
 		</Dialog>
 

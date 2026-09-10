@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRightLeft, BookOpen, CalendarClock, ChevronDown, ClipboardCheck, Download, GraduationCap, ListChecks, Send, Settings2, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react';
+import { ArrowRightLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck, Download, GraduationCap, ListChecks, Send, Settings2, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
 import { SearchableSelect } from '@/ui/searchable-select';
+import type { TimetableLifecycleState } from '@/lib/timetable-capabilities';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 
@@ -26,19 +27,61 @@ type SimpleViewMode = ScheduleReviewWorkspaceHeaderContext['viewMode'];
 
 export type { SimpleViewMode };
 
-const SIMPLE_TUTORIAL_STEPS = [
-	{
-		title: 'Choose whose schedule to see',
-		body: 'Use the schedule switcher to switch between Section, Teacher, and Room views without leaving Simple mode.',
-		target: 'Schedule switcher',
-		targetTestId: 'timetable-simple-schedule-switcher',
-		icon: CalendarClock,
-	},
+type SimpleTutorialStep = {
+	title: string;
+	body: string;
+	target: string;
+	targetTestId: string;
+	icon: LucideIcon;
+};
+
+const SCHEDULE_SWITCHER_STEP: SimpleTutorialStep = {
+	title: 'Choose whose schedule to see',
+	body: 'Use the schedule switcher to switch between Section, Teacher, and Room views without leaving Simple mode.',
+	target: 'Schedule switcher',
+	targetTestId: 'timetable-simple-schedule-switcher',
+	icon: CalendarClock,
+};
+
+const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
+	SCHEDULE_SWITCHER_STEP,
 	{
 		title: 'Check the lifecycle action',
-		body: 'The lifecycle button shows your current status: Generate, Fix blockers, Review warnings, or Publish. Tap it to take the next step.',
+		body: 'With no timetable yet, the main button is your next step: generate a timetable, or open Year Setup if setup is not ready.',
 		target: 'Lifecycle action',
 		targetTestId: 'timetable-simple-primary-action',
+		icon: Send,
+	},
+	{
+		title: 'Confirm before generating',
+		body: 'Generating opens a confirmation that lists your school year, terms, expected sessions, and saved draft anchors. Nothing is published by generating.',
+		target: 'Generate confirmation',
+		targetTestId: 'timetable-simple-primary-action',
+		icon: ListChecks,
+	},
+	{
+		title: 'Repair setup on Year Setup',
+		body: 'If term and setup data are missing or out of sync, ATLAS sends you to Year Setup rather than a duplicate requirements page.',
+		target: 'Open Year Setup',
+		targetTestId: 'timetable-simple-primary-action',
+		icon: ClipboardCheck,
+	},
+	{
+		title: 'Use Advanced only for expert repair',
+		body: 'Advanced view is for expert tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling once a run exists.',
+		target: 'Advanced view',
+		targetTestId: 'timetable-layout-toggle',
+		icon: Settings2,
+	},
+];
+
+const GENERATED_STEPS: readonly SimpleTutorialStep[] = [
+	SCHEDULE_SWITCHER_STEP,
+	{
+		title: 'Review the lifecycle action',
+		body: 'The main button shows your current status: Fix blockers, Review warnings, or Publish. Tap it to take the next step.',
+	target: 'Lifecycle action',
+	targetTestId: 'timetable-simple-primary-action',
 		icon: Send,
 	},
 	{
@@ -49,17 +92,17 @@ const SIMPLE_TUTORIAL_STEPS = [
 		icon: ListChecks,
 	},
 	{
-		title: 'Fix a blocker group',
-		body: 'From the publish readiness sheet, tap a repair action to open the correct fix path. Use "Back to blocker summary" to return.',
-		target: 'Publish readiness sheet',
-		targetTestId: 'timetable-simple-readiness-chip',
+		title: 'Select a class to repair it',
+		body: 'Tap a scheduled class on the grid to open its actions: Move, Change room, Swap, or class details. Teacher leaving stays a separate bulk task.',
+		target: 'Selected class',
+		targetTestId: 'timetable-selection-strip',
 		icon: ClipboardCheck,
 	},
 	{
-		title: 'Place or repair one session',
-		body: 'Choose one unresolved session from the queue, then click a green grid slot. ATLAS shows a review before saving.',
-		target: 'Start placing',
-		targetTestId: 'timetable-simple-primary-action',
+		title: 'Preview then save or undo',
+		body: 'A clean placement is labelled as a one-click action and shows a prominent Undo right after saving. Warning or occupied moves always ask you to review first.',
+		target: 'Selected class action',
+		targetTestId: 'simple-selected-primary-action',
 		icon: ClipboardCheck,
 	},
 	{
@@ -76,14 +119,38 @@ const SIMPLE_TUTORIAL_STEPS = [
 		targetTestId: 'timetable-simple-more-trigger',
 		icon: Download,
 	},
+];
+
+const PUBLISHED_STEPS: readonly SimpleTutorialStep[] = [
+	SCHEDULE_SWITCHER_STEP,
+	{
+		title: 'This timetable is published',
+		body: 'Published schedules are read-only history. Review the grid and use export if you need an offline copy.',
+		target: 'Lifecycle action',
+		targetTestId: 'timetable-simple-primary-action',
+		icon: CheckCircle2,
+	},
+	{
+		title: 'Export workbook for review',
+		body: 'Use More > Schedule data > Export workbook to download a summary for offline review or printing.',
+		target: 'More menu',
+		targetTestId: 'timetable-simple-more-trigger',
+		icon: Download,
+	},
 	{
 		title: 'Use Advanced only for expert repair',
-		body: 'Advanced view is for expert tools like policy, map, diagnostics, and full manual-edit panels. Simple mode covers daily scheduling.',
+		body: 'Advanced view is for expert tools like policy, map, diagnostics, and full manual-edit panels.',
 		target: 'Advanced view',
 		targetTestId: 'timetable-layout-toggle',
 		icon: Settings2,
 	},
-] as const;
+];
+
+export function simpleTutorialSteps(lifecycle: TimetableLifecycleState | undefined): readonly SimpleTutorialStep[] {
+	if (lifecycle === 'published') return PUBLISHED_STEPS;
+	if (lifecycle === 'generated-issues' || lifecycle === 'generated-reviewable' || lifecycle === 'pre-generation') return GENERATED_STEPS;
+	return NO_RUN_STEPS;
+}
 
 export function taskCount(count: number, noun: string) {
 	if (count <= 0) return undefined;
@@ -304,16 +371,21 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 	);
 }
 
-export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function SimpleTutorialControl({ open, onOpenChange, lifecycle }: { open: boolean; onOpenChange: (open: boolean) => void; lifecycle?: TimetableLifecycleState }) {
 	const [stepIndex, setStepIndex] = useState(0);
 	const [unavailableMessage, setUnavailableMessage] = useState<string | null>(null);
-	const step = SIMPLE_TUTORIAL_STEPS[stepIndex];
+	const steps = useMemo(() => simpleTutorialSteps(lifecycle), [lifecycle]);
+	const step = steps[Math.min(stepIndex, steps.length - 1)];
 	const StepIcon = step.icon;
-	const isLast = stepIndex === SIMPLE_TUTORIAL_STEPS.length - 1;
+	const isLast = stepIndex >= steps.length - 1;
 
 	useEffect(() => {
 		if (open) setStepIndex(0);
 	}, [open]);
+
+	useEffect(() => {
+		setStepIndex((value) => Math.min(value, steps.length - 1));
+	}, [steps.length]);
 
 	useEffect(() => {
 		setUnavailableMessage(null);
@@ -351,12 +423,12 @@ export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; o
 				<DialogHeader>
 					<DialogTitle>Simple timetable tutorial</DialogTitle>
 					<DialogDescription>
-						Step {stepIndex + 1} of {SIMPLE_TUTORIAL_STEPS.length}
+						Step {stepIndex + 1} of {steps.length}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3" data-testid="timetable-simple-tutorial-step" aria-live="polite">
 					<div className="flex gap-1" aria-hidden="true">
-						{SIMPLE_TUTORIAL_STEPS.map((_, index) => (
+						{steps.map((_, index) => (
 							<div
 								key={index}
 								className={cn('h-1 flex-1 rounded-full', index <= stepIndex ? 'bg-primary' : 'bg-border')}
@@ -403,7 +475,7 @@ export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; o
 						type="button"
 						onClick={() => {
 							if (isLast) onOpenChange(false);
-							else setStepIndex((value) => Math.min(SIMPLE_TUTORIAL_STEPS.length - 1, value + 1));
+							else setStepIndex((value) => Math.min(steps.length - 1, value + 1));
 						}}
 						data-testid="timetable-simple-tutorial-next"
 					>

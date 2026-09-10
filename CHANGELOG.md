@@ -1,5 +1,49 @@
 # Changelog
 
+## [2026-09-11] — TT-UX01R2 Simple Timetable operator closure
+
+### Added
+- `atlas-client/src/lib/timetable-capabilities.ts`: one pure, shared capability
+  and generation-decision model used by both Simple and Advanced modes
+  (`deriveTimetableCapabilities`, `describeSetupState`, `YEAR_SETUP_HREF`).
+- Failing-first tests `timetable-capabilities.test.ts` (13) and
+  `timetable-operator-repair.test.ts` (10), wired into
+  `test:timetable-operator-ux`.
+- Click-path matrix
+  `docs/verification/timetable-simple-operator-click-path-matrix-2026-09-11.md`.
+- Controlled Playwright fixtures/specs for real production Timetable components
+  under `qa-artifacts/playwright/` (uncommitted browser evidence).
+
+### Changed
+- Simple and Advanced generation triggers now consume the same capability
+  decision; Advanced can no longer bypass the readiness gate. The Advanced
+  Generate button becomes a single Year Setup repair when setup blocks.
+- Removed the superseded `/curriculum-requirements` repair path from Timetable
+  copy and navigation; setup repair routes to `/admin/year-setup`.
+- Simple selected-class menu now exposes `Move time`, `Change room`,
+  `Swap sessions`, `View class details`, and a `Change Teaching Load owner`
+  deep-link; bulk teacher leaving is relabelled `Teacher leaving (all classes)`.
+- Placement candidate cells render `Place`/`Swap` labels and the Simple header
+  keeps a persistent status legend; hard/soft cells keep `Blocked`/`Warning`.
+- Swap/placement dialogs list decisive blockers and grouped warnings with a
+  bounded initial list + Expand; draft swap commit is disabled on any hard
+  blocker.
+- Tutorial is state-aware (no-run / generated / published) and honest about the
+  one-click + Undo write contract.
+
+### Decisions Made
+- `deriveSimpleLifecycleAction` remains the lifecycle reducer; the new model
+  composes it and adds per-action gates rather than duplicating logic.
+- Live Tailnet runtime at QA time: school year 9 / 2030-2031 / atlas-persisted /
+  drift aligned; zero live writes issued.
+- The live bundle is pre-correction (`D:\ATLAS`), so live QA is a read-only
+  baseline; corrected behavior is proven on the candidate fixtures.
+
+### Open Questions
+- Full component-render test harness (React Testing Library/Vitest) is still
+  absent; R3–R7 coverage currently mixes pure decision tests with production
+  source-wiring tests plus Playwright interaction evidence.
+
 ## [2026-09-11] — TT-UX01 Timetable Operator Readiness
 
 ### Added

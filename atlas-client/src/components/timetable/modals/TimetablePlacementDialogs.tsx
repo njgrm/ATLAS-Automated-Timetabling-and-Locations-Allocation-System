@@ -1,4 +1,4 @@
-import { useRef, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { AlertTriangle, ArrowRight, ArrowRightLeft, CheckCircle2, ExternalLink, Loader2, Lock, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion } from 'lucide-react';
 
 import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
@@ -80,6 +80,62 @@ function conflictSummary(preview: PreviewLike, label = 'Conflict check') {
 				<FigureCard label="Blocking" value={hard} tone={hard > 0 ? 'bad' : 'good'} />
 				<FigureCard label="Warnings" value={soft} tone={soft > 0 ? 'warn' : 'good'} />
 			</div>
+		</div>
+	);
+}
+
+type ConflictLike = { code?: string; humanTitle?: string; humanDetail?: string; title?: string; detail?: string; message?: string };
+
+function conflictTitle(value: unknown, fallback: string): string {
+	const candidate = value as ConflictLike | null;
+	return candidate?.humanTitle ?? candidate?.title ?? candidate?.code ?? fallback;
+}
+
+function conflictDetail(value: unknown): string | null {
+	const candidate = value as ConflictLike | null;
+	return candidate?.humanDetail ?? candidate?.detail ?? candidate?.message ?? null;
+}
+
+/**
+ * R5: swap/placement conflicts must list decisive blockers and grouped warnings
+ * in plain language, with a bounded initial list and an explicit Expand. A raw
+ * count can never be the only explanation.
+ */
+function ConflictDetails({
+	items,
+	tone,
+	heading,
+	initial = 3,
+}: {
+	items: unknown[];
+	tone: 'bad' | 'warn';
+	heading: string;
+	initial?: number;
+}) {
+	const [expanded, setExpanded] = useState(false);
+	const list = (items ?? []).filter(Boolean) as ConflictLike[];
+	if (list.length === 0) return null;
+	const visible = expanded ? list : list.slice(0, initial);
+	const itemClass = tone === 'bad'
+		? 'border-red-200 bg-red-50 text-red-800'
+		: 'border-amber-200 bg-amber-50 text-amber-900';
+	return (
+		<div className="mt-2 space-y-1.5" data-testid={`conflict-details-${tone}`} data-conflict-count={list.length}>
+			<p className="text-xs font-semibold text-foreground">{heading}</p>
+			{visible.map((item, index) => {
+				const detail = conflictDetail(item);
+				return (
+					<div key={`${conflictTitle(item, 'conflict')}-${index}`} className={`rounded-md border p-2 text-xs ${itemClass}`}>
+						<p className="font-semibold">{conflictTitle(item, tone === 'bad' ? 'Blocking conflict' : 'Warning')}</p>
+						{detail ? <p className="mt-0.5">{detail}</p> : null}
+					</div>
+				);
+			})}
+			{list.length > initial ? (
+				<Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+					{expanded ? 'Show fewer' : `Show ${list.length - initial} more`}
+				</Button>
+			) : null}
 		</div>
 	);
 }
@@ -242,6 +298,15 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 		confirmSaving,
 	});
 	const generatedPlacementBlocked = assignPickerSaving || assignPickerPreviewLoading || !assignPickerTarget || !assignPickerRoomId || !assignPickerPreview || assignPickerPreview.hardViolations.length > 0;
+	const draftSwapHardViolations = [
+		...(swapPreview?.sourcePreview?.hardViolations ?? []),
+		...(swapPreview?.displacedPreview?.hardViolations ?? []),
+	];
+	const draftSwapSoftViolations = [
+		...(swapPreview?.sourcePreview?.softViolations ?? []),
+		...(swapPreview?.displacedPreview?.softViolations ?? []),
+	];
+	const draftSwapBlocked = swapSaving || Boolean(swapPreview?.loading || swapPreview?.error) || draftSwapHardViolations.length > 0;
 	const generatedPlacementFeedback = assignPickerSaving
 		? { message: 'Saving...', tone: 'neutral' as const }
 		: !assignPickerTarget
@@ -369,7 +434,13 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 										No blocking conflicts for this owner, room, and slot.
 									</p>
 								) : null}
-								{assignPickerPreview ? conflictSummary(assignPickerPreview, 'Generated placement check') : conflictGuidance()}
+								{assignPickerPreview ? (
+									<>
+										{conflictSummary(assignPickerPreview, 'Generated placement check')}
+										<ConflictDetails items={assignPickerPreview.hardViolations} tone="bad" heading="Blocking conflicts" />
+										<ConflictDetails items={assignPickerPreview.softViolations} tone="warn" heading="Warnings to review" />
+									</>
+								) : conflictGuidance()}
 							</ReviewActionSection>
 							<ReviewActionSection title="Warnings" tone={(assignPickerPreview?.softViolations.length ?? 0) > 0 ? 'warn' : 'neutral'}>
 								<p className="text-xs text-muted-foreground">
@@ -505,6 +576,8 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 												<span>I reviewed the workload and schedule warnings.</span>
 											</label>
 										)}
+										<ConflictDetails items={confirmPreview?.hardViolations ?? []} tone="bad" heading="Blocking conflicts" />
+										<ConflictDetails items={confirmPreview?.softViolations ?? []} tone="warn" heading="Warnings to review" />
 									</ReviewActionSection>
 								);
 							})()}
@@ -601,6 +674,8 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 												<CheckCircle2 className="size-3.5 shrink-0" />No blocking conflicts for this switch.
 											</p>
 										)}
+										<ConflictDetails items={draftSwapHardViolations} tone="bad" heading="Blocking conflicts" />
+										<ConflictDetails items={draftSwapSoftViolations} tone="warn" heading="Warnings to review" />
 									</ReviewActionSection>
 								);
 							})()}
@@ -609,7 +684,7 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 					<DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center">
 						<p
 							className={`min-w-0 flex-1 rounded-md border px-2.5 py-2 text-xs ${feedbackClass(
-								swapSaving || swapPreview?.loading ? 'neutral' : swapPreview?.error ? 'bad' : 'good',
+								swapSaving || swapPreview?.loading ? 'neutral' : swapPreview?.error || draftSwapHardViolations.length > 0 ? 'bad' : 'good',
 							)}`}
 							data-testid="swap-review-feedback"
 							role="status"
@@ -621,10 +696,12 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									? 'Checking whether the switch is safe.'
 									: swapPreview?.error
 										? draftSwapErrorGuidance(swapPreview.error)
-										: 'Ready to review. ATLAS will switch sessions only after you confirm.'}
+										: draftSwapHardViolations.length > 0
+											? 'This switch is blocked. Fix the listed conflicts or cancel.'
+											: 'Ready to review. ATLAS will switch sessions only after you confirm.'}
 						</p>
 						<Button ref={draftSwapCancelRef} variant="outline" onClick={closeDraftSwap}>Cancel</Button>
-						<Button disabled={swapSaving || Boolean(swapPreview?.loading || swapPreview?.error)} onClick={() => void executeSwapAction()}>
+						<Button disabled={draftSwapBlocked} onClick={() => void executeSwapAction()} data-testid="draft-swap-commit">
 							{swapSaving ? <Loader2 className="size-4 animate-spin" /> : null}
 							Swap sessions
 						</Button>
@@ -705,13 +782,15 @@ export function TimetablePlacementDialogs({ context }: { context: ScheduleReview
 									<div data-testid="generated-swap-recommended-region">
 									{regularSwapPreview.recommendedStrategy === 'BLOCKED' ? (
 										<div className="space-y-2">
-											<p className="text-sm font-medium text-red-800">No safe swap option available.</p>
+											<p className="text-sm font-medium text-red-800">This swap cannot proceed — fix the conflicts below or choose another pair.</p>
 											<div className="grid grid-cols-2 gap-2">
 												<FigureCard label="Blocking" value={regularSwapPreview.directPreview?.hardViolations.length ?? 0} tone="bad" />
 												<FigureCard label="Warnings" value={regularSwapPreview.directPreview?.softViolations.length ?? 0} tone="warn" />
 											</div>
-											<Button size="sm" variant="outline" onClick={closeGeneratedSwap} className="w-full min-h-[44px]">
-												<ArrowRightLeft className="size-3.5" />Close and choose another pair
+											<ConflictDetails items={regularSwapPreview.directPreview?.hardViolations ?? []} tone="bad" heading="Decisive blockers" />
+											<ConflictDetails items={regularSwapPreview.directPreview?.softViolations ?? []} tone="warn" heading="Warnings to review" />
+											<Button size="sm" variant="outline" onClick={closeGeneratedSwap} className="w-full min-h-[44px]" data-testid="generated-swap-blocked-cancel">
+												<ArrowRightLeft className="size-3.5" />Cancel and choose another pair
 											</Button>
 										</div>
 									) : (

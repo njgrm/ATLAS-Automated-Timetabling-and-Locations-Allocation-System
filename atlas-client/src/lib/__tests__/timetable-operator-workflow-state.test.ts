@@ -73,7 +73,7 @@ test('lifecycle unresolved scope is non-interactive and wins over everything', (
 test('lifecycle blocked setup routes to repair, never generation or publish', () => {
 	const action = deriveSimpleLifecycleAction({ hasGeneratedRun: false, curriculumState: 'blocked' });
 	assert.equal(action.kind, 'fix-setup');
-	assert.equal(action.label, 'Fix Curriculum Requirements');
+	assert.equal(action.label, 'Open Year Setup');
 	assert.equal(action.interactive, true);
 
 	assert.equal(
