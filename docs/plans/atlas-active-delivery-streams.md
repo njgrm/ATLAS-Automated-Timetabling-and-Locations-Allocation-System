@@ -21,9 +21,10 @@ hard blockers before separately approving publication.
 - All three source lanes passed independent QA and the combined integration
   gates. The term schema migration remains a separate live `HIGH` action.
 - EnrollPro, AIMS, and SMART reference clones were cleanly fast-forwarded to
-  `bf12d0de`, `a22c9c88`, and `c3806e12`. The current EnrollPro implementation
-  now exposes `/active-term`, but still lacks the complete ordered term contract
-  and silently defaults an unresolved active date to `T1`.
+  `bf12d0de`, `a22c9c88`, and `c3806e12`. A later root handoff claims the
+  EnrollPro term contract is implemented, but a fresh fast-forward pull still
+  leaves `origin/main` at `bf12d0de` with none of the claimed implementation;
+  delivery is blocked on an inspectable pushed commit.
 - No live migration, carry-forward, generation, or publication is authorized by
   this register.
 
@@ -35,11 +36,11 @@ hard blockers before separately approving publication.
 | RR-UX01 | Visible rollover awareness, one Year Setup status surface, and read-only archived Teaching Load | `INTEGRATED` | MEDIUM | `work/rollover-rrux01`; `00488bbf...ea44e155` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
 | TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | Live migration remains separate | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Prepare the separate live migration preview; do not apply without HIGH approval |
 | W1-INTEGRATION | Combine the three accepted Wave-1 source lanes | `INTEGRATED` | MEDIUM | `integration/rollover-derived-demand-w1`; `e39da520...36c5d3d1` | None | Shared-doc-only conflicts matched forecast; focused GEN/RR/TERM suites, both builds/type-checks, diff-check, and isolated server health passed | Closed and pushed to `origin/main` at `36c5d3d1` |
-| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `DECISION_REQUIRED` | External dependency | EnrollPro `bf12d0de` is READ_ONLY from ATLAS | EnrollPro developer must implement; current `/school-year` omits complete ordered terms and `/active-term` defaults unresolved dates to `T1` | Current-code handoff written at `docs/handoffs/enrollpro-authoritative-term-contract-handoff-2026-09-11.md` | Deliver the handoff to EnrollPro developers and obtain their implementation SHA |
+| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `BLOCKED` | External dependency | EnrollPro `bf12d0de` is READ_ONLY from ATLAS | Root handoff claims implementation, but clean `git pull --ff-only` leaves local and remote `main` at `bf12d0de`; ordered terms, label fields, shared schema, and migration are absent | Delivery check: `docs/verification/enrollpro-authoritative-term-contract-delivery-check-2026-09-11.md` | EnrollPro developer commits and pushes the implementation, then returns the full SHA and branch for ATLAS verification |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify truthful blocked term authority | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with any TL-UX live browser run; EnrollPro ordered term contract may still be absent | Port 5001 health is 200 but `/subjects` returns no new disposition projection after migration, proving the live process predates integrated Wave-1 source | Prepare a bounded build/restart/Tailnet acceptance handoff; do not restart while another live-QA stream is using port 5001 |
-| TL-UX-C01 | Rebuild Teaching Load as an accessible remaining-height master-detail assignment workspace and remove contradictory/dead actions | `PLANNED` | MEDIUM UI plus HIGH-risk interaction guards | Fresh `D:/ATLAS-worktrees/teaching-load-ux-c01`, branch `work/teaching-load-ux-c01`, from refreshed `origin/main` | Migration preview may run concurrently; avoid term-schema migration and derived-demand implementation files | Full click-path audit: dormant split-brain preview remains; reconciliation can preview 265 removals with missing term authority; Change owner can silently exchange an unrelated section; sequential multi-teacher saves can partially persist; jump list is a no-op; mutable state is not fully scope-bound | Execute `docs/prompts/teaching-load-ux-one-shot-tluxc01-2026-09-11.md`; commit a bounded candidate after mandatory live Tailnet plus isolated-candidate Playwright QA and independent review |
+| TL-UX-C01 | Rebuild Teaching Load as an accessible assignment workspace and unify suggestion/balance authority | `CORRECTION_REQUIRED` | MEDIUM UI and HIGH write/concurrency guards | `work/teaching-load-ux-c01`; `36c5d3d1...1f867eb8` | Do not integrate current candidate; continue additively in the same worktree | Planner reran 11/11 ownership, 33/33 canonical, 21/21 route-intent, client type-check/build; live read-only production probes show 7 faculty at 37.5h, 5 zero-load ESP/FIL teachers, auto-fill 265 `KEPT_EXISTING`/0 suggestions, while rebalance finds 14 valid moves; candidate falsely claims everyone is within capacity and skipped adviser priority | Execute `docs/prompts/teaching-load-ux-allocation-correction-tluxc01r-2026-09-11.md`; return an additive reviewed candidate without live apply |
 | TT-UX01 | Make Timetable no-run and Advanced states honest, single-action, dead-end-free, readable, and mobile-reachable | `CORRECTION_REQUIRED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...aa38d784` | Must not implement DEMAND-C01; avoid TL-UX shared paths | Planner review reproduced 34/34 focused, 155/155 tracked client tests, TypeScript/build/diff-check, but found dead `/curriculum-requirements` repair, Advanced generation readiness bypass, no-run task/teacher-recovery dead ends, over-broad capability gating, and context-insensitive tutorial | Execute `docs/prompts/timetable-ux-one-shot-ttux01r-2026-09-11.md` in the existing worktree and return an additive correction candidate |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `PLANNED` | MEDIUM | Fresh branch after Wave-1 integration | Accepted term contract and passive generation/TL boundaries | Governing sequence exists in `rollover-derived-demand-generation-readiness-sequence-2026-09-10.md` | Author and execute the bounded DEMAND-C01 prompt from the integrated Wave-1 base |
 | UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
@@ -64,10 +65,10 @@ hard blockers before separately approving publication.
 1. Correct the guarded command's default Prisma schema path and coordinate one
    integrated Wave-1 runtime deployment without interrupting another live-QA
    stream.
-2. Deliver the EnrollPro term-contract handoff and obtain its implementation
-   SHA while TL-UX-C01 runs in a disjoint worktree.
-3. Run TL-UX-C01 in a disjoint client-focused worktree while term/upstream work
-   continues.
+2. Obtain a pushed EnrollPro implementation SHA; the prose handoff alone is not
+   a delivered contract.
+3. Correct TL-UX-C01 in its existing worktree so one reviewed suggestion can
+   fill uncovered rows and rebalance avoidable excess without false success copy.
 4. Correct TT-UX01 on its existing branch; do not integrate `aa38d784`.
 5. Execute DEMAND-C01 after the live term contract and required ATLAS migration
    are available.
@@ -83,8 +84,8 @@ hard blockers before separately approving publication.
 - EnrollPro developer implementation from the ATLAS handoff; EnrollPro remains
   READ_ONLY to ATLAS agents.
 - MIG-GUARD-R1 source/test correction, with no live migration.
-- TL-UX-C01 client-focused correction, provided it does not touch term-schema,
-  derived-demand, reconciliation authority, generation, or publication paths.
+- TL-UX-C01R in its existing worktree, confined to Teaching Load client/server
+  suggestion, allocation, exact ownership, and focused tests; no live apply.
 - TT-UX01R in its existing client worktree. Avoid further shared primitive
   changes that could collide with TL-UX-C01 unless the correction proves they
   are necessary.
@@ -96,12 +97,14 @@ runtime while TL-UX live QA is active.
 ## Awaited returns and decisions
 
 - No Wave-1 executor or QA result is awaited; all three candidates are integrated.
-- EnrollPro developer ownership, implementation SHA, and deployment timing for
-  the complete term payload remain external decisions.
+- EnrollPro implementation is not present on its only remote branch; await a
+  pushed full SHA/branch before contract QA or derived-demand work.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
 - TT-UX01 is awaiting an additive executor correction from `aa38d784`; the
   current candidate is not integration-ready.
+- TL-UX-C01 is awaiting the additive TL-UX-C01R correction; candidate
+  `1f867eb8` is not integration-ready.
 
 ## Update protocol
 

@@ -3697,3 +3697,32 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 - None for Wave 1. Live migration and data-action approvals are requested only
   after their immutable previews and independent QA are available.
+# 2026-09-11 — EnrollPro delivery and Teaching Load allocation verification
+
+### Added
+
+- Added a read-only delivery check showing that the claimed EnrollPro ordered
+  term implementation is not present on the current pushed `main` branch.
+- Added a year-9 Teaching Load diagnostic proving that qualified zero-load ESP
+  and Filipino teachers exist and that the separate rebalance preview can find
+  them while Suggested Teaching Load preserves all existing assignments.
+- Added the TL-UX-C01R correction prompt for one truthful, atomic suggestion and
+  balance workflow plus the deferred adviser-section ranking rule.
+
+### Changed
+
+- Marked the EnrollPro delivery blocked on a pushed implementation SHA and
+  TL-UX-C01 correction-required instead of accepting its false capacity-success
+  state.
+
+### Decisions Made
+
+- A prose implementation handoff without a matching pushed EnrollPro commit is
+  not executable term authority.
+- The seven 37.5-hour faculty are above the 30-hour teaching standard and
+  individual maximum but below the 40-hour absolute hard cap; avoidable
+  distribution excess must be handled by the reviewed suggestion workflow.
+
+### Open Questions
+
+- Await the EnrollPro implementation SHA and TL-UX-C01R corrected candidate.
