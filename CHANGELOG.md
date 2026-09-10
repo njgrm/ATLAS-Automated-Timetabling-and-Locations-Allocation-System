@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026-09-10] — TT-C04 Production-Wiring Correction Prompt
+
+### Added
+- Added `TT-C04R`, a narrow correction requiring the production no-run timetable header to consume the unified lifecycle decision and expose one truthful primary action.
+
+### Changed
+- TT-C04 candidate `47305835` remains unintegrated after rendered QA showed that its helper returned `retry-generate` while the production no-run branch still displayed two hardcoded secondary actions and kept Generate hidden.
+
+### Decisions Made
+- Current failed/no-run state must expose `Try generating again` through the existing guarded confirmation workflow; unresolved or unavailable readiness must fail closed and cannot dispatch generation.
+- The existing clean-checkout `test:timetable-conflict` packaging defect is evidence to report, not permission to copy ignored tests from another worktree.
+
+### Open Questions
+- None for the correction boundary; live generation remains separately locked.
+
 ## [2026-09-10] — Post-Reconciliation Parallel Readiness Prompts
 
 ### Added
