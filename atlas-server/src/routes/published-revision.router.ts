@@ -35,6 +35,19 @@ function assertPrivileged(req: Request, res: Response): boolean {
 	return true;
 }
 
+function assertActorSchool(req: Request, res: Response, schoolId: number): boolean {
+	const actorSchoolId = req.user?.schoolId;
+	if (!actorSchoolId) {
+		res.status(403).json({ code: 'ACTOR_SCHOOL_UNRESOLVED', message: 'Published schedule revisions require an authenticated school scope.' });
+		return false;
+	}
+	if (actorSchoolId !== schoolId) {
+		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'The authenticated actor cannot manage another school\'s published schedule revisions.' });
+		return false;
+	}
+	return true;
+}
+
 router.get(
 	'/:schoolId/:schoolYearId/runs/:runId/published-revisions',
 	authenticate,
@@ -44,6 +57,7 @@ router.get(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
 
 			const revisions = await listPublishedScheduleRevisions({
 				schoolId: scope.schoolId,
@@ -64,6 +78,7 @@ router.post(
 
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!assertActorSchool(req, res, scope.schoolId)) return;
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }

@@ -844,3 +844,11 @@ TT-C02 unassigned preview (`2026-09-09`, corrected candidate):
 - Candidate preview checks compatible rooms and interval overlap against persisted draft locks. It does not execute the canonical generator's full constraint policy and is not a global feasibility proof.
 - `/timetable` no-run header exposes searchable, paginated preview of every demand line. No save/apply action is enabled.
 - Consumers/UI: timetable page (ScheduleReview workspace); affects timetable/insertion domain only.
+
+PUB-C01 publication contract candidate (`2026-09-10`, `REVIEW_REQUIRED`):
+- Initial publication authority is centralized in the server publication contract used by the authenticated generation publish route.
+- Publication requires exact actor-school scope, the single runtime-active school year, a current ordered three-term configuration, a `COMPLETED` run bound to its version and current authoritative input fingerprint, zero hard violations, and zero required unassigned sessions.
+- The authoritative generation input fingerprint includes Teaching Load cycle/ownership, scheduling policy, faculty, sections, rooms, subjects/templates, school-year term configuration, active offerings, and offering-term assignments.
+- Publication marker, immutable base revision, and audit identity are written in one serializable transaction. Duplicate/concurrent replay resolves to the original publication. SSE notification remains post-commit best effort and is not claimed as database-atomic.
+- Public published-schedule reads remain unauthenticated and school/year/term scoped. Candidate selection filters lightweight completed/published metadata first; the exact payload is loaded only after the base revision and run version are validated, preserving ordered entry extraction.
+- Live school 1/year 8 remained read-only and returned no current published schedule during PUB-C01 verification. This source candidate does not authorize generation or publication.

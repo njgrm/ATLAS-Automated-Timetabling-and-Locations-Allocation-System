@@ -42,7 +42,7 @@ import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { syncCohorts } from './cohort.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
 import { publishNotificationEvent } from './notification-events.service.js';
-import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
+import { publishSchedule } from './publication-contract.service.js';
 import {
 	compareCurrentInputsForRun,
 	computeGenerationInputSnapshot,
@@ -147,14 +147,6 @@ function buildUnpublishedSummary(
 			previousStatus: context.previousStatus,
 		},
 	};
-}
-
-function countViolationsBySeverity(violations: unknown, severity: 'HARD' | 'SOFT'): number {
-	if (!Array.isArray(violations)) return 0;
-	return violations.reduce((count, violation) => {
-		if (typeof violation !== 'object' || violation == null) return count;
-		return (violation as { severity?: unknown }).severity === severity ? count + 1 : count;
-	}, 0);
 }
 
 export async function reconcileInvalidPublishedRunStates(
@@ -1759,86 +1751,18 @@ export async function publishRun(
 	actorId: number,
 	options?: {
 		acknowledgeSoftViolations?: boolean;
+		actorSchoolId?: number;
 	},
 ) {
-	await reconcileInvalidPublishedRunStates(schoolId, {
-		schoolYearId,
-		reason: 'PRE_PUBLISH_RECONCILIATION',
-		actorId,
-	});
-
-	const run = await getRunById(runId, schoolId, schoolYearId);
-	if (run.status !== 'COMPLETED') {
-		throw err(422, 'RUN_NOT_COMPLETED', 'Only completed generation runs can be published.');
-	}
-
-	const summary = (run.summary ?? {}) as Record<string, unknown>;
-	const hardViolationCount = Number(summary.hardViolationCount ?? 0);
-	if (hardViolationCount > 0) {
-		throw err(422, 'PUBLISH_BLOCKED_HARD_VIOLATIONS', 'Cannot publish while hard violations exist.', {
-			details: { runId, hardViolationCount },
-			actionHint: 'Resolve hard violations in Review and try publish again.',
-		});
-	}
-
-	const softViolationCount = countViolationsBySeverity(run.violations, 'SOFT');
-	const acknowledgeSoftViolations = options?.acknowledgeSoftViolations === true;
-	if (softViolationCount > 0 && !acknowledgeSoftViolations) {
-		throw err(422, 'PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS', 'Soft warnings require explicit acknowledgment before publish.', {
-			details: { runId, softViolationCount },
-			actionHint: 'Acknowledge soft warnings in the publish dialog and retry publish.',
-		});
-	}
-
-	const publishedAtIso = new Date().toISOString();
-	const nextSummary = {
-		...summary,
-		isPublished: true,
-		publishedAt: publishedAtIso,
-		publishedBy: actorId,
-		publishedSoftViolationCount: softViolationCount,
-		softViolationsAcknowledged: softViolationCount > 0 ? acknowledgeSoftViolations : false,
-	};
-
-	const updated = await db().generationRun.update({
-		where: { id: run.id },
-		data: {
-			summary: nextSummary as object,
-		},
-	});
-
-	await db().auditLog.create({
-		data: {
-			schoolId,
-			schoolYearId,
-			action: 'GENERATION_RUN_PUBLISHED',
-			actorId,
-			targetIds: [run.id],
-			metadata: {
-				runId: run.id,
-				publishedAt: publishedAtIso,
-				hardViolationCount,
-				softViolationCount,
-				acknowledgeSoftViolations,
-			} as object,
-		},
-	});
-	publishPublishedScheduleEvent({
-		type: 'SCHEDULE_PUBLISHED',
+	const result = await publishSchedule({
 		schoolId,
 		schoolYearId,
-		message: 'Official schedule has been published.',
-		metadata: {
-			runId: run.id,
-			publishedAt: publishedAtIso,
-			publishedBy: actorId,
-			softViolationCount,
-			acknowledgeSoftViolations,
-			termCounts: summary.termCounts ?? null,
-		},
+		runId,
+		actorId,
+		actorSchoolId: options?.actorSchoolId ?? 0,
+		acknowledgeSoftViolations: options?.acknowledgeSoftViolations,
 	});
-
-	return updated;
+	return result.run;
 }
 
 // ─── Violation queries ───

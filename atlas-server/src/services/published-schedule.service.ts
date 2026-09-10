@@ -1,8 +1,9 @@
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import { buildSpecialEventSlots } from './schedule-constructor.js';
-import { getOrCreatePolicy } from './scheduling-policy.service.js';
-import { reconcileInvalidPublishedRunStates } from './generation.service.js';
+import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
+
+const db = () => getDataContext();
 
 type PublishedRunSource = {
 	runId: number;
@@ -30,6 +31,9 @@ type RevisionCandidate = {
 	id: number;
 	effectiveDate: Date;
 	changeSet: unknown;
+	sourceRevisionId: number | null;
+	reason: string;
+	metadata: unknown;
 };
 
 type SectionReference = {
@@ -53,11 +57,6 @@ function readPublishedAt(summary: unknown): string | null {
 	if (!summary || typeof summary !== 'object') return null;
 	const value = (summary as Record<string, unknown>).publishedAt;
 	return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function isRunPublished(summary: unknown): boolean {
-	if (!summary || typeof summary !== 'object') return false;
-	return (summary as Record<string, unknown>).isPublished === true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -170,44 +169,53 @@ function buildRevisionMarker(params: {
 	].join('|');
 }
 
-async function resolvePublishedRun(
+export async function resolvePublishedRun(
 	schoolId: number,
 	schoolYearId?: number,
 	options?: PublishedScheduleReadOptions,
 	filter?: { sectionId?: number; facultyId?: number; roomId?: number },
 	activeSchoolYearId?: number | null,
 ) {
-	await reconcileInvalidPublishedRunStates(schoolId, {
-		schoolYearId,
-		reason: 'PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION',
-	});
-
 	const { readDate, requestedDate } = resolveReadDate(options?.requestedDate);
 
-	const candidates = await prisma.generationRun.findMany({
+	const publishedRunCandidates = await db().generationRun.findMany({
 		where: {
 			schoolId,
 			status: 'COMPLETED',
+			runType: 'FULL',
 			...(schoolYearId ? { schoolYearId } : {}),
+			summary: { path: ['isPublished'], equals: true },
 		},
-		orderBy: [{ createdAt: 'desc' }],
+		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 		select: {
 			id: true,
 			schoolId: true,
 			schoolYearId: true,
+			version: true,
+			runType: true,
 			summary: true,
 			finishedAt: true,
 			createdAt: true,
 		},
-		take: 200,
+		take: 2,
 	});
-
-	const publishedRunMeta = candidates.find((candidate) => isRunPublished(candidate.summary));
+	if (publishedRunCandidates.length > 1) {
+		throw err(409, 'PUBLISHED_RUN_AMBIGUOUS', 'Multiple current published runs exist for the requested scope.');
+	}
+	const publishedRunMeta = publishedRunCandidates[0];
 	if (!publishedRunMeta) {
 		throw err(404, 'PUBLISHED_RUN_NOT_FOUND', 'No published schedule is available for the requested scope.');
 	}
+	const publication = isRecord(publishedRunMeta.summary) && isRecord(publishedRunMeta.summary.publication)
+		? publishedRunMeta.summary.publication
+		: null;
+	const publicationRevisionId = Number(publication?.revisionId);
+	const publicationRunVersion = Number(publication?.sourceRunVersion);
+	if (!Number.isInteger(publicationRevisionId) || publicationRevisionId < 1 || publicationRunVersion !== publishedRunMeta.version) {
+		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The published run is not bound to its immutable publication revision.');
+	}
 
-	const applicableRevisions = await prisma.publishedScheduleRevision.findMany({
+	const applicableRevisions = await db().publishedScheduleRevision.findMany({
 		where: {
 			schoolId: publishedRunMeta.schoolId,
 			schoolYearId: publishedRunMeta.schoolYearId,
@@ -220,8 +228,17 @@ async function resolvePublishedRun(
 			id: true,
 			effectiveDate: true,
 			changeSet: true,
+			sourceRevisionId: true,
+			reason: true,
+			metadata: true,
 		},
 	});
+	const baseRevision = applicableRevisions.find((revision) => revision.id === publicationRevisionId);
+	const baseMetadata = isRecord(baseRevision?.metadata) ? baseRevision.metadata : null;
+	if (!baseRevision || baseRevision.sourceRevisionId !== null || baseRevision.reason !== 'INITIAL_PUBLICATION'
+		|| baseMetadata?.publicationBase !== true || Number(baseMetadata.sourceRunVersion) !== publishedRunMeta.version) {
+		throw err(409, 'PUBLISHED_REVISION_INVALID', 'The immutable publication revision is unavailable for the requested date.');
+	}
 
 	let draftEntries: ScheduledEntry[] = [];
 
@@ -242,19 +259,28 @@ async function resolvePublishedRun(
 			filterConds.push(`(elem->>'roomId')::int = $${paramIdx++}`);
 			params.push(filter.roomId);
 		}
+		// A revision may move an entry into or out of the requested slice. Include every
+		// revision-touched entry in the targeted SQL read, apply revisions in memory, and
+		// let the caller's final filter decide membership from effective values.
+		const revisionEntryIds = Array.from(new Set(applicableRevisions.flatMap((revision) =>
+			readRevisionChanges(revision.changeSet).map((change) => change.entryId))));
+		const revisionMembershipClause = revisionEntryIds.length > 0
+			? ` OR elem->>'entryId' = ANY($${paramIdx++}::text[])`
+			: '';
+		if (revisionEntryIds.length > 0) params.push(revisionEntryIds);
 
 		const rawQuery = `
 			SELECT elem
 			FROM "generation_runs" r,
 				jsonb_array_elements(r."draft_entries") WITH ORDINALITY AS entry(elem, ord)
-			WHERE r.id = $1 AND (${filterConds.join(' AND ')})
+			WHERE r.id = $1 AND ((${filterConds.join(' AND ')})${revisionMembershipClause})
 			ORDER BY entry.ord ASC
 		`;
 
-		const rows = await prisma.$queryRawUnsafe<{ elem: unknown }[]>(rawQuery, ...params);
+		const rows = await db().$queryRawUnsafe<{ elem: unknown }[]>(rawQuery, ...params);
 		draftEntries = rows.map((row) => row.elem) as ScheduledEntry[];
 	} else {
-		const publishedRunEntries = await prisma.generationRun.findUnique({
+		const publishedRunEntries = await db().generationRun.findUnique({
 			where: { id: publishedRunMeta.id },
 			select: { draftEntries: true },
 		});
@@ -271,13 +297,13 @@ async function resolvePublishedRun(
 	const isActiveYear = activeSchoolYearId != null && publishedRunMeta.schoolYearId === activeSchoolYearId;
 	let schoolYearLabel: string | null = null;
 	if (activeSchoolYearId != null && publishedRunMeta.schoolYearId === activeSchoolYearId) {
-		const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+		const mirror = await db().enrollProSchoolYearMirror.findFirst({
 			where: { schoolId, enrollProSchoolYearId: publishedRunMeta.schoolYearId },
 			select: { yearLabel: true },
 		});
 		schoolYearLabel = mirror?.yearLabel ?? null;
 	} else {
-		const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+		const mirror = await db().enrollProSchoolYearMirror.findFirst({
 			where: { schoolId, enrollProSchoolYearId: publishedRunMeta.schoolYearId },
 			select: { yearLabel: true },
 		});
@@ -321,19 +347,19 @@ async function loadReferenceMaps(
 	roomIds: number[]
 ) {
 	const [subjects, faculty, rooms, sectionMirrors, cohorts, ownershipRows] = await Promise.all([
-		prisma.subject.findMany({
+		db().subject.findMany({
 			where: { schoolId, id: { in: subjectIds } },
 			select: { id: true, code: true, name: true },
 		}),
-		prisma.facultyMirror.findMany({
+		db().facultyMirror.findMany({
 			where: { schoolId, id: { in: facultyIds } },
 			select: { id: true, externalId: true, employeeId: true, firstName: true, lastName: true, isPlaceholder: true },
 		}),
-		prisma.room.findMany({
+		db().room.findMany({
 			where: { building: { schoolId }, id: { in: roomIds } },
 			select: { id: true, name: true, type: true, floor: true, building: { select: { id: true, name: true } } },
 		}),
-		prisma.sectionMirror.findMany({
+		db().sectionMirror.findMany({
 			where: {
 				schoolId,
 				schoolYearId,
@@ -350,7 +376,7 @@ async function loadReferenceMaps(
 				programName: true,
 			},
 		}),
-		prisma.instructionalCohort.findMany({
+		db().instructionalCohort.findMany({
 			where: { schoolId, schoolYearId, isActive: true },
 			select: {
 				cohortCode: true,
@@ -359,7 +385,7 @@ async function loadReferenceMaps(
 			},
 		}),
 		sectionIds.length > 0 && subjectIds.length > 0
-			? prisma.subjectSectionOwnership.findMany({
+			? db().subjectSectionOwnership.findMany({
 				where: {
 					schoolId,
 					schoolYearId,
@@ -399,7 +425,7 @@ async function loadReferenceMaps(
 	// Only load sectionSnapshot payload if there are sectionIds missing from the mirrors
 	const missingSectionIds = sectionIds.filter((id) => !sectionNameById.has(id));
 	if (missingSectionIds.length > 0) {
-		const sectionSnapshot = await prisma.sectionSnapshot.findUnique({
+		const sectionSnapshot = await db().sectionSnapshot.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			select: { payload: true },
 		});
@@ -452,7 +478,7 @@ async function loadReferenceMaps(
 }
 
 function buildSpecialEventsPayload(
-	policy: Awaited<ReturnType<typeof getOrCreatePolicy>>,
+	policy: NonNullable<Parameters<typeof buildSpecialEventSlots>[0]>,
 	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; gradeGroup?: string | null; programType?: string | null }>,
 ) {
 	const specialEventSlots = buildSpecialEventSlots({
@@ -500,9 +526,11 @@ export async function getPublishedSchedulePayload(
 		  })
 		: resolved.entries;
 
-	const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
+	const policy = await db().schedulingPolicy.findUnique({
+		where: { schoolId_schoolYearId: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId } },
+	}) ?? POLICY_DEFAULTS;
 
-	const publishedSpecialEvents = await prisma.policySpecialEvent.findMany({
+	const publishedSpecialEvents = await db().policySpecialEvent.findMany({
 		where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, enabled: true },
 		orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
 	});
@@ -667,7 +695,7 @@ export async function getPublishedRoomSchedule(schoolId: number, roomId: number,
 }
 
 export async function getPublishedFacultyScheduleByExternalId(schoolId: number, externalFacultyId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions) {
-	const mirror = await prisma.facultyMirror.findFirst({
+	const mirror = await db().facultyMirror.findFirst({
 		where: { schoolId, externalId: externalFacultyId },
 		select: { id: true },
 	});
