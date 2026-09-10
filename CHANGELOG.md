@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-09-10] — Post-Reconciliation Parallel Readiness Prompts
+
+### Added
+- Added `GEN-C01`, a commit-based one-shot for read-only canonical generation diagnostics and bounded source corrections without creating a live run.
+- Added `TT-C04`, a client-only one-shot for older-operator timetable state clarity, accessibility, and responsive browser verification without timetable mutation.
+- Added `PUB-C01`, a server-only one-shot for publication authority, atomicity, query-shaping, and downstream contract readiness without live publication.
+
+### Changed
+- Qualified the next delivery stage into three non-overlapping source boundaries so generation, timetable UX, and publication-contract work can run concurrently from one accepted base.
+
+### Decisions Made
+- School 1/year 8 remains read-only in all three prompts. Actual generation and publication remain separate `HIGH` actions requiring fresh pinned previews, independent review, and explicit approval.
+- A zero-run state cannot claim zero hard violations or zero generated unassigned sessions; those outcomes remain not evaluated until canonical generation runs.
+
+### Open Questions
+- Whether the canonical read-only generation diagnostic proves a zero-hard-blocker candidate or identifies a new data/policy/source correction before live generation approval.
+
 ## [2026-09-09] — TL-C02E Current-Year Teaching Load Reconciliation Applied
 
 ### Added
