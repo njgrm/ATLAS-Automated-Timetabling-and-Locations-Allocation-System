@@ -3783,3 +3783,28 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 - Whether commit `396a9892` passes independent term-contract QA without an
   upstream correction.
+
+# 2026-09-11 — EnrollPro ordered-term contract QA
+
+### Added
+
+- Added an EnrollPro developer correction handoff with exact source evidence
+  and mounted-route acceptance tests for strict year identity and atomic term
+  validation.
+
+### Changed
+
+- Changed the delivered EnrollPro term stream from `REVIEW_REQUIRED` to
+  `CORRECTION_REQUIRED` after independent read-only source verification.
+
+### Decisions Made
+
+- The core EnrollPro-owned term format, stable identities, labels, dates, and
+  active-term design remains accepted.
+- EnrollPro must reject malformed year IDs and must validate a complete merged
+  term contract before persisting a partial update. ATLAS must not compensate
+  for invalid upstream state.
+
+### Open Questions
+
+- Await the pushed EnrollPro correction SHA and its independent QA result.
