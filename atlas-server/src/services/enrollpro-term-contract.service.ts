@@ -72,6 +72,10 @@ function nonEmptyString(value: unknown): string | null {
 	return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
+function suppliedDisplayLabel(value: unknown): string | null {
+	return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
 function normalizedIdentity(value: unknown): string | null {
 	const text = nonEmptyString(value);
 	return text ? text.toUpperCase() : null;
@@ -93,9 +97,11 @@ function buildFlatTerms(data: Record<string, unknown>, format: EnrollProTermForm
 	const count = FORMAT_TERM_COUNT[format];
 	const terms: VerifiedTerm[] = [];
 	for (let index = 1; index <= count; index += 1) {
-		const identity = normalizedIdentity(data[`term${index}Identity`]) ?? `T${index}`;
-		const suppliedLabel = nonEmptyString(data[`term${index}Label`]);
-		const displayLabel = suppliedLabel ?? (format === 'QUARTERS' ? `Quarter ${index}` : `Term ${index}`);
+		const identity = normalizedIdentity(data[`term${index}Identity`]);
+		const displayLabel = suppliedDisplayLabel(data[`term${index}Label`]);
+		if (!identity || !displayLabel) {
+			return fail('TERM_ENTRY_INVALID', `EnrollPro term ${index} must supply an identity and display label.`);
+		}
 		const startDate = normalizeDate(data[`term${index}Start`]);
 		const endDate = normalizeDate(data[`term${index}End`]);
 		if (!startDate.ok || !endDate.ok) {
@@ -122,7 +128,7 @@ function buildExplicitTerms(rawTerms: unknown[], format: EnrollProTermFormat): T
 		}
 		const item = raw as Record<string, unknown>;
 		const identity = normalizedIdentity(item.identity ?? item.id);
-		const displayLabel = nonEmptyString(item.displayLabel ?? item.label);
+		const displayLabel = suppliedDisplayLabel(item.displayLabel ?? item.label);
 		const suppliedOrder = item.order === undefined ? index + 1 : positiveInteger(item.order);
 		if (!identity || !displayLabel || suppliedOrder !== index + 1) {
 			return fail('TERM_ENTRY_INVALID', `EnrollPro term ${index + 1} must have an identity, display label, and matching order.`);

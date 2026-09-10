@@ -7,7 +7,9 @@ Status: `REVIEW_REQUIRED`
 - Managed worktree: `C:\Users\njgro\.codex\worktrees\7dcd\ATLAS`
 - Branch: `work/term-subject-c01`
 - Clean base: `e39da52013c78013a2ac7c0dd96b00f774014acd`
-- Candidate: the single commit carrying this ledger; use `git rev-parse HEAD`.
+- Initial candidate: `40266644df8910a19b2fbefd3308ee52d8029f0b`.
+- QA correction candidate: the one additive commit carrying this updated ledger;
+  use `git rev-parse HEAD`.
 - Companion inspection was read-only. No live migration, generation, demand
   materialization, Teaching Load apply, publication, merge, rebase, amend, or
   push was performed.
@@ -17,7 +19,9 @@ Status: `REVIEW_REQUIRED`
 - EnrollPro school-year plus active-term responses normalize into a single
   school/year-bound contract with format, ordered identities, preserved labels,
   optional dates, active term, verification state, and SHA-256 semantic revision.
-- `TRIMESTER` and `QUARTERS` are supported without a T1–T3 ceiling. Unsupported
+- `TRIMESTER` and `QUARTERS` are supported without a T1–T3 ceiling. Every live
+  shape must supply its complete ordered identities and display labels; ATLAS
+  does not invent missing term identities or labels. Missing entries, unsupported
   formats, duplicate identities, school/year mismatch, and an active term outside
   the ordered contract return typed blocked outcomes.
 - Only a verified live contract is cached on the exact
@@ -40,8 +44,9 @@ Status: `REVIEW_REQUIRED`
 
 - Three-term fixture: `TRIMESTER`, `T1/T2/T3`, preserved labels “First/Second/
   Third Trimester”, date ranges, active `T2`.
-- Four-term fixture: `QUARTERS`, `T1/T2/T3/T4`, derived quarter labels when the
-  flat upstream shape omits labels, date ranges, active `T4`.
+- Four-term fixture: `QUARTERS`, explicit `Q-A/Q-B/Q-C/Q-D` identities,
+  upstream labels including “Fourth Quarter / Capstone”, date ranges, active
+  `Q-D`; the client-facing scheduling view preserves that label exactly.
 - Production endpoint: authenticated
   `GET /api/v1/subjects/scheduling-authority?schoolYearId=<EnrollPro year id>`.
 
@@ -69,7 +74,7 @@ database and all live/Tailnet data remained untouched.
 
 ## Verification
 
-- `npm exec -- tsx src/__tests__/term-subject-authority.test.ts` — 11/11 pass.
+- `npm exec -- tsx src/__tests__/term-subject-authority.test.ts` — 12/12 pass.
 - Existing disposable Subject catalog truth suite — 106/106 pass after updating
   the expected protected-term outcome.
 - `npm exec -- tsx --test src/lib/__tests__/subject-create-payload.test.ts` —

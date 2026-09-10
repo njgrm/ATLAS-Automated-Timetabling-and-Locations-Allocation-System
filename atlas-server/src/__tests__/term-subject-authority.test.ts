@@ -81,29 +81,74 @@ test('real adapter fixture supports four ordered terms without a T1-T3 ceiling',
 					schoolId: SCHOOL_ID,
 					yearLabel: '2031-2032',
 					termFormat: 'QUARTERS',
+					term1Identity: 'Q-A', term1Label: 'Opening Cycle',
 					term1Start: '2031-06-02', term1End: '2031-08-08',
+					term2Identity: 'Q-B', term2Label: 'Development Cycle',
 					term2Start: '2031-08-11', term2End: '2031-10-17',
+					term3Identity: 'Q-C', term3Label: 'Integration Cycle',
 					term3Start: '2031-10-20', term3End: '2032-01-09',
+					term4Identity: 'Q-D', term4Label: 'Fourth Quarter / Capstone',
 					term4Start: '2032-01-12', term4End: '2032-03-27',
 				},
 			},
 		},
-		'/integration/v1/active-term': { body: { data: { schoolId: SCHOOL_ID, schoolYearId: 88, activeTerm: 'T4' } } },
+		'/integration/v1/active-term': { body: { data: { schoolId: SCHOOL_ID, schoolYearId: 88, activeTerm: 'Q-D' } } },
 	}, async (baseUrl) => {
 		const result = await fetchEnrollProTermContract({ baseUrl, authToken: 'fixture-token', schoolId: SCHOOL_ID, schoolYearId: 88 });
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
 		assert.equal(result.contract.format, 'QUARTERS');
 		assert.equal(result.contract.terms.length, 4);
-		assert.equal(result.contract.terms[3].displayLabel, 'Quarter 4');
+		assert.deepEqual(result.contract.terms.map((term) => term.identity), ['Q-A', 'Q-B', 'Q-C', 'Q-D']);
+		assert.equal(result.contract.terms[3].displayLabel, 'Fourth Quarter / Capstone');
 		assert.equal(result.contract.terms[3].endDate, '2032-03-27');
-		assert.equal(result.contract.activeTerm.identity, 'T4');
+		assert.equal(result.contract.activeTerm.identity, 'Q-D');
 		assert.equal(result.contract.activeTerm.order, 4);
 		const view = buildSubjectSchedulingAuthorityView([
 			{ id: 41, code: 'SCI_Q4', rotationFamily: 'SCIENCE', modularOrder: 4, schedulingDisposition: 'SCHEDULED_TEACHING' as const },
 		], { state: 'VERIFIED_LIVE', source: 'enrollpro', degraded: false, code: null, message: 'verified', contract: result.contract });
-		assert.equal(view.subjects[0].rotationTermLabel, 'Quarter 4');
+		assert.equal(view.subjects[0].rotationTermLabel, 'Fourth Quarter / Capstone');
 	});
+});
+
+test('flat live contracts fail closed when ordered identities or labels are missing and never write cache', async () => {
+	const complete = {
+		id: 88,
+		schoolId: SCHOOL_ID,
+		yearLabel: '2031-2032',
+		termFormat: 'QUARTERS',
+		term1Identity: 'Q-A', term1Label: 'Opening Cycle',
+		term2Identity: 'Q-B', term2Label: 'Development Cycle',
+		term3Identity: 'Q-C', term3Label: 'Integration Cycle',
+		term4Identity: 'Q-D', term4Label: 'Fourth Quarter / Capstone',
+	};
+	for (const [name, schoolYear, activeTerm] of [
+		['sparse flat payload', { id: 88, schoolId: SCHOOL_ID, yearLabel: '2031-2032', termFormat: 'QUARTERS', termCount: 4 }, 'T4'],
+		['missing one identity', { ...complete, term4Identity: undefined }, 'T4'],
+		['missing one label', { ...complete, term4Label: undefined }, 'Q-D'],
+	] as const) {
+		await withEnrollProFixture({
+			'/integration/v1/school-year': { body: { data: schoolYear } },
+			'/integration/v1/active-term': { body: { data: { schoolId: SCHOOL_ID, schoolYearId: 88, activeTerm } } },
+		}, async (baseUrl) => {
+			const live = await fetchEnrollProTermContract({ baseUrl, authToken: 'fixture-token', schoolId: SCHOOL_ID, schoolYearId: 88 });
+			assert.equal(live.ok, false, name);
+			if (live.ok) return;
+			assert.equal(live.error.code, 'TERM_ENTRY_INVALID', name);
+			let cacheWrites = 0;
+			const resolved = await resolveTermContractWithDependencies(
+				{ schoolId: SCHOOL_ID, schoolYearId: 88, authToken: 'fixture-token' },
+				{
+					fetchLive: async () => live,
+					loadCache: async () => null,
+					saveCache: async () => { cacheWrites += 1; },
+				},
+			);
+			assert.equal(resolved.state, 'BLOCKED', name);
+			assert.equal(resolved.contract, null, name);
+			assert.equal(cacheWrites, 0, name);
+		});
+	}
 });
 
 test('normalization fails closed for unsupported formats and duplicate identities', async () => {

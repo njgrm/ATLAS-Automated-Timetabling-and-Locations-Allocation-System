@@ -17,6 +17,9 @@
   EnrollPro-owned term structure and protected bootstrap metadata.
 - The Subjects page shows live, saved/degraded, or blocked term authority and
   keeps reference-only subjects visible without misleading coverage actions.
+- QA correction: flat EnrollPro responses must explicitly supply every ordered
+  term identity and display label. ATLAS no longer invents `T1..Tn` identities
+  or generic Term/Quarter labels for an incomplete live response.
 
 ### Decisions Made
 - EnrollPro is the sole term-structure authority. ATLAS may use only an exact
