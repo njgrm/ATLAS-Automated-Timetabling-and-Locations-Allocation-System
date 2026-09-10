@@ -21,11 +21,12 @@ hard blockers before separately approving publication.
 - All three source lanes passed independent QA and the combined integration
   gates. The approved term schema migration is applied and verified; deploying
   the integrated runtime remains a separate service-lifecycle action.
-- EnrollPro, AIMS, and SMART reference clones were cleanly fast-forwarded to
-  `bf12d0de`, `a22c9c88`, and `c3806e12`. A later root handoff claims the
-  EnrollPro term contract is implemented, but a fresh fast-forward pull still
-  leaves `origin/main` at `bf12d0de` with none of the claimed implementation;
-  delivery is blocked on an inspectable pushed commit.
+- The EnrollPro fork was fast-forwarded from upstream and its canonical
+  READ_ONLY reference clone now points to `396a9892`. The authoritative ordered
+  term implementation is present as the single commit
+  `3e282e2b...396a9892` and awaits independent contract QA; its database
+  migration remains unapplied. AIMS and SMART reference clones remain at their
+  last verified tips `a22c9c88` and `c3806e12`.
 - No carry-forward, generation, or publication is authorized by this register.
 
 ## Stream register
@@ -36,7 +37,7 @@ hard blockers before separately approving publication.
 | RR-UX01 | Visible rollover awareness, one Year Setup status surface, and read-only archived Teaching Load | `INTEGRATED` | MEDIUM | `work/rollover-rrux01`; `00488bbf...ea44e155` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
 | TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | Live migration remains separate | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Prepare the separate live migration preview; do not apply without HIGH approval |
 | W1-INTEGRATION | Combine the three accepted Wave-1 source lanes | `INTEGRATED` | MEDIUM | `integration/rollover-derived-demand-w1`; `e39da520...36c5d3d1` | None | Shared-doc-only conflicts matched forecast; focused GEN/RR/TERM suites, both builds/type-checks, diff-check, and isolated server health passed | Closed and pushed to `origin/main` at `36c5d3d1` |
-| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `BLOCKED` | External dependency | EnrollPro `bf12d0de` is READ_ONLY from ATLAS | Root handoff claims implementation, but clean `git pull --ff-only` leaves local and remote `main` at `bf12d0de`; ordered terms, label fields, shared schema, and migration are absent | Delivery check: `docs/verification/enrollpro-authoritative-term-contract-delivery-check-2026-09-11.md` | EnrollPro developer commits and pushes the implementation, then returns the full SHA and branch for ATLAS verification |
+| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `REVIEW_REQUIRED` | External dependency; READ_ONLY QA | EnrollPro `3e282e2b...396a9892`; canonical mirror `D:\EnrollPro` | Source is delivered; EnrollPro migration is explicitly pending and ATLAS consumption must wait for contract QA | Fork `njgrm/EnrollPro:main` and canonical mirror both resolve `396a9892`; commit adds the ordered-term schema, service, tests, endpoint wiring, label migration, rollover preservation, and documentation across 20 paths | Run independent read-only QA of exactly `3e282e2b...396a9892`; return any upstream correction as a developer handoff, never edit EnrollPro from ATLAS |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify truthful blocked term authority | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with any TL-UX live browser run; EnrollPro ordered term contract may still be absent | Port 5001 health is 200 but `/subjects` returns no new disposition projection after migration, proving the live process predates integrated Wave-1 source | Prepare a bounded build/restart/Tailnet acceptance handoff; do not restart while another live-QA stream is using port 5001 |
@@ -65,8 +66,9 @@ hard blockers before separately approving publication.
 1. Correct the guarded command's default Prisma schema path and coordinate one
    integrated Wave-1 runtime deployment without interrupting another live-QA
    stream.
-2. Obtain a pushed EnrollPro implementation SHA; the prose handoff alone is not
-   a delivered contract.
+2. Independently QA delivered EnrollPro term commit
+   `3e282e2b...396a9892`, then prepare its migration/deployment decision and the
+   ATLAS consumption boundary.
 3. Correct TL-UX-C01 in its existing worktree so one reviewed suggestion can
    fill uncovered rows and rebalance avoidable excess without false success copy.
 4. Execute the expanded TT-UX01R2 Simple-operator closure on its existing
@@ -82,8 +84,8 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- EnrollPro developer implementation from the ATLAS handoff; EnrollPro remains
-  READ_ONLY to ATLAS agents.
+- Read-only EnrollPro term-contract QA over `3e282e2b...396a9892`; any required
+  correction returns to the EnrollPro developer.
 - MIG-GUARD-R1 source/test correction, with no live migration.
 - TL-UX-C01R in its existing worktree, confined to Teaching Load client/server
   suggestion, allocation, exact ownership, and focused tests; no live apply.
@@ -99,8 +101,8 @@ runtime while TL-UX live QA is active.
 ## Awaited returns and decisions
 
 - No Wave-1 executor or QA result is awaited; all three candidates are integrated.
-- EnrollPro implementation is not present on its only remote branch; await a
-  pushed full SHA/branch before contract QA or derived-demand work.
+- EnrollPro term implementation is delivered at `396a9892`; await independent
+  contract QA before migration/deployment or ATLAS consumption.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
 - TT-UX01 is awaiting the expanded additive executor correction from

@@ -3757,3 +3757,29 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 - None for execution. Any newly proven server-authority dependency returns to
   the primary planner instead of widening the client correction.
+
+# 2026-09-11 — EnrollPro fork synchronization
+
+### Added
+
+- Recorded the delivered EnrollPro authoritative ordered-term implementation
+  as the review range `3e282e2b...396a9892`.
+
+### Changed
+
+- Fast-forwarded the `njgrm/EnrollPro` fork to upstream and updated the canonical
+  READ_ONLY reference clone at `D:\EnrollPro`.
+- Changed the EnrollPro term stream from blocked-on-delivery to
+  `REVIEW_REQUIRED`.
+
+### Decisions Made
+
+- EnrollPro source remains read-only to ATLAS agents. Independent QA may run
+  non-mutating inspection and tests; any correction belongs to the EnrollPro
+  developer.
+- EnrollPro migration and deployment remain separate actions after source QA.
+
+### Open Questions
+
+- Whether commit `396a9892` passes independent term-contract QA without an
+  upstream correction.
