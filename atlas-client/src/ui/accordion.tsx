@@ -68,11 +68,12 @@ function AccordionTrigger({
 
 	const isOpen = root.openValue === item.value;
 
-	return (
+		return (
 		<button
 			type="button"
 			data-slot="accordion-trigger"
 			data-state={isOpen ? 'open' : 'closed'}
+			aria-expanded={isOpen}
 			className={cn(
 				'flex w-full items-center justify-between gap-2 py-2 text-left text-xs font-medium transition-all hover:underline [&[data-state=open]>svg]:rotate-180',
 				className,

@@ -1,6 +1,6 @@
 import { fetchAtlasRuntimeContext, fetchPublicSettings } from './settings';
 
-const ACTIVE_SCHOOL_YEAR_CACHE_KEY = 'atlas:active-school-year-context:v2';
+const ACTIVE_SCHOOL_YEAR_CACHE_PREFIX = 'atlas:active-school-year-context:v3';
 const ACTIVE_SCHOOL_YEAR_MAX_AGE_MS = 10 * 60 * 1000;
 
 type ActiveSchoolYearCacheRecord = {
@@ -43,6 +43,7 @@ export type ActiveSchoolYearContext = {
 };
 
 type PromotionOptions = {
+	schoolId?: number;
 	allowStaleOnError?: boolean;
 	allowEnrollProFallback?: boolean;
 	verifyUpstream?: boolean;
@@ -76,21 +77,24 @@ export function describeSchoolYearSource(context: ActiveSchoolYearContext): stri
 	return 'Working from saved data.';
 }
 
-let activeSchoolYearMemory: ActiveSchoolYearCacheRecord | null = null;
+const activeSchoolYearMemory = new Map<number, ActiveSchoolYearCacheRecord>();
 
-function readCachedActiveSchoolYear(): ActiveSchoolYearCacheRecord | null {
-	if (activeSchoolYearMemory) {
-		return activeSchoolYearMemory;
-	}
+export function activeSchoolYearCacheKey(schoolId: number): string {
+	return `${ACTIVE_SCHOOL_YEAR_CACHE_PREFIX}:${schoolId}`;
+}
+
+function readCachedActiveSchoolYear(schoolId: number): ActiveSchoolYearCacheRecord | null {
+	const memory = activeSchoolYearMemory.get(schoolId);
+	if (memory) return memory;
 
 	try {
-		const raw = localStorage.getItem(ACTIVE_SCHOOL_YEAR_CACHE_KEY);
+		const raw = localStorage.getItem(activeSchoolYearCacheKey(schoolId));
 		if (!raw) return null;
 		const parsed = JSON.parse(raw) as ActiveSchoolYearCacheRecord;
 		if (!parsed || typeof parsed.activeSchoolYearId !== 'number' || !parsed.cachedAt) {
 			return null;
 		}
-		activeSchoolYearMemory = parsed;
+		activeSchoolYearMemory.set(schoolId, parsed);
 		return parsed;
 	} catch {
 		return null;
@@ -98,6 +102,7 @@ function readCachedActiveSchoolYear(): ActiveSchoolYearCacheRecord | null {
 }
 
 export function cacheActiveSchoolYearContext(
+	schoolId: number,
 	activeSchoolYearId: number | null | undefined,
 	activeSchoolYearLabel?: string | null,
 	activeTerm?: ActiveSchoolYearContext['activeTerm'],
@@ -112,12 +117,21 @@ export function cacheActiveSchoolYearContext(
 		activeTerm: activeTerm ?? null,
 		cachedAt: new Date().toISOString(),
 	};
-	activeSchoolYearMemory = payload;
+	activeSchoolYearMemory.set(schoolId, payload);
 
 	try {
-		localStorage.setItem(ACTIVE_SCHOOL_YEAR_CACHE_KEY, JSON.stringify(payload));
+		localStorage.setItem(activeSchoolYearCacheKey(schoolId), JSON.stringify(payload));
 	} catch {
 		// Ignore storage restrictions.
+	}
+}
+
+export function invalidateActiveSchoolYearContext(schoolId: number): void {
+	activeSchoolYearMemory.delete(schoolId);
+	try {
+		localStorage.removeItem(activeSchoolYearCacheKey(schoolId));
+	} catch {
+		// Ignore storage restrictions; the in-memory cache is already invalidated.
 	}
 }
 
@@ -129,9 +143,10 @@ function isFresh(cachedAtIso: string, maxAgeMs: number): boolean {
 
 // Deduplicate in-flight verification calls so rapid navigations don't spawn
 // parallel requests for the same school.
-let _inflight: Promise<ActiveSchoolYearContext> | null = null;
+const inflightBySchool = new Map<number, Promise<ActiveSchoolYearContext>>();
 
 export async function resolveActiveSchoolYearContext(options?: {
+	schoolId?: number;
 	forceRefresh?: boolean;
 	/** Return cached data immediately without waiting for upstream, even if stale. */
 	preferCache?: boolean;
@@ -143,6 +158,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 	maxAgeMs?: number;
 	allowEnrollProFallback?: boolean;
 }): Promise<ActiveSchoolYearContext> {
+	const schoolId = options?.schoolId ?? 1;
 	const forceRefresh = options?.forceRefresh === true;
 	const preferCache = options?.preferCache === true;
 	const backgroundRefresh = options?.backgroundRefresh === true;
@@ -151,7 +167,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 	const maxAgeMs = options?.maxAgeMs ?? ACTIVE_SCHOOL_YEAR_MAX_AGE_MS;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 
-	const cached = readCachedActiveSchoolYear();
+	const cached = readCachedActiveSchoolYear(schoolId);
 	const hasFreshCache = cached ? isFresh(cached.cachedAt, maxAgeMs) : false;
 
 	// preferCache: return cached immediately (even if stale) and optionally
@@ -159,16 +175,17 @@ export async function resolveActiveSchoolYearContext(options?: {
 	if (preferCache && cached) {
 		if (backgroundRefresh) {
 			// Fire-and-forget — deduplicate so rapid mounts don't stack requests.
-			if (!_inflight) {
-				_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
-					.finally(() => { _inflight = null; });
-				void _inflight;
+			if (!inflightBySchool.has(schoolId)) {
+				const inflight = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
+					.finally(() => { inflightBySchool.delete(schoolId); });
+				inflightBySchool.set(schoolId, inflight);
+				void inflight;
 			}
 		}
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
-			schoolId: 1, // Default from cache; runtime context will correct on refresh
+			schoolId,
 			source: 'cache',
 			stale: !hasFreshCache,
 			cachedAt: cached.cachedAt,
@@ -180,7 +197,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
-			schoolId: 1, // Default from cache; runtime context will correct on refresh
+			schoolId,
 			source: 'cache',
 			stale: false,
 			cachedAt: cached.cachedAt,
@@ -190,18 +207,21 @@ export async function resolveActiveSchoolYearContext(options?: {
 
 	// Deduplicate concurrent calls so a single page mount doesn't spawn
 	// multiple overlapping verification requests.
-	if (_inflight && !forceRefresh) {
-		return _inflight;
+	const existingInflight = inflightBySchool.get(schoolId);
+	if (existingInflight && !forceRefresh) {
+		return existingInflight;
 	}
-	const promise = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream);
+	const promise = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream);
 	if (!forceRefresh) {
-		_inflight = promise.finally(() => { _inflight = null; });
-		return _inflight;
+		const inflight = promise.finally(() => { inflightBySchool.delete(schoolId); });
+		inflightBySchool.set(schoolId, inflight);
+		return inflight;
 	}
 	return promise;
 }
 
 async function _fetchRuntimeContext(
+	schoolId: number,
 	allowEnrollProFallback: boolean,
 	allowStaleOnError: boolean,
 	cachedFallback: ActiveSchoolYearCacheRecord | null,
@@ -211,14 +231,15 @@ async function _fetchRuntimeContext(
 	let runtimeContextError: unknown = null;
 
 	try {
-		const runtimeContext = await fetchAtlasRuntimeContext(1, verifyUpstream);
+		const runtimeContext = await fetchAtlasRuntimeContext(schoolId, verifyUpstream);
 		if (runtimeContext?.activeSchoolYearId) {
 			cacheActiveSchoolYearContext(
+				schoolId,
 				runtimeContext.activeSchoolYearId,
 				runtimeContext.activeSchoolYearLabel ?? null,
 				runtimeContext.activeTerm ?? null,
 			);
-			const updated = readCachedActiveSchoolYear();
+			const updated = readCachedActiveSchoolYear(schoolId);
 
 			return {
 				activeSchoolYearId: runtimeContext.activeSchoolYearId,
@@ -243,7 +264,7 @@ async function _fetchRuntimeContext(
 		return {
 			activeSchoolYearId: cachedFallback.activeSchoolYearId,
 			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
-			schoolId: 1, // Default for cache fallback; runtime context will correct on next refresh
+			schoolId,
 			source: 'cache',
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
@@ -257,13 +278,13 @@ async function _fetchRuntimeContext(
 			throw new Error('Active school year is not configured.');
 		}
 
-		cacheActiveSchoolYearContext(settings.activeSchoolYearId, settings.activeSchoolYearLabel ?? null);
-		const updated = readCachedActiveSchoolYear();
+		cacheActiveSchoolYearContext(schoolId, settings.activeSchoolYearId, settings.activeSchoolYearLabel ?? null);
+		const updated = readCachedActiveSchoolYear(schoolId);
 
 		return {
 			activeSchoolYearId: settings.activeSchoolYearId,
 			activeSchoolYearLabel: settings.activeSchoolYearLabel ?? null,
-			schoolId: 1, // Default for EnrollPro fallback; runtime context will correct on next refresh
+			schoolId,
 			source: 'enrollpro',
 			stale: false,
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
@@ -277,7 +298,7 @@ async function _fetchRuntimeContext(
 		return {
 			activeSchoolYearId: cachedFallback.activeSchoolYearId,
 			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
-			schoolId: 1, // Default for stale fallback; runtime context will correct on next refresh
+			schoolId,
 			source: 'cache',
 			stale: true,
 			cachedAt: cachedFallback.cachedAt,
@@ -287,17 +308,20 @@ async function _fetchRuntimeContext(
 }
 
 export function promoteActiveSchoolYearContext(options?: PromotionOptions): Promise<ActiveSchoolYearContext> {
+	const schoolId = options?.schoolId ?? 1;
 	const allowStaleOnError = options?.allowStaleOnError !== false;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 	const verifyUpstream = options?.verifyUpstream === true;
-	const cached = readCachedActiveSchoolYear();
+	const cached = readCachedActiveSchoolYear(schoolId);
 
-	if (_inflight) {
-		return _inflight;
+	const existingInflight = inflightBySchool.get(schoolId);
+	if (existingInflight) {
+		return existingInflight;
 	}
 
-	_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
-		.finally(() => { _inflight = null; });
+	const inflight = _fetchRuntimeContext(schoolId, allowEnrollProFallback, allowStaleOnError, cached, verifyUpstream)
+		.finally(() => { inflightBySchool.delete(schoolId); });
+	inflightBySchool.set(schoolId, inflight);
 
-	return _inflight;
+	return inflight;
 }

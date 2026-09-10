@@ -31,8 +31,9 @@ export type NotificationEvent = {
 };
 
 type Subscriber = {
+	scope: 'school' | 'school-year';
 	schoolId: number;
-	schoolYearId: number;
+	schoolYearId: number | null;
 	facultyId: number | null;
 	send: (event: NotificationEvent) => void;
 };
@@ -45,9 +46,15 @@ const subscribers = new Set<Subscriber>();
 const buffer: NotificationEvent[] = [];
 
 function canReceive(subscriber: Subscriber, event: NotificationEvent): boolean {
-	if (subscriber.schoolId !== event.schoolId || subscriber.schoolYearId !== event.schoolYearId) {
+	if (subscriber.schoolId !== event.schoolId) {
 		return false;
 	}
+	if (subscriber.scope === 'school') {
+		return subscriber.facultyId === null
+			&& event.audience === 'PRIVILEGED'
+			&& event.domain === 'integration';
+	}
+	if (subscriber.schoolYearId !== event.schoolYearId) return false;
 	if (subscriber.facultyId === null) {
 		return true;
 	}
@@ -100,6 +107,7 @@ export function subscribeNotificationEvents(params: {
 	send: (event: NotificationEvent) => void;
 }): () => void {
 	const subscriber: Subscriber = {
+		scope: 'school-year',
 		schoolId: params.schoolId,
 		schoolYearId: params.schoolYearId,
 		facultyId: params.facultyId ?? null,
@@ -114,9 +122,39 @@ export function getNotificationEventsSince(
 	scope: { schoolId: number; schoolYearId: number; facultyId?: number | null },
 ): NotificationEvent[] {
 	const gate: Subscriber = {
+		scope: 'school-year',
 		schoolId: scope.schoolId,
 		schoolYearId: scope.schoolYearId,
 		facultyId: scope.facultyId ?? null,
+		send: () => {},
+	};
+	return buffer.filter((event) => event.id > eventId && canReceive(gate, event));
+}
+
+export function subscribeSchoolNotificationEvents(params: {
+	schoolId: number;
+	send: (event: NotificationEvent) => void;
+}): () => void {
+	const subscriber: Subscriber = {
+		scope: 'school',
+		schoolId: params.schoolId,
+		schoolYearId: null,
+		facultyId: null,
+		send: params.send,
+	};
+	subscribers.add(subscriber);
+	return () => subscribers.delete(subscriber);
+}
+
+export function getSchoolNotificationEventsSince(
+	eventId: number,
+	schoolId: number,
+): NotificationEvent[] {
+	const gate: Subscriber = {
+		scope: 'school',
+		schoolId,
+		schoolYearId: null,
+		facultyId: null,
 		send: () => {},
 	};
 	return buffer.filter((event) => event.id > eventId && canReceive(gate, event));

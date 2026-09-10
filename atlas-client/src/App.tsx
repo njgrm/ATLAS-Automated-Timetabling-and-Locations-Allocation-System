@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, RouterProvider, useLocation } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, useLocation, useSearchParams } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
 
@@ -12,6 +12,7 @@ const CurriculumRequirements = lazy(() => import('./pages/CurriculumRequirements
 const DecisionWorkspace = lazy(() => import('./pages/DecisionWorkspace'));
 const Faculty = lazy(() => import('./pages/Faculty'));
 const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
+const TeachingLoadHistory = lazy(() => import('./components/faculty-assignments/TeachingLoadHistoryView'));
 const Sections = lazy(() => import('./pages/Sections'));
 const FacultyPreferences = lazy(() => import('./pages/FacultyPreferences'));
 const FacultyRoomPreferences = lazy(() => import('./pages/FacultyRoomPreferences'));
@@ -30,6 +31,16 @@ const PublicPublishedSchedule = lazy(() => import('./pages/PublicPublishedSchedu
 function LegacyRouteRedirect({ to }: { to: string }) {
 	const location = useLocation();
 	return <Navigate to={{ pathname: to, search: location.search }} replace />;
+}
+
+/**
+ * `/teaching-load?view=history&schoolYearId=<id>` renders the read-only
+ * archived view; plain `/teaching-load` renders the live workspace. The
+ * dedicated `/teaching-load/history` route remains for direct links.
+ */
+function TeachingLoadRoute() {
+	const [searchParams] = useSearchParams();
+	return searchParams.get('view') === 'history' ? <TeachingLoadHistory /> : <TeachingLoad />;
 }
 
 const router = createBrowserRouter([
@@ -78,8 +89,12 @@ const router = createBrowserRouter([
 				element: <Faculty />,
 			},
 			{
+				path: 'teaching-load/history',
+				element: <TeachingLoadHistory />,
+			},
+			{
 				path: 'teaching-load',
-				element: <TeachingLoad />,
+				element: <TeachingLoadRoute />,
 			},
 			{
 				path: 'faculty',

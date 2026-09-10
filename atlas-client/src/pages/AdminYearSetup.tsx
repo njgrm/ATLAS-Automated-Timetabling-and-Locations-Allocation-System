@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Archive, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 import { RolloverResetPanel } from '@/components/runtime/RolloverResetPanel';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
-import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
@@ -71,7 +70,12 @@ export default function AdminYearSetup() {
 		return <Navigate to="/" replace />;
 	}
 
-	const schoolId = user.schoolId ?? 1;
+	const schoolId = typeof user.schoolId === 'number' && Number.isInteger(user.schoolId) && user.schoolId > 0
+		? user.schoolId
+		: null;
+	if (schoolId == null) {
+		return <div className="p-6 text-sm text-red-700" role="alert">Your authenticated account has no school scope. Ask an administrator to correct the account before using Year Setup.</div>;
+	}
 
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
@@ -118,13 +122,14 @@ export default function AdminYearSetup() {
 							<p className="mt-1 text-xs text-muted-foreground">
 								These years are read-only history. Their schedules, sections, and teaching-load data are preserved and never win the active-year election.
 							</p>
-							<ul className="mt-2 flex flex-wrap gap-2">
+							<ul className="mt-2 grid gap-2 sm:grid-cols-2">
 								{status.archivedYears.map((year) => (
 									<li key={year.enrollProSchoolYearId}>
-										<Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-											{year.yearLabel} (#{year.enrollProSchoolYearId})
-											{year.preservedCounts?.publishedGenerationRuns ? ` - ${year.preservedCounts.publishedGenerationRuns} published run(s)` : ''}
-										</Badge>
+										<Button asChild type="button" variant="outline" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-left" data-testid={`year-setup-history-${year.enrollProSchoolYearId}`}>
+											<Link to={`/teaching-load/history?schoolYearId=${year.enrollProSchoolYearId}`}>
+												<span><span className="font-semibold">{year.yearLabel}</span><span className="block text-xs text-muted-foreground">Open read-only Teaching Load{year.preservedCounts?.publishedGenerationRuns ? ` · ${year.preservedCounts.publishedGenerationRuns} published run(s)` : ''}</span></span>
+											</Link>
+										</Button>
 									</li>
 								))}
 							</ul>
@@ -132,7 +137,7 @@ export default function AdminYearSetup() {
 					) : null}
 
 					{/* Destructive reset -- only here, demoted to the advanced disclosure */}
-					<RolloverResetPanel schoolId={schoolId} />
+					<RolloverResetPanel schoolId={schoolId} status={status} onApplied={setStatus} />
 				</div>
 			</div>
 		</div>

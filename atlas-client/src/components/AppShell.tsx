@@ -4,13 +4,19 @@ import {
 	WifiOff,
 	X,
 } from 'lucide-react';
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref as _getBackHref } from '@/lib/bridge';
-import { applyEnrollProAccentTheme, fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
-import { cacheActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
+import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import {
+	evaluateRolloverTransition,
+	persistRolloverAwarenessNotice,
+	readRolloverAwarenessNotice,
+	type RolloverAwarenessNotice,
+} from '@/lib/rollover-awareness';
 import {
 	clearAtlasAuthStorage,
 	clearBridgeToken,
@@ -20,7 +26,6 @@ import {
 	isFacultyPortalRoute,
 } from '@/lib/auth';
 import type { BridgeUser } from '@/types';
-import type { SchoolYear } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Separator } from '@/ui/separator';
@@ -33,12 +38,15 @@ import {
 import { AccessibilityMenu } from '@/components/AccessibilityMenu';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
-import { useNotificationStream } from '@/hooks/useNotificationStream';
+import {
+	isRolloverCompletionEvent,
+	useNotificationStream,
+	type NotificationStreamEvent,
+} from '@/hooks/useNotificationStream';
 
 import { AppSidebar } from './app-shell/AppSidebar';
 import { FacultyMobileBottomNav } from '@/components/app-shell/FacultyMobileBottomNav';
 import { MobileNavigationDrawer } from './app-shell/MobileNavigationDrawer';
-import { SchoolYearSwitcher } from './app-shell/SchoolYearSwitcher';
 import {
 	breadcrumbGroups,
 	auditNav,
@@ -59,7 +67,6 @@ void _getBackHref;
 const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
 const SHELL_BRANDING_CACHE_KEY = 'atlas:shell-branding:v1';
 const DEFAULT_SHELL_SCHOOL_NAME = 'ATLAS High School';
-const DEFAULT_SCHOOL_ID = 1;
 const SIDEBAR_COOKIE_NAME = 'sidebar:state';
 
 type ShellBrandingCache = {
@@ -130,12 +137,13 @@ export function AppShell() {
 	const [logoUrl, setLogoUrl] = useState<string | null>(() => readShellBrandingCache()?.logoUrl ?? null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
 	const [activeTermLabel, setActiveTermLabel] = useState<string | null>(null);
-	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
 	const runtimeYearRef = useRef<{ id: number | null; label: string | null }>({ id: null, label: null });
+	const verificationInFlightRef = useRef(false);
+	const [routeEpoch, setRouteEpoch] = useState(0);
+	const [rolloverNotice, setRolloverNotice] = useState<RolloverAwarenessNotice | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
-	const [syOpen, setSyOpen] = useState(false);
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -144,10 +152,56 @@ export function AppShell() {
 
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
 	const isFaculty = bridgeUser?.role === 'faculty';
+	const actorSchoolId = typeof bridgeUser?.schoolId === 'number'
+		&& Number.isInteger(bridgeUser.schoolId)
+		&& bridgeUser.schoolId > 0
+		? bridgeUser.schoolId
+		: null;
+
+	const verifyActiveSchoolYear = useCallback(async (reason: 'initial' | 'event' | 'recovery') => {
+		if (!actorSchoolId || verificationInFlightRef.current) return;
+		verificationInFlightRef.current = true;
+		try {
+			if (reason !== 'initial') invalidateActiveSchoolYearContext(actorSchoolId);
+			const context = await resolveActiveSchoolYearContext({
+				schoolId: actorSchoolId,
+				forceRefresh: true,
+				verifyUpstream: true,
+				allowStaleOnError: false,
+				allowEnrollProFallback: false,
+			});
+			const previous = runtimeYearRef.current;
+			runtimeYearRef.current = { id: context.activeSchoolYearId, label: context.activeSchoolYearLabel ?? null };
+			setSelectedYearId(context.activeSchoolYearId);
+			setActiveYearLabel(context.activeSchoolYearLabel ?? `School year ${context.activeSchoolYearId}`);
+			setActiveTermLabel(context.activeTerm?.activeTerm ?? null);
+			const transition = evaluateRolloverTransition({
+				schoolId: actorSchoolId,
+				previous,
+				next: { id: context.activeSchoolYearId, label: context.activeSchoolYearLabel ?? null },
+			});
+			if (transition.changed && transition.notice) {
+				persistRolloverAwarenessNotice(transition.notice);
+				setRolloverNotice(transition.notice);
+				setRouteEpoch((epoch) => epoch + 1);
+			}
+		} catch {
+			// Remain on the last verified context. Recovery triggers will retry.
+		} finally {
+			verificationInFlightRef.current = false;
+		}
+	}, [actorSchoolId]);
+
+	const handleNotification = useCallback((event: NotificationStreamEvent) => {
+		if (isRolloverCompletionEvent(event)) void verifyActiveSchoolYear('event');
+	}, [verifyActiveSchoolYear]);
+
 	useNotificationStream({
-		schoolId: DEFAULT_SCHOOL_ID,
+		schoolId: actorSchoolId,
 		schoolYearId: selectedYearId,
-		enabled: Boolean(bridgeUser),
+		enabled: actorSchoolId != null,
+		schoolEventsEnabled: isAdmin,
+		onEvent: handleNotification,
 	});
 
 	const mobileNavItems = useMemo(() => {
@@ -222,24 +276,35 @@ export function AppShell() {
 	}, [isTimetableRoute, location.pathname]);
 
 	useEffect(() => {
-		resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
-			.then((context) => {
-				runtimeYearRef.current = {
-					id: context.activeSchoolYearId,
-					label: context.activeSchoolYearLabel ?? null,
-				};
-				setSelectedYearId(context.activeSchoolYearId);
-				if (context.activeSchoolYearLabel) setActiveYearLabel(context.activeSchoolYearLabel);
-				if (context.activeTerm?.activeTerm) setActiveTermLabel(context.activeTerm.activeTerm);
-			})
-			.catch(() => {});
-	}, []);
+		if (!actorSchoolId) {
+			runtimeYearRef.current = { id: null, label: null };
+			setSelectedYearId(null);
+			setActiveYearLabel(null);
+			setActiveTermLabel(null);
+			setRolloverNotice(null);
+			return;
+		}
+		setRolloverNotice(readRolloverAwarenessNotice(actorSchoolId));
+		void verifyActiveSchoolYear('initial');
+	}, [actorSchoolId, verifyActiveSchoolYear]);
+
+	useEffect(() => {
+		if (!actorSchoolId) return;
+		const recover = () => { if (navigator.onLine) void verifyActiveSchoolYear('recovery'); };
+		const onVisibilityChange = () => { if (document.visibilityState === 'visible') recover(); };
+		window.addEventListener('focus', recover);
+		window.addEventListener('online', recover);
+		document.addEventListener('visibilitychange', onVisibilityChange);
+		return () => {
+			window.removeEventListener('focus', recover);
+			window.removeEventListener('online', recover);
+			document.removeEventListener('visibilitychange', onVisibilityChange);
+		};
+	}, [actorSchoolId, verifyActiveSchoolYear]);
 
 	useEffect(() => {
 		fetchPublicSettings()
 			.then((s) => {
-				const runtimeYearId = runtimeYearRef.current.id;
-				const runtimeYearLabel = runtimeYearRef.current.label;
 				const raw = s.schoolName || 'High School';
 				const hsLabel = /high\s*school/i.test(raw) ? raw : `${raw}`;
 				const nextSchoolName = `ATLAS ${hsLabel}`;
@@ -257,18 +322,6 @@ export function AppShell() {
 					}
 					link.href = faviconUrl;
 				}
-
-				if (!runtimeYearId && s.activeSchoolYearId) setSelectedYearId(s.activeSchoolYearId);
-				if (!runtimeYearLabel && s.activeSchoolYearLabel) setActiveYearLabel(s.activeSchoolYearLabel);
-				if (!runtimeYearId) cacheActiveSchoolYearContext(s.activeSchoolYearId ?? null, s.activeSchoolYearLabel ?? null);
-				fetchSchoolYears().then((years) => {
-					setSchoolYears(years);
-					if (!runtimeYearLabel && !s.activeSchoolYearLabel) {
-						const effectiveYearId = runtimeYearId ?? s.activeSchoolYearId;
-						const active = years.find((y) => y.id === effectiveYearId);
-						if (active) setActiveYearLabel(active.yearLabel);
-					}
-				});
 
 				applyEnrollProAccentTheme(s.selectedAccentHsl);
 			})
@@ -424,21 +477,37 @@ export function AppShell() {
 										Active Term: {activeTermLabel}
 									</Badge>
 								)}
-								<SchoolYearSwitcher
-									schoolYears={schoolYears}
-									selectedYearId={selectedYearId}
-									open={syOpen}
-									onToggle={() => setSyOpen(!syOpen)}
-									onSelect={(sy) => {
-										setSelectedYearId(sy.id);
-										setActiveYearLabel(sy.yearLabel);
-										setSyOpen(false);
-									}}
-								/>
+								{activeYearLabel && (
+									<Badge variant='outline' className='min-h-7 px-2 text-xs'>
+										Active year: {activeYearLabel}
+									</Badge>
+								)}
 							</div>
 						</>
 					)}
 				</header>
+
+				{rolloverNotice && (
+					<section
+						role='status'
+						aria-live='polite'
+						data-testid='rollover-awareness-notice'
+						className='flex flex-col gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between'
+					>
+						<p className='leading-relaxed'>
+							School year changed to <strong>{rolloverNotice.activeSchoolYearLabel}</strong>.{' '}
+							{rolloverNotice.previousSchoolYearLabel} is archived and read-only. This page refreshed with the new active year.
+						</p>
+						<div className='flex flex-wrap gap-2'>
+							<Button asChild variant='outline' className='min-h-11 bg-white'>
+								<Link to={`/teaching-load/history?schoolYearId=${rolloverNotice.previousSchoolYearId}`}>View archived load</Link>
+							</Button>
+							<Button asChild variant='ghost' className='min-h-11'>
+								<Link to='/admin/year-setup'>Year Setup</Link>
+							</Button>
+						</div>
+					</section>
+				)}
 
 				{isMobile && (
 					<MobileNavigationDrawer
@@ -452,7 +521,7 @@ export function AppShell() {
 
 				<AnimatePresence mode="wait">
 					<motion.div
-						key={location.pathname}
+						key={`${location.pathname}:${routeEpoch}`}
 						initial={reduceMotion ? false : { opacity: 0 }}
 						animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
 						exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
@@ -460,7 +529,7 @@ export function AppShell() {
 						className={`flex-1 min-h-0 overflow-hidden ${isMobile && isFaculty ? 'pb-16' : ''}`}
 					>
 						<Suspense fallback={suspenseFallback}>
-							{outlet && React.cloneElement(outlet as React.ReactElement, { key: location.pathname })}
+							{outlet && React.cloneElement(outlet as React.ReactElement, { key: `${location.pathname}:${routeEpoch}` })}
 						</Suspense>
 					</motion.div>
 				</AnimatePresence>

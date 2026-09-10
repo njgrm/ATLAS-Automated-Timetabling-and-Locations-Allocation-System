@@ -44,6 +44,7 @@ import timetableSyncSetupRouter from './routes/timetable-sync-setup.router.js';
 import timetableQuickPlaceRouter from './routes/timetable-quick-place.router.js';
 import timetableUnassignedRouter from './routes/timetable-unassigned.router.js';
 import notificationRouter from './routes/notification.router.js';
+import teachingLoadHistoryRouter from './routes/teaching-load-history.router.js';
 import { initializeNotificationEventBridges } from './services/notification-events.service.js';
 
 const app = express();
@@ -118,6 +119,7 @@ app.use('/api/v1/specialization-aliases', specializationAliasRouter);
 app.use('/api/v1/runtime', runtimeRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1/notifications', notificationRouter);
+app.use('/api/v1/teaching-load', teachingLoadHistoryRouter);
 
 app.use(errorHandler);
 
