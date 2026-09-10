@@ -1,6 +1,6 @@
 # RR-UX01 — Rollover Awareness and Historical Teaching Load
 
-Status: `READY_FOR_EXECUTION`  
+Status: `READY_FOR_EXECUTION`
 Risk: `MEDIUM` source/UI; no live mutation
 
 ## Objective
@@ -94,4 +94,3 @@ evidence. Do not cross into GEN-ZW01 ownership.
 Return `REVIEW_REQUIRED` with base/candidate SHAs, exact changed paths, decisive
 tests, browser evidence, remaining risks, and collision proof. No live rollover,
 Teaching Load apply, generation, publication, merge, or push.
-

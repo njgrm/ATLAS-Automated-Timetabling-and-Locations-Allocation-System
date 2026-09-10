@@ -166,4 +166,3 @@ current task remains the integration planner and can inspect, message, and wait
 for those tasks directly, eliminating manual report relay. External OpenCode
 sessions cannot be observed by Codex; if they are used, the user must return at
 least the worktree, branch, base SHA, and candidate SHA.
-

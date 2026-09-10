@@ -1,6 +1,6 @@
 # TERM-SUBJ-C01 — EnrollPro Term and Subject Scheduling Authority
 
-Status: `READY_FOR_EXECUTION`  
+Status: `READY_FOR_EXECUTION`
 Risk: `MEDIUM` source plus migration candidate; live migration remains `HIGH`
 
 ## Objective
@@ -85,4 +85,3 @@ Return `REVIEW_REQUIRED` with base/candidate SHAs, exact paths, migration proof,
 contract examples, decisive tests, known risks, and collision proof. No live
 migration, demand materialization, Teaching Load apply, generation, publication,
 merge, or push.
-

@@ -1,6 +1,6 @@
 # GEN-ZW01 — Passive Generation and Teaching Load Audit Closure
 
-Status: `READY_FOR_EXECUTION`  
+Status: `READY_FOR_EXECUTION`
 Risk: `MEDIUM` source; live generation and data apply remain `HIGH`
 
 ## Objective
@@ -74,4 +74,3 @@ Return `REVIEW_REQUIRED` with base/candidate SHAs, exact paths, removed mutators
 transaction/audit behavior, decisive tests, remaining risks, and collision
 proof. Do not access the live database for writes, generate, publish, migrate,
 merge, or push.
-
