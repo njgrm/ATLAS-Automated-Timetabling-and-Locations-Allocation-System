@@ -217,7 +217,14 @@ Branch/worktree: `work/timetable-ux-01` Â· `D:/ATLAS-worktrees/timetable-ux-01
   and a new R1 repair test, and re-ran `test:timetable-operator-ux` 58/58 plus
   the controlled Playwright fixture matrix 8/8. F2/F3 remain recorded as
   NON_BLOCKING pre-existing.
-- Reviewer 02 (fresh changed-scope): pending, appended when returned.
+- Reviewer 02 (fresh changed-scope context `ses_f724793b2ffeg18BV8zET5KLLC`):
+  base `aab8fb00` ... candidate `cf03ed78`; verdict `ACCEPT_READY`.
+  - F1 CLOSED at the production path; no ungated `onOpenTeacherDeparture` call
+    site remains.
+  - F5 NON_BLOCKING: the ledger carried mojibake from a local re-save. Corrected
+    in `a1e1bce6` (docs-only; em/en dashes restored to UTF-8).
+  - Reran `test:timetable-operator-ux` 58/58, full client suite 179/179,
+    `tsc --noEmit` exit 0, `git diff --check` clean.
 
 ## Remaining risks / next planner action
 
@@ -228,3 +235,7 @@ Branch/worktree: `work/timetable-ux-01` Â· `D:/ATLAS-worktrees/timetable-ux-01
   owner accepts it over explicit before/after review.
 - F2 (Advanced Requests gate) and F3 (Advanced duplicate-publish guard) are
   pre-existing, out of this prompt's edit scope, and recorded for the planner.
+- Final code acceptance is at `cf03ed78` (Reviewer 02). `a1e1bce6` is a
+  docs-only ledger encoding correction on top of it; rerun code gates only if
+  integration rebases source.
+
