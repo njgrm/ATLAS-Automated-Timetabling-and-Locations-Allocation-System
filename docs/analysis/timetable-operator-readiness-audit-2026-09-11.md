@@ -59,4 +59,3 @@ TT-UX01R must keep the existing candidate history, add one correction commit,
 and make Simple and Advanced mode consume one fail-closed capability model. It
 must not implement DEMAND-C01, call generation, save a draft, publish, restart
 the shared runtime, or edit server/Teaching Load/EnrollPro source.
-
