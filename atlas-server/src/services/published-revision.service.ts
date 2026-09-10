@@ -1,6 +1,9 @@
 import type { Prisma, PublishedScheduleRevision } from '@prisma/client';
-import { prisma } from '../lib/prisma.js';
+import { createHash } from 'node:crypto';
+import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
+
+const db = () => getDataContext();
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -43,6 +46,8 @@ export type CreatePublishedScheduleRevisionInput = {
 export type CreatePublishedScheduleRevisionResult = {
 	revision: PublishedScheduleRevision;
 	auditId: number;
+	replayed: boolean;
+	notificationDelivery: 'DELIVERED' | 'FAILED_AFTER_COMMIT';
 };
 
 function err(
@@ -122,7 +127,7 @@ function normalizeChanges(changes: PublishedRevisionEntryChange[] | null | undef
 		throw err(400, 'REVISION_CHANGES_REQUIRED', 'Published revisions require at least one changed entry.');
 	}
 
-	return changes.map((change, index) => {
+	const normalized = changes.map((change, index) => {
 		const entryId = typeof change?.entryId === 'string' ? change.entryId.trim() : '';
 		if (!entryId) {
 			throw err(400, 'REVISION_CHANGE_ENTRY_REQUIRED', `Revision change ${index + 1} must include an entryId.`);
@@ -132,6 +137,25 @@ function normalizeChanges(changes: PublishedRevisionEntryChange[] | null | undef
 		}
 		if (!change.next || typeof change.next !== 'object' || Array.isArray(change.next)) {
 			throw err(400, 'REVISION_NEW_VALUES_REQUIRED', `Revision change ${entryId} must include new values.`);
+		}
+		const allowedFields = new Set(['facultyId', 'roomId', 'day', 'startTime', 'endTime', 'subjectId', 'sectionId', 'termIndex']);
+		const unknownFields = [...Object.keys(change.previous), ...Object.keys(change.next)].filter((field) => !allowedFields.has(field));
+		if (unknownFields.length > 0) {
+			throw err(400, 'REVISION_CHANGE_FIELD_INVALID', `Revision change ${entryId} contains unsupported fields.`, { details: { entryId, unknownFields } });
+		}
+		if (change.next.termIndex !== undefined && (typeof change.next.termIndex !== 'number' || ![1, 2, 3].includes(change.next.termIndex))) {
+			throw err(400, 'REVISION_TERM_INDEX_INVALID', `Revision change ${entryId} must use termIndex 1, 2, or 3.`);
+		}
+		const nextFields = Object.keys(change.next);
+		if (nextFields.length === 0 || nextFields.some((field) => !Object.prototype.hasOwnProperty.call(change.previous, field))) {
+			throw err(400, 'REVISION_PREVIOUS_VALUES_INCOMPLETE', `Revision change ${entryId} must include the current previous value for every changed field.`);
+		}
+		for (const [field, value] of [...Object.entries(change.previous), ...Object.entries(change.next)]) {
+			if (['facultyId', 'roomId'].includes(field) && value !== null && (!Number.isInteger(value) || Number(value) < 1)) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', `${field} must be a positive integer or null.`);
+			if (['subjectId', 'sectionId'].includes(field) && (!Number.isInteger(value) || Number(value) < 1)) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', `${field} must be a positive integer.`);
+			if (field === 'day' && (typeof value !== 'string' || !['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'].includes(value))) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', 'day must be a school weekday.');
+			if (['startTime', 'endTime'].includes(field) && (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', `${field} must use HH:mm.`);
+			if (field === 'termIndex' && (typeof value !== 'number' || ![1, 2, 3].includes(value))) throw err(400, 'REVISION_TERM_INDEX_INVALID', `Revision change ${entryId} must use termIndex 1, 2, or 3.`);
 		}
 
 		return {
@@ -143,6 +167,11 @@ function normalizeChanges(changes: PublishedRevisionEntryChange[] | null | undef
 			next: change.next,
 		};
 	});
+	const entryIds = normalized.map((change) => change.entryId);
+	if (new Set(entryIds).size !== entryIds.length) {
+		throw err(400, 'REVISION_CHANGE_DUPLICATE_ENTRY', 'Each entryId may appear only once in a published revision.');
+	}
+	return normalized;
 }
 
 function buildValueSnapshot(changes: PublishedRevisionEntryChange[], side: 'previous' | 'next') {
@@ -154,7 +183,7 @@ function buildValueSnapshot(changes: PublishedRevisionEntryChange[], side: 'prev
 
 export async function createPublishedScheduleRevision(
 	input: CreatePublishedScheduleRevisionInput,
-	options?: { now?: Date },
+	options?: { now?: Date; publishEvent?: (event: Parameters<typeof publishPublishedScheduleEvent>[0]) => unknown },
 ): Promise<CreatePublishedScheduleRevisionResult> {
 	if (!isPositiveInteger(input.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive integer.');
 	if (!isPositiveInteger(input.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive integer.');
@@ -169,53 +198,120 @@ export async function createPublishedScheduleRevision(
 	const changes = normalizeChanges(input.changes);
 	const actorId = input.actorId != null && isPositiveInteger(input.actorId) ? input.actorId : null;
 
-	const sourceRun = await prisma.generationRun.findFirst({
-		where: {
-			id: input.sourceRunId,
-			schoolId: input.schoolId,
-			schoolYearId: input.schoolYearId,
-		},
-		select: {
-			id: true,
-			schoolId: true,
-			schoolYearId: true,
-			status: true,
-			summary: true,
-			version: true,
-		},
-	});
-
-	if (!sourceRun) {
-		throw err(404, 'SOURCE_RUN_NOT_FOUND', 'Source generation run was not found in this school/year scope.');
-	}
-	if (sourceRun.status !== 'COMPLETED' || !isPublishedSummary(sourceRun.summary)) {
-		throw err(422, 'PUBLISHED_SOURCE_REQUIRED', 'Published revisions require a completed published source run.', {
-			details: { sourceRunId: input.sourceRunId, status: sourceRun.status },
-		});
-	}
-
-	if (input.sourceRevisionId != null) {
-		const sourceRevision = await prisma.publishedScheduleRevision.findFirst({
-			where: {
-				id: input.sourceRevisionId,
-				schoolId: input.schoolId,
-				schoolYearId: input.schoolYearId,
-				sourceRunId: input.sourceRunId,
-			},
-			select: { id: true },
-		});
-		if (!sourceRevision) {
-			throw err(404, 'SOURCE_REVISION_NOT_FOUND', 'Source published revision was not found for this source run.');
-		}
-	}
-
 	const changedEntryIds = changes.map((change) => change.entryId);
 	const changeSummary = input.changeSummary ?? {
 		changeCount: changes.length,
 		entryIds: changedEntryIds,
 	};
+	const idempotencyKey = revisionIdempotencyKey({
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		sourceRunId: input.sourceRunId,
+		sourceRevisionId: input.sourceRevisionId ?? null,
+		effectiveDate: effectiveDate.toISOString(),
+		reason,
+		changes,
+	});
+	const result = await db().$transaction(async (tx) => {
+		await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1, $2)', input.schoolId, input.schoolYearId);
 
-	const result = await prisma.$transaction(async (tx) => {
+		const activeYears = await tx.enrollProSchoolYearMirror.findMany({
+			where: { schoolId: input.schoolId, isActive: true, isArchived: false },
+			select: { enrollProSchoolYearId: true },
+			take: 2,
+		});
+		if (activeYears.length !== 1 || activeYears[0].enrollProSchoolYearId !== input.schoolYearId) {
+			throw err(409, 'PUBLISHED_REVISION_ACTIVE_YEAR_REQUIRED', 'Published revisions require the single runtime-active school year.');
+		}
+		const termConfig = await tx.schoolYearTermConfig.findUnique({
+			where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
+			select: { termCount: true, termIdentities: true, isActive: true },
+		});
+		const termIdentities = Array.isArray(termConfig?.termIdentities) ? termConfig.termIdentities : [];
+		const normalizedTerms = termIdentities.map((identity) => typeof identity === 'string' ? identity.trim() : '');
+		if (!termConfig?.isActive || termConfig.termCount !== 3 || normalizedTerms.length !== 3
+			|| normalizedTerms.some((identity) => identity.length === 0) || new Set(normalizedTerms).size !== 3) {
+			throw err(409, 'PUBLISHED_REVISION_TERM_CONTRACT_INVALID', 'Published revisions require the current ordered three-term configuration.');
+		}
+
+		const sourceRun = await tx.generationRun.findFirst({
+			where: { id: input.sourceRunId, schoolId: input.schoolId, schoolYearId: input.schoolYearId },
+			select: { id: true, status: true, runType: true, summary: true, version: true },
+		});
+		if (!sourceRun) throw err(404, 'SOURCE_RUN_NOT_FOUND', 'Source generation run was not found in this school/year scope.');
+		const publication = asSummaryRecord(asSummaryRecord(sourceRun.summary).publication);
+		if (sourceRun.status !== 'COMPLETED' || sourceRun.runType !== 'FULL' || !isPublishedSummary(sourceRun.summary)
+			|| Number(publication.sourceRunVersion) !== sourceRun.version) {
+			throw err(422, 'PUBLISHED_SOURCE_REQUIRED', 'Published revisions require the exact current official published source run.', {
+				details: { sourceRunId: input.sourceRunId, status: sourceRun.status, runType: sourceRun.runType },
+			});
+		}
+		const baseRevisionId = Number(publication.revisionId);
+		if (!Number.isInteger(baseRevisionId) || baseRevisionId < 1) {
+			throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The published source has no valid immutable base revision pointer.');
+		}
+		const baseRevision = await tx.publishedScheduleRevision.findFirst({
+			where: { id: baseRevisionId, schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId },
+			select: { sourceRevisionId: true, reason: true, metadata: true },
+		});
+		const baseMetadata = asSummaryRecord(baseRevision?.metadata);
+		if (!baseRevision || baseRevision.sourceRevisionId !== null || baseRevision.reason !== 'INITIAL_PUBLICATION'
+			|| baseMetadata.publicationBase !== true || Number(baseMetadata.sourceRunVersion) !== sourceRun.version) {
+			throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The published source base revision is missing or invalid.');
+		}
+
+		const revisionChain = await tx.publishedScheduleRevision.findMany({
+			where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, status: { in: ['SCHEDULED', 'SUPERSEDED'] } },
+			orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+			select: { id: true, changeSet: true },
+		});
+		const latestRevisionId = revisionChain.at(-1)?.id ?? baseRevisionId;
+		if (input.sourceRevisionId !== latestRevisionId) {
+			throw err(409, 'SOURCE_REVISION_STALE', 'The revision must be based on the latest published revision.', { details: { expectedSourceRevisionId: latestRevisionId } });
+		}
+		const existingEntries = await tx.$queryRawUnsafe<Array<{ entryId: string; entry: Record<string, unknown> }>>(
+			`SELECT elem->>'entryId' AS "entryId", elem AS "entry"
+			 FROM "generation_runs" r,
+			 jsonb_array_elements(r."draft_entries") WITH ORDINALITY AS entry(elem, ord)
+			 WHERE r.id = $1 AND elem->>'entryId' = ANY($2::text[])
+			 ORDER BY entry.ord ASC`,
+			input.sourceRunId,
+			changedEntryIds,
+		);
+		const existingEntryIds = new Set(existingEntries.map((entry) => entry.entryId));
+		if (existingEntries.length !== changedEntryIds.length || changedEntryIds.some((entryId) => !existingEntryIds.has(entryId))
+			|| existingEntries.some((entry) => ![1, 2, 3].includes(Number(entry.entry.termIndex)))) {
+			throw err(422, 'REVISION_ENTRY_NOT_FOUND', 'Every revision change must target one valid entry in the published source run.');
+		}
+		const effectiveEntries = new Map(existingEntries.map((entry) => [entry.entryId, { ...entry.entry }]));
+		for (const revision of revisionChain) {
+			if (!Array.isArray(revision.changeSet)) continue;
+			for (const raw of revision.changeSet) {
+				const prior = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
+				const entryId = typeof prior?.entryId === 'string' ? prior.entryId : '';
+				const next = prior?.next && typeof prior.next === 'object' && !Array.isArray(prior.next) ? prior.next as Record<string, unknown> : null;
+				if (next && effectiveEntries.has(entryId)) Object.assign(effectiveEntries.get(entryId)!, next);
+			}
+		}
+		for (const change of changes) {
+			const current = effectiveEntries.get(change.entryId)!;
+			for (const [field, expected] of Object.entries(change.previous)) {
+				if (!Object.is(current[field], expected)) throw err(409, 'REVISION_PREVIOUS_VALUES_STALE', `Revision change ${change.entryId} no longer matches current published values.`, { details: { entryId: change.entryId, field } });
+			}
+		}
+
+		const replay = await tx.publishedScheduleRevision.findFirst({
+			where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, metadata: { path: ['idempotencyKey'], equals: idempotencyKey } },
+		});
+		if (replay) {
+			const replayAudit = await tx.auditLog.findFirst({
+				where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, action: 'PUBLISHED_SCHEDULE_REVISION_CREATED', targetIds: { has: replay.id } },
+				select: { id: true },
+			});
+			if (!replayAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay has no matching audit record.');
+			return { revision: replay, auditId: replayAudit.id, replayed: true };
+		}
+
 		const revision = await tx.publishedScheduleRevision.create({
 			data: {
 				schoolId: input.schoolId,
@@ -232,6 +328,7 @@ export async function createPublishedScheduleRevision(
 				newValues: buildValueSnapshot(changes, 'next') as Prisma.InputJsonValue,
 				metadata: {
 					...(input.metadata ?? {}),
+					idempotencyKey,
 					sourceRunVersion: sourceRun.version,
 					publishedAt: asSummaryRecord(sourceRun.summary).publishedAt ?? null,
 				} as Prisma.InputJsonValue,
@@ -259,8 +356,8 @@ export async function createPublishedScheduleRevision(
 			},
 		});
 
-		return { revision, auditId: audit.id };
-	});
+		return { revision, auditId: audit.id, replayed: false };
+	}, { isolationLevel: 'Serializable' });
 
 	// Fire notification event after successful commit
 	const affectedFacultyIdsSet = new Set<number>();
@@ -279,23 +376,30 @@ export async function createPublishedScheduleRevision(
 	const affectedFacultyIds = [...affectedFacultyIdsSet];
 	const affectedTermIndices = [...affectedTerms].sort();
 
-	publishPublishedScheduleEvent({
-		type: 'SCHEDULE_REVISED',
-		schoolId: input.schoolId,
-		schoolYearId: input.schoolYearId,
-		message: `Published schedule has been revised (effective date: ${effectiveDate.toISOString().slice(0, 10)}). Reason: ${reason}`,
-		metadata: {
-			revisionId: result.revision.id,
-			sourceRunId: input.sourceRunId,
-			effectiveDate: effectiveDate.toISOString(),
-			reason,
-			affectedFacultyIds,
-			changeCount: changes.length,
-			affectedTermIndices: affectedTermIndices.length > 0 ? affectedTermIndices : null,
-		},
-	});
+	let notificationDelivery: CreatePublishedScheduleRevisionResult['notificationDelivery'] = 'DELIVERED';
+	if (!result.replayed) {
+		try {
+			(options?.publishEvent ?? publishPublishedScheduleEvent)({
+				type: 'SCHEDULE_REVISED',
+				schoolId: input.schoolId,
+				schoolYearId: input.schoolYearId,
+				message: `Published schedule has been revised (effective date: ${effectiveDate.toISOString().slice(0, 10)}). Reason: ${reason}`,
+				metadata: {
+					revisionId: result.revision.id,
+					sourceRunId: input.sourceRunId,
+					effectiveDate: effectiveDate.toISOString(),
+					reason,
+					affectedFacultyIds,
+					changeCount: changes.length,
+					affectedTermIndices: affectedTermIndices.length > 0 ? affectedTermIndices : null,
+				},
+			});
+		} catch {
+			notificationDelivery = 'FAILED_AFTER_COMMIT';
+		}
+	}
 
-	return result;
+	return { ...result, notificationDelivery };
 }
 
 export async function listPublishedScheduleRevisions(params: {
@@ -309,7 +413,7 @@ export async function listPublishedScheduleRevisions(params: {
 		throw err(400, 'INVALID_SOURCE_RUN_ID', 'sourceRunId must be a positive integer when provided.');
 	}
 
-	return prisma.publishedScheduleRevision.findMany({
+	return db().publishedScheduleRevision.findMany({
 		where: {
 			schoolId: params.schoolId,
 			schoolYearId: params.schoolYearId,
@@ -317,4 +421,16 @@ export async function listPublishedScheduleRevisions(params: {
 		},
 		orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }],
 	});
+}
+
+function revisionIdempotencyKey(input: {
+	schoolId: number;
+	schoolYearId: number;
+	sourceRunId: number;
+	sourceRevisionId: number | null;
+	effectiveDate: string;
+	reason: string;
+	changes: PublishedRevisionEntryChange[];
+}): string {
+	return createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }

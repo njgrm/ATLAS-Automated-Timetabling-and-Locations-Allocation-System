@@ -155,10 +155,14 @@ router.post(
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			const actorSchoolId = req.user?.schoolId;
+			if (!actorSchoolId) { res.status(403).json({ code: 'ACTOR_SCHOOL_UNRESOLVED', message: 'Publication requires an authenticated school scope.' }); return; }
+			if (actorSchoolId !== schoolId) { res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'The authenticated actor cannot publish another school\'s schedule.' }); return; }
 			const acknowledgeSoftViolations = req.body?.acknowledgeSoftViolations === true;
 
 			const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId, {
 				acknowledgeSoftViolations,
+				actorSchoolId,
 			});
 			res.json({ run });
 		} catch (e) { next(e); }

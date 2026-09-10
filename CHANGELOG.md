@@ -3446,3 +3446,23 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 - The live generation-readiness baseline must be recomputed after the apply
   before the next implementation streams are issued.
+
+## [2026-09-10] — Publication Contract Readiness
+
+### Added
+- Added one server-owned initial-publication authority contract and focused hermetic production-route tests.
+- Added immutable base-publication revision, audit, idempotency, concurrency, malformed-input, and notification-boundary coverage.
+
+### Changed
+- Publication now revalidates actor school, runtime-active year, ordered term configuration, exact run/version, current authoritative inputs, hard violations, and required unassigned sessions inside one serializable transaction.
+- Published schedule reads now select a lightweight published candidate directly and require its exact base revision/run-version binding before loading schedule entries.
+- Generation input snapshots now include Teaching Load cycle and persisted curriculum term/offering revision signals.
+
+### Decisions Made
+- Database publication truth is atomic; process-local notification delivery remains an explicit post-commit limitation.
+- Existing published-schedule response fields remain backward compatible, so AIMS and SMART require no source change for PUB-C01.
+- Live generation, publication, service restart, schema/migration changes, and companion-repository edits remain out of scope.
+
+### Open Questions
+- Durable exactly-once notification delivery would require a separately approved outbox/schema design.
+- Actual publication still requires a fingerprinted preview, independent pre-action review, and explicit operator approval.

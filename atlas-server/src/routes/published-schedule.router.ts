@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { extractSseToken } from '../middleware/authenticate.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
@@ -18,6 +18,7 @@ import {
 } from '../services/published-schedule-events.service.js';
 
 const router = Router();
+const db = () => getDataContext();
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
@@ -57,12 +58,19 @@ function parseTermIndexQuery(raw: unknown): number | 'active' | 'INVALID' | unde
 }
 
 async function resolveActiveSchoolYearId(schoolId: number): Promise<number | null> {
-	const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
-		where: { schoolId, isActive: true },
+	const mirrors = await db().enrollProSchoolYearMirror.findMany({
+		where: { schoolId, isActive: true, isArchived: false },
 		orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
 		select: { enrollProSchoolYearId: true },
+		take: 2,
 	});
-	return mirror?.enrollProSchoolYearId ?? null;
+	if (mirrors.length > 1) {
+		const error = new Error('Multiple active school years are configured.') as Error & { statusCode: number; code: string };
+		error.statusCode = 409;
+		error.code = 'ACTIVE_SCHOOL_YEAR_AMBIGUOUS';
+		throw error;
+	}
+	return mirrors[0]?.enrollProSchoolYearId ?? null;
 }
 
 router.get('/schools/:schoolId/schedules/published', async (req: Request, res: Response, next: NextFunction) => {
@@ -74,13 +82,14 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 		}
 
 		// Resolve the current active school year from the EnrollPro mirror
-		const activeMirror = await prisma.enrollProSchoolYearMirror.findFirst({
-			where: { schoolId, isActive: true },
+		const activeMirrors = await db().enrollProSchoolYearMirror.findMany({
+			where: { schoolId, isActive: true, isArchived: false },
 			orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
 			select: { enrollProSchoolYearId: true },
+			take: 2,
 		});
 
-		if (!activeMirror) {
+		if (activeMirrors.length === 0) {
 			res.status(404).json({
 				code: 'CURRENT_PUBLISHED_RUN_NOT_FOUND',
 				message: 'No active school year is configured. Cannot resolve the current published schedule.',
@@ -88,8 +97,12 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 			});
 			return;
 		}
+		if (activeMirrors.length > 1) {
+			res.status(409).json({ code: 'ACTIVE_SCHOOL_YEAR_AMBIGUOUS', message: 'Multiple active school years are configured. Published schedule scope is ambiguous.' });
+			return;
+		}
 
-		const activeSchoolYearId = activeMirror.enrollProSchoolYearId;
+		const activeSchoolYearId = activeMirrors[0].enrollProSchoolYearId;
 		const scheduleOptions = readScheduleOptions(req);
 		if (scheduleOptions.invalidTermIndex) {
 			res.status(400).json({

@@ -136,6 +136,7 @@ export async function computeGenerationInputSnapshot(
 		facultyMirrorAggregate,
 		facultySubjectAggregate,
 		ownershipAggregate,
+		teachingLoadCycle,
 		policy,
 		gradeWindowAggregate,
 		roomAggregate,
@@ -144,6 +145,9 @@ export async function computeGenerationInputSnapshot(
 		subjectAggregate,
 		classTemplateAggregate,
 		classTemplateSubjectAggregate,
+		termConfig,
+		offeringAggregate,
+		offeringTermAggregate,
 	] = await Promise.all([
 		client.facultyMirror.aggregate({
 			where: { schoolId, isStale: false },
@@ -159,6 +163,10 @@ export async function computeGenerationInputSnapshot(
 			where: { schoolId },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
+		}),
+		client.teachingLoadCycle.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+			select: { id: true, state: true, version: true, updatedAt: true },
 		}),
 		client.schedulingPolicy.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
@@ -199,10 +207,66 @@ export async function computeGenerationInputSnapshot(
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },
 		}),
+		client.schoolYearTermConfig.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+			select: { id: true, termCount: true, updatedAt: true },
+		}),
+		client.schoolYearOffering.aggregate({
+			where: { schoolId, schoolYearId, isActive: true },
+			_count: { _all: true },
+			_max: { id: true, version: true, updatedAt: true },
+		}),
+		client.offeringTermAssignment.aggregate({
+			where: { offering: { schoolId, schoolYearId, isActive: true } },
+			_count: { _all: true },
+			_max: { id: true, createdAt: true },
+		}),
 	]);
+	// Exact row-content revision digests close the aggregate max/count blind spot:
+	// any scoped source-row mutation changes at least one domain fingerprint, even
+	// when IDs/counts are stable or timestamps are restored out of order.
+	const exactRows = await client.$queryRawUnsafe<Array<{
+		teachingLoad: string;
+		policy: string;
+		rooms: string;
+		sections: string;
+		subjects: string;
+	}>>(`
+		SELECT
+			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
+				SELECT 'faculty' AS "tableName", id, to_jsonb(f.*) AS row FROM faculty_mirrors f WHERE school_id = $1 AND is_stale = false
+				UNION ALL SELECT 'facultySubject', id, to_jsonb(fs.*) FROM faculty_subjects fs WHERE school_id = $1
+				UNION ALL SELECT 'ownership', id, to_jsonb(o.*) FROM subject_section_ownerships o WHERE school_id = $1 AND school_year_id = $2
+				UNION ALL SELECT 'cycle', id, to_jsonb(c.*) FROM teaching_load_cycles c WHERE school_id = $1 AND school_year_id = $2
+			) x) AS "teachingLoad",
+			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
+				SELECT 'policy' AS "tableName", id, to_jsonb(p.*) AS row FROM scheduling_policies p WHERE school_id = $1 AND school_year_id = $2
+				UNION ALL SELECT 'window', id, to_jsonb(w.*) FROM grade_shift_windows w WHERE school_id = $1 AND school_year_id = $2
+			) x) AS "policy",
+			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
+				SELECT 'building' AS "tableName", id, to_jsonb(b.*) AS row FROM buildings b WHERE school_id = $1 AND is_teaching_building = true
+				UNION ALL SELECT 'room', r.id, to_jsonb(r.*) FROM rooms r JOIN buildings b ON b.id = r.building_id WHERE b.school_id = $1 AND b.is_teaching_building = true AND r.is_teaching_space = true
+			) x) AS "rooms",
+			(SELECT md5(COALESCE(string_agg(to_jsonb(s.*)::text, '|' ORDER BY s.id), '')) FROM section_mirrors s WHERE school_id = $1 AND school_year_id = $2 AND is_active_for_scheduling = true) AS "sections",
+			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
+				SELECT 'subject' AS "tableName", id, to_jsonb(s.*) AS row FROM subjects s WHERE school_id = $1 AND is_active = true
+				UNION ALL SELECT 'template', id, to_jsonb(t.*) FROM class_templates t WHERE school_id = $1 AND is_active = true
+				UNION ALL SELECT 'binding', cts.id, to_jsonb(cts.*) FROM class_template_subjects cts JOIN class_templates t ON t.id = cts.template_id WHERE t.school_id = $1
+				UNION ALL SELECT 'termConfig', id, to_jsonb(tc.*) FROM school_year_term_configs tc WHERE school_id = $1 AND school_year_id = $2
+				UNION ALL SELECT 'offering', id, to_jsonb(o.*) FROM school_year_offerings o WHERE school_id = $1 AND school_year_id = $2 AND is_active = true
+				UNION ALL SELECT 'offeringTerm', ota.id, to_jsonb(ota.*) FROM offering_term_assignments ota JOIN school_year_offerings o ON o.id = ota.offering_id WHERE o.school_id = $1 AND o.school_year_id = $2 AND o.is_active = true
+			) x) AS "subjects"
+	`, schoolId, schoolYearId);
+	const exact = exactRows[0];
+	if (!exact) throw new Error('GENERATION_INPUT_EXACT_DIGEST_UNAVAILABLE');
 
 	const domains: Record<GenerationInputDomain, GenerationInputDomainSnapshot> = {
 		teachingLoad: buildDomainSnapshot({
+			exactRevisionDigest: exact.teachingLoad,
+			cycleId: teachingLoadCycle?.id ?? null,
+			cycleState: teachingLoadCycle?.state ?? null,
+			cycleVersion: teachingLoadCycle?.version ?? null,
+			cycleUpdatedAt: iso(teachingLoadCycle?.updatedAt),
 			facultyCount: facultyMirrorAggregate._count._all,
 			facultyMaxId: facultyMirrorAggregate._max.id,
 			facultyMaxUpdatedAt: iso(facultyMirrorAggregate._max.updatedAt),
@@ -214,6 +278,7 @@ export async function computeGenerationInputSnapshot(
 			sectionOwnershipMaxUpdatedAt: iso(ownershipAggregate._max.updatedAt),
 		}),
 		policy: buildDomainSnapshot({
+			exactRevisionDigest: exact.policy,
 			policyId: policy?.id ?? null,
 			policyUpdatedAt: iso(policy?.updatedAt),
 			gradeWindowCount: gradeWindowAggregate._count._all,
@@ -221,6 +286,7 @@ export async function computeGenerationInputSnapshot(
 			gradeWindowMaxUpdatedAt: iso(gradeWindowAggregate._max.updatedAt),
 		}),
 		rooms: buildDomainSnapshot({
+			exactRevisionDigest: exact.rooms,
 			teachingRoomCount: roomAggregate._count._all,
 			teachingRoomMaxId: roomAggregate._max.id,
 			teachingRoomMaxUpdatedAt: iso(roomAggregate._max.updatedAt),
@@ -229,11 +295,23 @@ export async function computeGenerationInputSnapshot(
 			teachingBuildingMaxUpdatedAt: iso(buildingAggregate._max.updatedAt),
 		}),
 		sections: buildDomainSnapshot({
+			exactRevisionDigest: exact.sections,
 			activeSectionCount: sectionAggregate._count._all,
 			sectionMaxId: sectionAggregate._max.id,
 			sectionMaxUpdatedAt: iso(sectionAggregate._max.updatedAt),
 		}),
 		subjects: buildDomainSnapshot({
+			exactRevisionDigest: exact.subjects,
+			termConfigId: termConfig?.id ?? null,
+			termCount: termConfig?.termCount ?? null,
+			termConfigUpdatedAt: iso(termConfig?.updatedAt),
+			activeOfferingCount: offeringAggregate._count._all,
+			activeOfferingMaxId: offeringAggregate._max.id,
+			activeOfferingMaxVersion: offeringAggregate._max.version,
+			activeOfferingMaxUpdatedAt: iso(offeringAggregate._max.updatedAt),
+			offeringTermCount: offeringTermAggregate._count._all,
+			offeringTermMaxId: offeringTermAggregate._max.id,
+			offeringTermMaxCreatedAt: iso(offeringTermAggregate._max.createdAt),
 			activeSubjectCount: subjectAggregate._count._all,
 			subjectMaxId: subjectAggregate._max.id,
 			subjectMaxUpdatedAt: iso(subjectAggregate._max.updatedAt),
