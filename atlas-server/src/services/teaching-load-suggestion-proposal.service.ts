@@ -4,6 +4,10 @@ import { getDataContext } from '../lib/data-context.js';
 import { autoFill, type AutoFillResult, type CoverageMode } from './teaching-load-automation.service.js';
 import { assertTeachingLoadWriteAuthority } from './faculty-assignment.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
+
+// Matches the preview's selected standard mode cap (30h by default).
+const STANDARD_CAP_MINUTES = WORKLOAD_DEFAULTS.teachingStandardMinutes;
 
 const db = () => getDataContext();
 
@@ -243,6 +247,23 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 	});
 
 	const breakdown = suggestedAssignmentBreakdown(refreshedPreview);
+
+	// Compare the recomputed reallocation plan against the reviewed preview plan.
+	// A deterministic identity mismatch means the reviewed plan is stale; fail
+	// closed before any write.
+	const reviewedPlan = (existing.previewPayload as { distribution?: { moves?: Array<{ ownershipId: number; fromFacultyId: number; toFacultyId: number }> } } | null)?.distribution;
+	const refreshedPlan = refreshedPreview.distribution;
+	if (reviewedPlan && refreshedPlan) {
+		const planSignature = (plan: { moves?: Array<{ ownershipId: number; fromFacultyId: number; toFacultyId: number }> }) =>
+			(plan.moves ?? [])
+				.map((move) => `${move.ownershipId}:${move.fromFacultyId}>${move.toFacultyId}`)
+				.sort()
+				.join('|');
+		if (planSignature(reviewedPlan) !== planSignature(refreshedPlan)) {
+			throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'The reviewed reallocation plan changed since it was previewed. Preview a fresh proposal.');
+		}
+	}
+
 	const candidateRows = (refreshedPreview.suggestedRows ?? []).filter(
 		(row) => row.assignmentType === 'REAL_TEACHER' && Number.isInteger(row.facultyId) && (row.facultyId ?? 0) > 0,
 	);
@@ -320,6 +341,37 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 
 		const sectionGrade = new Map<number, number>(sectionRows.map((row: any) => [row.externalId, row.displayOrder]));
 		const alreadyOwned = new Set(ownershipRows.map((row: any) => `${row.subjectId}:${row.sectionId}:${row.facultyId}`));
+
+		// Resolve the sorted, unique grade levels for a set of section ids so the
+		// persisted FacultySubject.sectionIds/gradeLevels parity invariant holds
+		// after a move (moved sections may not be part of the insert candidate set).
+		const resolveGradeLevels = async (sectionIds: number[]): Promise<number[]> => {
+			const unique = [...new Set(sectionIds)];
+			const grades: number[] = [];
+			for (const sectionId of unique) {
+				const known = sectionGrade.get(sectionId);
+				if (known != null) {
+					grades.push(known);
+					continue;
+				}
+			}
+			const missing = unique.filter((sectionId) => !sectionGrade.has(sectionId));
+			if (missing.length > 0) {
+				const mirrors = await tx.sectionMirror.findMany({
+					where: {
+						schoolId: existing.schoolId,
+						schoolYearId: existing.schoolYearId,
+						externalId: { in: missing },
+					},
+					select: { externalId: true, displayOrder: true },
+				});
+				for (const mirror of mirrors) {
+					sectionGrade.set(mirror.externalId, mirror.displayOrder);
+					grades.push(mirror.displayOrder);
+				}
+			}
+			return [...new Set(grades)].sort((a, b) => a - b);
+		};
 		const grouped = new Map<string, { facultyId: number; subjectId: number; sectionIds: number[] }>();
 		for (const row of candidateRows) {
 			const facultyId = row.facultyId as number;
@@ -439,7 +491,10 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				(sum, row) => sum + Math.max(0, Number(row.facultySubject?.subject?.minMinutesPerWeek ?? 0) || 0),
 				0,
 			);
-			const receiverCapMinutes = Math.max(0, receiver.maxHoursPerWeek * 60);
+			// Match the preview's selected mode (standard) rather than the looser
+			// absolute cap, so a concurrent receiver-load change cannot push the
+			// receiver past the standard limit the operator reviewed.
+			const receiverCapMinutes = Math.min(Math.max(0, receiver.maxHoursPerWeek * 60), STANDARD_CAP_MINUTES);
 			if (receiverTeachingMinutes + move.minutes > receiverCapMinutes) {
 				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed receiver no longer has capacity for this move. Preview a fresh proposal.');
 			}
@@ -460,7 +515,11 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				const mergedSections = [...new Set([...existingReceiverFs.sectionIds, move.sectionId])].sort((a, b) => a - b);
 				await tx.facultySubject.update({
 					where: { id: receiverFacultySubjectId },
-					data: { sectionIds: mergedSections, assignedBy: input.actorId },
+					data: {
+						sectionIds: mergedSections,
+						gradeLevels: await resolveGradeLevels(mergedSections),
+						assignedBy: input.actorId,
+					},
 				});
 			} else {
 				const createdReceiverFs = await tx.facultySubject.create({
@@ -469,7 +528,7 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 						subjectId: move.subjectId,
 						schoolId: existing.schoolId,
 						schoolYearId: existing.schoolYearId,
-						gradeLevels: [],
+						gradeLevels: await resolveGradeLevels([move.sectionId]),
 						sectionIds: [move.sectionId],
 						assignedBy: input.actorId,
 					},
@@ -492,9 +551,13 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				if (remainingSections.length === 0) {
 					await tx.facultySubject.delete({ where: { id: move.facultySubjectId } });
 				} else {
+					const sortedRemaining = remainingSections.sort((a, b) => a - b);
 					await tx.facultySubject.update({
 						where: { id: move.facultySubjectId },
-						data: { sectionIds: remainingSections.sort((a, b) => a - b) },
+						data: {
+							sectionIds: sortedRemaining,
+							gradeLevels: await resolveGradeLevels(sortedRemaining),
+						},
 					});
 				}
 			}

@@ -13,8 +13,15 @@
 - `AutoFillSummaryModal` renders a distinct "Coverage complete, rebalance proposed" state with one apply action; the misleading "everyone is within their workload capacity" copy is removed.
 - Corrected the prior handoff's changed-path count to 26.
 
+### Correction (independent review follow-up)
+- Fail closed on distribution-evaluation failure: the preview summary carries `distributionEvaluated`, and `balanced` is forced false when the over-cap evaluator could not run (exception, or zero sections resolved).
+- `unresolvedImbalance` counts a donor only when the proposed moves cover the whole excess; `hardCapBreaches` compares total credited minutes against the absolute cap.
+- The reviewed-proposal apply recomputes receiver and donor `FacultySubject.gradeLevels` from the resulting `sectionIds` (parity invariant) and re-checks receiver capacity against the selected standard mode, while still re-validating ownership and capacity inside the Serializable transaction.
+- The refreshed reallocation plan is compared against the reviewed preview plan before any write; a mismatch returns `TEACHING_LOAD_PROPOSAL_STALE`.
+- The modal shows a neutral "balance not evaluated" state when distribution is missing, and shows the distribution counts even when a coverage shortage coexists.
+
 ### Verification
-- Server/client `tsc --noEmit` and production builds pass; server distribution tests 9/9; client ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21.
+- Server/client `tsc --noEmit` and production builds pass; server distribution tests 12/12; client ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21.
 - Isolated-candidate Playwright at 1440x900, 390x844, and 320px reflow shows the move preview, separate counts, and one keyboard-reachable apply action with zero forbidden writes.
 - Live read-only proof: year 9 has 7 above-standard donors (37.5h each), 14 exact moves, and the idle ESP/FIL receivers; `previewOnly` apply is false and the before/after signature is identical (265/265, 42 faculty, 0 runs).
 

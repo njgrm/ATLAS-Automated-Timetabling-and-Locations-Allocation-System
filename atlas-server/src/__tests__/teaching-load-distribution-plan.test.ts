@@ -108,6 +108,48 @@ test('uncovered rows always falsify balanced even when nobody is over standard',
 	assert.equal(summary.balanced, false);
 });
 
+test('an unevaluated distribution can never be reported as balanced', () => {
+	const summary = summarizeDistributionPlan({
+		coveredRows: 265,
+		uncoveredRows: 0,
+		moves: [],
+		overCapFaculty: [],
+		hardCapMinutes: HARD_CAP_MINUTES,
+		distributionEvaluated: false,
+	});
+
+	assert.equal(summary.distributionEvaluated, false);
+	assert.equal(summary.balanced, false, 'a failed distribution evaluation must fail closed');
+});
+
+test('a partially-relieved donor still counts as unresolved', () => {
+	const summary = summarizeDistributionPlan({
+		coveredRows: 5,
+		uncoveredRows: 0,
+		moves: [{ fromFacultyId: 1, minutes: 225 }],
+		overCapFaculty: [{ facultyId: 1, teachingMinutes: 2250, totalCreditedMinutes: 2250, overMinutes: 450 }],
+		hardCapMinutes: HARD_CAP_MINUTES,
+	});
+
+	assert.equal(summary.proposedMoves, 1);
+	assert.equal(summary.unresolvedImbalance, 1);
+	assert.equal(summary.balanced, false);
+});
+
+test('a donor is resolved only when the moves cover the whole excess', () => {
+	const summary = summarizeDistributionPlan({
+		coveredRows: 5,
+		uncoveredRows: 0,
+		moves: [{ fromFacultyId: 1, minutes: 450 }],
+		overCapFaculty: [{ facultyId: 1, teachingMinutes: 2250, totalCreditedMinutes: 2250, overMinutes: 450 }],
+		hardCapMinutes: HARD_CAP_MINUTES,
+	});
+
+	assert.equal(summary.unresolvedImbalance, 0);
+	assert.equal(summary.aboveStandardFaculty, 1);
+	assert.equal(summary.balanced, false);
+});
+
 // ─── Production wiring guardrails (source scan) ─────────────────────────
 
 test('autoFill composes the canonical distribution plan into its result', () => {

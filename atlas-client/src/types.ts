@@ -2010,6 +2010,7 @@ export type TeachingLoadDistributionSummary = {
 	unresolvedImbalance: number;
 	aboveStandardFaculty: number;
 	hardCapBreaches: number;
+	distributionEvaluated: boolean;
 	balanced: boolean;
 };
 

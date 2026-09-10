@@ -146,7 +146,12 @@ export interface TeachingLoadDistributionSummary {
 	aboveStandardFaculty: number;
 	/** Faculty above the policy absolute hard cap (e.g. 40h). */
 	hardCapBreaches: number;
-	/** True only when coverage and distribution are both fully safe. */
+	/**
+	 * Whether the distribution evaluator actually ran. False means the result is
+	 * unknown, and `balanced` must not be trusted as success.
+	 */
+	distributionEvaluated: boolean;
+	/** True only when distribution was evaluated AND coverage and balance are safe. */
 	balanced: boolean;
 }
 
@@ -1483,18 +1488,36 @@ function buildSectionSourceWarning(sectionResult: SectionFetchResult): string | 
 export function summarizeDistributionPlan(input: {
 	coveredRows: number;
 	uncoveredRows: number;
-	moves: Array<{ fromFacultyId: number }>;
-	overCapFaculty: Array<{ teachingMinutes: number; overMinutes: number }>;
+	moves: Array<{ fromFacultyId: number; minutes?: number }>;
+	overCapFaculty: Array<{ facultyId?: number; teachingMinutes: number; totalCreditedMinutes?: number; overMinutes: number }>;
 	hardCapMinutes: number;
+	distributionEvaluated?: boolean;
 }): TeachingLoadDistributionSummary {
+	const distributionEvaluated = input.distributionEvaluated !== false;
 	const aboveStandardFaculty = input.overCapFaculty.length;
 	const hardCapBreaches = input.overCapFaculty.filter(
-		(member) => member.teachingMinutes > input.hardCapMinutes,
+		(member) => (member.totalCreditedMinutes ?? member.teachingMinutes) > input.hardCapMinutes,
 	).length;
+	// A donor is resolved only when the proposed moves cover the whole amount the
+	// donor is over; a partially-relieved donor still leaves an unresolved row.
+	// Donors without a stable id (unusual) fall back to the distinct-donor count.
+	let unresolvedImbalance = 0;
 	const donorIds = new Set(input.moves.map((move) => move.fromFacultyId));
-	const unresolvedImbalance = Math.max(0, aboveStandardFaculty - donorIds.size);
+	for (const member of input.overCapFaculty) {
+		if (member.overMinutes <= 0) continue;
+		if (member.facultyId == null) continue;
+		const movedMinutes = input.moves
+			.filter((move) => move.fromFacultyId === member.facultyId)
+			.reduce((sum, move) => sum + Math.max(0, Number(move.minutes ?? 0) || 0), 0);
+		if (movedMinutes < member.overMinutes) unresolvedImbalance += 1;
+	}
+	const unknownIdDonors = input.overCapFaculty.filter((member) => member.facultyId == null).length;
+	if (unknownIdDonors > 0) {
+		unresolvedImbalance += Math.max(0, unknownIdDonors - donorIds.size);
+	}
 	const balanced =
-		input.uncoveredRows === 0
+		distributionEvaluated
+		&& input.uncoveredRows === 0
 		&& input.moves.length === 0
 		&& aboveStandardFaculty === 0
 		&& hardCapBreaches === 0;
@@ -1505,6 +1528,7 @@ export function summarizeDistributionPlan(input: {
 		unresolvedImbalance,
 		aboveStandardFaculty,
 		hardCapBreaches,
+		distributionEvaluated,
 		balanced,
 	};
 }
@@ -1521,6 +1545,7 @@ function emptyDistributionPlan(): TeachingLoadDistributionPlan {
 			unresolvedImbalance: 0,
 			aboveStandardFaculty: 0,
 			hardCapBreaches: 0,
+			distributionEvaluated: true,
 			balanced: true,
 		},
 	};
@@ -1554,6 +1579,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 	}
 
 	let rebalance: OverCapRebalanceResult;
+	let distributionEvaluated = true;
 	try {
 		rebalance = await previewOrApplyOverCapRebalance({
 			schoolId: params.schoolId,
@@ -1562,7 +1588,14 @@ async function buildTeachingLoadDistributionPlan(params: {
 			authToken: params.authToken,
 			previewOnly: true,
 		});
+		// If the evaluator resolved no sections it could not judge distribution.
+		// Treat that as unevaluated so `balanced` can never be inferred from a
+		// silently empty over-cap list.
+		if (rebalance.sectionsResolved != null && rebalance.sectionsResolved <= 0) {
+			distributionEvaluated = false;
+		}
 	} catch {
+		distributionEvaluated = false;
 		rebalance = {
 			applied: false,
 			schoolId: params.schoolId,
@@ -1573,6 +1606,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: 0,
 		};
 	}
 
@@ -1591,6 +1625,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 			moves,
 			overCapFaculty: rebalance.overCapFaculty,
 			hardCapMinutes: HARD_CAP_MIN,
+			distributionEvaluated,
 		}),
 	};
 }
@@ -2554,6 +2589,8 @@ export interface OverCapRebalanceResult {
 	ownershipRowsMoved: number;
 	facultySubjectRowsUpdated: number;
 	facultyMirrorVersionsBumped: number;
+	/** Sections the evaluator resolved. 0 means distribution was not evaluated. */
+	sectionsResolved?: number;
 }
 
 export async function previewOrApplyOverCapRebalance(
@@ -2589,6 +2626,7 @@ export async function previewOrApplyOverCapRebalance(
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: allSectionIds.length,
 		};
 	}
 
@@ -2738,6 +2776,7 @@ export async function previewOrApplyOverCapRebalance(
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: allSectionIds.length,
 		};
 	}
 
@@ -2868,6 +2907,7 @@ export async function previewOrApplyOverCapRebalance(
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: allSectionIds.length,
 		};
 	}
 
@@ -3016,5 +3056,6 @@ export async function previewOrApplyOverCapRebalance(
 		ownershipRowsMoved,
 		facultySubjectRowsUpdated,
 		facultyMirrorVersionsBumped,
+		sectionsResolved: allSectionIds.length,
 	};
 }

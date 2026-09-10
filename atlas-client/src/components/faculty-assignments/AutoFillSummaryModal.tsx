@@ -285,6 +285,24 @@ export function AutoFillSummaryModal({
 						</div>
 						)}
 
+						{hasResult && result?.distribution && hasShortage && (
+							<div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" data-testid="teaching-load-distribution-summary">
+								{[
+									{ label: 'Covered rows', value: result.distribution.summary.coveredRows, tone: 'bg-emerald-50 text-emerald-700' },
+									{ label: 'Uncovered rows', value: result.distribution.summary.uncoveredRows, tone: 'bg-amber-50 text-amber-700' },
+									{ label: 'Proposed moves', value: result.distribution.summary.proposedMoves, tone: 'bg-blue-50 text-blue-700' },
+									{ label: 'Unresolved imbalance', value: result.distribution.summary.unresolvedImbalance, tone: 'bg-rose-50 text-rose-700' },
+									{ label: 'Above standard', value: result.distribution.summary.aboveStandardFaculty, tone: 'bg-amber-50 text-amber-700' },
+									{ label: 'Over hard cap', value: result.distribution.summary.hardCapBreaches, tone: 'bg-rose-50 text-rose-700' },
+								].map((stat) => (
+									<div key={stat.label} className={`rounded-xl border border-border/40 px-3 py-2 text-center ${stat.tone}`}>
+										<p className="text-xl font-bold tabular-nums">{stat.value}</p>
+										<p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{stat.label}</p>
+									</div>
+								))}
+							</div>
+						)}
+
 						{specialProgramApprovalQueue.length > 0 && (
 							<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/60 px-3 py-2.5 text-amber-950">
 								<div className="flex items-center justify-between gap-2">
@@ -485,6 +503,18 @@ export function AutoFillSummaryModal({
 									</div>
 								</div>
 							</div>
+						) : hasResult && result && !hasShortage && !distribution ? (
+							<div className="flex flex-col items-center justify-center py-12 text-center space-y-4 max-w-md mx-auto" data-testid="teaching-load-distribution-unevaluated">
+								<div className="size-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+									<Info className="size-8" />
+								</div>
+								<div className="space-y-1.5">
+									<h3 className="text-xl font-bold text-foreground">Coverage complete, balance not evaluated</h3>
+									<p className="text-muted-foreground text-sm font-medium leading-relaxed">
+										Every class has an owner, but ATLAS could not evaluate workload distribution for this preview. Preview a fresh suggestion before treating the load as balanced.
+									</p>
+								</div>
+							</div>
 						) : hasResult && result && !hasShortage && hasImbalance && distribution ? (
 							<div className="space-y-5 max-w-3xl mx-auto" data-testid="teaching-load-distribution-imbalance">
 								<div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
@@ -541,9 +571,9 @@ export function AutoFillSummaryModal({
 									Applying is all-or-nothing: if any ownership, receiver, revision, or capacity check changed since this preview, ATLAS applies none of the moves.
 								</p>
 							</div>
-						) : hasResult && result && !hasShortage ? (
+						) : hasResult && result && !hasShortage && distribution?.summary.balanced === true ? (
 							<div className="flex flex-col items-center justify-center py-12 text-center space-y-6 max-w-sm mx-auto">
-								<div className="size-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
+								<div className="size-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm">
 									<BadgeCheck className="size-10" />
 								</div>
 								<div className="space-y-1.5">

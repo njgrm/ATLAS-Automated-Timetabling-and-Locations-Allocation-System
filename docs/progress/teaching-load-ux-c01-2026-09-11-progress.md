@@ -97,8 +97,19 @@
 - Adviser-section preference implemented as a bounded tie-break (server canonical plan).
 - Prior handoff changed-path count corrected to 26 (this correction adds paths on top).
 
+### TL-UX-C01R review round 1 and correction
+- Reviewer (task `ses_f72564205ffefM1UuuSO5I9hwp`) verdict: `CORRECTION_REQUIRED`.
+  - BLOCKING F1: a bare catch (and a zero-sections evaluator race) defaulted to `balanced: true` with empty over-cap data.
+  - BLOCKING F2: the move apply did not recompute `FacultySubject.gradeLevels` parity.
+  - Non-blocking: receiver cap used the looser absolute cap; hard-cap count used teaching-only minutes; partial relief counted as resolved; applied plan was not compared against the reviewed plan; imbalance counts hidden during shortages; a missing distribution rendered the balanced copy.
+- Correction commit: the additive commit immediately following `7bcaaae4` on this branch.
+  - F1: added `distributionEvaluated`; `balanced` forced false when evaluation did not run; `sectionsResolved` distinguishes a genuine empty over-cap set.
+  - F2: receiver/donor `gradeLevels` recomputed from resulting `sectionIds`.
+  - F3/F4/F5/F6/F7/F8 addressed: standard-mode receiver cap, credited-minutes hard-cap count, full-relief donor accounting, reviewed-vs-refreshed plan comparison, shortage-branch distribution counts, and a neutral "balance not evaluated" state.
+- Evidence: server distribution tests 12/12; client distribution-ui 2/2; both tsc/build green; full candidate Playwright 3/3 (read-only walk, design/height, intercepted-write distribution preview) at 1440x900, 390x844, 320px reflow.
+
 ### TL-UX-C01R remaining risks
-- Move application re-validates donor ownership and receiver standard-capacity inside the transaction; it does not independently re-run full rotation-family capacity accounting for a receiver with many rotation subjects beyond the standard cap check.
+- Move application re-validates donor ownership, receiver standard capacity, and grade parity inside the transaction; it does not independently recompute the full rotation-family capacity ledger for a receiver with many rotating subjects beyond the standard cap check.
 - The distribution plan's counts are unit-verified; a DB-backed end-to-end apply test was not run because the isolated worktree has no test database.
 
 ## Reviewer role note
