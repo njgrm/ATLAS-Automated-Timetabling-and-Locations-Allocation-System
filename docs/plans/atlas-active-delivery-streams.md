@@ -16,17 +16,17 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Wave 1 is integrated and pushed: `origin/main` now points to
-  `36c5d3d1735728c1870f5e0ccfe36ca54a8a6b5d`.
+- Wave 1 and subsequent accepted planner evidence are integrated and pushed:
+  `origin/main` now points to `d2dce4a8d3995eb78e3a08ae897a730987d67d34`.
 - All three source lanes passed independent QA and the combined integration
-  gates. The term schema migration remains a separate live `HIGH` action.
+  gates. The approved term schema migration is applied and verified; deploying
+  the integrated runtime remains a separate service-lifecycle action.
 - EnrollPro, AIMS, and SMART reference clones were cleanly fast-forwarded to
   `bf12d0de`, `a22c9c88`, and `c3806e12`. A later root handoff claims the
   EnrollPro term contract is implemented, but a fresh fast-forward pull still
   leaves `origin/main` at `bf12d0de` with none of the claimed implementation;
   delivery is blocked on an inspectable pushed commit.
-- No live migration, carry-forward, generation, or publication is authorized by
-  this register.
+- No carry-forward, generation, or publication is authorized by this register.
 
 ## Stream register
 
@@ -41,7 +41,7 @@ hard blockers before separately approving publication.
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify truthful blocked term authority | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with any TL-UX live browser run; EnrollPro ordered term contract may still be absent | Port 5001 health is 200 but `/subjects` returns no new disposition projection after migration, proving the live process predates integrated Wave-1 source | Prepare a bounded build/restart/Tailnet acceptance handoff; do not restart while another live-QA stream is using port 5001 |
 | TL-UX-C01 | Rebuild Teaching Load as an accessible assignment workspace and unify suggestion/balance authority | `CORRECTION_REQUIRED` | MEDIUM UI and HIGH write/concurrency guards | `work/teaching-load-ux-c01`; `36c5d3d1...1f867eb8` | Do not integrate current candidate; continue additively in the same worktree | Planner reran 11/11 ownership, 33/33 canonical, 21/21 route-intent, client type-check/build; live read-only production probes show 7 faculty at 37.5h, 5 zero-load ESP/FIL teachers, auto-fill 265 `KEPT_EXISTING`/0 suggestions, while rebalance finds 14 valid moves; candidate falsely claims everyone is within capacity and skipped adviser priority | Execute `docs/prompts/teaching-load-ux-allocation-correction-tluxc01r-2026-09-11.md`; return an additive reviewed candidate without live apply |
-| TT-UX01 | Make Timetable no-run and Advanced states honest, single-action, dead-end-free, readable, and mobile-reachable | `CORRECTION_REQUIRED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...aa38d784` | Must not implement DEMAND-C01; avoid TL-UX shared paths | Planner review reproduced 34/34 focused, 155/155 tracked client tests, TypeScript/build/diff-check, but found dead `/curriculum-requirements` repair, Advanced generation readiness bypass, no-run task/teacher-recovery dead ends, over-broad capability gating, and context-insensitive tutorial | Execute `docs/prompts/timetable-ux-one-shot-ttux01r-2026-09-11.md` in the existing worktree and return an additive correction candidate |
+| TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `CORRECTION_REQUIRED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...aa38d784` | Must not implement DEMAND-C01 or trigger live generation; avoid TL-UX shared paths | Live year 9 has no run; audit found contradictory no-run controls, dead Curriculum Requirements repair, Advanced generation bypass, missing Simple room repair, bulk teacher-leaving mislabeled as class reassignment, color-only placement cues, count-only swap explanations, and state-insensitive help | Execute `docs/prompts/timetable-simple-operator-one-shot-ttux01r2-2026-09-11.md` in the existing worktree; use controlled data-filled browser fixtures plus read-only Tailnet QA |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `PLANNED` | MEDIUM | Fresh branch after Wave-1 integration | Accepted term contract and passive generation/TL boundaries | Governing sequence exists in `rollover-derived-demand-generation-readiness-sequence-2026-09-10.md` | Author and execute the bounded DEMAND-C01 prompt from the integrated Wave-1 base |
 | UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `BLOCKED` | MEDIUM preview; HIGH apply | Not started | DEMAND-C01 plus visible archived history | Carry-forward rules are defined in the governing sequence | Build zero-write preview after DEMAND-C01; require a separate approval for apply |
@@ -69,7 +69,8 @@ hard blockers before separately approving publication.
    a delivered contract.
 3. Correct TL-UX-C01 in its existing worktree so one reviewed suggestion can
    fill uncovered rows and rebalance avoidable excess without false success copy.
-4. Correct TT-UX01 on its existing branch; do not integrate `aa38d784`.
+4. Execute the expanded TT-UX01R2 Simple-operator closure on its existing
+   branch; do not integrate `aa38d784`.
 5. Execute DEMAND-C01 after the live term contract and required ATLAS migration
    are available.
 6. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
@@ -86,9 +87,10 @@ hard blockers before separately approving publication.
 - MIG-GUARD-R1 source/test correction, with no live migration.
 - TL-UX-C01R in its existing worktree, confined to Teaching Load client/server
   suggestion, allocation, exact ownership, and focused tests; no live apply.
-- TT-UX01R in its existing client worktree. Avoid further shared primitive
+- TT-UX01R2 in its existing client worktree. Avoid further shared primitive
   changes that could collide with TL-UX-C01 unless the correction proves they
-  are necessary.
+  are necessary. Use fixture-backed data-filled browser QA and keep live
+  Tailnet generation/write paths untouched.
 
 Do not start DEMAND-C01, UX-C01, TL-RR01, GEN-C02, generation, or publication
 until their dependency rows above are satisfied. Do not restart the shared
@@ -101,8 +103,9 @@ runtime while TL-UX live QA is active.
   pushed full SHA/branch before contract QA or derived-demand work.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
-- TT-UX01 is awaiting an additive executor correction from `aa38d784`; the
-  current candidate is not integration-ready.
+- TT-UX01 is awaiting the expanded additive executor correction from
+  `aa38d784` under the R2 prompt; the current candidate is not
+  integration-ready and live generation remains unauthorized.
 - TL-UX-C01 is awaiting the additive TL-UX-C01R correction; candidate
   `1f867eb8` is not integration-ready.
 

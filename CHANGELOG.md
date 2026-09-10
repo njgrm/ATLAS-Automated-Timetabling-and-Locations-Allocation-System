@@ -3726,3 +3726,34 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 
 - Await the EnrollPro implementation SHA and TL-UX-C01R corrected candidate.
+
+# 2026-09-11 — Simple Timetable operator audit and correction handoff
+
+### Added
+
+- Added a live no-run and source-backed Simple Timetable audit covering every
+  routine operator control, placement/swap explanations, Simple-versus-Advanced
+  ownership, and safe browser verification boundaries.
+- Added the TT-UX01R2 overnight one-shot prompt with a controlled data-filled
+  Playwright matrix and read-only Tailnet acceptance pass.
+
+### Changed
+
+- Expanded the earlier no-run correction into a complete Simple Timetable
+  operator-closure stream and superseded its narrower prompt.
+- Updated the living delivery register to make the R2 prompt the sole next
+  action for TT-UX01.
+
+### Decisions Made
+
+- Simple mode shall expose routine Move, Change room, Swap, and accurately
+  scoped Teaching Load owner repair; expert policy, map, sync, matrix, and
+  diagnostic tools remain in Advanced.
+- Live year 9 has no generated run, so data-filled interaction evidence must
+  come from production-component browser fixtures. Live Tailnet QA remains
+  read-only and stops before generation.
+
+### Open Questions
+
+- None for execution. Any newly proven server-authority dependency returns to
+  the primary planner instead of widening the client correction.
