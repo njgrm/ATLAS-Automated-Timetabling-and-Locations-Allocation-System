@@ -58,6 +58,8 @@ model EnrollProSchoolYearMirror {
   syncStatus               String    @default("pending") @map("sync_status") @db.VarChar(32)
   lastFailureSummary       String?   @map("last_failure_summary") @db.VarChar(500)
   lastSyncMetadata         Json?     @map("last_sync_metadata")
+  termContractCache        Json?     @map("term_contract_cache")
+  termContractCachedAt     DateTime? @map("term_contract_cached_at")
   /// RR-09A: non-destructive archive lifecycle. An archived year keeps every
   /// row as read-only history and never wins the active-year election.
   isArchived               Boolean   @default(false) @map("is_archived")
@@ -195,6 +197,13 @@ enum SubjectQualificationPriority {
   @@map("subject_qualification_priority")
 }
 
+enum SubjectSchedulingDisposition {
+  SCHEDULED_TEACHING
+  REFERENCE_ONLY
+
+  @@map("subject_scheduling_disposition")
+}
+
 model Subject {
   id                      Int                          @id @default(autoincrement())
   schoolId                Int                          @map("school_id")
@@ -204,6 +213,7 @@ model Subject {
   ownerDepartment         String?                      @map("owner_department") @db.VarChar(32)
   qualificationPriority   SubjectQualificationPriority @default(DEPARTMENT_FIRST) @map("qualification_priority")
   rotationFamily          String?                      @map("rotation_family") @db.VarChar(64)
+  schedulingDisposition   SubjectSchedulingDisposition @default(SCHEDULED_TEACHING) @map("scheduling_disposition")
   minMinutesPerWeek       Int                          @map("min_minutes_per_week")
   preferredRoomType       RoomType                     @default(CLASSROOM) @map("preferred_room_type")
   modularGroupId          String?                      @map("modular_group_id") @db.VarChar(64)

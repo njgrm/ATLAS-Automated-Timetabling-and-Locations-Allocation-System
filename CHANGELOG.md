@@ -1,5 +1,34 @@
 # Changelog
 
+## [2026-09-10] — TERM-SUBJ-C01 EnrollPro Term and Subject Authority
+
+### Added
+- Added a verified EnrollPro term contract for trimester and quarter calendars,
+  exact-year degraded caching, semantic revision hashing, and typed fail-closed
+  outcomes for format/identity/school-year/active-term drift.
+- Added explicit Subject scheduling disposition and an authenticated Subject
+  scheduling view with resolved rotation terms, actionable metadata issues, and
+  pure timetable/Teaching Load demand projection.
+- Added a disposable PostgreSQL migration for the disposition and term cache;
+  existing subjects remain scheduled while code `HG` becomes reference-only.
+
+### Changed
+- Subject create and patch now accept scheduling disposition while rejecting
+  EnrollPro-owned term structure and protected bootstrap metadata.
+- The Subjects page shows live, saved/degraded, or blocked term authority and
+  keeps reference-only subjects visible without misleading coverage actions.
+
+### Decisions Made
+- EnrollPro is the sole term-structure authority. ATLAS may use only an exact
+  school/year contract that was previously verified live as degraded fallback.
+- This cycle does not switch generation, timetable demand, Teaching Load, or
+  legacy Curriculum Requirements consumers; those remain separate reviewed work.
+
+### Open Questions
+- EnrollPro must expose the normalized term fields and active-term integration
+  route before live authority can verify without a saved contract.
+- Independent review and explicit migration approval remain required.
+
 ## [2026-09-10] — TT-C04 Production-Wiring Correction Prompt
 
 ### Added

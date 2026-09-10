@@ -37,21 +37,9 @@ export type SubjectCoverageDetail = {
 
 function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank' | 'modularOrder'>): string | null {
 	const explicit = (subject.rotationTermLabel ?? '').trim();
-	if (explicit.length > 0) {
-		const rankMatch = explicit.match(/(\d+)/);
-		if (rankMatch) {
-			const parsed = Number(rankMatch[1]);
-			if (Number.isInteger(parsed) && parsed > 0) {
-				return `Term ${parsed}`;
-			}
-		}
-		return explicit;
-	}
+	if (explicit.length > 0) return explicit;
 	if (typeof subject.rotationTermRank === 'number' && subject.rotationTermRank > 0) {
 		return `Term ${subject.rotationTermRank}`;
-	}
-	if (typeof subject.modularOrder === 'number' && subject.modularOrder > 0) {
-		return `Term ${subject.modularOrder}`;
 	}
 	return null;
 }

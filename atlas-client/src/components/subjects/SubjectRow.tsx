@@ -49,24 +49,13 @@ export function SubjectRow({
 
 	const rotationTermLabel = useMemo(() => {
 		const explicit = (subject.rotationTermLabel ?? '').trim();
-		if (explicit.length > 0) {
-			const rankMatch = explicit.match(/(\d+)/);
-			if (rankMatch) {
-				const parsed = Number(rankMatch[1]);
-				if (Number.isInteger(parsed) && parsed > 0) {
-					return `Term ${parsed}`;
-				}
-			}
-			return explicit;
-		}
+		if (explicit.length > 0) return explicit;
 		const rank =
 			typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0
 				? subject.rotationTermRank
-				: typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0
-				? subject.modularOrder
 				: null;
 		return rank ? `Term ${rank}` : null;
-	}, [subject.modularOrder, subject.rotationTermLabel, subject.rotationTermRank]);
+	}, [subject.rotationTermLabel, subject.rotationTermRank]);
 
 	const gradeSummary = useMemo(() => {
 		if (!subject.gradeLevels.length) return null;
@@ -89,6 +78,7 @@ export function SubjectRow({
 		: `${programScopes.length} programs`;
 
 	const isArchived = !subject.isActive;
+	const isReferenceOnly = subject.schedulingDisposition === 'REFERENCE_ONLY';
 	// Prompt 01A: isSeedable is bootstrap/seed metadata — NOT timetable inclusion.
 	// Generation schedules by isActive; the old "Excluded/Available" badges made
 	// a false claim about scheduling. Catalog active state is the status shown.
@@ -112,6 +102,9 @@ export function SubjectRow({
 						{!isArchived && (
 							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shadow-none">Active</Badge>
 						)}
+						{isReferenceOnly ? (
+							<Badge variant="outline" className="h-4 px-1.5 text-[0.65rem] font-bold bg-slate-50 text-slate-700 border-slate-300 shadow-none">Reference only</Badge>
+						) : null}
 					</div>
 				</div>
 			</td>
@@ -164,7 +157,11 @@ export function SubjectRow({
 
 			{/* Col 5 — Teacher coverage */}
 			<td className="px-4 py-3" data-testid={`subject-coverage-cell-${subject.id}`}>
-				{isArchived ? (
+				{isReferenceOnly ? (
+					<Badge variant="outline" className="text-xs font-bold bg-slate-50 text-slate-700 border-slate-300 shadow-none" aria-label={`${subject.name} creates no timetable demand or Teaching Load`}>
+						No timetable or Teaching Load
+					</Badge>
+				) : isArchived ? (
 					<Badge variant="secondary" className="text-xs font-bold">Archived</Badge>
 				) : coverageRow ? (
 					<span className="flex items-center gap-1">
@@ -199,16 +196,20 @@ export function SubjectRow({
 			{/* Col 6 — Action: text primary + More menu */}
 			<td className="px-4 py-3 text-right">
 				<div className="flex items-center justify-end gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-8 gap-1.5 px-2.5 text-xs font-bold"
-						onClick={() => onShowCoverage(subject)}
-						aria-label={`Review teacher coverage for ${subject.name}`}
-					>
-						<Users className="size-3.5" />
-						Review coverage
-					</Button>
+					{!isReferenceOnly ? (
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-8 gap-1.5 px-2.5 text-xs font-bold"
+							onClick={() => onShowCoverage(subject)}
+							aria-label={`Review teacher coverage for ${subject.name}`}
+						>
+							<Users className="size-3.5" />
+							Review coverage
+						</Button>
+					) : (
+						<span className="text-xs font-semibold text-muted-foreground">No coverage action</span>
+					)}
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

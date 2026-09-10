@@ -49,24 +49,11 @@ type Props = {
 };
 
 function resolveCanonicalRotationTermLabel(termLabel: string | null | undefined, termRank: number | null | undefined): string | null {
-	if (typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0) {
-		return `Term ${termRank}`;
-	}
-
 	const normalizedLabel = (termLabel ?? '').trim();
-	if (!normalizedLabel) {
-		return null;
-	}
-
-	const rankMatch = normalizedLabel.match(/(\d+)/);
-	if (rankMatch) {
-		const parsed = Number(rankMatch[1]);
-		if (Number.isInteger(parsed) && parsed > 0) {
-			return `Term ${parsed}`;
-		}
-	}
-
-	return normalizedLabel;
+	if (normalizedLabel) return normalizedLabel;
+	return typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0
+		? `Term ${termRank}`
+		: null;
 }
 
 export function SubjectFormModal({
@@ -401,6 +388,27 @@ export function SubjectFormModal({
 								) : (
 									<Badge variant="secondary" className="shadow-none">Archived</Badge>
 								)}
+							</div>
+
+							<div className="space-y-2">
+								<label htmlFor={`${formId}-disposition`} className="text-sm font-semibold text-foreground ml-0.5">Schedule use</label>
+								<Select
+									value={form.schedulingDisposition}
+									onValueChange={(value) => setForm((previous) => ({ ...previous, schedulingDisposition: value as SubjectFormValues['schedulingDisposition'] }))}
+								>
+									<SelectTrigger id={`${formId}-disposition`} className="h-10">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="SCHEDULED_TEACHING">Scheduled teaching</SelectItem>
+										<SelectItem value="REFERENCE_ONLY">Reference only</SelectItem>
+									</SelectContent>
+								</Select>
+								<p className="text-xs text-muted-foreground">
+									{form.schedulingDisposition === 'REFERENCE_ONLY'
+										? 'Reference-only subjects stay visible but create neither timetable demand nor Teaching Load.'
+										: 'Scheduled teaching subjects can contribute timetable demand and Teaching Load.'}
+								</p>
 							</div>
 						</div>
 

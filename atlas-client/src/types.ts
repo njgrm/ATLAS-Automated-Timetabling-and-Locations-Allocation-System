@@ -57,6 +57,11 @@ export type Subject = {
 	allowedOwnerDepartments?: string[];
 	qualificationPriority?: 'DEPARTMENT_FIRST';
 	rotationFamily?: string | null;
+	schedulingDisposition: 'SCHEDULED_TEACHING' | 'REFERENCE_ONLY';
+	createsTimetableDemand?: boolean;
+	createsTeachingLoad?: boolean;
+	rotationTermIdentity?: string | null;
+	schedulingIssues?: Array<{ code: string; message: string }>;
 	rotationTermRank?: number | null;
 	rotationTermLabel?: string | null;
 	rotationTermGroupId?: string | null;
@@ -81,6 +86,23 @@ export type Subject = {
 	requiredFeatures: string[];
 	createdAt: string;
 	updatedAt: string;
+};
+
+export type TermAuthority = {
+	state: 'VERIFIED_LIVE' | 'VERIFIED_CACHED' | 'BLOCKED';
+	source: 'enrollpro' | 'atlas-cache' | 'none';
+	degraded: boolean;
+	code: string | null;
+	message: string;
+	verifiedAt?: string;
+	contract: null | {
+		schoolId: number;
+		schoolYear: { id: number; yearLabel: string };
+		format: 'TRIMESTER' | 'QUARTERS';
+		terms: Array<{ identity: string; displayLabel: string; order: number; startDate: string | null; endDate: string | null }>;
+		activeTerm: { identity: string; displayLabel: string; order: number };
+		semanticRevision: string;
+	};
 };
 
 export type ClassTemplate = {

@@ -92,3 +92,20 @@ test('builder nulls modularOrder when no rotation family is set', () => {
 	assert.equal(payload.modularGroupId, null);
 	assert.equal(payload.modularOrder, null);
 });
+
+test('builder forwards scheduling disposition but strips EnrollPro term authority fields', () => {
+	const hostile = {
+		...operatorForm(),
+		schedulingDisposition: 'REFERENCE_ONLY' as const,
+		termCount: 4,
+		termFormat: 'QUARTERS',
+		termIdentities: ['T1', 'T2', 'T3', 'T4'],
+		termLabels: ['Quarter 1', 'Quarter 2', 'Quarter 3', 'Quarter 4'],
+		term1Start: '2030-06-01',
+	};
+	const payload = buildOperatorSubjectCreatePayload(hostile as never);
+	assert.equal(payload.schedulingDisposition, 'REFERENCE_ONLY');
+	for (const key of ['termCount', 'termFormat', 'termIdentities', 'termLabels', 'term1Start']) {
+		assert.ok(!(key in payload), `${key} must not reach ordinary Subject create`);
+	}
+});

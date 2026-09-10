@@ -14,6 +14,7 @@ export function subjectToFormValues(subject: Subject): SubjectFormValues {
 		allowedOwnerDepartments: [...(subject.allowedOwnerDepartments ?? [])],
 		qualificationPriority: subject.qualificationPriority ?? 'DEPARTMENT_FIRST',
 		rotationFamily: subject.rotationFamily ?? '',
+		schedulingDisposition: subject.schedulingDisposition ?? 'SCHEDULED_TEACHING',
 		minMinutesPerWeek: subject.minMinutesPerWeek,
 		preferredRoomType: subject.preferredRoomType,
 		gradeLevels: [...subject.gradeLevels],

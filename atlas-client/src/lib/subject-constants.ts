@@ -107,6 +107,7 @@ export type NewSubjectForm = {
 	allowedOwnerDepartments: string[];
 	qualificationPriority: 'DEPARTMENT_FIRST';
 	rotationFamily: string;
+	schedulingDisposition: 'SCHEDULED_TEACHING' | 'REFERENCE_ONLY';
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	isActive: boolean;
@@ -130,6 +131,7 @@ export const emptyForm: NewSubjectForm = {
 	allowedOwnerDepartments: [],
 	qualificationPriority: 'DEPARTMENT_FIRST',
 	rotationFamily: '',
+	schedulingDisposition: 'SCHEDULED_TEACHING',
 	minMinutesPerWeek: 225,
 	preferredRoomType: 'CLASSROOM',
 	isActive: true,

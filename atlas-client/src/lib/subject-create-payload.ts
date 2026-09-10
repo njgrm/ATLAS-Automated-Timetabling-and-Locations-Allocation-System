@@ -12,15 +12,20 @@ import type { SubjectFormValues } from '../components/subjects/SubjectFormModal'
  * `ensureDefaultSubjects`, untouched by this builder.
  */
 export function buildOperatorSubjectCreatePayload(values: SubjectFormValues): Record<string, unknown> {
-	// Omit `id` (create has none) and the protected bootstrap flags.
-	// The sibling-omit form is intentional: `delete` on a required key is a
-	// type error, while this shape fails closed if any key is ever read.
-	const { id: _omittedId, isSeedable: _omittedSeed, isSystemManaged: _omittedManaged, ...operatorFields } = values;
-	void _omittedId;
-	void _omittedSeed;
-	void _omittedManaged;
 	return {
-		...operatorFields,
+		code: values.code,
+		name: values.name,
+		minMinutesPerWeek: values.minMinutesPerWeek,
+		preferredRoomType: values.preferredRoomType,
+		gradeLevels: values.gradeLevels,
+		isActive: values.isActive,
+		interSectionEnabled: values.interSectionEnabled,
+		interSectionGradeLevels: values.interSectionGradeLevels,
+		programScopes: values.programScopes,
+		allowedSpecializations: values.allowedSpecializations,
+		requiredFeatures: values.requiredFeatures,
+		qualificationPriority: values.qualificationPriority,
+		schedulingDisposition: values.schedulingDisposition,
 		outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
 		ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
 		allowedOwnerDepartments: values.allowedOwnerDepartments,
