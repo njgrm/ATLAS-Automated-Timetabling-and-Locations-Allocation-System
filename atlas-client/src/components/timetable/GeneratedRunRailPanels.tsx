@@ -83,6 +83,9 @@ export function GeneratedViolationsPanel({
 		toast,
 		setViolationsGroupPage,
 	} = context;
+	// Run-derived claims are only knowable once a generated run exists. Without
+	// one, the rail must never report a clean or fully-placed schedule.
+	const hasGeneratedRun = Boolean(context.summary);
 	const formatRailConstraintMessage = (message: string, violation?: Violation): string => {
 		let formatted = formatConstraintMessage(message)
 			.replace(/^Entry\s+entry-[^:]+:\s*/i, '')
@@ -181,7 +184,7 @@ export function GeneratedViolationsPanel({
 					</div>
 				</div>
 			)}
-			{hardViolationCount === 0 && violations.length === 0 && (
+			{hasGeneratedRun && hardViolationCount === 0 && violations.length === 0 && (
 				<div className="shrink-0 px-3 py-2.5 border-b border-emerald-100 bg-emerald-50/50">
 					<div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
 						<Check className="size-3.5" />
@@ -241,7 +244,11 @@ export function GeneratedViolationsPanel({
 				<div className="px-3 pb-3 space-y-1">
 					{filteredViolations.length === 0 ? (
 						<div className="py-6 text-center text-xs text-muted-foreground">
-							{violations.length === 0 ? 'No violations found' : 'No matching violations'}
+							{!hasGeneratedRun
+								? 'No generated run yet. Violations appear after a schedule is generated.'
+								: violations.length === 0
+									? 'No violations found'
+									: 'No matching violations'}
 						</div>
 					) : (
 						visibleViolationGroups.map(([code, violationList]) => (

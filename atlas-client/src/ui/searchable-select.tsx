@@ -19,6 +19,8 @@ interface SearchableSelectProps {
 	placeholder?: string;
 	className?: string;
 	triggerClassName?: string;
+	disabled?: boolean;
+	disabledReason?: string;
 }
 
 export function SearchableSelect({
@@ -29,6 +31,8 @@ export function SearchableSelect({
 	placeholder = 'Select…',
 	className,
 	triggerClassName,
+	disabled = false,
+	disabledReason,
 }: SearchableSelectProps) {
 	const [open, setOpen] = React.useState(false);
 	const [query, setQuery] = React.useState('');
@@ -66,8 +70,9 @@ export function SearchableSelect({
 
 	return (
 		<Popover
-			open={open}
+			open={disabled ? false : open}
 			onOpenChange={(o) => {
+				if (disabled) return;
 				setOpen(o);
 				if (!o) setQuery('');
 			}}
@@ -77,6 +82,9 @@ export function SearchableSelect({
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
+					disabled={disabled}
+					aria-disabled={disabled}
+					aria-label={disabled ? (disabledReason ?? 'No options available') : undefined}
 					className={cn('min-w-[160px] justify-between font-normal', triggerClassName)}
 				>
 					<span className="truncate">{value ? selectedLabel : placeholder}</span>

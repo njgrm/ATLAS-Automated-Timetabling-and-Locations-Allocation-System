@@ -1385,7 +1385,13 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			roomRequestSummaryCacheByKey.set(requestKey, { ts: Date.now(), data });
 			applyRoomRequestSummary(data);
 		} catch (err) {
-			setRoomRequestError(buildTimetableErrorMessage(err, 'Failed to load room requests.'));
+			// No active generated draft means there are no room requests yet; this
+			// is an empty state, not an error. Avoid surfacing a 404 as noise.
+			if (getTimetableApiErrorCode(err) === 'NO_ACTIVE_DRAFT') {
+				setRoomRequestError(null);
+			} else {
+				setRoomRequestError(buildTimetableErrorMessage(err, 'Failed to load room requests.'));
+			}
 		} finally {
 			setRoomRequestLoading(false);
 		}
@@ -1516,6 +1522,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				return;
 			}
 			const fetchedRuns = await fetchRuns(syId, { preferCache: !force, forceRefresh: force });
+			const hasCompletedRun = fetchedRuns.some((run) => run.status === 'COMPLETED');
 			void fetchCurriculumReadiness(syId);
 			const referenceDataPromise = fetchReferenceData(syId, {
 				preferCache: !force,
@@ -1531,7 +1538,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setViolationReport(null);
 				setSelectedRunId('latest');
 				void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
-				void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
+				if (hasCompletedRun) {
+					void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
+				} else {
+					setRoomRequestError(null);
+				}
 				void referenceDataPromise;
 				setLoading(false);
 				return;
@@ -1555,7 +1566,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			// Secondary rail diagnostics are intentionally deferred to keep first render interactive.
 			void referenceDataPromise;
 			void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
-			void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
+			if (hasCompletedRun) {
+				void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
+			} else {
+				setRoomRequestError(null);
+			}
 		} catch (e: unknown) {
 			const code = getTimetableApiErrorCode(e);
 			if (code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA' || code === 'NO_RUNS') {
@@ -1592,11 +1607,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	useEffect(() => {
 		void loadAll();
 	}, [loadAll]);
-
-	useEffect(() => {
-		if (!schoolYearId) return;
-		void loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
-	}, [schoolYearId, loadRoomRequestSummary, requestStatusFilter, requestDecisionFilter]);
 
 	useEffect(() => {
 		if (runs.length === 0) setLeftTab('pinned');

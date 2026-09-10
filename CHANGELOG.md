@@ -1,5 +1,39 @@
 # Changelog
 
+## [2026-09-11] — TT-UX01 Timetable Operator Readiness
+
+### Added
+- Failing-first production-consumer tests for ten timetable readiness contracts
+  (TTX-01..TTX-12 excluding already-fixed TTX-10) in
+  `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`.
+- Accessible disabled reason for the entity `SearchableSelect` (`disabled`,
+  `disabledReason`) and a tutorial "target unavailable" status message.
+
+### Changed
+- Removed the no-run center `Start Pre-Generation Draft` write CTA; the center
+  empty state now defers to the single header lifecycle action.
+- Gated run-derived rail/drawer "clean"/"placed" claims on run existence.
+- Advanced run badge shows `No generated run yet` instead of `Generated Run #-`.
+- Deciding readiness and failed-run copy is fully visible and untruncated at all
+  widths; the source-truth badge gained a tooltip disclosure.
+- Run-dependent More-menu items (`Place unresolved sessions`, `Swap sessions`,
+  `Review issues`) are disabled with a screen-reader reason when no run/draft
+  exists; empty schedule selectors are disabled with a reason.
+- Tutorial `Show me` reports an unavailable target instead of silently no-opping;
+  the tutorial trigger gained an accessible name and 44px mobile target.
+- Removed the permanently hidden `timetable-simple-publish-action`.
+- Room-request summary treats `NO_ACTIVE_DRAFT` as an empty state, deduplicates
+  the duplicate request, and only requests when a `COMPLETED` run exists.
+
+### Decisions Made
+- TTX-10 was already fixed upstream at base (guidance/run-source notes are
+  `sr-only`); no duplicate implementation, only a tooltip disclosure added.
+- The `test:timetable-conflict`, `test:ux-guardrails`, and `test:auth-session`
+  packaging defect is recorded, not repaired; no untracked files were copied.
+
+### Open Questions
+- None. Candidate is `REVIEW_REQUIRED`; no live deployment is authorized.
+
 ## [2026-09-11] — TERM-LIVE-APPLY Guarded Migration Closure
 
 ### Changed

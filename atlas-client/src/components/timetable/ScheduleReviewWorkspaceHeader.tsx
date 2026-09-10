@@ -321,25 +321,34 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
 					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
 				>
-					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : `Generated Run #${activeGeneratedRunId ?? '-'}`}
+					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : activeGeneratedRunId != null ? `Generated Run #${activeGeneratedRunId}` : 'No generated run yet'}
 				</Badge>
 
 				{showSourceTruthNotice && (
-					<Badge
-						variant="outline"
-						data-testid="timetable-source-truth"
-						className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 truncate px-2 text-xs font-semibold', sourceTone)}
-					>
-						<Info className="size-3.5 shrink-0" aria-hidden="true" />
-						<span className="truncate">
-							{sourceLabel}
-							{schoolYearId ? ` · School year #${schoolYearId}` : ''}
-							{visibleRunId ? ` · Run #${visibleRunId}` : ''}
-						</span>
-						<span className="sr-only" data-testid="timetable-run-source-note">
-							{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
-						</span>
-					</Badge>
+					<TooltipProvider delayDuration={300}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									variant="outline"
+									data-testid="timetable-source-truth"
+									className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 px-2 text-xs font-semibold', sourceTone)}
+								>
+									<Info className="size-3.5 shrink-0" aria-hidden="true" />
+									<span className="truncate">
+										{sourceLabel}
+										{schoolYearId ? ` · School year #${schoolYearId}` : ''}
+										{visibleRunId ? ` · Run #${visibleRunId}` : ''}
+									</span>
+									<span className="sr-only" data-testid="timetable-run-source-note">
+										{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+									</span>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-run-source-disclosure">
+								{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				)}
 
 				<div data-tutorial="run-selector" className="shrink-0">

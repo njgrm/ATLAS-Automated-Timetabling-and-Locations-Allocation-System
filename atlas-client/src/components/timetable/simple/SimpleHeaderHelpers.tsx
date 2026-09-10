@@ -152,6 +152,7 @@ export function SimpleScheduleControls({
 	onEntityChange: (value: string) => void;
 }) {
 	const groups = useMemo(() => pivotEntityGroups(context), [context]);
+	const entityOptionsAvailable = groups.some((group) => group.items.length > 0);
 	const selectedLabel = hasPivotValue(context, context.entityFilter)
 		? context.pivotLabel(Number(context.entityFilter))
 		: 'Choose schedule';
@@ -191,6 +192,8 @@ export function SimpleScheduleControls({
 					triggerClassName="h-8 w-full min-w-[9rem] max-w-[18rem] text-xs"
 					className="w-[min(24rem,calc(100vw-2rem))]"
 					groups={groups}
+					disabled={!entityOptionsAvailable}
+					disabledReason="No schedule options are available yet. Generate or load a timetable first."
 				/>
 			</div>
 			<span className="sr-only">Showing {context.VIEW_MODE_LABELS[context.viewMode]} schedule: {rememberedLabel}</span>
@@ -302,6 +305,7 @@ export function SimpleFiltersContent({ context }: { context: ScheduleReviewWorks
 
 export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
 	const [stepIndex, setStepIndex] = useState(0);
+	const [unavailableMessage, setUnavailableMessage] = useState<string | null>(null);
 	const step = SIMPLE_TUTORIAL_STEPS[stepIndex];
 	const StepIcon = step.icon;
 	const isLast = stepIndex === SIMPLE_TUTORIAL_STEPS.length - 1;
@@ -310,12 +314,21 @@ export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; o
 		if (open) setStepIndex(0);
 	}, [open]);
 
+	useEffect(() => {
+		setUnavailableMessage(null);
+	}, [stepIndex]);
+
 	const focusStepTarget = () => {
 		const target = document.querySelector<HTMLElement>(`[data-testid="${step.targetTestId}"]`);
-		target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-		target?.focus({ preventScroll: true });
-		target?.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-		window.setTimeout(() => target?.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1400);
+		if (!target) {
+			setUnavailableMessage(`"${step.target}" is not available in the current view. ${step.body}`);
+			return;
+		}
+		setUnavailableMessage(null);
+		target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+		target.focus({ preventScroll: true });
+		target.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+		window.setTimeout(() => target.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1400);
 	};
 
 	return (
@@ -325,7 +338,8 @@ export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; o
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-8 gap-1.5 px-1.5 text-xs sm:px-2.5"
+					className="h-8 min-h-11 min-w-11 gap-1.5 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:px-2.5"
+					aria-label="Open timetable tutorial"
 					data-testid="timetable-simple-tutorial-trigger"
 				>
 					<BookOpen className="size-3.5" aria-hidden="true" />
@@ -361,6 +375,15 @@ export function SimpleTutorialControl({ open, onOpenChange }: { open: boolean; o
 							<Button type="button" variant="secondary" size="sm" className="mt-3 h-8 text-xs" onClick={focusStepTarget}>
 								Show me
 							</Button>
+							{unavailableMessage ? (
+								<p
+									role="status"
+									data-testid="timetable-simple-tutorial-unavailable"
+									className="mt-2 text-xs font-medium text-amber-700"
+								>
+									{unavailableMessage}
+								</p>
+							) : null}
 						</div>
 					</div>
 				</div>

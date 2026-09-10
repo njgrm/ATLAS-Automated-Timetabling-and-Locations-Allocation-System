@@ -18,7 +18,6 @@ import {
 	Play,
 	GraduationCap,
 	RefreshCw,
-	Send,
 	Settings2,
 	SlidersHorizontal,
 	Sun,
@@ -139,6 +138,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	// A failed or invalidated run is history, not a timetable that can be reviewed or published.
 	const hasGeneratedRun = Boolean(context.draft);
+	// Run-scoped daily tools are only meaningful once a schedule or draft exists.
+	const runToolsAvailable = hasGeneratedRun || context.isPreGenerationWorkspace;
 	// Newest run failed while nothing reviewable exists: name it explicitly so
 	// operators do not read this as "nothing ever happened".
 	const latestRunFailed = !hasGeneratedRun && (context.runs?.[0]?.status === 'FAILED');
@@ -400,53 +401,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					/>
 					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} />
 
-					{hasGeneratedRun && (
-						<TooltipProvider delayDuration={300}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										type="button"
-										variant={isRunPublished ? 'outline' : publishBlocked ? 'outline' : 'default'}
-										size="sm"
-										className={cn(
-											'hidden',
-											isRunPublished && 'border-emerald-200 bg-emerald-50 text-emerald-800',
-											!isRunPublished && !publishBlocked && 'bg-emerald-600 text-white hover:bg-emerald-700',
-										)}
-										disabled={publishBlocked}
-										onClick={handlePublishClick}
-										data-testid="timetable-simple-publish-action"
-									>
-										{isRunPublished ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <Send className="size-3.5" aria-hidden="true" />}
-										<span className="hidden sm:inline">{isRunPublished ? 'Published' : 'Publish'}</span>
-										<span className="sr-only sm:hidden">{isRunPublished ? 'Published schedule' : 'Publish schedule'}</span>
-									</Button>
-								</TooltipTrigger>
-								{publishBlocked && (
-									<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-publish-blocked-reason">
-										<p>{publishBlockedReason}</p>
-										<p className="mt-1 text-xs opacity-80">Click to review and fix issues.</p>
-									</TooltipContent>
-								)}
-								{isRunPublished && (
-									<TooltipContent side="bottom" className="max-w-xs">
-										<p>This schedule is published.</p>
-										{(context.summary?.unassignedCount ?? 0) > 0 && (
-											<p className="mt-1 text-xs opacity-80">{context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need review.</p>
-										)}
-									</TooltipContent>
-								)}
-							</Tooltip>
-						</TooltipProvider>
-					)}
-
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
 							<Button
 								type="button"
 								variant="outline"
 								size="sm"
-								className="h-8 shrink gap-1 px-1.5 text-xs sm:gap-1.5 sm:px-2.5"
+								className="h-8 min-h-11 min-w-11 shrink gap-1 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:gap-1.5 sm:px-2.5"
 								aria-label="More"
 								data-testid="timetable-simple-more-trigger"
 							>
@@ -458,13 +419,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<div className="space-y-2">
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-daily-tasks">
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Daily tasks</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('place-unresolved'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-place-unresolved" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('place-unresolved'); }}>
 										<ClipboardCheck className="size-3.5" aria-hidden="true" />
 										Place unresolved sessions
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('swap-sessions'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-swap-sessions" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('swap-sessions'); }}>
 										<ArrowRightLeft className="size-3.5" aria-hidden="true" />
 										Swap sessions
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
 									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!canPlanOrGenerate} onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
 										<CalendarClock className="size-3.5" aria-hidden="true" />
@@ -504,9 +467,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
 										<ListChecks className="size-3.5" aria-hidden="true" />
 										Review issues
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
@@ -745,11 +709,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
 								No timetable exists for {visibleYearLabel ?? 'the active school year'}
 							</p>
-							<p className="hidden max-w-xl truncate text-xs text-muted-foreground sm:block" data-testid="timetable-curriculum-readiness-message">
+							<p className="break-words text-xs text-muted-foreground" data-testid="timetable-curriculum-readiness-message">
 								{curriculumReadiness.message}
 							</p>
 							{latestRunFailed && (
-								<p className="hidden max-w-xl truncate text-xs font-medium text-red-700 sm:block" data-testid="timetable-last-generation-failed-message">
+								<p className="break-words text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
 									The last generation run failed. Review setup, then try generating again.
 								</p>
 							)}

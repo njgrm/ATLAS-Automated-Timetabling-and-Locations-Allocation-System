@@ -341,3 +341,82 @@ test('insertion workflow stays preview-only with zero production apply', () => {
 	const workflow = source('src/components/timetable/UnassignedInsertionWorkflow.tsx');
 	assert.match(workflow, /allowApply: false/);
 });
+
+// --- TT-UX01 operator readiness honesty (2026-09-11) ---
+
+test('TTX-01 no-run center has no write CTA and defers to the header action', () => {
+	const center = source('src/components/timetable/CenterWorkspace.tsx');
+	assert.doesNotMatch(center, /timetable-empty-primary-actions/);
+	assert.doesNotMatch(center, /Start Pre-Generation Draft/);
+	assert.doesNotMatch(center, /handleStartNewPreGenerationDraft\(\)/);
+	assert.match(center, /primary action above/);
+});
+
+test('TTX-02 run-derived clean claims are gated on run existence', () => {
+	const rail = source('src/components/timetable/GeneratedRunRailPanels.tsx');
+	assert.match(rail, /const hasGeneratedRun = Boolean\(context\.summary\)/);
+	assert.match(rail, /hasGeneratedRun && hardViolationCount === 0 && violations\.length === 0/);
+	assert.match(rail, /No generated run yet/);
+	const drawer = source('src/components/timetable/TimetableTaskDrawer.tsx');
+	assert.match(drawer, /if \(!context\.summary\)/);
+});
+
+test('TTX-03 advanced run badge never renders a null run as #-', () => {
+	const advanced = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
+	assert.doesNotMatch(advanced, /Generated Run #\$\{activeGeneratedRunId \?\? '-'/);
+	assert.match(advanced, /No generated run yet/);
+});
+
+test('TTX-04 deciding readiness copy is visible on mobile and not hard-truncated', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.doesNotMatch(header, /hidden max-w-xl truncate text-xs text-muted-foreground sm:block/);
+	assert.doesNotMatch(header, /hidden max-w-xl truncate text-xs font-medium text-red-700 sm:block/);
+	assert.match(header, /data-testid="timetable-curriculum-readiness-message"/);
+	assert.match(header, /data-testid="timetable-last-generation-failed-message"/);
+});
+
+test('TTX-05 run-dependent More items are disabled with an accessible reason', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /runToolsAvailable/);
+	assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 3);
+	assert.match(header, /timetable-more-place-unresolved/);
+	assert.match(header, /timetable-more-swap-sessions/);
+	assert.match(header, /timetable-more-review-issues/);
+	assert.match(header, /Unavailable: no generated run yet/);
+});
+
+test('TTX-06 empty entity selector is disabled with a reason', () => {
+	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
+	assert.match(helpers, /entityOptionsAvailable/);
+	assert.match(helpers, /disabled=\{!entityOptionsAvailable\}/);
+	assert.match(helpers, /No schedule options are available yet/);
+	const select = source('src/ui/searchable-select.tsx');
+	assert.match(select, /disabled\?: boolean/);
+});
+
+test('TTX-07 tutorial reports an unavailable target instead of a silent no-op', () => {
+	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
+	assert.match(helpers, /timetable-simple-tutorial-unavailable/);
+	assert.match(helpers, /if \(!target\)/);
+});
+
+test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', () => {
+	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
+	assert.match(helpers, /aria-label="Open timetable tutorial"/);
+	assert.match(helpers, /min-h-11/);
+});
+
+test('TTX-11 room-request no-run 404 is empty, deduplicated, and gated on a completed run', () => {
+	const useData = source('src/hooks/useTimetableData.ts');
+	assert.match(useData, /getTimetableApiErrorCode\(err\) === 'NO_ACTIVE_DRAFT'/);
+	assert.match(useData, /hasCompletedRun/);
+	assert.doesNotMatch(
+		useData,
+		/if \(!schoolYearId\) return;\s*void loadRoomRequestSummary\(schoolYearId, requestStatusFilter, requestDecisionFilter\);/,
+	);
+});
+
+test('TTX-12 no permanently hidden publish control remains', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.doesNotMatch(header, /timetable-simple-publish-action/);
+});
