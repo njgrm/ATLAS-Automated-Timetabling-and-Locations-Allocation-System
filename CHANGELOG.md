@@ -18,6 +18,7 @@
 ### Verification
 - Client TypeScript and production build pass; ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21.
 - Live Tailnet read-only baseline and isolated candidate Playwright matrices through the Tailnet IP pass with zero candidate non-login writes; workspace height floors hold at 1440x900, 1280x720, 1024x768, 390x844, 360x800, and 640x360.
+- Independent advisory review 1 found one blocking defect (name-based HG detection in `SubjectRow`); correction `9982ae17` fixed it and a fresh changed-scope review returned `ACCEPT_READY`.
 - No live Teaching Load mutation, migration, generation, publication, or companion edit was performed.
 
 ### Open Questions
