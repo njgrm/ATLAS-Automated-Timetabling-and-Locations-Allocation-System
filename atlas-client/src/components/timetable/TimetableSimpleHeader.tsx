@@ -454,11 +454,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
+										disabled={!runToolsAvailable}
 										onSelect={(event) => { event.preventDefault(); openTeacherDeparture(); }}
 										data-testid="teacher-departure-trigger"
 									>
 										<UserRoundX className="size-3.5" aria-hidden="true" />
 										Teacher leaving / Reassign load
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">

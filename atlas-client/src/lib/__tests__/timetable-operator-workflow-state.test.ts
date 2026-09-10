@@ -378,10 +378,11 @@ test('TTX-04 deciding readiness copy is visible on mobile and not hard-truncated
 test('TTX-05 run-dependent More items are disabled with an accessible reason', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
 	assert.match(header, /runToolsAvailable/);
-	assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 3);
+	assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 4);
 	assert.match(header, /timetable-more-place-unresolved/);
 	assert.match(header, /timetable-more-swap-sessions/);
 	assert.match(header, /timetable-more-review-issues/);
+	assert.match(header, /teacher-departure-trigger/);
 	assert.match(header, /Unavailable: no generated run yet/);
 });
 

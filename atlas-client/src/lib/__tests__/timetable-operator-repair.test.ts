@@ -97,3 +97,14 @@ test('R7 tutorial never references the superseded requirements page', () => {
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
 	assert.doesNotMatch(helpers, /curriculum-requirements/);
 });
+
+// --- R1 QA F1 correction: no run-only control may be usable without a run ---
+
+test('R1 bulk teacher departure is gated on an existing generated run', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const idx = header.indexOf('data-testid="teacher-departure-trigger"');
+	assert.ok(idx > 0, 'teacher-departure-trigger must exist in the Simple More menu');
+	const block = header.slice(Math.max(0, idx - 320), idx + 420);
+	assert.match(block, /disabled=\{!runToolsAvailable\}/);
+	assert.match(block, /Unavailable: no generated run yet/);
+});

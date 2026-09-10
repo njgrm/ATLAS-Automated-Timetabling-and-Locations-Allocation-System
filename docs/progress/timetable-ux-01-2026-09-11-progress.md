@@ -1,7 +1,7 @@
-# TT-UX01 — Timetable Operator Readiness One-Shot — Progress Ledger
+# TT-UX01 â€” Timetable Operator Readiness One-Shot â€” Progress Ledger
 
 Prompt: `docs/prompts/timetable-ux-one-shot-ttux01-2026-09-11.md`
-Worktree: `D:/ATLAS-worktrees/timetable-ux-01` · Branch: `work/timetable-ux-01`
+Worktree: `D:/ATLAS-worktrees/timetable-ux-01` Â· Branch: `work/timetable-ux-01`
 Risk tier: MEDIUM client/UI with HIGH interaction guardrails (no live mutation)
 Base SHA: `aab8fb002fb54d0f009525fd68ddc99b9baa5f88` (refreshed `origin/main`, clean worktree)
 
@@ -15,7 +15,7 @@ screenshots were captured for the divergence record only.
 
 | ID | Status | Evidence |
 |---|---|---|
-| TTX-01 | FIXED | Center no-run branch (CenterWorkspace.tsx) no longer renders `timetable-empty-primary-actions` / `Start Pre-Generation Draft`; it defers to the header action. RED `TTX-01` → GREEN. |
+| TTX-01 | FIXED | Center no-run branch (CenterWorkspace.tsx) no longer renders `timetable-empty-primary-actions` / `Start Pre-Generation Draft`; it defers to the header action. RED `TTX-01` â†’ GREEN. |
 | TTX-02 | FIXED | `GeneratedRunRailPanels.tsx` gates "schedule is clean"/"No violations found" on `hasGeneratedRun`; `TimetableTaskDrawer.tsx` gates the empty claim on `context.summary`. RED/GREEN `TTX-02`. |
 | TTX-03 | FIXED | Advanced badge renders `No generated run yet` when `activeGeneratedRunId == null`, never `#-`. RED/GREEN `TTX-03`. |
 | TTX-04 | FIXED | Readiness + failed-run copy is no longer `hidden ... sm:block` or `truncate`; wraps fully and is visible on all widths. Playwright: `clipped:false` at 1280x720, 640x360, 390x844. RED/GREEN `TTX-04`. |
@@ -33,18 +33,18 @@ screenshots were captured for the divergence record only.
 New tracked tests appended to `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
 (production-consumer source assertions + existing pure helpers).
 
-- RED (before fix): `npm run test:timetable-operator-ux` → tests 34, pass 24, fail 10
+- RED (before fix): `npm run test:timetable-operator-ux` â†’ tests 34, pass 24, fail 10
   (all ten `TTX-*` tests failing).
-- GREEN (after fix): `npm run test:timetable-operator-ux` → tests 34, pass 34, fail 0.
-- Full tracked client suite (18 files, lib + hooks) → tests 155, pass 155, fail 0.
+- GREEN (after fix): `npm run test:timetable-operator-ux` â†’ tests 34, pass 34, fail 0.
+- Full tracked client suite (18 files, lib + hooks) â†’ tests 155, pass 155, fail 0.
 
 ## Gates (clean worktree)
 
-- `npm run test:timetable-operator-ux` → 34/34 (exit 0).
-- Full tracked client suite (`tsx --test` over `lib/__tests__` + `hooks/__tests__`) → 155/155.
-- `npx tsc --noEmit` (atlas-client) → exit 0.
-- `npm run build` (atlas-client) → exit 0.
-- `git diff --check` → exit 0 (see commit evidence).
+- `npm run test:timetable-operator-ux` â†’ 34/34 (exit 0).
+- Full tracked client suite (`tsx --test` over `lib/__tests__` + `hooks/__tests__`) â†’ 155/155.
+- `npx tsc --noEmit` (atlas-client) â†’ exit 0.
+- `npm run build` (atlas-client) â†’ exit 0.
+- `git diff --check` â†’ exit 0 (see commit evidence).
 
 ## Packaging defect (recorded, not repaired)
 
@@ -122,14 +122,14 @@ candidate dev server on 5183 is stopped after QA.
 
 ---
 
-# TT-UX01R2 — Simple Timetable operator closure (overnight one-shot)
+# TT-UX01R2 â€” Simple Timetable operator closure (overnight one-shot)
 
 Prompt: `docs/prompts/timetable-simple-operator-one-shot-ttux01r2-2026-09-11.md`
 (from commit `0da881ca`; read only, not merged or cherry-picked).
 Review base: `aab8fb00`. Starting candidate: `aa38d784`.
-Branch/worktree: `work/timetable-ux-01` · `D:/ATLAS-worktrees/timetable-ux-01`.
+Branch/worktree: `work/timetable-ux-01` Â· `D:/ATLAS-worktrees/timetable-ux-01`.
 
-## Correction scope (R1–R8)
+## Correction scope (R1â€“R8)
 
 | ID | Status | Evidence |
 |---|---|---|
@@ -144,19 +144,19 @@ Branch/worktree: `work/timetable-ux-01` · `D:/ATLAS-worktrees/timetable-ux-01`.
 
 ## Gates (candidate worktree)
 
-- `npm run test:timetable-operator-ux` → 57/57 (exit 0); new capability 13/13 and
+- `npm run test:timetable-operator-ux` â†’ 57/57 (exit 0); new capability 13/13 and
   repair 10/10.
 - Full tracked client suite (`tsx --test` over `lib/__tests__` + `hooks/__tests__`)
-  → 178/178 (exit 0).
-- `npx tsc --noEmit` (atlas-client) → exit 0.
-- `npm run build` (atlas-client) → exit 0.
-- `git diff --check aab8fb00..HEAD` → clean.
+  â†’ 178/178 (exit 0).
+- `npx tsc --noEmit` (atlas-client) â†’ exit 0.
+- `npm run build` (atlas-client) â†’ exit 0.
+- `git diff --check aab8fb00..HEAD` â†’ clean.
 
 ## Controlled Playwright fixtures (real production components)
 
 - Harness: `qa-artifacts/playwright/ttux01r2/fixtures.ts` (hermetic `/api/v1/**`
   interception; no request forwarded).
-- Spec: `qa-artifacts/playwright/specs/ttux01r2-simple-operator.spec.ts` →
+- Spec: `qa-artifacts/playwright/specs/ttux01r2-simple-operator.spec.ts` â†’
   7/7 passed against the candidate dev server on `127.0.0.1:5183`.
 - Scenarios: setup-blocked, ready no-run + generation confirmation boundary,
   failed latest run, generated-clean selected-class repair menu, generated-issues
@@ -166,7 +166,7 @@ Branch/worktree: `work/timetable-ux-01` · `D:/ATLAS-worktrees/timetable-ux-01`.
 
 ## Live Tailnet read-only matrix
 
-- Spec: `qa-artifacts/playwright/specs/ttux01r2-live-readonly.spec.ts` →
+- Spec: `qa-artifacts/playwright/specs/ttux01r2-live-readonly.spec.ts` â†’
   1 passed; viewports 1280x720, 390x844, 720x720 (zoom-equivalent).
 - Runtime observed: school year 9 / `2030-2031` / `atlas-persisted` / drift
   `aligned`.
@@ -199,9 +199,25 @@ Branch/worktree: `work/timetable-ux-01` · `D:/ATLAS-worktrees/timetable-ux-01`.
 
 ## Independent review
 
-- Pending: fresh independent reviewer over `aab8fb00...<candidate>` after the
-  implementation commit; a new fresh changed-scope reviewer after each bounded
-  correction. Results appended here when returned.
+- Reviewer 01 (fresh context `ses_f72502d2fffervntv95QVqHz6l`, did not
+  implement): base `aab8fb00` ... candidate `3a721ba4`; verdict
+  `CORRECTION_REQUIRED`.
+  - F1 BLOCKING: the Simple More "Teacher leaving / Reassign load" item was an
+    enabled run-only action with no generated run (R1 violation).
+  - F2 NON_BLOCKING: Advanced `Requests` button ignores the derived
+    `roomRequests` gate (read-only navigation; pre-existing).
+  - F3 NON_BLOCKING: Advanced `Publish` uses an inline predicate without the
+    `isPublished` guard (pre-existing; server-authoritative).
+  - F4 NON_BLOCKING: click-path matrix and Playwright harness are gitignored /
+    uncommitted evidence.
+  - Reviewer reran `test:timetable-operator-ux` 57/57, full client suite
+    178/178, `tsc --noEmit` exit 0, `git diff --check` clean.
+- Correction commit: gated the teacher-departure menu item on
+  `runToolsAvailable` with the screen-reader reason, pinned it in the TTX-05
+  and a new R1 repair test, and re-ran `test:timetable-operator-ux` 58/58 plus
+  the controlled Playwright fixture matrix 8/8. F2/F3 remain recorded as
+  NON_BLOCKING pre-existing.
+- Reviewer 02 (fresh changed-scope): pending, appended when returned.
 
 ## Remaining risks / next planner action
 
@@ -210,3 +226,5 @@ Branch/worktree: `work/timetable-ux-01` · `D:/ATLAS-worktrees/timetable-ux-01`.
   harness is the durable follow-up.
 - R6 clean path is one-click + Undo (permitted contract); confirm the product
   owner accepts it over explicit before/after review.
+- F2 (Advanced Requests gate) and F3 (Advanced duplicate-publish guard) are
+  pre-existing, out of this prompt's edit scope, and recorded for the planner.
