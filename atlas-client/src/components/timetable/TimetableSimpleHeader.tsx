@@ -106,7 +106,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const readiness = readinessLabel(context);
 	const curriculumReadiness = context.curriculumReadiness ?? { state: 'unavailable' as const, message: 'Curriculum readiness is unavailable.' };
 	const generationReady = curriculumReadiness.state === 'ready';
-	const generationBlocked = curriculumReadiness.state === 'blocked';
+	const scopeResolved = Number.isInteger(context.schoolId) && context.schoolId > 0
+		&& Number.isInteger(context.schoolYearId) && (context.schoolYearId ?? 0) > 0;
+	const canPlanOrGenerate = scopeResolved && generationReady && !context.generating && !context.loading;
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
 	const ActiveIcon = activeTaskDefinition.icon;
 	const currentEntityIsValid = hasPivotValue(context, context.entityFilter);
@@ -156,7 +158,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		unassignedCount: context.summary?.unassignedCount ?? 0,
 		softCount: context.softCount,
 		isPublished: isRunPublished,
-		scopeResolved: context.schoolId != null && context.schoolYearId != null,
+		scopeResolved,
 		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
 		latestRunFailed,
 	});
@@ -180,6 +182,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				if (generationReady) context.handleTriggerGenerate();
 				break;
 			case 'retry-generate': context.handleTriggerGenerate(); break;
+			case 'retry-readiness': context.handleRefresh(); break;
 			case 'fix-blockers': setReadinessSheetOpen(true); break;
 			case 'review-warnings': void startTask('review-issues'); break;
 			case 'publish': handlePublishClick(); break;
@@ -548,7 +551,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 										<ArrowRightLeft className="size-3.5" aria-hidden="true" />
 										Swap sessions
 									</DropdownMenuItem>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!canPlanOrGenerate} onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
 										<CalendarClock className="size-3.5" aria-hidden="true" />
 										Plan draft
 									</DropdownMenuItem>
@@ -592,7 +595,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
-										disabled={context.generating || context.loading || !context.schoolYearId}
+										disabled={!canPlanOrGenerate}
 										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.handleTriggerGenerate(); }}
 									>
 										<Play className="size-3.5" aria-hidden="true" />
@@ -838,51 +841,44 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-11 gap-1.5 px-3 text-sm"
-							disabled={context.newDraftLoading || !context.schoolYearId}
-							onClick={() => void startTask('plan-draft')}
-							data-testid="timetable-empty-start-draft-action"
-						>
-							<CalendarClock className="size-3.5" aria-hidden="true" />
-							<span>Start draft</span>
-						</Button>
-						{generationBlocked ? (
-							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-readiness-repair-action">
+						{lifecycleAction.kind === 'fix-setup' ? (
+							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
 								<Link to="/curriculum-requirements">
 									<BookOpen className="size-3.5" aria-hidden="true" />
-									Fix Curriculum Requirements
+									{lifecycleAction.label}
 								</Link>
 							</Button>
 						) : (
 							<Button
 								type="button"
+								size="sm"
+								className="h-11 gap-1.5 px-3 text-sm"
+								disabled={lifecycleAction.disabled}
+								onClick={handleLifecycleAction}
+								data-testid="timetable-simple-primary-action"
+							>
+								{lifecycleAction.kind === 'generating' || (lifecycleAction.kind === 'retry-readiness' && lifecycleAction.disabled)
+									? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+									: lifecycleAction.kind === 'retry-generate' || lifecycleAction.kind === 'retry-readiness'
+										? <RefreshCw className="size-3.5" aria-hidden="true" />
+										: <CalendarClock className="size-3.5" aria-hidden="true" />}
+								<span>{lifecycleAction.label}</span>
+							</Button>
+						)}
+						{generationReady && (
+							<Button
+								type="button"
 								variant="outline"
 								size="sm"
 								className="h-11 gap-1.5 px-3 text-sm"
-								disabled={context.loading || !context.schoolYearId}
+								disabled={!canPlanOrGenerate}
 								onClick={() => setInsertionOpen(true)}
 								data-testid="timetable-unassigned-insertion-action"
 							>
 								<CalendarClock className="size-3.5" aria-hidden="true" />
-								<span>Unassigned insertion</span>
+								<span>Preview demand</span>
 							</Button>
 						)}
-						<Button
-							type="button"
-							size="sm"
-						className="hidden"
-							disabled={context.generating || context.loading || !context.schoolYearId}
-							onClick={context.handleTriggerGenerate}
-							data-testid="timetable-empty-generate-action"
-						>
-							{context.generating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
-							<span className="hidden sm:inline">Generate when ready</span>
-							<span className="sm:hidden">Generate</span>
-						</Button>
 					</div>
 				</div>
 			) : (

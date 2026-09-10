@@ -103,6 +103,38 @@ test('lifecycle failed newest run with no reviewable run offers retry, never pub
 	);
 });
 
+test('lifecycle fails closed while readiness is unresolved or unavailable', () => {
+	const checking = deriveSimpleLifecycleAction({ hasGeneratedRun: false, curriculumState: 'loading' });
+	assert.equal(checking.kind, 'retry-readiness');
+	assert.equal(checking.label, 'Checking setup…');
+	assert.equal(checking.disabled, true);
+	assert.equal(checking.interactive, false);
+
+	for (const curriculumState of ['unavailable', 'failed'] as const) {
+		const retry = deriveSimpleLifecycleAction({ hasGeneratedRun: false, curriculumState });
+		assert.equal(retry.kind, 'retry-readiness');
+		assert.equal(retry.label, 'Retry setup check');
+		assert.equal(retry.disabled, false);
+		assert.equal(retry.interactive, true);
+	}
+});
+
+test('production no-run header consumes the lifecycle action and has no hidden generate bypass', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const noRunStart = header.indexOf('{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (');
+	const generatedBranch = header.indexOf('\n\t\t\t) : (', noRunStart);
+	assert.ok(noRunStart >= 0 && generatedBranch > noRunStart, 'production no-run branch must exist');
+	const noRunBranch = header.slice(noRunStart, generatedBranch);
+
+	assert.match(noRunBranch, /data-testid="timetable-simple-primary-action"/);
+	assert.match(noRunBranch, /onClick=\{handleLifecycleAction\}/);
+	assert.match(noRunBranch, /\{lifecycleAction\.label\}/);
+	assert.doesNotMatch(noRunBranch, /data-testid="timetable-empty-generate-action"/);
+	assert.doesNotMatch(noRunBranch, /className="hidden"[\s\S]{0,180}handleTriggerGenerate/);
+	assert.equal((noRunBranch.match(/data-testid="timetable-simple-primary-action"/g) ?? []).length, 2,
+		'the two conditional render forms must identify the same sole primary action');
+});
+
 // --- TT-C04 honest readiness copy ---
 
 test('readiness chip never reports generated counts without a run', () => {

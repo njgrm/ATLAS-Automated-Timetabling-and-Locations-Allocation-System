@@ -151,3 +151,33 @@ Blocker-actionability gaps confirmed:
   dialog plumbing; tsc + build must confirm no other consumers break.
 - Touch-target bumps (h-7 → h-11) alter blocker-row density slightly; no-scroll
   architecture preserved via existing local ScrollArea regions.
+
+## Planner correction TT-C04R (2026-09-10)
+
+- Status: `REVIEW_REQUIRED` pending an independent review of the correction
+  commit. TT-C05 and any live generation action remain locked.
+- Finding: the production no-run branch bypassed
+  `deriveSimpleLifecycleAction`. With current-year curriculum ready and the
+  latest run failed, the helper selected `retry-generate`, but the rendered
+  page still emphasized `Start draft`, showed `Unassigned insertion`, and kept
+  its actual generate control hidden.
+- Correction: the no-run branch now consumes the lifecycle action directly.
+  `Try generating again` is the single primary action for the observed failed
+  run, while the preview-only demand tool is a secondary `Preview demand`
+  action. Setup loading/failed states fail closed behind `Checking setup...` or
+  `Retry setup check`; unresolved actor/year scope cannot plan or generate.
+  The More-menu Plan/Generate actions use the same readiness gate.
+- Focused proof: `npm run test:timetable-operator-ux` 23/23; client
+  `npx tsc --noEmit`; client production build; `git diff --check` all passed.
+  A production-consumer source assertion pins the no-run branch to the
+  lifecycle handler and proves the hidden generate bypass is absent.
+- Rendered proof against the isolated candidate client on `localhost:5175`
+  with the existing live API untouched: authenticated school 1 / year 8 page
+  displayed `Try generating again` plus secondary `Preview demand`, with no
+  `Start draft`; 390x844 mobile measured `scrollWidth=390` and
+  `innerWidth=390`. No action was invoked, so no generation/save/publication
+  request was dispatched. The isolated Vite process is stopped after QA.
+- Packaging note: `npm run test:timetable-conflict` is not a valid clean-tree
+  gate at this commit because its package script names two ignored test files
+  absent from the committed tree. This pre-existing durability defect is not
+  repaired in TT-C04R and must be handled as a separate packaging correction.

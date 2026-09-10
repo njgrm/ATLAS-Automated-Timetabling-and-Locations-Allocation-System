@@ -1,5 +1,34 @@
 # Changelog
 
+## [2026-09-10] — TT-C04R No-Run Primary Action Correction
+
+### Changed
+- Wired the production no-run Timetable header to the shared lifecycle action,
+  so a failed latest run exposes `Try generating again` as the single primary
+  action instead of emphasizing a separate draft path and hiding generation.
+- Renamed the preview-only secondary action to `Preview demand` and gated both
+  header and More-menu planning/generation controls on resolved actor scope and
+  ready curriculum state.
+- Added fail-closed setup-loading and setup-retry lifecycle states plus a
+  production-consumer regression assertion.
+
+### Verification
+- Focused Timetable operator UX tests pass 23/23; client TypeScript, production
+  build, and diff-check pass.
+- Authenticated isolated-browser checks pass at desktop and 390x844 mobile; the
+  mobile page has no horizontal overflow and no generation action was invoked.
+
+### Decisions Made
+- The current no-run/failed-run primary action initiates the existing canonical
+  generation flow. Demand inspection remains preview-only and secondary.
+- Live generation, save, publication, server changes, and companion-system
+  changes remain outside TT-C04R.
+
+### Open Questions
+- An independent reviewer must accept the TT-C04R correction commit before
+  integration. The ignored-test packaging gap in `test:timetable-conflict`
+  remains separate work.
+
 ## [2026-09-10] — TT-C04 Timetable Operator UX (REVIEW_REQUIRED)
 
 ### Added

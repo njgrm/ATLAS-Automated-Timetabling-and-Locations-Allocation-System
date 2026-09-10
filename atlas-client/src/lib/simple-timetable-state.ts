@@ -50,6 +50,7 @@ export type SimpleLifecycleKind =
 	| 'generate'
 	| 'generating'
 	| 'retry-generate'
+	| 'retry-readiness'
 	| 'fix-blockers'
 	| 'review-warnings'
 	| 'publish'
@@ -89,6 +90,12 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 	}
 	if (input.generating) {
 		return { kind: 'generating', label: 'Generating…', disabled: true, interactive: false };
+	}
+	if (input.curriculumState === 'loading') {
+		return { kind: 'retry-readiness', label: 'Checking setup…', disabled: true, interactive: false };
+	}
+	if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
+		return { kind: 'retry-readiness', label: 'Retry setup check', disabled: false, interactive: true };
 	}
 	// Setup inputs blocked: the single next action is repairing setup, never
 	// generation or publish.
