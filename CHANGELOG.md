@@ -80,7 +80,24 @@
 ### Open Questions
 - Planner QA: Tailnet login-flow, keyboard-only, 200%-zoom, overflow, and
   no-write-request verification at 1280x720 and 390x844.
+## [2026-09-10] — PUB-C01R Publication Authority Correction
 
+### Added
+- Exact published-source truth: a completed source run is published only when `summary.isPublished === true`; stale `publishedAt`/`publishedBy` markers never establish publication for revision creation (`published-revision.service.ts`).
+- Authoritative latest-revision read contract: `GET /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/published-revisions` now returns `latestRevisionId`/`baseRevisionId`; both real client flows (Teacher Departure Recovery Sheet, Tactical Sandbox Dock) read the token immediately before posting and bind it as `sourceRevisionId`, surfacing typed `SOURCE_REVISION_STALE` without silent retry or substitution.
+- Idempotent replay-before-staleness ordering, causal effective-date enforcement (`409 REVISION_EFFECTIVE_DATE_BEFORE_SOURCE`), and publish outcome transparency (`{ run, publication: { revisionId, auditId, replayed, notificationDelivery } }` envelope with `FAILED_AFTER_COMMIT` semantics).
+- Failing-first regressions in `publication-contract-readiness.test.ts` covering all five defects plus mounted publish/revision-creation route coverage, and a focused client contract test `atlas-client/src/lib/__tests__/published-revision-client.test.ts`.
+
+### Changed
+- `generation.service.ts` `publishRun` now returns the full `PublishScheduleResult` instead of discarding `revisionId`, `auditId`, `replayed`, and `notificationDelivery`; the production publish route preserves the existing `run` response and exposes outcomes in a stable `publication` envelope.
+
+### Decisions Made
+- Replay detection runs after scope/actor/official-source validation but before source-token and previous-value staleness checks, so an identical committed retry returns the original record.
+- A new revision's effective date must be on or after its claimed source revision's effective date; same-date and forward-date revisions remain valid.
+- Built-runtime server restart was not performed because the prompt excludes runtime restart; startup/route-loading surfaces are unchanged and the prior PUB-C01 candidate's isolated built-runtime health smoke remains the last runtime evidence.
+
+### Open Questions
+- None newly opened; actual publication remains a separately fingerprinted `HIGH` action requiring independent pre-action review and explicit operator approval.
 ## [2026-09-10] — Post-Reconciliation Parallel Readiness Prompts
 
 ### Added

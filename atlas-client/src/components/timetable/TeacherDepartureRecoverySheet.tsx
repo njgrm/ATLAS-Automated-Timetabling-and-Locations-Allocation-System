@@ -18,6 +18,11 @@ import {
 } from '@/ui/sheet';
 import { PublishedRevisionDialog } from './PublishedRevisionDialog';
 import { buildRevisionPayloadChange, revisionDateError } from './TacticalSandboxDock.helpers';
+import {
+	buildRevisionCreatePayload,
+	fetchLatestRevisionToken,
+	isSourceRevisionStaleError,
+} from '@/lib/published-revision-client';
 import type {
 	CommitResult,
 	DraftReport,
@@ -409,9 +414,11 @@ export function TeacherDepartureRecoverySheet({
 		setRevisionError(null);
 		setRevisionActionHint(null);
 		try {
-			const { data } = await atlasApi.post<PublishedRevisionResponse>(`/generation/${schoolId}/${schoolYearId}/runs/${runId}/published-revisions`, {
+			const sourceRevisionId = await fetchLatestRevisionToken(schoolId, schoolYearId, runId);
+			const payload = buildRevisionCreatePayload({
 				effectiveDate: revisionEffectiveDate,
 				reason,
+				sourceRevisionId,
 				changes: publishedRevisionChanges.map(buildRevisionPayloadChange),
 				changeSummary: {
 					changeCount: publishedRevisionChanges.length,
@@ -424,6 +431,7 @@ export function TeacherDepartureRecoverySheet({
 					publishedTruthPreserved: true,
 				},
 			});
+			const { data } = await atlasApi.post<PublishedRevisionResponse>(`/generation/${schoolId}/${schoolYearId}/runs/${runId}/published-revisions`, payload);
 			setRevisionSuccess({
 				revisionId: data.revision.id,
 				effectiveDate: data.revision.effectiveDate,
@@ -433,6 +441,11 @@ export function TeacherDepartureRecoverySheet({
 			onSaved();
 		} catch (error: unknown) {
 			const response = (error as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
+			if (isSourceRevisionStaleError(error)) {
+				setRevisionError('The published schedule changed while you were preparing this revision. Review the current schedule, then try again.');
+				setRevisionActionHint('Another officer may have just published or revised the schedule. Refresh the timetable before creating this revision again.');
+				return;
+			}
 			setRevisionError(response?.message ?? (error instanceof Error ? error.message : 'Revision creation failed.'));
 			setRevisionActionHint(response?.actionHint ?? 'Check the effective date and reason, then try creating the revision again.');
 		} finally {

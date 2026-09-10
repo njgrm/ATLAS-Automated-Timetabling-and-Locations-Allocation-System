@@ -852,3 +852,10 @@ PUB-C01 publication contract candidate (`2026-09-10`, `REVIEW_REQUIRED`):
 - Publication marker, immutable base revision, and audit identity are written in one serializable transaction. Duplicate/concurrent replay resolves to the original publication. SSE notification remains post-commit best effort and is not claimed as database-atomic.
 - Public published-schedule reads remain unauthenticated and school/year/term scoped. Candidate selection filters lightweight completed/published metadata first; the exact payload is loaded only after the base revision and run version are validated, preserving ordered entry extraction.
 - Live school 1/year 8 remained read-only and returned no current published schedule during PUB-C01 verification. This source candidate does not authorize generation or publication.
+
+PUB-C01R publication authority correction (`2026-09-10`, `REVIEW_REQUIRED`):
+- A completed source run is published truth only when its current summary sets `isPublished: true`; stale `publishedAt`/`publishedBy` markers alone never establish publication for revision creation.
+- The revision read contract (`GET /generation/:schoolId/:schoolYearId/runs/:runId/published-revisions`) exposes `latestRevisionId`/`baseRevisionId`; real client revision flows (Teacher Departure Recovery Sheet, Tactical Sandbox Dock) read that token immediately before posting and bind it as `sourceRevisionId`. A stale/concurrent token fails closed with typed `SOURCE_REVISION_STALE`.
+- Idempotent revision replay is detected by idempotency key before source-token/previous-value staleness checks; a committed retry returns `replayed: true` with zero duplicate writes or notifications.
+- A revision claiming a later source revision must take effect on or after that source revision's effective date; earlier dates return typed `409 REVISION_EFFECTIVE_DATE_BEFORE_SOURCE` with zero writes.
+- The production publish route returns a stable envelope `{ run, publication: { revisionId, auditId, replayed, notificationDelivery } }`; a post-commit notification exception surfaces as `FAILED_AFTER_COMMIT` while the publication, base revision, and audit remain committed.
