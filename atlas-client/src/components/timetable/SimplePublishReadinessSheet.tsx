@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight, Copy, Download, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -22,6 +22,9 @@ type SimplePublishReadinessSheetProps = {
 };
 
 function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string) => void }) {
+	const [expanded, setExpanded] = useState(false);
+	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
 	return (
 		<div
 			className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900"
@@ -31,14 +34,16 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 				<div className="min-w-0">
 					<p className="text-sm font-semibold">{group.plainLabel}</p>
 					<p className="mt-0.5 text-xs text-red-700">{group.count} session{group.count === 1 ? '' : 's'} affected</p>
+					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
 				<Button
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-7 shrink-0 gap-1 text-xs"
+					className="h-11 shrink-0 gap-1 px-3 text-xs"
 					onClick={() => onNavigate(group.actionHref, group.reason)}
 					data-testid="timetable-simple-blocker-next-action"
+					aria-label={`${group.actionLabel}: ${group.plainLabel}, ${group.count} sessions affected`}
 				>
 					{group.actionLabel}
 					<ExternalLink className="size-3" aria-hidden="true" />
@@ -46,14 +51,23 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 			</div>
 			{group.items.length > 0 && (
 				<div className="mt-2 space-y-1">
-					{group.items.slice(0, 3).map((item, index) => (
+					{visibleItems.map((item, index) => (
 						<div key={index} className="rounded-lg border border-red-100 bg-white/60 px-2 py-1.5 text-xs">
 							<p className="font-medium text-red-800">{item.sectionLabel} · {item.subjectLabel}</p>
 							<p className="text-red-600">{item.facultyLabel}</p>
 						</div>
 					))}
 					{group.items.length > 3 && (
-						<p className="text-xs text-red-600">+{group.items.length - 3} more</p>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-11 gap-1 px-2 text-xs text-red-700"
+							onClick={() => setExpanded((value) => !value)}
+							aria-expanded={expanded}
+						>
+							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
+						</Button>
 					)}
 				</div>
 			)}
@@ -154,6 +168,13 @@ function SimplePublishReadinessSheetImpl({
 
 				<ScrollArea className="flex-1 overflow-auto" style={{ height: 'calc(100svh - 8rem)' }}>
 					<div className="space-y-3 p-4" data-testid="timetable-simple-publish-blocker-summary">
+						{!readiness.hasGeneratedRun && (
+							<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-simple-no-run-readiness">
+								<p className="text-sm font-semibold">No timetable generated yet</p>
+								<p className="mt-1 text-xs text-muted-foreground">Generate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
+							</div>
+						)}
+
 						{readiness.isClean && (
 							<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
 								<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

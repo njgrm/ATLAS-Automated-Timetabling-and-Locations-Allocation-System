@@ -137,6 +137,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	// A failed or invalidated run is history, not a timetable that can be reviewed or published.
 	const hasGeneratedRun = Boolean(context.draft);
+	// Newest run failed while nothing reviewable exists: name it explicitly so
+	// operators do not read this as "nothing ever happened".
+	const latestRunFailed = !hasGeneratedRun && (context.runs?.[0]?.status === 'FAILED');
 	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
 	const isRunPublished = draftSummaryRaw?.isPublished === true;
 	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
@@ -153,6 +156,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		unassignedCount: context.summary?.unassignedCount ?? 0,
 		softCount: context.softCount,
 		isPublished: isRunPublished,
+		scopeResolved: context.schoolId != null && context.schoolYearId != null,
+		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		latestRunFailed,
 	});
 
 	const handlePublishClick = () => {
@@ -167,10 +173,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	const handleLifecycleAction = () => {
 		switch (lifecycleAction.kind) {
+			case 'resolve-scope': break;
+			case 'fix-setup': navigate('/curriculum-requirements'); break;
 			case 'start-draft': void startTask('plan-draft'); break;
 			case 'generate':
 				if (generationReady) context.handleTriggerGenerate();
 				break;
+			case 'retry-generate': context.handleTriggerGenerate(); break;
 			case 'fix-blockers': setReadinessSheetOpen(true); break;
 			case 'review-warnings': void startTask('review-issues'); break;
 			case 'publish': handlePublishClick(); break;
@@ -295,6 +304,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			if (context.hardCount > 0) {
 				context.setLeftTab('violations');
 				onTaskChange('review-issues');
+				return;
+			}
+			// Unresolved sessions block publish exactly like hard blockers: route
+			// to the single readiness summary instead of opening publish.
+			if ((context.summary?.unassignedCount ?? 0) > 0) {
+				setReadinessSheetOpen(true);
 				return;
 			}
 			context.setPublishAcknowledged(false);
@@ -815,6 +830,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<p className="hidden max-w-xl truncate text-xs text-muted-foreground sm:block" data-testid="timetable-curriculum-readiness-message">
 								{curriculumReadiness.message}
 							</p>
+							{latestRunFailed && (
+								<p className="hidden max-w-xl truncate text-xs font-medium text-red-700 sm:block" data-testid="timetable-last-generation-failed-message">
+									The last generation run failed. Review setup, then try generating again.
+								</p>
+							)}
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

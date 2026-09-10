@@ -377,7 +377,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="outline"
 								size="sm"
 								className="h-8 shrink-0 gap-1.5"
-								disabled={!draft || hardCount > 0 || centerView === 'pre-generation'}
+								disabled={!draft || hardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
 								onClick={() => {
 									setPublishAcknowledged(false);
 									setShowPublishDialog(true);
@@ -388,7 +388,11 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>
-							{hardCount > 0 ? `Cannot publish: ${hardCount} hard violation(s) remaining` : 'Publish this schedule'}
+							{hardCount > 0
+								? `Cannot publish: ${hardCount} hard violation(s) remaining`
+								: unassignedCount > 0
+									? `Cannot publish: ${unassignedCount} session(s) still need placing`
+									: 'Publish this schedule'}
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>

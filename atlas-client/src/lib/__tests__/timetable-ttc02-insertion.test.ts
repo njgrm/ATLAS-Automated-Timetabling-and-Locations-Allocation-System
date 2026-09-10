@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   groupInsertionReadiness,
+  isHomeroomGuidanceCode,
   placementSaveAvailability,
   type InsertionReadinessSummary,
 } from '../timetable-ttc02-insertion';
@@ -69,4 +70,17 @@ test('save boundary is clearly labelled and disabled when apply is not enabled',
   const enabled = placementSaveAvailability({ state: 'INDIVIDUALLY_PREVIEWABLE', hasCandidates: true, allowApply: true });
   assert.equal(enabled.canSave, true);
   assert.equal(enabled.label, 'Save placement');
+});
+
+test('homeroom guidance is never placeable, even when mislabeled previewable', () => {
+  assert.equal(isHomeroomGuidanceCode('HG'), true);
+  assert.equal(isHomeroomGuidanceCode('MATH'), false);
+  const blocked = placementSaveAvailability({
+    state: 'INDIVIDUALLY_PREVIEWABLE',
+    hasCandidates: true,
+    allowApply: true,
+    subjectCode: 'HG',
+  });
+  assert.equal(blocked.canSave, false);
+  assert.equal(blocked.label, 'Save blocked');
 });

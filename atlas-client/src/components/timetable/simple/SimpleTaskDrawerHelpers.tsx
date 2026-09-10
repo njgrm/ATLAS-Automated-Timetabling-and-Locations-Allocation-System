@@ -20,7 +20,7 @@ export type BlockerGroup = {
 		sectionName: string;
 		subjectName: string;
 		facultyName: string;
-		reason: string;
+		nextStep: string;
 	}>;
 };
 
@@ -69,7 +69,7 @@ export function buildBlockerGroups(
 				sectionName: sectionName || 'Unknown section',
 				subjectName: subjectName || 'Unknown subject',
 				facultyName: facultyName || 'No teacher assigned',
-				reason: groupConfig.nextStep,
+				nextStep: groupConfig.nextStep,
 			});
 		}
 	}
@@ -160,7 +160,14 @@ export function PublishChecklistContent({
 			</div>
 		)}
 
-			{hardCount === 0 && unassignedCount === 0 && softCount === 0 && (
+			{runId == null && (
+				<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-publish-no-run">
+					<p className="text-sm font-semibold">No timetable generated yet</p>
+					<p className="mt-1 text-xs text-muted-foreground">Generate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
+				</div>
+			)}
+
+			{hardCount === 0 && unassignedCount === 0 && softCount === 0 && runId != null && (
 				<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
 					<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 					<p className="text-sm">Schedule is clean and ready to publish.</p>
@@ -170,7 +177,7 @@ export function PublishChecklistContent({
 			<Button
 				type="button"
 				className="h-11 w-full"
-				disabled={hardCount > 0 || unassignedCount > 0}
+				disabled={runId == null || hardCount > 0 || unassignedCount > 0}
 				onClick={onPublish}
 			>
 				Publish schedule
@@ -182,6 +189,7 @@ export function PublishChecklistContent({
 export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; onNavigate: () => void }) {
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
 
 	return (
 		<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900" data-testid="timetable-publish-blocked-reason">
@@ -189,13 +197,15 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 				<div className="min-w-0">
 					<p className="text-sm font-semibold">{group.plainLabel}</p>
 					<p className="mt-0.5 text-xs text-red-700">{group.count} session{group.count === 1 ? '' : 's'} affected</p>
+					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
 				<Button
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-7 shrink-0 gap-1 text-xs"
+					className="h-11 shrink-0 gap-1 px-3 text-xs"
 					onClick={onNavigate}
+					aria-label={`${group.actionLabel}: ${group.plainLabel}, ${group.count} sessions affected`}
 				>
 					{group.actionLabel}
 					<ExternalLink className="size-3" aria-hidden="true" />
@@ -211,7 +221,7 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 						</div>
 					))}
 					{group.items.length > 3 && (
-						<Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-red-700" onClick={() => setExpanded(!expanded)}>
+						<Button type="button" variant="ghost" size="sm" className="h-11 gap-1 px-2 text-xs text-red-700" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
 							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
 						</Button>
 					)}

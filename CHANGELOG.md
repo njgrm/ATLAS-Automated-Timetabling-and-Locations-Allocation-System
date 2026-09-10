@@ -1,5 +1,38 @@
 # Changelog
 
+## [2026-09-10] — TT-C04 Timetable Operator UX (REVIEW_REQUIRED)
+
+### Added
+- Unified the `/timetable` operator lifecycle (`deriveSimpleLifecycleAction`) across
+  unresolved scope (`resolve-scope`), blocked setup (`fix-setup`), failed newest
+  run (`retry-generate`), draft/generating/blockers/warnings/ready/published, so
+  exactly one primary next action is emphasized per state.
+- Added a no-run publish-readiness contract (`hasGeneratedRun`; a missing run is
+  never clean) and a client Homeroom Guidance guard (`isHomeroomGuidanceCode`;
+  HG-coded lines can never read as placeable or saveable).
+- Added `test:timetable-operator-ux` (20 state-machine/negative/guardrail tests).
+
+### Changed
+- Readiness chip, publish-readiness sheet/drawer, and publish dialog no longer
+  report `Ready to publish` for preview/readiness evidence: unresolved sessions
+  block publish exactly like hard blockers on every surface (simple task, simple
+  repair routing, advanced header, publish dialog).
+- Blocker groups now show plain issue + count + why-it-matters + one repair
+  action with progressive disclosure and 44px repair targets.
+- Workspace clears selection/preview/dialogs/inline-status/undo on actor
+  school/year/run transitions (collaboration resubscribes via its own keys).
+
+### Decisions Made
+- No funnel redesign: no-run primary stays `Start draft`; no generation, save,
+  publish, restart, or server/companion edits in this stream.
+- Live Tailnet/browser login QA at both viewports is planner-QA follow-up;
+  this candidate carries hermetic gates only (tests, tsc, build, diff-check,
+  observation-only local health probe).
+
+### Open Questions
+- Planner QA: Tailnet login-flow, keyboard-only, 200%-zoom, overflow, and
+  no-write-request verification at 1280x720 and 390x844.
+
 ## [2026-09-10] — Post-Reconciliation Parallel Readiness Prompts
 
 ### Added

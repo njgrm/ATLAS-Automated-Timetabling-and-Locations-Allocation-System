@@ -117,6 +117,7 @@ export function UnassignedInsertionWorkflow(props: UnassignedInsertionWorkflowPr
     state: preview?.state ?? 'NO_AVAILABLE_SLOT',
     hasCandidates: Boolean(preview && preview.candidates.length > 0),
     allowApply: false,
+    subjectCode: previewLine?.subjectCode ?? null,
   });
   const pageSize = 20;
   const filteredLines = (summary?.lineStates ?? []).filter((line) =>
