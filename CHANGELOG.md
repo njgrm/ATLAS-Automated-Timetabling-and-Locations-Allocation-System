@@ -3501,3 +3501,29 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 - Durable exactly-once notification delivery would require a separately approved outbox/schema design.
 - Actual publication still requires a fingerprinted preview, independent pre-action review, and explicit operator approval.
+
+## [2026-09-10] — Rollover and Derived Demand Sequence
+
+### Added
+- Added the dependency-safe RR-UX01, TERM-SUBJ-C01, and GEN-ZW01 Wave-1
+  executor prompts.
+- Added the follow-on derived-demand, Curriculum Requirements retirement,
+  Teaching Load carry-forward, generation, and publication sequence.
+
+### Changed
+- Replaced mandatory annual Curriculum Requirements entry with an EnrollPro
+  term contract plus ATLAS Subject scheduling metadata and deterministic demand.
+- Separated rollover UX, term/Subject authority, and generation purity into
+  parallel source boundaries.
+
+### Decisions Made
+- Curriculum Requirements is no longer an operator-owned authority or required
+  lifecycle page.
+- Homeroom Guidance remains visible but is reference-only and creates no
+  timetable or Teaching Load demand.
+- Live migration, Teaching Load carry-forward apply, generation, and publication
+  remain separately approved high-risk actions.
+
+### Open Questions
+- None for Wave 1. Live migration and data-action approvals are requested only
+  after their immutable previews and independent QA are available.
