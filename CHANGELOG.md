@@ -1,5 +1,28 @@
 # Changelog
 
+## [2026-09-11] — TERM-LIVE-APPLY Guarded Migration Closure
+
+### Changed
+- Applied integrated migration `0001_term_subject_authority` to the explicitly
+  approved ATLAS database through the guarded backup workflow.
+- Added the scheduling-disposition enum and three accepted columns; classified
+  only canonical code `HG` as `REFERENCE_ONLY`.
+
+### Verification
+- Revalidated the exact approved backup immediately before both guarded
+  invocations. The first stopped before Prisma due to the wrapper's missing
+  default schema path; a fresh status check proved no change. The supported
+  forwarded `--schema ../prisma/schema.prisma` retry applied the migration.
+- Verified migration history, enum labels, column definitions, 21/1 subject
+  disposition distribution, protected-domain hash parity, and local/Tailnet
+  health without restarting port 5001.
+
+### Decisions Made
+- Rollback was not executed because the migration completed exactly as approved.
+- The guarded wrapper default-path defect is deferred to an ordinary bounded
+  source correction. Integrated Wave-1 runtime deployment and EnrollPro ordered
+  term delivery remain separate work.
+
 ## [2026-09-11] — TERM-LIVE-PREVIEW Live Schema Migration Preview
 
 ### Added

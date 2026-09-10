@@ -111,3 +111,32 @@ required for live term authority.
 
 Return `REVIEW_REQUIRED` for planner/QA acceptance. The proposed approval
 sentence in the JSON artifact is `NOT ACTIVE` until that acceptance.
+
+## TERM-LIVE-APPLY closure — 2026-09-11
+
+Status: `APPLIED_VERIFIED`.
+
+- Planner QA accepted the preview, integrated it, and received the exact
+  operator HIGH approval sentence.
+- Immediate preflight revalidated the approved archive and selected it as the
+  newest fresh manifest for the exact configured target.
+- A first guarded invocation failed before Prisma migration because the default
+  command did not locate the root-level Prisma schema. Fresh status proved zero
+  change. The successful retry used the wrapper's supported forwarded argument
+  `--schema ../prisma/schema.prisma`; the backup gate reran and migration
+  `0001_term_subject_authority` applied successfully.
+- Post-state: both migrations applied; enum and three columns exact; 22 subjects
+  distributed 21 scheduled / one reference-only; only canonical code `HG` is
+  reference-only.
+- Fourteen protected-domain count/hash checks changed only in the expected
+  subjects row representation; Teaching Load, curriculum, generation,
+  publication, identity, and audit domains were unchanged.
+- Local and Tailnet health remained HTTP 200. Port 5001 was not restarted. Its
+  Subjects response still lacks the new projection, so Wave-1 runtime deployment
+  remains pending and separately controlled.
+- Durable receipt:
+  `docs/verification/term-subject-live-migration-apply-2026-09-11.md`.
+
+Next: ordinary correction of the guarded command's default schema path, then a
+bounded integrated-runtime deployment/acceptance pass. EnrollPro ordered term
+authority remains an external dependency.
