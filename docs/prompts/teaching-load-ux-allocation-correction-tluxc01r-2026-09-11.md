@@ -127,4 +127,3 @@ Return `REVIEW_REQUIRED` with original base SHA, new candidate SHA, additive
 commits, exact changed paths, RED/GREEN evidence, live read-only before/after
 signature, proposed year-9 move totals, remaining unresolved rows, and review
 verdict. Do not merge or push.
-

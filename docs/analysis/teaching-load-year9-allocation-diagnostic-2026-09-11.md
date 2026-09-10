@@ -74,4 +74,3 @@ qualified capacity exists, apply the approved combined plan atomically, and
 implement the bounded adviser-section ranking preference. The dedicated legacy
 rebalance route may remain a protected compatibility/recovery surface, but it
 must not be a competing daily UI authority.
-

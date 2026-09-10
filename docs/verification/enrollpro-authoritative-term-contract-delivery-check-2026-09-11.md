@@ -54,4 +54,3 @@ Evidence at `bf12d0de`:
    term contract.
 
 ATLAS must not start derived-demand integration from the prose handoff alone.
-
