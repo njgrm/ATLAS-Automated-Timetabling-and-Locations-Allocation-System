@@ -859,3 +859,10 @@ PUB-C01R publication authority correction (`2026-09-10`, `REVIEW_REQUIRED`):
 - Idempotent revision replay is detected by idempotency key before source-token/previous-value staleness checks; a committed retry returns `replayed: true` with zero duplicate writes or notifications.
 - A revision claiming a later source revision must take effect on or after that source revision's effective date; earlier dates return typed `409 REVISION_EFFECTIVE_DATE_BEFORE_SOURCE` with zero writes.
 - The production publish route returns a stable envelope `{ run, publication: { revisionId, auditId, replayed, notificationDelivery } }`; a post-commit notification exception surfaces as `FAILED_AFTER_COMMIT` while the publication, base revision, and audit remain committed.
+
+GEN-ZW01 passive generation and Teaching Load authority candidate (`2026-09-10`, `REVIEW_REQUIRED`):
+- The real `triggerGenerationRun` path is a passive Teaching Load consumer. It no longer imports or invokes placeholder coverage repair; missing ownership remains the existing typed `TEACHING_LOAD_REVIEW_REQUIRED` setup blocker, while constructor shortages remain unassigned diagnostics.
+- `POST /api/v1/faculty-assignments/auto-fill` is preview-only. A request without `previewOnly: true` fails with `409 TEACHING_LOAD_PROPOSAL_REQUIRED`; archived targets fail first with `409 ARCHIVED_YEAR_READ_ONLY`.
+- Reviewed proposal apply owns suggestion persistence. Active real faculty assignments, normalized ownership, faculty version bumps, Teaching Load cycle refresh, proposal status/payload, and exactly one actor-attributed audit commit in one Serializable transaction. Temporary substitute suggestions remain unresolved and never create placeholder faculty.
+- Manual `PUT /api/v1/faculty-assignments/:facultyId` uses the same active-year/same-school guard and commits assignment replacement, ownership, version, cycle refresh, and exactly one actor-attributed audit in its existing Serializable transaction.
+- Historical summary/read behavior remains unchanged. This candidate does not authorize database apply, generation, migration, or publication.

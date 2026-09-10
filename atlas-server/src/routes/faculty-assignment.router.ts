@@ -505,7 +505,8 @@ router.post('/coverage/rebalance-over-cap', authenticate, requirePrivilegedRole,
 		const result = await previewOrApplyOverCapRebalance({
 			schoolId,
 			schoolYearId,
-			actorId: req.user?.userId ?? 0,
+			actorId: req.user!.userId,
+			actorSchoolId: actorSchoolIdOf(req),
 			authToken,
 			previewOnly,
 		});
@@ -813,7 +814,8 @@ router.post('/suggestion-proposals', authenticate, requirePrivilegedRole, async 
 		const result = await createTeachingLoadSuggestionProposal({
 			schoolId,
 			schoolYearId,
-			actorId: req.user?.userId ?? 0,
+			actorId: req.user!.userId,
+			actorSchoolId: actorSchoolIdOf(req),
 			authToken,
 			coverageMode: coverageMode ?? undefined,
 		});
@@ -874,7 +876,8 @@ router.post('/suggestion-proposals/:proposalId/apply', authenticate, requirePriv
 		const authToken = getUpstreamAuthToken(req);
 		const result = await applyTeachingLoadSuggestionProposal({
 			proposalId,
-			actorId: req.user?.userId ?? 0,
+			actorId: req.user!.userId,
+			actorSchoolId: actorSchoolIdOf(req),
 			authToken,
 		});
 		res.json(result);
@@ -893,7 +896,11 @@ router.post('/suggestion-proposals/:proposalId/cancel', authenticate, requirePri
 			return;
 		}
 
-		const result = await cancelTeachingLoadSuggestionProposal({ proposalId });
+		const result = await cancelTeachingLoadSuggestionProposal({
+			proposalId,
+			actorId: req.user!.userId,
+			actorSchoolId: actorSchoolIdOf(req),
+		});
 		res.json(result);
 	} catch (err) {
 		next(err);
@@ -948,6 +955,7 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req: Reque
 			Number(version),
 			assignments,
 			authToken,
+			{ actorSchoolId: actorSchoolIdOf(req) },
 		);
 		if (!result.success) {
 			const status = result.code === 'FACULTY_NOT_FOUND'
@@ -1002,11 +1010,17 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req: Reque
 			return;
 		}
 
-		const authToken = getUpstreamAuthToken(req);
-		const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly, coverageMode: coverageMode ?? undefined });
 		if (!previewOnly) {
-			await publishTeachingLoadCycleChanged(schoolId, schoolYearId, 'Teaching Load auto-fill updated the annual assignment cycle.');
+			await assignmentService.assertTeachingLoadWriteAuthority({ schoolId, schoolYearId, actorSchoolId: actorSchoolIdOf(req) });
+			res.status(409).json({
+				code: 'TEACHING_LOAD_PROPOSAL_REQUIRED',
+				message: 'Direct Teaching Load auto-fill apply is retired. Create and review a suggestion proposal before applying changes.',
+			});
+			return;
 		}
+
+		const authToken = getUpstreamAuthToken(req);
+		const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly: true, coverageMode: coverageMode ?? undefined });
 		res.json(result);
 	} catch (err) {
 		next(err);

@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-09-10] — GEN-ZW01 Passive Generation and Teaching Load Audit Closure
+
+### Changed
+- Removed placeholder coverage repair from the real generation path; missing Teaching Load ownership remains a typed setup blocker or unassigned diagnostic.
+- Retired direct auto-fill mutation. The mounted endpoint now preserves preview-only suggestions and requires reviewed proposal apply for persistence.
+- Centralized active-year, archived-year, and actor-school write authority for the affected Teaching Load saves.
+- Made reviewed proposal apply and manual assignment save atomically persist domain changes, cycle refresh, and one actor-attributed audit in Serializable transactions.
+
+### Verification
+- Hermetic mounted-route tests cover direct-apply rejection, zero-write preview, archived/cross-school/inactive rejection, actor attribution, one-audit persistence, idempotent replay, and injected-audit rollback.
+- Server TypeScript, build, and built-server startup are part of the candidate gate; no live database write, generation, migration, or publication is authorized.
+
 ## [2026-09-10] — TT-C04 Production-Wiring Correction Prompt
 
 ### Added

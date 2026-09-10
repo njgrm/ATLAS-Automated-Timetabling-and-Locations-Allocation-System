@@ -9,8 +9,8 @@
  *  3. Build a work queue: all active subject × section pairs not already resolved.
  *  4. For each unresolved pair, find the best-qualified, lowest-loaded candidate.
  *  5. Respect DO 005 caps (standard = 1,800 min/week, hard = 2,400 min/week).
- *  6. Modular bundles: attempt entire group; persist partial if cap is hit mid-bundle.
- *  7. Persist FacultySubject + SubjectSectionOwnership in a single transaction.
+ *  6. Modular bundles: simulate the entire group and report cap-limited rows.
+ *  7. Return a zero-write suggestion; reviewed proposal apply owns persistence.
  *  8. Return { preserved, created, unresolved, warnings, staffingReport }.
  *
  * Design invariants:
@@ -19,7 +19,7 @@
  * - Business logic is entirely in this service; controllers are transport-only.
  */
 
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 import { type SectionFetchResult, type SectionSourceLabel } from './section-adapter.js';
 import { fetchSectionsForRuntimeControls } from './section.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
@@ -32,15 +32,17 @@ import {
 	resolveSubjectOwnerDepartmentCode,
 } from './subject-ownership.service.js';
 import {
+	assertTeachingLoadWriteAuthority,
 	getActiveSubjectCoverageSummary,
 	getAssignmentSummary,
 	previewOrApplyRealFacultyRecovery,
 	previewOrApplyTeachingLoadTruthReconcile,
 	previewOrApplyStaleOwnershipReconcile,
-	repairActiveSubjectCoverageWithPlaceholders,
 } from './faculty-assignment.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
+
+const db = () => getDataContext();
 
 // DO 005 s.2024 weekly minute caps — sourced from workload policy defaults
 const STANDARD_CAP_MIN = WORKLOAD_DEFAULTS.teachingStandardMinutes;
@@ -1420,6 +1422,15 @@ export async function autoFill(
 	authToken?: string,
 	options?: AutoFillOptions,
 ): Promise<AutoFillResult> {
+	if (options?.previewOnly !== true && options?.staffingOnly !== true) {
+		const error = new Error('Direct Teaching Load auto-fill apply is retired. Create and review a suggestion proposal before applying changes.') as Error & {
+			statusCode: number;
+			code: string;
+		};
+		error.statusCode = 409;
+		error.code = 'TEACHING_LOAD_PROPOSAL_REQUIRED';
+		throw error;
+	}
 	const warnings: string[] = [];
 	const previewOnly = options?.previewOnly ?? false;
 	const staffingOnly = options?.staffingOnly === true;
@@ -1493,13 +1504,12 @@ export async function autoFill(
 		};
 	}
 
-	const shouldApplyStaleReconcile = !previewOnly && !staffingOnly;
 	const staleReconcile = await previewOrApplyStaleOwnershipReconcile({
 		schoolId,
 		schoolYearId,
 		actorId: 0,
 		authToken,
-		previewOnly: !shouldApplyStaleReconcile,
+		previewOnly: true,
 	});
 
 	if (staleReconcile.staleOwnedCurrentYearPairCount > 0) {
@@ -1514,7 +1524,7 @@ export async function autoFill(
 		}
 	}
 
-	const faculty = await prisma.facultyMirror.findMany({
+	const faculty = await db().facultyMirror.findMany({
 		where: { schoolId, isStale: false, isActiveForScheduling: true },
 		select: {
 			id: true,
@@ -1537,7 +1547,7 @@ export async function autoFill(
 	const placeholderFacultyIds = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
 
 	// Pre-fetch specialization aliases for strict qualification checks
-	const aliases = await prisma.specializationAlias.findMany({
+	const aliases = await db().specializationAlias.findMany({
 		where: { schoolId },
 		select: { canonical: true, alias: true },
 	});
@@ -1550,7 +1560,7 @@ export async function autoFill(
 	}
 
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
-	const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
+	const existingOwnerships = await db().subjectSectionOwnership.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -1588,7 +1598,7 @@ export async function autoFill(
 	// HG is covered by the adviser's advisory credit (advisoryEquivalentHours)
 	// and must NOT consume teaching-capacity budget — exclude HG ownership rows
 	// from the capacity ledgers to avoid double-counting advisory duty.
-	const hgSubjectForCapacity = await prisma.subject.findFirst({
+	const hgSubjectForCapacity = await db().subject.findFirst({
 		where: { schoolId, code: 'HG' },
 		select: { id: true },
 	});
@@ -1607,7 +1617,7 @@ export async function autoFill(
 	const capacityUsed = new Map<number, number>(baseRealCapacityUsed);
 
 	// ─── Step 2: Verify HG records for advisers (warn if missing) ─────────────
-	const advisersWithoutHg = await prisma.facultyMirror.findMany({
+	const advisersWithoutHg = await db().facultyMirror.findMany({
 		where: {
 			schoolId,
 			isStale: false,
@@ -1617,7 +1627,7 @@ export async function autoFill(
 		select: { id: true, firstName: true, lastName: true, advisedSectionId: true },
 	});
 
-	const hgSubject = await prisma.subject.findFirst({
+	const hgSubject = await db().subject.findFirst({
 		where: { schoolId, code: 'HG' },
 		select: { id: true },
 	});
@@ -1661,7 +1671,7 @@ export async function autoFill(
 
 	// ─── Step 3: Build work queue ─────────────────────────────────────────────
 	// Active subjects (not HG — HG is managed by hg-advisory.service)
-	const subjects = await prisma.subject.findMany({
+	const subjects = await db().subject.findMany({
 		where: {
 			schoolId,
 			isActive: true,
@@ -1906,86 +1916,6 @@ export async function autoFill(
 	let created = 0;
 	const affectedTeacherIds = new Set<number>();
 
-	if (!previewOnly && pendingAssignments.size > 0) {
-		await prisma.$transaction(async (tx) => {
-			for (const [facultyId, subjectMap_] of pendingAssignments) {
-				for (const [subjectId, sectionIds] of subjectMap_) {
-					const sectionIdsArr = Array.from(sectionIds);
-					// Derive grade levels from sectionGradeLevel map
-					const gradeLevels = Array.from(
-						new Set(sectionIdsArr.map((sid) => sectionGradeLevel.get(sid)).filter(Boolean) as number[]),
-					);
-
-					// Upsert FacultySubject — merge with existing if present (non-HG, so no advisory concern)
-					const existingFs = await tx.facultySubject.findUnique({
-					where: { facultyId_subjectId_schoolYearId: { facultyId, subjectId, schoolYearId } },
-						select: { id: true, sectionIds: true, gradeLevels: true },
-					});
-
-					let facultySubjectId: number;
-
-					if (existingFs) {
-						facultySubjectId = existingFs.id;
-					} else {
-						const fs = await tx.facultySubject.create({
-							data: {
-							facultyId,
-							subjectId,
-							schoolId,
-							schoolYearId,
-								gradeLevels: [],
-								sectionIds: [],
-								assignedBy: 0, // system
-							},
-							select: { id: true },
-						});
-						facultySubjectId = fs.id;
-					}
-
-					const insertResult = await tx.subjectSectionOwnership.createMany({
-						data: sectionIdsArr.map((sectionId) => ({
-							schoolId,
-							schoolYearId,
-							facultySubjectId,
-							facultyId,
-							subjectId,
-							sectionId,
-							assignedAt: new Date(),
-						})),
-						skipDuplicates: true,
-					});
-
-					const finalOwnedSections = await tx.subjectSectionOwnership.findMany({
-						where: { schoolId, schoolYearId, facultyId, subjectId },
-						select: { sectionId: true },
-					});
-					const finalSectionIds = finalOwnedSections.map((row) => row.sectionId).sort((left, right) => left - right);
-					const finalGradeLevels = Array.from(
-						new Set(finalSectionIds.map((sid) => sectionGradeLevel.get(sid)).filter(Boolean) as number[]),
-					).sort((left, right) => left - right);
-
-					if (finalSectionIds.length === 0) {
-						await tx.facultySubject.delete({ where: { id: facultySubjectId } });
-					} else {
-						await tx.facultySubject.update({
-							where: { id: facultySubjectId },
-							data: {
-								sectionIds: finalSectionIds,
-								gradeLevels: finalGradeLevels,
-							},
-						});
-					}
-
-					if (insertResult.count > 0) {
-						created += insertResult.count;
-						affectedTeacherIds.add(facultyId);
-					}
-				}
-			}
-		});
-		await refreshTeachingLoadCycle(schoolId, schoolYearId);
-	}
-
 	let teacherXResolution: AutoFillResult['teacherXResolution'] | undefined;
 	let teacherXRowsClosed = 0;
 	let teacherXPlaceholderTeacherCount = 0;
@@ -1993,43 +1923,16 @@ export async function autoFill(
 	if (coverageMode === 'REAL_FACULTY_THEN_TEACHER_X') {
 		const unresolvedSubjectCodes = [...new Set(unresolvedPairs.map((pair) => pair.subject.code.trim().toUpperCase()))];
 
-		if (!previewOnly && unresolvedSubjectCodes.length > 0) {
-			const repairResult = await repairActiveSubjectCoverageWithPlaceholders({
-				schoolId,
-				schoolYearId,
-				assignedBy: 0,
-				authToken,
-				subjectCodes: unresolvedSubjectCodes,
-				apply: true,
-			});
-
-			teacherXRowsClosed = repairResult.sectionsCoveredByPlaceholder;
-			teacherXPlaceholderTeacherCount = new Set<number>([
-				...repairResult.createdPlaceholders.map((entry) => entry.facultyId),
-				...repairResult.reusedPlaceholders.map((entry) => entry.facultyId),
-			]).size;
-
-			teacherXResolution = {
-				applied: true,
-				rowsClosedByTeacherX: repairResult.sectionsCoveredByPlaceholder,
-				createdPlaceholders: repairResult.createdPlaceholders.length,
-				reusedPlaceholders: repairResult.reusedPlaceholders.length,
-				placeholderAssignmentsUpserted: repairResult.placeholderAssignmentsUpserted,
-				resolvedSubjectCodes: repairResult.resolvedSubjectCodes,
-				stillUncoveredSubjectCodes: repairResult.stillUncoveredSubjectCodes,
-			};
-		} else {
-			teacherXRowsClosed = staffingTruth.teacherX.rowsClosedByTeacherX;
-			teacherXResolution = {
-				applied: false,
-				rowsClosedByTeacherX: teacherXRowsClosed,
-				createdPlaceholders: 0,
-				reusedPlaceholders: 0,
-				placeholderAssignmentsUpserted: 0,
-				resolvedSubjectCodes: [],
-				stillUncoveredSubjectCodes: [],
-			};
-		}
+		teacherXRowsClosed = staffingTruth.teacherX.rowsClosedByTeacherX;
+		teacherXResolution = {
+			applied: false,
+			rowsClosedByTeacherX: teacherXRowsClosed,
+			createdPlaceholders: 0,
+			reusedPlaceholders: 0,
+			placeholderAssignmentsUpserted: 0,
+			resolvedSubjectCodes: [],
+			stillUncoveredSubjectCodes: unresolvedSubjectCodes,
+		};
 	}
 
 	const totalCreated = created + teacherXRowsClosed;
@@ -2413,6 +2316,7 @@ export interface OverCapRebalanceInput {
 	schoolId: number;
 	schoolYearId: number;
 	actorId: number;
+	actorSchoolId?: number | null;
 	authToken?: string;
 	previewOnly?: boolean;
 }
@@ -2458,6 +2362,13 @@ export async function previewOrApplyOverCapRebalance(
 	input: OverCapRebalanceInput,
 ): Promise<OverCapRebalanceResult> {
 	const apply = input.previewOnly === false;
+	if (apply) {
+		await assertTeachingLoadWriteAuthority({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			actorSchoolId: input.actorSchoolId ?? null,
+		});
+	}
 
 	const sectionResult = await fetchSectionsForRuntimeControls(input.schoolId, input.schoolYearId, {
 		authToken: input.authToken,
@@ -2494,7 +2405,7 @@ export async function previewOrApplyOverCapRebalance(
 	});
 
 	const [faculty, subjects, existingOwnerships] = await Promise.all([
-		prisma.facultyMirror.findMany({
+		db().facultyMirror.findMany({
 			where: { schoolId: input.schoolId, isStale: false, isActiveForScheduling: true },
 			select: {
 				id: true,
@@ -2511,7 +2422,7 @@ export async function previewOrApplyOverCapRebalance(
 				advisedSectionId: true,
 			},
 		}),
-		prisma.subject.findMany({
+		db().subject.findMany({
 			where: { schoolId: input.schoolId, isActive: true, code: { not: HG_SUBJECT_CODE } },
 			select: {
 				id: true,
@@ -2530,7 +2441,7 @@ export async function previewOrApplyOverCapRebalance(
 				allowedSpecializations: true,
 			},
 		}),
-		prisma.subjectSectionOwnership.findMany({
+		db().subjectSectionOwnership.findMany({
 			where: {
 				schoolId: input.schoolId,
 				schoolYearId: input.schoolYearId,
@@ -2586,7 +2497,7 @@ export async function previewOrApplyOverCapRebalance(
 	// Build capacity tracking from existing ownerships.
 	// HG is covered by the advisory credit — exclude HG rows from the capacity
 	// ledger so advisory duty is not double-counted (same rule as the auto-fill path).
-	const hgSubjectForRebalance = await prisma.subject.findFirst({
+	const hgSubjectForRebalance = await db().subject.findFirst({
 		where: { schoolId: input.schoolId, code: 'HG' },
 		select: { id: true },
 	});
@@ -2633,7 +2544,7 @@ export async function previewOrApplyOverCapRebalance(
 	}
 
 	// Build aliases for qualification checks
-	const aliases = await prisma.specializationAlias.findMany({
+	const aliases = await db().specializationAlias.findMany({
 		where: { schoolId: input.schoolId },
 		select: { canonical: true, alias: true },
 	});
@@ -2751,7 +2662,12 @@ export async function previewOrApplyOverCapRebalance(
 	let facultyMirrorVersionsBumped = 0;
 	const affectedFacultyIds = new Set<number>();
 
-	await prisma.$transaction(async (tx) => {
+	await db().$transaction(async (tx) => {
+		await assertTeachingLoadWriteAuthority({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			actorSchoolId: input.actorSchoolId ?? null,
+		}, tx as any);
 		// Group moves by (fromFacultyId, facultySubjectId) for sectionIds recomputation
 		const movesByFromFs = new Map<number, OverCapRebalanceMove[]>();
 		for (const move of proposedMoves) {
@@ -2792,7 +2708,7 @@ export async function previewOrApplyOverCapRebalance(
 				const mergedSections = [...new Set([...existingFs.sectionIds, ...sectionIds])].sort((a, b) => a - b);
 				await tx.facultySubject.update({
 					where: { id: facultySubjectId },
-					data: { sectionIds: mergedSections },
+					data: { sectionIds: mergedSections, assignedBy: input.actorId },
 				});
 			} else {
 				const fs = await tx.facultySubject.create({
@@ -2803,7 +2719,7 @@ export async function previewOrApplyOverCapRebalance(
 						schoolYearId: input.schoolYearId,
 						gradeLevels: [],
 						sectionIds,
-						assignedBy: 0,
+						assignedBy: input.actorId,
 					},
 					select: { id: true },
 				});
@@ -2849,6 +2765,8 @@ export async function previewOrApplyOverCapRebalance(
 			facultySubjectRowsUpdated += 1;
 		}
 
+		await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId, tx);
+
 		// Step 4: Audit log
 		await tx.auditLog.create({
 			data: {
@@ -2872,8 +2790,6 @@ export async function previewOrApplyOverCapRebalance(
 			},
 		});
 	});
-
-	await refreshTeachingLoadCycle(input.schoolId, input.schoolYearId);
 
 	return {
 		applied: true,
