@@ -386,6 +386,124 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 			affectedFacultyIds.add(group.facultyId);
 		}
 
+		// Apply the distribution moves from the same reviewed plan, atomically with
+		// the coverage inserts. Every move is re-validated against current state
+		// inside this Serializable transaction; any mismatch throws and rolls the
+		// whole apply back (all-or-nothing).
+		const planMoves = refreshedPreview.distribution?.moves ?? [];
+		let movesApplied = 0;
+		for (const move of planMoves) {
+			const ownership = await tx.subjectSectionOwnership.findUnique({
+				where: { id: move.ownershipId },
+				select: { facultyId: true, subjectId: true, sectionId: true },
+			});
+			if (!ownership) {
+				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed move references an ownership row that no longer exists. Preview a fresh proposal.');
+			}
+			if (ownership.facultyId === move.toFacultyId) continue; // idempotent within the transaction
+			if (
+				ownership.facultyId !== move.fromFacultyId
+				|| ownership.subjectId !== move.subjectId
+				|| ownership.sectionId !== move.sectionId
+			) {
+				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed move no longer matches the current owner. Preview a fresh proposal.');
+			}
+
+			const receiver = await tx.facultyMirror.findUnique({
+				where: { id: move.toFacultyId },
+				select: {
+					id: true,
+					maxHoursPerWeek: true,
+					isActiveForScheduling: true,
+					isStale: true,
+				},
+			});
+			if (!receiver || !receiver.isActiveForScheduling || receiver.isStale) {
+				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed receiver is no longer active for scheduling. Preview a fresh proposal.');
+			}
+
+			const hgSubject = await tx.subject.findFirst({
+				where: { schoolId: existing.schoolId, code: 'HG' },
+				select: { id: true },
+			});
+			const receiverOwned = await tx.subjectSectionOwnership.findMany({
+				where: {
+					schoolId: existing.schoolId,
+					schoolYearId: existing.schoolYearId,
+					facultyId: move.toFacultyId,
+					...(hgSubject ? { subjectId: { not: hgSubject.id } } : {}),
+				},
+				select: { facultySubject: { select: { subject: { select: { minMinutesPerWeek: true } } } } },
+			});
+			const receiverTeachingMinutes = receiverOwned.reduce(
+				(sum, row) => sum + Math.max(0, Number(row.facultySubject?.subject?.minMinutesPerWeek ?? 0) || 0),
+				0,
+			);
+			const receiverCapMinutes = Math.max(0, receiver.maxHoursPerWeek * 60);
+			if (receiverTeachingMinutes + move.minutes > receiverCapMinutes) {
+				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed receiver no longer has capacity for this move. Preview a fresh proposal.');
+			}
+
+			const existingReceiverFs = await tx.facultySubject.findUnique({
+				where: {
+					facultyId_subjectId_schoolYearId: {
+						facultyId: move.toFacultyId,
+						subjectId: move.subjectId,
+						schoolYearId: existing.schoolYearId,
+					},
+				},
+				select: { id: true, sectionIds: true },
+			});
+			let receiverFacultySubjectId: number;
+			if (existingReceiverFs) {
+				receiverFacultySubjectId = existingReceiverFs.id;
+				const mergedSections = [...new Set([...existingReceiverFs.sectionIds, move.sectionId])].sort((a, b) => a - b);
+				await tx.facultySubject.update({
+					where: { id: receiverFacultySubjectId },
+					data: { sectionIds: mergedSections, assignedBy: input.actorId },
+				});
+			} else {
+				const createdReceiverFs = await tx.facultySubject.create({
+					data: {
+						facultyId: move.toFacultyId,
+						subjectId: move.subjectId,
+						schoolId: existing.schoolId,
+						schoolYearId: existing.schoolYearId,
+						gradeLevels: [],
+						sectionIds: [move.sectionId],
+						assignedBy: input.actorId,
+					},
+					select: { id: true },
+				});
+				receiverFacultySubjectId = createdReceiverFs.id;
+			}
+
+			await tx.subjectSectionOwnership.update({
+				where: { id: move.ownershipId },
+				data: { facultyId: move.toFacultyId, facultySubjectId: receiverFacultySubjectId },
+			});
+
+			const donorFs = await tx.facultySubject.findUnique({
+				where: { id: move.facultySubjectId },
+				select: { sectionIds: true },
+			});
+			if (donorFs) {
+				const remainingSections = donorFs.sectionIds.filter((sectionId) => sectionId !== move.sectionId);
+				if (remainingSections.length === 0) {
+					await tx.facultySubject.delete({ where: { id: move.facultySubjectId } });
+				} else {
+					await tx.facultySubject.update({
+						where: { id: move.facultySubjectId },
+						data: { sectionIds: remainingSections.sort((a, b) => a - b) },
+					});
+				}
+			}
+
+			movesApplied += 1;
+			affectedFacultyIds.add(move.fromFacultyId);
+			affectedFacultyIds.add(move.toFacultyId);
+		}
+
 		if (affectedFacultyIds.size > 0) {
 			await tx.facultyMirror.updateMany({
 				where: { id: { in: [...affectedFacultyIds] }, schoolId: existing.schoolId },
@@ -394,6 +512,7 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		}
 
 		const applyResult: AutoFillResult = {
+			movesApplied,
 			...refreshedPreview,
 			created,
 			assignmentsCreated: created,
@@ -436,6 +555,7 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 					proposalId: existing.id,
 					coverageMode: existing.coverageMode,
 					assignmentCount: created,
+					moveCount: movesApplied,
 					unresolvedSuggestionCount,
 				} as object,
 			},

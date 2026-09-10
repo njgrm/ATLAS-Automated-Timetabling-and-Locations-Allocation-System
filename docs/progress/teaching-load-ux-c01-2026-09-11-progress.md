@@ -70,6 +70,37 @@
 - Playwright candidate floors (`minShare 0.45`, desktop `minHeight 240-260`) are weaker than the audit's 55% / 320px phrasing even though measured values exceed them.
 - `atlas-client/src/lib/grade-labels.ts` still has a display-name homeroom match for department qualification (out of the changed range and outside the HG exemption authority).
 
+## TL-UX-C01R correction (2026-09-11)
+
+- Prompt: `docs/prompts/teaching-load-ux-allocation-correction-tluxc01r-2026-09-11.md` (authored in the term-live-migration-preview worktree).
+- Entry candidate: `1f867eb82124c181c79cfcb9cf5227c4577efad3`.
+- Correction outcome: one truthful suggestion preview that evaluates coverage AND distribution, returning structured `RETAIN`/`INSERT`/`MOVE` with separate counts; atomic all-or-nothing apply of the combined plan in one `Serializable` transaction with in-transaction ownership/capacity re-validation and typed `TEACHING_LOAD_PROPOSAL_STALE`; bounded adviser tie-break in the canonical over-cap plan builder; `AutoFillSummaryModal` no longer claims full capacity success from coverage alone.
+
+### TL-UX-C01R changed paths
+- `atlas-server/src/services/teaching-load-automation.service.ts` (distribution types + `summarizeDistributionPlan`, `buildTeachingLoadDistributionPlan`, `autoFill` wiring, adviser tie-break, warnings)
+- `atlas-server/src/services/teaching-load-suggestion-proposal.service.ts` (atomic move apply in the reviewed proposal transaction)
+- `atlas-server/src/__tests__/teaching-load-distribution-plan.test.ts` (new, 9 tests)
+- `atlas-client/src/types.ts` (distribution types)
+- `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx` (imbalance state, truthful balanced copy)
+- `atlas-client/src/lib/__tests__/teaching-load-distribution-ui.test.ts` (new, 2 tests)
+- `qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts` (intercepted-write distribution preview test)
+- `CHANGELOG.md`, this ledger
+
+### TL-UX-C01R evidence
+- Server `tsc`/build exit 0; `teaching-load-distribution-plan.test.ts` 9/9. Client `tsc`/build exit 0; ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21. `teaching-load-write-authority.test.ts` exit 0.
+- DB-backed route suites (`teaching-load-summary-zero-write-route`, `teaching-load-reconciliation-route`) fail closed with `DATABASE_URL is unavailable` in the isolated worktree; not run against live (no-mutation boundary).
+- Isolated candidate `http://100.88.55.125:5211`: 3/3 Playwright tests pass; the intercepted-write distribution test asserts the imbalance surface, separate counts, one apply action, keyboard focus, and no global horizontal overflow at 1440x900, 390x844, and 320px reflow.
+- Live read-only proof (`previewOnly=true`, `applied=false`): 7 above-standard donors at 37.5h, 14 exact moves, idle ESP/FIL receivers SALAZAR, SANTOS (Vincent), CASTILLO, DE LEON, AGUILAR. Post-proof signature identical: 265/265, 42 faculty, 0 runs, effective v2 with 265 assignments.
+
+### Corrected C01 omissions
+- `AutoFillSummaryModal` false capacity-success copy removed.
+- Adviser-section preference implemented as a bounded tie-break (server canonical plan).
+- Prior handoff changed-path count corrected to 26 (this correction adds paths on top).
+
+### TL-UX-C01R remaining risks
+- Move application re-validates donor ownership and receiver standard-capacity inside the transaction; it does not independently re-run full rotation-family capacity accounting for a receiver with many rotation subjects beyond the standard cap check.
+- The distribution plan's counts are unit-verified; a DB-backed end-to-end apply test was not run because the isolated worktree has no test database.
+
 ## Reviewer role note
 
 This ledger is executor-authored. Advisory review evidence is recorded above with execution-system task ids; it is evidence, not formal GO authority. The executor returns `REVIEW_REQUIRED`.

@@ -1,5 +1,27 @@
 # Changelog
 
+## [2026-09-11] — TL-UX-C01R Teaching Load Suggestion and Balance Authority
+
+### Added
+- Structured `TeachingLoadDistributionPlan` (`RETAIN`/`INSERT`/`MOVE`) and `TeachingLoadDistributionSummary` on the suggestion preview, with separate covered, uncovered, proposed-move, unresolved-imbalance, above-standard, and absolute-hard-cap counts.
+- Bounded adviser tie-break in the canonical over-cap plan builder: an adviser with no real (non-HG) teaching pair for their advised section is preferred over an otherwise equally eligible receiver.
+- Server distribution-plan tests (9) and client distribution-UI regression tests (2); intercepted-write Playwright distribution preview test.
+
+### Changed
+- The daily suggestion preview now composes the canonical over-cap rebalance plan, so a fully owned Teaching Load with above-standard teachers reports an explicit imbalance and exact moves instead of a false complete-coverage/capacity success.
+- The reviewed-proposal apply persists the coverage inserts and the distribution moves in the same `Serializable` transaction, re-validating each move's ownership and receiver capacity inside the transaction; any mismatch returns `TEACHING_LOAD_PROPOSAL_STALE` with zero writes.
+- `AutoFillSummaryModal` renders a distinct "Coverage complete, rebalance proposed" state with one apply action; the misleading "everyone is within their workload capacity" copy is removed.
+- Corrected the prior handoff's changed-path count to 26.
+
+### Verification
+- Server/client `tsc --noEmit` and production builds pass; server distribution tests 9/9; client ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21.
+- Isolated-candidate Playwright at 1440x900, 390x844, and 320px reflow shows the move preview, separate counts, and one keyboard-reachable apply action with zero forbidden writes.
+- Live read-only proof: year 9 has 7 above-standard donors (37.5h each), 14 exact moves, and the idle ESP/FIL receivers; `previewOnly` apply is false and the before/after signature is identical (265/265, 42 faculty, 0 runs).
+
+### Open Questions
+- Distribution-plan tests are unit/source-scan because the isolated worktree has no `DATABASE_URL`; DB-backed route suites fail closed without it and were not run against live.
+- The production over-cap rebalance endpoint remains a protected surface and is not a competing daily UI control.
+
 ## [2026-09-11] — TL-UX-C01 Teaching Load Workspace Consolidation
 
 ### Added

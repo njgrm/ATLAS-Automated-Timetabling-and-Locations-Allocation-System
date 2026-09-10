@@ -152,3 +152,100 @@ test('redesigned candidate holds workspace height and removes split-authority co
 	await expect(page.getByRole('button', { name: 'Details' })).toHaveCount(0);
 	expect(violations, `Candidate dispatched forbidden writes: ${JSON.stringify(violations)}`).toEqual([]);
 });
+
+const YEAR9_PREVIEW_FIXTURE = {
+	proposal: {
+		id: 9001,
+		status: 'PENDING',
+		suggestedAssignmentCount: 0,
+		unresolvedCount: 0,
+		suggestedAssignmentBreakdown: {
+			existingRows: 265,
+			realTeacherRows: 0,
+			substituteRows: 0,
+			newSuggestedRows: 0,
+			previewRowCount: 265,
+			unresolvedRows: 0,
+		},
+	},
+	preview: {
+		preserved: 265,
+		created: 0,
+		assignmentsCreated: 0,
+		uniqueTeachersAffected: 0,
+		unresolved: 0,
+		coverageMode: 'REAL_FACULTY_STANDARD',
+		sectionSource: 'enrollpro',
+		sectionFallbackReason: null,
+		warnings: ['Distribution: 7 teachers are above the teaching standard. 14 exact reallocation moves proposed.'],
+		staffingReport: { unassignedSections: 0 },
+		suggestedRows: Array.from({ length: 265 }, (_, index) => ({
+			subjectId: 1, subjectCode: 'ESP', subjectName: 'Edukasyon sa Pagpapakatao',
+			sectionId: 1000 + index, sectionName: `Section ${index + 1}`,
+			facultyId: 100 + (index % 20), facultyName: 'Owner, Teacher', assignmentType: 'KEPT_EXISTING',
+		})),
+		distribution: {
+			retains: [],
+			inserts: [],
+			moves: [
+				{ action: 'MOVE', ownershipId: 1, facultySubjectId: 11, subjectId: 2, subjectCode: 'ESP', subjectName: 'Edukasyon sa Pagpapakatao', sectionId: 2001, sectionName: 'GR7-Sampaguita', fromFacultyId: 21, fromFacultyName: 'Cruz, Juan Miguel', toFacultyId: 41, toFacultyName: 'Salazar, Miguel Andre', minutes: 225 },
+				{ action: 'MOVE', ownershipId: 2, facultySubjectId: 12, subjectId: 2, subjectCode: 'ESP', subjectName: 'Edukasyon sa Pagpapakatao', sectionId: 2002, sectionName: 'GR7-Rosal', fromFacultyId: 22, fromFacultyName: 'Domingo, Teresita', toFacultyId: 42, toFacultyName: 'Santos, Vincent Lorenzo', minutes: 225 },
+			],
+			summary: {
+				coveredRows: 265, uncoveredRows: 0, proposedMoves: 14, unresolvedImbalance: 0,
+				aboveStandardFaculty: 7, hardCapBreaches: 0, balanced: false,
+			},
+		},
+	},
+};
+
+test('suggestion preview shows distribution imbalance and one apply action', async ({ page }) => {
+	test.skip(!CANDIDATE, 'Intercepted-write distribution QA runs only against the isolated candidate.');
+	// Register the mutation guard first, then the more specific fulfilment route
+	// (Playwright resolves routes most-recently-registered first) so the
+	// suggestion POST never reaches the live server.
+	const violations = await installMutationGuard(page, 'abort');
+	await page.route('**/faculty-assignments/suggestion-proposals', async (route) => {
+		if (route.request().method().toUpperCase() === 'POST') {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(YEAR9_PREVIEW_FIXTURE) });
+			return;
+		}
+		await route.continue();
+	});
+	await loginReadOnly(page);
+
+	for (const viewport of [
+		{ width: 1440, height: 900, name: 'desktop' },
+		{ width: 390, height: 844, name: 'mobile' },
+		{ width: 320, height: 800, name: 'reflow-320' },
+	]) {
+		await page.setViewportSize({ width: viewport.width, height: viewport.height });
+		await page.goto('/teaching-load', { waitUntil: 'domcontentloaded' });
+		const previewAction = page.getByTestId('teaching-load-suggest-draft-action');
+		await expect(previewAction).toBeVisible({ timeout: 60_000 });
+		await previewAction.click();
+
+		await expect(page.getByTestId('teaching-load-suggestion-preview')).toBeVisible({ timeout: 30_000 });
+		const imbalance = page.getByTestId('teaching-load-distribution-imbalance');
+		await expect(imbalance).toBeVisible();
+		await expect(imbalance.getByText('Covered rows', { exact: true })).toBeVisible();
+		await expect(imbalance.getByText('Proposed moves', { exact: true })).toBeVisible();
+		await expect(imbalance.getByText('Unresolved imbalance', { exact: true })).toBeVisible();
+		await expect(imbalance.getByText('Above standard', { exact: true })).toBeVisible();
+		// The false full-success claim must not appear.
+		await expect(page.getByText(/everyone is within their workload capacity/i)).toHaveCount(0);
+
+		// Exactly one apply action, and it is keyboard reachable.
+		const applyButton = page.getByTestId('teaching-load-apply-suggestion');
+		await expect(applyButton).toHaveCount(1);
+		await applyButton.focus();
+		await expect(applyButton).toBeFocused();
+
+		const overflow = await page.evaluate(() => (document.scrollingElement ?? document.documentElement).scrollWidth - (document.scrollingElement ?? document.documentElement).clientWidth);
+		expect(overflow, `horizontal overflow at ${viewport.name}`).toBeLessThanOrEqual(1);
+		await page.screenshot({ path: resolve(SHOT_DIR, `candidate-distribution-${viewport.name}.png`), fullPage: false });
+		// The next `goto` reloads the page; no dialog-close cancel POST is dispatched.
+	}
+
+	expect(violations, `Candidate dispatched forbidden writes: ${JSON.stringify(violations)}`).toEqual([]);
+});

@@ -165,6 +165,11 @@ export function AutoFillSummaryModal({
 	const report = result?.staffingReport ?? null;
 	const staffingTruth = result?.staffingTruth ?? null;
 	const hasShortage = Boolean(report && report.unassignedSections > 0);
+	const distribution = result?.distribution ?? null;
+	// Balance is independent of coverage. A fully owned Teaching Load can still
+	// have above-standard teachers and proposed moves, and must never be reported
+	// as complete success.
+	const hasImbalance = Boolean(distribution && !distribution.summary.balanced);
 	const hasResult = Boolean(result);
 	const coverageMode = result?.coverageMode ?? 'REAL_FACULTY_STANDARD';
 	const rawHours = report?.missingHoursPerWeek ?? 0;
@@ -200,11 +205,15 @@ export function AutoFillSummaryModal({
 			? 'Checking Teaching Load suggestion'
 			: hasShortage
 				? 'Review suggested Teaching Load draft'
-				: 'Suggested Teaching Load covers all rows';
+				: hasImbalance
+					? 'Coverage complete, rebalance proposed'
+					: 'Suggested Teaching Load covers all rows and is balanced';
 	const description = reviewOnly
 		? 'Review the current saved Teaching Load assignments, unassigned pairs, and warnings. Use Suggest Teaching Load draft to prepare new assignments.'
 		: !hasResult
 			? 'ATLAS is reading the current EnrollPro setup and checking which Teaching Load rows can be suggested. Nothing is being saved.'
+			: hasImbalance && distribution && !hasShortage
+				? `All ${distribution.summary.coveredRows} subject-section pairs have an owner, but ${distribution.summary.aboveStandardFaculty} teacher${distribution.summary.aboveStandardFaculty === 1 ? ' is' : 's are'} above the teaching standard. ATLAS proposes ${distribution.summary.proposedMoves} exact move${distribution.summary.proposedMoves === 1 ? '' : 's'} to qualified same-department receivers${distribution.summary.unresolvedImbalance > 0 ? `, with ${distribution.summary.unresolvedImbalance} still unresolved` : ''}. Review every move before applying.`
 			: hasShortage
 				? (() => {
 					const parts: string[] = [];
@@ -476,15 +485,71 @@ export function AutoFillSummaryModal({
 									</div>
 								</div>
 							</div>
+						) : hasResult && result && !hasShortage && hasImbalance && distribution ? (
+							<div className="space-y-5 max-w-3xl mx-auto" data-testid="teaching-load-distribution-imbalance">
+								<div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+									<div className="flex items-start gap-3">
+										<div className="size-10 shrink-0 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+											<AlertTriangle className="size-5" />
+										</div>
+										<div className="min-w-0">
+											<h3 className="text-lg font-bold text-foreground">Coverage complete, but workload is unbalanced</h3>
+											<p className="text-sm font-medium text-amber-900/90 leading-relaxed">
+												All {distribution.summary.coveredRows} subject-section pairs have an owner. This is not full success:
+												{distribution.summary.aboveStandardFaculty} teacher{distribution.summary.aboveStandardFaculty === 1 ? '' : 's'} exceed the teaching standard,
+												and ATLAS proposes {distribution.summary.proposedMoves} exact move{distribution.summary.proposedMoves === 1 ? '' : 's'} to qualified same-department receivers.
+											</p>
+										</div>
+									</div>
+								</div>
+								<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+									{[
+										{ label: 'Covered rows', value: distribution.summary.coveredRows, tone: 'bg-emerald-50 text-emerald-700' },
+										{ label: 'Uncovered rows', value: distribution.summary.uncoveredRows, tone: 'bg-amber-50 text-amber-700' },
+										{ label: 'Proposed moves', value: distribution.summary.proposedMoves, tone: 'bg-blue-50 text-blue-700' },
+										{ label: 'Unresolved imbalance', value: distribution.summary.unresolvedImbalance, tone: 'bg-rose-50 text-rose-700' },
+										{ label: 'Above standard', value: distribution.summary.aboveStandardFaculty, tone: 'bg-amber-50 text-amber-700' },
+										{ label: 'Over hard cap', value: distribution.summary.hardCapBreaches, tone: 'bg-rose-50 text-rose-700' },
+									].map((stat) => (
+										<div key={stat.label} className={`rounded-xl border border-border/40 px-3 py-2 text-center ${stat.tone}`}>
+											<p className="text-xl font-bold tabular-nums">{stat.value}</p>
+											<p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{stat.label}</p>
+										</div>
+									))}
+								</div>
+								{distribution.moves.length > 0 && (
+									<div className="rounded-xl border border-border/50 bg-background overflow-hidden">
+										<div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 border-b border-border/40 bg-muted/50 px-3 py-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+											<span>Subject</span>
+											<span>Section</span>
+											<span>Move to</span>
+											<span className="text-right">From</span>
+										</div>
+										<div className="max-h-64 overflow-y-auto">
+											{distribution.moves.map((move) => (
+												<div key={move.ownershipId} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 border-b border-border/20 px-3 py-2 text-xs last:border-b-0">
+													<span className="font-bold text-foreground truncate">{move.subjectCode}</span>
+													<span className="text-muted-foreground truncate">{move.sectionName}</span>
+													<span className="text-muted-foreground truncate">{move.toFacultyName}</span>
+													<span className="text-right text-muted-foreground truncate">{move.fromFacultyName}</span>
+												</div>
+											))}
+										</div>
+									</div>
+								)}
+								<p className="text-xs font-semibold text-muted-foreground">
+									Applying is all-or-nothing: if any ownership, receiver, revision, or capacity check changed since this preview, ATLAS applies none of the moves.
+								</p>
+							</div>
 						) : hasResult && result && !hasShortage ? (
 							<div className="flex flex-col items-center justify-center py-12 text-center space-y-6 max-w-sm mx-auto">
 								<div className="size-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
 									<BadgeCheck className="size-10" />
 								</div>
 								<div className="space-y-1.5">
-									<h3 className="text-xl font-bold text-foreground">Complete Coverage</h3>
+									<h3 className="text-xl font-bold text-foreground">Balanced Teaching Load</h3>
 									<p className="text-muted-foreground text-sm font-medium leading-relaxed">
-										Every class has been assigned an eligible teacher, and everyone is within their workload capacity.
+										Every class has an eligible owner, no reallocation moves are proposed, and no teacher is above the teaching standard or the absolute hard cap.
 									</p>
 								</div>
 								<div className="grid grid-cols-2 sm:grid-cols-4 w-full gap-3 pt-4 border-t border-border/50">
