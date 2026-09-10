@@ -107,7 +107,29 @@ Blocker-actionability gaps confirmed:
 - `CHANGELOG.md` (TT-C04 entry; allowed path)
 - this ledger
 
-## Review log
+## TT-C04R2 narrow correction (2026-09-10, on top of 67ad6326, no rewrite)
+
+Scope: remove two dead hidden generation bypasses in
+`TimetableSimpleHeader.tsx` (`timetable-simple-mobile-lifecycle-action` IIFE
+with its own label/disabled derivation + direct `handleTriggerGenerate`, and
+`timetable-simple-generate-action` with weak loading/year check). No
+replacement control added. Visible actions untouched: no-run sole primary via
+`handleLifecycleAction`, `Preview demand` secondary preview-only
+(`setInsertionOpen`, gated `canPlanOrGenerate`), More-menu Plan draft +
+Generate schedule gated by `canPlanOrGenerate`.
+Remaining direct `handleTriggerGenerate` sites: lifecycle dispatcher cases
+(`generate` guarded by `generationReady`, `retry-generate`) + gated More-menu
+item only — verified by grep + extended source-text test.
+
+## Review log (R2)
+
+- Changed-scope review 03 (`docs/reviews/.../advisory-review-03.md`, spawn
+  `ses_f769b4d82ffegO2K4wnN0eJkcM`): `zeroFix: true`. Both dead test IDs gone
+  from `atlas-client/src` (only the new test's negative assertions name them);
+  3 remaining `handleTriggerGenerate` sites all gated (dispatcher L182/184 +
+  More-menu L514); no hidden element retains a generation call; visible
+  actions byte-unchanged; new test tripwires reasoned to fail on restoration;
+  24/24 + tsc independently rerun. R2 advisory loop closed.
 
 - Advisory review 01 (`docs/reviews/timetable-ttc04-2026-09-10/advisory-review-01.md`,
   spawn `ses_f77327a6bffebJ662AaK2buRaJ`): `zeroFix: false`. One minor product

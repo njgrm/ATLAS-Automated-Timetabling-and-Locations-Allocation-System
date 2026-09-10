@@ -135,6 +135,31 @@ test('production no-run header consumes the lifecycle action and has no hidden g
 		'the two conditional render forms must identify the same sole primary action');
 });
 
+test('removed hidden generation bypasses are gone from the full header', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// Neither removed control may exist anywhere in the production header.
+	assert.doesNotMatch(header, /timetable-simple-mobile-lifecycle-action/);
+	assert.doesNotMatch(header, /timetable-simple-generate-action/);
+	// No hidden control may carry a direct generation call.
+	assert.doesNotMatch(header, /onClick=\{context\.handleTriggerGenerate\}/);
+	assert.doesNotMatch(header, /className="hidden"[\s\S]{0,300}context\.handleTriggerGenerate/);
+	// The only direct generation calls left are the visible lifecycle
+	// dispatcher and the explicitly gated More-menu item.
+	assert.match(header, /case 'retry-generate': context\.handleTriggerGenerate\(\); break;/);
+	assert.match(header, /disabled=\{!canPlanOrGenerate\}[\s\S]{0,200}context\.handleTriggerGenerate\(\)/);
+
+	// No-run branch: sole primary is the lifecycle dispatcher, secondary stays
+	// preview-only, and no control bypasses the dispatcher.
+	const noRunStart = header.indexOf('{!hasGeneratedRun && !context.isPreGenerationWorkspace ? (');
+	const generatedBranch = header.indexOf('\n\t\t\t) : (', noRunStart);
+	assert.ok(noRunStart >= 0 && generatedBranch > noRunStart, 'production no-run branch must exist');
+	const noRunBranch = header.slice(noRunStart, generatedBranch);
+	assert.doesNotMatch(noRunBranch, /handleTriggerGenerate/);
+	assert.match(noRunBranch, /data-testid="timetable-unassigned-insertion-action"/);
+	assert.match(noRunBranch, /Preview demand/);
+	assert.match(noRunBranch, /setInsertionOpen\(true\)/);
+});
+
 // --- TT-C04 honest readiness copy ---
 
 test('readiness chip never reports generated counts without a run', () => {
