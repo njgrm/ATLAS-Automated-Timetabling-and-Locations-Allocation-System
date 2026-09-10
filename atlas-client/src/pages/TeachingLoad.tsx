@@ -41,13 +41,9 @@ export default function TeachingLoad() {
 	const ui = useTeachingLoadUI({
 		faculty: data.faculty,
 		subjects: data.subjects,
-		allKnownSections: data.allKnownSections,
 		selected: data.selected,
 		currentAssignments: data.effectiveAssignmentsByFaculty[data.selectedId ?? 0] ?? [],
 		effectiveAssignmentsByFaculty: data.effectiveAssignmentsByFaculty,
-		savedOwnershipMap: data.savedOwnershipMap,
-		pendingOwnershipMap: data.pendingOwnershipMap,
-		activeFacultyIds: data.activeFacultyIds,
 		sectionMap: data.sectionMap,
 		workloadPolicy: data.workloadPolicy,
 		workloadPolicyStatus: data.workloadPolicyStatus,

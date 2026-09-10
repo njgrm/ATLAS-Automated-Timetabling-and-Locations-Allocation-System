@@ -269,7 +269,9 @@ export const SubjectRow = memo(({
 	const isRotationFamily = Boolean(rotationLaneKey);
 
 	// HG system-assignment detection
-	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
+	// Canonical persisted identity only: the exact catalog code `HG`. Display
+	// names are localized and are never authority for exemption or immutability.
+	const isHgSubject = subject.code === 'HG';
 	const isSystemAssignedSubject = isHgSubject && advisedSectionId != null;
 
 	if (groupedSections.length === 0 && (searchTerm || sectionFilter !== 'all' || gradeLevelFilter !== 'all')) {

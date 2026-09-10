@@ -172,12 +172,14 @@ test('Teaching Load surface no longer wires split-brain, reconciliation, staffin
 test('HG exclusion uses the canonical catalog code, never a display name', () => {
 	const uiHook = source('src/hooks/useTeachingLoadUI.ts');
 	const historyHook = source('src/hooks/useAssignmentHistory.ts');
-	for (const file of [uiHook, historyHook]) {
+	const subjectRow = source('src/components/faculty-assignments/SubjectRow.tsx');
+	for (const file of [uiHook, historyHook, subjectRow]) {
 		assert.doesNotMatch(file, /includes\(['"]homeroom['"]\)/i);
 		assert.doesNotMatch(file, /includes\(['"]hr['"]\)/i);
 	}
 	assert.match(historyHook, /subject\.code === 'HG'/);
 	assert.match(uiHook, /subject\.code === 'HG'/);
+	assert.match(subjectRow, /subject\.code === 'HG'/);
 });
 
 test('Teaching Load state is bound to the resolved actor scope with a scope reset', () => {

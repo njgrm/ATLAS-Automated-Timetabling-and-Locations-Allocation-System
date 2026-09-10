@@ -5,14 +5,9 @@ import type {
 	ExternalSection, 
 	FacultyAssignmentDraft,
 	CoverageMode,
-	AutoFillSummaryResult,
-	TeachingLoadCoverageTotals,
-	TeachingLoadIntegrityDiagnostics,
-	TeachingLoadSplitBrainReconcileResult,
 } from '@/types';
 import { 
 	matchesOwnershipDepartment, 
-	getAssignmentOwnershipKey,
 	buildTeachingLoadProfile,
 	resolveTeachingActualHours,
 	resolveAdvisoryCreditHours,
@@ -29,13 +24,9 @@ import type { WorkloadPolicyReadiness } from '@/lib/faculty-teaching-load-cache'
 type UseTeachingLoadUIParams = {
 	faculty: FacultySummary[];
 	subjects: Subject[];
-	allKnownSections: ExternalSection[];
 	selected: FacultySummary | null;
 	currentAssignments: FacultyAssignmentDraft[];
 	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
-	savedOwnershipMap: Record<string, any>;
-	pendingOwnershipMap: Record<string, any>;
-	activeFacultyIds: Set<number>;
 	sectionMap: Map<number, ExternalSection>;
 	/** Effective school/year workload policy from the summary contract (null when UNCONFIGURED). */
 	workloadPolicy: EffectiveTeachingPolicy | null;
@@ -45,13 +36,9 @@ type UseTeachingLoadUIParams = {
 export function useTeachingLoadUI({
 	faculty,
 	subjects,
-	allKnownSections,
 	selected,
 	currentAssignments,
 	effectiveAssignmentsByFaculty,
-	savedOwnershipMap,
-	pendingOwnershipMap,
-	activeFacultyIds,
 	sectionMap,
 	workloadPolicy,
 	workloadPolicyStatus,
@@ -65,7 +52,6 @@ export function useTeachingLoadUI({
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
 	const [loadFilter, setLoadFilter] = useState<TeachingLoadLoadFilter>('all');
 	const [filterAnnouncement, setFilterAnnouncement] = useState('');
-	const [reviewDismissed, setReviewDismissed] = useState(false);
 	const [showTemporaryRoles, setShowTemporaryRoles] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
 	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('teacher');
@@ -295,40 +281,6 @@ export function useTeachingLoadUI({
 		return profile;
 	}, [currentAssignments, sectionMap, selected, subjects, policyReady, workloadPolicy]);
 
-	const departmentStats = useMemo(() => {
-		const statsMap = new Map<string, { total: number; assigned: number }>();
-		
-		subjects.forEach(subject => {
-			if (!subject.isActive || subject.code === 'HG') return;
-			const dept = subject.ownerDepartment || 'General';
-			const current = statsMap.get(dept) ?? { total: 0, assigned: 0 };
-			
-			const relevantSections = allKnownSections.filter(sec => {
-				const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder);
-				if (!gradeCompatible) return false;
-				const programType = (sec.programType ?? 'REGULAR').toUpperCase();
-				return subject.programScopes.length === 0 || subject.programScopes.some(s => s.toUpperCase() === programType);
-			});
-
-			current.total += relevantSections.length;
-			relevantSections.forEach(sec => {
-				const key = getAssignmentOwnershipKey(subject.id, sec.id);
-				const owner = savedOwnershipMap[key] || pendingOwnershipMap[key];
-				if (owner && activeFacultyIds.has(owner.facultyId)) {
-					current.assigned += 1;
-				}
-			});
-			statsMap.set(dept, current);
-		});
-
-		return Array.from(statsMap.entries())
-			.map(([name, { total, assigned }]) => ({
-				name,
-				percent: total > 0 ? Math.round((assigned / total) * 100) : 0
-			}))
-			.sort((a, b) => b.percent - a.percent);
-	}, [subjects, allKnownSections, savedOwnershipMap, pendingOwnershipMap, activeFacultyIds]);
-
 	// Scope change clears every mutable filter, dialog, selection, and hover so no
 	// stale UI state can act on a different school/year.
 	const resetForScope = useCallback(() => {
@@ -362,7 +314,6 @@ export function useTeachingLoadUI({
 		gradeLevelFilter, setGradeLevelFilter,
 		sortOrder, setSortOrder,
 		loadFilter, setLoadFilter,
-		reviewDismissed, setReviewDismissed,
 		showTemporaryRoles, setShowTemporaryRoles,
 		showFilters, setShowFilters,
 		viewMode, setViewMode,
@@ -380,7 +331,6 @@ export function useTeachingLoadUI({
 		departmentQualifiedSubjects,
 		outsideDepartmentSubjects,
 		loadProfile,
-		departmentStats,
 		effectiveActualHours,
 		departmentFacetOptions,
 		statusFacetCounts: facetCounts.statusCounts,
