@@ -28,7 +28,9 @@ screenshots were captured for the divergence record only.
 | TTX-11 | FIXED | `loadRoomRequestSummary` treats `NO_ACTIVE_DRAFT` as an empty summary (no error); the duplicate standalone effect is removed; `loadAll` only requests when a `COMPLETED` run exists. Playwright: zero `/room-preferences/.../latest/summary` 404s. RED/GREEN `TTX-11`. |
 | TTX-12 | FIXED | The permanently hidden `timetable-simple-publish-action` (and its tooltip block) is removed. RED/GREEN `TTX-12`. |
 
-## Failing-first testsNew tracked tests appended to `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
+## Failing-first tests
+
+New tracked tests appended to `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
 (production-consumer source assertions + existing pure helpers).
 
 - RED (before fix): `npm run test:timetable-operator-ux` → tests 34, pass 24, fail 10
