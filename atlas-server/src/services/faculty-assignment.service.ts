@@ -25,6 +25,43 @@ import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teachin
 
 const db = () => getDataContext();
 
+type TeachingLoadWriteAuthorityClient = {
+  enrollProSchoolYearMirror: {
+    findMany(args: unknown): Promise<Array<{ isActive: boolean; isArchived: boolean }>>;
+  };
+};
+
+export async function assertTeachingLoadWriteAuthority(
+  input: { schoolId: number; schoolYearId: number; actorSchoolId: number | null },
+  client?: TeachingLoadWriteAuthorityClient,
+): Promise<void> {
+  const authorityError = (statusCode: number, code: string, message: string) => {
+    const error = new Error(message) as Error & { statusCode: number; code: string };
+    error.statusCode = statusCode;
+    error.code = code;
+    return error;
+  };
+
+  if (input.actorSchoolId == null) {
+    throw authorityError(403, 'ACTOR_SCHOOL_REQUIRED', 'The authenticated actor must have an assigned school.');
+  }
+  if (input.actorSchoolId !== input.schoolId) {
+    throw authorityError(403, 'SCHOOL_MISMATCH', 'Request school does not match the authenticated actor school.');
+  }
+
+  const target = client ?? (db() as unknown as TeachingLoadWriteAuthorityClient);
+  const mirrors = await target.enrollProSchoolYearMirror.findMany({
+    where: { schoolId: input.schoolId, enrollProSchoolYearId: input.schoolYearId },
+    select: { isActive: true, isArchived: true },
+  });
+  if (mirrors.some((mirror) => mirror.isArchived)) {
+    throw authorityError(409, 'ARCHIVED_YEAR_READ_ONLY', 'Archived school-year Teaching Load is read-only.');
+  }
+  if (mirrors.length !== 1 || !mirrors[0].isActive) {
+    throw authorityError(409, 'ACTIVE_SCHOOL_YEAR_REQUIRED', 'Teaching Load writes require exactly one active, non-archived school year.');
+  }
+}
+
 export type AssignmentMutationResult =
 | {
 success: true;
@@ -4662,6 +4699,7 @@ export async function setAssignments(
 	expectedVersion: number,
 	assignments: AssignmentScopeInput[],
 	authToken?: string,
+	authority?: { actorSchoolId: number | null },
 ): Promise<AssignmentMutationResult> {
 	const faculty = await db().facultyMirror.findUnique({
 		where: { id: facultyId },
@@ -4820,6 +4858,7 @@ export async function setAssignments(
 	try {
 		await db().$transaction(
 async (tx) => {
+await assertTeachingLoadWriteAuthority({ schoolId, schoolYearId, actorSchoolId: authority?.actorSchoolId ?? null }, tx as unknown as TeachingLoadWriteAuthorityClient);
 const concurrentFaculty = await tx.facultyMirror.findUnique({
 where: { id: facultyId },
 select: { version: true, isActiveForScheduling: true, schoolId: true },
@@ -4980,6 +5019,24 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
           await tx.subjectSectionOwnership.createMany({ data: ownershipData });
         }
       }
+
+      await refreshTeachingLoadCycle(schoolId, schoolYearId, tx);
+      await tx.auditLog.create({
+        data: {
+          schoolId,
+          schoolYearId,
+          action: 'TEACHING_LOAD_ASSIGNMENTS_SAVED',
+          actorId: assignedBy,
+          targetIds: [facultyId],
+          metadata: {
+            facultyId,
+            previousVersion: expectedVersion,
+            version: expectedVersion + 1,
+            assignmentCount: assignmentsToCreate.length,
+            ownedSectionCount: assignmentsToCreate.reduce((sum, assignment) => sum + assignment.sectionIds.length, 0),
+          } as object,
+        },
+      });
 },
 { isolationLevel: 'Serializable' },
 );
@@ -5000,7 +5057,6 @@ if (error?.code === 'P2034') {
   throw error;
 }
 
-await refreshTeachingLoadCycle(schoolId, schoolYearId);
 return { success: true, version: expectedVersion + 1 };
 }
 

@@ -40,7 +40,6 @@ import { getTemplatePeriodProfiles, ensureDefaultTemplates, ensureTemplatesForPr
 import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { syncCohorts } from './cohort.service.js';
-import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
 import { publishNotificationEvent } from './notification-events.service.js';
 import { publishSchedule } from './publication-contract.service.js';
 import {
@@ -222,19 +221,6 @@ function extractDraftFacultyIds(draftEntries: unknown): number[] {
 		.map((entry) => (typeof entry === 'object' && entry && 'facultyId' in entry ? (entry as { facultyId?: unknown }).facultyId : undefined))
 		.filter((facultyId): facultyId is number => typeof facultyId === 'number' && Number.isInteger(facultyId) && facultyId > 0);
 	return [...new Set(facultyIds)];
-}
-
-function extractNoQualifiedSubjectIds(unassignedItems: unknown): number[] {
-	if (!Array.isArray(unassignedItems)) return [];
-	const subjectIds = new Set<number>();
-	for (const item of unassignedItems) {
-		if (typeof item !== 'object' || item == null) continue;
-		const row = item as { reason?: unknown; subjectId?: unknown };
-		if (row.reason !== 'NO_QUALIFIED_FACULTY') continue;
-		if (typeof row.subjectId !== 'number' || !Number.isInteger(row.subjectId) || row.subjectId <= 0) continue;
-		subjectIds.add(row.subjectId);
-	}
-	return [...subjectIds].sort((left, right) => left - right);
 }
 
 async function getActiveFacultyMirrorIdSet(schoolId: number): Promise<Set<number>> {
@@ -762,51 +748,6 @@ export async function triggerGenerationRun(
 			cohortSyncWarnings.push(
 				`Instructional cohort sync failed for this run: ${cohortSyncResult.error ?? 'unknown error'}. Existing cached cohorts (if any) were used.`,
 			);
-		}
-
-		stage = 'coverage-repair';
-		const latestCompletedRun = await db().generationRun.findFirst({
-			where: { schoolId, schoolYearId, status: 'COMPLETED' },
-			orderBy: { id: 'desc' },
-			select: { id: true, unassignedItems: true },
-		});
-		const dynamicTleSubjects = await db().subject.findMany({
-			where: {
-				schoolId,
-				isActive: true,
-				code: { startsWith: 'TLE_SPEC_' },
-			},
-			select: { code: true },
-		});
-		const noQualifiedSubjectIds = extractNoQualifiedSubjectIds(latestCompletedRun?.unassignedItems);
-		const noQualifiedSubjects = noQualifiedSubjectIds.length > 0
-			? await db().subject.findMany({
-				where: { schoolId, isActive: true, id: { in: noQualifiedSubjectIds } },
-				select: { code: true },
-			})
-			: [];
-		const coverageSummary = await getActiveSubjectCoverageSummary(schoolId, schoolYearId, options?.authToken);
-		const uncoveredNoRealFacultyCodes = coverageSummary.rows
-			.filter((row) => row.uncoveredSectionCount > 0 && row.ownedByRealFacultyCount === 0 && row.subjectCode !== 'HG')
-			.map((row) => row.subjectCode);
-
-		const targetedCoverageSubjectCodes = [
-			...new Set([
-				...dynamicTleSubjects.map((subject) => subject.code),
-				...noQualifiedSubjects.map((subject) => subject.code),
-				...uncoveredNoRealFacultyCodes,
-			]),
-		].filter((subjectCode) => subjectCode !== 'HG');
-
-		if (targetedCoverageSubjectCodes.length > 0) {
-			await repairActiveSubjectCoverageWithPlaceholders({
-				schoolId,
-				schoolYearId,
-				assignedBy: actorId,
-				apply: true,
-				subjectCodes: targetedCoverageSubjectCodes,
-				authToken: options?.authToken,
-			});
 		}
 
 		stage = 'sections-fetch';
