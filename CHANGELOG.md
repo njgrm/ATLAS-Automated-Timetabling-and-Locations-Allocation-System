@@ -1,5 +1,34 @@
 # Changelog
 
+## [2026-09-11] — TERM-LIVE-PREVIEW Live Schema Migration Preview
+
+### Added
+- Read-only migration preview for `0001_term_subject_authority` against the
+  verified live database `atlas_recovery_clean_rebuild_20260905`, with
+  `authorizesNoMutation: true`, exact integrated source SHA `36c5d3d1`, sanitized
+  target identity, current migration/schema state, predicted row effects, backup
+  proof, disposable apply/rollback evidence, before/after live signature,
+  migration/rollback scope, risks, recovery procedure, and the EnrollPro
+  compatibility statement.
+- Progress ledger and byte SHA-256 sidecar for the preview artifact.
+
+### Verification
+- Fresh operational backup verified (checksum match, `pg_restore --list` exit 0,
+  463 TOC entries, manifest validate OK).
+- Disposable PostgreSQL proof: exact migration SQL apply, `prisma migrate deploy`
+  apply and idempotent replay, documented rollback, and isolated built-server
+  health smoke on a non-live port with rollover disabled; every disposable
+  database dropped.
+- `prisma validate`, live-to-datamodel migration diff (accepted-migration-only,
+  zero drift), server TypeScript build, and identical before/after live read-only
+  signature.
+
+### Decisions Made
+- EnrollPro deployment is not required for schema compatibility but remains
+  required for live term authority.
+- The proposed approval sentence is recorded as NOT ACTIVE until planner/QA
+  acceptance; no live schema or data mutation was performed.
+
 ## [2026-09-10] — RR-UX01 Rollover Awareness and Read-Only Teaching Load History
 
 ### Added

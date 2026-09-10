@@ -1,0 +1,226 @@
+{
+  "promptId": "TERM-LIVE-PREVIEW",
+  "title": "Live schema migration preview for 0001_term_subject_authority",
+  "date": "2026-09-11",
+  "riskTier": "HIGH",
+  "authorizesNoMutation": true,
+  "migrationPreviewOnly": true,
+  "repository": "D:\\ATLAS",
+  "worktree": "D:\\ATLAS-worktrees\\term-live-migration-preview",
+  "branch": "work/term-live-migration-preview",
+  "baseSha": "36c5d3d1735728c1870f5e0ccfe36ca54a8a6b5d",
+  "integratedSourceSha": "36c5d3d1735728c1870f5e0ccfe36ca54a8a6b5d",
+  "requiredAncestorConfirmed": "36c5d3d1735728c1870f5e0ccfe36ca54a8a6b5d",
+  "migration": {
+    "path": "prisma/migrations/0001_term_subject_authority/migration.sql",
+    "statements": [
+      "CREATE TYPE \"subject_scheduling_disposition\" AS ENUM ('SCHEDULED_TEACHING', 'REFERENCE_ONLY');",
+      "ALTER TABLE \"enrollpro_school_year_mirrors\" ADD COLUMN \"term_contract_cache\" JSONB, ADD COLUMN \"term_contract_cached_at\" TIMESTAMP(3);",
+      "ALTER TABLE \"subjects\" ADD COLUMN \"scheduling_disposition\" \"subject_scheduling_disposition\" NOT NULL DEFAULT 'SCHEDULED_TEACHING';",
+      "UPDATE \"subjects\" SET \"scheduling_disposition\" = 'REFERENCE_ONLY' WHERE UPPER(BTRIM(\"code\")) = 'HG';"
+    ]
+  },
+  "rollbackScope": {
+    "documentedInMigrationSql": true,
+    "statements": [
+      "ALTER TABLE \"subjects\" DROP COLUMN \"scheduling_disposition\";",
+      "ALTER TABLE \"enrollpro_school_year_mirrors\" DROP COLUMN \"term_contract_cached_at\", DROP COLUMN \"term_contract_cache\";",
+      "DROP TYPE \"subject_scheduling_disposition\";"
+    ],
+    "dataReversal": "The UPDATE is not reversible by DDL; dropping the column discards the added disposition value. No pre-existing data is modified or destroyed."
+  },
+  "target": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "atlas_recovery_clean_rebuild_20260905",
+    "user": "atlas_user",
+    "serverVersion": "PostgreSQL 18.1",
+    "intendedTargetConfirmed": true,
+    "credentialsRedacted": true
+  },
+  "currentState": {
+    "migrationHistory": [
+      { "migrationName": "0000_clean_baseline", "finished": true, "rolledBack": false, "appliedStepsCount": 1 }
+    ],
+    "migration0001Present": false,
+    "enumSubjectSchedulingDispositionPresent": false,
+    "candidateColumnsPresent": false,
+    "schemaMd5": "ca0cae04d620a7390ce836aff68354d5",
+    "enumMd5": "3947fe756e8b97b05ec5e4edbf2b7998",
+    "subjectDataMd5": "2adf940a43c8fc25425766ed3504bb78"
+  },
+  "catalogCounts": {
+    "schools": 1,
+    "subjects": 22,
+    "enrollproSchoolYearMirrors": 2
+  },
+  "predictedRowEffects": {
+    "subjectsUpdatedToReferenceOnly": 1,
+    "subjectsRemainingScheduledTeaching": 21,
+    "matchingRows": [
+      { "id": 7, "code": "HG", "name": "Homeroom Guidance", "isActive": true }
+    ],
+    "predicate": "UPPER(BTRIM(code)) = 'HG'",
+    "rowCountChanges": 0,
+    "relationshipChanges": 0,
+    "ddlChanges": {
+      "enumsCreated": 1,
+      "columnsAdded": 3,
+      "columnsDropped": 0
+    }
+  },
+  "failClosedChecks": {
+    "databaseTargetUnexpected": false,
+    "migrationPartiallyApplied": false,
+    "schemaDriftOutsideAcceptedMigration": false,
+    "conflictingEnumOrColumnType": false,
+    "moreRowsWouldChangeThanPredicateSelects": false,
+    "liveSchemaEqualToDatamodelMinus0001": true,
+    "result": "PASS"
+  },
+  "backupProof": {
+    "workflow": "atlas-backup.ts backup (accepted operational backup workflow, read-only against live)",
+    "archiveFileName": "atlas-backup-atlas_recovery_clean_rebuild_20260905-20260910-165235.dump",
+    "manifestFileName": "atlas-backup-atlas_recovery_clean_rebuild_20260905-20260910-165235.dump.manifest.json",
+    "createdAt": "2026-09-10T16:52:35.221Z",
+    "targetDatabase": "atlas_recovery_clean_rebuild_20260905",
+    "byteSize": 266979,
+    "manifestSha256": "b5e5d9faa90b528079f3e1c317f34930ffebf74e50f93e6a7cca945e22b57e3c",
+    "recomputedSha256": "b5e5d9faa90b528079f3e1c317f34930ffebf74e50f93e6a7cca945e22b57e3c",
+    "checksumMatches": true,
+    "pgRestoreListExitCode": 0,
+    "pgRestoreListEntries": 463,
+    "manifestValid": true,
+    "backupValidateCommandResult": "VALIDATE_OK",
+    "restoredOverExistingOrLiveDatabase": false,
+    "manifestCounts": {
+      "schools": 1,
+      "authAccounts": 44,
+      "facultyMirrors": 42,
+      "sectionMirrors": 40,
+      "subjects": 22,
+      "buildings": 8,
+      "rooms": 103,
+      "teachingLoadCycles": 2,
+      "generationRuns": 1
+    }
+  },
+  "disposableProof": {
+    "instance": "local PostgreSQL 18.1",
+    "databases": {
+      "exactSqlApply": {
+        "name": "atlas_term_live_preview_20260911_a",
+        "baseline": "createdb -T template0 + pg_restore of verified backup (no live contact)",
+        "baselineAssertions": {
+          "migration0001Count": 0,
+          "enumPresent": 0,
+          "candidateColumnsPresent": 0,
+          "hgPredicateCount": 1
+        },
+        "syntheticFixture": "inserted code ALT_HG named 'Homeroom Guidance' to prove predicate is code-based",
+        "applyResult": {
+          "exitCode": 0,
+          "statements": ["CREATE TYPE", "ALTER TABLE", "ALTER TABLE", "UPDATE 1"]
+        },
+        "afterAssertions": {
+          "enumLabelsOrdered": ["SCHEDULED_TEACHING", "REFERENCE_ONLY"],
+          "schedulingDispositionColumn": "non-null, user-defined type subject_scheduling_disposition, default 'SCHEDULED_TEACHING'::subject_scheduling_disposition",
+          "termContractCacheColumn": "jsonb, nullable",
+          "termContractCachedAtColumn": "timestamp without time zone, nullable",
+          "dispositionDistribution": { "SCHEDULED_TEACHING": 22, "REFERENCE_ONLY": 1 },
+          "hgRow": { "id": 7, "code": "HG", "disposition": "REFERENCE_ONLY" },
+          "altHgRow": { "id": 1823, "code": "ALT_HG", "disposition": "SCHEDULED_TEACHING" },
+          "unexpectedReferenceOnlyCount": 0
+        },
+        "rowCountPreservation": "45 public tables identical before and after apply",
+        "rollbackResult": {
+          "exitCode": 0,
+          "afterRollbackEnumPresent": 0,
+          "afterRollbackCandidateColumnsPresent": 0
+        },
+        "dropped": true
+      },
+      "prismaDeployReplay": {
+        "name": "atlas_term_live_preview_20260911_b",
+        "baseline": "createdb -T template0 + pg_restore of verified backup",
+        "deployRun1": { "exitCode": 0, "applied": "0001_term_subject_authority", "message": "All migrations have been successfully applied." },
+        "migrationHistory": ["0000_clean_baseline", "0001_term_subject_authority"],
+        "deployRun2": { "exitCode": 0, "message": "No pending migrations to apply.", "idempotent": true },
+        "migrateStatus": { "exitCode": 0, "message": "Database schema is up to date!" },
+        "dispositionDistribution": { "SCHEDULED_TEACHING": 21, "REFERENCE_ONLY": 1 },
+        "dropped": true
+      },
+      "isolatedRuntime": {
+        "name": "atlas_term_live_preview_20260911_rt",
+        "baseline": "createdb -T template0 + pg_restore of verified backup",
+        "dropped": true
+      }
+    },
+    "cleanupGuarantee": "every disposable target dropped in a finally path with post-drop existence check",
+    "leftoverPreviewDatabases": 0
+  },
+  "compatibilityProof": {
+    "prismaValidate": { "exitCode": 0, "result": "schema is valid" },
+    "migrateDiffLiveToDatamodel": {
+      "command": "prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script",
+      "exitCode": 0,
+      "plannedOperations": [
+        "CREATE TYPE subject_scheduling_disposition AS ENUM ('SCHEDULED_TEACHING','REFERENCE_ONLY')",
+        "ALTER TABLE enrollpro_school_year_mirrors ADD COLUMN term_contract_cache JSONB, ADD COLUMN term_contract_cached_at TIMESTAMP(3)",
+        "ALTER TABLE subjects ADD COLUMN scheduling_disposition subject_scheduling_disposition NOT NULL DEFAULT 'SCHEDULED_TEACHING'"
+      ],
+      "operationsMatchAcceptedMigrationOnly": true,
+      "extraDriftOperations": 0
+    },
+    "serverTypeScriptBuild": { "command": "npm run build (tsc)", "exitCode": 0, "distServerPresent": true },
+    "isolatedServerRuntime": {
+      "port": 5099,
+      "livePort5001Touched": false,
+      "database": "atlas_term_live_preview_20260911_rt",
+      "env": { "ROLLOVER_AUTO_SYNC_ENABLED": "false" },
+      "healthEndpoint": "/api/v1/health",
+      "healthStatus": 200,
+      "rolloverDisabledLogPresent": true,
+      "rolloverStartingLogPresent": false,
+      "portReleasedAfterStop": true
+    }
+  },
+  "liveBeforeAfterSignature": {
+    "method": "identical read-only preflight SQL executed against the live target before and after all work",
+    "beforeAfterOutputIdentical": true,
+    "schemaMd5Before": "ca0cae04d620a7390ce836aff68354d5",
+    "schemaMd5After": "ca0cae04d620a7390ce836aff68354d5",
+    "enumMd5Before": "3947fe756e8b97b05ec5e4edbf2b7998",
+    "enumMd5After": "3947fe756e8b97b05ec5e4edbf2b7998",
+    "subjectDataMd5Before": "2adf940a43c8fc25425766ed3504bb78",
+    "subjectDataMd5After": "2adf940a43c8fc25425766ed3504bb78",
+    "migration0001After": false,
+    "enumPresentAfter": false,
+    "candidateColumnsPresentAfter": false,
+    "liveMutation": 0,
+    "liveServerPort5001Untouched": true
+  },
+  "recoveryProcedure": {
+    "preCondition": "Fresh verified backup (this previews archive) and guarded migration workflow only; bare prisma migrate deploy is forbidden.",
+    "apply": "npm run migrate:guarded (revalidates the exact archive immediately before spawning Prisma)",
+    "rollbackSql": "Apply the documented rollback statements from prisma/migrations/0001_term_subject_authority/migration.sql against the target; drop the three columns and the enum.",
+    "rollbackDataNote": "Only the added column/enum are removed; no pre-existing column is affected. The one HG disposition value is dropped with the column.",
+    "worseCaseRestore": "Restore the verified custom-format archive with pg_restore into a recovery target per the accepted recovery workflow; restore-over-live is never performed automatically."
+  },
+  "risks": [
+    "schedulingDisposition is PENDING_DERIVED_DEMAND_INTEGRATION: generation, timetable demand, and Teaching Load still enforce HG-specific rules; only exact code HG is REFERENCE_ONLY and no operative behavior changes.",
+    "EnrollPro still needs to supply the complete ordered term contract for live term authority; ATLAS will correctly show blocked authority until then.",
+    "The migration is additive with a 1-row data update; the residual risk is limited to the guarded apply step and is fully reversible by column/enum drop or backup restore."
+  ],
+  "enrollProStatement": "EnrollPro deployment is not required for ATLAS schema compatibility: migration 0001 only adds an enum, a subject disposition column, and two school-year-mirror cache columns. EnrollPro deployment remains required for live term authority, because ATLAS can only cache a verified ordered term contract once EnrollPro exposes it.",
+  "proposedApprovalSentence": {
+    "active": false,
+    "label": "NOT ACTIVE until planner/QA acceptance",
+    "text": "I approve applying migration 0001_term_subject_authority to the verified live ATLAS database atlas_recovery_clean_rebuild_20260905 through the guarded migration workflow, backed by atlas-backup-atlas_recovery_clean_rebuild_20260905-20260910-165235.dump (sha256 b5e5d9faa90b528079f3e1c317f34930ffebf74e50f93e6a7cca945e22b57e3c), with the documented rollback available, and I acknowledge EnrollPro deployment is not required for schema compatibility but remains required for live term authority."
+  },
+  "artifacts": [
+    "docs/verification/term-subject-live-migration-preview-2026-09-11.json",
+    "docs/verification/term-subject-live-migration-preview-2026-09-11.json.sha256",
+    "docs/progress/term-subject-live-migration-preview-2026-09-11-progress.md"
+  ]
+}
