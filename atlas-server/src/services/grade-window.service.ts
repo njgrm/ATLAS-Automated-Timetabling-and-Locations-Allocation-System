@@ -24,6 +24,48 @@ function timeToMinutes(value: string): number {
 	return hours * 60 + minutes;
 }
 
+function formatMinutes(totalMinutes: number): string {
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export interface PolicyTimeBounds {
+	earliestStartTime: string;
+	latestEndTime: string;
+}
+
+/**
+ * Clamp a grade shift window to the persisted scheduling-policy time bounds.
+ * The persisted policy is intentional authority; a bootstrap/default window
+ * that starts before `earliestStartTime` or ends after `latestEndTime` is
+ * clamped inward so generation never writes an out-of-bounds shift window.
+ * When the clamped window would be empty (`start >= end`), returns `null`.
+ */
+export function clampWindowToPolicyBounds(
+	input: GradeWindowInput,
+	bounds: PolicyTimeBounds,
+): GradeWindowInput | null {
+	const clampedStart = Math.max(timeToMinutes(input.startTime), timeToMinutes(bounds.earliestStartTime));
+	const clampedEnd = Math.min(timeToMinutes(input.endTime), timeToMinutes(bounds.latestEndTime));
+	if (clampedStart >= clampedEnd) return null;
+	return {
+		gradeLevel: input.gradeLevel,
+		programType: input.programType ?? null,
+		startTime: formatMinutes(clampedStart),
+		endTime: formatMinutes(clampedEnd),
+	};
+}
+
+async function readPolicyTimeBounds(schoolId: number, schoolYearId: number): Promise<PolicyTimeBounds | null> {
+	const policy = await db().schedulingPolicy.findUnique({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+		select: { earliestStartTime: true, latestEndTime: true },
+	});
+	if (!policy) return null;
+	return { earliestStartTime: policy.earliestStartTime, latestEndTime: policy.latestEndTime };
+}
+
 const PHASE3_DEFAULT_WINDOWS: Array<GradeWindowInput> = [
 	{ gradeLevel: 7, programType: null, startTime: '06:00', endTime: '15:30' },
 	{ gradeLevel: 8, programType: null, startTime: '06:00', endTime: '15:30' },
@@ -199,8 +241,17 @@ const LEGACY_DEFAULT_START = '07:30';
 const LEGACY_DEFAULT_END = '17:00';
 
 export async function ensurePhase3GradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]> {
+	const bounds = await readPolicyTimeBounds(schoolId, schoolYearId);
 	const ensured: GradeWindowRow[] = [];
-	for (const window of PHASE3_DEFAULT_WINDOWS) {
+	for (const rawWindow of PHASE3_DEFAULT_WINDOWS) {
+		// The persisted policy bounds are authoritative. A bootstrap default that
+		// falls outside them is clamped inward; if clamping leaves no valid window
+		// (start >= end) the default is skipped rather than throwing the run.
+		const window = bounds
+			? clampWindowToPolicyBounds(rawWindow, bounds)
+			: (rawWindow as GradeWindowInput);
+		if (!window) continue;
+
 		const existing = await db().gradeShiftWindow.findFirst({
 			where: {
 				schoolId,

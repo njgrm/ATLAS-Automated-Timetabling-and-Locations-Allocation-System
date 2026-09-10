@@ -1,7 +1,14 @@
 # ATLAS Runtime Source-of-Truth Map
 
-Last updated: 2026-09-07
+Last updated: 2026-09-10
 Primary phase context: Phase 3 generator readiness + program-specific class-program template alignment
+
+## GEN-C01 canonical generation readiness (`2026-09-10`, source only)
+
+- The live generation trigger and the new read-only canonical diagnostic now share ONE input assembly: `atlas-server/src/services/generation-input-assembly.service.ts` (`assembleGenerationInputs`) plus the shared `buildRunTimetableShapeContracts`, `buildGenerationValidatorContext`, `normalizeInternalGradeId`, and `normalizeProgramType`. `triggerGenerationRun` delegates its fetch + constructor-input build to the same assembly after its owned mutations (section sync, policy ensure, grade-window bootstrap, canonical template seeding, placeholder repair).
+- A read-only canonical diagnostic (`services/canonical-generation-diagnostic.service.ts` + `scripts/canonical-generation-diagnostic.ts`) assembles the same inputs and invokes the same `runHybridScheduler` + `validateHardConstraints` with ZERO persistence (instrumented zero-write proof + before/after DB-signature equality). It reports required sessions by term from the canonical curriculum demand (`services/timetable-demand.service.ts`), the production scheduler dry-run outcome, violations by code, runtime, and source revisions.
+- `ensurePhase3GradeWindows` no longer throws when a bootstrap default falls outside the persisted scheduling-policy bounds; defaults are clamped inward (policy preserved). This fixes the `WINDOW_OUT_OF_POLICY_BOUNDS` failure that killed the only prior run (id 179).
+- Live readiness snapshot (school 1 / year 8, `2029-2030`): canonical curriculum demand = 552 lines / 2760 sessions (920 per term), every line owner-VALID against scoped `SubjectSectionOwnership`; HG excluded; term config id 71 (3 terms). Production scheduler demand is still catalog-based (`computeDemand`, 185 lines / 861 sessions) — the generator does not yet consume persisted offerings/term-config demand, so canonical readiness is `GENERATION_BLOCKED`. Persisted grade shift windows (0) and canonical class-program slots (0) for (1,8) are data/operator gaps. A live persisted generation run remains unperformed and requires separate `HIGH` approval.
 
 ## Purpose
 This is the living runtime map for ATLAS.

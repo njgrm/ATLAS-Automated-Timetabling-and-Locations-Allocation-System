@@ -1,5 +1,24 @@
 # Changelog
 
+## [2026-09-10] — GEN-C01 Canonical Generation Readiness (executed)
+
+### Added
+- Shared read-only generation input assembly `generation-input-assembly.service.ts` used by BOTH the live trigger and the new canonical diagnostic, plus shared `buildRunTimetableShapeContracts`, `buildGenerationValidatorContext`, `normalizeInternalGradeId`, `normalizeProgramType`.
+- Read-only canonical diagnostic `canonical-generation-diagnostic.service.ts` (`runCanonicalGenerationDiagnostic`) + CLI `scripts/canonical-generation-diagnostic.ts` that assemble the same inputs and invoke the same `runHybridScheduler` + `validateHardConstraints` as the live generator, with zero persistence.
+- Grade-window bootstrap clamp: `ensurePhase3GradeWindows` now clamps `PHASE3_DEFAULT_WINDOWS` to persisted policy bounds instead of throwing `WINDOW_OUT_OF_POLICY_BOUNDS` (the run-179 failure).
+- Tests: `grade-window-bounds.test.ts` (6/6), `canonical-demand-proofs.test.ts` (11/11), `canonical-generation-diagnostic.test.ts` (31/31: import-closure parity, zero-write, DB-signature equality, reconciled-owner scope proof, positive-control recorder).
+
+### Changed
+- `triggerGenerationRun` now delegates input fetch + constructor-input build to the shared assembly (behavior preserved; production retains its mutations before assembly).
+- Current-input read-only diagnostic (school 1 / year 8) reports `GENERATION_BLOCKED`: canonical curriculum demand 552 lines / 2760 sessions (920 per term), all 552 owner-VALID; production scheduler demand 185 lines / 861 sessions (delta −1899); dry-run assigned 895 / unassigned 30 (HARD `UNASSIGNED_SECTION`=30) + SOFT 320; DB signature before==after (zero writes).
+
+### Decisions Made
+- Outcome recorded as `GENERATION_BLOCKED`; the production generator does not yet consume persisted `SchoolYearOffering` + term config demand, plus 0 persisted grade shift windows and 0 canonical class-program slots for (1,8) are data/operator gaps. Live persisted generation remains unperformed and requires separate `HIGH` approval.
+- The live DB holds one FAILED run (id 179, `WINDOW_OUT_OF_POLICY_BOUNDS`) from 2026-09-09; reported, not modified. TeachingLoadCycle reports version 6 (prompt truth said v5).
+
+### Open Questions
+- Follow-on to wire canonical offering/term-config demand into the scheduling core (term-aware demand) before a live run is approved.
+
 ## [2026-09-10] — Post-Reconciliation Parallel Readiness Prompts
 
 ### Added
