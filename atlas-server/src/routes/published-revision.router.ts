@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import {
 	createPublishedScheduleRevision,
 	listPublishedScheduleRevisions,
+	resolveLatestPublishedSourceRevision,
 } from '../services/published-revision.service.js';
 
 const router = Router();
@@ -64,7 +65,17 @@ router.get(
 				schoolYearId: scope.schoolYearId,
 				sourceRunId: scope.runId,
 			});
-			res.json({ revisions, count: revisions.length });
+			const latest = await resolveLatestPublishedSourceRevision({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				sourceRunId: scope.runId,
+			});
+			res.json({
+				revisions,
+				count: revisions.length,
+				latestRevisionId: latest.latestRevisionId,
+				baseRevisionId: latest.baseRevisionId,
+			});
 		} catch (e) { next(e); }
 	},
 );

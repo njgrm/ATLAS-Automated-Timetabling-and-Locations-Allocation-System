@@ -64,3 +64,28 @@ Final changed-scope review: `ZERO-FIX`; focused test, `tsc --noEmit`, and `git d
 - Notification delivery remains best-effort and process-local after the database commit; a durable outbox would require a later schema-backed design and is not claimed here.
 - This candidate authorizes source readiness only. Actual publication remains a separately fingerprinted `HIGH` action requiring independent pre-action review and explicit operator approval.
 - Existing timetable revision callers must send the latest `sourceRevisionId`; requests without that concurrency token now fail closed with `SOURCE_REVISION_STALE` rather than branching published truth.
+
+## PUB-C01R correction pass (fresh executor, `REVIEW_REQUIRED`)
+
+- Base: `63a7935407c6aee2c54a70c667372192a4ff63ee` (the PUB-C01 candidate under review).
+- Verdict contract: source/tests/docs only; no live publication, generation, revision creation, runtime restart, migration, merge, or push.
+- Five defects corrected:
+
+1. **Exact published-source truth**: `published-revision.service.ts` now publishes only when `summary.isPublished === true`. Stale `publishedAt`/`publishedBy` markers alone are rejected (`PUBLISHED_SOURCE_REQUIRED`) with zero revision/audit writes. Completed/FULL, exact school/year, source-run-version, immutable base-revision, actor-school, and active-year checks preserved.
+2. **Real revision-client source token**: the revision read contract (`GET .../published-revisions`) now exposes `latestRevisionId`/`baseRevisionId`; `TeacherDepartureRecoverySheet.tsx` and `TacticalSandboxDock.tsx` fetch the token immediately before posting and bind it as `sourceRevisionId`. A stale/concurrent token returns typed `SOURCE_REVISION_STALE`; no silent retry or substitution.
+3. **Idempotent replay**: matching idempotency key + verified audit are detected before source-token/previous-value staleness checks; first request creates one revision/audit, an identical retry returns `replayed:true` with zero new writes and no duplicate notification.
+4. **Causal effective-date order**: a revision claiming a later source revision must take effect on or after that source revision's effective date; earlier dates return `409 REVISION_EFFECTIVE_DATE_BEFORE_SOURCE` with zero writes; same-date and forward-date remain valid.
+5. **Publish outcome transparency**: `publishRun` returns the full `PublishScheduleResult`; the production publish route returns a stable `{ run, publication: { revisionId, auditId, replayed, notificationDelivery } }` envelope. A notification exception returns `FAILED_AFTER_COMMIT` while the publication, base revision, and audit remain committed.
+
+- Decisive gates: `publication-contract-readiness.test.ts` PASS (failing-first regressions for all five defects, mounted publish + revision-creation route coverage, client call-site source contract); focused client test `published-revision-client.test.ts` PASS (4/4); server `tsc --noEmit` PASS; client `tsc --noEmit` PASS; server production build PASS; client production build PASS; `git diff --check` clean.
+- Built-runtime server start was NOT performed: the prompt explicitly excludes runtime restart. Startup/route-loading surface is unchanged; the prior PUB-C01 candidate's isolated built-runtime smoke (`/api/v1/health` 200) remains the last runtime evidence.
+- Client dependencies were installed in the worktree (`npm ci`, gitignored `node_modules/`) to run client tests/builds; no tracked file changed as a result.
+- No live schedule was generated, published, revised, or mutated. Port 5001 was not restarted. Companion repositories untouched.
+
+### Advisory reviews (PUB-C01R)
+
+- `docs/reviews/publication-pubc01-2026-09-10/advisory-review-pubc01r-01.md` (fresh full-diff advisory review): zero product/runtime defects, zero safety-gate defects; three process findings — P-1 leftover scratch probe, P-2 lost tab indentation (two lines), P-3 optional npm-script wiring. All fixed.
+- `docs/reviews/publication-pubc01-2026-09-10/advisory-review-pubc01r-02-changed-scope.md` (fresh changed-scope review after fixes): `zeroFix: true`, `ACCEPT`; no product/runtime, safety-gate, or remaining process findings.
+- Identity caveat (both artifacts): the Task-tool spawn exposes the execution-system handle only on completion, so the reviewer artifacts record `REVIEW_BLOCKED` for reviewer identity. Per `AGENTS.md`, these are advisory evidence only and do not satisfy the formal planner/QA review, which remains external and must bind a verifiable reviewer ID to the commit range.
+- Applied fixes: deleted `atlas-server/src/__tests__/_advisory_pubc01r_probe.ts`; restored tab indentation in `published-revision.service.ts` and `generation.router.ts`; added client `test:published-revision` script.
+- Re-run gates after fixes: server contract test PASS; client `test:published-revision` 4/4 PASS; server/client `tsc --noEmit` PASS; server/client production build PASS; `git diff --check` clean.

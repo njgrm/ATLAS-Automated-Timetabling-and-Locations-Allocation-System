@@ -160,11 +160,19 @@ router.post(
 			if (actorSchoolId !== schoolId) { res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'The authenticated actor cannot publish another school\'s schedule.' }); return; }
 			const acknowledgeSoftViolations = req.body?.acknowledgeSoftViolations === true;
 
-			const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId, {
+			const result = await genService.publishRun(schoolId, schoolYearId, runId, actorId, {
 				acknowledgeSoftViolations,
 				actorSchoolId,
 			});
-			res.json({ run });
+			res.json({
+				run: result.run,
+				publication: {
+					revisionId: result.revisionId,
+					auditId: result.auditId,
+					replayed: result.replayed,
+					notificationDelivery: result.notificationDelivery,
+				},
+			});
 		} catch (e) { next(e); }
 	},
 );

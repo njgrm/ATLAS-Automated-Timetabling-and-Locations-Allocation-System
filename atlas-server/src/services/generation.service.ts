@@ -1753,16 +1753,16 @@ export async function publishRun(
 		acknowledgeSoftViolations?: boolean;
 		actorSchoolId?: number;
 	},
+	dependencies: Parameters<typeof publishSchedule>[1] = {},
 ) {
-	const result = await publishSchedule({
+	return publishSchedule({
 		schoolId,
 		schoolYearId,
 		runId,
 		actorId,
 		actorSchoolId: options?.actorSchoolId ?? 0,
 		acknowledgeSoftViolations: options?.acknowledgeSoftViolations,
-	});
-	return result.run;
+	}, dependencies);
 }
 
 // ─── Violation queries ───

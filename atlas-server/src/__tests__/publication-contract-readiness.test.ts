@@ -6,7 +6,8 @@ import jwt from 'jsonwebtoken';
 import { withDataContext } from '../lib/data-context.js';
 import { publishSchedule } from '../services/publication-contract.service.js';
 import { resolvePublishedRun } from '../services/published-schedule.service.js';
-import { createPublishedScheduleRevision } from '../services/published-revision.service.js';
+import { createPublishedScheduleRevision, resolveLatestPublishedSourceRevision } from '../services/published-revision.service.js';
+import { computeGenerationInputSnapshot } from '../services/generation-input-snapshot.service.js';
 import type { GenerationInputSnapshot } from '../services/generation-input-snapshot.service.js';
 
 const ROOT = new URL('../', import.meta.url);
@@ -147,6 +148,123 @@ const validInput = {
 	actorSchoolId: 51,
 };
 
+type RevisionFixtureOptions = {
+	summary?: unknown;
+	baseEffectiveDate?: Date;
+	changes?: unknown;
+};
+
+function makeRevisionFixture(options: RevisionFixtureOptions = {}) {
+	const state = { revisions: [] as any[], audits: [] as any[], runSummary: null as any };
+	const baseEffectiveDate = options.baseEffectiveDate ?? new Date('2030-01-01T00:00:00.000Z');
+	const generationRunSummary = options.summary ?? { isPublished: true, publishedAt: FIXED_NOW.toISOString(), publication: { revisionId: 700, sourceRunVersion: 5 } };
+	const changedEntries = options.changes ?? [{ entryId: 'e-1', entry: { entryId: 'e-1', roomId: 30, termIndex: 1 } }];
+	const tx: any = {
+		$executeRawUnsafe: async () => 1,
+		$queryRawUnsafe: async () => changedEntries,
+		enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 81 }] },
+		schoolYearTermConfig: { findUnique: async () => ({ termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true }) },
+		generationRun: { findFirst: async () => ({ id: 91, status: 'COMPLETED', runType: 'FULL', version: 5, summary: generationRunSummary }) },
+		publishedScheduleRevision: {
+			findFirst: async ({ where }: any) => {
+				if (where.id === 700) return { id: 700, effectiveDate: baseEffectiveDate, sourceRevisionId: null, reason: 'INITIAL_PUBLICATION', metadata: { publicationBase: true, sourceRunVersion: 5 } };
+				return state.revisions.find((row) => where.id ? row.id === where.id : row.metadata?.idempotencyKey === where.metadata?.equals) ?? null;
+			},
+			findMany: async () => [{ id: 700, effectiveDate: baseEffectiveDate, changeSet: [] }, ...state.revisions.map((row) => ({ id: row.id, effectiveDate: row.effectiveDate, changeSet: row.changeSet }))],
+			create: async ({ data }: any) => { const row = { id: 901, ...data }; state.revisions.push(row); return row; },
+		},
+		auditLog: {
+			findFirst: async ({ where }: any) => state.audits.find((row) => row.targetIds.includes(where.targetIds.has)) ?? null,
+			create: async ({ data }: any) => { const row = { id: 902, ...data }; state.audits.push(row); return row; },
+		},
+	};
+	let lock = Promise.resolve();
+	const client: any = {
+		...tx,
+		$transaction: async (work: any) => {
+			let release!: () => void;
+			const previous = lock;
+			lock = new Promise<void>((resolve) => { release = resolve; });
+			await previous;
+			const backup = structuredClone({ revisions: state.revisions, audits: state.audits });
+			try {
+				return await work(tx);
+			} catch (error) {
+				state.revisions = backup.revisions;
+				state.audits = backup.audits;
+				throw error;
+			} finally {
+				release();
+			}
+		},
+	};
+	return { client, state, tx };
+}
+
+const baseRevisionInput = {
+	schoolId: 51,
+	schoolYearId: 81,
+	sourceRunId: 91,
+	sourceRevisionId: 700,
+	actorId: 41,
+	effectiveDate: '2030-01-03T00:00:00.000Z',
+	reason: 'Move one class after publication',
+	changes: [{ entryId: 'e-1', previous: { roomId: 30, termIndex: 1 }, next: { roomId: 31, termIndex: 1 } }],
+};
+
+async function expectRevisionCode(code: string, fixture: ReturnType<typeof makeRevisionFixture>, input: Partial<typeof baseRevisionInput> = {}) {
+	await assert.rejects(
+		() => withDataContext(fixture.client, () => createPublishedScheduleRevision({ ...baseRevisionInput, ...input }, { now: FIXED_NOW })),
+		(error: any) => error?.code === code,
+		code,
+	);
+	assert.equal(fixture.state.revisions.length, 0, `${code}: no revision`);
+	assert.equal(fixture.state.audits.length, 0, `${code}: no audit`);
+}
+
+async function makeRoutePublishClient() {
+	const state = { revisions: [] as any[], audits: [] as any[], snapshot: null as unknown, runSummary: null as unknown, runVersion: 4 };
+	const zeroAggregate = () => async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null, version: null, createdAt: null } });
+	const tx: any = {
+		$executeRawUnsafe: async () => 1,
+		$queryRawUnsafe: async () => [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb' }],
+		enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 81 }] },
+		schoolYearTermConfig: { findUnique: async () => ({ termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true }) },
+		facultyMirror: { aggregate: zeroAggregate() },
+		facultySubject: { aggregate: zeroAggregate() },
+		subjectSectionOwnership: { aggregate: zeroAggregate() },
+		teachingLoadCycle: { findUnique: async () => null },
+		schedulingPolicy: { findUnique: async () => null },
+		gradeShiftWindow: { aggregate: zeroAggregate() },
+		room: { aggregate: zeroAggregate() },
+		building: { aggregate: zeroAggregate() },
+		sectionMirror: { aggregate: zeroAggregate() },
+		subject: { aggregate: zeroAggregate() },
+		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		schoolYearOffering: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, version: null, updatedAt: null } }) },
+		offeringTermAssignment: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		generationRun: {
+			findFirst: async () => ({ id: 91, schoolId: 51, schoolYearId: 81, status: 'COMPLETED', runType: 'FULL', version: state.runVersion, summary: { inputSnapshot: state.snapshot }, violations: [], unassignedItems: [], draftEntries: [{ entryId: 'p-1', termIndex: 1 }], finishedAt: FIXED_NOW, createdAt: FIXED_NOW }),
+			findMany: async () => [],
+			updateMany: async ({ data }: any) => { state.runSummary = data.summary; state.runVersion += data.version.increment; return { count: 1 }; },
+			findUnique: async () => ({ id: 91, schoolId: 51, schoolYearId: 81, status: 'COMPLETED', runType: 'FULL', version: state.runVersion, summary: { ...(state.runSummary as object) }, violations: [], unassignedItems: [], draftEntries: [{ entryId: 'p-1', termIndex: 1 }], finishedAt: FIXED_NOW, createdAt: FIXED_NOW }),
+		},
+		publishedScheduleRevision: {
+			findFirst: async () => null,
+			create: async ({ data }: any) => { const row = { id: 701, ...data }; state.revisions.push(row); return row; },
+		},
+		auditLog: {
+			findFirst: async () => null,
+			create: async ({ data }: any) => { const row = { id: 801, ...data }; state.audits.push(row); return row; },
+		},
+	};
+	const client: any = { ...tx, $transaction: async (work: any) => work(tx) };
+	state.snapshot = await computeGenerationInputSnapshot(51, 81, client);
+	state.runSummary = state.snapshot;
+	return { client, state, tx };
+}
+
 async function expectCode(code: string, options: FakeOptions, input = validInput, fingerprint = 'current') {
 	const fixture = fakeClient(options);
 	await assert.rejects(
@@ -222,10 +340,10 @@ async function main() {
 		generationRun: { findFirst: async () => ({ id: 91, status: 'COMPLETED', runType: 'FULL', version: 5, summary: { isPublished: true, publishedAt: FIXED_NOW.toISOString(), publication: { revisionId: 700, sourceRunVersion: 5 } } }) },
 		publishedScheduleRevision: {
 			findFirst: async ({ where }: any) => {
-				if (where.id === 700) return { id: 700, sourceRevisionId: null, reason: 'INITIAL_PUBLICATION', metadata: { publicationBase: true, sourceRunVersion: 5 } };
+				if (where.id === 700) return { id: 700, effectiveDate: new Date('2030-01-01T00:00:00.000Z'), sourceRevisionId: null, reason: 'INITIAL_PUBLICATION', metadata: { publicationBase: true, sourceRunVersion: 5 } };
 				return revisionState.revisions.find((row) => where.id ? row.id === where.id : row.metadata?.idempotencyKey === where.metadata?.equals) ?? null;
 			},
-			findMany: async () => [{ id: 700, changeSet: [] }],
+			findMany: async () => [{ id: 700, effectiveDate: new Date('2030-01-01T00:00:00.000Z'), changeSet: [] }, ...revisionState.revisions.map((row) => ({ id: row.id, effectiveDate: row.effectiveDate, changeSet: row.changeSet }))],
 			create: async ({ data }: any) => { const row = { id: 901, ...data }; revisionState.revisions.push(row); return row; },
 		},
 		auditLog: {
@@ -252,6 +370,8 @@ async function main() {
 	assert.equal(revisionState.revisions.length, 1, 'revision replay creates no duplicate revision');
 	assert.equal(revisionState.audits.length, 1, 'revision replay creates no duplicate audit');
 	assert.equal(revisionEvents, 1, 'revision replay emits no duplicate event');
+	assert.equal(revisionState.revisions[0].id, 901, 'committed revision becomes the authoritative latest token');
+	assert.equal(replayRevision.revision.id, 901, 'retry replays the committed revision even though its sourceRevisionId (700) is no longer the latest token');
 	const revisionFailureState = { revisions: [] as any[], audits: [] as any[] };
 	revisionState.revisions = revisionFailureState.revisions;
 	revisionState.audits = revisionFailureState.audits;
@@ -259,6 +379,8 @@ async function main() {
 	assert.equal(revisionDelivery.notificationDelivery, 'FAILED_AFTER_COMMIT');
 	assert.equal(revisionState.revisions.length, 1, 'revision notification failure preserves committed revision');
 	assert.equal(revisionState.audits.length, 1, 'revision notification failure preserves committed audit');
+	revisionState.revisions = [];
+	revisionState.audits = [];
 	await assert.rejects(
 		() => withDataContext(revisionClient, () => createPublishedScheduleRevision({ ...revisionInput, changes: [{ entryId: 'e-1', previous: { termIndex: 1 }, next: { termIndex: 99 } }] }, { now: FIXED_NOW })),
 		(error: any) => error?.code === 'REVISION_TERM_INDEX_INVALID',
@@ -299,6 +421,69 @@ async function main() {
 		(error: any) => error?.code === 'REVISION_PREVIOUS_VALUES_STALE',
 		'stale previous value fails closed',
 	);
+
+	// ── PUB-C01R defect 1: exact published-source truth ──
+	const staleMarkers = makeRevisionFixture({
+		summary: { isPublished: false, publishedAt: FIXED_NOW.toISOString(), publishedBy: 41, publication: { revisionId: 700, sourceRunVersion: 5 } },
+	});
+	await expectRevisionCode('PUBLISHED_SOURCE_REQUIRED', staleMarkers);
+	assert.equal(staleMarkers.state.revisions.length, 0, 'stale markers alone never write a revision');
+	assert.equal(staleMarkers.state.audits.length, 0, 'stale markers alone never write an audit');
+
+	const truthOnly = makeRevisionFixture({ summary: { isPublished: true, publication: { revisionId: 700, sourceRunVersion: 5 } } });
+	const truthOnlyRevision = await withDataContext(truthOnly.client, () => createPublishedScheduleRevision(baseRevisionInput, { now: FIXED_NOW }));
+	assert.equal(truthOnlyRevision.replayed, false);
+	assert.equal(truthOnly.state.revisions.length, 1, 'isPublished:true alone establishes publication');
+	assert.equal(truthOnly.state.audits.length, 1, 'published run audits its base revision creation');
+
+	// ── PUB-C01R defect 4: causal effective-date order ──
+	const beforeSource = makeRevisionFixture({ baseEffectiveDate: new Date('2030-01-20T00:00:00.000Z') });
+	await expectRevisionCode('REVISION_EFFECTIVE_DATE_BEFORE_SOURCE', beforeSource, { effectiveDate: '2030-01-10T00:00:00.000Z' });
+
+	const sameDateFixture = makeRevisionFixture({ baseEffectiveDate: new Date('2030-01-20T00:00:00.000Z') });
+	const sameDateResult = await withDataContext(sameDateFixture.client, () => createPublishedScheduleRevision({ ...baseRevisionInput, effectiveDate: '2030-01-20T00:00:00.000Z' }, { now: FIXED_NOW }));
+	assert.equal(sameDateResult.replayed, false, 'same-date as the source revision remains valid');
+
+	const forwardDateFixture = makeRevisionFixture({ baseEffectiveDate: new Date('2030-01-20T00:00:00.000Z') });
+	const forwardDateResult = await withDataContext(forwardDateFixture.client, () => createPublishedScheduleRevision({ ...baseRevisionInput, effectiveDate: '2030-01-21T00:00:00.000Z' }, { now: FIXED_NOW }));
+	assert.equal(forwardDateResult.replayed, false, 'forward date remains valid');
+
+	const chainCausalFixture = makeRevisionFixture({ baseEffectiveDate: new Date('2030-01-20T00:00:00.000Z') });
+	const chainHead = await withDataContext(chainCausalFixture.client, () => createPublishedScheduleRevision({ ...baseRevisionInput, effectiveDate: '2030-01-20T00:00:00.000Z' }, { now: FIXED_NOW }));
+	assert.equal(chainHead.revision.id, 901, 'chain head committed');
+	assert.equal(chainCausalFixture.state.revisions.length, 1, 'chain head is the only committed revision');
+	await assert.rejects(
+		() => withDataContext(chainCausalFixture.client, () => createPublishedScheduleRevision({ ...baseRevisionInput, sourceRevisionId: 901, effectiveDate: '2030-01-10T00:00:00.000Z' }, { now: FIXED_NOW })),
+		(error: any) => error?.code === 'REVISION_EFFECTIVE_DATE_BEFORE_SOURCE',
+		'chain revision with an earlier effective date is rejected',
+	);
+	assert.equal(chainCausalFixture.state.revisions.length, 1, 'causal violation on a chain revision writes nothing');
+	assert.equal(chainCausalFixture.state.audits.length, 1, 'causal violation writes no additional audit');
+
+	// ── PUB-C01R defect 2: authoritative latest revision read contract ──
+	const freshRead = await withDataContext(makeRevisionFixture().client, () => resolveLatestPublishedSourceRevision({ schoolId: 51, schoolYearId: 81, sourceRunId: 91 }));
+	assert.equal(freshRead.latestRevisionId, 700);
+	assert.equal(freshRead.baseRevisionId, 700);
+	const chainAwareRead = makeRevisionFixture();
+	await withDataContext(chainAwareRead.client, () => createPublishedScheduleRevision(baseRevisionInput, { now: FIXED_NOW }));
+	const readAfterCommit = await withDataContext(chainAwareRead.client, () => resolveLatestPublishedSourceRevision({ schoolId: 51, schoolYearId: 81, sourceRunId: 91 }));
+	assert.equal(readAfterCommit.latestRevisionId, 901, 'read contract exposes the committed revision as the authoritative latest token');
+
+	// ── PUB-C01R defect 5: publish outcome transparency through the production wrapper ──
+	const { publishRun } = await import('../services/generation.service.js');
+	const outcomeFixture = fakeClient();
+	const outcome = await withDataContext(outcomeFixture.client, () => publishRun(51, 81, 91, 41, { actorSchoolId: 51 }, {
+		now: () => FIXED_NOW,
+		computeInputSnapshot: async () => snapshot(),
+		publishEvent: () => { throw new Error('subscriber failure'); },
+	}));
+	assert.equal(outcome.notificationDelivery, 'FAILED_AFTER_COMMIT');
+	assert.equal(outcome.replayed, false);
+	assert.equal(typeof outcome.revisionId, 'number', 'publishRun exposes revisionId');
+	assert.equal(typeof outcome.auditId, 'number', 'publishRun exposes auditId');
+	assert.ok(outcome.run && typeof outcome.run === 'object', 'publishRun preserves the run response');
+	assert.equal(outcomeFixture.state.revisions.length, 1, 'notification exception preserves committed base revision');
+	assert.equal(outcomeFixture.state.audits.length, 1, 'notification exception preserves committed audit');
 
 	let targetedQuery = '';
 	let targetedParams: unknown[] = [];
@@ -429,6 +614,69 @@ async function main() {
 		}
 	});
 
+	// ── PUB-C01R defect 2: real revision-creation route + read contract ──
+	const revisionRoute = makeRevisionFixture();
+	const officerToken = jwt.sign({ userId: 41, role: 'officer', schoolId: 51, authSource: 'local' }, process.env.JWT_SECRET!);
+	await withDataContext(revisionRoute.client, async () => {
+		const server = createServer(app);
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		try {
+			const address = server.address();
+			assert(address && typeof address === 'object');
+			const origin = `http://127.0.0.1:${address.port}`;
+			const url = `${origin}/api/v1/generation/51/81/runs/91/published-revisions`;
+			const headers = { authorization: `Bearer ${officerToken}`, 'content-type': 'application/json' };
+
+			const read = await fetch(url, { headers });
+			assert.equal(read.status, 200, 'read contract route exposes the latest revision token');
+			const readBody = await read.json() as any;
+			assert.equal(readBody.latestRevisionId, 700);
+			assert.equal(readBody.baseRevisionId, 700);
+			assert.equal(readBody.count, 1);
+
+			const noToken = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ effectiveDate: '2030-01-03', reason: 'no token', changes: [{ entryId: 'e-1', previous: { roomId: 30 }, next: { roomId: 31 } }] }) });
+			assert.equal(noToken.status, 409, 'missing source token fails closed on the real route');
+			assert.equal((await noToken.json() as any).code, 'SOURCE_REVISION_STALE');
+
+			const staleToken = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ effectiveDate: '2030-01-03', reason: 'stale token', sourceRevisionId: 705, changes: [{ entryId: 'e-1', previous: { roomId: 30 }, next: { roomId: 31 } }] }) });
+			assert.equal(staleToken.status, 409, 'stale source token fails closed on the real route');
+			assert.equal((await staleToken.json() as any).code, 'SOURCE_REVISION_STALE');
+
+			const created = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ effectiveDate: '2030-01-03', reason: 'valid token', sourceRevisionId: 700, changes: [{ entryId: 'e-1', previous: { roomId: 30 }, next: { roomId: 31 } }] }) });
+			assert.equal(created.status, 201, 'valid latest token creates a revision on the real route');
+			const createdBody = await created.json() as any;
+			assert.equal(createdBody.revision.id, 901);
+			assert.equal(createdBody.replayed, false);
+			assert.equal(revisionRoute.state.revisions.length, 1, 'real route writes exactly one revision');
+			assert.equal(revisionRoute.state.audits.length, 1, 'real route writes exactly one audit');
+		} finally {
+			await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+		}
+	});
+
+	// ── PUB-C01R defect 5: production publish route returns the stable outcome envelope ──
+	const publishRoute = await makeRoutePublishClient();
+	const publishToken = jwt.sign({ userId: 41, role: 'officer', schoolId: 51, authSource: 'local' }, process.env.JWT_SECRET!);
+	await withDataContext(publishRoute.client, async () => {
+		const server = createServer(app);
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		try {
+			const address = server.address();
+			assert(address && typeof address === 'object');
+			const base = `http://127.0.0.1:${address.port}/api/v1/generation/51/81/runs/91/publish`;
+			const response = await fetch(base, { method: 'POST', headers: { authorization: `Bearer ${publishToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ acknowledgeSoftViolations: true }) });
+			assert.equal(response.status, 200, 'production publish route returns the stable envelope');
+			const body = await response.json() as any;
+			assert.ok(body.run && typeof body.run === 'object', 'run response preserved in the envelope');
+			assert.equal(body.publication.revisionId, publishRoute.state.revisions[0].id, 'envelope exposes revisionId');
+			assert.equal(body.publication.auditId, publishRoute.state.audits[0].id, 'envelope exposes auditId');
+			assert.equal(body.publication.replayed, false, 'envelope exposes replayed');
+			assert.equal(body.publication.notificationDelivery, 'DELIVERED', 'envelope exposes notificationDelivery');
+		} finally {
+			await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+		}
+	});
+
 	const ambiguousReadClient: any = {
 		generationRun: { findMany: async () => [{ id: 1 }, { id: 2 }] },
 	};
@@ -442,6 +690,18 @@ async function main() {
 	assert.match(generationRouter, /runs\/:runId\/publish'[\s\S]*authenticate/);
 	assert.match(generationRouter, /actorSchoolId !== schoolId[\s\S]*CROSS_SCHOOL_DENIED/);
 	assert.match(generationRouter, /genService\.publishRun[\s\S]*actorSchoolId/);
+	assert.match(generationRouter, /publication:\s*\{\s*revisionId[\s\S]*auditId[\s\S]*replayed[\s\S]*notificationDelivery/, 'publish route returns the stable outcome envelope');
+
+	const departureSheet = await readFile(new URL('../../../atlas-client/src/components/timetable/TeacherDepartureRecoverySheet.tsx', import.meta.url), 'utf8');
+	assert.match(departureSheet, /fetchLatestRevisionToken\(schoolId, schoolYearId, runId\)/, 'departure sheet reads the latest revision token immediately before posting');
+	assert.match(departureSheet, /buildRevisionCreatePayload\([\s\S]*sourceRevisionId/, 'departure sheet binds the token into the revision payload');
+
+	const sandboxDock = await readFile(new URL('../../../atlas-client/src/components/timetable/TacticalSandboxDock.tsx', import.meta.url), 'utf8');
+	assert.match(sandboxDock, /fetchLatestRevisionToken\(schoolId, schoolYearId, runId\)/, 'tactical dock reads the latest revision token immediately before posting');
+	assert.match(sandboxDock, /buildRevisionCreatePayload\([\s\S]*sourceRevisionId/, 'tactical dock binds the token into the revision payload');
+
+	const revisionRouter = await readFile(new URL('routes/published-revision.router.ts', ROOT), 'utf8');
+	assert.match(revisionRouter, /latestRevisionId[\s\S]*baseRevisionId/, 'revision read contract exposes the authoritative latest token');
 
 	const publishedRouter = await readFile(new URL('routes/published-schedule.router.ts', ROOT), 'utf8');
 	assert.match(publishedRouter, /where:\s*\{ schoolId, isActive: true, isArchived: false \}/);

@@ -1,4 +1,4 @@
-import type { Prisma, PublishedScheduleRevision } from '@prisma/client';
+import type { Prisma, PrismaClient, PublishedScheduleRevision } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
@@ -74,10 +74,9 @@ function asSummaryRecord(summary: unknown): Record<string, unknown> {
 }
 
 function isPublishedSummary(summary: unknown): boolean {
-	const candidate = asSummaryRecord(summary);
-	if (candidate.isPublished === true) return true;
-	if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0) return true;
-	return typeof candidate.publishedBy === 'number';
+	// A run is published only when the current summary explicitly says so.
+	// Stale `publishedAt`/`publishedBy` markers alone must never establish publication.
+	return asSummaryRecord(summary).isPublished === true;
 }
 
 function sameUtcDate(left: Date, right: Date): boolean {
@@ -181,6 +180,74 @@ function buildValueSnapshot(changes: PublishedRevisionEntryChange[], side: 'prev
 	}));
 }
 
+type AuthoritativeLatestRevision = {
+	baseRevisionId: number;
+	latestRevisionId: number;
+	sourceRunVersion: number;
+	publishedAt: string | null;
+	baseRevision: {
+		id: number;
+		effectiveDate: Date;
+		sourceRevisionId: number | null;
+		reason: string;
+		metadata: unknown;
+	};
+	latestRevision: { id: number; effectiveDate: Date; changeSet: unknown } | null;
+	revisionChain: Array<{ id: number; effectiveDate: Date; changeSet: unknown }>;
+};
+
+/**
+ * The single authoritative resolution of the latest published revision for a
+ * source run. Both the create path (inside its serializable advisory-locked
+ * transaction) and the read contract use this so the exposed latest revision
+ * token can never diverge from the token the write contract enforces.
+ */
+async function resolveAuthoritativeLatestRevision(
+	client: Prisma.TransactionClient | PrismaClient,
+	params: { schoolId: number; schoolYearId: number; sourceRunId: number },
+): Promise<AuthoritativeLatestRevision> {
+	const sourceRun = await client.generationRun.findFirst({
+		where: { id: params.sourceRunId, schoolId: params.schoolId, schoolYearId: params.schoolYearId },
+		select: { id: true, status: true, runType: true, summary: true, version: true },
+	});
+	if (!sourceRun) throw err(404, 'SOURCE_RUN_NOT_FOUND', 'Source generation run was not found in this school/year scope.');
+	const publication = asSummaryRecord(asSummaryRecord(sourceRun.summary).publication);
+	if (sourceRun.status !== 'COMPLETED' || sourceRun.runType !== 'FULL' || !isPublishedSummary(sourceRun.summary)
+		|| Number(publication.sourceRunVersion) !== sourceRun.version) {
+		throw err(422, 'PUBLISHED_SOURCE_REQUIRED', 'Published revisions require the exact current official published source run.', {
+			details: { sourceRunId: params.sourceRunId, status: sourceRun.status, runType: sourceRun.runType },
+		});
+	}
+	const baseRevisionId = Number(publication.revisionId);
+	if (!Number.isInteger(baseRevisionId) || baseRevisionId < 1) {
+		throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The published source has no valid immutable base revision pointer.');
+	}
+	const baseRevision = await client.publishedScheduleRevision.findFirst({
+		where: { id: baseRevisionId, schoolId: params.schoolId, schoolYearId: params.schoolYearId, sourceRunId: params.sourceRunId },
+		select: { id: true, effectiveDate: true, sourceRevisionId: true, reason: true, metadata: true },
+	});
+	const baseMetadata = asSummaryRecord(baseRevision?.metadata);
+	if (!baseRevision || baseRevision.sourceRevisionId !== null || baseRevision.reason !== 'INITIAL_PUBLICATION'
+		|| baseMetadata.publicationBase !== true || Number(baseMetadata.sourceRunVersion) !== sourceRun.version) {
+		throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The published source base revision is missing or invalid.');
+	}
+	const revisionChain = await client.publishedScheduleRevision.findMany({
+		where: { schoolId: params.schoolId, schoolYearId: params.schoolYearId, sourceRunId: params.sourceRunId, status: { in: ['SCHEDULED', 'SUPERSEDED'] } },
+		orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+		select: { id: true, effectiveDate: true, changeSet: true },
+	});
+	const publishedMarker = asSummaryRecord(sourceRun.summary).publishedAt;
+	return {
+		baseRevisionId,
+		latestRevisionId: revisionChain.at(-1)?.id ?? baseRevisionId,
+		sourceRunVersion: sourceRun.version,
+		publishedAt: typeof publishedMarker === 'string' ? publishedMarker : null,
+		baseRevision,
+		latestRevision: revisionChain.at(-1) ?? null,
+		revisionChain,
+	};
+}
+
 export async function createPublishedScheduleRevision(
 	input: CreatePublishedScheduleRevisionInput,
 	options?: { now?: Date; publishEvent?: (event: Parameters<typeof publishPublishedScheduleEvent>[0]) => unknown },
@@ -234,40 +301,40 @@ export async function createPublishedScheduleRevision(
 			throw err(409, 'PUBLISHED_REVISION_TERM_CONTRACT_INVALID', 'Published revisions require the current ordered three-term configuration.');
 		}
 
-		const sourceRun = await tx.generationRun.findFirst({
-			where: { id: input.sourceRunId, schoolId: input.schoolId, schoolYearId: input.schoolYearId },
-			select: { id: true, status: true, runType: true, summary: true, version: true },
+		const resolved = await resolveAuthoritativeLatestRevision(tx, {
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			sourceRunId: input.sourceRunId,
 		});
-		if (!sourceRun) throw err(404, 'SOURCE_RUN_NOT_FOUND', 'Source generation run was not found in this school/year scope.');
-		const publication = asSummaryRecord(asSummaryRecord(sourceRun.summary).publication);
-		if (sourceRun.status !== 'COMPLETED' || sourceRun.runType !== 'FULL' || !isPublishedSummary(sourceRun.summary)
-			|| Number(publication.sourceRunVersion) !== sourceRun.version) {
-			throw err(422, 'PUBLISHED_SOURCE_REQUIRED', 'Published revisions require the exact current official published source run.', {
-				details: { sourceRunId: input.sourceRunId, status: sourceRun.status, runType: sourceRun.runType },
+
+		// Idempotent replay is detected before source-token or previous-value
+		// staleness checks so an identical retry of an already committed request
+		// returns the committed record instead of failing as stale. Scope (school,
+		// year, source run), actor, official-source, and audit integrity are still
+		// verified on the replay path.
+		const replay = await tx.publishedScheduleRevision.findFirst({
+			where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, metadata: { path: ['idempotencyKey'], equals: idempotencyKey } },
+		});
+		if (replay) {
+			if ((replay.actorId ?? null) !== (actorId ?? null)) {
+				throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay does not match the requesting actor.');
+			}
+			const replayAudit = await tx.auditLog.findFirst({
+				where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, action: 'PUBLISHED_SCHEDULE_REVISION_CREATED', targetIds: { has: replay.id } },
+				select: { id: true },
 			});
-		}
-		const baseRevisionId = Number(publication.revisionId);
-		if (!Number.isInteger(baseRevisionId) || baseRevisionId < 1) {
-			throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The published source has no valid immutable base revision pointer.');
-		}
-		const baseRevision = await tx.publishedScheduleRevision.findFirst({
-			where: { id: baseRevisionId, schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId },
-			select: { sourceRevisionId: true, reason: true, metadata: true },
-		});
-		const baseMetadata = asSummaryRecord(baseRevision?.metadata);
-		if (!baseRevision || baseRevision.sourceRevisionId !== null || baseRevision.reason !== 'INITIAL_PUBLICATION'
-			|| baseMetadata.publicationBase !== true || Number(baseMetadata.sourceRunVersion) !== sourceRun.version) {
-			throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The published source base revision is missing or invalid.');
+			if (!replayAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay has no matching audit record.');
+			return { revision: replay, auditId: replayAudit.id, replayed: true };
 		}
 
-		const revisionChain = await tx.publishedScheduleRevision.findMany({
-			where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, status: { in: ['SCHEDULED', 'SUPERSEDED'] } },
-			orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-			select: { id: true, changeSet: true },
-		});
-		const latestRevisionId = revisionChain.at(-1)?.id ?? baseRevisionId;
-		if (input.sourceRevisionId !== latestRevisionId) {
-			throw err(409, 'SOURCE_REVISION_STALE', 'The revision must be based on the latest published revision.', { details: { expectedSourceRevisionId: latestRevisionId } });
+		if (input.sourceRevisionId !== resolved.latestRevisionId) {
+			throw err(409, 'SOURCE_REVISION_STALE', 'The revision must be based on the latest published revision.', { details: { expectedSourceRevisionId: resolved.latestRevisionId } });
+		}
+		const sourceEffectiveDate = resolved.latestRevision?.effectiveDate ?? resolved.baseRevision.effectiveDate;
+		if (effectiveDate.getTime() < sourceEffectiveDate.getTime()) {
+			throw err(409, 'REVISION_EFFECTIVE_DATE_BEFORE_SOURCE', 'A revision that claims a later source revision must take effect on or after that source revision\'s effective date.', {
+				details: { sourceRevisionId: input.sourceRevisionId, sourceEffectiveDate: sourceEffectiveDate.toISOString(), requestedEffectiveDate: effectiveDate.toISOString() },
+			});
 		}
 		const existingEntries = await tx.$queryRawUnsafe<Array<{ entryId: string; entry: Record<string, unknown> }>>(
 			`SELECT elem->>'entryId' AS "entryId", elem AS "entry"
@@ -284,7 +351,7 @@ export async function createPublishedScheduleRevision(
 			throw err(422, 'REVISION_ENTRY_NOT_FOUND', 'Every revision change must target one valid entry in the published source run.');
 		}
 		const effectiveEntries = new Map(existingEntries.map((entry) => [entry.entryId, { ...entry.entry }]));
-		for (const revision of revisionChain) {
+		for (const revision of resolved.revisionChain) {
 			if (!Array.isArray(revision.changeSet)) continue;
 			for (const raw of revision.changeSet) {
 				const prior = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
@@ -298,18 +365,6 @@ export async function createPublishedScheduleRevision(
 			for (const [field, expected] of Object.entries(change.previous)) {
 				if (!Object.is(current[field], expected)) throw err(409, 'REVISION_PREVIOUS_VALUES_STALE', `Revision change ${change.entryId} no longer matches current published values.`, { details: { entryId: change.entryId, field } });
 			}
-		}
-
-		const replay = await tx.publishedScheduleRevision.findFirst({
-			where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, sourceRunId: input.sourceRunId, metadata: { path: ['idempotencyKey'], equals: idempotencyKey } },
-		});
-		if (replay) {
-			const replayAudit = await tx.auditLog.findFirst({
-				where: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, action: 'PUBLISHED_SCHEDULE_REVISION_CREATED', targetIds: { has: replay.id } },
-				select: { id: true },
-			});
-			if (!replayAudit) throw err(409, 'PUBLISHED_REVISION_STATE_AMBIGUOUS', 'The revision replay has no matching audit record.');
-			return { revision: replay, auditId: replayAudit.id, replayed: true };
 		}
 
 		const revision = await tx.publishedScheduleRevision.create({
@@ -329,8 +384,8 @@ export async function createPublishedScheduleRevision(
 				metadata: {
 					...(input.metadata ?? {}),
 					idempotencyKey,
-					sourceRunVersion: sourceRun.version,
-					publishedAt: asSummaryRecord(sourceRun.summary).publishedAt ?? null,
+					sourceRunVersion: resolved.sourceRunVersion,
+					publishedAt: resolved.publishedAt,
 				} as Prisma.InputJsonValue,
 			},
 		});
@@ -421,6 +476,30 @@ export async function listPublishedScheduleRevisions(params: {
 		},
 		orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }],
 	});
+}
+
+/**
+ * Read-contract resolver exposing the authoritative latest revision token the
+ * create contract requires. Clients must read this token immediately before
+ * posting a revision so their `sourceRevisionId` is the current concurrency
+ * token. A stale or concurrent token fails closed as `SOURCE_REVISION_STALE`
+ * on the write path.
+ */
+export async function resolveLatestPublishedSourceRevision(params: {
+	schoolId: number;
+	schoolYearId: number;
+	sourceRunId: number;
+}): Promise<{ baseRevisionId: number; latestRevisionId: number }> {
+	if (!isPositiveInteger(params.schoolId)) throw err(400, 'INVALID_SCHOOL_ID', 'schoolId must be a positive integer.');
+	if (!isPositiveInteger(params.schoolYearId)) throw err(400, 'INVALID_SCHOOL_YEAR_ID', 'schoolYearId must be a positive integer.');
+	if (!isPositiveInteger(params.sourceRunId)) throw err(400, 'INVALID_SOURCE_RUN_ID', 'sourceRunId must be a positive integer.');
+
+	const resolved = await resolveAuthoritativeLatestRevision(db(), {
+		schoolId: params.schoolId,
+		schoolYearId: params.schoolYearId,
+		sourceRunId: params.sourceRunId,
+	});
+	return { baseRevisionId: resolved.baseRevisionId, latestRevisionId: resolved.latestRevisionId };
 }
 
 function revisionIdempotencyKey(input: {
