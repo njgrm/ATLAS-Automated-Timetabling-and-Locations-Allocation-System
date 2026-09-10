@@ -404,6 +404,10 @@ test('TTX-08 tutorial trigger has an accessible name and 44px mobile target', ()
 	const helpers = source('src/components/timetable/simple/SimpleHeaderHelpers.tsx');
 	assert.match(helpers, /aria-label="Open timetable tutorial"/);
 	assert.match(helpers, /min-h-11/);
+	assert.match(
+		helpers,
+		/data-testid="timetable-simple-schedule-sheet-trigger"[\s\S]{0,80}min-h-11 min-w-11|min-h-11 min-w-11[\s\S]{0,200}data-testid="timetable-simple-schedule-sheet-trigger"/,
+	);
 });
 
 test('TTX-11 room-request no-run 404 is empty, deduplicated, and gated on a completed run', () => {

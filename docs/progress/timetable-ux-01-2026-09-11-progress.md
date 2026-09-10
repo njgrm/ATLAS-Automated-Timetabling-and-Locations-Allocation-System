@@ -22,15 +22,13 @@ screenshots were captured for the divergence record only.
 | TTX-05 | FIXED | `Place unresolved sessions`, `Swap sessions`, `Review issues` are `disabled={!runToolsAvailable}` with an sr-only reason and test ids. RED/GREEN `TTX-05`; Playwright asserts `aria-disabled=true`. |
 | TTX-06 | FIXED | Entity `SearchableSelect` is disabled with an accessible reason when the option source is empty; `disabled`/`disabledReason` added to the primitive. RED/GREEN `TTX-06`; Playwright combo disabled. |
 | TTX-07 | FIXED | Tutorial `Show me` reports `timetable-simple-tutorial-unavailable` when the target is absent instead of silently no-opping. RED/GREEN `TTX-07`; Playwright asserts visible feedback. |
-| TTX-08 | FIXED | Tutorial trigger has `aria-label="Open timetable tutorial"` and 44px mobile target; More trigger also 44px on mobile. RED/GREEN `TTX-08`. |
+| TTX-08 | FIXED | Tutorial trigger has `aria-label="Open timetable tutorial"` and 44px mobile target; More trigger and the mobile schedule-sheet trigger also 44px on mobile. RED/GREEN `TTX-08`. |
 | TTX-09 | FIXED (by TTX-01/TTX-04) | The clipped 640x360 center CTA is removed and the reason is now visible; local center ScrollArea preserves a scroll path. Playwright: no global overflow at any required viewport. |
 | TTX-10 | ALREADY-FIXED UPSTREAM + tooltip | At base the 509-char guidance is `sr-only` (no visual clip) and the run-source note is `sr-only`. Added a `Tooltip` disclosure on the visible source-truth badge. |
 | TTX-11 | FIXED | `loadRoomRequestSummary` treats `NO_ACTIVE_DRAFT` as an empty summary (no error); the duplicate standalone effect is removed; `loadAll` only requests when a `COMPLETED` run exists. Playwright: zero `/room-preferences/.../latest/summary` 404s. RED/GREEN `TTX-11`. |
 | TTX-12 | FIXED | The permanently hidden `timetable-simple-publish-action` (and its tooltip block) is removed. RED/GREEN `TTX-12`. |
 
-## Failing-first tests
-
-New tracked tests appended to `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
+## Failing-first testsNew tracked tests appended to `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
 (production-consumer source assertions + existing pure helpers).
 
 - RED (before fix): `npm run test:timetable-operator-ux` → tests 34, pass 24, fail 10
@@ -94,6 +92,24 @@ These are pre-existing durability defects; no untracked files were copied from
 - `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`
 - `atlas-client/src/ui/searchable-select.tsx`
 - `CHANGELOG.md`, this ledger
+
+## Independent advisory review
+
+- Reviewer 01 (fresh context `ses_f7332929effevVLe1LILg1r2Lo`, did not implement):
+  base `aab8fb00` ... candidate `4f92374e`; verdict `CORRECTION_REQUIRED`.
+  - F1 BLOCKING: the mobile `SimpleScheduleSheet` trigger was 28px wide (label
+    hidden below 420px), failing AC-10's 44px hit-area requirement.
+  - F2 NON_BLOCKING: behavioral negative controls live in uncommitted QA
+    artifacts; tracked TTX tests are production-consumer source assertions.
+  - F3 NON_BLOCKING: dead CenterWorkspace prop + always-false branch in the
+    no-run room-request path.
+  - F4 NON_BLOCKING: `SearchableSelect` only fails closed when `disabled` is
+    passed explicitly; the one in-scope caller passes it.
+- Correction commit: added `min-h-11 min-w-11` + testid to the schedule-sheet
+  trigger and a tracked TTX-08 pin; simplified the no-run room-request branch.
+  Re-ran `test:timetable-operator-ux` 34/34, `tsc --noEmit` exit 0, and the
+  candidate Playwright blocked/ready/failed fixtures (all pass, sheet trigger
+  measured >=44x44 at 390x844). F2/F4 remain accepted as NON_BLOCKING.
 
 ## Safety confirmation
 

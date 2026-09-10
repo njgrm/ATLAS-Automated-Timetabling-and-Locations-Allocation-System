@@ -1538,11 +1538,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setViolationReport(null);
 				setSelectedRunId('latest');
 				void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
-				if (hasCompletedRun) {
-					void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
-				} else {
-					setRoomRequestError(null);
-				}
+				// No runs at all means no room-request summary to read.
+				setRoomRequestError(null);
 				void referenceDataPromise;
 				setLoading(false);
 				return;

@@ -223,8 +223,9 @@ export function SimpleScheduleSheet({
 					type="button"
 					variant="outline"
 					size="sm"
-					className="h-8 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
+					className="h-8 min-h-11 min-w-11 max-w-[28vw] gap-1.5 px-1.5 text-xs sm:px-2 lg:hidden"
 					aria-label={`Showing ${context.VIEW_MODE_LABELS[context.viewMode]} schedule: ${selectedLabel}`}
+					data-testid="timetable-simple-schedule-sheet-trigger"
 				>
 					<span className="hidden min-[420px]:inline truncate max-w-[20vw] sm:max-w-none">{selectedLabel}</span>
 					<ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
