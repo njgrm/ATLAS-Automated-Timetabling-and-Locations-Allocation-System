@@ -5,7 +5,7 @@
   "scope": { "schoolId": 1, "schoolYearId": 8, "activeSchoolYearLabel": "2029-2030" },
   "authorizesNoMutation": true,
   "readOnly": true,
-  "context": "Captured immediately after the TL-C02E Teaching Load reconciliation apply and idempotent replay verification. This artifact records the current generation-readiness baseline only; it authorizes no generation and no publication.",
+  "context": "Captured immediately after the TL-C02E Teaching Load reconciliation apply and idempotent replay verification. This artifact proves that the persisted curriculum and Teaching Load inputs are reconciled and that all 552 demand lines are individually previewable. Because no canonical generation run exists, joint feasibility, generated-session assignment, and hard-constraint outcomes remain not evaluated. This artifact records the current generation-readiness baseline only; it authorizes no generation and no publication.",
   "endpoints": {
     "generationRoomRequestGate": { "status": 200, "blocked": false, "openCount": 0, "runId": null, "note": "Room-request gate only; not a full generation blocker gate." },
     "currentYearRunList": { "status": 200, "count": 0, "runs": [] },
@@ -73,8 +73,12 @@
     "processGateBlockers": [
       { "code": "GENERATION_NOT_STARTED", "count": "0 generation runs", "detail": "No current-year GenerationRun exists; no timetable has been generated or published for year 8." }
     ],
-    "hardSchedulingConstraints": [],
-    "unassignedDemand": [],
+    "hardSchedulingConstraints": [
+      { "code": "NOT_EVALUATED_UNTIL_CANONICAL_GENERATION", "count": null, "detail": "No GenerationRun exists. Individual line previewability does not prove joint feasibility or zero hard-constraint violations." }
+    ],
+    "unassignedDemand": [
+      { "code": "NOT_EVALUATED_UNTIL_CANONICAL_GENERATION", "count": null, "detail": "No generated timetable exists, so assigned and unassigned generated-session totals are unknown. The read-only preview proves only that 552 demand lines are individually previewable." }
+    ],
     "dataSourceAuthorityGaps": [
       { "code": "ENROLLPRO_UNREACHABLE", "count": 1, "detail": "Runtime context upstream.reachable=false and rollover drift=enrollpro-unreachable at capture time (integration health check timeout). ATLAS continues on saved setup data. Not caused by this reconciliation apply." },
       { "code": "DASHBOARD_SOURCE_STATE", "count": 1, "detail": "dashboard readiness sourceState=using_saved_data (saved-data mode) because EnrollPro was unreachable at capture time." }
