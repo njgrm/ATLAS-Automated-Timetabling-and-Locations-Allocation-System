@@ -49,24 +49,11 @@ type Props = {
 };
 
 function resolveCanonicalRotationTermLabel(termLabel: string | null | undefined, termRank: number | null | undefined): string | null {
-	if (typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0) {
-		return `Term ${termRank}`;
-	}
-
 	const normalizedLabel = (termLabel ?? '').trim();
-	if (!normalizedLabel) {
-		return null;
-	}
-
-	const rankMatch = normalizedLabel.match(/(\d+)/);
-	if (rankMatch) {
-		const parsed = Number(rankMatch[1]);
-		if (Number.isInteger(parsed) && parsed > 0) {
-			return `Term ${parsed}`;
-		}
-	}
-
-	return normalizedLabel;
+	if (normalizedLabel) return normalizedLabel;
+	return typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0
+		? `Term ${termRank}`
+		: null;
 }
 
 export function SubjectFormModal({

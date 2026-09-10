@@ -49,24 +49,13 @@ export function SubjectRow({
 
 	const rotationTermLabel = useMemo(() => {
 		const explicit = (subject.rotationTermLabel ?? '').trim();
-		if (explicit.length > 0) {
-			const rankMatch = explicit.match(/(\d+)/);
-			if (rankMatch) {
-				const parsed = Number(rankMatch[1]);
-				if (Number.isInteger(parsed) && parsed > 0) {
-					return `Term ${parsed}`;
-				}
-			}
-			return explicit;
-		}
+		if (explicit.length > 0) return explicit;
 		const rank =
 			typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0
 				? subject.rotationTermRank
-				: typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0
-				? subject.modularOrder
 				: null;
 		return rank ? `Term ${rank}` : null;
-	}, [subject.modularOrder, subject.rotationTermLabel, subject.rotationTermRank]);
+	}, [subject.rotationTermLabel, subject.rotationTermRank]);
 
 	const gradeSummary = useMemo(() => {
 		if (!subject.gradeLevels.length) return null;

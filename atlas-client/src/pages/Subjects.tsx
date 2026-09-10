@@ -34,7 +34,7 @@ import {
 	PROGRAM_SCOPE_OPTIONS,
 	ROOM_TYPE_LABELS,
 } from '@/lib/subject-constants';
-import type { RoomType, Subject, SubjectCoverageSummary, SubjectCoverageRow } from '@/types';
+import type { RoomType, Subject, SubjectCoverageSummary, SubjectCoverageRow, TermAuthority } from '@/types';
 import { fetchSubjectCoverageSummary } from '@/lib/coverage';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
@@ -96,28 +96,16 @@ type TeachingLoadResetPreview = {
 	subjectCodes: string[];
 };
 
-function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank' | 'modularOrder'>): number | null {
+function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank'>): number | null {
 	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
 		return subject.rotationTermRank;
-	}
-	if (typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0) {
-		return subject.modularOrder;
 	}
 	return null;
 }
 
-function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank' | 'modularOrder'>): string | null {
+function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank'>): string | null {
 	const explicit = (subject.rotationTermLabel ?? '').trim();
-	if (explicit.length > 0) {
-		const rankMatch = explicit.match(/(\d+)/);
-		if (rankMatch) {
-			const parsed = Number(rankMatch[1]);
-			if (Number.isInteger(parsed) && parsed > 0) {
-				return `Term ${parsed}`;
-			}
-		}
-		return explicit;
-	}
+	if (explicit.length > 0) return explicit;
 	const rank = resolveSubjectTermRank(subject);
 	return rank ? `Term ${rank}` : null;
 }
@@ -135,6 +123,7 @@ export default function Subjects() {
 	const [archiveTarget, setArchiveTarget] = useState<Subject | null>(null);
 	const [archivingLoading, setArchivingLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
+	const [termAuthority, setTermAuthority] = useState<TermAuthority | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
 
 	// Teacher coverage drilldown
@@ -198,10 +187,27 @@ export default function Subjects() {
 		if (!readScope.ready) return;
 		setLoading(true);
 		try {
-			const { data } = await atlasApi.get<{ subjects: Subject[] }>('/subjects', {
-				params: { schoolId: readScope.schoolId },
+			const context = await resolveActiveSchoolYearContext({
+				allowStaleOnError: true,
+				allowEnrollProFallback: false,
 			});
-			setSubjects(data.subjects);
+			if (context.activeSchoolYearId) {
+				setActiveSchoolYearId(context.activeSchoolYearId);
+				const { data } = await atlasApi.get<{ subjects: Subject[]; termAuthority: TermAuthority }>('/subjects/scheduling-authority', {
+					params: { schoolYearId: context.activeSchoolYearId },
+				});
+				setSubjects(data.subjects);
+				setTermAuthority(data.termAuthority);
+			} else {
+				const { data } = await atlasApi.get<{ subjects: Subject[] }>('/subjects', {
+					params: { schoolId: readScope.schoolId },
+				});
+				setSubjects(data.subjects);
+				setTermAuthority({
+					state: 'BLOCKED', source: 'none', degraded: false, code: 'ACTIVE_SCHOOL_YEAR_REQUIRED',
+					message: 'Term scheduling metadata is blocked until the active school year is resolved.', contract: null,
+				});
+			}
 			setError(null);
 		} catch {
 			setError('Failed to load subjects.');
@@ -228,12 +234,6 @@ export default function Subjects() {
 	useEffect(() => {
 		fetchSubjects();
 	}, [fetchSubjects]);
-
-	useEffect(() => {
-		ensureActiveSchoolYear().catch(() => {
-			// Keep page readable even if school-year context is temporarily unavailable.
-		});
-	}, [ensureActiveSchoolYear]);
 
 	const fetchTeacherCoverage = useCallback(async (subjectId: number) => {
 		const targetSubject = subjects.find(s => s.id === subjectId);
@@ -572,6 +572,37 @@ stats={subjectStats}
 			error={error}
 			onRetryLoad={fetchSubjects}
 		/>
+
+		{termAuthority ? (
+			<div
+				role={termAuthority.state === 'BLOCKED' ? 'alert' : 'status'}
+				data-testid="subject-term-authority"
+				className={cn(
+					'mx-4 mt-3 rounded-xl border px-4 py-3 text-sm',
+					termAuthority.state === 'VERIFIED_LIVE' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+					termAuthority.state === 'VERIFIED_CACHED' && 'border-amber-200 bg-amber-50 text-amber-900',
+					termAuthority.state === 'BLOCKED' && 'border-destructive/30 bg-destructive/10 text-destructive',
+				)}
+			>
+				<div className="flex flex-wrap items-center gap-2">
+					{termAuthority.state === 'VERIFIED_LIVE' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
+					<span className="font-bold">
+						{termAuthority.state === 'VERIFIED_LIVE' ? 'Term structure verified live' : termAuthority.state === 'VERIFIED_CACHED' ? 'Using saved term structure' : 'Term scheduling metadata blocked'}
+					</span>
+					{termAuthority.contract ? <Badge variant="outline">{termAuthority.contract.format}</Badge> : null}
+				</div>
+				<p className="mt-1 text-xs font-medium opacity-90">{termAuthority.message}</p>
+				{termAuthority.contract ? (
+					<div className="mt-2 flex flex-wrap gap-1.5">
+						{termAuthority.contract.terms.map((term) => (
+							<Badge key={term.identity} variant="outline" className="bg-background/70">
+								{term.displayLabel}{term.identity === termAuthority.contract?.activeTerm.identity ? ' · Active' : ''}
+							</Badge>
+						))}
+					</div>
+				) : null}
+			</div>
+		) : null}
 
 		{/* SCA-01.1: while the actor school scope is unresolved, no catalog
 			request has been issued — show a bounded scope state instead of an

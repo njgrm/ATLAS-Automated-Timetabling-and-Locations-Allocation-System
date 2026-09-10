@@ -6,6 +6,8 @@ import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as subjectService from '../services/subject.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
 import { prisma } from '../lib/prisma.js';
+import { resolveEnrollProTermContract } from '../services/enrollpro-term-contract.service.js';
+import { buildSubjectSchedulingAuthorityView } from '../services/subject-scheduling-authority.service.js';
 
 const router = Router();
 
@@ -39,6 +41,31 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 		const includeSpa = req.query.includeSpa !== 'false';
 		const subjects = await subjectService.getSubjectsBySchool(schoolId, { includeSte, includeSpa });
 		res.json({ subjects });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /subjects/scheduling-authority?schoolYearId=X
+// TERM-SUBJ-C01: catalog rows remain readable if upstream authority is blocked,
+// but rotation labels are never inferred without a verified live/cached contract.
+router.get('/scheduling-authority', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const actorSchoolId = resolveActorSchoolId(req);
+		if (!actorSchoolId) {
+			res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required.' });
+			return;
+		}
+		const schoolYearId = Number(req.query.schoolYearId);
+		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
+			return;
+		}
+		const [subjects, termAuthority] = await Promise.all([
+			subjectService.getSubjectsBySchool(actorSchoolId),
+			resolveEnrollProTermContract({ schoolId: actorSchoolId, schoolYearId, authToken: getUpstreamAuthToken(req) }),
+		]);
+		res.json(buildSubjectSchedulingAuthorityView(subjects as any, termAuthority));
 	} catch (err) {
 		next(err);
 	}
@@ -95,7 +122,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			modularGroupId,
 			modularOrder,
 			termGroupId,
-			termCount,
 			programScopes,
 			allowedSpecializations,
 			requiredFeatures,
@@ -104,6 +130,7 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			ownerDepartment,
 			qualificationPriority,
 			rotationFamily,
+			schedulingDisposition,
 			outputLabel,
 		} = req.body;
 		if (!code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
@@ -115,6 +142,12 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 		// forged classification would be indistinguishable from an omission.
 		if (req.body?.isSeedable !== undefined || req.body?.isSystemManaged !== undefined) {
 			res.status(400).json({ code: 'PROTECTED_FIELD', message: 'isSeedable and isSystemManaged are bootstrap metadata and cannot be set on create.' });
+			return;
+		}
+		const protectedTermFields = ['termCount', 'termFormat', 'termIdentities', 'termLabels', 'term1Start', 'term1End', 'term2Start', 'term2End', 'term3Start', 'term3End', 'term4Start', 'term4End']
+			.filter((field) => req.body?.[field] !== undefined);
+		if (protectedTermFields.length > 0) {
+			res.status(400).json({ code: 'PROTECTED_TERM_AUTHORITY', message: `EnrollPro term authority fields cannot be modified through Subject CRUD: ${protectedTermFields.join(', ')}.` });
 			return;
 		}
 		// Prompt 01A: mutation ownership comes from the actor, never the body.
@@ -132,7 +165,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			modularGroupId,
 			modularOrder,
 			termGroupId,
-			termCount,
 			programScopes,
 			allowedSpecializations,
 			requiredFeatures,
@@ -141,6 +173,7 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			ownerDepartment,
 			qualificationPriority,
 			rotationFamily,
+			schedulingDisposition,
 			outputLabel,
 		});
 		res.status(201).json({ subject });

@@ -106,7 +106,7 @@ async function main() {
 		);
 		await expectCode(
 			() => createSubject(SCHOOL, { code: 'BAD_TERM', name: 'Bad Term', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7], termCount: 0 }),
-			'INVALID_TERM_METADATA', 'non-positive termCount rejected',
+			'PROTECTED_TERM_AUTHORITY', 'Subject CRUD cannot write EnrollPro term authority',
 		);
 		await expectCode(
 			() => createSubject(SCHOOL, { code: '   ', name: 'Blank Code', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7] }),
@@ -160,7 +160,7 @@ async function main() {
 		expectPatchError({ programScopes: ['NOPE'] }, 'INVALID_PROGRAM_SCOPES', 'patch scope enum enforced');
 		expectPatchError({ gradeLevels: [7, 7] }, 'DUPLICATE_VALUES', 'patch duplicate grades rejected');
 		expectPatchError({ gradeLevels: ['7' as any] }, 'INVALID_GRADE_LEVELS', 'patch string grade rejected');
-		expectPatchError({ termCount: -1 }, 'INVALID_TERM_METADATA', 'patch term metadata enforced');
+		expectPatchError({ termCount: -1 }, 'PROTECTED_TERM_AUTHORITY', 'patch cannot write EnrollPro term authority');
 		// SCA-01R3: bootstrap metadata is protected on patch — rejected
 		// before any value check, so even a wrong-typed value reports
 		// PROTECTED_FIELD (never INVALID_FIELD_TYPE, never applied).
@@ -170,8 +170,8 @@ async function main() {
 		expectPatchError({ qualificationPriority: 'ANYTHING' }, 'INVALID_QUALIFICATION_PRIORITY', 'patch qualification enum enforced');
 		expectPatchError({ requiredFeatures: ['OK', 'OK'] }, 'DUPLICATE_VALUES', 'patch duplicate features rejected');
 		expectPatchError({ requiredFeatures: 'LAB' as any }, 'INVALID_REQUIRED_FEATURES', 'patch non-array features rejected');
-		// SCA-01R findings 1+2: null termCount and empty programScopes.
-		expectPatchError({ termCount: null }, 'INVALID_TERM_METADATA', 'patch null termCount rejected');
+		// TERM-SUBJ-C01: termCount is EnrollPro-owned regardless of supplied value.
+		expectPatchError({ termCount: null }, 'PROTECTED_TERM_AUTHORITY', 'patch null termCount rejected as protected');
 		expectPatchError({ programScopes: [] }, 'INVALID_PROGRAM_SCOPES', 'patch empty programScopes rejected');
 		// SCA-01.3 review F1: Number() coercion previously let strings/booleans
 		// through validation into a Prisma 500.
@@ -339,8 +339,8 @@ async function main() {
 			});
 			ok(status === 400 && body?.code === 'INVALID_FIELD_TYPE', `malformed-type create typed through route (${status}/${body?.code})`);
 		}
-		// SCA-01R findings 1+2: null termCount and empty programScopes must
-		// return typed 400s through the real route and write nothing.
+		// TERM-SUBJ-C01: null termCount remains a typed 400 because the entire
+		// term authority surface is protected from Subject CRUD.
 		{
 			const probe = await fetchJson('/api/v1/subjects', {
 				method: 'POST',
@@ -358,7 +358,7 @@ async function main() {
 				headers: { Authorization: `Bearer ${token}` },
 				body: JSON.stringify({ termCount: null, expectedUpdatedAt: version }),
 			});
-			ok(nullTerm.status === 400 && nullTerm.body?.code === 'INVALID_TERM_METADATA', `route null termCount typed (${nullTerm.status}/${nullTerm.body?.code})`);
+			ok(nullTerm.status === 400 && nullTerm.body?.code === 'PROTECTED_TERM_AUTHORITY', `route null termCount typed (${nullTerm.status}/${nullTerm.body?.code})`);
 			const emptyScopes = await fetchJson(`/api/v1/subjects/${pid}`, {
 				method: 'PATCH',
 				headers: { Authorization: `Bearer ${token}` },

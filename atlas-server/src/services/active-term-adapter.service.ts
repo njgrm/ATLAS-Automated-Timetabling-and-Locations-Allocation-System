@@ -1,7 +1,8 @@
 /**
  * Active term adapter service.
  * Fetches the active term from EnrollPro's integration endpoint.
- * Normalizes T1/T2/T3 to termIndex 1/2/3.
+ * Resolves the active identity against an ordered term contract without a
+ * hardcoded three-term ceiling.
  */
 
 export type ActiveTermSource = 'enrollpro-verified' | 'enrollpro-unreachable' | 'enrollpro-contract-drift' | 'atlas-unverified';
@@ -18,21 +19,18 @@ export type ActiveTermResult = {
 	message: string;
 };
 
-const TERM_MAP: Record<string, number> = {
-	T1: 1,
-	T2: 2,
-	T3: 3,
-};
-
-function normalizeTermIndex(rawTerm: string | null | undefined): { termIndex: number | null; normalizedTerm: string | null } {
+export function normalizeTermIndex(rawTerm: string | null | undefined, orderedTermIdentities?: string[]): { termIndex: number | null; normalizedTerm: string | null } {
 	if (!rawTerm || typeof rawTerm !== 'string') {
 		return { termIndex: null, normalizedTerm: null };
 	}
 	const trimmed = rawTerm.trim().toUpperCase();
-	const mapped = TERM_MAP[trimmed];
-	if (mapped !== undefined) {
-		return { termIndex: mapped, normalizedTerm: trimmed };
+	const ordered = orderedTermIdentities?.map((identity) => identity.trim().toUpperCase()) ?? [];
+	if (ordered.length > 0) {
+		const orderedIndex = ordered.indexOf(trimmed);
+		return { termIndex: orderedIndex >= 0 ? orderedIndex + 1 : null, normalizedTerm: trimmed };
 	}
+	const match = trimmed.match(/^T([1-9]\d*)$/);
+	if (match) return { termIndex: Number(match[1]), normalizedTerm: trimmed };
 	return { termIndex: null, normalizedTerm: trimmed };
 }
 
@@ -43,6 +41,7 @@ function normalizeTermIndex(rawTerm: string | null | undefined): { termIndex: nu
 export async function fetchEnrollProActiveTerm(
 	authToken?: string,
 	schoolYearId?: number,
+	orderedTermIdentities?: string[],
 ): Promise<ActiveTermResult> {
 	const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 	const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
@@ -93,7 +92,7 @@ export async function fetchEnrollProActiveTerm(
 		const activeTermRaw = body.data?.activeTerm;
 		const upstreamSchoolYearId = body.data?.schoolYearId;
 
-		const { termIndex, normalizedTerm } = normalizeTermIndex(activeTermRaw);
+		const { termIndex, normalizedTerm } = normalizeTermIndex(activeTermRaw, orderedTermIdentities);
 
 		// Contract drift: invalid activeTerm value
 		if (!normalizedTerm || termIndex === null) {
@@ -106,7 +105,7 @@ export async function fetchEnrollProActiveTerm(
 				schoolYearId: upstreamSchoolYearId ?? null,
 				matchedSchoolYear: null,
 				code: 'ACTIVE_TERM_CONTRACT_DRIFT',
-				message: `EnrollPro returned invalid activeTerm ${activeTermRaw ?? 'null'}. Expected T1, T2, or T3.`,
+				message: `EnrollPro returned activeTerm ${activeTermRaw ?? 'null'} outside the ordered term contract.`,
 			};
 		}
 
@@ -128,6 +127,15 @@ export async function fetchEnrollProActiveTerm(
 		const matchedSchoolYear = schoolYearId !== undefined
 			? schoolYearId === upstreamSchoolYearId
 			: null;
+
+		if (matchedSchoolYear === false) {
+			return {
+				source: 'enrollpro-contract-drift', reachable: true, verified: false,
+				activeTerm: normalizedTerm, termIndex: null, schoolYearId: upstreamSchoolYearId,
+				matchedSchoolYear: false, code: 'ACTIVE_TERM_YEAR_MISMATCH',
+				message: `EnrollPro active term ${normalizedTerm} is from a different school year (expected ${schoolYearId}, got ${upstreamSchoolYearId}).`,
+			};
+		}
 
 		return {
 			source: 'enrollpro-verified',

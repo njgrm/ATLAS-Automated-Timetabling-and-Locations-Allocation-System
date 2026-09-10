@@ -33,6 +33,69 @@
 - Hermetic mounted-route tests cover direct-apply rejection, zero-write preview, archived/cross-school/inactive rejection, actor attribution, one-audit persistence, idempotent replay, and injected-audit rollback.
 - Server TypeScript, build, and built-server startup are part of the candidate gate; no live database write, generation, migration, or publication is authorized.
 
+## [2026-09-10] — TERM-SUBJ-C01 Deferred Scheduling Disposition Correction
+
+### Changed
+- Removed the `Schedule use` selector and every Reference-only / "creates
+  neither timetable demand nor Teaching Load" badge, copy, and hidden coverage
+  action from the Subjects desktop and mobile surfaces.
+- Subject POST and PATCH now reject `schedulingDisposition` as a protected
+  pending-authority field (`PROTECTED_SCHEDULING_DISPOSITION`) before any write.
+  Ordinary creates persist `SCHEDULED_TEACHING` internally, and the client
+  create/edit payloads omit the field even from hostile form state.
+- Removed the `createsTimetableDemand`, `createsTeachingLoad`, and
+  `demandProjection` claim fields from the Subject scheduling-authority view.
+  The route keeps verified term/rotation metadata and reads disposition back as
+  state only.
+
+### Decisions Made
+- `schedulingDisposition` is `PENDING_DERIVED_DEMAND_INTEGRATION`. It remains
+  schema groundwork for DEMAND-C01 and is not an operative operator control
+  while generation, timetable demand, and Teaching Load still enforce
+  HG-specific rules.
+- Exact code `HG` reference-only stays controlled bootstrap/migration authority.
+  Misleading names and every other code remain `SCHEDULED_TEACHING`.
+
+### Open Questions
+- DEMAND-C01 must wire the derived-demand consumers before disposition becomes
+  operator-editable or advertised as enforced.
+
+## [2026-09-10] — TERM-SUBJ-C01 EnrollPro Term and Subject Authority
+
+### Added
+- Added a verified EnrollPro term contract for trimester and quarter calendars,
+  exact-year degraded caching, semantic revision hashing, and typed fail-closed
+  outcomes for format/identity/school-year/active-term drift.
+- Added explicit Subject scheduling disposition and an authenticated Subject
+  scheduling view with resolved rotation terms and actionable metadata issues.
+  Disposition is read-only state here and makes no downstream demand claim
+  (`PENDING_DERIVED_DEMAND_INTEGRATION`).
+- Added a disposable PostgreSQL migration for the disposition and term cache;
+  existing subjects remain scheduled while code `HG` becomes reference-only.
+
+### Changed
+- Subject create and patch reject EnrollPro-owned term structure, deferred
+  scheduling disposition, and protected bootstrap metadata.
+- The Subjects page shows live, saved/degraded, or blocked term authority
+  without any reference-only exclusion claim.
+- QA correction: flat EnrollPro responses must explicitly supply every ordered
+  term identity and display label. ATLAS no longer invents `T1..Tn` identities
+  or generic Term/Quarter labels for an incomplete live response.
+- QA correction: authoritative term identities retain their exact upstream case
+  and spelling through verification, caching, hashing, API output, and Subject
+  rotation resolution. Canonical keys are comparison-only.
+
+### Decisions Made
+- EnrollPro is the sole term-structure authority. ATLAS may use only an exact
+  school/year contract that was previously verified live as degraded fallback.
+- This cycle does not switch generation, timetable demand, Teaching Load, or
+  legacy Curriculum Requirements consumers; those remain separate reviewed work.
+
+### Open Questions
+- EnrollPro must expose the normalized term fields and active-term integration
+  route before live authority can verify without a saved contract.
+- Independent review and explicit migration approval remain required.
+
 ## [2026-09-10] — TT-C04 Production-Wiring Correction Prompt
 
 ### Added
