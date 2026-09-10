@@ -40,13 +40,14 @@ hard blockers before separately approving publication.
 | TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | Live migration remains separate | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Prepare the separate live migration preview; do not apply without HIGH approval |
 | W1-INTEGRATION | Combine the three accepted Wave-1 source lanes | `INTEGRATED` | MEDIUM | `integration/rollover-derived-demand-w1`; `e39da520...36c5d3d1` | None | Shared-doc-only conflicts matched forecast; focused GEN/RR/TERM suites, both builds/type-checks, diff-check, and isolated server health passed | Closed and pushed to `origin/main` at `36c5d3d1` |
 | ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `ACCEPT_READY` | External dependency; READ_ONLY QA | EnrollPro `396a9892...5887d685`; canonical mirror `D:\EnrollPro` clean at `5887d685` | ATLAS consumption and deployment remain separate | Source review confirms strict integer parsing and validate-before-write term mutation; live probes return the ordered three-term year-9 contract, reject malformed/duplicate IDs with typed 400s, and return truthful 409 `ACTIVE_TERM_UNRESOLVED` for the 2026/2030 calendar mismatch | Consume the corrected contract in ATLAS; do not edit the EnrollPro mirror |
+| TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `PLANNED` | MEDIUM cross-layer authority | Fresh worktree from current `origin/main` | EnrollPro correction `5887d685` is live; must precede DEMAND-C01 | Current ATLAS requires school-year and active-term 200 together, makes `activeTerm` mandatory, and may write its cache from a passive Subjects GET; live year contract is valid while active-term truthfully returns 409 because the test year is future-dated | Execute `docs/prompts/term-contract-atlas-consumption-c02-2026-09-11.md`; commit and return reviewed candidate without live mutation |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `PLANNED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | Coordinate with active TL/TT/Dashboard live browser runs | Port 5001 is healthy and serves saved year-9 readiness, but the visible Dashboard still exposes the superseded Curriculum Requirements workflow and the runtime contains the active-term error-classification defect | Integrate DASH-RESILIENCE-C01 first, then perform one bounded build/restart/Tailnet acceptance; do not restart during another live-QA run |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `PLANNED` | MEDIUM cross-layer read path | Fresh worktree from current `origin/main` | May run beside TL/TT UX; avoid their files and all data mutation | Live EnrollPro health/year routes are 200 and Dashboard saved counts are 20 sections/22 subjects/42 faculty/98 teaching rooms, but ATLAS maps typed active-term 409 to unreachable and its legacy fallback substitutes zeros/empties on failed reads | Execute `docs/prompts/dashboard-stale-readiness-correction-2026-09-11.md`; commit and return a reviewed read-only candidate |
 | TL-UX-C01 | Rebuild Teaching Load as an accessible assignment workspace and unify suggestion/balance authority | `CORRECTION_REQUIRED` | MEDIUM UI and HIGH write/concurrency guards | `work/teaching-load-ux-c01`; `36c5d3d1...1f867eb8` | Do not integrate current candidate; continue additively in the same worktree | Planner reran 11/11 ownership, 33/33 canonical, 21/21 route-intent, client type-check/build; live read-only production probes show 7 faculty at 37.5h, 5 zero-load ESP/FIL teachers, auto-fill 265 `KEPT_EXISTING`/0 suggestions, while rebalance finds 14 valid moves; candidate falsely claims everyone is within capacity and skipped adviser priority | Execute `docs/prompts/teaching-load-ux-allocation-correction-tluxc01r-2026-09-11.md`; return an additive reviewed candidate without live apply |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `CORRECTION_REQUIRED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...aa38d784` | Must not implement DEMAND-C01 or trigger live generation; avoid TL-UX shared paths | Live year 9 has no run; audit found contradictory no-run controls, dead Curriculum Requirements repair, Advanced generation bypass, missing Simple room repair, bulk teacher-leaving mislabeled as class reassignment, color-only placement cues, count-only swap explanations, and state-insensitive help | Execute `docs/prompts/timetable-simple-operator-one-shot-ttux01r2-2026-09-11.md` in the existing worktree; use controlled data-filled browser fixtures plus read-only Tailnet QA |
-| DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `PLANNED` | MEDIUM | Fresh branch after Wave-1 integration | Accepted term contract and passive generation/TL boundaries | Governing sequence exists in `rollover-derived-demand-generation-readiness-sequence-2026-09-10.md` | Author and execute the bounded DEMAND-C01 prompt from the integrated Wave-1 base |
+| DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `BLOCKED` | MEDIUM | Fresh branch after TERM-CONSUME-C02 integration | TERM-CONSUME-C02 plus passive generation/TL boundaries | Governing sequence exists in `rollover-derived-demand-generation-readiness-sequence-2026-09-10.md` | Execute after ATLAS can consume/cache the live term structure without requiring a current active term |
 | UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `BLOCKED` | MEDIUM preview; HIGH apply | Not started | DEMAND-C01 plus visible archived history | Carry-forward rules are defined in the governing sequence | Build zero-write preview after DEMAND-C01; require a separate approval for apply |
 | GEN-C02 | Use canonical term-aware derived demand and close grade-window/class-program-slot/hard-blocker gaps | `BLOCKED` | MEDIUM source; HIGH generation | Not started | DEMAND-C01 and reconciled/carry-forward current-year Teaching Load | GEN-C01 proved the old production-demand mismatch and is superseded | Execute read-only canonical dry-run work after derived demand is authoritative |
@@ -66,30 +67,31 @@ hard blockers before separately approving publication.
 
 ## Dependency-ordered queue
 
-1. Execute DASH-RESILIENCE-C01 against the corrected live EnrollPro contract,
-   then coordinate one integrated Wave-1/runtime deployment without
-   interrupting another live-QA stream.
-2. Correct the guarded command's default Prisma schema path; do not re-run the
+1. Execute TERM-CONSUME-C02 so ATLAS accepts and caches the corrected ordered
+   structure even while active term is legitimately unresolved.
+2. Execute DASH-RESILIENCE-C01 after TERM-CONSUME-C02 so expired sessions and
+   typed active-term states cannot appear as empty school data, then coordinate
+   one integrated runtime deployment without interrupting live QA.
+3. Correct the guarded command's default Prisma schema path; do not re-run the
    already applied migration.
-3. Correct TL-UX-C01 in its existing worktree so one reviewed suggestion can
+4. Correct TL-UX-C01 in its existing worktree so one reviewed suggestion can
    fill uncovered rows and rebalance avoidable excess without false success copy.
-4. Execute the expanded TT-UX01R2 Simple-operator closure on its existing
+5. Execute the expanded TT-UX01R2 Simple-operator closure on its existing
    branch; do not integrate `aa38d784`.
-5. Execute DEMAND-C01 now that the live term contract and ATLAS migration are
-   available; keep its source boundary disjoint from Dashboard/TL/TT UX work.
-6. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
+6. Execute DEMAND-C01 after TERM-CONSUME-C02 is accepted and integrated; keep
+   its source boundary disjoint from Dashboard/TL/TT UX work.
+7. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
    their file ownership is disjoint.
-7. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
+8. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
    preview.
-8. Obtain explicit HIGH approval, generate once, verify the completed run, then
+9. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
-- DASH-RESILIENCE-C01 in a fresh worktree, limited to Dashboard/runtime/
-  active-term read paths and focused tests.
-- DEMAND-C01 in a separate fresh worktree now that EnrollPro term authority is
-  available; avoid Dashboard, Teaching Load, and Timetable UX paths.
+- TERM-CONSUME-C02 in a fresh worktree, limited to EnrollPro term adapters,
+  explicit rollover cache persistence, Subjects authority projection, and
+  focused tests.
 - MIG-GUARD-R1 source/test correction, with no live migration.
 - TL-UX-C01R in its existing worktree, confined to Teaching Load client/server
   suggestion, allocation, exact ownership, and focused tests; no live apply.
@@ -98,16 +100,19 @@ hard blockers before separately approving publication.
   are necessary. Use fixture-backed data-filled browser QA and keep live
   Tailnet generation/write paths untouched.
 
-Do not start DEMAND-C01, UX-C01, TL-RR01, GEN-C02, generation, or publication
-until their dependency rows above are satisfied. Do not restart the shared
-runtime while TL-UX live QA is active.
+Do not run DASH-RESILIENCE-C01 concurrently with TERM-CONSUME-C02 because both
+touch active-term semantics. Do not start DEMAND-C01, UX-C01, TL-RR01, GEN-C02,
+generation, or publication until their dependency rows above are satisfied. Do
+not restart the shared runtime while TL-UX live QA is active.
 
 ## Awaited returns and decisions
 
 - No Wave-1 executor or QA result is awaited; all three candidates are integrated.
 - EnrollPro correction `5887d685` has been pulled and its live contract is
   available. No EnrollPro executor return is awaited.
-- DASH-RESILIENCE-C01 is newly dispatchable; no executor result exists yet.
+- TERM-CONSUME-C02 is the immediate contract successor; no executor result
+  exists yet. DASH-RESILIENCE-C01 follows it because the two share active-term
+  error semantics.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
 - TT-UX01 is awaiting the expanded additive executor correction from

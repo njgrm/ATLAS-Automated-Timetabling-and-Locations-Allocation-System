@@ -40,15 +40,18 @@ timetable generation, publication, migrations, schemas, `.env`, or live data.
 3. Make `/dashboard/readiness-summary` the single authoritative Dashboard load
    pipeline. Remove the competing legacy fan-out fallback from normal error
    recovery.
-4. Never substitute `0`, `[]`, `NONE`, or another valid-looking business value
+4. Treat HTTP 401/403 as authentication/scope failures, not data-source
+   failures. Invoke the application's canonical expired-session or blocked-
+   scope UX and never fan out into legacy school requests after either status.
+5. Never substitute `0`, `[]`, `NONE`, or another valid-looking business value
    for a failed domain read. Represent unavailable domains explicitly and keep
    lifecycle/readiness fail-closed.
-5. Retain the last successful same-school snapshot on transient refresh
+6. Retain the last successful same-school snapshot on transient refresh
    failure and show a concise degraded state with one retry action. Never retain
    data across an actor-school or active-year scope change.
-6. Preserve genuine persisted zeros as real values and distinguish them from
+7. Preserve genuine persisted zeros as real values and distinguish them from
    unavailable values in API types, UI copy, and tests.
-7. Do not solve the superseded Curriculum Requirements workflow in this pass.
+8. Do not solve the superseded Curriculum Requirements workflow in this pass.
    Record it as the separate DEMAND-C01/UX-C01 dependency.
 
 ## Required negative controls
@@ -62,6 +65,10 @@ timetable generation, publication, migrations, schemas, `.env`, or live data.
   lifecycle cannot advance from the synthetic value.
 - Summary refresh fails after one successful same-school load: the prior
   snapshot remains visible with degraded/retry status.
+- Expired session returns 401: no legacy requests are dispatched, no counts are
+  rendered as zero, and the canonical sign-in/session-expired path is shown.
+- Actor/scope rejection returns 403: no legacy requests are dispatched and no
+  fallback school is queried.
 - First load fails with no snapshot: show unavailable placeholders, not zeros.
 - Actor school changes while a prior request is in flight: old response cannot
   populate the new scope and no fallback school ID is used.
