@@ -85,4 +85,5 @@
   and client TypeScript, and source-path verification.
 - Integrated additively onto the current `origin/main` boundary by the primary
   planner. The integration merge preserves the accepted candidate without
-  rewriting it; deployment remains a separate service-lifecycle action.
+  rewriting it; pushed through main `bb5cd487`. Deployment remains a separate
+  service-lifecycle action.

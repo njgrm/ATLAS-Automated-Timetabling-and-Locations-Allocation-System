@@ -18,8 +18,9 @@ hard blockers before separately approving publication.
 
 - Wave 1 and subsequent accepted planner evidence are integrated and pushed.
   TT-UX01R2 is independently ratified at integration merge `a0ca05e5`.
-  TERM-CONSUME-C02 is independently accepted at `a55abf7e` and integrated by
-  the primary planner at `5fa9b227`. TL-UX-C01/C01R was pushed by a QA delegate
+  TERM-CONSUME-C02 is independently accepted at `a55abf7e`, integrated by the
+  primary planner at `5fa9b227`, and pushed through main `bb5cd487`.
+  TL-UX-C01/C01R was pushed by a QA delegate
   at `151f02ee`, but primary-planner re-review found material suggestion-apply
   authority gaps; that integrated feature is now `CORRECTION_REQUIRED` and
   must not be deployed or used for writes until TL-UX-C01R2 is accepted.
@@ -44,7 +45,7 @@ hard blockers before separately approving publication.
 | TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | Live migration remains separate | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Prepare the separate live migration preview; do not apply without HIGH approval |
 | W1-INTEGRATION | Combine the three accepted Wave-1 source lanes | `INTEGRATED` | MEDIUM | `integration/rollover-derived-demand-w1`; `e39da520...36c5d3d1` | None | Shared-doc-only conflicts matched forecast; focused GEN/RR/TERM suites, both builds/type-checks, diff-check, and isolated server health passed | Closed and pushed to `origin/main` at `36c5d3d1` |
 | ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `ACCEPT_READY` | External dependency; READ_ONLY QA | EnrollPro `396a9892...5887d685`; canonical mirror `D:\EnrollPro` clean at `5887d685` | ATLAS consumption and deployment remain separate | Source review confirms strict integer parsing and validate-before-write term mutation; live probes return the ordered three-term year-9 contract, reject malformed/duplicate IDs with typed 400s, and return truthful 409 `ACTIVE_TERM_UNRESOLVED` for the 2026/2030 calendar mismatch | Consume the corrected contract in ATLAS; do not edit the EnrollPro mirror |
-| TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write; passive read has zero writes and rollover is the explicit cache writer | Closed into the integration branch; push after final combined gates |
+| TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Implement a narrow command-path correction with failing-first spawn-argument coverage; no live migration |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `BLOCKED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | DASH-RESILIENCE-C01 and TL-UX-C01R2 must be integrated; coordinate live browser runs | Port 5001 is healthy but serves the pre-integration bundle; the current main contains a TL suggestion apply path that primary QA has marked do-not-deploy | Correct TL suggestion authority and integrate Dashboard resilience, then perform one bounded build/restart/Tailnet acceptance |
@@ -72,19 +73,18 @@ hard blockers before separately approving publication.
 
 ## Dependency-ordered queue
 
-1. Push the independently accepted TERM-CONSUME-C02 integration.
-2. Execute TL-UX-C01R2 against the current main; keep the integrated suggestion
+1. Execute TL-UX-C01R2 against the current main; keep the integrated suggestion
    apply path do-not-deploy until its PostgreSQL authority suite passes.
-3. Execute DASH-RESILIENCE-C01 after TERM-CONSUME-C02 so expired sessions and
+2. Execute DASH-RESILIENCE-C01 after TERM-CONSUME-C02 so expired sessions and
    typed active-term states cannot appear as empty school data, then coordinate
    one integrated runtime deployment without interrupting live QA.
-4. Correct the guarded command's default Prisma schema path; do not re-run the
+3. Correct the guarded command's default Prisma schema path; do not re-run the
    already applied migration.
-5. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
+4. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
    TT-UX01 integration step remains.
-6. Execute DEMAND-C01 from the post-TERM main; keep
+5. Execute DEMAND-C01 from the post-TERM main; keep
    its source boundary disjoint from Dashboard/TL/TT UX work.
-7. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
+6. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
    their file ownership is disjoint.
 8. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
    preview.
