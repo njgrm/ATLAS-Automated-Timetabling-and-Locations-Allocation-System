@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { Prisma } from '@prisma/client';
+
 import { getDataContext } from '../lib/data-context.js';
 
 /**
@@ -92,6 +94,12 @@ type FetchInput = {
 	authToken?: string;
 	schoolId: number;
 	schoolYearId: number;
+	/**
+	 * Optional already-fetched `/integration/v1/school-year` payload. When
+	 * supplied, the caller reuses one upstream read instead of refetching the
+	 * same school-year document (keeps rollover-status call volume stable).
+	 */
+	schoolYearPayload?: unknown;
 };
 
 type ResolutionDependencies = {
@@ -390,10 +398,10 @@ export async function fetchEnrollProTermContract(input: FetchInput): Promise<Ter
 	const baseUrl = (input.baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api').replace(/\/$/, '');
 	const token = input.authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 	if (!token) return fail('ENROLLPRO_UNREACHABLE', 'No EnrollPro integration credential is configured.');
-	const [schoolYear, activeTerm] = await Promise.all([
-		fetchJson(`${baseUrl}/integration/v1/school-year`, { Authorization: `Bearer ${token}` }),
-		fetchJson(`${baseUrl}/integration/v1/active-term`, { 'X-Integration-Key': token }),
-	]);
+	const schoolYear: JsonFetchOutcome = input.schoolYearPayload !== undefined
+		? { kind: 'body', status: 200, body: input.schoolYearPayload }
+		: await fetchJson(`${baseUrl}/integration/v1/school-year`, { Authorization: `Bearer ${token}` });
+	const activeTerm = await fetchJson(`${baseUrl}/integration/v1/active-term`, { 'X-Integration-Key': token });
 	if (schoolYear.kind === 'unreachable') {
 		return fail('ENROLLPRO_UNREACHABLE', 'EnrollPro school-year authority is unreachable.');
 	}
@@ -416,6 +424,35 @@ export async function fetchEnrollProTermContract(input: FetchInput): Promise<Ter
 			activeTermState: activeResult.state,
 		},
 	};
+}
+
+/**
+ * Structural validation for a persisted (JSONB round-tripped) contract. The
+ * order-sensitive `semanticRevisionFor` hash intentionally cannot round-trip
+ * through PostgreSQL JSONB (see derived-demand `normalizePersistedTermStructure`),
+ * so a persisted cache read trusts the stored `semanticRevision` as an opaque
+ * revision token and compares it against a freshly fetched live revision.
+ * Structural shape is still enforced fail-closed.
+ */
+export function validatePersistedContractStructure(contract: VerifiedTermContract, schoolId: number, schoolYearId: number): TermContractError | null {
+	if (!contract || typeof contract !== 'object') {
+		return { code: 'TERM_CACHE_INVALID', message: 'Saved term contract is not a valid object.' };
+	}
+	if (contract.schoolId !== schoolId) return { code: 'TERM_CACHE_SCHOOL_MISMATCH', message: 'Saved term contract belongs to another school.' };
+	if (contract.schoolYear?.id !== schoolYearId) return { code: 'TERM_CACHE_YEAR_MISMATCH', message: 'Saved term contract belongs to another school year.' };
+	if (contract.format !== 'TRIMESTER' && contract.format !== 'QUARTERS') return { code: 'TERM_CACHE_INVALID', message: 'Saved term contract has an unsupported format.' };
+	if (!Array.isArray(contract.terms) || contract.terms.length !== FORMAT_TERM_COUNT[contract.format]) return { code: 'TERM_CACHE_INVALID', message: 'Saved term contract has an invalid term count.' };
+	if (typeof contract.semanticRevision !== 'string' || contract.semanticRevision.length === 0) return { code: 'TERM_CACHE_INVALID', message: 'Saved term contract is missing its semantic revision.' };
+	const seen = new Set<string>();
+	for (let index = 0; index < contract.terms.length; index += 1) {
+		const term = contract.terms[index];
+		const identityKey = canonicalComparisonKey(term?.identity);
+		if (!term || !identityKey || term.order !== index + 1 || seen.has(identityKey)) {
+			return { code: 'TERM_CACHE_INVALID', message: 'Saved term contract has malformed, duplicate, or out-of-order terms.' };
+		}
+		seen.add(identityKey);
+	}
+	return null;
 }
 
 export function validateCachedContract(contract: VerifiedTermContract, schoolId: number, schoolYearId: number): TermContractError | null {
@@ -562,4 +599,577 @@ export async function syncActiveTermContractAuthority(input: SyncInput): Promise
 		written: true, idempotent: false, semanticRevision: contract.semanticRevision, contract,
 		verifiedAt: now.toISOString(),
 	};
+}
+
+// ─── RR-TERM-CACHE-C01: truthful persisted term authority + narrow catch-up ───
+//
+// Year alignment and persisted ordered-term authority are SEPARATE states. An
+// aligned active year with no `termContractCache` is still missing the authority
+// canonical `buildDerivedDemand()` needs; the rollover card must offer one
+// narrow repair path (preview → fingerprinted apply) that writes ONLY the active
+// mirror's cache columns plus one scoped audit row. It never reruns faculty,
+// section, Teaching Load, generation, or publication flows.
+
+export type TermAuthorityState =
+	| 'PERSISTED_CURRENT'
+	| 'MISSING'
+	| 'PERSISTED_STALE'
+	| 'UPSTREAM_UNAVAILABLE'
+	| 'INVALID_UPSTREAM_CONTRACT'
+	| 'YEAR_NOT_MIRRORED'
+	| 'CACHE_INVALID'
+	| 'PERSISTED_UNVERIFIED';
+
+export type TermAuthorityRepairAction = 'NONE' | 'PREVIEW_TERM_CACHE_SYNC' | 'RETRY_ENROLLPRO';
+
+export type TermAuthorityStatus = {
+	state: TermAuthorityState;
+	code: string | null;
+	message: string;
+	persisted: boolean;
+	persistedSemanticRevision: string | null;
+	liveSemanticRevision: string | null;
+	cachedAt: string | null;
+	termCount: number | null;
+	needsRepair: boolean;
+	repairAction: TermAuthorityRepairAction;
+	canPreview: boolean;
+};
+
+type TermAuthorityMirrorRow = {
+	id: number;
+	isArchived: boolean;
+	termContractCache: unknown;
+	termContractCachedAt: Date | null;
+};
+
+export type TermAuthorityResolutionDependencies = {
+	loadMirror: () => Promise<TermAuthorityMirrorRow | null>;
+	fetchLive: () => Promise<TermContractFetchResult>;
+};
+
+function termAuthorityError(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
+	const error = new Error(message) as Error & { statusCode: number; code: string };
+	error.statusCode = statusCode;
+	error.code = code;
+	return error;
+}
+
+function isUnreachableTermError(code: string): boolean {
+	return code === 'ENROLLPRO_UNREACHABLE' || code === 'ENROLLPRO_SCHOOL_YEAR_UNAVAILABLE';
+}
+
+function readValidCache(
+	row: TermAuthorityMirrorRow | null,
+	schoolId: number,
+	schoolYearId: number,
+): { valid: boolean; contract: VerifiedTermContract | null; cachedAt: string | null } {
+	if (!row?.termContractCache || !row.termContractCachedAt) return { valid: false, contract: null, cachedAt: null };
+	const contract = row.termContractCache as VerifiedTermContract;
+	const cachedAt = new Date(row.termContractCachedAt).toISOString();
+	if (validatePersistedContractStructure(contract, schoolId, schoolYearId)) return { valid: false, contract, cachedAt };
+	return { valid: true, contract, cachedAt };
+}
+
+async function readMirrorRow(schoolId: number, schoolYearId: number): Promise<TermAuthorityMirrorRow | null> {
+	const client = getDataContext<any>();
+	return client.enrollProSchoolYearMirror.findUnique({
+		where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
+		select: { id: true, isArchived: true, termContractCache: true, termContractCachedAt: true },
+	});
+}
+
+function yearNotMirrored(message: string): TermAuthorityStatus {
+	return {
+		state: 'YEAR_NOT_MIRRORED',
+		code: 'TERM_YEAR_NOT_MIRRORED',
+		message,
+		persisted: false,
+		persistedSemanticRevision: null,
+		liveSemanticRevision: null,
+		cachedAt: null,
+		termCount: null,
+		needsRepair: false,
+		repairAction: 'NONE',
+		canPreview: false,
+	};
+}
+
+/**
+ * Resolve the persisted ordered-term authority for the ATLAS active year,
+ * independently from year drift. `aligned`/`upstreamReachable` describe the
+ * already-computed year comparison; this function never modifies year drift and
+ * never overloads `recommendedAction`.
+ */
+export async function resolveTermAuthorityStatus(
+	input: { schoolId: number; schoolYearId: number | null; authToken?: string; upstreamReachable: boolean; aligned: boolean },
+	dependencies?: Partial<TermAuthorityResolutionDependencies>,
+): Promise<TermAuthorityStatus> {
+	const yearId = input.schoolYearId;
+	if (!Number.isInteger(yearId) || (yearId as number) <= 0) {
+		return yearNotMirrored('The school has no active school-year mirror, so its ordered terms cannot be verified yet.');
+	}
+	const resolvedYearId = yearId as number;
+	const mirror = dependencies?.loadMirror
+		? await dependencies.loadMirror()
+		: await readMirrorRow(input.schoolId, resolvedYearId);
+	if (!mirror || mirror.isArchived) {
+		return yearNotMirrored('This school year is not an active ATLAS mirror, so it cannot persist ordered term authority.');
+	}
+	const cache = readValidCache(mirror, input.schoolId, resolvedYearId);
+	const cachePresent = mirror.termContractCache != null || mirror.termContractCachedAt != null;
+	const persistedRevision = cache.valid ? cache.contract!.semanticRevision : null;
+	const termCount = cache.valid ? cache.contract!.terms.length : null;
+
+	if (!input.upstreamReachable) {
+		return cache.valid
+			? {
+				state: 'UPSTREAM_UNAVAILABLE',
+				code: 'ENROLLPRO_UNREACHABLE',
+				message: 'EnrollPro is unreachable; the saved ordered terms could not be re-verified right now.',
+				persisted: true,
+				persistedSemanticRevision: persistedRevision,
+				liveSemanticRevision: null,
+				cachedAt: cache.cachedAt,
+				termCount,
+				needsRepair: false,
+				repairAction: 'NONE',
+				canPreview: false,
+			}
+			: {
+				state: 'UPSTREAM_UNAVAILABLE',
+				code: 'ENROLLPRO_UNREACHABLE',
+				message: 'EnrollPro is unreachable and no ordered terms are saved for this school year yet.',
+				persisted: false,
+				persistedSemanticRevision: null,
+				liveSemanticRevision: null,
+				cachedAt: null,
+				termCount: null,
+				needsRepair: true,
+				repairAction: 'RETRY_ENROLLPRO',
+				canPreview: false,
+			};
+	}
+
+	if (!input.aligned) {
+		// Year drift is the operative blocker; report persisted truth without
+		// claiming a live verification and without overloading the year action.
+		return {
+			state: 'PERSISTED_UNVERIFIED',
+			code: cache.valid ? null : 'TERM_AUTHORITY_MISSING',
+			message: cache.valid
+				? 'Ordered terms are saved for the currently active ATLAS year; they will be verified once the school year matches EnrollPro.'
+				: 'Ordered terms are not saved for the currently active ATLAS year. Resolve the school-year drift first, then save them.',
+			persisted: cache.valid,
+			persistedSemanticRevision: persistedRevision,
+			liveSemanticRevision: null,
+			cachedAt: cache.cachedAt,
+			termCount,
+			needsRepair: false,
+			repairAction: 'NONE',
+			canPreview: false,
+		};
+	}
+
+	const live = await (dependencies?.fetchLive
+		? dependencies.fetchLive()
+		: fetchEnrollProTermContract({ schoolId: input.schoolId, schoolYearId: resolvedYearId, authToken: input.authToken }));
+	if (!live.ok) {
+		const unreachable = isUnreachableTermError(live.error.code);
+		return {
+			state: unreachable ? 'UPSTREAM_UNAVAILABLE' : 'INVALID_UPSTREAM_CONTRACT',
+			code: live.error.code,
+			message: live.error.message,
+			persisted: cache.valid,
+			persistedSemanticRevision: persistedRevision,
+			liveSemanticRevision: null,
+			cachedAt: cache.cachedAt,
+			termCount,
+			needsRepair: !cache.valid,
+			repairAction: unreachable ? (cache.valid ? 'NONE' : 'RETRY_ENROLLPRO') : (cache.valid ? 'NONE' : 'PREVIEW_TERM_CACHE_SYNC'),
+			canPreview: !unreachable,
+		};
+	}
+	const liveRevision = live.contract.semanticRevision;
+	if (cachePresent && !cache.valid) {
+		return {
+			state: 'CACHE_INVALID',
+			code: 'TERM_CACHE_INVALID',
+			message: 'The ordered terms saved in ATLAS are malformed and must be saved again from EnrollPro.',
+			persisted: false,
+			persistedSemanticRevision: cache.contract?.semanticRevision ?? null,
+			liveSemanticRevision: liveRevision,
+			cachedAt: cache.cachedAt,
+			termCount: live.contract.terms.length,
+			needsRepair: true,
+			repairAction: 'PREVIEW_TERM_CACHE_SYNC',
+			canPreview: true,
+		};
+	}
+	if (!cache.valid) {
+		return {
+			state: 'MISSING',
+			code: 'TERM_AUTHORITY_MISSING',
+			message: 'The school year is current, but its ordered terms have not been saved in ATLAS yet.',
+			persisted: false,
+			persistedSemanticRevision: null,
+			liveSemanticRevision: liveRevision,
+			cachedAt: null,
+			termCount: live.contract.terms.length,
+			needsRepair: true,
+			repairAction: 'PREVIEW_TERM_CACHE_SYNC',
+			canPreview: true,
+		};
+	}
+	if (cache.contract!.semanticRevision === liveRevision) {
+		return {
+			state: 'PERSISTED_CURRENT',
+			code: live.contract.activeTermState.code,
+			message: 'The saved ordered terms match EnrollPro.',
+			persisted: true,
+			persistedSemanticRevision: persistedRevision,
+			liveSemanticRevision: liveRevision,
+			cachedAt: cache.cachedAt,
+			termCount,
+			needsRepair: false,
+			repairAction: 'NONE',
+			canPreview: false,
+		};
+	}
+	return {
+		state: 'PERSISTED_STALE',
+		code: 'TERM_AUTHORITY_STALE',
+		message: 'The ordered terms saved in ATLAS no longer match EnrollPro. Save them again before generating.',
+		persisted: true,
+		persistedSemanticRevision: persistedRevision,
+		liveSemanticRevision: liveRevision,
+		cachedAt: cache.cachedAt,
+		termCount,
+		needsRepair: true,
+		repairAction: 'PREVIEW_TERM_CACHE_SYNC',
+		canPreview: true,
+	};
+}
+
+const TERM_CACHE_FINGERPRINT_VERSION = 'RR-TERM-CACHE-C01.1';
+
+export function getTermCacheConfirmationText(schoolId: number, schoolYearId: number): string {
+	return `SAVE_TERM_AUTHORITY_${schoolId}_${schoolYearId}`;
+}
+
+function termCacheFingerprint(input: {
+	schoolId: number;
+	schoolYearId: number;
+	mirrorId: number;
+	format: EnrollProTermFormat;
+	liveSemanticRevision: string;
+	persistedSemanticRevision: string | null;
+}): string {
+	return createHash('sha256')
+		.update(JSON.stringify({ schemaVersion: TERM_CACHE_FINGERPRINT_VERSION, ...input }))
+		.digest('hex');
+}
+
+type ActiveYearMirrorRow = {
+	id: number;
+	enrollProSchoolYearId: number;
+	yearLabel: string;
+	termContractCache: unknown;
+	termContractCachedAt: Date | null;
+};
+
+async function resolveActiveYearMirror(schoolId: number): Promise<ActiveYearMirrorRow> {
+	const client = getDataContext<any>();
+	const rows = await client.enrollProSchoolYearMirror.findMany({
+		where: { schoolId, isActive: true, isArchived: false },
+		select: { id: true, enrollProSchoolYearId: true, yearLabel: true, termContractCache: true, termContractCachedAt: true },
+		orderBy: [{ enrollProSchoolYearId: 'asc' }, { id: 'asc' }],
+	});
+	if (rows.length === 0) {
+		throw termAuthorityError(409, 'ACTIVE_YEAR_UNAVAILABLE', 'No active, non-archived school-year mirror exists for this school.');
+	}
+	if (rows.length > 1) {
+		throw termAuthorityError(409, 'ACTIVE_YEAR_AMBIGUOUS', 'More than one active, non-archived school-year mirror exists for this school.');
+	}
+	return rows[0] as ActiveYearMirrorRow;
+}
+
+export type TermCachePreviewResult = {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	mirrorId: number;
+	state: 'READY' | 'ALREADY_CURRENT';
+	code: string | null;
+	message: string;
+	format: EnrollProTermFormat;
+	terms: VerifiedTerm[];
+	liveSemanticRevision: string;
+	persistedSemanticRevision: string | null;
+	cachedAt: string | null;
+	activeTermAvailability: ActiveTermAvailability;
+	fingerprint: string;
+	confirmationText: string;
+	zeroWrite: true;
+};
+
+/**
+ * Zero-write preview of the narrow term-authority catch-up. Fetches and
+ * validates the live EnrollPro ordered contract, binds the active mirror's
+ * current cache state, and returns a stable fingerprint plus exact confirmation.
+ */
+export async function previewTermCacheSync(input: {
+	schoolId: number;
+	authToken?: string;
+	fetchLive?: () => Promise<TermContractFetchResult>;
+}): Promise<TermCachePreviewResult> {
+	if (!Number.isInteger(input.schoolId) || input.schoolId <= 0) {
+		throw termAuthorityError(400, 'INVALID_PARAM', 'schoolId must be a positive integer.');
+	}
+	const mirror = await resolveActiveYearMirror(input.schoolId);
+	const yearId = mirror.enrollProSchoolYearId;
+	const live = await (input.fetchLive
+		? input.fetchLive()
+		: fetchEnrollProTermContract({ schoolId: input.schoolId, schoolYearId: yearId, authToken: input.authToken }));
+	if (!live.ok) {
+		throw termAuthorityError(
+			isUnreachableTermError(live.error.code) ? 503 : 409,
+			live.error.code,
+			live.error.message,
+		);
+	}
+	const contract = live.contract;
+	const cache = readValidCache(
+		{ id: mirror.id, isArchived: false, termContractCache: mirror.termContractCache, termContractCachedAt: mirror.termContractCachedAt },
+		input.schoolId,
+		yearId,
+	);
+	const persistedRevision = cache.valid ? cache.contract!.semanticRevision : null;
+	const fingerprint = termCacheFingerprint({
+		schoolId: input.schoolId,
+		schoolYearId: yearId,
+		mirrorId: mirror.id,
+		format: contract.format,
+		liveSemanticRevision: contract.semanticRevision,
+		persistedSemanticRevision: persistedRevision,
+	});
+	const alreadyCurrent = persistedRevision === contract.semanticRevision;
+	return {
+		schoolId: input.schoolId,
+		schoolYearId: yearId,
+		yearLabel: mirror.yearLabel,
+		mirrorId: mirror.id,
+		state: alreadyCurrent ? 'ALREADY_CURRENT' : 'READY',
+		code: contract.activeTermState.code,
+		message: alreadyCurrent
+			? 'The saved ordered terms already match EnrollPro; no write is required.'
+			: 'Saving stores only this school year\u2019s ordered term authority. It does not sync faculty, sections, or Teaching Load.',
+		format: contract.format,
+		terms: contract.terms,
+		liveSemanticRevision: contract.semanticRevision,
+		persistedSemanticRevision: persistedRevision,
+		cachedAt: cache.cachedAt,
+		activeTermAvailability: contract.activeTermState.availability,
+		fingerprint,
+		confirmationText: getTermCacheConfirmationText(input.schoolId, yearId),
+		zeroWrite: true,
+	};
+}
+
+export type TermCacheApplyInput = {
+	schoolId: number;
+	actorId: number;
+	authToken?: string;
+	confirmationText?: unknown;
+	fingerprint?: unknown;
+	fetchLive?: () => Promise<TermContractFetchResult>;
+};
+
+export type TermCacheApplyResult = {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	mirrorId: number;
+	applied: boolean;
+	replayed: boolean;
+	written: boolean;
+	semanticRevision: string;
+	previousSemanticRevision: string | null;
+	activeTermAvailability: ActiveTermAvailability;
+	auditId: number | null;
+	cachedAt: string;
+	terms: VerifiedTerm[];
+};
+
+function isTermTransactionConflict(error: unknown): boolean {
+	return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2034';
+}
+
+/**
+ * Fingerprinted, actor-scoped apply of the narrow term-authority catch-up.
+ * Re-fetches and re-validates the live EnrollPro contract, revalidates the
+ * active mirror/current cache state, then writes ONLY the active mirror's
+ * `termContractCache`/`termContractCachedAt` plus one scoped audit row. Drift or
+ * scope mismatch fails with a typed 4xx and zero writes. Identical replay is
+ * idempotent with no second audit row.
+ */
+export async function applyTermCacheSync(input: TermCacheApplyInput): Promise<TermCacheApplyResult> {
+	if (!Number.isInteger(input.schoolId) || input.schoolId <= 0) {
+		throw termAuthorityError(400, 'INVALID_PARAM', 'schoolId must be a positive integer.');
+	}
+	const mirror = await resolveActiveYearMirror(input.schoolId);
+	const yearId = mirror.enrollProSchoolYearId;
+	const expectedConfirmation = getTermCacheConfirmationText(input.schoolId, yearId);
+	if (input.confirmationText !== expectedConfirmation) {
+		throw termAuthorityError(400, 'CONFIRMATION_REQUIRED', `confirmationText="${expectedConfirmation}" is required to save ordered term authority.`);
+	}
+	if (typeof input.fingerprint !== 'string' || input.fingerprint.length === 0) {
+		throw termAuthorityError(400, 'FINGERPRINT_REQUIRED', 'fingerprint from the term-authority preview is required.');
+	}
+	const live = await (input.fetchLive
+		? input.fetchLive()
+		: fetchEnrollProTermContract({ schoolId: input.schoolId, schoolYearId: yearId, authToken: input.authToken }));
+	if (!live.ok) {
+		throw termAuthorityError(
+			isUnreachableTermError(live.error.code) ? 503 : 409,
+			live.error.code,
+			live.error.message,
+		);
+	}
+	const contract = live.contract;
+
+	// Revalidate the preview against the freshly fetched live contract BEFORE any
+	// write. A changed upstream revision (reorder/rename) yields a different
+	// fingerprint and is rejected with zero writes.
+	const preMirror = await readMirrorRow(input.schoolId, yearId);
+	const preCache = readValidCache(preMirror, input.schoolId, yearId);
+	const expectedFingerprint = termCacheFingerprint({
+		schoolId: input.schoolId,
+		schoolYearId: yearId,
+		mirrorId: preMirror!.id,
+		format: contract.format,
+		liveSemanticRevision: contract.semanticRevision,
+		persistedSemanticRevision: preCache.valid ? preCache.contract!.semanticRevision : null,
+	});
+	if (expectedFingerprint !== input.fingerprint) {
+		throw termAuthorityError(409, 'FINGERPRINT_MISMATCH', 'The live ordered terms or saved cache changed since the preview. Re-run the preview before saving.');
+	}
+
+	const now = new Date();
+	const mirrorLabel = mirror.yearLabel;
+	try {
+		return await (getDataContext<any>() as any).$transaction(async (tx: any) => {
+			const txMirror = await tx.enrollProSchoolYearMirror.findUnique({
+				where: { schoolId_enrollProSchoolYearId: { schoolId: input.schoolId, enrollProSchoolYearId: yearId } },
+				select: { id: true, isActive: true, isArchived: true, termContractCache: true, termContractCachedAt: true },
+			});
+			if (!txMirror || txMirror.isArchived || !txMirror.isActive) {
+				throw termAuthorityError(409, 'ACTIVE_YEAR_CHANGED', 'The active school-year mirror changed since the preview. Re-run the preview before saving.');
+			}
+			const txCache = readValidCache(txMirror, input.schoolId, yearId);
+			const txFingerprint = termCacheFingerprint({
+				schoolId: input.schoolId,
+				schoolYearId: yearId,
+				mirrorId: txMirror.id,
+				format: contract.format,
+				liveSemanticRevision: contract.semanticRevision,
+				persistedSemanticRevision: txCache.valid ? txCache.contract!.semanticRevision : null,
+			});
+			if (txFingerprint !== input.fingerprint) {
+				throw termAuthorityError(409, 'FINGERPRINT_MISMATCH', 'The saved term authority changed since the preview. Re-run the preview before saving.');
+			}
+			if (txCache.valid && txCache.contract!.semanticRevision === contract.semanticRevision) {
+				return {
+					schoolId: input.schoolId,
+					schoolYearId: yearId,
+					yearLabel: mirrorLabel,
+					mirrorId: txMirror.id,
+					applied: false,
+					replayed: true,
+					written: false,
+					semanticRevision: contract.semanticRevision,
+					previousSemanticRevision: txCache.contract!.semanticRevision,
+					activeTermAvailability: contract.activeTermState.availability,
+					auditId: null,
+					cachedAt: txCache.cachedAt ?? now.toISOString(),
+					terms: contract.terms,
+				} as TermCacheApplyResult;
+			}
+			// Guarded, compare-and-set update: concurrent writers holding the same
+			// observed cached-at value cannot both persist or audit.
+			const updated = await tx.enrollProSchoolYearMirror.updateMany({
+				where: { id: txMirror.id, termContractCachedAt: txMirror.termContractCachedAt },
+				data: { termContractCache: contract, termContractCachedAt: now },
+			});
+			if (updated.count === 0) {
+				const afterRow = await tx.enrollProSchoolYearMirror.findUnique({
+					where: { id: txMirror.id },
+					select: { termContractCache: true, termContractCachedAt: true },
+				});
+				const afterCache = readValidCache(
+					afterRow ? { id: txMirror.id, isArchived: false, termContractCache: afterRow.termContractCache, termContractCachedAt: afterRow.termContractCachedAt } : null,
+					input.schoolId,
+					yearId,
+				);
+				if (afterCache.valid && afterCache.contract!.semanticRevision === contract.semanticRevision) {
+					return {
+						schoolId: input.schoolId,
+						schoolYearId: yearId,
+						yearLabel: mirrorLabel,
+						mirrorId: txMirror.id,
+						applied: false,
+						replayed: true,
+						written: false,
+						semanticRevision: contract.semanticRevision,
+						previousSemanticRevision: afterCache.contract!.semanticRevision,
+						activeTermAvailability: contract.activeTermState.availability,
+						auditId: null,
+						cachedAt: afterCache.cachedAt ?? now.toISOString(),
+						terms: contract.terms,
+					} as TermCacheApplyResult;
+				}
+				throw termAuthorityError(409, 'TERM_CACHE_CONCURRENT_UPDATE', 'Another term-authority save completed concurrently. Re-run the preview and retry.');
+			}
+			const audit = await tx.auditLog.create({
+				data: {
+					schoolId: input.schoolId,
+					schoolYearId: yearId,
+					action: 'TERM_CACHE_SYNC_APPLIED',
+					actorId: input.actorId,
+					targetIds: [yearId],
+					metadata: {
+						source: 'enrollpro-term-cache-catchup',
+						yearLabel: mirrorLabel,
+						semanticRevision: contract.semanticRevision,
+						previousSemanticRevision: txCache.valid ? txCache.contract!.semanticRevision : null,
+						termCount: contract.terms.length,
+						format: contract.format,
+						activeTermAvailability: contract.activeTermState.availability,
+						completedAt: now.toISOString(),
+					},
+				},
+				select: { id: true },
+			});
+			return {
+				schoolId: input.schoolId,
+				schoolYearId: yearId,
+				yearLabel: mirrorLabel,
+				mirrorId: txMirror.id,
+				applied: true,
+				replayed: false,
+				written: true,
+				semanticRevision: contract.semanticRevision,
+				previousSemanticRevision: txCache.valid ? txCache.contract!.semanticRevision : null,
+				activeTermAvailability: contract.activeTermState.availability,
+				auditId: audit.id,
+				cachedAt: now.toISOString(),
+				terms: contract.terms,
+			} as TermCacheApplyResult;
+		}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+	} catch (error: unknown) {
+		if (isTermTransactionConflict(error)) {
+			throw termAuthorityError(409, 'TRANSACTION_CONFLICT', 'Concurrent term-authority save conflict: no partial writes occurred. Re-run the preview and retry.');
+		}
+		throw error;
+	}
 }

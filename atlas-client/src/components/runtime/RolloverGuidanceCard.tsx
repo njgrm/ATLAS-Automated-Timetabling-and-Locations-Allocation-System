@@ -6,15 +6,19 @@ import { toast } from 'sonner';
 import {
 	applyArchiveAndSync,
 	applyRolloverSync,
+	applyTermCacheSync,
 	applyTestYearRecovery,
+	describeTermAuthority,
 	fetchRecoveryClassification,
 	fetchRolloverStatus,
 	markSchoolYearAsTestData,
 	previewArchiveAndSync,
 	previewRolloverSync,
+	previewTermCacheSync,
 	type ArchiveAndSyncPreviewResult,
 	type RecoveryClassifierResult,
 	type RolloverStatus,
+	type TermCachePreviewResult,
 } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -112,6 +116,11 @@ export function RolloverGuidanceCard({
 	const [archivePreview, setArchivePreview] = useState<ArchiveAndSyncPreviewResult | null>(null);
 	const [archivePreviewLoading, setArchivePreviewLoading] = useState(false);
 	const [archiving, setArchiving] = useState(false);
+	const [showTermRepair, setShowTermRepair] = useState(false);
+	const [termPreview, setTermPreview] = useState<TermCachePreviewResult | null>(null);
+	const [termPreviewLoading, setTermPreviewLoading] = useState(false);
+	const [termConfirmText, setTermConfirmText] = useState('');
+	const [termApplying, setTermApplying] = useState(false);
 
 	const loadStatus = async (includeCounts = false) => {
 		setLoading(true);
@@ -199,11 +208,18 @@ export function RolloverGuidanceCard({
 		&& recoveryClassification.conflictCode === 'SECTION_ID_COLLISION'
 		&& recoveryClassification.enrollProActiveYear != null
 		&& !hasPublishedRecoveryBlocker;
+	// RR-TERM-CACHE-C01: persisted term authority is a separate state from year
+	// drift. When the year is aligned but the ordered terms are missing/stale, the
+	// card offers exactly one narrow repair action (zero-write preview first) and
+	// never the broad faculty/section rollover apply.
+	const termAuthorityView = describeTermAuthority(status?.termAuthority);
+	const termRepairNeeded = termAuthorityView.needsRepair && termAuthorityView.primaryAction === 'PREVIEW_TERM_CACHE_SYNC';
+	const termRepairOnly = termRepairNeeded && status?.drift.recommendedAction === 'NONE' && !canApply;
 	const icon = useMemo(() => {
-		if (status?.drift.status === 'aligned') return <CheckCircle2 className="h-4 w-4" />;
+		if (status?.drift.status === 'aligned' && !termAuthorityView.needsRepair) return <CheckCircle2 className="h-4 w-4" />;
 		if (loading) return <Loader2 className="h-4 w-4 animate-spin" />;
 		return <AlertTriangle className="h-4 w-4" />;
-	}, [loading, status?.drift.status]);
+	}, [loading, status?.drift.status, termAuthorityView.needsRepair]);
 
 	const handlePreview = async () => {
 		setPreviewing(true);
@@ -326,6 +342,108 @@ export function RolloverGuidanceCard({
 		}
 	};
 
+	// RR-TERM-CACHE-C01: one narrow repair path. The button opens a zero-write
+	// preview; only the dialog's apply persists the ordered term authority. The
+	// broad faculty/section rollover apply is never invoked here.
+	const handleTermRepair = async () => {
+		setShowTermRepair(true);
+		setTermPreviewLoading(true);
+		setTermPreview(null);
+		setTermConfirmText('');
+		setError(null);
+		try {
+			setTermPreview(await previewTermCacheSync(schoolId));
+		} catch (err: any) {
+			setError(err?.response?.data?.message ?? err?.message ?? 'ATLAS could not preview the ordered terms.');
+			setShowTermRepair(false);
+		} finally {
+			setTermPreviewLoading(false);
+		}
+	};
+
+	const handleTermApply = async () => {
+		if (!termPreview) return;
+		setTermApplying(true);
+		setError(null);
+		try {
+			const result = await applyTermCacheSync(schoolId, {
+				confirmationText: termConfirmText,
+				fingerprint: termPreview.fingerprint,
+			});
+			setShowTermRepair(false);
+			setTermPreview(null);
+			setTermConfirmText('');
+			await loadStatus(true);
+			toast.success(`Saved ordered terms for ${result.yearLabel}.`);
+		} catch (err: any) {
+			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not save the ordered terms.';
+			setError(message);
+			toast.error(message);
+		} finally {
+			setTermApplying(false);
+		}
+	};
+
+	// RR-TERM-CACHE-C01: the shared term-repair dialog. It is the ONLY
+	// persistence surface for the narrow catch-up and is opened only after the
+	// zero-write preview resolves. It never calls the broad rollover apply.
+	const termRepairDialog = (
+		<Dialog open={showTermRepair} onOpenChange={(open) => {
+			setShowTermRepair(open);
+			if (!open) setTermConfirmText('');
+		}}>
+			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={termApplying} data-testid="rollover-term-repair-dialog">
+				<DialogHeader>
+					<DialogTitle>Save school year terms</DialogTitle>
+					<DialogDescription>
+						{termPreview?.message ?? 'Loading the ordered terms from EnrollPro...'}
+					</DialogDescription>
+				</DialogHeader>
+				{termPreviewLoading ? (
+					<p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" /> Loading ordered terms...</p>
+				) : null}
+				{termPreview ? (
+					<>
+						<ul className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-2 text-sm text-slate-700" data-testid="rollover-term-repair-terms">
+							{termPreview.terms.map((term) => (
+								<li key={term.identity} className="flex items-center justify-between gap-2">
+									<span className="font-medium">{term.order}. {term.displayLabel}</span>
+									<span className="text-xs text-muted-foreground">{term.identity}</span>
+								</li>
+							))}
+						</ul>
+						<div className="space-y-2">
+							<Label htmlFor="term-repair-confirmation">
+								Type <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{termPreview.confirmationText}</code> to confirm
+							</Label>
+							<Input
+								id="term-repair-confirmation"
+								value={termConfirmText}
+								onChange={(event) => setTermConfirmText(event.target.value)}
+								placeholder={termPreview.confirmationText}
+								disabled={termApplying}
+								autoComplete="off"
+							/>
+						</div>
+					</>
+				) : null}
+				<DialogFooter>
+					<Button type="button" variant="outline" size="sm" onClick={() => setShowTermRepair(false)} disabled={termApplying}>Cancel</Button>
+					<Button
+						type="button"
+						size="sm"
+						onClick={() => void handleTermApply()}
+						disabled={termApplying || termPreviewLoading || !termPreview || termConfirmText !== termPreview.confirmationText}
+						data-testid="rollover-term-repair-apply"
+					>
+						{termApplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+						Save terms
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+
 	if (!loading && !status && !error) return null;
 
 	// Compact setup pages need a true one-row year status. The full explanatory
@@ -334,22 +452,28 @@ export function RolloverGuidanceCard({
 		// Setup pages already expose source health through the command-bar chip.
 		// Avoid duplicating non-blocking "checking/aligned" status in the work
 		// area because it pushes the first useful content below the budget.
-		if (!isBlocking && !error) return null;
+		if (!isBlocking && !termRepairNeeded && !error) return null;
 
 		return (
+			<>
 			<div
 				className={cn(
 					'flex min-h-8 items-center gap-2 rounded-xl border px-2.5 py-1 text-xs shadow-none',
 					isBlocking ? 'border-amber-200 bg-amber-50/70 text-amber-800' : 'border-slate-200 bg-white/80 text-slate-700',
-					status?.drift.status === 'aligned' && 'border-emerald-100 bg-emerald-50/60 text-emerald-700',
+					status?.drift.status === 'aligned' && !termAuthorityView.needsRepair && 'border-emerald-100 bg-emerald-50/60 text-emerald-700',
 				)}
 				data-testid="rollover-guidance-card"
 			>
 				{icon}
-				<span className="shrink-0 font-bold">{loading ? 'Checking school year' : driftLabel(currentDrift, status?.drift.recommendedAction)}</span>
+				<span className="shrink-0 font-bold">{loading ? 'Checking school year' : termRepairNeeded ? termAuthorityView.badgeLabel : driftLabel(currentDrift, status?.drift.recommendedAction)}</span>
 				<span className="min-w-0 truncate text-muted-foreground">
-					{status?.drift.message ?? 'Checking EnrollPro school year status.'}
+					{termRepairNeeded ? termAuthorityView.explanation : (status?.drift.message ?? 'Checking EnrollPro school year status.')}
 				</span>
+				{termRepairNeeded ? (
+					<Button type="button" variant="outline" size="sm" className="ml-auto h-7 shrink-0 px-2 text-xs font-semibold" onClick={() => void handleTermRepair()} data-testid="rollover-term-repair-action">
+						Save terms
+					</Button>
+				) : null}
 				{canPreviewReset || isBlocking ? (
 					<Button type="button" variant="ghost" size="sm" asChild className="ml-auto h-7 shrink-0 px-2 text-xs font-semibold" data-testid="rollover-banner-open-year-setup">
 						<Link to={adminHref}>Year setup</Link>
@@ -376,6 +500,8 @@ export function RolloverGuidanceCard({
 					</TooltipProvider>
 				) : null}
 			</div>
+			{termRepairDialog}
+			</>
 		);
 	}
 
@@ -383,7 +509,7 @@ export function RolloverGuidanceCard({
 	// Blocking drift states (atlas-stale / mapping-conflict) are never
 	// dismissible: they stay visible until the year status changes. The
 	// dismiss action only applies to non-blocking banners.
-	if (isDismissed && !isBlocking) return null;
+	if (isDismissed && !isBlocking && !termRepairNeeded) return null;
 
 	return (
 		<>
@@ -399,7 +525,7 @@ export function RolloverGuidanceCard({
 					<div className="flex flex-wrap items-center gap-2">
 						<Badge variant="outline" className={cn('gap-1', DRIFT_BADGE[currentDrift])} data-testid="rollover-banner-status">
 							{icon}
-							{loading ? 'Checking school year' : driftLabel(currentDrift, status?.drift.recommendedAction)}
+							{loading ? 'Checking school year' : termRepairNeeded ? termAuthorityView.badgeLabel : driftLabel(currentDrift, status?.drift.recommendedAction)}
 						</Badge>
 						{status?.enrollProActiveYear ? (
 							<Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
@@ -427,10 +553,12 @@ export function RolloverGuidanceCard({
 						) : null}
 					</div>
 					<p className="text-sm font-medium text-slate-900">
-						{status?.drift.message ?? 'Checking EnrollPro school year status.'}
+						{termRepairNeeded ? termAuthorityView.explanation : (status?.drift.message ?? 'Checking EnrollPro school year status.')}
 					</p>
 					<p className="text-xs text-slate-600">
-						{status ? driftNextStep(status.drift.status, status.drift.recommendedAction) : 'Waiting for EnrollPro school year status.'}
+						{termRepairNeeded
+							? 'Save the ordered terms to let ATLAS build the timetable. Nothing else changes.'
+							: status ? driftNextStep(status.drift.status, status.drift.recommendedAction) : 'Waiting for EnrollPro school year status.'}
 					</p>
 				{error ? <p className="text-xs font-medium text-red-700">{error}</p> : null}
 				{status?.conflicts?.length ? (
@@ -532,26 +660,35 @@ export function RolloverGuidanceCard({
 				) : null}
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
-					<Button type="button" variant="outline" size="sm" onClick={() => void handlePreview()} disabled={previewing || applying}>
-						{previewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-						Preview
-					</Button>
-					{pendingReconfiguredIds ? (
-						<Button type="button" size="sm" onClick={() => void handleAcknowledgeAndApply()} disabled={previewing || applying} data-testid="rollover-banner-acknowledge-and-sync">
-							{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-							Acknowledge &amp; Sync
+					{termRepairNeeded ? (
+						<Button type="button" size="sm" onClick={() => void handleTermRepair()} disabled={termPreviewLoading || termApplying} data-testid="rollover-term-repair-action">
+							{termPreviewLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+							Save terms
 						</Button>
-					) : (showManualSync && canApply && !canPreviewReset) || (canApply && !canPreviewReset && !automation?.enabled) ? (
-						<Button type="button" size="sm" onClick={() => void handleApply()} disabled={previewing || applying} data-testid="rollover-banner-sync">
-							{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-							Sync now
-						</Button>
-					) : canApply && !canPreviewReset ? (
-						<Button type="button" size="sm" onClick={() => void handleApply()} disabled={previewing || applying} data-testid="rollover-banner-sync">
-							{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-							Sync now
-						</Button>
-					) : null}
+					) : (
+						<>
+							<Button type="button" variant="outline" size="sm" onClick={() => void handlePreview()} disabled={previewing || applying}>
+								{previewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+								Preview
+							</Button>
+							{pendingReconfiguredIds ? (
+								<Button type="button" size="sm" onClick={() => void handleAcknowledgeAndApply()} disabled={previewing || applying} data-testid="rollover-banner-acknowledge-and-sync">
+									{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+									Acknowledge &amp; Sync
+								</Button>
+							) : (showManualSync && canApply && !canPreviewReset) || (canApply && !canPreviewReset && !automation?.enabled) ? (
+								<Button type="button" size="sm" onClick={() => void handleApply()} disabled={previewing || applying} data-testid="rollover-banner-sync">
+									{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+									Sync now
+								</Button>
+							) : canApply && !canPreviewReset ? (
+								<Button type="button" size="sm" onClick={() => void handleApply()} disabled={previewing || applying} data-testid="rollover-banner-sync">
+									{applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+									Sync now
+								</Button>
+							) : null}
+						</>
+					)}
 					{/* Destructive reset is intentionally NOT exposed here. The "Open year setup" link routes to /admin/year-setup where the reset lives. */}
 					{canPreviewReset ? (
 						<Button type="button" variant="outline" size="sm" asChild data-testid="rollover-banner-open-year-setup">
@@ -565,6 +702,7 @@ export function RolloverGuidanceCard({
 				</div>
 			</CardContent>
 		</Card>
+		{termRepairDialog}
 		<Dialog open={showRecoveryConfirm} onOpenChange={(open) => {
 			setShowRecoveryConfirm(open);
 			if (!open) {
