@@ -1,21 +1,24 @@
 /**
- * Timetable canonical-demand service (TT-C02).
+ * Timetable canonical-demand service (TT-C02 / DEMAND-C01).
  *
  * Builds the curriculum-derived timetable demand used by the unassigned
  * insertion workflow WITHOUT recreating curriculum or Teaching Load
  * authority:
  *
- *  - curriculum authority  -> persisted SchoolYearTermConfig +
- *                             SchoolYearOffering + OfferingTermAssignment
- *                             (read-only consumers of the SCA stream rows)
+ *  - demand authority       -> the canonical derived-demand contract
+ *                              (`derived-demand.service.ts`): sole active
+ *                              EnrollPro year + verified ordered term structure,
+ *                              active section mirrors, and ATLAS Subject
+ *                              scheduling metadata. Persisted `SchoolYearOffering`
+ *                              rows are NEVER selected as truth.
  *  - ownership authority    -> annual SubjectSectionOwnership scoped to
- *                             (schoolId, schoolYearId), matching the
- *                             effective consumer contract v2 semantics
- *                             (active, non-stale owner mirrors only;
- *                             unscoped legacy rows excluded)
+ *                              (schoolId, schoolYearId), matching the
+ *                              effective consumer contract v2 semantics
+ *                              (active, non-stale owner mirrors only;
+ *                              unscoped legacy rows excluded)
  *  - HG exclusion           -> subject code `HG` never produces timetable
- *                             demand, never consumes slots/rooms, and is not
- *                             carried into any insertion candidate
+ *                              demand, never consumes slots/rooms, and is not
+ *                              carried into any insertion candidate
  *
  * This module never writes, never edits curriculum/Teaching Load rows, and
  * never falls back to catalog suggestions, old templates, fixed subject
@@ -26,7 +29,7 @@ import { createHash } from 'node:crypto';
 import { getDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { normalizeGradeLevelSync } from './class-program-slot.service.js';
-import { getTermConfig, type TermConfigData } from './term-config.service.js';
+import { buildDerivedDemand, type DerivedDemandBlocker } from './derived-demand.service.js';
 import type {
   OfferingClassification,
   ProgramType,
@@ -57,6 +60,8 @@ export interface TermReference {
 
 export interface DemandSourceRevision {
   sha256: string;
+  /** Canonical derived-demand semantic revision (the authority identity). */
+  derivedDemandRevision: string;
   termConfig: TermReference | null;
   offeringRevision: {
     activeOfferingCount: number;
@@ -127,6 +132,10 @@ export interface TimetableDemandResult {
   /** Per owner-state tallies (diagnostic, not a reason classification). */
   ownerStateTotals: Record<TimetableDemandLine['ownerState'], number>;
   sourceRevision: DemandSourceRevision;
+  /** Canonical derived-demand semantic revision consumed by this read. */
+  derivedDemandRevision: string | null;
+  /** Typed blockers when the derived demand could not be resolved. */
+  derivedDemandBlockers: DerivedDemandBlocker[];
 }
 
 interface RawOffering {
@@ -321,47 +330,73 @@ interface OwnedFacultyView {
   name: string;
 }
 
+function emptyOwnerStateTotals(): Record<TimetableDemandLine['ownerState'], number> {
+  return {
+    VALID: 0,
+    MISSING: 0,
+    INACTIVE_OR_STALE: 0,
+    OUTSIDE_SCOPE: 0,
+    NO_QUALIFIED_SCOPE: 0,
+  };
+}
+
 /**
  * Canonical curriculum -> timetable demand for one school year.
- * Zero writes. Read-only across curriculum, sections, Teaching Load, policy.
+ * Zero writes. Demand comes exclusively from the derived-demand authority;
+ * ownership comes from scoped SubjectSectionOwnership. Persisted offering rows
+ * are never read.
  */
 export async function buildCanonicalTimetableDemand(
   schoolId: number,
   schoolYearId: number,
 ): Promise<TimetableDemandResult> {
-  const termConfigRow = await getTermConfig(schoolId, schoolYearId);
-  const termConfig: TermReference | null = termConfigRow
-    ? {
-        id: termConfigRow.id,
-        termCount: termConfigRow.termCount,
-        termIdentities: termConfigRow.termIdentities,
-        isActive: termConfigRow.isActive,
-        updatedAt: termConfigRow.updatedAt.toISOString(),
-      }
-    : null;
-
   const policy = await readDayShapePolicy(schoolId, schoolYearId);
   const periodLengthMinutes = policy?.periodLengthMinutes ?? 45;
+  const derived = await buildDerivedDemand(schoolId, schoolYearId, { periodLengthMinutes });
 
-  const [offerings, activeSections, cohorts, subjects, scopedOwnership, facultyRows, facultySubjects, cycle] =
-    await Promise.all([
-      db().schoolYearOffering.findMany({
-        where: { schoolId, schoolYearId },
-        include: { termAssignments: { select: { termIdentity: true } } },
+  const ownerStateTotals = emptyOwnerStateTotals();
+
+  if (!derived.ok) {
+    const termConfig: TermReference | null = null;
+    return {
+      scope: { schoolId, schoolYearId },
+      termConfig,
+      periodLengthMinutes,
+      demandLines: [],
+      totalsByTerm: {},
+      totalLines: 0,
+      totalSessions: 0,
+      hgExcluded: { offeringIds: [], subjectCodes: [], ownershipRows: 0 },
+      ownerStateTotals,
+      sourceRevision: computeDemandSourceRevision({
+        termConfig,
+        derivedDemandRevision: '',
+        demandLines: [],
+        ownershipRows: [],
+        cycleVersion: 0,
+        policyRevision: policy ? { id: policy.id, updatedAt: policy.updatedAt.toISOString() } : null,
+        activeSections: [],
       }),
+      derivedDemandRevision: null,
+      derivedDemandBlockers: derived.blockers,
+    };
+  }
+
+  const termConfig: TermReference = {
+    id: 0,
+    termCount: derived.termStructure.terms.length,
+    termIdentities: derived.termStructure.terms.map((term) => term.identity),
+    isActive: true,
+    updatedAt: '',
+  };
+
+  const [activeSections, subjects, scopedOwnership, facultyRows, facultySubjects, cycle] =
+    await Promise.all([
       db().sectionMirror.findMany({
         where: { schoolId, schoolYearId, isActiveForScheduling: true, isStale: false },
       }),
-      db().instructionalCohort.findMany({
-        where: { schoolId, schoolYearId, isActive: true },
-        select: { id: true, cohortCode: true, memberSectionIds: true },
-      }),
-      db().subject.findMany({
-        where: { schoolId },
-      }),
-      db().subjectSectionOwnership.findMany({
-        where: { schoolId, schoolYearId },
-      }),
+      db().subject.findMany({ where: { schoolId } }),
+      db().subjectSectionOwnership.findMany({ where: { schoolId, schoolYearId } }),
       db().facultyMirror.findMany({
         where: { schoolId },
         select: {
@@ -374,29 +409,21 @@ export async function buildCanonicalTimetableDemand(
           version: true,
         },
       }),
-      db().facultySubject.findMany({
-        where: { schoolId, schoolYearId },
-      }),
-      db().teachingLoadCycle.findUnique({
-        where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-      }),
+      db().facultySubject.findMany({ where: { schoolId, schoolYearId } }),
+      db().teachingLoadCycle.findUnique({ where: { schoolId_schoolYearId: { schoolId, schoolYearId } } }),
     ]);
 
-  const subjectByCode = new Map<string, Subject>();
   const subjectById = new Map<number, Subject>();
-  for (const subject of subjects) {
-    subjectByCode.set(subject.code, subject);
-    subjectById.set(subject.id, subject);
-  }
+  for (const subject of subjects) subjectById.set(subject.id, subject);
 
-  const cohortMemberExternalIds = new Map<number, Set<number>>();
-  for (const cohort of cohorts) {
-    cohortMemberExternalIds.set(cohort.id, new Set(cohort.memberSectionIds));
-  }
+  const sectionByExternalId = new Map<number, SectionMirror>();
+  for (const section of activeSections) sectionByExternalId.set(section.externalId, section);
 
   // Set-based ownership index: (subjectId:sectionExternalId) -> owner rows.
   const ownershipBySubjectSection = new Map<string, OwnershipRowForDemand[]>();
   let hgOwnershipRows = 0;
+  const hgExcludedOfferingIds: number[] = [];
+  const hgExcludedSubjectCodes: string[] = [];
   for (const row of scopedOwnership) {
     const subject = subjectById.get(row.subjectId);
     if (subject && isHomeroomGuidanceCode(subject.code)) {
@@ -408,15 +435,18 @@ export async function buildCanonicalTimetableDemand(
     if (list) list.push(row);
     else ownershipBySubjectSection.set(key, [row]);
   }
+  for (const subject of subjects) {
+    if (isHomeroomGuidanceCode(subject.code) && subject.isActive) {
+      hgExcludedSubjectCodes.push(subject.code);
+    }
+  }
 
-  const facultyById = new Map<number, OwnedFacultyView & { externalId: number; version: number }>();
+  const facultyById = new Map<number, OwnedFacultyView>();
   for (const faculty of facultyRows) {
     facultyById.set(faculty.id, {
-      externalId: faculty.externalId,
       name: `${faculty.firstName} ${faculty.lastName}`.trim(),
       isActiveForScheduling: faculty.isActiveForScheduling,
       isStale: faculty.isStale,
-      version: faculty.version,
     });
   }
 
@@ -426,130 +456,83 @@ export async function buildCanonicalTimetableDemand(
     scopeByFacultySubject.set(`${fs.facultyId}:${fs.subjectId}`, fs);
   }
 
-  const activeOfferings = offerings
-    .filter((offering) => offering.isActive && offering.retiredAt === null)
-    .filter((offering) => {
-      if (offering.subjectId === null) return true; // explicit EMPTY marker row
-      const subject = subjectById.get(offering.subjectId);
-      if (!subject) return false;
-      if (isHomeroomGuidanceCode(subject.code)) return false; // HG never timetable demand
-      return subject.isActive;
-    });
-
-  const hgExcludedOfferingIds: number[] = [];
-  const hgExcludedSubjectCodes: string[] = [];
-  for (const offering of offerings) {
-    if (!offering.isActive) continue;
-    const subject = offering.subjectId === null ? undefined : subjectById.get(offering.subjectId);
-    if (subject && isHomeroomGuidanceCode(subject.code)) {
-      hgExcludedOfferingIds.push(offering.id);
-      hgExcludedSubjectCodes.push(subject.code);
-    }
-  }
-
   const demandLines: TimetableDemandLine[] = [];
   const totalsByTerm: Record<string, number> = {};
-  const ownerStateTotals = {
-    VALID: 0,
-    MISSING: 0,
-    INACTIVE_OR_STALE: 0,
-    OUTSIDE_SCOPE: 0,
-    NO_QUALIFIED_SCOPE: 0,
-  } as Record<TimetableDemandLine['ownerState'], number>;
   let totalSessions = 0;
 
-  for (const offering of activeOfferings) {
-    if (offering.subjectId === null || offering.termMode === 'EMPTY') continue;
-    const subject = subjectById.get(offering.subjectId);
-    if (!subject || isHomeroomGuidanceCode(subject.code)) continue;
-    if (!termConfig) continue;
+  // Applicable terms per pair identity are precomputed by the derived contract.
+  const applicableTermsByPair = new Map<string, string[]>();
+  for (const pair of derived.teachingLoadPairs) {
+    applicableTermsByPair.set(`${pair.subjectId}:${pair.sectionExternalId}`, pair.termIdentities);
+  }
 
-    const applicableTerms = resolveOfferingTerms(offering, termConfig);
-    if (applicableTerms.length === 0) continue;
+  for (const line of derived.timetableLines) {
+    const section = sectionByExternalId.get(line.sectionExternalId);
+    if (!section) continue; // section not active in this read; derived contract already scoped it.
+    const key = buildDemandLineKey({
+      subjectId: line.subjectId,
+      sectionExternalId: line.sectionExternalId,
+      termIdentity: line.termIdentity,
+    });
+    const ownerRows = ownershipBySubjectSection.get(`${line.subjectId}:${line.sectionExternalId}`) ?? [];
 
-    const expansion = expandOfferingAcrossSections(
-      offering as RawOffering,
-      termConfig,
-      activeSections,
-      cohortMemberExternalIds,
-      periodLengthMinutes,
-    );
-
-    for (const { section } of expansion) {
-      for (const term of applicableTerms) {
-        const key = buildDemandLineKey({
-          subjectId: offering.subjectId,
-          sectionExternalId: section.externalId,
-          termIdentity: term.termIdentity,
-        });
-        const ownerRows = ownershipBySubjectSection.get(`${offering.subjectId}:${section.externalId}`) ?? [];
-
-        let ownerFacultyId: number | null = null;
-        let ownerFacultyName: string | null = null;
-        let ownerState: TimetableDemandLine['ownerState'] = 'MISSING';
-        if (ownerRows.length > 0) {
-          const owner = ownerRows[0];
-          const faculty = facultyById.get(owner.facultyId);
-          ownerFacultyId = owner.facultyId;
-          if (!faculty || faculty.isStale || !faculty.isActiveForScheduling) {
-            ownerState = 'INACTIVE_OR_STALE';
-            ownerFacultyName = faculty?.name ?? null;
-          } else {
-            ownerFacultyName = faculty.name;
-            const scope = scopeByFacultySubject.get(`${owner.facultyId}:${offering.subjectId}`);
-            if (!scope) {
-              ownerState = 'OUTSIDE_SCOPE';
-            } else {
-              const sectionGrade = normalizeGradeLevelSync(section.gradeLevelId);
-              const inGradeLevels = (scope.gradeLevels ?? []).includes(sectionGrade);
-              const inSectionIds = (scope.sectionIds ?? []).includes(section.externalId);
-              if (!inGradeLevels && !inSectionIds) {
-                ownerState = 'NO_QUALIFIED_SCOPE';
-              } else {
-                ownerState = 'VALID';
-              }
-            }
-          }
+    let ownerFacultyId: number | null = null;
+    let ownerFacultyName: string | null = null;
+    let ownerState: TimetableDemandLine['ownerState'] = 'MISSING';
+    if (ownerRows.length > 0) {
+      const owner = ownerRows[0];
+      const faculty = facultyById.get(owner.facultyId);
+      ownerFacultyId = owner.facultyId;
+      if (!faculty || faculty.isStale || !faculty.isActiveForScheduling) {
+        ownerState = 'INACTIVE_OR_STALE';
+        ownerFacultyName = faculty?.name ?? null;
+      } else {
+        ownerFacultyName = faculty.name;
+        const scope = scopeByFacultySubject.get(`${owner.facultyId}:${line.subjectId}`);
+        if (!scope) {
+          ownerState = 'OUTSIDE_SCOPE';
+        } else {
+          const inGradeLevels = (scope.gradeLevels ?? []).includes(line.gradeLevel);
+          const inSectionIds = (scope.sectionIds ?? []).includes(line.sectionExternalId);
+          ownerState = !inGradeLevels && !inSectionIds ? 'NO_QUALIFIED_SCOPE' : 'VALID';
         }
-
-        const sessions = Math.max(1, Math.ceil(offering.weeklyMinutes / Math.max(1, periodLengthMinutes)));
-        const line: TimetableDemandLine = {
-          demandKey: key,
-          offeringId: offering.id,
-          offeringVersion: offering.version,
-          subjectId: offering.subjectId,
-          subjectCode: subject.code,
-          subjectName: subject.name,
-          classification: offering.classification,
-          rotationFamily: offering.rotationFamily,
-          rotationOrder: offering.rotationOrder,
-          termMode: offering.termMode === 'ALL' ? 'ALL' : 'ROTATING_FAMILY_MEMBER',
-          termIdentity: term.termIdentity,
-          termIndex: term.termIndex,
-          applicableTermIdentities: applicableTerms.map((t) => t.termIdentity),
-          sectionMirrorId: section.id,
-          sectionExternalId: section.externalId,
-          sectionName: section.name,
-          gradeLevel: normalizeGradeLevelSync(section.gradeLevelId),
-          programType: expectedProgramForSection(section.programType),
-          homeRoomId: section.homeRoomId,
-          buildingZoneId: section.buildingZoneId,
-          maxCapacity: section.maxCapacity,
-          enrolledCount: section.enrolledCount,
-          weeklyMinutes: offering.weeklyMinutes,
-          periodLengthMinutes,
-          sessionsPerWeek: sessions,
-          durationPerSessionMinutes: periodLengthMinutes,
-          ownerFacultyId,
-          ownerFacultyName,
-          ownerState,
-        };
-        demandLines.push(line);
-        totalsByTerm[term.termIdentity] = (totalsByTerm[term.termIdentity] ?? 0) + sessions;
-        totalSessions += sessions;
-        ownerStateTotals[ownerState] += 1;
       }
     }
+
+    demandLines.push({
+      demandKey: key,
+      offeringId: 0,
+      offeringVersion: 0,
+      subjectId: line.subjectId,
+      subjectCode: line.subjectCode,
+      subjectName: line.subjectName,
+      classification: 'CORE',
+      rotationFamily: line.rotationFamily,
+      rotationOrder: line.rotationOrder,
+      termMode: line.termMode === 'ALL' ? 'ALL' : 'ROTATING_FAMILY_MEMBER',
+      termIdentity: line.termIdentity,
+      termIndex: line.termIndex,
+      applicableTermIdentities: applicableTermsByPair.get(`${line.subjectId}:${line.sectionExternalId}`) ?? [line.termIdentity],
+      sectionMirrorId: section.id,
+      sectionExternalId: section.externalId,
+      sectionName: section.name,
+      gradeLevel: line.gradeLevel,
+      programType: expectedProgramForSection(line.programType),
+      homeRoomId: section.homeRoomId,
+      buildingZoneId: section.buildingZoneId,
+      maxCapacity: section.maxCapacity,
+      enrolledCount: section.enrolledCount,
+      weeklyMinutes: line.weeklyMinutes,
+      periodLengthMinutes: line.periodLengthMinutes,
+      sessionsPerWeek: line.sessionsPerWeek,
+      durationPerSessionMinutes: line.periodLengthMinutes,
+      ownerFacultyId,
+      ownerFacultyName,
+      ownerState,
+    });
+    totalsByTerm[line.termIdentity] = (totalsByTerm[line.termIdentity] ?? 0) + line.sessionsPerWeek;
+    totalSessions += line.sessionsPerWeek;
+    ownerStateTotals[ownerState] += 1;
   }
 
   demandLines.sort((a, b) =>
@@ -559,29 +542,17 @@ export async function buildCanonicalTimetableDemand(
   );
 
   const sourceRevision = computeDemandSourceRevision({
-    termConfig: termConfigRow
-      ? {
-          id: termConfigRow.id,
-          termCount: termConfigRow.termCount,
-          termIdentities: sortTermIdentities(termConfigRow.termIdentities),
-          isActive: termConfigRow.isActive,
-          updatedAt: termConfigRow.updatedAt.toISOString(),
-        }
-      : null,
-    offerings: activeOfferings.map((offering) => ({
-      id: offering.id,
-      subjectId: offering.subjectId,
-      gradeLevel: offering.gradeLevel,
-      programType: offering.programType,
-      sectionMirrorId: offering.sectionMirrorId,
-      cohortId: offering.cohortId,
-      classification: offering.classification,
-      weeklyMinutes: offering.weeklyMinutes,
-      rotationFamily: offering.rotationFamily,
-      rotationOrder: offering.rotationOrder,
-      termMode: offering.termMode,
-      version: offering.version,
-      termIdentities: sortTermIdentities(offering.termAssignments.map((t) => t.termIdentity)),
+    termConfig,
+    derivedDemandRevision: derived.revision,
+    demandLines: derived.timetableLines.map((line) => ({
+      subjectId: line.subjectId,
+      sectionExternalId: line.sectionExternalId,
+      subjectCode: line.subjectCode,
+      termIdentity: line.termIdentity,
+      termIndex: line.termIndex,
+      sessionsPerWeek: line.sessionsPerWeek,
+      gradeLevel: line.gradeLevel,
+      programType: line.programType,
     })),
     ownershipRows: scopedOwnership
       .filter((row) => {
@@ -623,32 +594,34 @@ export async function buildCanonicalTimetableDemand(
     },
     ownerStateTotals,
     sourceRevision,
+    derivedDemandRevision: derived.revision,
+    derivedDemandBlockers: [],
   };
 }
 
 export function computeDemandSourceRevision(input: {
   termConfig: TermReference | null;
-  offerings: unknown[];
+  derivedDemandRevision: string;
+  demandLines: unknown[];
   ownershipRows: unknown[];
   cycleVersion: number;
   policyRevision: { id: number; updatedAt: string } | null;
   activeSections: unknown[];
 }): DemandSourceRevision {
-  const offeringHash = sha256Hex(canonicalStringify(input.offerings));
+  const demandHash = sha256Hex(canonicalStringify(input.demandLines));
   const ownershipHash = sha256Hex(canonicalStringify(input.ownershipRows));
   const sectionsHash = sha256Hex(canonicalStringify(input.activeSections));
 
   const payload = {
-    kind: 'TIMETABLE_DEMAND_SOURCE_V1',
+    kind: 'TIMETABLE_DEMAND_SOURCE_V2',
+    derivedDemandRevision: input.derivedDemandRevision,
     termConfig: input.termConfig
       ? {
-          id: input.termConfig.id,
           termIdentities: sortTermIdentities(input.termConfig.termIdentities),
           isActive: input.termConfig.isActive,
-          updatedAt: input.termConfig.updatedAt,
         }
       : null,
-    offeringRevisionHash: offeringHash,
+    demandRevisionHash: demandHash,
     teachingLoad: {
       cycleVersion: input.cycleVersion,
       ownershipHash,
@@ -660,6 +633,7 @@ export function computeDemandSourceRevision(input: {
   const sha256 = sha256Hex(canonicalStringify(payload));
   return {
     sha256,
+    derivedDemandRevision: input.derivedDemandRevision,
     termConfig: input.termConfig
       ? {
           id: input.termConfig.id,
@@ -669,7 +643,7 @@ export function computeDemandSourceRevision(input: {
           updatedAt: input.termConfig.updatedAt,
         }
       : null,
-    offeringRevision: { activeOfferingCount: (input.offerings as unknown[]).length, hash: offeringHash },
+    offeringRevision: { activeOfferingCount: (input.demandLines as unknown[]).length, hash: demandHash },
     teachingLoad: {
       cycleVersion: input.cycleVersion,
       ownershipCount: (input.ownershipRows as unknown[]).length,

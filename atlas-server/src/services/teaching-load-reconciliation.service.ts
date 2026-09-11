@@ -32,6 +32,7 @@ import { buildDepartmentAuthoritySourceRevision } from './department-authority.s
 import { buildQualificationPolicySnapshot, evaluateQualificationWithPolicy, type QualificationPolicy } from './qualification-evaluator.service.js';
 import { computeTeachingLoadMinutes } from './faculty-assignment.service.js';
 import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
+import { buildDerivedDemand, toDerivedDemandPairIdentities, type DerivedDemandResult } from './derived-demand.service.js';
 
 const db = () => getDataContext();
 
@@ -197,7 +198,12 @@ export type ReconciliationSourceSnapshot = {
 	schoolYearId: number;
 	schoolYearAuthority: SchoolYearAuthoritySnapshot;
 	termConfig: TermConfigSnapshot | null;
-	offerings: OfferingSnapshot[];
+	/**
+	 * Canonical derived demand (DEMAND-C01). This is the ONLY demand authority:
+	 * persisted `SchoolYearOffering` / `OfferingTermAssignment` /
+	 * `SchoolYearTermConfig` rows are never selected as truth.
+	 */
+	derivedDemand: DerivedDemandResult;
 	sections: SectionSnapshot[];
 	cohorts: CohortSnapshot[];
 	subjects: SubjectSnapshot[];
@@ -357,67 +363,36 @@ export function resolveOfferingSections(
 }
 
 /**
- * Expand the persisted curriculum requirements into one canonical demand graph
- * of expected subject-section ownership. Rotating-family members are demanded
- * in their own terms; term identities always come from the persisted term
- * configuration, never from hardcoded term counts.
+ * Expand the canonical derived demand into one demand graph of expected
+ * subject-section ownership. Term identities and rotation come exclusively from
+ * the derived-demand contract; persisted offering rows are never consulted.
  */
 export function expandCurriculumDemand(snapshot: ReconciliationSourceSnapshot): DemandPair[] {
-	const subjectById = new Map(snapshot.subjects.map((subject) => [subject.id, subject]));
-	const demandByPair = new Map<string, DemandPair>();
-
-	const register = (pair: DemandPair) => {
-		const existing = demandByPair.get(pair.key);
-		if (!existing) {
-			demandByPair.set(pair.key, pair);
-			return;
-		}
-		// Overlapping offering rows for the same pair: prefer the more specific
-		// expansion and the larger weekly minutes, and record the overlap in
-		// provenance so the operator can see it.
-		const specificity = (p: DemandPair) => (p.provenance === 'section-override' ? 3 : p.provenance === 'cohort-override' ? 2 : 1);
-		if (specificity(pair) > specificity(existing) || (specificity(pair) === specificity(existing) && pair.weeklyMinutes > existing.weeklyMinutes)) {
-			demandByPair.set(pair.key, { ...pair, provenance: `${pair.provenance}+overlap-with-${existing.provenance}` });
-		}
-	};
-
-	for (const offering of snapshot.offerings) {
-		if (!offering.isActive) continue;
-		if (offering.termMode === 'EMPTY') continue;
-		const subject = offering.subjectId != null ? subjectById.get(offering.subjectId) : undefined;
-		if (!subject) continue;
-		if (subject.code.toUpperCase() === HG_SUBJECT_CODE) continue;
-
-		const weeklyMinutes = offering.weeklyMinutes > 0 ? offering.weeklyMinutes : subject.minMinutesPerWeek;
-		const termIdentities = offering.termMode === 'ALL'
-			? (snapshot.termConfig?.termIdentities ?? [])
-			: offering.termAssignments.map((assignment) => assignment.termIdentity).sort((a, b) => a.localeCompare(b));
-		const rotationFamily = offering.rotationFamily ?? subject.rotationFamily;
-
-		const sections = resolveOfferingSections(offering, snapshot.sections, snapshot.cohorts);
-		for (const section of sections) {
-			const key = pairKeyOf(subject.id, section.externalId);
-			register({
-				key,
-				offeringId: offering.id,
-				offeringVersion: offering.version,
-				subjectId: subject.id,
-				subjectCode: subject.code,
-				sectionId: section.externalId,
-				gradeLevel: section.gradeLevel,
-				programType: section.programType,
-				classification: offering.classification,
-				weeklyMinutes,
-				termMode: offering.termMode,
-				termIdentities,
-				rotationFamily,
-				rotationOrder: offering.rotationOrder,
-				provenance: section.provenance,
-			});
-		}
+	const derived = snapshot.derivedDemand;
+	if (!derived.ok) {
+		throw err(
+			409,
+			'DERIVED_DEMAND_BLOCKED',
+			`Derived demand is unavailable: ${derived.blockers.map((entry) => entry.code).join(', ')}.`,
+		);
 	}
-
-	return Array.from(demandByPair.values());
+	return toDerivedDemandPairIdentities(derived).map((pair): DemandPair => ({
+		key: pair.key,
+		offeringId: 0,
+		offeringVersion: 0,
+		subjectId: pair.subjectId,
+		subjectCode: pair.subjectCode,
+		sectionId: pair.sectionId,
+		gradeLevel: pair.gradeLevel,
+		programType: pair.programType,
+		classification: 'CORE',
+		weeklyMinutes: pair.weeklyMinutes,
+		termMode: pair.termMode,
+		termIdentities: pair.termIdentities,
+		rotationFamily: pair.rotationFamily,
+		rotationOrder: pair.rotationOrder,
+		provenance: 'derived-demand',
+	}));
 }
 
 /**
@@ -1240,24 +1215,8 @@ export async function buildReconciliationSourceRevision(snapshot: Reconciliation
 				updatedAt: snapshot.termConfig.updatedAt,
 			}
 			: null,
-		offerings: snapshot.offerings
-			.map((offering) => ({
-				id: offering.id,
-				subjectId: offering.subjectId,
-				gradeLevel: offering.gradeLevel,
-				programType: offering.programType,
-				sectionMirrorId: offering.sectionMirrorId,
-				cohortId: offering.cohortId,
-				classification: offering.classification,
-				weeklyMinutes: offering.weeklyMinutes,
-				rotationFamily: offering.rotationFamily,
-				rotationOrder: offering.rotationOrder,
-				termMode: offering.termMode,
-				isActive: offering.isActive,
-				version: offering.version,
-				terms: offering.termAssignments.map((assignment) => assignment.termIdentity).sort((a, b) => a.localeCompare(b)),
-			}))
-			.sort((a, b) => a.id - b.id),
+		derivedDemandRevision: snapshot.derivedDemand.ok ? snapshot.derivedDemand.revision : null,
+		derivedDemandBlockers: snapshot.derivedDemand.ok ? [] : snapshot.derivedDemand.blockers.map((entry) => entry.code).sort(),
 		sections: snapshot.sections
 			.map((section) => ({
 				id: section.id,
@@ -1417,12 +1376,8 @@ export async function readReconciliationSourceSnapshot(
 ): Promise<ReconciliationSourceSnapshot> {
 	const tx = client as any;
 	const schoolYearAuthority = await readSchoolYearAuthoritySnapshot(tx, schoolId, schoolYearId);
-	const [termConfig, offerings, sections, cohorts, subjects, faculty, facultySubjects, ownership, specializationAliases, crossDepartmentPermissions, departmentAliasRows, departmentLabelRows, subjectOwnerPrefixRows, policyRow, cycleRead] = await Promise.all([
-		tx.schoolYearTermConfig.findFirst({ where: { schoolId, schoolYearId, isActive: true } }),
-		tx.schoolYearOffering.findMany({
-			where: { schoolId, schoolYearId, isActive: true },
-			include: { termAssignments: { select: { termIdentity: true } } },
-		}),
+	const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId, { client: tx as never });
+	const [sections, cohorts, subjects, faculty, facultySubjects, ownership, specializationAliases, crossDepartmentPermissions, departmentAliasRows, departmentLabelRows, subjectOwnerPrefixRows, policyRow, cycleRead] = await Promise.all([
 		tx.sectionMirror.findMany({ where: { schoolId, schoolYearId, isActiveForScheduling: true, isStale: false } }),
 		tx.instructionalCohort.findMany({ where: { schoolId, schoolYearId, isActive: true } }),
 		tx.subject.findMany({ where: { schoolId } }),
@@ -1459,30 +1414,15 @@ export async function readReconciliationSourceSnapshot(
 		schoolId,
 		schoolYearId,
 		schoolYearAuthority,
-		termConfig: termConfig
+		termConfig: derivedDemand.ok
 			? {
-				id: termConfig.id,
-				termCount: termConfig.termCount,
-				termIdentities: Array.isArray(termConfig.termIdentities) ? (termConfig.termIdentities as string[]) : [],
-				updatedAt: new Date(termConfig.updatedAt).toISOString(),
+				id: 0,
+				termCount: derivedDemand.termStructure.terms.length,
+				termIdentities: derivedDemand.termStructure.terms.map((term) => term.identity),
+				updatedAt: '',
 			}
 			: null,
-		offerings: offerings.map((offering: any) => ({
-			id: offering.id,
-			subjectId: offering.subjectId,
-			gradeLevel: offering.gradeLevel,
-			programType: offering.programType,
-			sectionMirrorId: offering.sectionMirrorId,
-			cohortId: offering.cohortId,
-			classification: offering.classification,
-			weeklyMinutes: offering.weeklyMinutes,
-			rotationFamily: offering.rotationFamily,
-			rotationOrder: offering.rotationOrder,
-			termMode: offering.termMode,
-			isActive: offering.isActive,
-			version: offering.version,
-			termAssignments: offering.termAssignments.map((assignment: any) => ({ termIdentity: assignment.termIdentity })),
-		})),
+		derivedDemand,
 		sections: sections.map((section: any) => ({
 			id: section.id,
 			externalId: section.externalId,
@@ -1572,6 +1512,8 @@ export interface TeachingLoadReconciliationPreview {
 	schoolYearId: number;
 	fingerprint: string;
 	sourceRevision: string;
+	/** Canonical derived-demand semantic revision (DEMAND-C01 authority). */
+	derivedDemandRevision: string | null;
 	termConfig: { id: number; termCount: number; termIdentities: string[] } | null;
 	generatedAt: string;
 	before: {
@@ -1640,6 +1582,7 @@ export async function previewTeachingLoadReconciliation(
 		schoolYearId,
 		fingerprint: plan.fingerprint,
 		sourceRevision: plan.sourceRevision,
+		derivedDemandRevision: snapshot.derivedDemand.ok ? snapshot.derivedDemand.revision : null,
 		termConfig: snapshot.termConfig
 			? { id: snapshot.termConfig.id, termCount: snapshot.termConfig.termCount, termIdentities: snapshot.termConfig.termIdentities }
 			: null,

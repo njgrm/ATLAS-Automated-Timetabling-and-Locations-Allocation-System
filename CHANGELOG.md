@@ -1,5 +1,38 @@
 # Changelog
 
+## [2026-09-11] — DEMAND-C01 Canonical Derived Demand Authority
+
+### Added
+- Added `derived-demand.service.ts`: one deterministic, read-only demand
+  contract derived from the sole active non-archived EnrollPro year + verified
+  ordered term structure, active section mirrors, and ATLAS Subject scheduling
+  metadata. Emits `SCHEDULED_TEACHING` demand per `school/year/term/subject/section`
+  and unique `school/year/subject/section` Teaching Load pairs, with one SHA-256
+  semantic revision and typed blockers.
+- Added `derived-demand-authority.test.ts` proving all-term coverage, rotation
+  ordering, reference-only exclusion, exact grade/program scope, fail-closed
+  term/rotation handling, revision semantics, offering-independence, consumer
+  agreement, scheduler override usage, and zero-write reads.
+
+### Changed
+- `teaching-load-reconciliation.service.ts`, `timetable-demand.service.ts`, and
+  `generation.service.ts` now consume the derived contract; `runHybridScheduler`
+  honors `demandOverride` instead of calling `computeDemand()` on the
+  current-year path. Each consumer surfaces the same `derivedDemandRevision`.
+- Current-year reads no longer select `SchoolYearOffering` /
+  `OfferingTermAssignment` / `SchoolYearTermConfig` as authority.
+
+### Decisions Made
+- "Incomplete rotation metadata" means partially specified metadata (order
+  without family, family without integer order), NOT a partially covered family;
+  rotation presence is authoritative even when a family spans a subset of terms.
+- Offering-authority rows are retained only as transition diagnostics outside
+  this stream; they are absent from the derived demand path.
+
+### Open Questions
+- `pre-generation-draft.service.ts` still calls legacy `computeDemand()`; the
+  successor generation-readiness stream must retire it.
+
 ## [2026-09-11] — TERM-CONSUME-C02 Ordered Structure vs Active-Term Resolution
 
 ### Added

@@ -21,6 +21,86 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+
+import { deriveCanonicalDemand, type DerivedDemandInput } from '../services/derived-demand.service.js';
+
+const TEST_TERM_CONTRACT = {
+  schoolId: 1,
+  schoolYear: { id: 9001, yearLabel: '2029-2030' },
+  format: 'TRIMESTER' as const,
+  terms: [
+    { identity: 'Term 1', displayLabel: 'Term 1', order: 1, startDate: '2029-06-01', endDate: '2029-09-01' },
+    { identity: 'Term 2', displayLabel: 'Term 2', order: 2, startDate: '2029-09-02', endDate: '2030-01-01' },
+    { identity: 'Term 3', displayLabel: 'Term 3', order: 3, startDate: '2030-01-02', endDate: '2030-04-01' },
+  ],
+  semanticRevision: 'A'.repeat(64),
+  activeTerm: { identity: 'Term 1', displayLabel: 'Term 1', order: 1 },
+  activeTermState: { availability: 'RESOLVED' as const, code: null, message: 'resolved', reachable: true, identity: 'Term 1' },
+};
+
+/** Build a cacheable, semantically valid EnrollPro term contract for a fixture year. */
+function buildTermContractCache(schoolId: number, schoolYearId: number) {
+  // PostgreSQL JSONB normalizes object key order, so the stored semantic revision
+  // must be computed over the jsonb-normalized object the validator will read back.
+  const normalize = (value: any): any => {
+    if (Array.isArray(value)) return value.map(normalize);
+    if (value && typeof value === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const key of Object.keys(value).sort((a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0))) {
+        out[key] = normalize(value[key]);
+      }
+      return out;
+    }
+    return value;
+  };
+  const terms = normalize(TEST_TERM_CONTRACT.terms);
+  const schoolYear = normalize({ id: schoolYearId, yearLabel: '2029-2030' });
+  const structure = { schoolId, schoolYear, format: 'TRIMESTER' as const, terms };
+  const semanticRevision = createHash('sha256').update(JSON.stringify(structure)).digest('hex');
+  return {
+    ...structure,
+    semanticRevision,
+    activeTerm: { identity: 'Term 1', displayLabel: 'Term 1', order: 1 },
+    activeTermState: { availability: 'RESOLVED' as const, code: null, message: 'resolved', reachable: true, identity: 'Term 1' },
+  };
+}
+
+/** Build the canonical derived demand for a hermetic snapshot's subjects/sections. */
+function buildDerivedFor(snapshot: any) {
+  const terms = snapshot.termConfig?.termIdentities ?? TEST_TERM_CONTRACT.terms.map((term) => term.identity);
+  const input: DerivedDemandInput = {
+    schoolId: snapshot.schoolId,
+    schoolYearId: snapshot.schoolYearId,
+    yearLabel: snapshot.schoolYearAuthority?.yearLabel ?? '2029-2030',
+    termFormat: 'TRIMESTER',
+    termStructureRevision: TEST_TERM_CONTRACT.semanticRevision,
+    terms: terms.map((identity: string, index: number) => ({ identity, displayLabel: identity, order: index + 1 })),
+    sections: (snapshot.sections ?? []).map((entry: any) => ({
+      sectionMirrorId: entry.id,
+      externalId: entry.externalId,
+      gradeLevel: entry.displayOrder ?? entry.gradeLevel ?? 7,
+      programType: entry.programType,
+      isActiveForScheduling: entry.isActiveForScheduling !== false,
+      isStale: entry.isStale === true,
+    })),
+    subjects: (snapshot.subjects ?? []).map((entry: any) => ({
+      id: entry.id,
+      code: entry.code,
+      name: entry.name ?? entry.code,
+      schedulingDisposition: entry.code === 'HG' ? 'REFERENCE_ONLY' : 'SCHEDULED_TEACHING',
+      gradeLevels: entry.gradeLevels ?? [],
+      programScopes: entry.programScopes ?? [],
+      rotationFamily: entry.rotationFamily ?? null,
+      modularOrder: entry.modularOrder ?? null,
+      minMinutesPerWeek: entry.minMinutesPerWeek ?? 0,
+      isActive: entry.isActive !== false,
+    })),
+    periodLengthMinutes: 60,
+  };
+  return deriveCanonicalDemand(input);
+}
+
 
 let passCount = 0;
 let failCount = 0;
@@ -62,7 +142,7 @@ function loadServerEnv() {
 // ─── Part A: hermetic snapshot builders ─────────────────────────────────────
 
 function buildSnapshot(overrides: Record<string, unknown> = {}) {
-  return {
+  const snapshot: any = {
     schoolId: 1,
     schoolYearId: 9001,
     schoolYearAuthority: { authorityMode: 'SOLE_ACTIVE_NON_ARCHIVED', mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
@@ -97,8 +177,8 @@ function buildSnapshot(overrides: Record<string, unknown> = {}) {
     subjects: [
       { id: 11, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'MATH', rotationFamily: null, modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
       { id: 12, code: 'ENG', name: 'English', minMinutesPerWeek: 240, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'ENG', rotationFamily: null, modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
-      { id: 13, code: 'SCI_BIO', name: 'Science Biology', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
-      { id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
+      { id: 13, code: 'SCI_BIO', name: 'Science Biology', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: 1, termGroupId: null, termCount: 3, isActive: true },
+      { id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: 2, termGroupId: null, termCount: 3, isActive: true },
       { id: 99, code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 300, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'ESP', rotationFamily: null, modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
     ],
     faculty: [
@@ -117,7 +197,9 @@ function buildSnapshot(overrides: Record<string, unknown> = {}) {
     departmentRevision: { revisionHash: 'DEADBEEF', aliasRows: 0, labelRows: 0 },
     cycleState: { state: 'POPULATED', version: 1 },
     ...overrides,
-  } as any;
+  };
+  snapshot.derivedDemand = buildDerivedFor(snapshot);
+  return snapshot;
 }
 
 function stubResolver(rules: Array<{ facultyId: number; subjectId: number; programType: string; eligible: boolean; tier: number | null }> = []) {
@@ -156,7 +238,7 @@ function focusedSnapshot(input: {
     { id: 501, externalId: 101, gradeLevel: 7, programType: 'REGULAR', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 },
     { id: 502, externalId: 102, gradeLevel: 7, programType: 'REGULAR', displayOrder: 7, isActiveForScheduling: true, isStale: false, version: 1 },
   ];
-  return {
+  const snapshot: any = {
     schoolId: 1,
     schoolYearId: 9001,
     schoolYearAuthority: { authorityMode: 'SOLE_ACTIVE_NON_ARCHIVED', mirrorId: 7, enrollProSchoolYearId: 9001, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced', updatedAt: '2026-09-08T20:43:57.400Z' },
@@ -176,7 +258,9 @@ function focusedSnapshot(input: {
     workloadPolicy: input.workloadPolicy ?? { teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400, status: 'CONFIGURED' },
     departmentRevision: { revisionHash: 'DEADBEEF', aliasRows: (input.departmentAliases?.length ?? 0), labelRows: (input.departmentLabels?.length ?? 0) },
     cycleState: input.cycleState ?? { state: 'POPULATED', version: 1 },
-  } as any;
+  };
+  snapshot.derivedDemand = buildDerivedFor(snapshot);
+  return snapshot;
 }
 
 function regularOffering(id: number, subjectId: number, classification = 'CORE', minutes = 240, termMode = 'ALL', termAssignments: Array<{ termIdentity: string }> = [], rotationFamily: string | null = null) {
@@ -385,10 +469,10 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
     const planB = await svc.buildReconciliationPlan(snapshotB, stubResolver());
     assertEqual(planA.fingerprint, planB.fingerprint, 'identical snapshots → identical fingerprints');
     assertEqual(planA.sourceRevision, planB.sourceRevision, 'identical snapshots → identical source revision');
-    const drifted = buildSnapshot({ offerings: (buildSnapshot() as any).offerings.map((offering: any) => offering.id === 1001 ? { ...offering, version: 2 } : offering) });
+    const drifted = buildSnapshot({ subjects: (buildSnapshot() as any).subjects.map((subject: any) => subject.id === 11 ? { ...subject, minMinutesPerWeek: 300 } : subject) });
     const planC = await svc.buildReconciliationPlan(drifted, stubResolver());
-    assert(planC.sourceRevision !== planA.sourceRevision, 'offering version drift flips the source revision');
-    assert(planC.fingerprint !== planA.fingerprint, 'offering version drift flips the fingerprint');
+    assert(planC.sourceRevision !== planA.sourceRevision, 'semantic Subject drift flips the source revision');
+    assert(planC.fingerprint !== planA.fingerprint, 'semantic Subject drift flips the fingerprint');
     const authorityDrifted = buildSnapshot({
       schoolYearAuthority: { ...(buildSnapshot() as any).schoolYearAuthority, mirrorId: 8 },
     });
@@ -656,6 +740,8 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
         isActive: true,
         isArchived: false,
         syncStatus: 'synced',
+        termContractCache: buildTermContractCache(fixtureSchoolId, fixtureYearId),
+        termContractCachedAt: new Date(),
       },
     });
 
@@ -674,7 +760,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     const mathSubject = await instrumented.subject.create({
       data: {
         schoolId: fixtureSchoolId, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240,
-        programScopes: ['REGULAR'], gradeLevels: [7], ownerDepartment: 'MATH', isActive: true,
+        programScopes: ['REGULAR'], gradeLevels: [7, 8], ownerDepartment: 'MATH', isActive: true,
       },
       select: { id: true },
     });
@@ -858,9 +944,9 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     assert(writes().length === 0, 'forged fingerprint apply performs zero writes');
 
     resetRecording();
-    await instrumented.schoolYearOffering.updateMany({
-      where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, subjectId: fixtureSubjectMath },
-      data: { weeklyMinutes: 250 },
+    await instrumented.subject.update({
+      where: { id: fixtureSubjectMath },
+      data: { minMinutesPerWeek: 250 },
     });
     resetRecording();
     threw = false;
@@ -873,11 +959,11 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     } catch (error: any) {
       threw = error?.code === 'SOURCE_DRIFT' && error?.statusCode === 409;
     }
-    assert(threw, 'offering drift after preview → 409 SOURCE_DRIFT, zero writes');
+    assert(threw, 'semantic Subject drift after preview → 409 SOURCE_DRIFT, zero writes');
     assert(writes().length === 0, 'drifted apply performs zero writes');
-    await instrumented.schoolYearOffering.updateMany({
-      where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, subjectId: fixtureSubjectMath },
-      data: { weeklyMinutes: 240 },
+    await instrumented.subject.update({
+      where: { id: fixtureSubjectMath },
+      data: { minMinutesPerWeek: 240 },
     });
 
     section('B5. apply is Serializable + idempotent and keeps derived state consistent');
@@ -1064,7 +1150,7 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     assert(threw, 'unknown (cross-school) year → 404 YEAR_MIRROR_NOT_FOUND');
     // Known requested mirror but no active year → 409 ACTIVE_YEAR_UNAVAILABLE.
     await instrumented.enrollProSchoolYearMirror.create({
-      data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2028-2029', isActive: false, isArchived: false, syncStatus: 'synced' },
+      data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2028-2029', isActive: false, isArchived: false, syncStatus: 'synced', termContractCache: buildTermContractCache(fixtureSchoolId, fixtureYearId), termContractCachedAt: new Date() },
     });
     threw = false;
     try {

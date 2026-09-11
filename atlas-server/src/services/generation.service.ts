@@ -20,7 +20,6 @@ import {
 } from './constraint-validator.js';
 import {
 	constructBaseline,
-	computeDemand,
 	buildTimetableShapeContract,
 	buildUnionDisplaySlots,
 	type ConstructorInput,
@@ -30,6 +29,7 @@ import {
 	type UnassignedItem,
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
+import { buildDerivedDemand, toSchedulerDemandOverride } from './derived-demand.service.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import { getSectionSummary, syncSectionsFromExternal } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -287,6 +287,8 @@ export interface RunSummary {
 	canonicalTemplateVersion?: string;
 	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>;
 	inputSnapshot?: GenerationInputSnapshot;
+	/** DEMAND-C01: canonical derived-demand semantic revision the run was built from. */
+	derivedDemandRevision?: string;
 }
 
 function normalizeProgramType(programType?: string | null): string {
@@ -943,7 +945,19 @@ export async function triggerGenerationRun(
 		});
 
 		const schedulableSubjects = subjects.filter((subject) => subject.code !== 'HG');
-		const demand = computeDemand(sectionsByGrade, schedulableSubjects, cohorts, classTemplatePeriods);
+		// DEMAND-C01: the canonical derived-demand contract is the sole demand
+		// authority on the current-year path. A typed blocker replaces any silent
+		// fallback to legacy catalog `computeDemand()` or persisted offerings.
+		const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId, {
+			periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes ?? 45,
+		});
+		if (!derivedDemand.ok) {
+			throw err(409, 'DERIVED_DEMAND_BLOCKED', 'The canonical derived demand could not be resolved for this school year.', {
+				actionHint: 'Resolve the active school year term structure and Subject rotation metadata before generating.',
+				details: { schoolId, schoolYearId, blockers: derivedDemand.blockers },
+			});
+		}
+		const demand = toSchedulerDemandOverride(derivedDemand, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
 		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
 		const constructorInput: ConstructorInput = {
 			schoolId,
@@ -1012,6 +1026,7 @@ export async function triggerGenerationRun(
 			buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
 			classTemplatePeriods,
 			timetableShapes: timetableShapeContracts,
+			demandOverride: demand,
 		};
 		const result = runHybridScheduler(constructorInput);
 		const entriesWithTerms = ensureEntriesHaveTermIndex(result.entries);
@@ -1196,6 +1211,7 @@ export async function triggerGenerationRun(
 			canonicalTemplateVersion: CANONICAL_TEMPLATE_VERSION,
 			timetableDisplaySlots,
 			inputSnapshot,
+			derivedDemandRevision: derivedDemand.revision,
 		};
 
 		const finishedAt = new Date();

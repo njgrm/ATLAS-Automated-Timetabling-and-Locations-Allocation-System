@@ -423,8 +423,10 @@ export function runHybridScheduler(input: ConstructorInput): HybridSchedulerResu
 	const seedQuality: SeedQualitySummary[] = [];
 	const candidates: Array<{ result: ConstructorResult; profile: SeedProfile; fitness: FitnessScore }> = [];
 
-	// H-ALG-1: Compute base demand once, permute per profile
-	const baseDemand = computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
+	// H-ALG-1: Compute base demand once, permute per profile. DEMAND-C01: when
+	// the caller supplies the canonical derived-demand override, it is the
+	// authority and `computeDemand()` is never consulted on the current-year path.
+	const baseDemand = input.demandOverride ?? computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
 
 	for (const profile of SEED_PROFILES) {
 		try {
