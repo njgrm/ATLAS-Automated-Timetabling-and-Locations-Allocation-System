@@ -1,5 +1,28 @@
 # Changelog
 
+## [2026-09-11] — GEN-C02 Planner Correction Boundary
+
+### Added
+- Added the bounded GEN-C02R correction packet for executable stakeholder
+  morning/afternoon shape parity and mounted disposable-PostgreSQL zero-write
+  evidence.
+
+### Changed
+- Corrected the GEN-C02 immutable review base to `6f7b3c52` and marked candidate
+  `900ea7ff` correction-required.
+- Assigned Simple Timetable readiness consumption to the already completed
+  UX-C01 candidate instead of authorizing duplicate edits across parallel
+  branches.
+
+### Decisions Made
+- Kept GEN-C02R server-only because UX-C01 owns `useTimetableData.ts`.
+- Required real disposable-database route evidence; an in-memory write recorder
+  remains useful but is not the decisive production-path proof.
+
+### Open Questions
+- UX-C01 still needs an executor handoff and independent QA before the combined
+  operator readiness requirement can close.
+
 ## [2026-09-11] — DEMAND-C01 Derived Demand and Ordered-Term Closure
 
 ### Added
