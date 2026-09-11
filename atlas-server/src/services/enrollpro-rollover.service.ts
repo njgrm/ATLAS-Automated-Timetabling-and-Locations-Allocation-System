@@ -7,7 +7,7 @@ import { fetchEnrollProActiveSchoolYear, normalizeProgramMetadata } from './sect
 import { publishNotificationEvent } from './notification-events.service.js';
 import { ensureCanonicalClassProgramSlots } from './class-program-slot.service.js';
 import { ensureTeachingLoadCycle, serializeTeachingLoadCycle, type TeachingLoadCycleSource } from './teaching-load-cycle.service.js';
-import { syncActiveTermContractAuthority, type TermContractSyncResult } from './enrollpro-term-contract.service.js';
+import { syncActiveTermContractAuthority, resolveTermAuthorityStatus, fetchEnrollProTermContract, type TermContractSyncResult, type TermAuthorityStatus } from './enrollpro-term-contract.service.js';
 
 type DriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
 type RolloverAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR' | 'RUN_ARCHIVE_AND_SYNC';
@@ -147,6 +147,22 @@ export type RolloverStatusResult = {
 	resetTargetSchoolYearId: number | null;
 	conflictingRecordCounts: RolloverDummyYearRecordCounts | null;
 	teachingLoadResetRequired: boolean;
+	/**
+	 * RR-TERM-CACHE-C01: `teachingLoadResetRequired` is derived from the
+	 * dummy/test-data reset preview. This qualifies its scope so an aligned,
+	 * populated year is never described as needing a Teaching Load reset.
+	 */
+	teachingLoadReset?: {
+		required: boolean;
+		scope: 'DUMMY_YEAR_RESET_PREVIEW';
+		applicable: boolean;
+		reason: string;
+	};
+	/**
+	 * RR-TERM-CACHE-C01: persisted ordered-term authority for the active year,
+	 * independent from year drift. `drift.recommendedAction` never implies it.
+	 */
+	termAuthority?: TermAuthorityStatus;
 	publishedResetBlocked: boolean;
 	testDataMarked: boolean;
 	/** RR-09A: years already archived as read-only history. */
@@ -748,7 +764,13 @@ async function buildDummyYearResetPreview(
 		confirmationText: DUMMY_YEAR_RESET_CONFIRMATION_TEXT,
 		canResetDummyYear: blockers.length === 0 && hasAnyDummyRows(counts),
 		publishedResetBlocked: counts.publishedGenerationRuns > 0 || counts.publishedScheduleRevisions > 0,
-		teachingLoadResetRequired: counts.teachingLoadFacultySubjects > 0 || counts.teachingLoadOwnerships > 0,
+		// RR-TERM-CACHE-C01: a Teaching Load reset is only meaningful when the
+		// typed dummy/test-data reset path actually applies. An aligned, populated
+		// year keeps its Teaching Load; existing current-year rows alone must never
+		// surface a global reset requirement.
+		teachingLoadResetRequired: blockers.length === 0
+			&& hasAnyDummyRows(counts)
+			&& (counts.teachingLoadFacultySubjects > 0 || counts.teachingLoadOwnerships > 0),
 		counts,
 		blockers,
 	};
@@ -871,12 +893,50 @@ export async function classifyRecoveryState(
 	};
 }
 
+/**
+ * RR-TERM-CACHE-C01: read the full `/integration/v1/school-year` document once
+ * so the active-year comparison AND the persisted-term-authority check share a
+ * single upstream read. Returns null when the document is unavailable.
+ */
+async function fetchActiveSchoolYearPayload(authToken?: string): Promise<unknown | null> {
+	try {
+		return await fetchJson(SCHOOL_YEAR_ENDPOINT, authToken);
+	} catch {
+		return null;
+	}
+}
+
+function extractActiveYearFromPayload(payload: unknown): EnrollProYearInfo | null {
+	if (!payload || typeof payload !== 'object') return null;
+	const data = (payload as { data?: unknown }).data;
+	if (!data || typeof data !== 'object') return null;
+	const record = data as Record<string, unknown>;
+	const id = Number(record.id ?? record.schoolYearId);
+	const yearLabel = typeof record.yearLabel === 'string' && record.yearLabel.trim().length > 0 ? record.yearLabel : null;
+	if (!Number.isInteger(id) || id <= 0 || !yearLabel) return null;
+	return { id, yearLabel };
+}
+
 export async function getRolloverStatus(
 	schoolId: number,
 	authToken?: string,
 	options?: { includeCounts?: boolean; atlasSchoolYearId?: number | null },
 ): Promise<RolloverStatusResult> {
 	const atlasSchoolYearId = options?.atlasSchoolYearId ?? await getLatestAtlasSchoolYearId(schoolId);
+	let schoolYearPayload: unknown | null = null;
+
+	const resolveTermAuthority = (upstreamYear: EnrollProYearInfo | null) => resolveTermAuthorityStatus(
+		{
+			schoolId,
+			schoolYearId: atlasSchoolYearId,
+			authToken,
+			upstreamReachable: upstreamYear != null,
+			aligned: upstreamYear != null && atlasSchoolYearId === upstreamYear.id,
+		},
+		upstreamYear != null && schoolYearPayload != null
+			? { fetchLive: () => fetchEnrollProTermContract({ schoolId, schoolYearId: upstreamYear.id, authToken, schoolYearPayload: schoolYearPayload ?? undefined }) }
+			: undefined,
+	);
 
 	const health = await fetchEnrollProIntegrationHealth(authToken);
 	if (!health.reachable) {
@@ -915,13 +975,20 @@ export async function getRolloverStatus(
 			resetTargetSchoolYearId: null,
 			conflictingRecordCounts: null,
 			teachingLoadResetRequired: false,
+			teachingLoadReset: {
+				required: false,
+				scope: 'DUMMY_YEAR_RESET_PREVIEW',
+				applicable: false,
+				reason: 'The dummy/test-data reset preview requires a reachable EnrollPro active school year.',
+			},
+			termAuthority: await resolveTermAuthority(null),
 			publishedResetBlocked: false,
 			testDataMarked: false,
 			archivedYears: await listArchivedYears(schoolId, false),
 		};
 	}
 
-	const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
+	const upstreamYear = extractActiveYearFromPayload(schoolYearPayload = await fetchActiveSchoolYearPayload(authToken));
 	const mirror = upstreamYear
 		? await prisma.enrollProSchoolYearMirror.findUnique({
 			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: upstreamYear.id } },
@@ -1003,6 +1070,15 @@ export async function getRolloverStatus(
 		resetTargetSchoolYearId: resetPreview.targetSchoolYearId,
 		conflictingRecordCounts: resetPreview.counts,
 		teachingLoadResetRequired: resetPreview.teachingLoadResetRequired,
+		teachingLoadReset: {
+			required: resetPreview.teachingLoadResetRequired,
+			scope: 'DUMMY_YEAR_RESET_PREVIEW',
+			applicable: resetPreview.canResetDummyYear,
+			reason: resetPreview.canResetDummyYear
+				? 'The dummy/test-data reset preview applies to this school year.'
+				: 'The dummy/test-data reset preview does not apply to the current rollover state; Teaching Load is preserved.',
+		},
+		termAuthority: await resolveTermAuthority(upstreamYear),
 		publishedResetBlocked: resetPreview.publishedResetBlocked,
 		archivedYears: await listArchivedYears(schoolId, false),
 	};

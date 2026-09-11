@@ -17,6 +17,7 @@ import {
 } from '../services/enrollpro-rollover.service.js';
 import { publishNotificationEvent } from '../services/notification-events.service.js';
 import { getOrCreateTeachingLoadCycleSource } from '../services/teaching-load-cycle.service.js';
+import { applyTermCacheSync, previewTermCacheSync } from '../services/enrollpro-term-contract.service.js';
 import { getAutomationStatus, isTestModeEnabled, markSchoolYearAsTestData, withSchoolLock } from '../services/rollover-automation.service.js';
 
 const router = Router();
@@ -351,6 +352,67 @@ router.post('/rollover-archive/apply', authenticateWithSystemToken, async (req: 
 			acknowledgeReconfiguredSectionIds: Array.isArray(req.body?.acknowledgeReconfiguredSectionIds)
 				? req.body.acknowledgeReconfiguredSectionIds
 				: undefined,
+		}));
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// ─── RR-TERM-CACHE-C01: narrow, actor-scoped term-authority catch-up ───
+//
+// Year alignment is reported separately by `/rollover-status`. This contract
+// repairs ONLY a missing/stale persisted ordered-term cache; it never runs the
+// broad faculty/section/Teaching Load rollover apply.
+
+function assertActorTermCacheScope(req: Request, res: Response, schoolId: number): boolean {
+	const actorSchool = Number(req.user?.schoolId);
+	if (!Number.isInteger(actorSchool) || actorSchool <= 0) {
+		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Saving term authority requires an authenticated actor school.' });
+		return false;
+	}
+	if (actorSchool !== schoolId) {
+		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot save term authority for another school.' });
+		return false;
+	}
+	return true;
+}
+
+router.post('/term-authority/preview', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
+		if (typeof schoolId === 'string') {
+			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+			return;
+		}
+		const result = await withSchoolLock(schoolId, () => previewTermCacheSync({
+			schoolId,
+			authToken: getUpstreamAuthToken(req),
+		}));
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+router.post('/term-authority/apply', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		if (!isPrivilegedRole(req.user?.role)) {
+			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can save ordered term authority.' });
+			return;
+		}
+		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
+		if (typeof schoolId === 'string') {
+			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+			return;
+		}
+		if (!assertActorTermCacheScope(req, res, schoolId)) return;
+		const result = await withSchoolLock(schoolId, () => applyTermCacheSync({
+			schoolId,
+			actorId: req.user?.userId ?? 0,
+			authToken: getUpstreamAuthToken(req),
+			confirmationText: req.body?.confirmationText,
+			fingerprint: req.body?.fingerprint,
 		}));
 		res.json(result);
 	} catch (err) {

@@ -206,9 +206,87 @@ export interface RolloverStatus {
 	resetTargetSchoolYearId: number | null;
 	conflictingRecordCounts: RolloverDummyYearRecordCounts | null;
 	teachingLoadResetRequired: boolean;
+	/**
+	 * RR-TERM-CACHE-C01: `teachingLoadResetRequired` is the dummy/test-data
+	 * reset preview only. This qualifies its scope so an aligned, populated
+	 * year is never described as needing a Teaching Load reset.
+	 */
+	teachingLoadReset?: {
+		required: boolean;
+		scope: 'DUMMY_YEAR_RESET_PREVIEW';
+		applicable: boolean;
+		reason: string;
+	};
+	/** RR-TERM-CACHE-C01: persisted term authority, independent from year drift. */
+	termAuthority?: TermAuthorityStatus;
 	publishedResetBlocked: boolean;
 	/** RR-09A: years already archived as read-only history. */
 	archivedYears?: ArchivedYearSummary[];
+}
+
+export interface TermAuthorityStatus {
+	state:
+		| 'PERSISTED_CURRENT'
+		| 'MISSING'
+		| 'PERSISTED_STALE'
+		| 'UPSTREAM_UNAVAILABLE'
+		| 'INVALID_UPSTREAM_CONTRACT'
+		| 'YEAR_NOT_MIRRORED'
+		| 'CACHE_INVALID'
+		| 'PERSISTED_UNVERIFIED';
+	code: string | null;
+	message: string;
+	persisted: boolean;
+	persistedSemanticRevision: string | null;
+	liveSemanticRevision: string | null;
+	cachedAt: string | null;
+	termCount: number | null;
+	needsRepair: boolean;
+	repairAction: 'NONE' | 'PREVIEW_TERM_CACHE_SYNC' | 'RETRY_ENROLLPRO';
+	canPreview: boolean;
+}
+
+export interface TermCacheTerm {
+	identity: string;
+	displayLabel: string;
+	order: number;
+	startDate: string | null;
+	endDate: string | null;
+}
+
+export interface TermCachePreviewResult {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	mirrorId: number;
+	state: 'READY' | 'ALREADY_CURRENT';
+	code: string | null;
+	message: string;
+	format: 'TRIMESTER' | 'QUARTERS';
+	terms: TermCacheTerm[];
+	liveSemanticRevision: string;
+	persistedSemanticRevision: string | null;
+	cachedAt: string | null;
+	activeTermAvailability: string;
+	fingerprint: string;
+	confirmationText: string;
+	zeroWrite: boolean;
+}
+
+export interface TermCacheApplyResult {
+	schoolId: number;
+	schoolYearId: number;
+	yearLabel: string;
+	mirrorId: number;
+	applied: boolean;
+	replayed: boolean;
+	written: boolean;
+	semanticRevision: string;
+	previousSemanticRevision: string | null;
+	activeTermAvailability: string;
+	auditId: number | null;
+	cachedAt: string;
+	terms: TermCacheTerm[];
 }
 
 export interface RolloverApplyResult extends RolloverStatus {
@@ -529,6 +607,65 @@ export async function applyArchiveAndSync(
 		schoolId,
 		reason: options?.reason,
 		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
+	});
+	return data;
+}
+
+// ─── RR-TERM-CACHE-C01: narrow term-authority catch-up ───
+
+export type TermAuthorityView = {
+	needsRepair: boolean;
+	badgeLabel: string;
+	explanation: string;
+	primaryAction: 'NONE' | 'PREVIEW_TERM_CACHE_SYNC' | 'RETRY_ENROLLPRO';
+};
+
+/**
+ * Pure presentation decision for persisted term authority. Year drift and term
+ * authority are separate states: an aligned year whose ordered terms are not
+ * saved must never read as "no action needed".
+ */
+export function describeTermAuthority(termAuthority: TermAuthorityStatus | null | undefined): TermAuthorityView {
+	if (!termAuthority || !termAuthority.needsRepair) {
+		return { needsRepair: false, badgeLabel: 'Year aligned', explanation: '', primaryAction: 'NONE' };
+	}
+	if (termAuthority.state === 'MISSING' || termAuthority.state === 'CACHE_INVALID' || termAuthority.state === 'PERSISTED_STALE') {
+		return {
+			needsRepair: true,
+			badgeLabel: termAuthority.state === 'PERSISTED_STALE' ? 'Terms changed at source' : 'Year current — terms not saved',
+			explanation: termAuthority.message,
+			primaryAction: 'PREVIEW_TERM_CACHE_SYNC',
+		};
+	}
+	if (termAuthority.state === 'UPSTREAM_UNAVAILABLE' || termAuthority.repairAction === 'RETRY_ENROLLPRO') {
+		return {
+			needsRepair: true,
+			badgeLabel: "Can't reach EnrollPro",
+			explanation: termAuthority.message,
+			primaryAction: 'RETRY_ENROLLPRO',
+		};
+	}
+	return {
+		needsRepair: true,
+		badgeLabel: 'Terms need attention',
+		explanation: termAuthority.message,
+		primaryAction: termAuthority.repairAction,
+	};
+}
+
+export async function previewTermCacheSync(schoolId = 1): Promise<TermCachePreviewResult> {
+	const { data } = await atlasApi.post<TermCachePreviewResult>('/runtime/term-authority/preview', { schoolId });
+	return data;
+}
+
+export async function applyTermCacheSync(
+	schoolId = 1,
+	input: { confirmationText: string; fingerprint: string },
+): Promise<TermCacheApplyResult> {
+	const { data } = await atlasApi.post<TermCacheApplyResult>('/runtime/term-authority/apply', {
+		schoolId,
+		confirmationText: input.confirmationText,
+		fingerprint: input.fingerprint,
 	});
 	return data;
 }
