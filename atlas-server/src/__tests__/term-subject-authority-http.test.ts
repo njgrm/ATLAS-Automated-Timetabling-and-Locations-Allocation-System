@@ -152,14 +152,14 @@ test('mounted Subject scheduling authority route returns verified EnrollPro term
 		assert.equal(mathAfter.schedulingDisposition, 'SCHEDULED_TEACHING');
 		assert.equal(mathAfter.updatedAt.getTime(), mathBefore.updatedAt.getTime(), 'rejected patch must not bump updatedAt');
 
+		// TERM-CONSUME-C02: the passive scheduling-authority read must be
+		// zero-write. It may use a verified live structure, but it must never
+		// create, repair, or update the mirror cache.
 		const cached = await prisma.enrollProSchoolYearMirror.findUnique({
 			where: { schoolId_enrollProSchoolYearId: { schoolId: SCHOOL_ID, enrollProSchoolYearId: SCHOOL_YEAR_ID } },
 		});
-		assert.ok(cached?.termContractCache);
-		assert.ok(cached?.termContractCachedAt);
-		assert.deepEqual((cached?.termContractCache as any).terms.map((term: any) => term.identity), [
-			'Term-A', 'term-b', 'term_C',
-		]);
+		assert.equal(cached?.termContractCache ?? null, null, 'passive read must not write the term contract cache');
+		assert.equal(cached?.termContractCachedAt ?? null, null, 'passive read must not write the cache verification time');
 	} finally {
 		await prisma.subject.deleteMany({ where: { schoolId: SCHOOL_ID } });
 		await prisma.enrollProSchoolYearMirror.deleteMany({ where: { schoolId: SCHOOL_ID } });

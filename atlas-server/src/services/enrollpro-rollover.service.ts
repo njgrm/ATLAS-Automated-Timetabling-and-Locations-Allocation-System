@@ -7,6 +7,7 @@ import { fetchEnrollProActiveSchoolYear, normalizeProgramMetadata } from './sect
 import { publishNotificationEvent } from './notification-events.service.js';
 import { ensureCanonicalClassProgramSlots } from './class-program-slot.service.js';
 import { ensureTeachingLoadCycle, serializeTeachingLoadCycle, type TeachingLoadCycleSource } from './teaching-load-cycle.service.js';
+import { syncActiveTermContractAuthority, type TermContractSyncResult } from './enrollpro-term-contract.service.js';
 
 type DriftStatus = 'aligned' | 'atlas-stale' | 'enrollpro-unreachable' | 'mapping-conflict';
 type RolloverAction = 'NONE' | 'RUN_ROLLOVER_SYNC' | 'REVIEW_MAPPING_CONFLICT' | 'RETRY_ENROLLPRO' | 'RESET_DUMMY_YEAR' | 'RUN_ARCHIVE_AND_SYNC';
@@ -160,6 +161,12 @@ export type RolloverApplyResult = RolloverStatusResult & {
 		policyReady: boolean;
 		canonicalTemplatesSeeded: number;
 	};
+	/**
+	 * TERM-CONSUME-C02: only present when the caller explicitly opts into the
+	 * explicit term-structure cache synchronization (`syncTermContract: true`).
+	 * The cache is never written by passive reads.
+	 */
+	termContract: TermContractSyncResult | null;
 };
 
 export type ResetDummyYearInput = {
@@ -1422,7 +1429,7 @@ export async function previewArchiveAndSync(
 export async function applyRolloverSync(
 	schoolId: number,
 	authToken?: string,
-	options?: { facultyMode?: FacultySyncMode; actorId?: number; acknowledgeReconfiguredSectionIds?: number[]; initiatedBy?: 'user' | 'system' },
+	options?: { facultyMode?: FacultySyncMode; actorId?: number; acknowledgeReconfiguredSectionIds?: number[]; initiatedBy?: 'user' | 'system'; syncTermContract?: boolean },
 ): Promise<RolloverApplyResult> {
 	const startedAt = Date.now();
 	const preview = await previewRolloverSync(schoolId, authToken);
@@ -1640,6 +1647,25 @@ export async function applyRolloverSync(
 		includeCounts: true,
 		atlasSchoolYearId: activeYear.id,
 	});
+	// TERM-CONSUME-C02: the exact active mirror is established above. Only an
+	// explicit opt-in writes the verified term-structure cache; a failed
+	// term-structure verification (e.g. no current term) never fails rollover.
+	let termContract: TermContractSyncResult | null = null;
+	if (options?.syncTermContract) {
+		try {
+			termContract = await syncActiveTermContractAuthority({ schoolId, schoolYearId: activeYear.id, authToken });
+		} catch (error) {
+			termContract = {
+				state: 'BLOCKED',
+				code: 'TERM_CONTRACT_SYNC_FAILED',
+				message: error instanceof Error ? error.message.slice(0, 300) : String(error),
+				written: false,
+				idempotent: false,
+				semanticRevision: null,
+				contract: null,
+			};
+		}
+	}
 	return {
 		...status,
 		applied: true,
@@ -1649,6 +1675,7 @@ export async function applyRolloverSync(
 			policyReady: true,
 			canonicalTemplatesSeeded,
 		},
+		termContract,
 	};
 }
 

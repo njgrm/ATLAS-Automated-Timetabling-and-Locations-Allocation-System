@@ -226,6 +226,7 @@ router.post('/rollover-sync/apply', authenticateWithSystemToken, async (req: Req
 		}
 		const result = await withSchoolLock(schoolId, () => applyRolloverSync(schoolId, getUpstreamAuthToken(req), {
 			actorId: req.user?.userId ?? 0,
+			syncTermContract: true,
 			acknowledgeReconfiguredSectionIds: Array.isArray(req.body?.acknowledgeReconfiguredSectionIds)
 				? req.body.acknowledgeReconfiguredSectionIds
 				: undefined,

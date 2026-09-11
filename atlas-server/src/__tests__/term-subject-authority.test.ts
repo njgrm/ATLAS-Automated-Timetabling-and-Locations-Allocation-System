@@ -66,8 +66,9 @@ test('real adapter fixture preserves the ordered three-term EnrollPro contract',
 		assert.deepEqual(result.contract.terms.map((term) => term.identity), ['T1', 'T2', 'T3']);
 		assert.deepEqual(result.contract.terms.map((term) => term.displayLabel), ['First Trimester', 'Second Trimester', 'Third Trimester']);
 		assert.equal(result.contract.terms[0].startDate, '2030-06-03');
-		assert.equal(result.contract.activeTerm.identity, 'T2');
-		assert.equal(result.contract.activeTerm.order, 2);
+		assert.equal(result.contract.activeTerm?.identity, 'T2');
+		assert.equal(result.contract.activeTerm?.order, 2);
+		assert.equal(result.contract.activeTermState.availability, 'RESOLVED');
 		assert.match(result.contract.semanticRevision, /^[a-f0-9]{64}$/);
 	});
 });
@@ -92,33 +93,30 @@ test('mixed authoritative identities and labels remain exact through active reso
 		assert.equal(live.ok, true);
 		if (!live.ok) return;
 		assert.deepEqual(live.contract.terms, expectedTerms);
-		assert.equal(live.contract.activeTerm.identity, 'term-b');
-		assert.equal(live.contract.activeTerm.displayLabel, 'Studio Cycle β');
+		assert.equal(live.contract.activeTerm?.identity, 'term-b');
+		assert.equal(live.contract.activeTerm?.displayLabel, 'Studio Cycle β');
+		assert.equal(live.contract.activeTermState.availability, 'RESOLVED');
 
 		const expectedSemantic = {
 			schoolId: SCHOOL_ID,
 			schoolYear: { id: 77, yearLabel: '2030-2031' },
 			format: 'TRIMESTER',
 			terms: expectedTerms,
-			activeTerm: { identity: 'term-b', displayLabel: 'Studio Cycle β', order: 2 },
 		};
 		assert.equal(
 			live.contract.semanticRevision,
 			createHash('sha256').update(JSON.stringify(expectedSemantic)).digest('hex'),
 		);
 
-		const cacheWrites: CachedTermContractRecord[] = [];
 		const resolved = await resolveTermContractWithDependencies(
 			{ schoolId: SCHOOL_ID, schoolYearId: 77, authToken: 'fixture-token' },
 			{
 				fetchLive: async () => live,
 				loadCache: async () => null,
-				saveCache: async (record) => { cacheWrites.push(record); },
 			},
 		);
 		assert.equal(resolved.state, 'VERIFIED_LIVE');
-		assert.equal(cacheWrites.length, 1);
-		assert.deepEqual(cacheWrites[0].contract, live.contract);
+		assert.deepEqual(resolved.contract, live.contract);
 
 		const view = buildSubjectSchedulingAuthorityView([
 			{ id: 42, code: 'SCI_MIXED', rotationFamily: 'SCIENCE', modularOrder: 2, schedulingDisposition: 'SCHEDULED_TEACHING' as const },
@@ -158,8 +156,8 @@ test('real adapter fixture supports four ordered terms without a T1-T3 ceiling',
 		assert.deepEqual(result.contract.terms.map((term) => term.identity), ['Q-A', 'Q-B', 'Q-C', 'Q-D']);
 		assert.equal(result.contract.terms[3].displayLabel, 'Fourth Quarter / Capstone');
 		assert.equal(result.contract.terms[3].endDate, '2032-03-27');
-		assert.equal(result.contract.activeTerm.identity, 'Q-D');
-		assert.equal(result.contract.activeTerm.order, 4);
+		assert.equal(result.contract.activeTerm?.identity, 'Q-D');
+		assert.equal(result.contract.activeTerm?.order, 4);
 		const view = buildSubjectSchedulingAuthorityView([
 			{ id: 41, code: 'SCI_Q4', rotationFamily: 'SCIENCE', modularOrder: 4, schedulingDisposition: 'SCHEDULED_TEACHING' as const },
 		], { state: 'VERIFIED_LIVE', source: 'enrollpro', degraded: false, code: null, message: 'verified', contract: result.contract });
@@ -191,18 +189,15 @@ test('flat live contracts fail closed when ordered identities or labels are miss
 			assert.equal(live.ok, false, name);
 			if (live.ok) return;
 			assert.equal(live.error.code, 'TERM_ENTRY_INVALID', name);
-			let cacheWrites = 0;
 			const resolved = await resolveTermContractWithDependencies(
 				{ schoolId: SCHOOL_ID, schoolYearId: 88, authToken: 'fixture-token' },
 				{
 					fetchLive: async () => live,
 					loadCache: async () => null,
-					saveCache: async () => { cacheWrites += 1; },
 				},
 			);
 			assert.equal(resolved.state, 'BLOCKED', name);
 			assert.equal(resolved.contract, null, name);
-			assert.equal(cacheWrites, 0, name);
 		});
 	}
 });
@@ -292,19 +287,30 @@ test('matching verified cache is degraded, while cross-year cache blocks', async
 		{
 			fetchLive: async () => ({ ok: false, error: { code: 'ENROLLPRO_UNREACHABLE', message: 'offline' } }),
 			loadCache: async () => matchingCache,
-			saveCache: async () => assert.fail('degraded fallback must not rewrite cache'),
 		},
 	);
 	assert.equal(degraded.state, 'VERIFIED_CACHED');
 	assert.equal(degraded.degraded, true);
+	assert.equal(degraded.contract?.activeTerm, null);
+	assert.equal(degraded.contract?.activeTermState.availability, 'UNAVAILABLE');
+	assert.deepEqual(degraded.contract?.terms.map((term) => term.identity), ['T1', 'T2', 'T3']);
 	assert.match(degraded.message, /saved term contract/i);
+
+	const crossSchool = await resolveTermContractWithDependencies(
+		{ schoolId: SCHOOL_ID, schoolYearId: 77, authToken: 'fixture-token' },
+		{
+			fetchLive: async () => ({ ok: false, error: { code: 'ENROLLPRO_UNREACHABLE', message: 'offline' } }),
+			loadCache: async () => ({ ...matchingCache, contract: { ...live, schoolId: SCHOOL_ID + 1 } }),
+		},
+	);
+	assert.equal(crossSchool.state, 'BLOCKED');
+	assert.equal(crossSchool.code, 'TERM_CACHE_SCHOOL_MISMATCH');
 
 	const crossYear = await resolveTermContractWithDependencies(
 		{ schoolId: SCHOOL_ID, schoolYearId: 77, authToken: 'fixture-token' },
 		{
 			fetchLive: async () => ({ ok: false, error: { code: 'ENROLLPRO_UNREACHABLE', message: 'offline' } }),
 			loadCache: async () => ({ ...matchingCache, contract: { ...live, schoolYear: { ...live.schoolYear, id: 78 } } }),
-			saveCache: async () => assert.fail('invalid cache must not be rewritten'),
 		},
 	);
 	assert.equal(crossYear.state, 'BLOCKED');
@@ -315,29 +321,32 @@ test('matching verified cache is degraded, while cross-year cache blocks', async
 		{
 			fetchLive: async () => ({ ok: false, error: { code: 'ENROLLPRO_UNREACHABLE', message: 'offline' } }),
 			loadCache: async () => ({ ...matchingCache, contract: { ...live, semanticRevision: '0'.repeat(64) } }),
-			saveCache: async () => assert.fail('tampered cache must not be rewritten'),
 		},
 	);
 	assert.equal(tampered.state, 'BLOCKED');
 	assert.equal(tampered.code, 'TERM_CACHE_INVALID');
 });
 
-test('only a verified live contract is cached', async () => {
-	const live = await withResolvedFixtureContract();
-	let saved = 0;
-	const result = await resolveTermContractWithDependencies(
-		{ schoolId: SCHOOL_ID, schoolYearId: 77, authToken: 'fixture-token' },
-		{
-			fetchLive: async () => ({ ok: true, contract: live }),
-			loadCache: async () => null,
-			saveCache: async (record) => {
-				saved += 1;
-				assert.equal(record.contract.semanticRevision, live.semanticRevision);
-			},
-		},
+test('the semantic revision binds the ordered structure, not the active-term resolution', async () => {
+	const resolved = await withResolvedFixtureContract();
+	let unresolved: VerifiedTermContract | undefined;
+	await withEnrollProFixture({
+		'/integration/v1/school-year': { body: trimesterSchoolYear() },
+		'/integration/v1/active-term': { status: 409, body: { code: 'ACTIVE_TERM_UNRESOLVED' } },
+	}, async (baseUrl) => {
+		const result = await fetchEnrollProTermContract({ baseUrl, authToken: 'fixture-token', schoolId: SCHOOL_ID, schoolYearId: 77 });
+		assert.equal(result.ok, true);
+		if (result.ok) unresolved = result.contract;
+	});
+	assert.ok(unresolved);
+	const unresolvedContract = unresolved as VerifiedTermContract;
+	assert.equal(unresolvedContract.activeTerm, null);
+	assert.equal(unresolvedContract.activeTermState.availability, 'UNRESOLVED');
+	assert.equal(
+		unresolvedContract.semanticRevision,
+		resolved.semanticRevision,
+		'same ordered structure must share a semantic revision across active-term availability states',
 	);
-	assert.equal(result.state, 'VERIFIED_LIVE');
-	assert.equal(saved, 1);
 });
 
 test('rotation resolution reports missing, duplicate, and out-of-range family order', async () => {
