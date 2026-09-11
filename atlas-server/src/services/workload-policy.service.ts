@@ -33,6 +33,15 @@ export const WORKLOAD_DEFAULTS: WorkloadPolicy = {
 	hardCapMinutes: 2_400,           // 40 hours
 } as const;
 
+/**
+ * Deterministic revision signature for an effective workload policy. Used to
+ * bind a reviewed distribution plan to the exact persisted policy that
+ * produced it, so a policy change between preview and apply fails closed.
+ */
+export function workloadPolicyRevision(policy: WorkloadPolicy): string {
+	return `std:${Math.round(policy.teachingStandardMinutes)};adv:${Math.round(policy.advisoryCreditMinutes)};cap:${Math.round(policy.hardCapMinutes)}`;
+}
+
 // ─── Pure computation ───
 
 /**

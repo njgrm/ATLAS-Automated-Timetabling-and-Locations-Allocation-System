@@ -40,7 +40,8 @@ import {
 	previewOrApplyStaleOwnershipReconcile,
 } from './faculty-assignment.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
-import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
+import { WORKLOAD_DEFAULTS, workloadPolicyRevision, type WorkloadPolicy } from './workload-policy.service.js';
+import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 
 const db = () => getDataContext();
 
@@ -117,21 +118,7 @@ export interface DistributionInsertAction {
 	facultyId: number;
 }
 
-export interface DistributionMoveAction {
-	action: 'MOVE';
-	ownershipId: number;
-	facultySubjectId: number;
-	subjectId: number;
-	subjectCode: string;
-	subjectName: string;
-	sectionId: number;
-	sectionName: string;
-	fromFacultyId: number;
-	fromFacultyName: string;
-	toFacultyId: number;
-	toFacultyName: string;
-	minutes: number;
-}
+export type DistributionMoveAction = OverCapRebalanceMove & { action: 'MOVE' };
 
 export interface TeachingLoadDistributionSummary {
 	/** Subject-section pairs that already have a valid owner. */
@@ -159,7 +146,19 @@ export interface TeachingLoadDistributionPlan {
 	retains: DistributionRetainAction[];
 	inserts: DistributionInsertAction[];
 	moves: DistributionMoveAction[];
+	/**
+	 * Exact persisted workload policy that produced this plan. Null when the
+	 * policy was UNCONFIGURED; the plan must then never be applied.
+	 */
+	policy: TeachingLoadDistributionPolicyBinding | null;
 	summary: TeachingLoadDistributionSummary;
+}
+
+export interface TeachingLoadDistributionPolicyBinding {
+	teachingStandardMinutes: number;
+	advisoryCreditMinutes: number;
+	hardCapMinutes: number;
+	revision: string;
 }
 
 export interface AutoFillResult {
@@ -1020,14 +1019,43 @@ function isSpecialProgramGeneralistSpecialization(specialization: string | null 
 	return normalized === 'MAJOR_IN_MAPEH' || normalized === 'MAPEH';
 }
 
-function resolveQualificationTier(
-	faculty: FacultyRow,
-	subject: SubjectRow,
-	aliasesByCanonical: Map<string, Set<string>>,
-): number | null {
+export interface TeachingLoadQualificationFaculty {
+	specialization: string | null;
+	department: string | null;
+	canTeachOutsideDepartment: boolean;
+}
+
+export interface TeachingLoadQualificationSubject {
+	code: string;
+	name: string;
+	allowedSpecializations: string[] | null | undefined;
+	ownerDepartment: string | null;
+	requiredFeatures: string[] | null | undefined;
+}
+
+export type TeachingLoadQualificationAuthority =
+	| 'HG'
+	| 'SPECIALIZATION_ALIAS'
+	| 'ALLOWED_SPECIALIZATION'
+	| 'DEPARTMENT'
+	| 'SPECIAL_PROGRAM_BASELINE'
+	| 'OUTSIDE_DEPARTMENT_OVERRIDE';
+
+/**
+ * Canonical qualification resolver. Returns both the tier used for ranking and
+ * the exact authority branch that granted eligibility. The distribution plan
+ * binds the authority branch so an apply can detect a qualification/authority
+ * change between preview and write.
+ */
+export function resolveTeachingLoadQualification(input: {
+	faculty: TeachingLoadQualificationFaculty;
+	subject: TeachingLoadQualificationSubject;
+	aliasesByCanonical: Map<string, Set<string>>;
+}): { tier: number | null; authority: TeachingLoadQualificationAuthority | null } {
+	const { faculty, subject, aliasesByCanonical } = input;
 	const code = subject.code.toUpperCase();
 	if (code === 'HG' || subject.name.toLowerCase().includes('homeroom')) {
-		return 1;
+		return { tier: 1, authority: 'HG' };
 	}
 
 	// Tier 1: SpecializationAlias match
@@ -1036,48 +1064,52 @@ function resolveQualificationTier(
 		const canonKey = subject.code.trim().toLowerCase();
 		const aliasSet = aliasesByCanonical.get(canonKey);
 		if (aliasSet && aliasSet.has(normalizedSpecialization)) {
-			return 1;
+			return { tier: 1, authority: 'SPECIALIZATION_ALIAS' };
 		}
 	}
 
-	// Tier 2: allowedSpecializations match
 	const allowed = (subject.allowedSpecializations ?? []).map((entry) => entry.trim().toLowerCase());
 	const normalizedSpecialization = faculty.specialization?.trim().toLowerCase() ?? null;
 	const normalizedDepartment = faculty.department?.trim().toLowerCase() ?? null;
 
 	if (normalizedSpecialization && allowed.includes(normalizedSpecialization)) {
-		return 2;
+		return { tier: 2, authority: 'ALLOWED_SPECIALIZATION' };
 	}
 	if (normalizedDepartment && allowed.includes(normalizedDepartment)) {
-		return 2;
+		return { tier: 2, authority: 'ALLOWED_SPECIALIZATION' };
 	}
 
-	// Department match
 	const isDepartmentOwner = matchesSubjectOwnershipDepartment(
 		faculty.department,
 		subject.code,
 		subject.name,
 		subject.ownerDepartment,
-		subject.requiredFeatures,
+		subject.requiredFeatures ?? [],
 	);
 	if (isDepartmentOwner) {
-		return 2;
+		return { tier: 2, authority: 'DEPARTMENT' };
 	}
 
-	// Special program baseline MAPEH rule
 	if (isSpecialProgramSpecializationSubject(subject.code)
 		&& isSpecialProgramBaselineDepartment(faculty.department)
 		&& isSpecialProgramGeneralistSpecialization(faculty.specialization)
 	) {
-		return 2;
+		return { tier: 2, authority: 'SPECIAL_PROGRAM_BASELINE' };
 	}
 
-	// Override fallback
 	if (faculty.canTeachOutsideDepartment) {
-		return 3;
+		return { tier: 3, authority: 'OUTSIDE_DEPARTMENT_OVERRIDE' };
 	}
 
-	return null;
+	return { tier: null, authority: null };
+}
+
+function resolveQualificationTier(
+	faculty: FacultyRow,
+	subject: SubjectRow,
+	aliasesByCanonical: Map<string, Set<string>>,
+): number | null {
+	return resolveTeachingLoadQualification({ faculty, subject, aliasesByCanonical }).tier;
 }
 
 function compareSubjectsDeterministically(sa: SubjectRow, sb: SubjectRow): number {
@@ -1495,8 +1527,11 @@ export function summarizeDistributionPlan(input: {
 }): TeachingLoadDistributionSummary {
 	const distributionEvaluated = input.distributionEvaluated !== false;
 	const aboveStandardFaculty = input.overCapFaculty.length;
+	// The accepted Teaching Load contract measures hard-cap breaches from actual
+	// teaching minutes only; advisory/ancillary credit is neutral and can never
+	// create a hard-cap breach on its own.
 	const hardCapBreaches = input.overCapFaculty.filter(
-		(member) => (member.totalCreditedMinutes ?? member.teachingMinutes) > input.hardCapMinutes,
+		(member) => member.teachingMinutes > input.hardCapMinutes,
 	).length;
 	// A donor is resolved only when the proposed moves cover the whole amount the
 	// donor is over; a partially-relieved donor still leaves an unresolved row.
@@ -1543,6 +1578,7 @@ export function emptyDistributionPlan(): TeachingLoadDistributionPlan {
 		retains: [],
 		inserts: [],
 		moves: [],
+		policy: null,
 		summary: {
 			coveredRows: 0,
 			uncoveredRows: 0,
@@ -1593,10 +1629,11 @@ async function buildTeachingLoadDistributionPlan(params: {
 			authToken: params.authToken,
 			previewOnly: true,
 		});
-		// If the evaluator resolved no sections it could not judge distribution.
-		// Treat that as unevaluated so `balanced` can never be inferred from a
-		// silently empty over-cap list.
-		if (rebalance.sectionsResolved <= 0) {
+		// If the evaluator resolved no sections or could not resolve the effective
+		// persisted policy it could not judge distribution. Treat that as
+		// unevaluated so `balanced` can never be inferred from a silently empty
+		// over-cap list or an invented policy.
+		if (rebalance.sectionsResolved <= 0 || rebalance.evaluated !== true) {
 			distributionEvaluated = false;
 		}
 	} catch {
@@ -1612,6 +1649,8 @@ async function buildTeachingLoadDistributionPlan(params: {
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
 			sectionsResolved: 0,
+			policy: null,
+			evaluated: false,
 		};
 	}
 
@@ -1620,16 +1659,32 @@ async function buildTeachingLoadDistributionPlan(params: {
 		...move,
 	}));
 
+	const policy = rebalance.policy;
+	const policyBinding: TeachingLoadDistributionPolicyBinding | null = policy != null
+		? {
+			teachingStandardMinutes: policy.teachingStandardMinutes,
+			advisoryCreditMinutes: policy.advisoryCreditMinutes,
+			hardCapMinutes: policy.hardCapMinutes,
+			revision: workloadPolicyRevision(policy),
+		}
+		: null;
+	if (policyBinding == null) {
+		distributionEvaluated = false;
+	}
+
 	return {
 		retains,
 		inserts,
 		moves,
+		policy: policyBinding,
 		summary: summarizeDistributionPlan({
 			coveredRows: params.preserved,
 			uncoveredRows: params.unresolved,
 			moves,
 			overCapFaculty: rebalance.overCapFaculty,
-			hardCapMinutes: HARD_CAP_MIN,
+			// The effective persisted hard cap is write authority; the module
+			// default is never used to judge balance.
+			hardCapMinutes: policyBinding?.hardCapMinutes ?? WORKLOAD_DEFAULTS.hardCapMinutes,
 			distributionEvaluated,
 		}),
 	};
@@ -2572,6 +2627,10 @@ export interface OverCapRebalanceMove {
 	toFacultyId: number;
 	toFacultyName: string;
 	minutes: number;
+	/** Qualification tier the reviewed receiver matched at preview time. */
+	toQualificationTier: number;
+	/** Exact authority branch that granted receiver eligibility. */
+	toQualificationAuthority: TeachingLoadQualificationAuthority;
 }
 
 export interface OverCapRebalanceFacultyDetail {
@@ -2596,6 +2655,10 @@ export interface OverCapRebalanceResult {
 	facultyMirrorVersionsBumped: number;
 	/** Sections the evaluator resolved. 0 means distribution was not evaluated. */
 	sectionsResolved: number;
+	/** Effective persisted workload policy used for this evaluation. */
+	policy: EffectiveWorkloadPolicy | null;
+	/** True only when a persisted effective policy was resolved and evaluated. */
+	evaluated: boolean;
 }
 
 export async function previewOrApplyOverCapRebalance(
@@ -2610,6 +2673,18 @@ export async function previewOrApplyOverCapRebalance(
 		});
 	}
 
+	// The accepted Teaching Load contract is driven by the current persisted
+	// effective policy, never a module-level default. An UNCONFIGURED policy
+	// means distribution cannot be judged, so the evaluator reports unevaluated
+	// and proposes no move (fail closed, zero writes).
+	const policyResolution = await getEffectiveWorkloadPolicyFromClient(
+		db() as any,
+		input.schoolId,
+		input.schoolYearId,
+	);
+	const effectivePolicy = policyResolution.policy;
+	const effectiveStandardMinutes = effectivePolicy?.teachingStandardMinutes ?? null;
+
 	const sectionResult = await fetchSectionsForRuntimeControls(input.schoolId, input.schoolYearId, {
 		authToken: input.authToken,
 		preferLocalEvidenceFirst: true,
@@ -2620,7 +2695,7 @@ export async function previewOrApplyOverCapRebalance(
 			if (section.id > 0) allSectionIds.push(section.id);
 		}
 	}
-	if (allSectionIds.length === 0) {
+	if (allSectionIds.length === 0 || effectiveStandardMinutes == null) {
 		return {
 			applied: false,
 			schoolId: input.schoolId,
@@ -2632,6 +2707,8 @@ export async function previewOrApplyOverCapRebalance(
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
 			sectionsResolved: allSectionIds.length,
+			policy: effectivePolicy,
+			evaluated: false,
 		};
 	}
 
@@ -2688,6 +2765,7 @@ export async function previewOrApplyOverCapRebalance(
 				schoolYearId: input.schoolYearId,
 				sectionId: { in: allSectionIds },
 			},
+			orderBy: [{ id: 'asc' }],
 			select: {
 				id: true,
 				subjectId: true,
@@ -2753,14 +2831,16 @@ export async function previewOrApplyOverCapRebalance(
 	const realOwnershipRows = nonHgRowsForRebalance.filter((o) => realFaculty.some((f) => f.id === o.facultyId));
 	const { capacityUsed } = buildInitialCapacityTracking(realOwnershipRows as ExistingOwnershipRow[]);
 
-	// Detect over-cap faculty
+	// Detect over-cap faculty from ACTUAL teaching minutes under the effective
+	// persisted teaching standard. Advisory/ancillary credit is neutral: it stays
+	// visible as credited workload but can never make a teacher over standard.
 	const overCapFaculty: OverCapRebalanceFacultyDetail[] = [];
 	for (const member of realFaculty) {
 		const teachingMinutes = capacityUsed.get(member.id) ?? 0;
 		const nonTeachingMinutes = nonTeachingMinutesByFaculty.get(member.id) ?? 0;
 		const totalCreditedMinutes = teachingMinutes + nonTeachingMinutes;
-		const capMinutes = Math.max(0, member.maxHoursPerWeek * 60);
-		if (totalCreditedMinutes > capMinutes) {
+		const capMinutes = effectiveStandardMinutes;
+		if (teachingMinutes > capMinutes) {
 			overCapFaculty.push({
 				facultyId: member.id,
 				facultyName: `${member.lastName}, ${member.firstName}`,
@@ -2768,11 +2848,11 @@ export async function previewOrApplyOverCapRebalance(
 				nonTeachingMinutes,
 				totalCreditedMinutes,
 				capMinutes,
-				overMinutes: totalCreditedMinutes - capMinutes,
+				overMinutes: teachingMinutes - capMinutes,
 			});
 		}
 	}
-	overCapFaculty.sort((a, b) => b.overMinutes - a.overMinutes);
+	overCapFaculty.sort((a, b) => (b.overMinutes - a.overMinutes) || (a.facultyId - b.facultyId));
 
 	if (overCapFaculty.length === 0) {
 		return {
@@ -2786,6 +2866,8 @@ export async function previewOrApplyOverCapRebalance(
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
 			sectionsResolved: allSectionIds.length,
+			policy: effectivePolicy,
+			evaluated: true,
 		};
 	}
 
@@ -2812,7 +2894,6 @@ export async function previewOrApplyOverCapRebalance(
 
 	// Build a mutable capacity map for simulating moves
 	const simCapacityUsed = new Map<number, number>(capacityUsed);
-	const simNonTeaching = new Map<number, number>(nonTeachingMinutesByFaculty);
 
 	const proposedMoves: OverCapRebalanceMove[] = [];
 
@@ -2826,7 +2907,7 @@ export async function previewOrApplyOverCapRebalance(
 				return { ownership: o, minutes: subject ? Math.max(0, Number(subject.minMinutesPerWeek) || 0) : 0 };
 			})
 			.filter((entry) => entry.minutes > 0)
-			.sort((a, b) => b.minutes - a.minutes);
+			.sort((a, b) => (b.minutes - a.minutes) || (a.ownership.id - b.ownership.id));
 
 		let remainingOverMinutes = overFaculty.overMinutes;
 
@@ -2842,6 +2923,7 @@ export async function previewOrApplyOverCapRebalance(
 			// Find best receiver
 			let bestReceiver: typeof realFaculty[number] | null = null;
 			let bestTier = Infinity;
+			let bestAuthority: TeachingLoadQualificationAuthority | null = null;
 			let bestSpareMinutes = -1;
 			// Adviser tie-break: an adviser with no real (non-HG) teaching pair for
 			// their advised section is preferred over an otherwise equally eligible
@@ -2852,12 +2934,18 @@ export async function previewOrApplyOverCapRebalance(
 				if (candidate.id === overFaculty.facultyId) continue;
 				if (candidate.isPlaceholder) continue;
 
-				const tier = resolveQualificationTier(candidate, subject, aliasesByCanonical);
-				if (tier == null) continue;
+				const qualification = resolveTeachingLoadQualification({ faculty: candidate, subject, aliasesByCanonical });
+				const tier = qualification.tier;
+				if (tier == null || qualification.authority == null) continue;
 
 				const candidateTeaching = simCapacityUsed.get(candidate.id) ?? 0;
-				const candidateNonTeaching = simNonTeaching.get(candidate.id) ?? 0;
-				const candidateCap = resolveRealFacultyCapMinutes(candidate, REAL_ONLY_STANDARD_MODE, candidateNonTeaching);
+				// Receiver teaching capacity is measured from actual teaching minutes
+				// under the effective teaching standard. Advisory/ancillary credit is
+				// neutral and never reduces this capacity.
+				const candidateCap = Math.min(
+					Math.max(0, Math.round(candidate.maxHoursPerWeek * 60)),
+					effectiveStandardMinutes,
+				);
 				const spareMinutes = candidateCap - candidateTeaching;
 				if (spareMinutes < minutes) continue;
 
@@ -2876,12 +2964,13 @@ export async function previewOrApplyOverCapRebalance(
 				if (betterTier || betterPreference || (samePreference && spareMinutes > bestSpareMinutes)) {
 					bestReceiver = candidate;
 					bestTier = tier;
+					bestAuthority = qualification.authority;
 					bestSpareMinutes = spareMinutes;
 					bestAdviserPreference = adviserPreference;
 				}
 			}
 
-			if (bestReceiver) {
+			if (bestReceiver && bestAuthority != null) {
 				proposedMoves.push({
 					ownershipId: ownership.id,
 					facultySubjectId: ownership.facultySubjectId,
@@ -2895,6 +2984,8 @@ export async function previewOrApplyOverCapRebalance(
 					toFacultyId: bestReceiver.id,
 					toFacultyName: `${bestReceiver.lastName}, ${bestReceiver.firstName}`,
 					minutes,
+					toQualificationTier: bestTier,
+					toQualificationAuthority: bestAuthority,
 				});
 
 				// Update simulation
@@ -2917,6 +3008,8 @@ export async function previewOrApplyOverCapRebalance(
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
 			sectionsResolved: allSectionIds.length,
+			policy: effectivePolicy,
+			evaluated: true,
 		};
 	}
 
@@ -3066,5 +3159,7 @@ export async function previewOrApplyOverCapRebalance(
 		facultySubjectRowsUpdated,
 		facultyMirrorVersionsBumped,
 		sectionsResolved: allSectionIds.length,
+		policy: effectivePolicy,
+		evaluated: true,
 	};
 }

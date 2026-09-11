@@ -240,6 +240,10 @@ function proposalClient(initial: ProposalState, failAudit = false) {
 			const draft = structuredClone(state);
 			const tx: any = {
 				enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 9, isActive: true, isArchived: false }] },
+				schedulingPolicy: {
+					findUnique: async () => ({ teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400 }),
+				},
+				specializationAlias: { findMany: async () => [] },
 				teachingLoadSuggestionProposal: {
 					findUnique: async () => structuredClone(draft.proposal),
 					updateMany: async ({ where, data }: any) => {
@@ -317,6 +321,22 @@ const preview: AutoFillResult = {
 		teacherX: { shortageRows: 0, shortageConcurrentHoursPerWeek: 0, shortageConcurrentMinutesPerWeek: 0, rowsClosedByRealFaculty: 1, rowsClosedByTeacherX: 0 },
 	},
 	suggestedRows: [{ subjectId: 21, subjectCode: 'MATH', subjectName: 'Mathematics', sectionId: 31, sectionName: '7-A', facultyId: 11, facultyName: 'Teacher One', assignmentType: 'REAL_TEACHER' }],
+	distribution: {
+		retains: [],
+		inserts: [{ action: 'INSERT', subjectId: 21, sectionId: 31, facultyId: 11 }],
+		moves: [],
+		policy: { teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400, revision: 'std:1800;adv:300;cap:2400' },
+		summary: {
+			coveredRows: 0,
+			uncoveredRows: 0,
+			proposedMoves: 0,
+			unresolvedImbalance: 0,
+			aboveStandardFaculty: 0,
+			hardCapBreaches: 0,
+			distributionEvaluated: true,
+			balanced: true,
+		},
+	},
 };
 
 const proposalRow = {

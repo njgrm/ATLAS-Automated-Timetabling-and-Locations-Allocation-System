@@ -1,13 +1,17 @@
 import { Prisma, type TeachingLoadSuggestionStatus } from '@prisma/client';
 
 import { getDataContext } from '../lib/data-context.js';
-import { autoFill, type AutoFillResult, type CoverageMode } from './teaching-load-automation.service.js';
+import {
+	autoFill,
+	resolveTeachingLoadQualification,
+	type AutoFillResult,
+	type CoverageMode,
+	type TeachingLoadDistributionPlan,
+} from './teaching-load-automation.service.js';
 import { assertTeachingLoadWriteAuthority } from './faculty-assignment.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
-import { WORKLOAD_DEFAULTS } from './workload-policy.service.js';
-
-// Matches the preview's selected standard mode cap (30h by default).
-const STANDARD_CAP_MINUTES = WORKLOAD_DEFAULTS.teachingStandardMinutes;
+import { workloadPolicyRevision } from './workload-policy.service.js';
+import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 
 const db = () => getDataContext();
 
@@ -75,6 +79,75 @@ function suggestedAssignmentCount(result: AutoFillResult): number {
 		(r) => r.assignmentType === 'REAL_TEACHER' || r.assignmentType === 'TEMPORARY_SUBSTITUTE',
 	).length;
 }
+
+/**
+ * F1 authority: a proposal may only be applied when BOTH the stored (reviewed)
+ * preview and the refreshed preview carry a complete, evaluated distribution
+ * contract. Missing, malformed, unevaluated, or asymmetric contracts fail
+ * closed with zero writes.
+ */
+function isCompleteEvaluatedDistribution(plan: unknown): plan is TeachingLoadDistributionPlan {
+	if (!plan || typeof plan !== 'object') return false;
+	const candidate = plan as Partial<TeachingLoadDistributionPlan> & { summary?: { distributionEvaluated?: unknown } };
+	if (!Array.isArray(candidate.retains) || !Array.isArray(candidate.inserts) || !Array.isArray(candidate.moves)) return false;
+	if (candidate.summary?.distributionEvaluated !== true) return false;
+	const policy = candidate.policy;
+	if (
+		!policy
+		|| typeof policy.revision !== 'string'
+		|| !Number.isFinite(policy.teachingStandardMinutes)
+		|| !Number.isFinite(policy.advisoryCreditMinutes)
+		|| !Number.isFinite(policy.hardCapMinutes)
+	) {
+		return false;
+	}
+	return true;
+}
+
+/**
+ * Deterministic semantic signature for a reviewed distribution plan. Binds
+ * subject, section, faculty-subject identity, minutes, receiver qualification
+ * tier/authority, the applicable policy revision, and deterministic ordering —
+ * not only ownershipId/from/to.
+ */
+function distributionPlanSignature(plan: TeachingLoadDistributionPlan): string {
+	const parts: string[] = [`P:${plan.policy?.revision ?? 'NO_POLICY'}`];
+	for (const insert of plan.inserts) {
+		parts.push(`I:${insert.subjectId}:${insert.sectionId}:${insert.facultyId}`);
+	}
+	for (const move of plan.moves) {
+		parts.push([
+			'M',
+			move.ownershipId,
+			move.facultySubjectId,
+			move.subjectId,
+			move.sectionId,
+			move.fromFacultyId,
+			move.toFacultyId,
+			move.minutes,
+			move.toQualificationTier,
+			move.toQualificationAuthority,
+		].join(':'));
+	}
+	return parts.sort().join('|');
+}
+
+function distributionStale(message: string): ServiceError {
+	return err(409, 'TEACHING_LOAD_PROPOSAL_STALE', message, {
+		actionHint: 'Preview a fresh Teaching Load suggestion, review it, then apply it.',
+	});
+}
+
+function assertPolicyRevisionMatches(plan: TeachingLoadDistributionPlan, policy: EffectiveWorkloadPolicy | null): EffectiveWorkloadPolicy {
+	if (policy == null) {
+		throw distributionStale('The applicable workload policy is no longer configured. Preview a fresh proposal.');
+	}
+	if (workloadPolicyRevision(policy) !== plan.policy?.revision) {
+		throw distributionStale('The applicable workload policy changed since the reviewed preview. Preview a fresh proposal.');
+	}
+	return policy;
+}
+
 
 function suggestedAssignmentBreakdown(result: AutoFillResult): { existingRows: number; realTeacherRows: number; substituteRows: number; newSuggestedRows: number; previewRowCount: number; unresolvedRows: number } {
 	const suggestedRows = result.suggestedRows ?? [];
@@ -248,25 +321,27 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 
 	const breakdown = suggestedAssignmentBreakdown(refreshedPreview);
 
-	// Compare the recomputed reallocation plan against the reviewed preview plan.
-	// A deterministic identity mismatch means the reviewed plan is stale; fail
-	// closed before any write.
-	const reviewedPlan = (existing.previewPayload as { distribution?: { moves?: Array<{ ownershipId: number; fromFacultyId: number; toFacultyId: number }> } } | null)?.distribution;
+	// F1: compare the recomputed reallocation plan against the reviewed preview
+	// plan. BOTH must be complete, evaluated distribution contracts before any
+	// insert or move. A legacy stored proposal without a distribution contract,
+	// a missing/malformed/unevaluated refreshed plan, or an asymmetric pair means
+	// the reviewed plan cannot be honored; fail closed before any write.
+	const reviewedPlan = (existing.previewPayload as { distribution?: unknown } | null)?.distribution;
 	const refreshedPlan = refreshedPreview.distribution;
-	if (reviewedPlan && refreshedPlan) {
-		const planSignature = (plan: { moves?: Array<{ ownershipId: number; fromFacultyId: number; toFacultyId: number }> }) =>
-			(plan.moves ?? [])
-				.map((move) => `${move.ownershipId}:${move.fromFacultyId}>${move.toFacultyId}`)
-				.sort()
-				.join('|');
-		if (planSignature(reviewedPlan) !== planSignature(refreshedPlan)) {
-			throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'The reviewed reallocation plan changed since it was previewed. Preview a fresh proposal.');
-		}
+	if (!isCompleteEvaluatedDistribution(reviewedPlan) || !isCompleteEvaluatedDistribution(refreshedPlan)) {
+		throw distributionStale('The reviewed reallocation plan is missing or was not evaluated. Preview a fresh proposal.');
+	}
+	if (distributionPlanSignature(reviewedPlan) !== distributionPlanSignature(refreshedPlan)) {
+		throw distributionStale('The reviewed reallocation plan changed since it was previewed. Preview a fresh proposal.');
 	}
 
-	const candidateRows = (refreshedPreview.suggestedRows ?? []).filter(
-		(row) => row.assignmentType === 'REAL_TEACHER' && Number.isInteger(row.facultyId) && (row.facultyId ?? 0) > 0,
-	);
+	// The inserts and moves applied are exactly the reviewed plan's structured
+	// actions — never a freshly-derived set from the recomputed preview.
+	const candidateRows = refreshedPlan.inserts.map((insert) => ({
+		subjectId: insert.subjectId,
+		sectionId: insert.sectionId,
+		facultyId: insert.facultyId,
+	}));
 	const unresolvedSuggestionCount = (refreshedPreview.suggestedRows ?? []).filter(
 		(row) => row.assignmentType === 'TEMPORARY_SUBSTITUTE' || row.facultyId == null,
 	).length;
@@ -290,6 +365,12 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				details: { status: currentProposal.status },
 			});
 		}
+
+		// F2/F3: resolve the effective workload policy through THIS transaction
+		// client and bind it to the reviewed plan. A module default is never write
+		// authority, and a policy change after preview invalidates the apply.
+		const txPolicyResolution = await getEffectiveWorkloadPolicyFromClient(tx as any, existing.schoolId, existing.schoolYearId);
+		const txPolicy = assertPolicyRevisionMatches(refreshedPlan, txPolicyResolution.policy);
 
 		const facultyIds = [...new Set(candidateRows.map((row) => row.facultyId as number))];
 		const subjectIds = [...new Set(candidateRows.map((row) => row.subjectId))];
@@ -440,38 +521,100 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 
 		// Apply the distribution moves from the same reviewed plan, atomically with
 		// the coverage inserts. Every move is re-validated against current state
-		// inside this Serializable transaction; any mismatch throws and rolls the
-		// whole apply back (all-or-nothing).
-		const planMoves = refreshedPreview.distribution?.moves ?? [];
+		// inside this Serializable transaction using only the transaction client;
+		// any semantic mismatch throws and rolls the whole apply back
+		// (all-or-nothing).
+		const planMoves = refreshedPlan.moves;
 		let movesApplied = 0;
+
+		// F3: preload the current subjects and specialization aliases once so each
+		// move can recheck qualification/department authority and subject minutes
+		// against the transaction's own view of the data.
+		const moveSubjectIds = [...new Set(planMoves.map((move) => move.subjectId))];
+		const moveSubjectRows = moveSubjectIds.length > 0
+			? await tx.subject.findMany({
+				where: { id: { in: moveSubjectIds }, schoolId: existing.schoolId },
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					isActive: true,
+					minMinutesPerWeek: true,
+					ownerDepartment: true,
+					requiredFeatures: true,
+					allowedSpecializations: true,
+				},
+			})
+			: [];
+		const moveSubjectById = new Map<number, (typeof moveSubjectRows)[number]>(moveSubjectRows.map((subject) => [subject.id, subject]));
+		if (moveSubjectById.size !== moveSubjectIds.length) {
+			throw distributionStale('A subject referenced by the reviewed plan no longer exists. Preview a fresh proposal.');
+		}
+		const moveAliasRows = await tx.specializationAlias.findMany({
+			where: { schoolId: existing.schoolId },
+			select: { canonical: true, alias: true },
+		});
+		const moveAliasesByCanonical = new Map<string, Set<string>>();
+		for (const alias of moveAliasRows) {
+			const canonKey = alias.canonical.trim().toLowerCase();
+			const aliasSet = moveAliasesByCanonical.get(canonKey) ?? new Set<string>();
+			aliasSet.add(alias.alias.trim().toLowerCase());
+			moveAliasesByCanonical.set(canonKey, aliasSet);
+		}
+
 		for (const move of planMoves) {
 			const ownership = await tx.subjectSectionOwnership.findUnique({
 				where: { id: move.ownershipId },
-				select: { facultyId: true, subjectId: true, sectionId: true },
+				select: { facultyId: true, subjectId: true, sectionId: true, facultySubjectId: true },
 			});
 			if (!ownership) {
-				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed move references an ownership row that no longer exists. Preview a fresh proposal.');
+				throw distributionStale('A proposed move references an ownership row that no longer exists. Preview a fresh proposal.');
 			}
 			if (ownership.facultyId === move.toFacultyId) continue; // idempotent within the transaction
 			if (
 				ownership.facultyId !== move.fromFacultyId
 				|| ownership.subjectId !== move.subjectId
 				|| ownership.sectionId !== move.sectionId
+				|| ownership.facultySubjectId !== move.facultySubjectId
 			) {
-				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed move no longer matches the current owner. Preview a fresh proposal.');
+				throw distributionStale('A proposed move no longer matches the current owner or faculty-subject row. Preview a fresh proposal.');
 			}
 
 			const receiver = await tx.facultyMirror.findUnique({
 				where: { id: move.toFacultyId },
 				select: {
 					id: true,
+					firstName: true,
+					lastName: true,
+					department: true,
+					specialization: true,
+					canTeachOutsideDepartment: true,
 					maxHoursPerWeek: true,
 					isActiveForScheduling: true,
 					isStale: true,
+					isPlaceholder: true,
 				},
 			});
-			if (!receiver || !receiver.isActiveForScheduling || receiver.isStale) {
-				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed receiver is no longer active for scheduling. Preview a fresh proposal.');
+			if (!receiver || !receiver.isActiveForScheduling || receiver.isStale || receiver.isPlaceholder) {
+				throw distributionStale('A proposed receiver is no longer active for scheduling. Preview a fresh proposal.');
+			}
+
+			const moveSubject = moveSubjectById.get(move.subjectId);
+			if (!moveSubject || !moveSubject.isActive) {
+				throw distributionStale('A subject referenced by the reviewed plan is no longer active. Preview a fresh proposal.');
+			}
+			const currentSubjectMinutes = Math.max(0, Number(moveSubject.minMinutesPerWeek) || 0);
+			if (currentSubjectMinutes !== move.minutes) {
+				throw distributionStale('A subject weekly-minutes change invalidated the reviewed move. Preview a fresh proposal.');
+			}
+
+			const qualification = resolveTeachingLoadQualification({
+				faculty: receiver,
+				subject: moveSubject,
+				aliasesByCanonical: moveAliasesByCanonical,
+			});
+			if (qualification.tier !== move.toQualificationTier || qualification.authority !== move.toQualificationAuthority) {
+				throw distributionStale('A proposed receiver qualification or authority changed since the reviewed preview. Preview a fresh proposal.');
 			}
 
 			const hgSubject = await tx.subject.findFirst({
@@ -491,12 +634,15 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				(sum, row) => sum + Math.max(0, Number(row.facultySubject?.subject?.minMinutesPerWeek ?? 0) || 0),
 				0,
 			);
-			// Match the preview's selected mode (standard) rather than the looser
-			// absolute cap, so a concurrent receiver-load change cannot push the
-			// receiver past the standard limit the operator reviewed.
-			const receiverCapMinutes = Math.min(Math.max(0, receiver.maxHoursPerWeek * 60), STANDARD_CAP_MINUTES);
-			if (receiverTeachingMinutes + move.minutes > receiverCapMinutes) {
-				throw err(409, 'TEACHING_LOAD_PROPOSAL_STALE', 'A proposed receiver no longer has capacity for this move. Preview a fresh proposal.');
+			// Receiver capacity is ACTUAL teaching minutes under the effective
+			// persisted standard resolved through this transaction. Advisory and
+			// ancillary credit are neutral and never reduce this capacity.
+			const receiverCapMinutes = Math.min(
+				Math.max(0, Math.round(receiver.maxHoursPerWeek * 60)),
+				txPolicy.teachingStandardMinutes,
+			);
+			if (receiverTeachingMinutes + currentSubjectMinutes > receiverCapMinutes) {
+				throw distributionStale('A proposed receiver no longer has capacity for this move. Preview a fresh proposal.');
 			}
 
 			const existingReceiverFs = await tx.facultySubject.findUnique({

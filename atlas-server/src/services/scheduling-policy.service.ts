@@ -919,19 +919,28 @@ export function resolveEffectiveWorkloadPolicy(
 	return { status: 'CONFIGURED', policy: { teachingStandardMinutes, advisoryCreditMinutes, hardCapMinutes } };
 }
 
+type SchedulingPolicyReadClient = {
+	schedulingPolicy: {
+		findUnique: (args: unknown) => Promise<PersistedWorkloadPolicyRow>;
+	};
+};
+
 /**
- * Read-only effective workload policy for a school/year. Performs zero writes:
- * no row creation, no normalization updates, no column ensures, no fallback
- * invention. Passive Teaching Load reads must use this instead of
- * `getOrCreatePolicy`. Schema drift surfaces as UNCONFIGURED (never partial
- * invented values) because the configuration state is unknowable.
+ * Read-only effective workload policy resolved through a specific client.
+ *
+ * Teaching Load mutation paths must resolve the policy through the SAME
+ * transaction client that performs the writes so the effective standard/hard
+ * cap cannot change between the validation read and the write (TOCTOU). This
+ * performs zero writes: no row creation, no normalization, no fallback
+ * invention.
  */
-export async function getEffectiveWorkloadPolicy(
+export async function getEffectiveWorkloadPolicyFromClient(
+	client: SchedulingPolicyReadClient,
 	schoolId: number,
 	schoolYearId: number,
 ): Promise<EffectiveWorkloadPolicyResolution> {
 	try {
-		const row = await db().schedulingPolicy.findUnique({
+		const row = await client.schedulingPolicy.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			select: {
 				teachingStandardMinutes: true,
@@ -948,6 +957,20 @@ export async function getEffectiveWorkloadPolicy(
 		}
 		throw e;
 	}
+}
+
+/**
+ * Read-only effective workload policy for a school/year. Performs zero writes:
+ * no row creation, no normalization updates, no column ensures, no fallback
+ * invention. Passive Teaching Load reads must use this instead of
+ * `getOrCreatePolicy`. Schema drift surfaces as UNCONFIGURED (never partial
+ * invented values) because the configuration state is unknowable.
+ */
+export async function getEffectiveWorkloadPolicy(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<EffectiveWorkloadPolicyResolution> {
+	return getEffectiveWorkloadPolicyFromClient(db() as unknown as SchedulingPolicyReadClient, schoolId, schoolYearId);
 }
 
 // ─── Upsert ───
