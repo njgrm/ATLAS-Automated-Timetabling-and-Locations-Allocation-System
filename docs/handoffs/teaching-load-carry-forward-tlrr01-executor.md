@@ -2,10 +2,11 @@
 
 - Stream: `TL-RR01`
 - Branch: `work/teaching-load-carry-forward-tlrr01`
-- Base SHA: `89440321260a9c4902cc20b7c5a642f47a74e35f` (`origin/main`)
-- Candidate SHA: `PENDING_COMMIT`
+- Base SHA: `89440321260a9c4902cc20b7c5a642f47a74e35f` (the `origin/main` at authoring time)
+- Candidate SHA: `23eae7de0cb7527f3479823913ba1b1a38e6919c` (TL-RR01; integrated into `origin/main` at merge `618589dc`, base for the `TL-RR01R` correction branch `work/teaching-load-carry-forward-tlrr01r`)
 - Verdict: `REVIEW_REQUIRED`
 - Live apply performed: **NO**
+- Note: a handoff committed inside its own candidate cannot name that candidate's SHA. This handoff records the already-integrated TL-RR01 candidate; the TL-RR01R correction commit is identified by its branch tip and its `base...candidate` range, not by a self-referential placeholder.
 
 ## Scope delivered
 

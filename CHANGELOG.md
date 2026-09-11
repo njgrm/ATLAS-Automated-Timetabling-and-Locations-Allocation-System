@@ -1,5 +1,42 @@
 # Changelog
 
+## [2026-09-11] — TL-RR01R Teaching Load Carry-Forward Correction
+
+### Fixed
+- Carry-forward now resolves source and target section grades from the
+  authoritative `SectionMirror.gradeLevelId` through the established EnrollPro
+  grade normalization; `displayOrder` is never used as grade truth, so archived
+  and target display orders may differ without breaking (or falsely creating) a
+  match.
+- An unconfigured effective workload policy now fails carry-forward closed with a
+  typed `409 WORKLOAD_POLICY_UNCONFIGURED` before any write; apply revalidates the
+  policy inside the existing Serializable transaction, and no code path
+  substitutes an infinite hard cap.
+- Carry-forward apply now requires a strict positive authenticated `userId`
+  before the service is invoked. Missing, zero, negative, fractional, or
+  wrong-type actor ids return a typed `403 ACTOR_USER_REQUIRED` with zero reads
+  and zero writes.
+
+### Added
+- Failing-first mutants for display-order-independent grade matching and for
+  different actual grades sharing the same display order/name/program.
+- Disposable-PostgreSQL controls for the unconfigured-policy preview and
+  in-transaction apply blockers and for bad actor ids.
+- The carry-forward Playwright spec is now a durable tracked test; the TL-RR01
+  handoff no longer contains a self-referential `PENDING_COMMIT` placeholder.
+
+### Changed
+- Preserved fill-empty-only behavior, archived-source immutability, fingerprint
+  and revision checks, concurrency handling, replay idempotency, and the client
+  preview-only boundary.
+
+### Decisions Made
+- Grade authority is `SectionMirror.gradeLevelId`; `displayOrder` is presentation
+  metadata only.
+- An unconfigured workload policy is a blocking readiness gap, never an infinite
+  capacity grant.
+- No live carry-forward apply was authorized or performed.
+
 ## [2026-09-11] — GEN-C02R1 Production Preflight Closure
 
 ### Added

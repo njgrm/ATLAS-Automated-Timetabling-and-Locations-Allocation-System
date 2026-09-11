@@ -172,16 +172,18 @@ async function runFixtureTests() {
 		return (row as any).id as number;
 	}
 
-	async function createSection(schoolYearId: number, externalId: number, name: string, programType = 'REGULAR') {
+	async function createSection(schoolYearId: number, externalId: number, name: string, programType = 'REGULAR', gradeLevelId = 7, displayOrder = 7) {
 		const row = await instrumented.sectionMirror.create({
 			data: {
 				schoolId: fixtureSchoolId,
 				schoolYearId,
 				externalId,
 				name,
-				gradeLevelId: 7,
+				// gradeLevelId is the authoritative grade; displayOrder is deliberately
+				// set independently to prove it is never used as grade truth.
+				gradeLevelId,
 				gradeLevelName: 'Grade 7',
-				displayOrder: 7,
+				displayOrder,
 				maxCapacity: 50,
 				enrolledCount: 45,
 				programType,
@@ -249,22 +251,32 @@ async function runFixtureTests() {
 		ids.obs = await createSubject('OBS', { isActive: false });
 		ids.hg = await createSubject('HG', { schedulingDisposition: 'REFERENCE_ONLY' });
 
-		// Archived source sections (their own external ids).
+		// Archived source sections (their own external ids). gradeLevelId 17 = Grade 7
+		// via the EnrollPro normalization; displayOrder is set to a conflicting value
+		// (9) so a displayOrder-as-grade implementation would fail to match.
 		const sourceSectionNames: Array<[number, string]> = [
 			[1101, 'Sampaguita'], [1102, 'Narra'], [1103, 'Rizal'], [1104, 'Mabini'], [1105, 'Bonifacio'],
 			[1106, 'DelPilar'], [1107, 'Malvar'], [1108, 'Aguinaldo'], [1109, 'Aguinaldo'], [1110, 'Balintawak'],
 			[1111, 'Luna'], [1112, 'Quezon'], [1113, 'Tandang Sora'],
 		];
-		for (const [externalId, name] of sourceSectionNames) await createSection(sourceYearId, externalId, name);
+		for (const [externalId, name] of sourceSectionNames) await createSection(sourceYearId, externalId, name, 'REGULAR', 17, 9);
 
-		// Active target sections. Balintawak appears twice on purpose (canonical ambiguity).
+		// Active target sections. gradeLevelId 17 = Grade 7 with displayOrder 7.
+		// Balintawak appears twice on purpose (canonical ambiguity).
 		const targetSectionNames: Array<[number, string]> = [
 			[2101, 'Sampaguita'], [2102, 'Narra'], [2103, 'Rizal'], [2104, 'Mabini'], [2105, 'Bonifacio'],
 			[2106, 'DelPilar'], [2107, 'Aguinaldo'], [2108, 'Balintawak'], [2118, 'Balintawak'], [2109, 'Luna'],
 			[2110, 'Quezon'], [2113, 'Tandang Sora'],
 		];
 		for (let i = 1; i <= 10; i += 1) targetSectionNames.push([2120 + i, `Cap Section ${i}`]);
-		for (const [externalId, name] of targetSectionNames) await createSection(targetYearId, externalId, name);
+		for (const [externalId, name] of targetSectionNames) await createSection(targetYearId, externalId, name, 'REGULAR', 17, 7);
+
+		// Different actual grades sharing the same display order/name/program: the
+		// target "Katipunan" is Grade 8 (gradeLevelId 18) while the source is Grade 7.
+		// A displayOrder-as-grade matcher would wrongly match them; the authoritative
+		// grade keeps them apart.
+		await createSection(sourceYearId, 1114, 'Katipunan', 'REGULAR', 17, 7);
+		await createSection(targetYearId, 2114, 'Katipunan', 'REGULAR', 18, 7);
 
 		ids.fa = await createFaculty('RR1FA', 7001, 'MATH');
 		ids.fb = await createFaculty('RR1FB', 7002, 'MATH');
@@ -297,6 +309,8 @@ async function runFixtureTests() {
 		await createOwnership(sourceYearId, ids.hg, 1111, ids.fa, faHg);
 		await createOwnership(sourceYearId, ids.obs, 1112, ids.fa, faObs);
 		await createOwnership(sourceYearId, ids.eng, 1113, ids.fd, fdEng);
+		// Source Grade 7 Katipunan vs target Grade 8 Katipunan (same display order).
+		await createOwnership(sourceYearId, ids.math, 1114, ids.fa, faMath);
 
 		await instrumented.teachingLoadCycle.create({ data: { schoolId: fixtureSchoolId, schoolYearId: sourceYearId, state: 'POPULATED', version: 1 } });
 
@@ -329,13 +343,16 @@ async function runFixtureTests() {
 		section('F3. preview is zero-write and classifies every archived row');
 		let preview = await run(() => previewTeachingLoadCarryForward(fixtureSchoolId, targetYearId, sourceYearId, fixtureSchoolId));
 		assertEqual(writes().length, 0, 'preview performed zero writes');
-		assertEqual(preview.totalsSummary.sourceRows, 13, 'preview covered all 13 archived rows');
-		assertEqual(preview.totals.EXACT_CARRY, 2, 'two rows are exact carries');
+		assertEqual(preview.totalsSummary.sourceRows, 14, 'preview covered all 14 archived rows');
+		// Archived source sections carry displayOrder=9 while the matching target
+		// sections carry displayOrder=7. The two carries below resolve ONLY because
+		// grade authority comes from gradeLevelId (17 -> Grade 7), not displayOrder.
+		assertEqual(preview.totals.EXACT_CARRY, 2, 'two rows are exact carries despite independent displayOrder values');
 		assertEqual(preview.totals.ALREADY_OCCUPIED, 1, 'one occupied target pair is preserved');
 		assertEqual(preview.totals.MISSING_FACULTY, 2, 'inactive/stale faculty are typed missing');
 		assertEqual(preview.totals.UNQUALIFIED, 1, 'a department-mismatched owner is typed unqualified');
 		assertEqual(preview.totals.CAP_BLOCKED, 1, 'an over-cap carry is typed cap blocked');
-		assertEqual(preview.totals.MISSING_SECTION, 1, 'a section without a target match is typed missing');
+		assertEqual(preview.totals.MISSING_SECTION, 2, 'same-display-order different-grade and no-target sections are typed missing');
 		assertEqual(preview.totals.NO_CURRENT_DEMAND, 2, 'reference-only / inactive subjects are not demand');
 		assertEqual(preview.totals.AMBIGUOUS, 3, 'duplicate canonical source rows and duplicate target sections are ambiguous');
 		assertEqual(preview.totals.OTHER, 0, 'no rows fall through to other');
@@ -348,6 +365,25 @@ async function runFixtureTests() {
 		assert(preview.rows.every((row) => row.reason === 'EXACT_CARRY' || row.action === 'SKIP'), 'skipped rows are never labelled carried');
 		assertEqual(preview.perDepartment.length > 0, true, 'preview carries a compact per-department review');
 		assertEqual(preview.before.demandCount > 0, true, 'preview resolves current demand');
+
+		section('F3b. unconfigured workload policy fails preview closed with zero writes');
+		{
+			const policyRow = await instrumented.schedulingPolicy.findFirst({ where: { schoolId: fixtureSchoolId, schoolYearId: targetYearId }, select: { id: true } });
+			await instrumented.schedulingPolicy.delete({ where: { id: (policyRow as any).id } });
+			resetRecording();
+			let code: string | undefined;
+			try {
+				await run(() => previewTeachingLoadCarryForward(fixtureSchoolId, targetYearId, sourceYearId, fixtureSchoolId));
+			} catch (error) {
+				code = (error as { code?: string })?.code;
+			}
+			assertEqual(code, 'WORKLOAD_POLICY_UNCONFIGURED', 'unconfigured policy blocks preview with a typed 409');
+			assertEqual(writes().length, 0, 'unconfigured-policy preview performed zero writes');
+			await instrumented.schedulingPolicy.create({ data: { schoolId: fixtureSchoolId, schoolYearId: targetYearId, teachingStandardMinutes: stand, advisoryCreditMinutes: 300, hardCapMinutes: cap, periodLengthMinutes: 45 } });
+			resetRecording();
+			const recheck = await run(() => previewTeachingLoadCarryForward(fixtureSchoolId, targetYearId, sourceYearId, fixtureSchoolId));
+			assertEqual(recheck.totals.EXACT_CARRY, 2, 'preview resumes once the policy is configured again');
+		}
 
 		section('F4. mounted-route auth, role, strict-body and year validation (zero reads/writes)');
 		{
@@ -419,6 +455,78 @@ async function runFixtureTests() {
 				notArchivedStatus = response.status;
 			});
 			assertEqual(notArchivedStatus, 409, 'a same/active source year is rejected with 409');
+		}
+
+		section('F4b. apply requires a strict positive authenticated userId (403, zero reads/writes)');
+		{
+			const previousSecret = process.env.JWT_SECRET;
+			process.env.JWT_SECRET = 'tl-rr01-hermetic-secret';
+			const badActorIds: Array<[string, unknown]> = [
+				['missing', undefined],
+				['zero', 0],
+				['negative', -1],
+				['fractional', 1.5],
+				['wrong-type', 'abc'],
+			];
+			for (const [label, userId] of badActorIds) {
+				const payload: Record<string, unknown> = { role: 'officer', authSource: 'local', schoolId: fixtureSchoolId };
+				if (userId !== undefined) payload.userId = userId;
+				const badToken = jwt.sign(payload, process.env.JWT_SECRET);
+				let status = 0;
+				let body: any = null;
+				resetRecording();
+				await withMountedRouter(async (baseUrl) => {
+					const response = await post(baseUrl, badToken, '/api/v1/teaching-load/carry-forward/apply', {
+						schoolId: fixtureSchoolId, targetSchoolYearId: targetYearId, sourceSchoolYearId: sourceYearId,
+						expectedFingerprint: 'x', expectedSourceRevision: 'y', expectedTargetRevision: 'z', confirmationText: TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION,
+					});
+					status = response.status;
+					body = await response.json();
+				});
+				assertEqual(status, 403, `apply with ${label} userId returns 403`);
+				assertEqual(body?.code, 'ACTOR_USER_REQUIRED', `apply with ${label} userId returns ACTOR_USER_REQUIRED`);
+				assertEqual(recorded.length, 0, `apply with ${label} userId performed zero data reads`);
+			}
+			if (previousSecret === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = previousSecret;
+
+			// Direct service invocation also fails closed before any read.
+			resetRecording();
+			let serviceCode: string | undefined;
+			try {
+				await run(() => applyTeachingLoadCarryForward({
+					actorSchoolId: fixtureSchoolId, actorId: 0, schoolId: fixtureSchoolId,
+					targetSchoolYearId: targetYearId, sourceSchoolYearId: sourceYearId,
+					expectedFingerprint: 'x', expectedSourceRevision: 'y', expectedTargetRevision: 'z',
+					confirmationText: TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION,
+				}));
+			} catch (error) {
+				serviceCode = (error as { code?: string })?.code;
+			}
+			assertEqual(serviceCode, 'ACTOR_USER_REQUIRED', 'direct apply with actorId 0 returns ACTOR_USER_REQUIRED');
+			assertEqual(recorded.length, 0, 'direct actorId-0 rejection performed zero data reads');
+		}
+
+		section('F4c. apply revalidates the workload policy inside the Serializable transaction');
+		{
+			preview = await run(() => previewTeachingLoadCarryForward(fixtureSchoolId, targetYearId, sourceYearId, fixtureSchoolId));
+			const policyRow = await instrumented.schedulingPolicy.findFirst({ where: { schoolId: fixtureSchoolId, schoolYearId: targetYearId }, select: { id: true } });
+			await instrumented.schedulingPolicy.delete({ where: { id: (policyRow as any).id } });
+			resetRecording();
+			let code: string | undefined;
+			try {
+				await run(() => applyTeachingLoadCarryForward({
+					actorSchoolId: fixtureSchoolId, actorId: ACTOR, schoolId: fixtureSchoolId,
+					targetSchoolYearId: targetYearId, sourceSchoolYearId: sourceYearId,
+					expectedFingerprint: preview.fingerprint, expectedSourceRevision: preview.sourceRevision, expectedTargetRevision: preview.targetRevision,
+					confirmationText: TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION,
+				}));
+			} catch (error) {
+				code = (error as { code?: string })?.code;
+			}
+			assertEqual(code, 'WORKLOAD_POLICY_UNCONFIGURED', 'policy removed after preview aborts apply with the typed blocker');
+			assertEqual(writes().length, 0, 'policy-revalidation abort performed zero writes');
+			await instrumented.schedulingPolicy.create({ data: { schoolId: fixtureSchoolId, schoolYearId: targetYearId, teachingStandardMinutes: stand, advisoryCreditMinutes: 300, hardCapMinutes: cap, periodLengthMinutes: 45 } });
+			resetRecording();
 		}
 
 		section('F5. stale target revision aborts with zero writes');
@@ -499,7 +607,7 @@ async function runFixtureTests() {
 		section('F8. archived source remains immutable');
 		{
 			const sourceOwnerships = await instrumented.subjectSectionOwnership.findMany({ where: { schoolId: fixtureSchoolId, schoolYearId: sourceYearId }, select: { id: true, facultyId: true, subjectId: true, sectionId: true } });
-			assertEqual(sourceOwnerships.length, 13, 'all 13 archived ownership rows still exist');
+			assertEqual(sourceOwnerships.length, 14, 'all 14 archived ownership rows still exist');
 			const sourceFacultySubjects = await instrumented.facultySubject.count({ where: { schoolId: fixtureSchoolId, schoolYearId: sourceYearId } });
 			assertEqual(sourceFacultySubjects, 9, 'archived FacultySubject rows are unchanged');
 		}
