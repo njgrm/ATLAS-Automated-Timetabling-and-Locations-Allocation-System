@@ -22,13 +22,36 @@ export type DashboardReadinessSourceState =
 	| 'no_saved_data'
 	| 'partial_degraded';
 
-export type DashboardCurriculumState = {
+/**
+ * UX-C01 — operator-facing derived-demand setup readiness. This is the SINGLE
+ * current-year demand authority (active EnrollPro year + verified ordered terms
+ * + ATLAS Subject scheduling metadata). Legacy Curriculum Requirements readiness
+ * is never represented here.
+ */
+export type DashboardDerivedDemandBlocker = {
+	code: string;
+	message: string;
+	subjectId?: number;
+	subjectCode?: string;
+	rotationFamily?: string;
+	rotationOrder?: number;
+	scopeGradeLevel?: number;
+	scopeProgramType?: string;
+};
+
+export type DashboardDerivedDemandState = {
+	available: boolean;
 	ready: boolean;
-	termConfigPresent: boolean;
-	requirementCount: number;
+	yearLabel: string | null;
+	revision: string | null;
+	termStructure: { format: 'TRIMESTER' | 'QUARTERS'; terms: Array<{ identity: string; displayLabel: string; order: number }> } | null;
+	blockers: DashboardDerivedDemandBlocker[];
+	subjectMetadataExceptions: DashboardDerivedDemandBlocker[];
+	totals: { totalLines: number; totalPairs: number; byTerm: Record<string, number> } | null;
 	blockerCode: string | null;
 	blockerMessage: string | null;
-} | null;
+	error: string | null;
+};
 
 /**
  * DASH-RESILIENCE-C01 — explicit per-domain availability. A failed domain read
@@ -42,11 +65,11 @@ export type DashboardDomainAvailability = {
 	faculty: boolean;
 	sections: boolean;
 	generation: boolean;
-	curriculum: boolean;
+	derivedDemand: boolean;
 };
 
 export function unavailableDomainAvailability(): DashboardDomainAvailability {
-	return { campus: false, subjects: false, faculty: false, sections: false, generation: false, curriculum: false };
+	return { campus: false, subjects: false, faculty: false, sections: false, generation: false, derivedDemand: false };
 }
 
 /**
@@ -91,7 +114,7 @@ export function initialDashboardDomainState() {
 		assignedCount: null as number | null,
 		unassignedCount: null as number | null,
 		hardViolationCount: null as number | null,
-		curriculum: null as DashboardCurriculumState,
+		derivedDemand: null as DashboardDerivedDemandState | null,
 		activeSchoolYearId: null as number | null,
 		activeSchoolYearLabel: null as string | null,
 		domainAvailability: unavailableDomainAvailability(),
@@ -226,7 +249,7 @@ type DashboardReadinessSummary = {
 		createdAt: string | null;
 		finishedAt: string | null;
 	};
-	curriculum: DashboardCurriculumState;
+	derivedDemand: DashboardDerivedDemandState;
 	lifecyclePhase: LifecyclePhase;
 };
 
@@ -237,7 +260,7 @@ function availabilityFromSummary(summary: DashboardReadinessSummary): DashboardD
 		faculty: summary.faculty?.available === true,
 		sections: summary.sections?.available === true,
 		generation: summary.generation?.available === true,
-		curriculum: summary.curriculum !== null && summary.curriculum !== undefined,
+		derivedDemand: summary.derivedDemand?.available === true,
 	};
 }
 
@@ -269,7 +292,7 @@ export type DashboardData = {
 	assignedCount: number | null;
 	unassignedCount: number | null;
 	hardViolationCount: number | null;
-	curriculum: DashboardCurriculumState;
+	derivedDemand: DashboardDerivedDemandState | null;
 	lifecyclePhase: LifecyclePhase;
 	readinessSourceState: DashboardReadinessSourceState;
 	readinessSourceMessage: string;
@@ -317,7 +340,7 @@ export function useDashboardData(): DashboardData {
 	const [assignedCount, setAssignedCount] = useState<number | null>(null);
 	const [unassignedCount, setUnassignedCount] = useState<number | null>(null);
 	const [hardViolationCount, setHardViolationCount] = useState<number | null>(null);
-	const [curriculum, setCurriculum] = useState<DashboardCurriculumState>(null);
+	const [derivedDemand, setDerivedDemand] = useState<DashboardDerivedDemandState | null>(null);
 	const [summaryTeachingRoomCount, setSummaryTeachingRoomCount] = useState<number | null>(null);
 	const [summaryTotalRoomCount, setSummaryTotalRoomCount] = useState<number | null>(null);
 	const [summaryBuildingSetupStatus, setSummaryBuildingSetupStatus] = useState<BuildingSetupStatus | null>(null);
@@ -345,7 +368,7 @@ export function useDashboardData(): DashboardData {
 		setAssignedCount(cleared.assignedCount);
 		setUnassignedCount(cleared.unassignedCount);
 		setHardViolationCount(cleared.hardViolationCount);
-		setCurriculum(cleared.curriculum);
+		setDerivedDemand(cleared.derivedDemand);
 		setActiveSchoolYearId(cleared.activeSchoolYearId);
 		setActiveSchoolYearLabel(cleared.activeSchoolYearLabel);
 		setDomainAvailability(cleared.domainAvailability);
@@ -440,7 +463,7 @@ export function useDashboardData(): DashboardData {
 				setDataSource(toDataSource(summary.sourceState));
 				setActiveSchoolYearId(summary.activeSchoolYearId);
 				setActiveSchoolYearLabel(summary.activeSchoolYearLabel);
-				setCurriculum(summary.curriculum ?? null);
+				setDerivedDemand(summary.derivedDemand ?? null);
 				setLatestRunStatus(summary.generation.latestRunStatus);
 				setLatestRunId(summary.generation.latestRunId);
 				setViolationCount(summary.generation.violationCount);
@@ -575,7 +598,7 @@ export function useDashboardData(): DashboardData {
 		// EVAL-C01: the local fallback derives from the same coherent
 		// snapshot, and it never claims PUBLISHED — only the guarded server
 		// snapshot may report a published schedule.
-		if (curriculum !== null && !curriculum.ready) return 'SETUP';
+		if (derivedDemand !== null && derivedDemand.available && !derivedDemand.ready) return 'SETUP';
 		const setupReady =
 			(subjectCount ?? 0) > 0 &&
 			(facultyCount ?? 0) > 0 &&
@@ -596,7 +619,7 @@ export function useDashboardData(): DashboardData {
 		sectionCount,
 		buildingSetupStatus.done,
 		latestRunStatus,
-		curriculum,
+		derivedDemand,
 		summaryLifecyclePhase,
 	]);
 
@@ -628,7 +651,7 @@ export function useDashboardData(): DashboardData {
 		assignedCount,
 		unassignedCount,
 		hardViolationCount,
-		curriculum,
+		derivedDemand,
 		lifecyclePhase,
 		readinessSourceState,
 		readinessSourceMessage,

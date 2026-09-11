@@ -476,7 +476,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const [schoolYearContext, setSchoolYearContext] = useState<ActiveSchoolYearContext | null>(null);
 	const [schoolId, setSchoolId] = useState<number | null>(null);
 	const resolvedSchoolIdRef = useRef<number | null>(null);
-	const [curriculumReadiness, setCurriculumReadiness] = useState<TimetableCurriculumReadinessState>({ state: 'loading', message: 'Checking Curriculum Requirements…' });
+	const [curriculumReadiness, setCurriculumReadiness] = useState<TimetableCurriculumReadinessState>({ state: 'loading', message: 'Checking year, terms, and subject demand…' });
 	useEffect(() => {
 		selectedRunIdRef.current = selectedRunId;
 	}, [selectedRunId]);
@@ -1183,28 +1183,27 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			setCurriculumReadiness({ state: 'unavailable', message: 'Your school scope could not be verified.' });
 			return;
 		}
-		setCurriculumReadiness({ state: 'loading', message: 'Checking Curriculum Requirements…' });
+		setCurriculumReadiness({ state: 'loading', message: 'Checking year, terms, and subject demand…' });
 		try {
-			const { data } = await atlasApi.get<{ readiness?: { ready?: boolean; blockers?: Array<{ code?: string; message?: string }> } }>(
-				`/curriculum-requirements/${syId}/readiness`,
+			const { data } = await atlasApi.get<{ available?: boolean; ready?: boolean; blockerMessage?: string | null; blockers?: Array<{ code?: string; message?: string }> }>(
+				`/derived-demand/${schoolId}/${syId}/readiness`,
 			);
-			const readiness = data.readiness;
-			if (!readiness) {
-				setCurriculumReadiness({ state: 'unavailable', message: 'Curriculum readiness is unavailable.' });
-			} else if (readiness.ready) {
-				setCurriculumReadiness({ state: 'ready', message: 'Curriculum Requirements are ready for generation.' });
+			if (data.available !== true) {
+				setCurriculumReadiness({ state: 'unavailable', message: 'Derived demand is unavailable for this school year.' });
+			} else if (data.ready) {
+				setCurriculumReadiness({ state: 'ready', message: 'Year, terms, and subject demand are ready for generation.' });
 			} else {
-				const blocker = readiness.blockers?.[0];
+				const blocker = data.blockers?.[0];
 				setCurriculumReadiness({
 					state: 'blocked',
 					code: blocker?.code ?? null,
-					message: blocker?.message ?? 'Curriculum Requirements must be completed before generation.',
+					message: blocker?.message ?? data.blockerMessage ?? 'Derived demand needs attention before generation.',
 				});
 			}
 		} catch (error) {
 			setCurriculumReadiness({
 				state: 'failed',
-				message: buildTimetableErrorMessage(error, 'Curriculum readiness could not be checked. Retry before generating.'),
+				message: buildTimetableErrorMessage(error, 'Derived demand could not be checked. Retry before generating.'),
 			});
 		}
 	}, [schoolId]);

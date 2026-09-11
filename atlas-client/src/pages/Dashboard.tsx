@@ -17,7 +17,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
-import { useDashboardData, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
+import { useDashboardData, type DashboardDerivedDemandState, type DashboardReadinessSourceState, type LifecyclePhase } from '@/hooks/useDashboardData';
 import type { RolloverStatus } from '@/lib/settings';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import { SmartHelpTrigger } from '@/components/smart/SmartPageShell';
@@ -66,7 +66,7 @@ const TONE: Record<StatTone, { iconBg: string; iconRing: string; iconText: strin
 };
 
 const LIFECYCLE_STEPS: { key: LifecyclePhase; label: string; helper: string }[] = [
-	{ key: 'SETUP', label: 'Setup', helper: 'Curriculum, teachers, rooms' },
+	{ key: 'SETUP', label: 'Setup', helper: 'Year, terms, subjects, rooms' },
 	{ key: 'PREFERENCES', label: 'Preferences', helper: 'Faculty inputs' },
 	{ key: 'GENERATION', label: 'Generate', helper: 'Algorithm run' },
 	{ key: 'REVIEW', label: 'Review', helper: 'Fix blockers' },
@@ -164,6 +164,70 @@ const SOURCE_REPAIR_LINKS = [
 	{ href: '/map', label: 'Rooms' },
 ] as const;
 
+const TERM_AUTHORITY_BLOCKER_CODES = new Set([
+	'ACTIVE_YEAR_UNAVAILABLE',
+	'ACTIVE_YEAR_AMBIGUOUS',
+	'INACTIVE_HISTORICAL_YEAR',
+	'TERM_STRUCTURE_UNAVAILABLE',
+	'TERM_STRUCTURE_EMPTY',
+]);
+
+/**
+ * UX-C01 — the single true repair for a blocked/unavailable derived-demand
+ * setup. The smallest repair is chosen in authority order: refresh/sync
+ * EnrollPro year and terms, then fix a named Subject metadata exception.
+ * Never the retired requirements page.
+ */
+export function deriveDerivedDemandRepair(derivedDemand: DashboardDerivedDemandState | null): NextStep | null {
+	if (!derivedDemand) return null;
+
+	if (!derivedDemand.available) {
+		return {
+			title: 'Recheck year and term setup',
+			body: 'ATLAS could not read the active EnrollPro year and its ordered terms. Check the connection, then try again before generating.',
+			cta: 'Open Year Setup',
+			href: '/admin/year-setup',
+			warn: 'Setup unavailable',
+		};
+	}
+
+	const termBlocker = derivedDemand.blockers.find((blocker) => TERM_AUTHORITY_BLOCKER_CODES.has(blocker.code)) ?? null;
+	if (termBlocker) {
+		return {
+			title: 'Refresh EnrollPro year and terms',
+			body: termBlocker.message || 'Sync the active school year and its ordered terms from EnrollPro, then check for updates.',
+			cta: 'Open Year Setup',
+			href: '/admin/year-setup',
+			warn: 'Year or terms missing',
+		};
+	}
+
+	if (derivedDemand.subjectMetadataExceptions.length > 0) {
+		const first = derivedDemand.subjectMetadataExceptions[0];
+		const label = first.subjectCode ? `Subject ${first.subjectCode}` : 'A subject';
+		return {
+			title: 'Fix subject scheduling metadata',
+			body: `${label}: ${first.message || 'complete participation, scope, minutes, or rotation so demand can be derived.'}`,
+			cta: 'Review subjects',
+			href: '/subjects',
+			warn: 'Metadata gap',
+		};
+	}
+
+	if (!derivedDemand.ready) {
+		const first = derivedDemand.blockers[0];
+		return {
+			title: 'Resolve derived demand blockers',
+			body: first?.message ?? derivedDemand.blockerMessage ?? 'Derived demand needs attention before the timetable can be generated.',
+			cta: 'Review subjects',
+			href: '/subjects',
+			warn: 'Blocked',
+		};
+	}
+
+	return null;
+}
+
 // Exported for focused lifecycle-truth tests: the next-action decision path.
 export function pickNextStep(args: {
 	phase: LifecyclePhase;
@@ -175,7 +239,7 @@ export function pickNextStep(args: {
 	buildingsDone: boolean;
 	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | null;
 	violationCount: number | null;
-	curriculumMissing: boolean;
+	derivedDemand: DashboardDerivedDemandState | null;
 	degraded: boolean;
 }): NextStep {
 	const {
@@ -188,7 +252,7 @@ export function pickNextStep(args: {
 		buildingsDone,
 		latestRunStatus,
 		violationCount,
-		curriculumMissing,
+		derivedDemand,
 		degraded,
 	} = args;
 
@@ -199,13 +263,12 @@ export function pickNextStep(args: {
 	}
 
 	if (phase === 'SETUP') {
-		// EVAL-C01: missing term setup or Curriculum Requirements block
-		// generation. This repair comes first with a direct link.
-		if (curriculumMissing) {
-			return { title: 'Set up Curriculum Requirements', body: 'Add the term setup and required subjects for each grade and program. The timetable cannot be generated until this is done.', cta: 'Open Curriculum Requirements', href: '/subjects/requirements' };
-		}
+		// UX-C01: a blocked/unavailable derived-demand setup is the first
+		// generation blocker, with the smallest true repair.
+		const derivedRepair = deriveDerivedDemandRepair(derivedDemand);
+		if (derivedRepair) return derivedRepair;
 		if ((subjectCount ?? 0) === 0) {
-			return { title: 'Add the curriculum', body: 'Load the subject catalog before assigning teachers or generating.', cta: 'Open subjects', href: '/subjects' };
+			return { title: 'Add subjects', body: 'Load the subject catalog before assigning teachers or generating.', cta: 'Open subjects', href: '/subjects' };
 		}
 		if ((facultyCount ?? 0) === 0) {
 			return { title: 'Sync teachers from EnrollPro', body: 'Pull the faculty roster so subjects can be assigned.', cta: 'Open teachers', href: '/teachers' };
@@ -255,37 +318,45 @@ export default function Dashboard() {
 		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
 		activeTermUnassignedCount, activeTermHardViolationCount,
 		latestRunStatus, violationCount,
-		assignedCount, unassignedCount, hardViolationCount, curriculum,
+		assignedCount, unassignedCount, hardViolationCount, derivedDemand,
 		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard, retryActorScope,
 		domainAvailability, dataSource,
 	} = useDashboardData();
 
-	// EVAL-C01: every surface below derives from this one coherent snapshot.
-	const curriculumMissing = curriculum !== null && !curriculum.ready;
+	// EVAL-C01/UX-C01: every surface below derives from this one coherent
+	// derived-demand snapshot.
 	const degraded = readinessSourceState === 'partial_degraded';
 	const degradedTitle = dataSource === 'cached' ? 'Showing saved data' : 'Some checks are unavailable';
 
 	const next = pickNextStep({
 		phase: lifecyclePhase, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingsDone: buildingSetupStatus.done,
-		latestRunStatus, violationCount, curriculumMissing, degraded,
+		latestRunStatus, violationCount, derivedDemand, degraded,
 	});
 
 	const stats: StatTile[] = [
 		{ label: 'Sections', value: loading ? '\u2026' : !domainAvailability.sections || sectionCount === null ? '\u2014' : `${sectionCount}`, footer: !domainAvailability.sections || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !domainAvailability.sections || sectionCount === null, href: '/sections', actionLabel: 'Check sections' },
-		{ label: 'Subjects', value: loading ? '\u2026' : !domainAvailability.subjects ? '\u2014' : `${subjectCount ?? 0}`, footer: !domainAvailability.subjects ? 'Unavailable' : 'Curriculum loaded', icon: BookOpen, tone: 'brand', warn: !domainAvailability.subjects, href: '/subjects', actionLabel: 'Review subjects' },
+		{ label: 'Subjects', value: loading ? '\u2026' : !domainAvailability.subjects ? '\u2014' : `${subjectCount ?? 0}`, footer: !domainAvailability.subjects ? 'Unavailable' : 'Subject catalog loaded', icon: BookOpen, tone: 'brand', warn: !domainAvailability.subjects, href: '/subjects', actionLabel: 'Review subjects' },
 		{ label: 'Teachers', value: loading ? '\u2026' : !domainAvailability.faculty ? '\u2014' : `${facultyCount ?? 0}`, footer: !domainAvailability.faculty ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !domainAvailability.faculty, href: '/teachers', actionLabel: 'Review teachers' },
 		{ label: 'Teaching Rooms', value: loading ? '\u2026' : !domainAvailability.campus ? '\u2014' : `${teachingRoomCount}/${totalRoomCount}`, footer: !domainAvailability.campus ? 'Unavailable' : buildingSetupStatus.done ? 'Ready for placement' : 'Some rooms unmarked', icon: Building2, tone: !domainAvailability.campus ? 'amber' : buildingSetupStatus.done ? 'brand' : 'amber', warn: !domainAvailability.campus || (!buildingSetupStatus.done && !loading), href: '/map', actionLabel: 'Check rooms' },
 	];
+
+	// UX-C01 — derived-demand authority, in operator order: EnrollPro structure,
+	// Subject metadata exceptions, derived demand totals, Teaching Load coverage.
+	const derivedDemandAvailable = derivedDemand?.available === true;
+	const derivedTermStructure = derivedDemand?.termStructure ?? null;
+	const derivedMetadataExceptions = derivedDemand?.subjectMetadataExceptions ?? [];
+	const derivedTotals = derivedDemand?.totals ?? null;
+	const derivedTermBlocker = derivedDemand?.blockers.find((blocker) => TERM_AUTHORITY_BLOCKER_CODES.has(blocker.code)) ?? null;
 
 	const checklist = [
 		{ label: 'Sections loaded for school year', done: domainAvailability.sections && (sectionCount ?? 0) > 0, href: '/sections', hint: !domainAvailability.sections ? 'Enrollment unavailable' : sectionCount === null ? 'Enrollment unavailable' : undefined },
 		{ label: 'Subjects added', done: domainAvailability.subjects && (subjectCount ?? 0) > 0, href: '/subjects', hint: !domainAvailability.subjects ? 'Subject data is unavailable' : undefined },
 		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, href: '/teachers', hint: !domainAvailability.faculty ? 'Faculty data is unavailable' : undefined },
+		{ label: 'EnrollPro year and ordered terms ready', done: derivedDemandAvailable && derivedTermStructure !== null && !derivedTermBlocker, href: '/admin/year-setup', hint: !derivedDemandAvailable ? 'Year and terms could not be read' : derivedTermBlocker ? (derivedTermBlocker.message ?? 'Refresh the active EnrollPro year and terms') : undefined },
+		{ label: 'Subject scheduling metadata complete', done: derivedDemandAvailable && derivedMetadataExceptions.length === 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Subject metadata could not be checked' : derivedMetadataExceptions.length > 0 ? (derivedMetadataExceptions[0].subjectCode ? `${derivedMetadataExceptions[0].subjectCode}: ${derivedMetadataExceptions[0].message}` : derivedMetadataExceptions[0].message) : undefined },
+		{ label: 'Derived demand prepared', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Derived demand could not be read' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} session${derivedTotals.totalLines === 1 ? '' : 's'}` : 'No derived demand yet' },
 		{ label: 'Every subject has a teacher', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Coverage is unavailable' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
-		// EVAL-C01: missing term setup or Curriculum Requirements is a
-		// setup/generation blocker with a direct repair link.
-		{ label: 'Curriculum Requirements ready', done: curriculum !== null && curriculum.ready, href: '/subjects/requirements', hint: curriculum !== null && !curriculum.ready ? (curriculum.blockerMessage ?? 'Term setup or required subjects are missing') : undefined },
 		{ label: 'Buildings and rooms ready', done: domainAvailability.campus && buildingSetupStatus.done, href: '/map', hint: !domainAvailability.campus ? 'Campus data is unavailable' : buildingSetupStatus.subMessage },
 		{ label: 'Timetable generated and reviewed', done: domainAvailability.generation && latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: !domainAvailability.generation ? 'Generation status is unavailable' : latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
 		// EVAL-C01: only a resolved published schedule counts as published.

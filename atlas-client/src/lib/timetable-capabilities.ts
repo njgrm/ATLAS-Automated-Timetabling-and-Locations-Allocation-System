@@ -2,8 +2,8 @@ import { deriveSimpleLifecycleAction, type SimpleLifecycleAction } from './simpl
 
 /**
  * The single Year Setup / status surface for repairing school-year and term
- * authority. The superseded `/curriculum-requirements` page must never be the
- * normal operator repair destination.
+ * authority. The retired annual-requirements surface must never be the normal
+ * operator repair destination.
  */
 export const YEAR_SETUP_HREF = '/admin/year-setup';
 

@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { resolveRuntimeContext, type RuntimeContextResult } from './runtime-context.service.js';
-import { evaluateCurriculumReadiness } from './school-year-offering.service.js';
+import { buildDerivedDemand, type DerivedDemandBlocker, type DerivedDemandResult } from './derived-demand.service.js';
 
 export type DashboardReadinessSourceState =
 	| 'verified_live'
@@ -135,12 +135,43 @@ type PublicationReadData = {
 	publishedRunId: number | null;
 };
 
-export type DashboardCurriculumReadiness = {
+/**
+ * UX-C01 — operator-facing derived-demand setup readiness.
+ *
+ * One read of the canonical derived-demand authority (active EnrollPro year +
+ * verified ordered terms + ATLAS Subject scheduling metadata). There is no
+ * annual-offering or term-config read, and an unavailable/blocked derivation is
+ * never coerced into "ready" or a synthetic zero demand.
+ */
+export type DashboardDerivedDemandBlocker = {
+	code: string;
+	message: string;
+	subjectId?: number;
+	subjectCode?: string;
+	rotationFamily?: string;
+	rotationOrder?: number;
+	scopeGradeLevel?: number;
+	scopeProgramType?: string;
+};
+
+export type DashboardDerivedDemand = {
+	/** The derived-demand read completed (a typed blocker is still "available"). */
+	available: boolean;
+	/** True only when the authority produced demand with zero blockers. */
 	ready: boolean;
-	termConfigPresent: boolean;
-	requirementCount: number;
+	yearLabel: string | null;
+	revision: string | null;
+	termStructure: {
+		format: 'TRIMESTER' | 'QUARTERS';
+		terms: Array<{ identity: string; displayLabel: string; order: number }>;
+	} | null;
+	blockers: DashboardDerivedDemandBlocker[];
+	/** Blockers attributable to a named Subject scheduling metadata exception. */
+	subjectMetadataExceptions: DashboardDerivedDemandBlocker[];
+	totals: { totalLines: number; totalPairs: number; byTerm: Record<string, number> } | null;
 	blockerCode: string | null;
 	blockerMessage: string | null;
+	error: string | null;
 };
 
 export type DashboardReadinessSummary = {
@@ -155,7 +186,7 @@ export type DashboardReadinessSummary = {
 	faculty: FacultyReadinessData;
 	sections: SectionReadinessData;
 	generation: LatestRunReadinessData;
-	curriculum: DashboardCurriculumReadiness | null;
+	derivedDemand: DashboardDerivedDemand;
 	/** DASH-RESILIENCE-C01 — typed active-term state (may be reachable but unresolved). */
 	activeTerm: RuntimeContextResult['activeTerm'] | null;
 	lifecyclePhase: DashboardLifecyclePhase;
@@ -166,7 +197,7 @@ export type DashboardReadinessSummary = {
 		faculty: DomainSource;
 		sections: DomainSource;
 		generation: DomainSource;
-		curriculum: DomainSource;
+		derivedDemand: DomainSource;
 	};
 };
 
@@ -268,6 +299,81 @@ function unavailableFaculty(): FacultyReadinessData {
 
 function unavailableSections(): SectionReadinessData {
 	return { available: false, sectionCount: null, lastSyncedAt: null };
+}
+
+const DERIVED_DEMAND_SUBJECT_METADATA_CODES = new Set<string>([
+	'ROTATION_FAMILY_MISSING',
+	'ROTATION_ORDER_MISSING',
+	'ROTATION_ORDER_OUT_OF_RANGE',
+	'ROTATION_ORDER_DUPLICATE',
+	'ROTATION_INCOMPLETE',
+]);
+
+/** UX-C01 — explicit unavailable derived-demand placeholders (never zero/ready). */
+function unavailableDerivedDemand(error: string | null = null): DashboardDerivedDemand {
+	return {
+		available: false,
+		ready: false,
+		yearLabel: null,
+		revision: null,
+		termStructure: null,
+		blockers: [],
+		subjectMetadataExceptions: [],
+		totals: null,
+		blockerCode: null,
+		blockerMessage: null,
+		error,
+	};
+}
+
+/**
+ * UX-C01 — project the canonical derived-demand result into the operator
+ * readiness shape. A typed blocker is a successful (available) read that is not
+ * ready; only a thrown authority error is `available: false`.
+ */
+export function toDashboardDerivedDemand(
+	result: DerivedDemandResult,
+	yearLabel: string | null,
+): DashboardDerivedDemand {
+	if (!result.ok) {
+		const exceptions = result.blockers.filter(
+			(entry: DerivedDemandBlocker) => entry.subjectId != null && DERIVED_DEMAND_SUBJECT_METADATA_CODES.has(entry.code),
+		);
+		const first = result.blockers[0] ?? null;
+		return {
+			available: true,
+			ready: false,
+			yearLabel,
+			revision: null,
+			termStructure: null,
+			blockers: result.blockers.map((entry) => ({ ...entry })),
+			subjectMetadataExceptions: exceptions.map((entry) => ({ ...entry })),
+			totals: null,
+			blockerCode: first?.code ?? null,
+			blockerMessage: first?.message ?? null,
+			error: null,
+		};
+	}
+	return {
+		available: true,
+		ready: true,
+		yearLabel: result.yearLabel,
+		revision: result.revision,
+		termStructure: {
+			format: result.termStructure.format,
+			terms: result.termStructure.terms.map((term) => ({ identity: term.identity, displayLabel: term.displayLabel, order: term.order })),
+		},
+		blockers: [],
+		subjectMetadataExceptions: [],
+		totals: {
+			totalLines: result.totalLines,
+			totalPairs: result.totalPairs,
+			byTerm: { ...result.totalsByTerm },
+		},
+		blockerCode: null,
+		blockerMessage: null,
+		error: null,
+	};
 }
 
 function unavailableGeneration(): LatestRunReadinessData {
@@ -404,8 +510,9 @@ export function buildDashboardPublicationWhere(args: { schoolId: number; schoolY
  *
  * - Degraded dependencies suppress publication: a partial snapshot never
  *   infers PUBLISHED.
- * - Missing Curriculum Requirements (no term configuration or no ready
- *   requirements) hold the lifecycle at SETUP as a setup/generation blocker.
+ * - A blocked derived-demand authority (missing ordered terms, unresolved year,
+ *   or invalid Subject rotation metadata) holds the lifecycle at SETUP as a
+ *   setup/generation blocker.
  * - Otherwise the schedule lifecycle follows setup readiness, latest-run
  *   status, and strictly-resolved publication.
  */
@@ -417,13 +524,13 @@ export function resolveDashboardLifecycle(args: {
 	buildingsDone: boolean;
 	latestRunStatus: DashboardLatestRunStatus | null;
 	publishedRunPresent: boolean;
-	curriculumReady: boolean;
+	derivedDemandReady: boolean;
 	hasDomainError: boolean;
 }): { phase: DashboardLifecyclePhase; isPublished: boolean } {
 	const isPublished = !args.hasDomainError && args.publishedRunPresent;
 	if (isPublished) return { phase: 'PUBLISHED', isPublished: true };
 
-	if (!args.curriculumReady) return { phase: 'SETUP', isPublished: false };
+	if (!args.derivedDemandReady) return { phase: 'SETUP', isPublished: false };
 
 	// DASH-RESILIENCE-C01 — unavailable domains are null, never a synthetic
 	// zero/NONE. Any null count fails the readiness arithmetic, and an unknown
@@ -459,7 +566,7 @@ function lifecyclePhase(args: {
 		buildingsDone: args.buildingsDone,
 		latestRunStatus: args.latestRunStatus,
 		publishedRunPresent: args.latestRunIsPublished,
-		curriculumReady: true,
+		derivedDemandReady: true,
 		hasDomainError: false,
 	}).phase;
 }
@@ -492,7 +599,7 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 	const activeSchoolYearId = resolveDashboardActiveYear(runtimeContext?.activeSchoolYearId);
 	const activeSchoolYearLabel = runtimeContext?.activeSchoolYearLabel ?? null;
 
-	const [campusResult, subjectResult, facultyResult, sectionResult, generationResult, publicationResult, curriculumResult] = await Promise.all([
+	const [campusResult, subjectResult, facultyResult, sectionResult, generationResult, publicationResult, derivedDemandResult] = await Promise.all([
 		safe(async () => {
 			const [school, buildings] = await Promise.all([
 				prisma.school.findUnique({
@@ -644,20 +751,43 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 				? { isPublished: true, publishedRunId: row.id }
 				: { isPublished: false, publishedRunId: null };
 		}),
-		// EVAL-C01 — consume the existing Curriculum Requirements read
-		// contract only. A throw (e.g. missing year authority) degrades the
-		// snapshot instead of inferring readiness.
-		safe(async (): Promise<DashboardCurriculumReadiness | null> => {
-			if (!activeSchoolYearId) return null;
-			const readiness = await evaluateCurriculumReadiness(input.schoolId, activeSchoolYearId);
-			const firstBlocker = readiness.blockers[0] ?? null;
-			return {
-				ready: readiness.ready,
-				termConfigPresent: readiness.termConfigPresent,
-				requirementCount: readiness.requirementCount,
-				blockerCode: firstBlocker?.code ?? null,
-				blockerMessage: firstBlocker?.message ?? null,
-			};
+		// UX-C01 — consume ONLY the canonical derived-demand authority. The
+		// persisted ordered EnrollPro term snapshot is read inside the service;
+		// annual offerings and term-config rows are never consulted. A thrown
+		// authority error (e.g. missing/ambiguous active year) degrades the
+		// snapshot instead of inferring readiness, while a typed blocker read
+		// stays available-but-not-ready.
+		safe(async (): Promise<DashboardDerivedDemand> => {
+			if (!activeSchoolYearId) {
+				const message = 'No active school year is available for this school.';
+				return {
+					...unavailableDerivedDemand(null),
+					available: true,
+					blockerCode: 'ACTIVE_YEAR_UNAVAILABLE',
+					blockerMessage: message,
+					blockers: [{ code: 'ACTIVE_YEAR_UNAVAILABLE', message }],
+				};
+			}
+			try {
+				const result = await buildDerivedDemand(input.schoolId, activeSchoolYearId);
+				return toDashboardDerivedDemand(result, activeSchoolYearLabel);
+			} catch (error) {
+				const code = (error as { code?: unknown })?.code;
+				// A typed authority blocker (e.g. no/ambiguous active year) is a
+				// blocked-but-available setup state; only an unclassified failure
+				// (e.g. a datasource error) degrades the snapshot.
+				if (typeof code === 'string' && code.length > 0) {
+					const message = error instanceof Error ? error.message : 'Derived demand is blocked.';
+					return {
+						...unavailableDerivedDemand(null),
+						available: true,
+						blockerCode: code,
+						blockerMessage: message,
+						blockers: [{ code, message }],
+					};
+				}
+				throw error;
+			}
 		}),
 	]);
 
@@ -674,7 +804,7 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 		sectionResult,
 		generationResult,
 		publicationResult,
-		curriculumResult,
+		derivedDemandResult,
 	});
 }
 
@@ -691,7 +821,7 @@ export type DashboardReadinessAggregateInput = {
 	sectionResult: SafeResult<SectionReadData>;
 	generationResult: SafeResult<GenerationReadData>;
 	publicationResult: SafeResult<PublicationReadData>;
-	curriculumResult: SafeResult<DashboardCurriculumReadiness | null>;
+	derivedDemandResult: SafeResult<DashboardDerivedDemand>;
 };
 
 /**
@@ -701,7 +831,7 @@ export type DashboardReadinessAggregateInput = {
  * lifecycle resolver then treats every null as fail-closed.
  */
 export function aggregateDashboardSummary(input: DashboardReadinessAggregateInput): DashboardReadinessSummary {
-	const { runtimeResult, runtimeContext, campusResult, subjectResult, facultyResult, sectionResult, generationResult, publicationResult, curriculumResult } = input;
+	const { runtimeResult, runtimeContext, campusResult, subjectResult, facultyResult, sectionResult, generationResult, publicationResult, derivedDemandResult } = input;
 
 	const campus = campusResult.ok && campusResult.data
 		? summarizeCampus(campusResult.data.buildings, campusResult.data.campusImageUrl)
@@ -718,8 +848,10 @@ export function aggregateDashboardSummary(input: DashboardReadinessAggregateInpu
 	const latestRun: LatestRunReadinessData = generationResult.ok && generationResult.data
 		? { available: true, isPublished: false, publishedRunId: null, ...generationResult.data }
 		: unavailableGeneration();
-	const curriculum = curriculumResult.ok ? curriculumResult.data : null;
-	const hasDomainError = !runtimeResult.ok || !campusResult.ok || !subjectResult.ok || !facultyResult.ok || !sectionResult.ok || !generationResult.ok || !publicationResult.ok || !curriculumResult.ok;
+	const derivedDemand: DashboardDerivedDemand = derivedDemandResult.ok && derivedDemandResult.data
+		? derivedDemandResult.data
+		: unavailableDerivedDemand(derivedDemandResult.error ?? 'Derived demand could not be read.');
+	const hasDomainError = !runtimeResult.ok || !campusResult.ok || !subjectResult.ok || !facultyResult.ok || !sectionResult.ok || !generationResult.ok || !publicationResult.ok || !derivedDemandResult.ok;
 	const publication = publicationResult.ok
 		? (publicationResult.data ?? { isPublished: false, publishedRunId: null })
 		: { isPublished: false, publishedRunId: null };
@@ -731,7 +863,7 @@ export function aggregateDashboardSummary(input: DashboardReadinessAggregateInpu
 		buildingsDone: campus.buildingSetupStatus.done,
 		latestRunStatus: latestRun.latestRunStatus,
 		publishedRunPresent: publication.isPublished,
-		curriculumReady: curriculum?.ready === true,
+		derivedDemandReady: derivedDemand.available && derivedDemand.ready,
 		hasDomainError,
 	});
 	const generation: LatestRunReadinessData = {
@@ -770,7 +902,7 @@ export function aggregateDashboardSummary(input: DashboardReadinessAggregateInpu
 		faculty,
 		sections,
 		generation,
-		curriculum,
+		derivedDemand,
 		activeTerm: runtimeContext?.activeTerm ?? null,
 		lifecyclePhase: lifecycle.phase,
 		sources: {
@@ -801,16 +933,16 @@ export function aggregateDashboardSummary(input: DashboardReadinessAggregateInpu
 			generation: generationResult.ok
 				? source(generation.latestRunId ? 'using_saved_data' : 'no_saved_data', 'Latest generation status loaded from ATLAS.', 'atlas.generation_runs', generation.finishedAt ?? generation.createdAt)
 				: source('partial_degraded', 'Latest generation status could not be loaded.', 'atlas.generation_runs', input.resolvedAt, generationResult.error),
-			curriculum: curriculumResult.ok && curriculum
+			derivedDemand: derivedDemandResult.ok && derivedDemand.available
 				? source(
-					curriculum.ready ? 'using_saved_data' : 'no_saved_data',
-					curriculum.ready
-						? 'Curriculum Requirements are ready for this school year.'
-						: (curriculum.blockerMessage ?? 'Curriculum Requirements need attention before generation.'),
-					'atlas.curriculum_requirements',
+					derivedDemand.ready ? 'using_saved_data' : 'no_saved_data',
+					derivedDemand.ready
+						? 'Derived demand is ready for this school year.'
+						: (derivedDemand.blockerMessage ?? 'Derived demand needs attention before generation.'),
+					'atlas.derived_demand',
 					input.resolvedAt,
 				)
-				: source('partial_degraded', 'Curriculum Requirements could not be checked.', 'atlas.curriculum_requirements', input.resolvedAt, curriculumResult.error),
+				: source('partial_degraded', 'Derived demand could not be read.', 'atlas.derived_demand', input.resolvedAt, derivedDemandResult.error),
 		},
 	};
 }

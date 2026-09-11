@@ -155,7 +155,7 @@ export function UnassignedInsertionWorkflow(props: UnassignedInsertionWorkflowPr
           )}
           {loadState.phase === 'empty' && (
             <p className="py-8 text-center text-sm text-muted-foreground" role="status">
-              No curriculum-demanded meetings exist for this school year yet. Configure Curriculum Requirements first.
+              No derived demand exists for this school year yet. Check the active year and terms, then Subject scheduling metadata.
             </p>
           )}
           {loadState.phase === 'error' && (
@@ -164,7 +164,7 @@ export function UnassignedInsertionWorkflow(props: UnassignedInsertionWorkflowPr
                 <CircleAlert className="size-4" aria-hidden="true" />
                 {loadState.message}
               </p>
-              <p className="mt-1 text-muted-foreground">Refresh the timetable or open Curriculum Requirements to repair setup gaps.</p>
+              <p className="mt-1 text-muted-foreground">Refresh the timetable, or open Subjects and Year Setup to repair year, term, and Subject metadata gaps.</p>
             </div>
           )}
           {(loadState.phase === 'ready' || loadState.phase === 'degraded') && summary && (

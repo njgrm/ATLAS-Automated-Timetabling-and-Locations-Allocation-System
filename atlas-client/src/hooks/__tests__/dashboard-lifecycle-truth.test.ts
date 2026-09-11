@@ -53,12 +53,12 @@ test('cleared domain state carries no stale run, publication, or year identity',
 	assert.equal(cleared.assignedCount, null);
 	assert.equal(cleared.unassignedCount, null);
 	assert.equal(cleared.hardViolationCount, null);
-	assert.equal(cleared.curriculum, null);
+	assert.equal(cleared.derivedDemand, null);
 	assert.equal(cleared.activeSchoolYearId, null);
 	assert.equal(cleared.activeSchoolYearLabel, null);
 	assert.deepEqual(cleared.domainAvailability, unavailableDomainAvailability());
 	assert.deepEqual(cleared.domainAvailability, {
-		campus: false, subjects: false, faculty: false, sections: false, generation: false, curriculum: false,
+		campus: false, subjects: false, faculty: false, sections: false, generation: false, derivedDemand: false,
 	});
 });
 
@@ -110,7 +110,7 @@ test('DASH-RESILIENCE-C01: a transient failure with no same-school snapshot clea
 	assert.equal(otherSchool.resetDomainState, true);
 });
 
-test('missing Curriculum Requirements => setup repair action (never publish)', () => {
+test('missing EnrollPro year/terms => Year Setup repair (never publish, never retired page)', () => {
 	const next = pickNextStep({
 		phase: 'SETUP',
 		subjectCount: 22,
@@ -121,11 +121,54 @@ test('missing Curriculum Requirements => setup repair action (never publish)', (
 		buildingsDone: true,
 		latestRunStatus: 'NONE',
 		violationCount: null,
-		curriculumMissing: true,
+		derivedDemand: {
+			available: true,
+			ready: false,
+			yearLabel: '2030-2031',
+			revision: null,
+			termStructure: null,
+			blockers: [{ code: 'TERM_STRUCTURE_UNAVAILABLE', message: 'No verified ordered term structure is available for the active year.' }],
+			subjectMetadataExceptions: [],
+			totals: null,
+			blockerCode: 'TERM_STRUCTURE_UNAVAILABLE',
+			blockerMessage: 'No verified ordered term structure is available for the active year.',
+			error: null,
+		},
 		degraded: false,
 	});
-	assert.equal(next.href, '/subjects/requirements');
-	assert.match(next.title, /Curriculum Requirements/);
+	assert.equal(next.href, '/admin/year-setup');
+	assert.doesNotMatch(next.href, /subjects\/requirements/);
+});
+
+test('subject metadata exception => Subjects repair naming the subject (never publish)', () => {
+	const next = pickNextStep({
+		phase: 'SETUP',
+		subjectCount: 22,
+		facultyCount: 42,
+		sectionCount: 20,
+		unassignedSubjectCount: 0,
+		missingCoverageSubjectIds: [],
+		buildingsDone: true,
+		latestRunStatus: 'NONE',
+		violationCount: null,
+		derivedDemand: {
+			available: true,
+			ready: false,
+			yearLabel: '2030-2031',
+			revision: null,
+			termStructure: { format: 'QUARTERS', terms: [{ identity: 'Q1', displayLabel: 'Quarter 1', order: 1 }] },
+			blockers: [{ code: 'ROTATION_ORDER_MISSING', message: 'Rotation family TLE needs an explicit integer term order for TLE-7.', subjectId: 7, subjectCode: 'TLE-7', rotationFamily: 'TLE' }],
+			subjectMetadataExceptions: [{ code: 'ROTATION_ORDER_MISSING', message: 'Rotation family TLE needs an explicit integer term order for TLE-7.', subjectId: 7, subjectCode: 'TLE-7', rotationFamily: 'TLE' }],
+			totals: null,
+			blockerCode: 'ROTATION_ORDER_MISSING',
+			blockerMessage: 'Rotation family TLE needs an explicit integer term order for TLE-7.',
+			error: null,
+		},
+		degraded: false,
+	});
+	assert.equal(next.href, '/subjects');
+	assert.match(next.body, /TLE-7/);
+	assert.doesNotMatch(next.body, /Curriculum Requirements/);
 });
 
 test('degraded snapshot => recheck action (never publish)', () => {
@@ -139,7 +182,7 @@ test('degraded snapshot => recheck action (never publish)', () => {
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
 		violationCount: 0,
-		curriculumMissing: false,
+		derivedDemand: null,
 		degraded: true,
 	});
 	assert.doesNotMatch(next.title, /published/i);
@@ -157,7 +200,7 @@ test('published phase => single published next action', () => {
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
 		violationCount: 0,
-		curriculumMissing: false,
+		derivedDemand: null,
 		degraded: false,
 	});
 	assert.equal(next.title, 'Schedule is published');
@@ -175,7 +218,7 @@ test('review with violations => audit action with blocker count', () => {
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
 		violationCount: 3,
-		curriculumMissing: false,
+		derivedDemand: null,
 		degraded: false,
 	});
 	assert.equal(next.href, '/audit?focus=timetable');

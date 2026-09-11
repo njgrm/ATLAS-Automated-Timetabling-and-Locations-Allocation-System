@@ -38,7 +38,7 @@ function setupReadyLifecycle(overrides: Record<string, unknown> = {}) {
 		buildingsDone: true,
 		latestRunStatus: 'COMPLETED',
 		publishedRunPresent: false,
-		curriculumReady: true,
+		derivedDemandReady: true,
 		hasDomainError: false,
 		...overrides,
 	} as Parameters<typeof resolveDashboardLifecycle>[0]);
@@ -53,7 +53,7 @@ test('no run + no revision => never PUBLISHED', () => {
 		buildingsDone: true,
 		latestRunStatus: 'NONE',
 		publishedRunPresent: false,
-		curriculumReady: false,
+		derivedDemandReady: false,
 		hasDomainError: false,
 	});
 	assert.equal(lifecycle.isPublished, false);
@@ -114,8 +114,8 @@ test('FAILED run with stale publish markers => never PUBLISHED (guard-bypass det
 	assert.equal(guardedLifecycle.phase, 'GENERATION');
 });
 
-test('curriculum missing => explicit SETUP blocker (never REVIEW/PUBLISHED)', () => {
-	const lifecycle = setupReadyLifecycle({ curriculumReady: false });
+test('blocked derived demand => explicit SETUP blocker (never REVIEW/PUBLISHED)', () => {
+	const lifecycle = setupReadyLifecycle({ derivedDemandReady: false });
 	assert.equal(lifecycle.isPublished, false);
 	assert.equal(lifecycle.phase, 'SETUP');
 });

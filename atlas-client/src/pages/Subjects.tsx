@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
 	ArrowDown,
@@ -111,6 +111,8 @@ function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'r
 }
 
 export default function Subjects() {
+	const [searchParams] = useSearchParams();
+	const retiredRequirementsContext = searchParams.get('context') === 'derived-setup';
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -515,23 +517,13 @@ export default function Subjects() {
 		return (
 			<AdminWorkspaceFrame
 			title = "Subjects"
-			description="Manage the ATLAS-owned subject catalog for this school. Catalog entries describe known subjects; which subjects each school year requires is configured in Curriculum Requirements. Start with missing teacher coverage and room-constrained subjects before generation."
+			description="The setup surface for ATLAS-owned subject metadata. Each subject's participation, grade and program scope, weekly minutes, rotation, and room needs feed derived demand for every active section. The active school year and ordered terms are read-only EnrollPro source data."
 				sourceState={subjectSourceState}
 				sourceCopy={subjectSourceCopy}
 stats={subjectStats}
 			secondaryActions={null}
 		primaryActions={(
 			<div className="flex items-center gap-2">
-				{/* SCA-01.4: the upstream offering refresh is retired — its
-					backend apply is permanently blocked and EnrollPro does not
-					supply subject offerings. Catalog edits stay here;
-					year-specific required subjects move to Curriculum
-					Requirements (SCA-02). */}
-				<Button asChild variant="outline" size="sm" className="gap-2">
-					<Link to="/subjects/requirements">
-						Curriculum Requirements
-					</Link>
-				</Button>
 				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} variant="outline" size="sm" className="gap-2">
 					<Plus className="size-4" />
 					Add subject
@@ -567,6 +559,20 @@ stats={subjectStats}
 			)}
 		>
 
+		{retiredRequirementsContext ? (
+			<div
+				role="status"
+				data-testid="subjects-derived-setup-context"
+				className="mx-4 mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900"
+			>
+				<Info className="mt-0.5 size-4 shrink-0" />
+				<p className="leading-relaxed">
+					Annual required-subject setup is no longer entered by hand. ATLAS derives demand from the active EnrollPro year and ordered terms
+					plus each subject's participation, scope, minutes, and rotation below.
+				</p>
+			</div>
+		) : null}
+
 		{/* Status Banners */}
 		<SubjectStatusBanners
 			error={error}
@@ -587,20 +593,25 @@ stats={subjectStats}
 				<div className="flex flex-wrap items-center gap-2">
 					{termAuthority.state === 'VERIFIED_LIVE' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
 					<span className="font-bold">
-						{termAuthority.state === 'VERIFIED_LIVE' ? 'Term structure verified live' : termAuthority.state === 'VERIFIED_CACHED' ? 'Using saved term structure' : 'Term scheduling metadata blocked'}
+						{termAuthority.state === 'VERIFIED_LIVE' ? 'EnrollPro year and terms verified live' : termAuthority.state === 'VERIFIED_CACHED' ? 'Using saved EnrollPro year and terms' : 'EnrollPro year or term authority blocked'}
 					</span>
+					<Badge variant="outline" className="bg-background/70 font-semibold uppercase tracking-wide">Read-only source</Badge>
 					{termAuthority.contract ? <Badge variant="outline">{termAuthority.contract.format}</Badge> : null}
 				</div>
 				<p className="mt-1 text-xs font-medium opacity-90">{termAuthority.message}</p>
 				{termAuthority.contract ? (
-					<div className="mt-2 flex flex-wrap gap-1.5">
-						{termAuthority.contract.terms.map((term) => (
-							<Badge key={term.identity} variant="outline" className="bg-background/70">
-								{term.displayLabel}{term.identity === termAuthority.contract?.activeTerm?.identity ? ' · Active' : ''}
-							</Badge>
-						))}
+					<div className="mt-2">
+						<p className="text-xs font-semibold uppercase tracking-wide opacity-80">S.Y. {termAuthority.contract.schoolYear.yearLabel} · ordered terms from EnrollPro</p>
+						<div className="mt-1.5 flex flex-wrap gap-1.5">
+							{termAuthority.contract.terms.map((term) => (
+								<Badge key={term.identity} variant="outline" className="bg-background/70">
+									{term.displayLabel}{term.identity === termAuthority.contract?.activeTerm?.identity ? ' · Active' : ''}
+								</Badge>
+							))}
+						</div>
 					</div>
 				) : null}
+				<p className="mt-2 text-xs font-medium opacity-90">Participation, grade and program scope, weekly minutes, rotation, and room needs are ATLAS-owned and edited below.</p>
 			</div>
 		) : null}
 

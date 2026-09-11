@@ -57,6 +57,7 @@
     "test:hybrid-scheduler": "tsx src/__tests__/hybrid-scheduler.test.ts",
     "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
     "test:rollover-readiness": "tsx src/__tests__/enrollpro-rollover-readiness.test.ts",
+    "test:derived-setup-readiness": "tsx src/__tests__/uxc01-derived-setup-readiness.test.ts",
     "test:timetable-quick-place": "tsx src/__tests__/timetable-quick-place.test.ts",
     "test:workbook-export": "tsx src/__tests__/workbook-export-content.test.ts",
     "benchmark:hybrid": "tsx src/scripts/benchmark-hybrid.ts"

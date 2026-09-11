@@ -1,5 +1,53 @@
 # Changelog
 
+## [2026-09-11] — UX-C01 Derived Setup Operator UX
+
+### Added
+- Added a read-only, actor-school-scoped derived-demand readiness endpoint
+  (`GET /api/v1/derived-demand/:schoolId/:schoolYearId/readiness`) that returns
+  typed blockers, ordered term structure, Subject metadata exceptions, and
+  demand totals from the canonical derived-demand authority.
+- Added a typed `derivedDemand` domain to `/dashboard/readiness-summary` and a
+  server `toDashboardDerivedDemand` projection (hermetic negative controls in
+  `uxc01-derived-setup-readiness.test.ts`).
+- Added a client failing-first surface scan
+  (`uxc01-derived-setup-surface.test.ts`) proving no normal route, link, or API
+  dispatch reaches the retired annual-requirements surfaces.
+- Added the `subjects?context=derived-setup` compatibility notice explaining
+  that annual required-subject setup is derived, not entered by hand.
+
+### Changed
+- `/subjects/requirements` and `/subjects/decision-workspace` are now
+  non-mutating replace-redirects to the Subjects setup view; the retired page
+  components and their mutation UI were deleted.
+- Dashboard and Timetable readiness now consume the same derived-demand
+  blockers as generation and Teaching Load instead of
+  `evaluateCurriculumReadiness`/`curriculum-requirements`; a blocked derivation
+  holds the lifecycle at `SETUP` and never renders a synthetic ready, zero
+  demand, or generation action.
+- Dashboard setup guidance and the next-step card now present operator order
+  (EnrollPro year and ordered terms, Subject metadata exceptions, derived demand
+  totals, Teaching Load coverage, generation state) with one smallest true
+  repair.
+- `Subjects.tsx` is the setup surface for ATLAS-owned metadata and labels the
+  EnrollPro year and ordered terms as read-only source data; the legacy
+  "Curriculum Requirements" link and copy were removed.
+
+### Decisions Made
+- The retired server tables/routes remain untouched; only client routing and the
+  read-only readiness authority were changed.
+- Historical deep links are preserved as replace-redirects, preserving
+  actor-school/no-fallback behavior with no legacy request dispatch.
+- Live Tailnet browser QA and the DB-backed dashboard integration suites were not
+  executed in this environment; hermetic client/server controls, both
+  type-checks, both builds, an isolated built-server health probe, and an
+  isolated client build were run instead. Live evidence is therefore labelled
+  isolated and pending.
+
+### Open Questions
+- Whether to rename the remaining internal `curriculumReadiness` identifiers in
+  the timetable client to `setupReadiness` in a later cosmetic pass.
+
 ## [2026-09-11] — DEMAND-C01 Derived Demand and Ordered-Term Closure
 
 ### Added
