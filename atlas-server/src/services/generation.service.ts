@@ -1,5 +1,4 @@
-﻿const ENABLE_LEGACY_TIME_PREFERENCES = process.env.ATLAS_ENABLE_LEGACY_TIME_PREFERENCES === 'true';
-/**
+﻿/**
  * Generation run service — lifecycle management for timetable generation runs.
  * Business logic only; no transport concerns.
  *
@@ -19,8 +18,6 @@ import {
 	type Violation,
 } from './constraint-validator.js';
 import {
-	constructBaseline,
-	buildTimetableShapeContract,
 	buildUnionDisplaySlots,
 	type ConstructorInput,
 	type DemandItem,
@@ -29,18 +26,16 @@ import {
 	type UnassignedItem,
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
-import { buildDerivedDemand, toSchedulerDemandOverride } from './derived-demand.service.js';
+import {
+	buildGenerationPreflight,
+	revalidateGenerationPreflight,
+	buildPreflightConstructorInput,
+	buildPreflightValidatorContext,
+} from './generation-preflight.service.js';
 import { resolveRequestedTermIndex } from './academic-term.service.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
-import { getSectionSummary, syncSectionsFromExternal } from './section.service.js';
-import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
-import { getTemplatePeriodProfiles, ensureDefaultTemplates, ensureTemplatesForProgramTypes } from './class-template.service.js';
-import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
-import { ensurePhase3GradeWindows } from './grade-window.service.js';
-import { syncCohorts } from './cohort.service.js';
 import { publishNotificationEvent } from './notification-events.service.js';
 import { publishSchedule } from './publication-contract.service.js';
 import {
@@ -50,12 +45,7 @@ import {
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
 import { assertActiveSchoolYearForGeneration } from './school-year-drift-guard.service.js';
-import { ensureCanonicalClassProgramSlots, KNOWN_PROGRAM_TYPES, CANONICAL_TEMPLATE_VERSION } from './class-program-slot.service.js';
-import {
-	buildRunTimetableShapeContracts,
-	normalizeInternalGradeId,
-	normalizeProgramType,
-} from './generation-shape-assembly.service.js';
+import { CANONICAL_TEMPLATE_VERSION } from './class-program-slot.service.js';
 
 // ─── Helpers ───
 
@@ -85,35 +75,6 @@ function err(
 	e.actionHint = options?.actionHint;
 	e.details = options?.details;
 	return e;
-}
-
-async function assertRolloverSetupReadyForGeneration(schoolId: number, schoolYearId: number): Promise<void> {
-	const [sectionCount, teachingLoadOwnerCount] = await Promise.all([
-		db().sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } }),
-		db().subjectSectionOwnership.count({ where: { schoolId, schoolYearId } }),
-	]);
-	if (sectionCount === 0) {
-		throw err(
-			409,
-			'SECTION_SETUP_REQUIRED',
-			'Generation is blocked until EnrollPro sections are synced and reviewed for the active school year.',
-			{
-				actionHint: 'Open Sections, sync from EnrollPro, then review room/setup readiness before generating.',
-				details: { schoolId, schoolYearId, sectionCount },
-			},
-		);
-	}
-	if (teachingLoadOwnerCount === 0) {
-		throw err(
-			409,
-			'TEACHING_LOAD_REVIEW_REQUIRED',
-			'Generation is blocked until Teaching Load is built for the new school year.',
-			{
-				actionHint: 'Open Teaching Load, assign section owners, save the load, then create the timetable.',
-				details: { schoolId, schoolYearId, teachingLoadOwnerCount },
-			},
-		);
-	}
 }
 
 function asSummaryRecord(summary: unknown): RunSummaryRecord {
@@ -570,7 +531,6 @@ export async function triggerGenerationRun(
 	},
 ) {
 	await assertActiveSchoolYearForGeneration(schoolId, schoolYearId, options?.authToken);
-	await assertRolloverSetupReadyForGeneration(schoolId, schoolYearId);
 
 	const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
 	if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
@@ -584,6 +544,43 @@ export async function triggerGenerationRun(
 			},
 		);
 	}
+
+	// ── GEN-C02R1 F1: one complete read-only preflight before ANY write ──
+	// The trigger consumes the exact same shared assembly as the readiness dry
+	// run. Missing persisted setup, blocked authority, invalid demand, and
+	// nonuniform rotation contracts are typed blockers here rather than
+	// setup-healing writes. No GenerationRun/event/audit/draft/lock/policy/
+	// window/template/slot/section/ownership/cycle write may precede this.
+	const preflight = await buildGenerationPreflight(schoolId, schoolYearId, {
+		enforceShiftWindows: options?.enforceShiftWindows === true,
+	});
+	if (!preflight.ok) {
+		throw err(
+			409,
+			'GENERATION_PREFLIGHT_BLOCKED',
+			'Generation is blocked by its read-only preflight. Resolve the reported setup, authority, and demand items before generating.',
+			{
+				actionHint: preflight.blockers[0]?.nextAction ?? 'Resolve the reported blockers, then generate again.',
+				details: { schoolId, schoolYearId, blockers: preflight.blockers },
+			},
+		);
+	}
+
+	// Revalidate the bound revisions immediately before the first write. Drift is
+	// a typed stale-preflight error with zero writes, never a silent rebuild.
+	const freshness = await revalidateGenerationPreflight(preflight.assembly);
+	if (!freshness.ok) {
+		throw err(
+			409,
+			'GENERATION_PREFLIGHT_STALE',
+			'Generation inputs changed after the read-only preflight. Re-run generation so it binds the current setup.',
+			{
+				actionHint: 'Re-run generation to bind the current setup data.',
+				details: { schoolId, schoolYearId, changedRevisions: freshness.changed, blockers: freshness.current.blockers },
+			},
+		);
+	}
+	const assembly = preflight.assembly;
 
 	// Create run as QUEUED
 	const run = await db().generationRun.create({
@@ -623,7 +620,15 @@ export async function triggerGenerationRun(
 	try {
 		const enforceShiftWindows = options?.enforceShiftWindows === true;
 		stage = 'pre-generation-drafts';
-		const preGenerationDrafts = await preGenerationDraftService.consumeDraftPlacementsForRun(run.id, schoolId, schoolYearId, options?.authToken);
+		// GEN-C02R1 F1: the accepted retained placements were already resolved
+		// read-only by the shared preflight; no draft consume/setup writer runs here.
+		const preGenerationDrafts = {
+			lockedEntries: assembly.retained.lockedEntries,
+			prePlacedCount: assembly.retained.prePlacedCount,
+			invalidPrePlacedCount: assembly.retained.invalidPrePlacedCount,
+			skippedPrePlacedReasons: assembly.retained.skippedPrePlacedReasons,
+			acceptedPlacementIds: assembly.retained.acceptedPlacementIds,
+		};
 
 		// ── G.17: Diagnostic output for pre-gen consume phase ──
 		console.log(`[generation][run=${run.id}] pre-gen consume: accepted=${preGenerationDrafts.prePlacedCount}, skipped=${preGenerationDrafts.invalidPrePlacedCount}, lockedEntries=${preGenerationDrafts.lockedEntries?.length ?? 0}`);
@@ -631,355 +636,30 @@ export async function triggerGenerationRun(
 			console.log(`[generation][run=${run.id}] skipped reasons:`, preGenerationDrafts.skippedPrePlacedReasons.slice(0, 10));
 		}
 
-		// ── Fetch all input data for construction ──
-		// Prompt 01B: generation is a PASSIVE consumer of the subject catalog.
-		// The previous `reconcileSubjectContractFromUpstream` call mutated the
-		// catalog during generation (activation/deactivation overlays, dynamic
-		// TLE materialization, deprecated deactivation) — the exact mechanism
-		// that overwrote operator-owned data mid-run. Generation now reads one
-		// immutable catalog snapshot; offering/overlay reconciliation is a
-		// separate explicit preview/apply operator action.
-		stage = 'subject-catalog-snapshot';
-		await ensureDefaultTemplates(schoolId);
-		try {
-			await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
-		} catch (syncError) {
-			console.warn('[generation] Section sync failed; using local mirror', syncError);
-			publishNotificationEvent({
-				type: 'SECTION_SYNC_DEGRADED',
-				domain: 'integration',
-				severity: 'warning',
-				audience: 'PRIVILEGED',
-				schoolId,
-				schoolYearId,
-				facultyId: null,
-				message: 'Section sync could not reach EnrollPro; generation is using saved ATLAS section mirrors.',
-				metadata: {
-					runId: run.id,
-					stage,
-					error: syncError instanceof Error ? syncError.message : String(syncError),
-					sourceSystem: 'EnrollPro',
-				},
-			});
-		}
-		await ensurePhase3GradeWindows(schoolId, schoolYearId);
-		const sectionResult = await getSectionSummary(schoolYearId, schoolId, options?.authToken);
-		const cohortSyncResult = { synced: true, source: 'cached-enrollpro', fetchedAt: new Date(), count: 0, warnings: [] } as any;
-		const cohortSyncWarnings: string[] = [];
-		if (cohortSyncResult.synced) {
-			cohortSyncWarnings.push(...(cohortSyncResult.warnings ?? []));
-			if (cohortSyncResult.count === 0) {
-				cohortSyncWarnings.push('No instructional cohorts are currently active for this run; inter-section breakout lanes will fall back to section-scoped demand where needed.');
-			}
-		} else {
-			cohortSyncWarnings.push(
-				`Instructional cohort sync failed for this run: ${cohortSyncResult.error ?? 'unknown error'}. Existing cached cohorts (if any) were used.`,
-			);
-		}
-
-		stage = 'sections-fetch';
-		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specialEvents, ownershipRows] = await Promise.all([
-			db().facultyMirror.findMany({
-				where: { schoolId, isActiveForScheduling: true, isStale: false },
-				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true },
-			}),
-			db().facultySubject.findMany({
-				where: { schoolId, schoolYearId },
-				select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
-			}),
-			db().room.findMany({
-				where: {
-					isTeachingSpace: true,
-					building: { schoolId, isTeachingBuilding: true },
-				},
-				select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, buildingId: true, buildingZoneId: true, building: { select: { gradeScope: true } } },
-			}),
-			db().subject.findMany({
-				where: { schoolId, isActive: true },
-				select: {
-					id: true,
-					code: true,
-					name: true,
-					ownerDepartment: true,
-					qualificationPriority: true,
-					minMinutesPerWeek: true,
-					preferredRoomType: true,
-					gradeLevels: true,
-					interSectionEnabled: true,
-					interSectionGradeLevels: true,
-					programScopes: true,
-					allowedSpecializations: true,
-					requiredFeatures: true,
-					modularGroupId: true,
-					modularOrder: true,
-				},
-			}),
-			db().facultyPreference.findMany({
-				where: { schoolId, schoolYearId },
-				select: {
-					facultyId: true,
-					status: true,
-					timeSlots: ENABLE_LEGACY_TIME_PREFERENCES
-						? { select: { day: true, startTime: true, endTime: true, preference: true } }
-						: false,
-				},
-			}),
-			getOrCreatePolicy(schoolId, schoolYearId),
-			db().building.findMany({
-				where: { schoolId },
-				select: { id: true, name: true, x: true, y: true },
-			}),
-			enforceShiftWindows
-				? db().gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } })
-				: Promise.resolve([]),
-			db().policySpecialEvent.findMany({
-				where: { schoolId, schoolYearId, enabled: true },
-				orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
-			}),
-			db().subjectSectionOwnership.findMany({
-				where: { schoolId, schoolYearId },
-				select: { subjectId: true, sectionId: true, facultyId: true },
-			}),
-		]);
-
-		// Flatten building gradeScope into room objects for the constructor
-		const roomsWithGradeScope = rooms.map((r) => ({
-			...r,
-			buildingGradeScope: r.building?.gradeScope ?? [],
-		}));
-
-		const cohorts = await db().instructionalCohort.findMany({
-			where: { schoolId, schoolYearId, isActive: true },
-			orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
-			select: {
-				cohortCode: true,
-				specializationCode: true,
-				specializationName: true,
-				gradeLevel: true,
-				memberSectionIds: true,
-				expectedEnrollment: true,
-				preferredRoomType: true,
-			},
-		});
-
-		const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
-		const activeFacultyIdSet = new Set(faculty.map((member) => member.id));
-		const facultySubjects = facultySubjectRows
-			.filter((assignment) => activeFacultyIdSet.has(assignment.facultyId))
-			.map((assignment) => {
-			const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
-			return {
-				facultyId: assignment.facultyId,
-				subjectId: assignment.subjectId,
-				gradeLevels: normalized.gradeLevels,
-				sectionIds: normalized.sectionIds,
-			};
-		});
-
-		// ── Run hybrid multi-seed constructor (H-ALG-1 through H-ALG-3) ──
-		stage = 'constructor';
-		const sectionsByGrade = sectionResult.gradeLevels;
-
-		// Auto-seed class templates for any program types found in the fetched sections
-		// so that schedule generation uses the correct period lengths for special programs.
-		const detectedProgramTypes = [
-			...new Set(
-				sectionsByGrade
-					.flatMap((g) => g.sections)
-					.map((s) => s.programType)
-					.filter((pt): pt is NonNullable<typeof pt> => pt != null),
-			),
-		];
-		if (detectedProgramTypes.length > 0) {
-			await ensureTemplatesForProgramTypes(schoolId, detectedProgramTypes as any);
-		}
-
-		// Build classTemplatePeriods map: programType -> periodLengthMinutes
-		const templateProfiles = await getTemplatePeriodProfiles(schoolId);
-		const classTemplatePeriods: Record<string, number> = {};
-		for (const tp of templateProfiles) {
-			classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
-		}
-
-		// Ensure the active year has the stakeholder-derived exact templates before
-		// constructing candidates. Existing exact templates are never overwritten.
-		const canonicalCoverage = await ensureCanonicalClassProgramSlots(schoolId, schoolYearId);
-		const { resolveClassProgramSlots } = await import('./class-program-slot.service.js');
-		const canonicalSlotsByGradeProgram = new Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>>();
-		for (const grade of sectionsByGrade) {
-			// Normalize gradeLevelId to actual grade number (7, 8, 9, or 10)
-			// gradeLevelId is an internal EnrollPro ID, not an actual grade number
-			const actualGradeNumber = normalizeInternalGradeId(grade.gradeLevelId);
-			const programTypes = new Set<string>(['REGULAR']);
-			for (const section of grade.sections) {
-				programTypes.add(normalizeProgramType(section.programType));
-			}
-			for (const programType of programTypes) {
-				const allSlots = await resolveClassProgramSlots(schoolId, schoolYearId, actualGradeNumber, programType as any);
-				const key = `${actualGradeNumber}:${programType}`;
-				if (allSlots.length > 0) canonicalSlotsByGradeProgram.set(key, allSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, subjectFamily: s.subjectFamily, subjectLabel: s.subjectLabel, rowKind: s.rowKind })));
-				if (KNOWN_PROGRAM_TYPES.includes(programType as any)) {
-					const coverage = canonicalCoverage.coverage.find((item) => item.gradeLevel === actualGradeNumber && item.programType === programType);
-					if (!coverage || coverage.issues.length > 0) {
-						throw err(409, 'CANONICAL_TEMPLATE_INCOMPLETE', `Canonical timetable template is incomplete for Grade ${actualGradeNumber} ${programType}.`, {
-							actionHint: 'Review the active-year class-program template before generating.',
-							details: { schoolId, schoolYearId, gradeLevel: actualGradeNumber, programType, issues: coverage?.issues ?? ['missing-template'] },
-						});
-					}
-				}
-			}
-		}
-
-		const timetableShapeContracts = buildRunTimetableShapeContracts({
-			sectionsByGrade,
-			gradeWindows: gradeWindows.map((gw) => ({
-				gradeLevel: gw.gradeLevel,
-				programType: gw.programType ?? null,
-				startTime: gw.startTime,
-				endTime: gw.endTime,
-			})),
-			templateProfiles,
-			canonicalSlots: canonicalSlotsByGradeProgram,
-			policy: {
-				periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes,
-				periodsPerDay: (policyRecord as typeof policyRecord & { periodsPerDay?: number }).periodsPerDay,
-				maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
-				minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
-				maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
-				earliestStartTime: policyRecord.earliestStartTime,
-				latestEndTime: policyRecord.latestEndTime,
-				lunchStartTime: policyRecord.lunchStartTime ?? undefined,
-				lunchEndTime: policyRecord.lunchEndTime ?? undefined,
-				enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
-				enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
-				showSpecialEventsInGrid: policyRecord.showSpecialEventsInGrid ?? undefined,
-				enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
-				flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
-				flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
-				enableRecess: policyRecord.enableRecess ?? undefined,
-				recessStartTime: policyRecord.recessStartTime ?? undefined,
-				recessEndTime: policyRecord.recessEndTime ?? undefined,
-				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
-				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
-				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
-				specialEvents: specialEvents.map((se) => ({
-					eventType: se.eventType,
-					label: se.label,
-					startTime: se.startTime,
-					endTime: se.endTime,
-					gradeGroup: se.gradeGroup,
-					programType: se.programType,
-				})),
-			},
-		});
-
-		const schedulableSubjects = subjects.filter((subject) => subject.code !== 'HG');
-		// DEMAND-C01: the canonical derived-demand contract is the sole demand
-		// authority on the current-year path. A typed blocker replaces any silent
-		// fallback to legacy catalog `computeDemand()` or persisted offerings.
-		const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId, {
-			periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes ?? 45,
-		});
-		if (!derivedDemand.ok) {
-			throw err(409, 'DERIVED_DEMAND_BLOCKED', 'The canonical derived demand could not be resolved for this school year.', {
-				actionHint: 'Resolve the active school year term structure and Subject rotation metadata before generating.',
-				details: { schoolId, schoolYearId, blockers: derivedDemand.blockers },
-			});
-		}
-		const demand = toSchedulerDemandOverride(derivedDemand, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
-		// GEN-C02R Correction 7: exactly one canonical Teaching Load owner per pair
-		// is the scheduler candidate authority; conflicting ownership fails closed.
-		const canonicalPairOwners: Record<string, number> = {};
-		const ownerConflicts: string[] = [];
-		const ownersByKey = new Map<string, Set<number>>();
-		for (const row of ownershipRows) {
-			if (row.facultyId == null) continue;
-			const key = `${row.subjectId}:${row.sectionId}`;
-			const owners = ownersByKey.get(key) ?? new Set<number>();
-			owners.add(row.facultyId);
-			ownersByKey.set(key, owners);
-		}
-		for (const [key, owners] of ownersByKey) {
-			if (owners.size > 1) { ownerConflicts.push(key); continue; }
-			canonicalPairOwners[key] = [...owners][0];
-		}
-		if (ownerConflicts.length > 0) {
-			throw err(409, 'TL_OWNERSHIP_CONFLICT', 'Generation is blocked because more than one canonical Teaching Load owner claims a section/subject pair.', {
-				actionHint: 'Reconcile duplicate Teaching Load owners, then generate again.',
-				details: { schoolId, schoolYearId, conflicts: ownerConflicts.sort() },
-			});
-		}
+		// ── GEN-C02R1 F1: the bound read-only preflight assembly IS the input ──
+		// No subject-catalog reconciliation, section sync, template seeding,
+		// grade-window healing, or canonical-slot creation occurs on this path.
+		const sectionsByGrade = assembly.sectionsByGrade;
+		const cohorts = assembly.cohorts;
+		const facultySubjects = assembly.facultySubjects;
+		const subjects = assembly.subjects;
+		const rooms = assembly.rooms;
+		const buildings = assembly.buildings;
+		const gradeWindows = assembly.gradeWindows;
+		const policyRecord = (assembly.policyRow ?? {}) as any;
 		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
-		const constructorInput: ConstructorInput = {
-			schoolId,
-			schoolYearId,
-			roomingStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
-			sectionsByGrade,
-			subjects: schedulableSubjects,
-			cohorts,
-			faculty: faculty.map((member) => ({
-				id: member.id,
-				maxHoursPerWeek: Math.floor(
-					computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60,
-				),
-				department: member.department,
-			})),
-			facultySubjects,
-			rooms: roomsWithGradeScope,
-			preferences: preferences.map((p) => ({
-				facultyId: p.facultyId,
-				status: p.status,
-				timeSlots: ENABLE_LEGACY_TIME_PREFERENCES && 'timeSlots' in p && Array.isArray(p.timeSlots) ? p.timeSlots.map((ts) => ({
-					day: ts.day,
-					startTime: ts.startTime,
-					endTime: ts.endTime,
-					preference: ts.preference,
-				})) : [],
-			})),
-			policy: {
-				periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes,
-				periodsPerDay: (policyRecord as typeof policyRecord & { periodsPerDay?: number }).periodsPerDay,
-				maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
-				minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
-				maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
-				earliestStartTime: policyRecord.earliestStartTime,
-				latestEndTime: policyRecord.latestEndTime,
-				lunchStartTime: policyRecord.lunchStartTime ?? undefined,
-				lunchEndTime: policyRecord.lunchEndTime ?? undefined,
-				enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
-				enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
-				showSpecialEventsInGrid: policyRecord.showSpecialEventsInGrid ?? undefined,
-				enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
-				flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
-				flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
-				enableRecess: policyRecord.enableRecess ?? undefined,
-				recessStartTime: policyRecord.recessStartTime ?? undefined,
-				recessEndTime: policyRecord.recessEndTime ?? undefined,
-				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
-				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
-				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
-				specialEvents: specialEvents.map((se) => ({
-					eventType: se.eventType,
-					label: se.label,
-					startTime: se.startTime,
-					endTime: se.endTime,
-					gradeGroup: se.gradeGroup,
-					programType: se.programType,
-				})),
-			},
+		const demand = assembly.demand;
+		const timetableShapeContracts = assembly.timetableShapeContracts;
+		const cohortSyncWarnings: string[] = [];
+		if (cohorts.length === 0) {
+			cohortSyncWarnings.push('No instructional cohorts are currently active for this run; inter-section breakout lanes will fall back to section-scoped demand where needed.');
+		}
+
+		stage = 'constructor';
+		const constructorInput: ConstructorInput = buildPreflightConstructorInput(assembly, {
+			roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
 			lockedEntries: preGenerationDrafts.lockedEntries,
-			gradeWindows: gradeWindows.map((gw) => ({
-				gradeLevel: gw.gradeLevel,
-				programType: gw.programType ?? null,
-				startTime: gw.startTime,
-				endTime: gw.endTime,
-			})),
-			buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
-			classTemplatePeriods,
-			timetableShapes: timetableShapeContracts,
-			demandOverride: demand,
-			pairOwners: canonicalPairOwners,
-		};
+		});
 		const result = runHybridScheduler(constructorInput);
 		const entriesWithTerms = ensureEntriesHaveTermIndex(result.entries);
 
@@ -996,41 +676,9 @@ export async function triggerGenerationRun(
 			console.log(`[generation][run=${run.id}] top unassigned reasons:`, reasonCounts);
 		}
 
-		// ── Validate constructed entries ──
+		// ── Validate constructed entries with the same bound assembly policy ──
 		stage = 'validator';
-		const validatorCtx: ValidatorContext = {
-			schoolId, schoolYearId, runId: run.id,
-			entries: entriesWithTerms, faculty: constructorInput.faculty, facultySubjects, rooms, subjects,
-			sectionEnrollment: new Map(
-				sectionsByGrade.flatMap((g) => g.sections.map((s) => [s.id, s.enrolledCount] as const)),
-			),
-			policy: {
-				...constructorInput.policy!,
-				maxTeachingMinutesPerDay: policyMaxDailyMinutes,
-				enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
-			},
-			travelPolicy: {
-				enableTravelWellbeingChecks: policyRecord.enableTravelWellbeingChecks,
-				maxWalkingDistanceMetersPerTransition: policyRecord.maxWalkingDistanceMetersPerTransition,
-				maxBuildingTransitionsPerDay: policyRecord.maxBuildingTransitionsPerDay,
-				maxBackToBackTransitionsWithoutBuffer: policyRecord.maxBackToBackTransitionsWithoutBuffer,
-				maxIdleGapMinutesPerDay: policyRecord.maxIdleGapMinutesPerDay,
-				avoidEarlyFirstPeriod: policyRecord.avoidEarlyFirstPeriod,
-				avoidLateLastPeriod: policyRecord.avoidLateLastPeriod,
-			},
-			vacantPolicy: {
-				enableVacantAwareConstraints: policyRecord.enableVacantAwareConstraints,
-				targetFacultyDailyVacantMinutes: policyRecord.targetFacultyDailyVacantMinutes,
-				targetSectionDailyVacantPeriods: policyRecord.targetSectionDailyVacantPeriods,
-				maxCompressedTeachingMinutesPerDay: policyRecord.maxCompressedTeachingMinutesPerDay,
-			},
-			buildings,
-			roomBuildings: rooms.map((r) => ({ roomId: r.id, buildingId: r.buildingId })),
-			constraintConfig: {
-				...DEFAULT_CONSTRAINT_CONFIG,
-				...(policyRecord.constraintConfig as Record<string, { enabled: boolean; weight: number; treatAsHard: boolean }> ?? {}),
-			},
-		};
+		const validatorCtx: ValidatorContext = buildPreflightValidatorContext(assembly, entriesWithTerms, run.id);
 		const validationResult = validateHardConstraints(validatorCtx);
 		const modularWarnings = result.modularWarnings ?? [];
 		const modularWarningViolations: Violation[] = modularWarnings.map((warning) => ({
@@ -1144,13 +792,7 @@ export async function triggerGenerationRun(
 			modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
 			cohortCount: cohorts.length,
 			termCounts,
-			contractWarnings: [
-				...(sectionResult.contractWarnings ?? []),
-				...cohortSyncWarnings,
-			].length > 0 ? [
-				...(sectionResult.contractWarnings ?? []),
-				...cohortSyncWarnings,
-			] : undefined,
+			contractWarnings: cohortSyncWarnings.length > 0 ? [...cohortSyncWarnings] : undefined,
 			// H-ALG-5: Hybrid scheduler diagnostics
 			hybridEnabled: result.hybridEnabled,
 			selectedSeedProfile: result.selectedProfileId,
@@ -1163,7 +805,7 @@ export async function triggerGenerationRun(
 			canonicalTemplateVersion: CANONICAL_TEMPLATE_VERSION,
 			timetableDisplaySlots,
 			inputSnapshot,
-			derivedDemandRevision: derivedDemand.revision,
+			derivedDemandRevision: assembly.derivedDemandRevision ?? undefined,
 		};
 
 		const finishedAt = new Date();

@@ -526,6 +526,100 @@ export function toDerivedDemandPairIdentities(result: DerivedDemandSuccess): Der
 		.sort((a, b) => a.key.localeCompare(b.key));
 }
 
+/**
+ * GEN-C02R1 Finding F4: exact per-order-term demand projection.
+ *
+ * Unlike the collapsed scheduler override, this projection preserves EACH
+ * rotating-family member's own ordered term, weekly minutes, session count, and
+ * duration, so unequal-member (nonuniform) rotation contracts can be asserted
+ * per term instead of silently collapsing to the family maximum. It performs no
+ * collapsing and no I/O.
+ */
+export interface DerivedPerTermDemandLine {
+	termIdentity: string;
+	termIndex: number;
+	subjectId: number;
+	subjectCode: string;
+	sectionMirrorId: number;
+	sectionExternalId: number;
+	gradeLevel: number;
+	programType: string;
+	weeklyMinutes: number;
+	sessionsPerWeek: number;
+	durationPerSession: number;
+	rotationFamily: string | null;
+	rotationOrder: number | null;
+	termMode: 'ALL' | 'ROTATING_FAMILY_MEMBER';
+	ownerFacultyId: number | null;
+}
+
+export function toPerTermDemandLines(
+	result: DerivedDemandSuccess,
+	ownerByPair: Record<string, number> = {},
+): DerivedPerTermDemandLine[] {
+	return result.timetableLines
+		.map((line) => {
+			const sessionsPerWeek = Math.max(1, line.sessionsPerWeek);
+			return {
+				termIdentity: line.termIdentity,
+				termIndex: line.termIndex,
+				subjectId: line.subjectId,
+				subjectCode: line.subjectCode,
+				sectionMirrorId: line.sectionMirrorId,
+				sectionExternalId: line.sectionExternalId,
+				gradeLevel: line.gradeLevel,
+				programType: line.programType,
+				weeklyMinutes: line.weeklyMinutes,
+				sessionsPerWeek,
+				durationPerSession: Math.ceil(line.weeklyMinutes / sessionsPerWeek),
+				rotationFamily: line.rotationFamily,
+				rotationOrder: line.rotationOrder,
+				termMode: line.termMode,
+				ownerFacultyId: ownerByPair[`${line.subjectId}:${line.sectionExternalId}`] ?? null,
+			};
+		})
+		.sort((a, b) =>
+			`${String(a.gradeLevel).padStart(2, '0')}:${a.programType}:${String(a.sectionExternalId).padStart(10, '0')}:${String(a.subjectId).padStart(10, '0')}:${String(a.termIndex).padStart(3, '0')}`
+				.localeCompare(`${String(b.gradeLevel).padStart(2, '0')}:${b.programType}:${String(b.sectionExternalId).padStart(10, '0')}:${String(b.subjectId).padStart(10, '0')}:${String(b.termIndex).padStart(3, '0')}`),
+		);
+}
+
+/**
+ * Fail closed when a per-term projection drops, duplicates, or rewrites the
+ * exact per-term weekly minutes/session count of the canonical derived demand.
+ * This is the corrected assertion the former family-maximum collapse cannot
+ * satisfy.
+ */
+export function assertPerTermDemandParity(result: DerivedDemandSuccess, lines: DerivedPerTermDemandLine[]): void {
+	const canonical = new Map<string, DerivedTimetableLine>();
+	for (const line of result.timetableLines) {
+		canonical.set(`${line.subjectId}:${line.sectionExternalId}:${line.termIdentity}`, line);
+	}
+	const seen = new Set<string>();
+	for (const line of lines) {
+		const key = `${line.subjectId}:${line.sectionExternalId}:${line.termIdentity}`;
+		if (seen.has(key)) {
+			throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection duplicated ${key}.`, { duplicate: key });
+		}
+		seen.add(key);
+		const expected = canonical.get(key);
+		if (!expected) {
+			throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection produced an unverified line ${key}.`, { unknownLine: key });
+		}
+		const expectedSessions = Math.max(1, expected.sessionsPerWeek);
+		if (line.termIndex !== expected.termIndex || line.weeklyMinutes !== expected.weeklyMinutes || line.sessionsPerWeek !== expectedSessions) {
+			throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection rewrote totals for ${key}: expected term ${expected.termIndex} ${expected.weeklyMinutes}m/${expectedSessions} sessions.`, {
+				line: key,
+				expected: { termIndex: expected.termIndex, weeklyMinutes: expected.weeklyMinutes, sessionsPerWeek: expectedSessions },
+				actual: { termIndex: line.termIndex, weeklyMinutes: line.weeklyMinutes, sessionsPerWeek: line.sessionsPerWeek },
+			});
+		}
+	}
+	if (seen.size !== canonical.size) {
+		throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection mismatch: expected ${canonical.size} canonical term lines, projected ${seen.size}.`, { expected: canonical.size, projected: seen.size });
+	}
+}
+
 function toSectionDemandItem(
 	pair: DerivedTeachingLoadPair,
 	section: SectionsByGrade['sections'][number],

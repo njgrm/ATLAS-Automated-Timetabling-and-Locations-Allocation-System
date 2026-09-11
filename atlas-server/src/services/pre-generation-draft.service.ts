@@ -286,6 +286,15 @@ interface LoadDraftContextOptions {
 	 * EnrollPro sync (which would persist a snapshot) is permitted.
 	 */
 	readOnly?: boolean;
+	/**
+	 * GEN-C02R1 F1: reuse the shared preflight assembly's already-resolved
+	 * sections and persisted policy instead of re-reading them through the
+	 * snapshot/upstream path. This keeps the retained-draft read read-only and
+	 * prevents any setup-healing writer (upstream sync, `getOrCreatePolicy`)
+	 * from being invoked on the generation path.
+	 */
+	resolvedSectionsByGrade?: ConstructorInput['sectionsByGrade'];
+	resolvedPolicyRecord?: unknown;
 }
 
 interface ListDraftBoardStateOptions extends LoadDraftContextOptions {}
@@ -570,7 +579,12 @@ async function loadPolicyForDraftContext(schoolId: number, schoolYearId: number,
 }
 
 async function loadDraftContext(schoolId: number, schoolYearId: number, authToken?: string, options: LoadDraftContextOptions = {}) {
-	const sectionResultPromise = loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options);
+	const sectionResultPromise: Promise<SectionFetchResult> = options.resolvedSectionsByGrade
+		? Promise.resolve({ gradeLevels: options.resolvedSectionsByGrade, source: 'atlas-mirror' as const, fetchedAt: new Date(), isStale: false, contractWarnings: [] })
+		: loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options);
+	const policyRecordPromise = options.resolvedPolicyRecord !== undefined
+		? Promise.resolve(options.resolvedPolicyRecord as any)
+		: loadPolicyForDraftContext(schoolId, schoolYearId, options.readOnly);
 	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts, specialEvents] = await Promise.all([
 		sectionResultPromise,
 		db().facultyMirror.findMany({
@@ -613,7 +627,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 			},
 		}),
 		db().building.findMany({ where: { schoolId }, select: { id: true, name: true, shortCode: true, x: true, y: true } }),
-		loadPolicyForDraftContext(schoolId, schoolYearId, options.readOnly),
+		policyRecordPromise,
 		db().gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
 		db().lockedSession.findMany({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
 		db().instructionalCohort.findMany({
