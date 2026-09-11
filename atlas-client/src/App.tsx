@@ -8,8 +8,6 @@ const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MapEditor = lazy(() => import('./pages/MapEditor'));
 const Subjects = lazy(() => import('./pages/Subjects'));
-const CurriculumRequirements = lazy(() => import('./pages/CurriculumRequirements'));
-const DecisionWorkspace = lazy(() => import('./pages/DecisionWorkspace'));
 const Faculty = lazy(() => import('./pages/Faculty'));
 const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
 const TeachingLoadHistory = lazy(() => import('./components/faculty-assignments/TeachingLoadHistoryView'));
@@ -31,6 +29,16 @@ const PublicPublishedSchedule = lazy(() => import('./pages/PublicPublishedSchedu
 function LegacyRouteRedirect({ to }: { to: string }) {
 	const location = useLocation();
 	return <Navigate to={{ pathname: to, search: location.search }} replace />;
+}
+
+/**
+ * UX-C01 — the annual Curriculum Requirements / Decision Workspace surfaces
+ * are retired. Historical deep links replace-redirect to the Subjects setup
+ * view with concise context. They never mount legacy mutation UI or dispatch
+ * legacy requirement requests.
+ */
+function RetiredRequirementsRedirect() {
+	return <Navigate to='/subjects?context=derived-setup' replace />;
 }
 
 /**
@@ -78,11 +86,11 @@ const router = createBrowserRouter([
 			},
 			{
 				path: 'subjects/requirements',
-				element: <CurriculumRequirements />,
+				element: <RetiredRequirementsRedirect />,
 			},
 			{
 				path: 'subjects/decision-workspace',
-				element: <DecisionWorkspace />,
+				element: <RetiredRequirementsRedirect />,
 			},
 			{
 				path: 'teachers',

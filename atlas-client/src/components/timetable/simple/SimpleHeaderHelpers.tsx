@@ -61,7 +61,7 @@ const NO_RUN_STEPS: readonly SimpleTutorialStep[] = [
 	},
 	{
 		title: 'Repair setup on Year Setup',
-		body: 'If term and setup data are missing or out of sync, ATLAS sends you to Year Setup rather than a duplicate requirements page.',
+		body: 'If the active year, ordered terms, or Subject scheduling metadata are missing or out of sync, ATLAS sends you to Year Setup and Subjects.',
 		target: 'Open Year Setup',
 		targetTestId: 'timetable-simple-primary-action',
 		icon: ClipboardCheck,

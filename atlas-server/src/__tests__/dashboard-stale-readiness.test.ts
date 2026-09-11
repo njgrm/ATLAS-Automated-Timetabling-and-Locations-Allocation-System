@@ -182,7 +182,22 @@ function aggregateInput(overrides: Partial<DashboardReadinessAggregateInput> = {
 		sectionResult: { ok: true, data: { sectionCount: 20, lastSyncedAt: null } },
 		generationResult: { ok: true, data: { latestRunStatus: 'NONE', latestRunId: null, violationCount: null, createdAt: null, finishedAt: null } },
 		publicationResult: { ok: true, data: { isPublished: false, publishedRunId: null } },
-		curriculumResult: { ok: true, data: { ready: true, termConfigPresent: true, requirementCount: 1, blockerCode: null, blockerMessage: null } },
+		derivedDemandResult: {
+			ok: true,
+			data: {
+				available: true,
+				ready: true,
+				yearLabel: '2030-2031',
+				revision: 'DERIVED-REV',
+				termStructure: { format: 'QUARTERS', terms: [{ identity: 'Q1', displayLabel: 'Quarter 1', order: 1 }] },
+				blockers: [],
+				subjectMetadataExceptions: [],
+				totals: { totalLines: 20, totalPairs: 20, byTerm: { Q1: 20 } },
+				blockerCode: null,
+				blockerMessage: null,
+				error: null,
+			},
+		},
 		...overrides,
 	};
 }

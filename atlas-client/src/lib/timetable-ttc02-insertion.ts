@@ -140,12 +140,12 @@ export function placementSaveAvailability(input: {
 }): { canSave: boolean; label: string; detail: string } {
   // Homeroom Guidance is never timetable demand or teaching load. Even if a
   // line ever arrives mislabeled as previewable, the client must refuse to
-  // present it as placeable and must point at Curriculum Requirements.
+  // present it as placeable and must point at the Subject catalog.
   if (isHomeroomGuidanceCode(input.subjectCode)) {
     return {
       canSave: false,
       label: 'Save blocked',
-      detail: 'Homeroom Guidance is never timetable demand. Remove the HG line from Curriculum Requirements instead of placing it.',
+      detail: 'Homeroom Guidance is never timetable demand. Set its disposition to Reference only in Subjects instead of placing it.',
     };
   }
   if (input.state !== 'INDIVIDUALLY_PREVIEWABLE') {

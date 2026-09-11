@@ -100,8 +100,7 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 		return { kind: 'retry-readiness', label: 'Retry setup check', disabled: false, interactive: true };
 	}
 	// Setup inputs blocked: the single next action is repairing setup on the
-	// Year Setup surface, never generation, publish, or the superseded
-	// curriculum requirements page.
+	// Year Setup surface, never generation or publish.
 	if (input.curriculumState === 'blocked') {
 		return { kind: 'fix-setup', label: 'Open Year Setup', disabled: false, interactive: true };
 	}

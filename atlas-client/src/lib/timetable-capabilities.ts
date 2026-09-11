@@ -1,9 +1,10 @@
 import { deriveSimpleLifecycleAction, type SimpleLifecycleAction } from './simple-timetable-state';
+import type { TimetableReadinessDiagnosticSummary, TimetableReadinessRepair } from './timetable-generation-readiness';
 
 /**
  * The single Year Setup / status surface for repairing school-year and term
- * authority. The superseded `/curriculum-requirements` page must never be the
- * normal operator repair destination.
+ * authority. The retired annual-requirements surface must never be the normal
+ * operator repair destination.
  */
 export const YEAR_SETUP_HREF = '/admin/year-setup';
 
@@ -61,6 +62,15 @@ export type TimetableCapabilityInput = {
 	/** A stale/ drift setup state blocks generation the same way an unresolved year does. */
 	driftBlocked?: boolean;
 	driftMessage?: string | null;
+	/**
+	 * UX-C01R — the canonical generation diagnostic gate summary. When present,
+	 * generation is allowed only when `generateAllowed`, `zeroWrite`, and
+	 * `blockerCount === 0` all agree. This is defense-in-depth behind the
+	 * readiness adapter, which already only reports `ready` under those terms.
+	 */
+	generationDiagnostic?: TimetableReadinessDiagnosticSummary | null;
+	/** The one smallest repair for the exact current blocker, when known. */
+	readinessRepair?: TimetableReadinessRepair | null;
 };
 
 export type TimetableCapabilities = {
@@ -129,13 +139,22 @@ export function deriveTimetableCapabilities(input: TimetableCapabilityInput): Ti
 		if (input.generating) return denied('A generation run is already in progress.');
 		if (input.curriculumState === 'loading') return denied('Still checking setup inputs for this school year.');
 		if (input.curriculumState === 'blocked') {
-			return denied(
-				'Setup inputs for the active school year are not ready yet.',
-				navigate('Open Year Setup', YEAR_SETUP_HREF),
-			);
+			const repair = input.readinessRepair
+				? { kind: 'navigate' as const, label: input.readinessRepair.label, href: input.readinessRepair.href }
+				: navigate('Open Year Setup', YEAR_SETUP_HREF);
+			return denied('Setup inputs for the active school year are not ready yet.', repair);
 		}
 		if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
 			return denied('Setup inputs could not be checked.', retry('Retry setup check'));
+		}
+		// UX-C01R — never allow generation from a "ready" state whose canonical
+		// diagnostic does not prove allow + zero-write + no blockers.
+		if (input.generationDiagnostic
+			&& (!input.generationDiagnostic.generateAllowed || !input.generationDiagnostic.zeroWrite || input.generationDiagnostic.blockerCount > 0)) {
+			return denied(
+				'Generation readiness is not verified for this school year.',
+				navigate('Check generation readiness', '/timetable'),
+			);
 		}
 		if (input.driftBlocked) {
 			return denied(
