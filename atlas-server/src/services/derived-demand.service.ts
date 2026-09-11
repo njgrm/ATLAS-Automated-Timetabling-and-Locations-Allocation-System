@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { getDataContext } from '../lib/data-context.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { normalizeGradeLevelSync, normalizeInternalGradeId } from './class-program-slot.service.js';
 import type { DemandItem, SubjectInput } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
@@ -952,7 +952,11 @@ export async function buildDerivedDemand(
 		sections: sectionRows.map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			gradeLevel: normalizeGradeLevelSync(section.displayOrder),
+			// GEN-C02R Correction 6: the authoritative grade is the EnrollPro
+			// internal `gradeLevelId`, normalized via the internal-ID mapping.
+			// `displayOrder` is presentation ordering only and must never determine
+			// curriculum demand scope.
+			gradeLevel: normalizeInternalGradeId(section.gradeLevelId),
 			programType: section.programType,
 			isActiveForScheduling: section.isActiveForScheduling,
 			isStale: section.isStale,

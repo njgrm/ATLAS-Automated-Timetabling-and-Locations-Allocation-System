@@ -1,5 +1,5 @@
 /**
- * GEN-C02 — canonical generation readiness and legacy-consumer closure.
+ * GEN-C02 â€” canonical generation readiness and legacy-consumer closure.
  *
  * Run (server workspace): `npx tsx src/__tests__/generation-canonical-readiness-genc02.test.ts`
  *
@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
 	deriveCanonicalDemand,
+	buildDerivedDemand,
 	toPerPairDemandItems,
 	type DerivedDemandInput,
 	type DerivedSubjectInput,
@@ -39,7 +40,7 @@ import type { SectionsByGrade } from '../services/section-adapter.js';
 const SCHOOL_ID = 41;
 const SCHOOL_YEAR_ID = 8;
 
-// ─── 1. Legacy consumer closure ─────────────────────────────────────────────
+// â”€â”€â”€ 1. Legacy consumer closure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function readServiceSource(relative: string): string {
 	return readFileSync(fileURLToPath(new URL(`../services/${relative}`, import.meta.url)), 'utf8');
@@ -78,7 +79,7 @@ test('1b. the hybrid scheduler fails closed without the derived demand override'
 	assert.equal(empty.unassignedItems.length, 0);
 });
 
-// ─── 2. Derived per-pair projection parity ──────────────────────────────────
+// â”€â”€â”€ 2. Derived per-pair projection parity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TERM_CONTRACT: VerifiedTermContract = {
 	schoolId: SCHOOL_ID,
@@ -151,7 +152,7 @@ test('2. per-pair projection preserves subject identity, ordered terms, and pari
 	}));
 	const items = toPerPairDemandItems(result, sectionsByGrade, subjects);
 
-	// One item per (subject, section) pair — rotation members are NOT collapsed.
+	// One item per (subject, section) pair â€” rotation members are NOT collapsed.
 	assert.equal(items.length, result.totalPairs);
 	assert.equal(items.length, 5);
 	const bio = items.find((item) => item.subjectId === 13);
@@ -162,11 +163,19 @@ test('2. per-pair projection preserves subject identity, ordered terms, and pari
 	assert.equal(math?.sessionsPerWeek, 4);
 });
 
-// ─── 3-5. Read-only readiness dry run with an in-memory client ───────────────
+// â”€â”€â”€ 3-5. Read-only readiness dry run with an in-memory client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface MockOverrides {
 	ownership?: boolean;
 	retainedLock?: { subjectId: number; termIndex: number; day: string; startTime: string; endTime: string };
+	/** C4: persisted term snapshot absent -> derived demand is a typed blocker. */
+	noTermCache?: boolean;
+	/** C4: no sole active year -> buildDerivedDemand throws ACTIVE_YEAR_UNAVAILABLE. */
+	noActiveYear?: boolean;
+	/** C9: push MATH weekly minutes above canonical CLASS capacity. */
+	hugeMathMinutes?: boolean;
+	/** C6: change presentation ordering only; authoritative grade must not move. */
+	displayOrderOverride?: number;
 }
 
 function buildMockClient(overrides: MockOverrides = {}) {
@@ -185,14 +194,14 @@ function buildMockClient(overrides: MockOverrides = {}) {
 
 	const sectionMirrors = [{
 		id: 501, externalId: 9001, schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, name: '7-A',
-		gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, maxCapacity: 50, enrolledCount: 40,
+		gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: overrides.displayOrderOverride ?? 7, maxCapacity: 50, enrolledCount: 40,
 		programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', isSpecialProgram: false,
 		tleProgramId: null, tleSpecialization: null, tleProgramCategory: null, homeRoomId: null, buildingZoneId: null,
 		isActiveForScheduling: true, isStale: false,
 	}];
 
 	const subjects = [
-		{ id: 11, code: 'MATH', name: 'Mathematics', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
+		{ id: 11, code: 'MATH', name: 'Mathematics', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: overrides.hugeMathMinutes ? 5000 : 240, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
 		{ id: 12, code: 'ENG', name: 'English', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
 		{ id: 13, code: 'SCI_BIO', name: 'Science Biology', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 1, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
 		{ id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 2, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
@@ -251,15 +260,17 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		subjectSectionOwnership: { count: async () => ownership.length, findMany: async () => ownership },
 		schedulingPolicy: { findUnique: async () => policy },
 		enrollProSchoolYearMirror: {
-			findMany: async () => [{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: '2029-2030' }],
-			findUnique: async () => ({
-				isActive: true, isArchived: false,
-				termContractCache: {
-					schoolId: SCHOOL_ID, schoolYear: { id: SCHOOL_YEAR_ID }, format: 'TRIMESTER',
-					terms: TERM_CONTRACT.terms.map((term) => ({ identity: term.identity, displayLabel: term.displayLabel, order: term.order })),
-				},
-				termContractCachedAt: new Date('2029-01-01'),
-			}),
+			findMany: async () => overrides.noActiveYear ? [] : [{ enrollProSchoolYearId: SCHOOL_YEAR_ID, yearLabel: '2029-2030' }],
+			findUnique: async () => overrides.noTermCache
+				? { isActive: true, isArchived: false, termContractCache: null, termContractCachedAt: null }
+				: ({
+					isActive: true, isArchived: false,
+					termContractCache: {
+						schoolId: SCHOOL_ID, schoolYear: { id: SCHOOL_YEAR_ID }, format: 'TRIMESTER',
+						terms: TERM_CONTRACT.terms.map((term) => ({ identity: term.identity, displayLabel: term.displayLabel, order: term.order })),
+					},
+					termContractCachedAt: new Date('2029-01-01'),
+				}),
 		},
 		sectionMirror: { findMany: async () => sectionMirrors, count: async () => sectionMirrors.length },
 		subject: { findMany: async () => subjects },
@@ -333,4 +344,52 @@ test('6. a retained placement that no longer matches live demand is reported, ne
 	assert.equal(readiness.retainedLocks.rejected.length, 1);
 	assert.equal(readiness.retainedLocks.rejected[0]?.placementId, 900);
 	assert.ok(readiness.blockers.some((entry) => entry.code.startsWith('RETAINED_LOCK_')), 'a rejected retained lock must surface as a blocker');
+});
+
+// â”€â”€â”€ GEN-C02R corrections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+test('C4a. unavailable term authority returns structured blocked readiness (no throw, zero writes)', async () => {
+	const { client, writes } = buildMockClient({ noTermCache: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: undefined, enforceShiftWindows: false });
+	assert.equal(readiness.status, 'BLOCKED');
+	assert.equal(readiness.generateAllowed, false);
+	assert.equal(readiness.schedulerExecuted, false, 'downstream scheduler must not run without resolved demand');
+	assert.ok(readiness.derivedDemandBlockers.some((blocker) => blocker.code === 'TERM_STRUCTURE_UNAVAILABLE'));
+	assert.ok(readiness.blockers.some((blocker) => blocker.code === 'TERM_STRUCTURE_UNAVAILABLE'));
+	assert.deepEqual(writes, [], 'a blocked readiness result must still be zero-write');
+});
+
+test('C4b. missing active year is converted to a typed blocker instead of thrown', async () => {
+	const { client } = buildMockClient({ noActiveYear: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(readiness.status, 'BLOCKED');
+	assert.equal(readiness.generateAllowed, false);
+	assert.equal(readiness.schedulerExecuted, false);
+	assert.ok(readiness.derivedDemandBlockers.some((blocker) => blocker.code === 'ACTIVE_YEAR_UNAVAILABLE'));
+});
+
+test('C6. section displayOrder never determines curriculum demand scope', async () => {
+	const base = buildMockClient();
+	const permuted = buildMockClient({ displayOrderOverride: 99 });
+	const baseDemand = await buildDerivedDemand(SCHOOL_ID, SCHOOL_YEAR_ID, { client: base.client, termContract: TERM_CONTRACT });
+	const permutedDemand = await buildDerivedDemand(SCHOOL_ID, SCHOOL_YEAR_ID, { client: permuted.client, termContract: TERM_CONTRACT });
+	assert.equal(baseDemand.ok, true);
+	assert.equal(permutedDemand.ok, true);
+	if (!baseDemand.ok || !permutedDemand.ok) return;
+	assert.equal(baseDemand.timetableLines.every((line) => line.gradeLevel === 7), true);
+	// Authoritative grade comes from gradeLevelId (internal 17 -> grade 7), so a
+	// presentation-order change must not change any curriculum demand/revision.
+	assert.equal(permutedDemand.timetableLines.every((line) => line.gradeLevel === 7), true);
+	assert.equal(permutedDemand.revision, baseDemand.revision, 'displayOrder must not change the derived revision');
+});
+
+test('C9. demand above canonical CLASS capacity is a typed HARD blocker (never an escape hatch)', async () => {
+	const { client } = buildMockClient({ hugeMathMinutes: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	const capacityBlocker = readiness.blockers.find((entry) => entry.code === 'CANONICAL_SHAPE_CAPACITY_EXCEEDED');
+	assert.ok(capacityBlocker, 'over-capacity demand must surface CANONICAL_SHAPE_CAPACITY_EXCEEDED');
+	assert.equal(capacityBlocker?.category, 'POLICY_BLOCKER');
+	assert.ok(capacityBlocker?.termIdentity, 'the capacity blocker must name the term identity');
+	assert.ok(capacityBlocker?.sectionId, 'the capacity blocker must name the section');
+	assert.equal(readiness.generateAllowed, false);
 });

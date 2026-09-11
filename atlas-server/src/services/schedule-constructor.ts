@@ -1822,23 +1822,22 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: FALLBACK_PERIOD_SLOTS.length }, (_, i) => i);
 		const shapeContract = resolveTimetableShapeContract(timetableShapes, item.gradeLevel, item.programType);
 		if (shapeContract) {
-			const sectionDemandSessions = item.entryKind === 'SECTION'
-				? (sectionWeeklyDemandSessions.get(item.sectionId) ?? item.sessionsPerWeek)
-				: item.sessionsPerWeek;
-			const shapeWeeklyCapacity = shapeContract.periodSlots.length * DAYS.length;
-			const shouldBypassShapeFilter = item.entryKind === 'SECTION' && sectionDemandSessions > shapeWeeklyCapacity;
-			if (!shouldBypassShapeFilter) {
-				// Use canonical CLASS slots if available, otherwise use shape contract period slots
-				const canonicalClassSlots = shapeContract.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
-				const allowedSlots = canonicalClassSlots && canonicalClassSlots.length > 0
-					? canonicalClassSlots
-					: shapeContract.periodSlots;
-				const allowedSlotKeys = new Set(allowedSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
-				gradeValidPeriods = gradeValidPeriods.filter((pi) => {
-					const slot = FALLBACK_PERIOD_SLOTS[pi];
-					return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
-				});
-			}
+			// GEN-C02R Correction 9: canonical capacity is a constraint, never an
+			// escape hatch. The former `shouldBypassShapeFilter` treated demand
+			// greater than the canonical weekly capacity as permission to fall back
+			// to broader day-span slots outside the approved shift/class-program
+			// shape. That loophole is removed: fallback slots must themselves be
+			// authoritative canonical CLASS rows (or shape period slots). Overflow
+			// is reported by readiness/preflight as CANONICAL_SHAPE_CAPACITY_EXCEEDED.
+			const canonicalClassSlots = shapeContract.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
+			const allowedSlots = canonicalClassSlots && canonicalClassSlots.length > 0
+				? canonicalClassSlots
+				: shapeContract.periodSlots;
+			const allowedSlotKeys = new Set(allowedSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+			gradeValidPeriods = gradeValidPeriods.filter((pi) => {
+				const slot = FALLBACK_PERIOD_SLOTS[pi];
+				return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
+			});
 		}
 		const normalizedItemGradeLevel = normalizeGradeLevel(item.gradeLevel);
 		const gradeProgramKey = `${normalizedItemGradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;

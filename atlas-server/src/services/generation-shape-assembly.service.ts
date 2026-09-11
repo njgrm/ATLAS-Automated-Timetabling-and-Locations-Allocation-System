@@ -73,8 +73,12 @@ export function buildRunTimetableShapeContracts(input: {
 
 		for (const programType of programTypes) {
 			const canonicalRows = input.canonicalSlots?.get(`${normalizedGradeLevel}:${programType}`);
-			const window = input.gradeWindows.find((row) => normalizeInternalGradeId(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === programType)
-				?? input.gradeWindows.find((row) => normalizeInternalGradeId(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === 'ALL');
+			// GEN-C02R Correction 6: `GradeShiftWindow.gradeLevel` is already an
+			// actual grade (7–10). It must NOT be passed through the internal-ID
+			// normalizer (which maps 7→9 / 8→10). Only `SectionMirror.gradeLevelId`
+			// (an EnrollPro internal ID) uses that mapping.
+			const window = input.gradeWindows.find((row) => row.gradeLevel === normalizedGradeLevel && normalizeProgramType(row.programType) === programType)
+				?? input.gradeWindows.find((row) => row.gradeLevel === normalizedGradeLevel && normalizeProgramType(row.programType) === 'ALL');
 			const template = templateByProgram.get(programType) ?? regularTemplate;
 			const canonicalClassRows = canonicalRows?.filter((row) => row.rowKind === 'CLASS') ?? [];
 			const periodLengthMinutes = canonicalClassRows.length > 0 ? 45 : (effectivePeriodLengthMinutes || template.periodLengthMinutes);

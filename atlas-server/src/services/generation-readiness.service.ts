@@ -26,7 +26,8 @@ import {
 	type ScheduledEntry,
 	type ValidatorContext,
 } from './constraint-validator.js';
-import type { ConstructorInput, DemandItem } from './schedule-constructor.js';
+import type { ConstructorInput, DemandItem, TimetableShapeContract } from './schedule-constructor.js';
+import { resolveTimetableShapeContract } from './schedule-constructor.js';
 import {
 	buildDerivedDemand,
 	toSchedulerDemandOverride,
@@ -42,6 +43,7 @@ import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
 	resolveClassProgramSlots,
+	normalizeInternalGradeId,
 	type CanonicalTemplateCoverage,
 } from './class-program-slot.service.js';
 import { buildRunTimetableShapeContracts, normalizeProgramType } from './generation-shape-assembly.service.js';
@@ -120,8 +122,20 @@ export interface GenerationReadinessResult {
 	};
 	violations: { hardCount: number; softCount: number; hardCodes: Record<string, number>; softCodes: Record<string, number> };
 	blockers: GenerationReadinessBlocker[];
+	/** Explicit unresolved stakeholder decisions surfaced (never silently encoded). */
+	decisionNotes: string[];
 	databaseSignature: { before: GenerationReadinessDatabaseSignature; after: GenerationReadinessDatabaseSignature; zeroWrite: boolean };
 }
+
+/**
+ * GEN-C02R Correction 1: unresolved 2026-2027 stakeholder decisions are surfaced
+ * as explicit notes. They are never silently encoded into demand or shapes and
+ * never block unrelated shape validation.
+ */
+const STAKEHOLDER_DECISION_NOTES: string[] = [
+	'Friday variant: the stakeholder note allowing ARAL to be replaced by TLE on Friday is not encoded as schedulable; it remains an explicit unresolved decision.',
+	'Duplicate 12:15–13:00 row: Lunch Break remains blocked for class placement; the overlapping Flag Ceremony/HGP/TLE row remains template drift pending a Product decision.',
+];
 
 export interface GenerationReadinessDependencies {
 	client?: unknown;
@@ -189,13 +203,14 @@ function classifyUnassigned(item: {
 	reason: string;
 	roomAssignmentReason?: string;
 	homeRoomFallbackCause?: string;
-}): GenerationReadinessBlocker {
+	termIndex?: number;
+}, termIdentity: string | null, subjectCode: string | null = null): GenerationReadinessBlocker {
 	const base = {
-		termIdentity: null as string | null,
+		termIdentity,
 		sectionId: item.sectionId,
 		subjectId: item.subjectId,
-		subjectCode: null as string | null,
-		entity: `Section ${item.sectionId} · Subject ${item.subjectId} · session ${item.session}`,
+		subjectCode,
+		entity: `Section ${item.sectionId} · Subject ${subjectCode ?? item.subjectId}${termIdentity ? ` · ${termIdentity}` : ''} · session ${item.session}`,
 	};
 	const roomReason = item.roomAssignmentReason;
 	if (item.reason === 'NO_QUALIFIED_FACULTY' || roomReason === 'NO_QUALIFIED_FACULTY') {
@@ -254,6 +269,106 @@ function countByCode(codes: string[]): Record<string, number> {
 	return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
 }
 
+/**
+ * GEN-C02R Correction 9: required weekly sessions for a section/term must fit
+ * the authoritative canonical CLASS capacity (canonical CLASS rows × 5 days).
+ * Overflow is a HARD pre-write blocker, never permission to leave the shape.
+ */
+function buildSectionScopeMap(sectionsByGrade: ConstructorInput['sectionsByGrade']): Map<number, { gradeLevel: number; programType: string }> {
+	const map = new Map<number, { gradeLevel: number; programType: string }>();
+	for (const grade of sectionsByGrade) {
+		// Section gradeLevelId is an EnrollPro internal ID.
+		const gradeLevel = normalizeInternalGradeId(grade.gradeLevelId);
+		for (const section of grade.sections) {
+			map.set(section.id, { gradeLevel, programType: normalizeProgramType((section as { programType?: string | null }).programType) });
+		}
+	}
+	return map;
+}
+
+function computeCanonicalCapacityBlockers(args: {
+	schoolId: number;
+	schoolYearId: number;
+	derived: DerivedDemandSuccess;
+	sectionsByGrade: ConstructorInput['sectionsByGrade'];
+	canonicalSlotsByGradeProgram: Map<string, Array<{ rowKind: string }>>;
+}): GenerationReadinessBlocker[] {
+	const blockers: GenerationReadinessBlocker[] = [];
+	const sectionScope = buildSectionScopeMap(args.sectionsByGrade);
+	const required = new Map<string, number>();
+	for (const pair of args.derived.teachingLoadPairs) {
+		for (const term of pair.termIdentities) {
+			const key = `${pair.sectionExternalId}:${term}`;
+			required.set(key, (required.get(key) ?? 0) + pair.sessionsPerWeek);
+		}
+	}
+	for (const [key, sessions] of required) {
+		const separatorIndex = key.indexOf(':');
+		const sectionId = Number(key.slice(0, separatorIndex));
+		const termIdentity = key.slice(separatorIndex + 1);
+		const scope = sectionScope.get(sectionId);
+		if (!scope) continue;
+		const rows = args.canonicalSlotsByGradeProgram.get(`${scope.gradeLevel}:${scope.programType}`);
+		const classRows = (rows ?? []).filter((row) => row.rowKind === 'CLASS').length;
+		if (classRows === 0) continue;
+		const capacity = classRows * 5;
+		if (sessions > capacity) {
+			blockers.push({
+				code: 'CANONICAL_SHAPE_CAPACITY_EXCEEDED',
+				category: 'POLICY_BLOCKER',
+				termIdentity,
+				sectionId,
+				subjectId: null,
+				subjectCode: null,
+				entity: `school ${args.schoolId} · year ${args.schoolYearId} · section ${sectionId} · ${termIdentity} · grade ${scope.gradeLevel} ${scope.programType}`,
+				reason: `Required ${sessions} weekly sessions exceed the ${capacity} canonical CLASS slots available for grade ${scope.gradeLevel} ${scope.programType} in ${termIdentity}.`,
+				owningSurface: 'Class-program template / shift windows',
+				nextAction: 'Reduce demand, correct the canonical class-program shape, or split the section; do not widen the shift to leave the canonical shape.',
+			});
+		}
+	}
+	return blockers;
+}
+
+/**
+ * GEN-C02R Correction 8: every scheduled entry must belong to its exact
+ * grade/program canonical CLASS row set (or the authoritative shape period
+ * slots when no canonical rows exist). A shape violation is a HARD blocker that
+ * prevents generation even when generic validation reports no other violation.
+ */
+function validateCanonicalEntryShapes(
+	entries: ScheduledEntry[],
+	shapeContracts: TimetableShapeContract[],
+	sectionScope: Map<number, { gradeLevel: number; programType: string }>,
+): GenerationReadinessBlocker[] {
+	const blockers: GenerationReadinessBlocker[] = [];
+	for (const entry of entries) {
+		const scope = sectionScope.get(entry.sectionId);
+		if (!scope) continue;
+		const shape = resolveTimetableShapeContract(shapeContracts, scope.gradeLevel, scope.programType ?? null);
+		if (!shape) continue;
+		const canonicalClassSlots = shape.canonicalSlots?.filter((slot) => slot.rowKind === 'CLASS') ?? [];
+		const allowed = canonicalClassSlots.length > 0 ? canonicalClassSlots : shape.periodSlots;
+		const allowedKeys = new Set(allowed.map((slot) => `${slot.startTime}-${slot.endTime}`));
+		const key = `${entry.startTime}-${entry.endTime}`;
+		if (!allowedKeys.has(key)) {
+			blockers.push({
+				code: 'CANONICAL_SHAPE_VIOLATION',
+				category: 'POLICY_BLOCKER',
+				termIdentity: null,
+				sectionId: entry.sectionId,
+				subjectId: entry.subjectId,
+				subjectCode: null,
+				entity: `Section ${entry.sectionId} · Subject ${entry.subjectId} · ${entry.day} ${key}`,
+				reason: `Scheduled entry ${key} is not an authoritative canonical CLASS row for grade ${scope.gradeLevel} ${scope.programType}.`,
+				owningSurface: 'Class-program template / shift windows',
+				nextAction: 'Correct the entry to a canonical CLASS row for its grade/program, then re-run readiness.',
+			});
+		}
+	}
+	return blockers;
+}
+
 function sortBlockers(blockers: GenerationReadinessBlocker[]): GenerationReadinessBlocker[] {
 	return [...blockers].sort((a, b) =>
 		`${a.category}:${a.code}:${String(a.sectionId ?? -1).padStart(12, '0')}:${String(a.subjectId ?? -1).padStart(12, '0')}:${a.entity}`
@@ -303,10 +418,29 @@ async function buildGenerationReadinessWithContext(
 		periodsPerDay: policyRow?.periodsPerDay ?? POLICY_DEFAULTS.periodsPerDay,
 	};
 
-	const derived = await buildDerivedDemand(schoolId, schoolYearId, {
-		termContract: dependencies.termContract,
-		periodLengthMinutes: policy.periodLengthMinutes,
-	});
+	let derived: DerivedDemandResult;
+	try {
+		derived = await buildDerivedDemand(schoolId, schoolYearId, {
+			termContract: dependencies.termContract,
+			periodLengthMinutes: policy.periodLengthMinutes,
+		});
+	} catch (error) {
+		// GEN-C02R Correction 4: expected read-only authority/prerequisite gaps
+		// (no active year, ambiguous year, historical year, missing term
+		// structure) must be returned as a structured blocked readiness result,
+		// never thrown through the mounted route. Programming errors and database
+		// faults still propagate.
+		const code = (error as { code?: string }).code;
+		if (code === 'ACTIVE_YEAR_UNAVAILABLE' || code === 'ACTIVE_YEAR_AMBIGUOUS' || code === 'INACTIVE_HISTORICAL_YEAR') {
+			derived = {
+				ok: false,
+				scope: { schoolId, schoolYearId },
+				blockers: [{ code: code as DerivedDemandBlocker['code'], message: error instanceof Error ? error.message : String(error) }],
+			};
+		} else {
+			throw error;
+		}
+	}
 
 	const blockers: GenerationReadinessBlocker[] = [];
 	if (!policy.present) {
@@ -454,7 +588,7 @@ async function buildGenerationReadinessWithContext(
 	}
 
 	// ── Grade window resolution ─────────────────────────────────────────────
-	const windowKeys = new Set((gradeWindows as any[]).map((w) => `${normalizeGrade(w.gradeLevel)}:${normalizeProgramType(w.programType)}`));
+	const windowKeys = new Set((gradeWindows as any[]).map((w) => `${w.gradeLevel}:${normalizeProgramType(w.programType)}`));
 	const missingWindows: Array<{ gradeLevel: number; programType: string }> = [];
 	if (enforceShiftWindows) {
 		for (const scope of detectedScopes) {
@@ -480,25 +614,30 @@ async function buildGenerationReadinessWithContext(
 	}
 
 	// ── Retained pre-generation locks (real consumer, read-only) ────────────
+	// Only evaluated when the demand authority and policy are resolved; a
+	// blocked authority must not invoke a downstream consumer that requires it.
 	let retainedLocks: GenerationReadinessResult['retainedLocks'] = { draftCount: 0, retainedCount: 0, rejected: [] };
-	try {
-		const consumed = await consumeDraftPlacementsForRun(0, schoolId, schoolYearId, undefined, { readOnly: true });
-		retainedLocks = { draftCount: consumed.prePlacedCount + consumed.invalidPrePlacedCount, retainedCount: consumed.prePlacedCount, rejected: consumed.rejectedPlacements };
-	} catch (error) {
-		const code = (error as { code?: string }).code;
-		if (code !== 'SECTION_SNAPSHOT_UNAVAILABLE') throw error;
-		blockers.push({
-			code: 'SECTION_SNAPSHOT_UNAVAILABLE',
-			category: 'DATA_GAP',
-			termIdentity: null,
-			sectionId: null,
-			subjectId: null,
-			subjectCode: null,
-			entity: `Section snapshot · school ${schoolId} · year ${schoolYearId}`,
-			reason: 'Retained locks could not be validated because no saved section snapshot exists and the read-only dry run will not sync upstream.',
-			owningSurface: 'Sections / EnrollPro sync',
-			nextAction: 'Sync sections from EnrollPro once, then re-run readiness.',
-		});
+	if (derived.ok && policy.present && sectionMirrorCount > 0) {
+		try {
+			const consumed = await consumeDraftPlacementsForRun(0, schoolId, schoolYearId, undefined, { readOnly: true });
+			retainedLocks = { draftCount: consumed.prePlacedCount + consumed.invalidPrePlacedCount, retainedCount: consumed.prePlacedCount, rejected: consumed.rejectedPlacements };
+		} catch (error) {
+			const code = (error as { code?: string }).code;
+			const expected = new Set(['SECTION_SNAPSHOT_UNAVAILABLE', 'DERIVED_DEMAND_BLOCKED', 'POLICY_UNINITIALIZED']);
+			if (code == null || !expected.has(code)) throw error;
+			blockers.push({
+				code,
+				category: 'DATA_GAP',
+				termIdentity: null,
+				sectionId: null,
+				subjectId: null,
+				subjectCode: null,
+				entity: `Retained placements · school ${schoolId} · year ${schoolYearId}`,
+				reason: error instanceof Error ? error.message : String(error),
+				owningSurface: code === 'POLICY_UNINITIALIZED' ? 'Scheduling policy' : 'Sections / EnrollPro sync',
+				nextAction: 'Resolve the named prerequisite, then re-run readiness.',
+			});
+		}
 	}
 	for (const rejected of retainedLocks.rejected) {
 		blockers.push({
@@ -541,6 +680,17 @@ async function buildGenerationReadinessWithContext(
 		});
 		const classTemplatePeriods: Record<string, number> = {};
 		for (const profile of templateProfiles) classTemplatePeriods[profile.programType] = profile.periodLengthMinutes;
+
+		// GEN-C02R Correction 9: fail closed before the run when required demand
+		// exceeds the authoritative canonical CLASS capacity.
+		for (const capacityBlocker of computeCanonicalCapacityBlockers({
+			schoolId, schoolYearId,
+			derived,
+			sectionsByGrade,
+			canonicalSlotsByGradeProgram,
+		})) {
+			blockers.push(capacityBlocker);
+		}
 
 		const demand = toSchedulerDemandOverride(derived, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
 		const constructorInput: ConstructorInput = {
@@ -622,8 +772,25 @@ async function buildGenerationReadinessWithContext(
 		const soft = validation.violations.filter((v) => v.severity === 'SOFT');
 		violations = { hardCount: hard.length, softCount: soft.length, hardCodes: countByCode(hard.map((v) => v.code)), softCodes: countByCode(soft.map((v) => v.code)) };
 
+		// GEN-C02R Correction 8: shape validation independent of the generic
+		// validator. An out-of-shape entry is a HARD blocker.
+		const shapeViolations = validateCanonicalEntryShapes(result.entries as ScheduledEntry[], timetableShapeContracts, buildSectionScopeMap(sectionsByGrade));
+		for (const shapeViolation of shapeViolations) blockers.push(shapeViolation);
+		if (shapeViolations.length > 0) {
+			violations = {
+				...violations,
+				hardCount: violations.hardCount + shapeViolations.length,
+				hardCodes: countByCode([...hard.map((v) => v.code), ...shapeViolations.map((v) => v.code)]),
+			};
+		}
+
+		const subjectCodeById = new Map<number, string | null>(schedulableSubjects.map((s: any) => [s.id, (typeof s.code === 'string' ? s.code : null)]));
+		const termIdentityByIndex = new Map(derived.termStructure.terms.map((t) => [t.order, t.identity]));
 		for (const item of result.unassignedItems) {
-			blockers.push(classifyUnassigned(item as any));
+			// GEN-C02R Correction 8: preserve exact term identity when the
+			// scheduler item identifies one; never return termIdentity:null.
+			const termIdentity = typeof item.termIndex === 'number' ? termIdentityByIndex.get(item.termIndex) ?? null : null;
+			blockers.push(classifyUnassigned(item as any, termIdentity, subjectCodeById.get(item.subjectId) ?? null));
 		}
 		for (const violation of hard) {
 			blockers.push({
@@ -642,11 +809,14 @@ async function buildGenerationReadinessWithContext(
 	}
 
 	// ── Aggregate readiness ─────────────────────────────────────────────────
-	const sortedBlockers = sortBlockers(blockers);
-	const generateAllowed = sortedBlockers.length === 0 && scheduler.ran && violations.hardCount === 0;
-	const status: GenerationReadinessResult['status'] = generateAllowed ? 'READY' : 'BLOCKED';
-
+	// GEN-C02R Correction 8: zero-write truth is computed and bound BEFORE the
+	// final status, so a non-zero-write diagnostic can never report generateAllowed.
 	const databaseAfter = await computeDatabaseSignature(schoolId, schoolYearId);
+	const zeroWrite = sha256(databaseBefore) === sha256(databaseAfter);
+
+	const sortedBlockers = sortBlockers(blockers);
+	const generateAllowed = sortedBlockers.length === 0 && scheduler.ran && violations.hardCount === 0 && zeroWrite;
+	const status: GenerationReadinessResult['status'] = generateAllowed ? 'READY' : 'BLOCKED';
 
 	const termStructure = derived.ok
 		? { format: derived.termStructure.format, terms: derived.termStructure.terms.map((t) => ({ identity: t.identity, order: t.order })) }
@@ -675,7 +845,8 @@ async function buildGenerationReadinessWithContext(
 		scheduler,
 		violations,
 		blockers: sortedBlockers,
-		databaseSignature: { before: databaseBefore, after: databaseAfter, zeroWrite: sha256(databaseBefore) === sha256(databaseAfter) },
+		decisionNotes: [...STAKEHOLDER_DECISION_NOTES],
+		databaseSignature: { before: databaseBefore, after: databaseAfter, zeroWrite },
 	};
 }
 
@@ -720,21 +891,11 @@ async function loadReadOnlySectionsByGrade(schoolId: number, schoolYearId: numbe
 	return [...byGrade.values()].sort((a, b) => a.displayOrder - b.displayOrder);
 }
 
-function normalizeGrade(value: number): number {
-	if (value >= 7 && value <= 10) return value;
-	const mappings: Record<number, number> = { 5: 7, 6: 8, 7: 9, 8: 10, 17: 7, 18: 8, 19: 9, 20: 10 };
-	if (value in mappings) return mappings[value];
-	if (value >= 100) {
-		const normalized = value % 100;
-		if (normalized >= 1 && normalized <= 12) return normalized;
-	}
-	return value;
-}
-
 function collectDetectedScopes(sectionsByGrade: ConstructorInput['sectionsByGrade']): Array<{ gradeLevel: number; programType: string }> {
 	const scopes = new Map<string, { gradeLevel: number; programType: string }>();
 	for (const grade of sectionsByGrade) {
-		const gradeLevel = normalizeGrade(grade.gradeLevelId);
+		// GEN-C02R Correction 6: section gradeLevelId is an EnrollPro internal ID.
+		const gradeLevel = normalizeInternalGradeId(grade.gradeLevelId);
 		for (const section of grade.sections) {
 			const programType = normalizeProgramType(section.programType);
 			const key = `${gradeLevel}:${programType}`;
