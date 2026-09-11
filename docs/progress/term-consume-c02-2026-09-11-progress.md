@@ -80,4 +80,9 @@
 
 ## Next
 
-- Fresh independent QA on the candidate commit range.
+- Independently accepted on the immutable `e7121e75...a55abf7e` range after
+  8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, server
+  and client TypeScript, and source-path verification.
+- Integrated additively onto the current `origin/main` boundary by the primary
+  planner. The integration merge preserves the accepted candidate without
+  rewriting it; deployment remains a separate service-lifecycle action.
