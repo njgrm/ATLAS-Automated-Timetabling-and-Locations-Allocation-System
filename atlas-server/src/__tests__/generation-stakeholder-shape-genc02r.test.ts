@@ -1,5 +1,5 @@
 /**
- * GEN-C02R Correction 1 — executable 2026-2027 stakeholder-shape parity.
+ * GEN-C02R Correction 1 â€” executable 2026-2027 stakeholder-shape parity.
  *
  * Run: `npx tsx src/__tests__/generation-stakeholder-shape-genc02r.test.ts`
  *
@@ -40,7 +40,7 @@ test('C1-1. Grade 7 and Grade 8 use only the morning frame and never the afterno
 	}
 });
 
-test('C1-2. Grade 9 and Grade 10 use only the 09:45–18:30 frame and never the morning rows', () => {
+test('C1-2. Grade 9 and Grade 10 use only the 09:45â€“18:30 frame and never the morning rows', () => {
 	for (const grade of [9, 10]) {
 		for (const program of KNOWN_PROGRAM_TYPES) {
 			for (const row of slots(grade, program)) {
@@ -69,15 +69,15 @@ test('C1-3. Every active grade/program scope has canonical base + specialization
 	}
 });
 
-test('C1-4. Lunch and health breaks are blocked; the duplicate 12:15–13:00 row is a BREAK, never a CLASS', () => {
+test('C1-4. Lunch and health breaks are blocked; the duplicate 12:15â€“13:00 row is a BREAK, never a CLASS', () => {
 	for (const grade of [7, 8, 9, 10]) {
 		for (const program of KNOWN_PROGRAM_TYPES) {
 			const rows = slots(grade, program);
 			const lunch = rows.filter((row) => row.startTime === '12:15' && row.endTime === '13:00');
-			assert.ok(lunch.length >= 1, `G${grade} ${program} must block lunch at 12:15–13:00`);
-			assert.ok(lunch.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 12:15–13:00 must be BREAK`);
+			assert.ok(lunch.length >= 1, `G${grade} ${program} must block lunch at 12:15â€“13:00`);
+			assert.ok(lunch.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 12:15â€“13:00 must be BREAK`);
 			const health = rows.filter((row) => row.startTime === '15:15' && row.endTime === '15:30');
-			assert.ok(health.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 15:15–15:30 must be BREAK`);
+			assert.ok(health.every((row) => row.rowKind === 'BREAK'), `G${grade} ${program} 15:15â€“15:30 must be BREAK`);
 			// No CLASS row may occupy the blocked lunch window.
 			const classAtLunch = rows.filter((row) => row.rowKind === 'CLASS' && minutes(row.startTime) < minutes('13:00') && minutes(row.endTime) > minutes('12:15'));
 			assert.equal(classAtLunch.length, 0, `G${grade} ${program} must not schedule a class over lunch`);
@@ -107,4 +107,3 @@ test('C8. duplicate canonical rows are detected; set de-duplication cannot hide 
 	const issues = validateCanonicalTemplateRows(duplicated, 7, 'REGULAR');
 	assert.ok(issues.some((issue) => issue.startsWith('duplicate-rows:')), 'a duplicated canonical row must be reported');
 });
-
