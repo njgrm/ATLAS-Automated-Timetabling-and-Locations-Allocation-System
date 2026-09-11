@@ -27,6 +27,7 @@ function snapshot(fingerprint = 'current'): GenerationInputSnapshot {
 			rooms: domain,
 			sections: domain,
 			subjects: domain,
+			derivedDemand: domain,
 		},
 	};
 }
@@ -42,7 +43,26 @@ type FakeOptions = {
 	runType?: string;
 	priorPublished?: boolean;
 	termIdentities?: unknown[];
+	termSnapshot?: 'valid' | 'missing';
 };
+
+/**
+ * A structurally valid persisted EnrollPro term snapshot for the requested
+ * scope. The upstream order-sensitive `semanticRevision` is intentionally not
+ * required: DEMAND-C01R recomputes a canonical revision from the structure.
+ */
+function validTermCache(schoolId: number, enrollProSchoolYearId: number) {
+	return {
+		schoolId,
+		schoolYear: { id: enrollProSchoolYearId, yearLabel: '2030-2031' },
+		format: 'TRIMESTER',
+		terms: [
+			{ identity: 'T1', displayLabel: 'T1', order: 1 },
+			{ identity: 'T2', displayLabel: 'T2', order: 2 },
+			{ identity: 'T3', displayLabel: 'T3', order: 3 },
+		],
+	};
+}
 
 function fakeClient(options: FakeOptions = {}) {
 	let nextRevisionId = 701;
@@ -76,7 +96,15 @@ function fakeClient(options: FakeOptions = {}) {
 		enrollProSchoolYearMirror: {
 			findMany: async () => (options.activeYears ?? [81]).map((enrollProSchoolYearId) => ({ enrollProSchoolYearId })),
 			findFirst: async () => ({ enrollProSchoolYearId: (options.activeYears ?? [81])[0] }),
+			findUnique: async ({ where }: any) => {
+				if (options.termSnapshot === 'missing') return null;
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
 		},
+		sectionMirror: { findMany: async () => [] },
+		subject: { findMany: async () => [] },
+		schedulingPolicy: { findUnique: async () => null },
 		generationRun: {
 			findFirst: async ({ where }: any) => state.run.id === where.id
 				&& state.run.schoolId === where.schoolId
@@ -228,7 +256,13 @@ async function makeRoutePublishClient() {
 	const tx: any = {
 		$executeRawUnsafe: async () => 1,
 		$queryRawUnsafe: async () => [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb' }],
-		enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 81 }] },
+		enrollProSchoolYearMirror: {
+			findMany: async () => [{ enrollProSchoolYearId: 81 }],
+			findUnique: async ({ where }: any) => {
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
+		},
 		schoolYearTermConfig: { findUnique: async () => ({ termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true }) },
 		facultyMirror: { aggregate: zeroAggregate() },
 		facultySubject: { aggregate: zeroAggregate() },
@@ -238,8 +272,8 @@ async function makeRoutePublishClient() {
 		gradeShiftWindow: { aggregate: zeroAggregate() },
 		room: { aggregate: zeroAggregate() },
 		building: { aggregate: zeroAggregate() },
-		sectionMirror: { aggregate: zeroAggregate() },
-		subject: { aggregate: zeroAggregate() },
+		sectionMirror: { aggregate: zeroAggregate(), findMany: async () => [] },
+		subject: { aggregate: zeroAggregate(), findMany: async () => [] },
 		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		schoolYearOffering: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, version: null, updatedAt: null } }) },
@@ -286,7 +320,10 @@ async function main() {
 	await expectCode('HISTORICAL_YEAR_PUBLICATION_DENIED', { activeYears: [82] });
 	await expectCode('CROSS_SCHOOL_DENIED', {}, { ...validInput, actorSchoolId: 52 });
 	await expectCode('ACTIVE_SCHOOL_YEAR_AMBIGUOUS', { activeYears: [81, 82] });
-	await expectCode('PUBLICATION_TERM_CONTRACT_INVALID', { termIdentities: ['T1', 'T1', ''] });
+	await expectCode('PUBLICATION_TERM_CONTRACT_INVALID', { termSnapshot: 'missing' });
+	// A contradictory legacy SchoolYearTermConfig row no longer invalidates a
+	// derived-authority run: the request proceeds to the run lookup.
+	await expectCode('RUN_NOT_FOUND', { schoolId: 52, termIdentities: ['T1', 'T1', ''] });
 	await expectCode('PUBLICATION_INPUTS_STALE', {}, validInput, 'changed');
 	await expectCode('PUBLISH_BLOCKED_HARD_VIOLATIONS', { violations: [{ severity: 'HARD' }] });
 	await expectCode('PUBLISH_BLOCKED_UNASSIGNED_REQUIRED', { unassignedItems: [{ reason: 'NO_ROOM' }] });

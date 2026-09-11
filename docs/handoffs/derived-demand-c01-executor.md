@@ -118,3 +118,59 @@ No `PLANNER_DECISION_REQUIRED` collision occurred.
 No merge/rebase/amend/force-push, no Teaching Load reconciliation, no generation,
 no publication, no deployment, no port 5001 restart, and no live-data mutation.
 `git diff --check` is clean on the committed range.
+
+# DEMAND-C01R — Derived Demand Authority Closure (correction commits)
+
+- Correction base: `eae274bf457946894e9ba63c4b601861e8abff03`
+- Original base: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6`
+- New candidate SHA: this commit (resolve with `git -C D:\ATLAS-worktrees\derived-demand-c01 log -1 --format=%H`)
+- Review range: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6...<new-candidate>`
+- Status: `REVIEW_REQUIRED` (never `GO`)
+
+## Corrections delivered
+
+1. **Per-scope rotation completeness** — `validateRotationMetadata(subjects, termCount, activeScopes)` validates every active normalized grade/program scope independently; a family present in a scope must cover every ordered term `1..termCount` (`ROTATION_INCOMPLETE`); equal orders in disjoint scopes are not collisions; a globally complete family cannot hide a scoped gap.
+2. **Ordered-term preservation** — the scheduler term model is widened to term indices `1..4` (`TRIMESTER`/`QUARTERS`); the `modularOrder > 2 → 3` collapse is removed. A verified fourth term reaches the constructor as term 4.
+3. **Complete semantic revision** — `DERIVED_DEMAND_V2` binds ordered terms, sections, Subject scheduling semantics, `periodLengthMinutes`, `preferredRoomType`, and `requiredFeatures`.
+4. **Transaction-consistent term authority** — `buildDerivedDemand` reads `EnrollProSchoolYearMirror.termContractCache` exclusively through the supplied data-context client (no global Prisma, no live EnrollPro network call); a canonical revision is recomputed because JSONB reorders keys. Live-vs-persisted divergence requires the explicit rollover/sync action.
+5. **Generation/publication freshness** — a `derivedDemand` freshness domain binds the canonical revision; legacy `SchoolYearTermConfig`/`SchoolYearOffering`/`OfferingTermAssignment` are removed from current-year authority; publication revalidates derived authority inside its Serializable transaction and supports `QUARTERS`.
+6. **Timetable fail-closed** — summary/preview expose `derivedDemandRevision` and propagate typed `DERIVED_DEMAND_BLOCKED`; `toSchedulerDemandOverride` fails closed with a typed drift blocker on missing section/Subject projection data and asserts exact projection parity.
+
+## Ten controls (RED→GREEN)
+
+`atlas-server/src/__tests__/derived-demand-correction-c01r.test.ts` — 10/10:
+
+1. family missing position 2 → `ROTATION_INCOMPLETE`
+2. disjoint-scope order reuse allowed; scoped gap/duplicate fails
+3. four-term family reaches the constructor with term 4 preserved
+4. `periodLengthMinutes` changes revision + session count; read-order stable
+5. room semantics change the derived revision and the freshness domain
+6. trap client governs every persisted term read; zero network
+7. legacy transition rows never stale; ordered terms do
+8. Timetable summary returns the canonical revision and a typed blocker
+9. projection fails closed on missing section/Subject; exact parity enforced
+10. one canonical revision flows through snapshot, Timetable, TL preview, and authority service
+
+Plus `teaching-load-reconciliation.test.ts` binds `preview.derivedDemandRevision` to the authority revision through the real TL preview entry point (disposable PG fixture, zero residue).
+
+## Focused gate results
+
+- `derived-demand-authority.test.ts` 10/0; `derived-demand-correction-c01r.test.ts` 10/0
+- `teaching-load-reconciliation.test.ts` 170/0 zero residue
+- TT-C02, term-subject-authority, term-contract C02, timetable-candidate-domain all `fail 0`
+- generation-passive Teaching Load `PASS`; publication-contract-readiness exit 0
+- `tsc --noEmit` 0; `npm run build` 0; built-server health 200 / route 401 mounted / alive; `git diff --check` 0
+
+## Live read-only evidence
+
+- School 1, active year 9 (`2030-2031`): `buildDerivedDemand` → `ok:false`, blocker `TERM_STRUCTURE_UNAVAILABLE` (no persisted verified term snapshot exists); `buildCanonicalTimetableDemand` → `derivedDemandRevision:null`, blocker `TERM_STRUCTURE_UNAVAILABLE`, `totalLines:0`. This is the intended fail-closed behavior pending the explicit rollover/sync action; zero writes were performed.
+
+## Remaining risks
+
+- `NON_BLOCKING`: `pre-generation-draft.service.ts` still uses legacy `computeDemand()` (successor `GEN-C02`).
+- `NON_BLOCKING`: upstream `enrollpro-term-contract.service.ts` cache validation remains JSONB order-sensitive; this stream consumes the persisted structure with a canonical revision rather than editing that TERM-CONSUME-C02 file.
+- `BLOCKING`: none identified for source acceptance.
+
+## Not performed
+
+No Teaching Load reconciliation, generation, publication, deployment, port 5001 restart, schema/migration change, companion-system edit, amend, rebase, merge, or push. Live active-year derived reads are read-only and fail closed.

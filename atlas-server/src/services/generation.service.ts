@@ -274,7 +274,7 @@ export interface RunSummary {
 			facultyConsecutiveLimitExceeded: number;
 			noValidPeriodInPolicyWindow: number;
 		};
-		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }>;
+		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number }> }>;
 	};
 	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
 	configuredShiftWindowCount?: number;
@@ -282,6 +282,7 @@ export interface RunSummary {
 		term1: number;
 		term2: number;
 		term3: number;
+		term4?: number;
 	};
 	timetableShapeContracts?: TimetableShapeContract[];
 	canonicalTemplateVersion?: string;
@@ -502,8 +503,8 @@ export function buildHomeRoomFallbackDiagnostics(
 function buildZoneDistributionByTerm(
 	entries: ScheduledEntry[],
 	roomZoneByRoomId: Map<number, string>,
-): Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }> {
-	const termAgg = new Map<1 | 2 | 3, Map<string, number>>();
+): Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number }> }> {
+	const termAgg = new Map<1 | 2 | 3 | 4, Map<string, number>>();
 	for (const entry of entries) {
 		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
 		const zone = roomZoneByRoomId.get(entry.roomId) ?? 'UNSPECIFIED';
@@ -512,7 +513,11 @@ function buildZoneDistributionByTerm(
 		termAgg.set(termIndex, zoneMap);
 	}
 
-	const terms: Array<1 | 2 | 3> = [1, 2, 3];
+	// Preserve the historical trimester shape; surface the fourth ordered term
+	// only when a verified four-term (QUARTERS) run actually carries it.
+	const highestTerm = Math.max(3, ...termAgg.keys()) as 1 | 2 | 3 | 4;
+	const terms: Array<1 | 2 | 3 | 4> = [];
+	for (let term = 1; term <= highestTerm; term += 1) terms.push(term as 1 | 2 | 3 | 4);
 	return terms.map((termIndex) => {
 		const zoneMap = termAgg.get(termIndex) ?? new Map<string, number>();
 		const total = [...zoneMap.values()].reduce((sum, count) => sum + count, 0);
@@ -527,20 +532,21 @@ function buildZoneDistributionByTerm(
 	});
 }
 
-function normalizeTermIndex(value: unknown): 1 | 2 | 3 {
+function normalizeTermIndex(value: unknown): 1 | 2 | 3 | 4 {
 	const parsed = Number(value);
 	if (parsed === 2) return 2;
 	if (parsed === 3) return 3;
+	if (parsed === 4) return 4;
 	return 1;
 }
 
-function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 {
+function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 | 4 {
 	const firstTermIndex = entry.metadata?.modularAssignments?.[0]?.termIndex;
-	if (firstTermIndex === 2 || firstTermIndex === 3) return firstTermIndex;
+	if (firstTermIndex === 2 || firstTermIndex === 3 || firstTermIndex === 4) return firstTermIndex;
 	return 1;
 }
 
-function resolveEntryTermIndex(entry: ScheduledEntry): 1 | 2 | 3 {
+function resolveEntryTermIndex(entry: ScheduledEntry): 1 | 2 | 3 | 4 {
 	return normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex ?? deriveTermIndexFromMetadata(entry));
 }
 
@@ -551,17 +557,16 @@ function ensureEntriesHaveTermIndex(entries: ScheduledEntry[]): ScheduledEntry[]
 	return entries;
 }
 
-function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: number; term3: number } {
-	return entries.reduce(
-		(acc, entry) => {
-			const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
-			if (termIndex === 2) acc.term2 += 1;
-			else if (termIndex === 3) acc.term3 += 1;
-			else acc.term1 += 1;
-			return acc;
-		},
-		{ term1: 0, term2: 0, term3: 0 },
-	);
+function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: number; term3: number; term4?: number } {
+	const counts = { term1: 0, term2: 0, term3: 0, term4: 0 };
+	for (const entry of entries) {
+		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
+		if (termIndex === 2) counts.term2 += 1;
+		else if (termIndex === 3) counts.term3 += 1;
+		else if (termIndex === 4) counts.term4 += 1;
+		else counts.term1 += 1;
+	}
+	return counts.term4 > 0 ? counts : { term1: counts.term1, term2: counts.term2, term3: counts.term3 };
 }
 
 export function buildQualifiedCoverageBySubject(
@@ -1739,7 +1744,7 @@ function filterViolationsByTerm(
 	entries: ScheduledEntry[],
 	termIndex?: number,
 ): Violation[] {
-	if (termIndex !== 1 && termIndex !== 2 && termIndex !== 3) {
+	if (termIndex !== 1 && termIndex !== 2 && termIndex !== 3 && termIndex !== 4) {
 		return violations;
 	}
 

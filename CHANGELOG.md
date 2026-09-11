@@ -1,5 +1,44 @@
 # Changelog
 
+## [2026-09-11] — DEMAND-C01R Derived Demand Authority Closure
+
+### Added
+- Added `derived-demand-correction-c01r.test.ts` (10 failing-first controls) for
+  per-scope rotation completeness, ordered-term preservation, complete semantic
+  revision, transaction-consistent term authority, generation/publication
+  freshness, Timetable blocker propagation, and projection parity.
+
+### Changed
+- `validateRotationMetadata` now validates each active normalized grade/program
+  scope independently and reports `ROTATION_INCOMPLETE` for a scoped gap;
+  disjoint scopes may reuse rotation order.
+- The scheduler term model supports term indices `1..4` (TRIMESTER/QUARTERS); the
+  `modularOrder > 2 → 3` collapse is removed across the constructor, validator,
+  room schedule, and generation diagnostics.
+- The derived semantic revision (`DERIVED_DEMAND_V2`) binds `periodLengthMinutes`
+  and Subject room semantics (`preferredRoomType`, `requiredFeatures`).
+- `buildDerivedDemand` reads the persisted `termContractCache` exclusively
+  through the supplied data-context client with no global/network call, and
+  recomputes a canonical term revision (JSONB-safe).
+- Generation input freshness adds a `derivedDemand` domain; legacy
+  `SchoolYearTermConfig`/`SchoolYearOffering`/`OfferingTermAssignment` are removed
+  from current-year freshness. Publication revalidates derived authority in its
+  Serializable transaction and supports QUARTERS.
+- Timetable summary/preview expose `derivedDemandRevision` and propagate typed
+  `DERIVED_DEMAND_BLOCKED`; `toSchedulerDemandOverride` fails closed and asserts
+  exact projection parity.
+
+### Decisions Made
+- The persisted verified term snapshot is the binding authority; a missing or
+  invalid snapshot fails closed (`TERM_STRUCTURE_UNAVAILABLE`) and requires the
+  explicit rollover/sync action, never an implicit repair.
+- Live EnrollPro term authority is not consulted inside write-authorizing
+  transactions.
+
+### Open Questions
+- `pre-generation-draft.service.ts` still uses legacy `computeDemand()`
+  (successor `GEN-C02`).
+
 ## [2026-09-11] — DEMAND-C01 Canonical Derived Demand Authority
 
 ### Added

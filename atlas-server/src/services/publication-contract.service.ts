@@ -9,6 +9,7 @@ import {
 	extractGenerationInputSnapshot,
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
+import { buildDerivedDemand } from './derived-demand.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -165,16 +166,16 @@ export async function publishSchedule(
 				details: { requestedSchoolYearId: input.schoolYearId, activeSchoolYearId: activeYears[0].enrollProSchoolYearId },
 			});
 		}
-		const termConfig = await tx.schoolYearTermConfig.findUnique({
-			where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
-			select: { termCount: true, termIdentities: true, isActive: true },
-		});
-		const termIdentities = Array.isArray(termConfig?.termIdentities) ? termConfig.termIdentities : [];
-		const normalizedTermIdentities = termIdentities.map((identity) => typeof identity === 'string' ? identity.trim() : '');
-		if (!termConfig || !termConfig.isActive || termConfig.termCount !== 3
-			|| normalizedTermIdentities.length !== 3 || normalizedTermIdentities.some((identity) => identity.length === 0)
-			|| new Set(normalizedTermIdentities).size !== 3) {
-			throw fail(409, 'PUBLICATION_TERM_CONTRACT_INVALID', 'Publication requires one current ordered three-term configuration.');
+		// DEMAND-C01R: current-year term authority is the persisted derived-demand
+		// contract (verified ordered EnrollPro terms + active sections + Subject
+		// scheduling/room semantics + period length), read through the transaction
+		// client. Legacy SchoolYearTermConfig is no longer authoritative and a
+		// QUARTERS (four-term) contract is valid.
+		const derivedAuthority = await buildDerivedDemand(input.schoolId, input.schoolYearId, { client: tx as never });
+		if (!derivedAuthority.ok) {
+			throw fail(409, 'PUBLICATION_TERM_CONTRACT_INVALID', 'Publication requires a verified derived-demand term authority for the active year.', {
+				details: { blockers: derivedAuthority.blockers },
+			});
 		}
 
 		const run = await tx.generationRun.findFirst({

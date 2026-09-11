@@ -67,7 +67,7 @@ export interface ScheduledEntry {
 	startTime: string;    // HH:mm
 	endTime: string;      // HH:mm
 	durationMinutes: number;
-	termIndex?: 1 | 2 | 3;
+	termIndex?: 1 | 2 | 3 | 4;
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -99,7 +99,7 @@ export interface ScheduledEntry {
 		deferredPreferredRoomType?: RoomType;
 		modularGroupId?: string;
 		modularAssignments?: Array<{
-			termIndex: 1 | 2 | 3;
+			termIndex: 1 | 2 | 3 | 4;
 			facultyId: number;
 			subjectCode: string;
 		}>;

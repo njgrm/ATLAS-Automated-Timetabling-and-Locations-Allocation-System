@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 
-import { deriveCanonicalDemand, type DerivedDemandInput } from '../services/derived-demand.service.js';
+import { deriveCanonicalDemand, buildDerivedDemand, type DerivedDemandInput } from '../services/derived-demand.service.js';
 
 const TEST_TERM_CONTRACT = {
   schoolId: 1,
@@ -179,6 +179,7 @@ function buildSnapshot(overrides: Record<string, unknown> = {}) {
       { id: 12, code: 'ENG', name: 'English', minMinutesPerWeek: 240, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'ENG', rotationFamily: null, modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
       { id: 13, code: 'SCI_BIO', name: 'Science Biology', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: 1, termGroupId: null, termCount: 3, isActive: true },
       { id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: 2, termGroupId: null, termCount: 3, isActive: true },
+      { id: 16, code: 'SCI_PHY', name: 'Science Physics', minMinutesPerWeek: 180, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'SCI', rotationFamily: 'SCIENCE', modularGroupId: null, modularOrder: 3, termGroupId: null, termCount: 3, isActive: true },
       { id: 99, code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 300, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'ESP', rotationFamily: null, modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true },
     ],
     faculty: [
@@ -278,7 +279,7 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
   {
     const snapshot = buildSnapshot();
     const demand = svc.expandCurriculumDemand(snapshot);
-    assertEqual(demand.length, 8, 'two sections x four subjects = 8 demand pairs');
+    assertEqual(demand.length, 10, 'two sections x five scheduled subjects (MATH, ENG, SCIENCE x3) = 10 demand pairs');
     const math101 = demand.find((pair) => pair.subjectCode === 'MATH' && pair.sectionId === 101);
     assert(!!math101, 'MATH:101 exists');
     assertEqual(math101!.weeklyMinutes, 240, 'MATH minutes from offering');
@@ -309,7 +310,7 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
     });
     const demand = svc.expandCurriculumDemand(snapshot);
     assert(demand.every((pair) => pair.subjectCode !== 'HG'), 'HG never appears as demand');
-    assertEqual(demand.length, 8, 'HG offering adds zero demand');
+    assertEqual(demand.length, 10, 'HG offering adds zero demand');
   }
 
   section('A4. classification vocabulary');
@@ -330,7 +331,7 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
     assert(byId.get(2)!.primaryAction === 'RETIRE' && byId.get(2)!.diagnostics.includes('HG_FORBIDDEN'), 'HG row retires');
     assert(byId.get(3)!.primaryAction === 'RETIRE' && byId.get(3)!.diagnostics.includes('OUTSIDE_CURRICULUM'), 'outside-curriculum row retires');
     const missing = classificationRows.filter((row) => row.diagnostics.includes('MISSING_OWNER')).length;
-    assertEqual(missing, 7, 'MISSING_OWNER pair-level diagnostics per missing pair');
+    assertEqual(missing, 9, 'MISSING_OWNER pair-level diagnostics per missing pair');
   }
 
   section('A5. workload math (rotation-peak semantics)');
@@ -901,6 +902,15 @@ async function runFixtureTests(svc: typeof import('../services/teaching-load-rec
     assertEqual(preview.hgRows.found, 0, 'zero HG rows in fixture');
     assertEqual(preview.authorizesMutation, false, 'preview authorizes no mutation');
     assert(preview.fingerprint.length === 64, 'canonical SHA-256 fingerprint');
+    {
+      // DEMAND-C01R control 10: the real Teaching Load preview binds the same
+      // canonical derived-demand revision the authority service reports.
+      const derivedCheck = await run(() => buildDerivedDemand(fixtureSchoolId, fixtureYearId));
+      assert(derivedCheck.ok === true, 'derived authority resolves for the fixture year');
+      if (derivedCheck.ok) {
+        assertEqual(preview.derivedDemandRevision, derivedCheck.revision, 'TL preview binds the canonical derived revision');
+      }
+    }
     const moved = preview.actions.find((entry) => entry.action === 'MOVE');
     assertEqual(moved?.proposedFacultyId, fixtureFaculty2, 'unqualified ENG owner moved to qualified ENG faculty');
 

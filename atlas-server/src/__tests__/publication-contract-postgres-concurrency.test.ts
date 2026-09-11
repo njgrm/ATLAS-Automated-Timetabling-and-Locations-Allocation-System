@@ -36,6 +36,7 @@ function snapshot(schoolId: number, schoolYearId: number, fingerprint = 'fixture
 			rooms: domain,
 			sections: domain,
 			subjects: domain,
+			derivedDemand: domain,
 		},
 	};
 }

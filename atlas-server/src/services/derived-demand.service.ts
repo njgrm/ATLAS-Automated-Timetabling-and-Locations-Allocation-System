@@ -26,9 +26,9 @@ import { createHash } from 'node:crypto';
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { getDataContext } from '../lib/data-context.js';
 import { normalizeGradeLevelSync } from './class-program-slot.service.js';
-import { resolveEnrollProTermContract, type VerifiedTermContract } from './enrollpro-term-contract.service.js';
 import type { DemandItem, SubjectInput } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
+import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
 
 export type DerivedSchedulingDisposition = 'SCHEDULED_TEACHING' | 'REFERENCE_ONLY';
 
@@ -51,6 +51,8 @@ export interface DerivedDemandBlocker {
 	subjectCode?: string;
 	rotationFamily?: string;
 	rotationOrder?: number;
+	scopeGradeLevel?: number;
+	scopeProgramType?: string;
 }
 
 export interface DerivedSectionInput {
@@ -73,6 +75,10 @@ export interface DerivedSubjectInput {
 	modularOrder: number | null;
 	minMinutesPerWeek: number;
 	isActive: boolean;
+	/** Preferred room type used by the scheduler projection (bound into the revision). */
+	preferredRoomType?: string | null;
+	/** Required room features used by the scheduler projection (bound into the revision). */
+	requiredFeatures?: string[];
 }
 
 export interface DerivedTermInput {
@@ -192,17 +198,24 @@ function blocker(code: DerivedDemandBlockerCode, message: string, extra: Partial
 }
 
 /**
- * Validate rotation metadata for the SCHEDULED_TEACHING subjects. Missing
- * family, missing order, out-of-range order, duplicate positions within a
- * family, and an incomplete family (does not cover every ordered term exactly
- * once) all fail closed with a typed blocker.
+ * Validate rotation metadata for the SCHEDULED_TEACHING subjects.
+ *
+ * Structural checks (family without order, order without family, non-integer
+ * order, out-of-range order) are scope-independent. Completeness and duplicate
+ * checks are validated PER ACTIVE NORMALIZED GRADE/PROGRAM SCOPE:
+ *  - a family present in a scope must have exactly one applicable member for
+ *    every ordered term position `1..termCount`;
+ *  - equal orders in disjoint grade/program scopes are NOT collisions;
+ *  - a globally complete family cannot hide an incomplete family within one
+ *    applicable scope.
  */
 export function validateRotationMetadata(
 	subjects: DerivedSubjectInput[],
 	termCount: number,
+	activeScopes: Array<{ gradeLevel: number; programType: string }> = [],
 ): DerivedDemandBlocker[] {
 	const blockers: DerivedDemandBlocker[] = [];
-	const byFamily = new Map<string, { subject: DerivedSubjectInput; order: number }[]>();
+	const valid: Array<{ subject: DerivedSubjectInput; family: string; order: number }> = [];
 
 	for (const subject of subjects) {
 		const family = normalizeRotationFamily(subject.rotationFamily);
@@ -220,22 +233,48 @@ export function validateRotationMetadata(
 			blockers.push(blocker('ROTATION_ORDER_OUT_OF_RANGE', `Rotation order ${order} for ${subject.code} is outside the ${termCount}-term contract.`, { subjectId: subject.id, subjectCode: subject.code, rotationFamily: family, rotationOrder: order }));
 			continue;
 		}
-		const entries = byFamily.get(family) ?? [];
-		entries.push({ subject, order });
-		byFamily.set(family, entries);
+		valid.push({ subject, family, order });
 	}
 
-	for (const [family, entries] of byFamily) {
-		const orderCounts = new Map<number, DerivedSubjectInput[]>();
-		for (const entry of entries) {
-			const list = orderCounts.get(entry.order) ?? [];
+	if (activeScopes.length === 0) return blockers;
+
+	// scopeKey -> family -> order -> applicable members
+	const familiesByScope = new Map<string, Map<string, Map<number, DerivedSubjectInput[]>>>();
+	for (const entry of valid) {
+		const subjectGrades = normalizeGradeSet(entry.subject.gradeLevels);
+		const subjectPrograms = normalizeUpperSet(entry.subject.programScopes);
+		for (const scope of activeScopes) {
+			const grade = normalizeGradeLevelSync(scope.gradeLevel);
+			const program = normalizeProgramType(scope.programType);
+			if (!subjectGrades.includes(grade)) continue;
+			if (!subjectPrograms.includes(program)) continue;
+			const scopeKey = `${grade}:${program}`;
+			const byFamily = familiesByScope.get(scopeKey) ?? new Map<string, Map<number, DerivedSubjectInput[]>>();
+			const orderMap = byFamily.get(entry.family) ?? new Map<number, DerivedSubjectInput[]>();
+			const list = orderMap.get(entry.order) ?? [];
 			list.push(entry.subject);
-			orderCounts.set(entry.order, list);
+			orderMap.set(entry.order, list);
+			byFamily.set(entry.family, orderMap);
+			familiesByScope.set(scopeKey, byFamily);
 		}
-		for (const [order, subjectsAtOrder] of orderCounts) {
-			if (subjectsAtOrder.length > 1) {
-				for (const subject of subjectsAtOrder) {
-					blockers.push(blocker('ROTATION_ORDER_DUPLICATE', `Rotation family ${family} has more than one subject at order ${order}.`, { subjectId: subject.id, subjectCode: subject.code, rotationFamily: family, rotationOrder: order }));
+	}
+
+	for (const [scopeKey, byFamily] of familiesByScope) {
+		const [gradeRaw, program] = scopeKey.split(':');
+		const scopeGradeLevel = Number(gradeRaw);
+		for (const [family, orderMap] of byFamily) {
+			for (const [order, subjectsAtOrder] of orderMap) {
+				if (subjectsAtOrder.length > 1) {
+					for (const subject of subjectsAtOrder) {
+						blockers.push(blocker('ROTATION_ORDER_DUPLICATE', `Rotation family ${family} has more than one subject at order ${order} in grade ${scopeGradeLevel} ${program}.`, { subjectId: subject.id, subjectCode: subject.code, rotationFamily: family, rotationOrder: order, scopeGradeLevel, scopeProgramType: program }));
+					}
+				}
+			}
+			for (let order = 1; order <= termCount; order += 1) {
+				if (orderMap.has(order)) continue;
+				const members = [...orderMap.values()].flat();
+				for (const subject of members) {
+					blockers.push(blocker('ROTATION_INCOMPLETE', `Rotation family ${family} is missing ordered term ${order} of ${termCount} in grade ${scopeGradeLevel} ${program}.`, { subjectId: subject.id, subjectCode: subject.code, rotationFamily: family, scopeGradeLevel, scopeProgramType: program }));
 				}
 			}
 		}
@@ -250,6 +289,7 @@ function buildSemanticRevisionPayload(input: {
 	yearLabel: string;
 	termFormat: 'TRIMESTER' | 'QUARTERS';
 	termStructureRevision: string;
+	periodLengthMinutes: number;
 	terms: DerivedTermInput[];
 	activeSections: Array<{ sectionMirrorId: number; externalId: number; gradeLevel: number; programType: string }>;
 	scheduledSubjects: Array<{
@@ -261,16 +301,19 @@ function buildSemanticRevisionPayload(input: {
 		rotationFamily: string | null;
 		rotationOrder: number | null;
 		minMinutesPerWeek: number;
+		preferredRoomType: string | null;
+		requiredFeatures: string[];
 		rotationMode: 'ALL' | 'ROTATING_FAMILY_MEMBER';
 	}>;
 }) {
 	return {
-		kind: 'DERIVED_DEMAND_V1',
+		kind: 'DERIVED_DEMAND_V2',
 		schoolId: input.schoolId,
 		schoolYearId: input.schoolYearId,
 		yearLabel: input.yearLabel,
 		termFormat: input.termFormat,
 		termStructureRevision: input.termStructureRevision,
+		periodLengthMinutes: input.periodLengthMinutes,
 		terms: [...input.terms]
 			.sort((a, b) => a.order - b.order)
 			.map((term) => ({ identity: term.identity, order: term.order })),
@@ -294,13 +337,21 @@ export function deriveCanonicalDemand(input: DerivedDemandInput): DerivedDemandR
 	const scheduledSubjects = input.subjects.filter(
 		(subject) => subject.isActive && subject.schedulingDisposition === 'SCHEDULED_TEACHING',
 	);
-	const rotationBlockers = validateRotationMetadata(scheduledSubjects, terms.length);
+	const activeSections = input.sections.filter((section) => section.isActiveForScheduling && !section.isStale);
+	const periodLengthMinutes = input.periodLengthMinutes && input.periodLengthMinutes > 0 ? input.periodLengthMinutes : 45;
+
+	// Active normalized grade/program scopes the family completeness must hold for.
+	const activeScopeKeys = new Map<string, { gradeLevel: number; programType: string }>();
+	for (const section of activeSections) {
+		const gradeLevel = normalizeGradeLevelSync(section.gradeLevel);
+		const programType = normalizeProgramType(section.programType);
+		activeScopeKeys.set(`${gradeLevel}:${programType}`, { gradeLevel, programType });
+	}
+	const activeScopes = [...activeScopeKeys.values()];
+	const rotationBlockers = validateRotationMetadata(scheduledSubjects, terms.length, activeScopes);
 	if (rotationBlockers.length > 0) {
 		return { ok: false, scope, blockers: rotationBlockers };
 	}
-
-	const activeSections = input.sections.filter((section) => section.isActiveForScheduling && !section.isStale);
-	const periodLengthMinutes = input.periodLengthMinutes && input.periodLengthMinutes > 0 ? input.periodLengthMinutes : 45;
 
 	const activeSectionsForRevision = activeSections.map((section) => ({
 		sectionMirrorId: section.sectionMirrorId,
@@ -317,6 +368,8 @@ export function deriveCanonicalDemand(input: DerivedDemandInput): DerivedDemandR
 		rotationFamily: normalizeRotationFamily(subject.rotationFamily),
 		rotationOrder: subject.modularOrder,
 		minMinutesPerWeek: subject.minMinutesPerWeek,
+		preferredRoomType: subject.preferredRoomType ?? null,
+		requiredFeatures: normalizeUpperSet(subject.requiredFeatures),
 		rotationMode: (normalizeRotationFamily(subject.rotationFamily) ? 'ROTATING_FAMILY_MEMBER' : 'ALL') as 'ALL' | 'ROTATING_FAMILY_MEMBER',
 	}));
 
@@ -326,6 +379,7 @@ export function deriveCanonicalDemand(input: DerivedDemandInput): DerivedDemandR
 		yearLabel: input.yearLabel,
 		termFormat: input.termFormat,
 		termStructureRevision: input.termStructureRevision,
+		periodLengthMinutes,
 		terms,
 		activeSections: activeSectionsForRevision,
 		scheduledSubjects: scheduledSubjectsForRevision,
@@ -519,14 +573,27 @@ export function toSchedulerDemandOverride(
 	}
 	const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
 
+	// FAIL CLOSED: a derived line that cannot map to its section or Subject
+	// snapshot is a projection drift, never a silent skip.
+	const missingSectionIds = new Set<number>();
+	const missingSubjectIds = new Set<number>();
+	for (const pair of result.teachingLoadPairs) {
+		if (!sectionByExternalId.has(pair.sectionExternalId)) missingSectionIds.add(pair.sectionExternalId);
+		if (!subjectById.has(pair.subjectId)) missingSubjectIds.add(pair.subjectId);
+	}
+	if (missingSectionIds.size > 0 || missingSubjectIds.size > 0) {
+		throw projectionError('DERIVED_DEMAND_PROJECTION_INCOMPLETE', 'Derived demand cannot be projected into the scheduler: section or Subject snapshots are missing.', {
+			missingSectionIds: [...missingSectionIds].sort((a, b) => a - b),
+			missingSubjectIds: [...missingSubjectIds].sort((a, b) => a - b),
+		});
+	}
+
 	const items: DemandItem[] = [];
 	const modularGroups = new Map<string, DerivedTeachingLoadPair[]>();
 
 	for (const pair of result.teachingLoadPairs) {
-		const section = sectionByExternalId.get(pair.sectionExternalId);
-		if (!section) continue;
-		const subject = subjectById.get(pair.subjectId);
-		if (!subject) continue;
+		const section = sectionByExternalId.get(pair.sectionExternalId)!;
+		const subject = subjectById.get(pair.subjectId)!;
 		if (pair.termMode === 'ROTATING_FAMILY_MEMBER' && pair.rotationFamily) {
 			const groupKey = `${pair.sectionExternalId}:${pair.rotationFamily}`;
 			const group = modularGroups.get(groupKey) ?? [];
@@ -540,9 +607,8 @@ export function toSchedulerDemandOverride(
 	for (const group of modularGroups.values()) {
 		const ordered = [...group].sort((a, b) => (a.rotationOrder ?? 0) - (b.rotationOrder ?? 0) || a.subjectId - b.subjectId);
 		const first = ordered[0];
-		const section = sectionByExternalId.get(first.sectionExternalId);
-		const primarySubject = subjectById.get(first.subjectId);
-		if (!section || !primarySubject) continue;
+		const section = sectionByExternalId.get(first.sectionExternalId)!;
+		const primarySubject = subjectById.get(first.subjectId)!;
 		const maxMinutes = Math.max(...ordered.map((pair) => pair.weeklyMinutes));
 		const periodLength = first.periodLengthMinutes;
 		const sessionsPerWeek = Math.max(1, Math.ceil(maxMinutes / periodLength));
@@ -576,19 +642,64 @@ export function toSchedulerDemandOverride(
 		});
 	}
 
-	return items.sort((a, b) => a.gradeLevel - b.gradeLevel || a.sectionId - b.sectionId || a.subjectId - b.subjectId);
+	const sorted = items.sort((a, b) => a.gradeLevel - b.gradeLevel || a.sectionId - b.sectionId || a.subjectId - b.subjectId);
+	assertProjectionParity(result, sorted);
+	return sorted;
+}
+
+function projectionError(code: string, message: string, details: Record<string, unknown>): Error & { statusCode: number; code: string; details: Record<string, unknown> } {
+	const error = new Error(message) as Error & { statusCode: number; code: string; details: Record<string, unknown> };
+	error.statusCode = 409;
+	error.code = code;
+	error.details = details;
+	return error;
+}
+
+/**
+ * Assert exact projection parity: every accepted canonical timetable line is
+ * represented exactly once in the projected scheduler demand.
+ */
+export function assertProjectionParity(result: DerivedDemandSuccess, items: DemandItem[]): void {
+	const pairBySubjectSection = new Map(result.teachingLoadPairs.map((pair) => [`${pair.subjectId}:${pair.sectionExternalId}`, pair]));
+	const represented = new Set<string>();
+	for (const item of items) {
+		const subjectIds = item.modularSubjects && item.modularSubjects.length > 0
+			? item.modularSubjects.map((moduleSubject) => moduleSubject.subjectId)
+			: [item.subjectId];
+		for (const subjectId of subjectIds) {
+			const pair = pairBySubjectSection.get(`${subjectId}:${item.sectionId}`);
+			const terms = pair?.termIdentities ?? [];
+			for (const term of terms) represented.add(`${subjectId}:${item.sectionId}:${term}`);
+		}
+	}
+	const expected = new Set(result.timetableLines.map((line) => `${line.subjectId}:${line.sectionExternalId}:${line.termIdentity}`));
+	if (represented.size !== expected.size) {
+		throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand projection parity mismatch: expected ${expected.size} canonical lines, projected ${represented.size}.`, { expected: expected.size, projected: represented.size });
+	}
+	for (const key of expected) {
+		if (!represented.has(key)) throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand projection is missing canonical line ${key}.`, { missingLine: key });
+	}
+	for (const key of represented) {
+		if (!expected.has(key)) throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand projection produced an unverified line ${key}.`, { unknownLine: key });
+	}
 }
 
 // ─── Loader (read-only) ──────────────────────────────────────────────────────
 type DataContext = {
-	enrollProSchoolYearMirror: { findMany: (args: unknown) => Promise<Array<{ enrollProSchoolYearId: number; yearLabel: string }>> };
+	enrollProSchoolYearMirror: {
+		findMany: (args: unknown) => Promise<Array<{ enrollProSchoolYearId: number; yearLabel: string }>>;
+		findUnique: (args: unknown) => Promise<{
+			isActive: boolean; isArchived: boolean; termContractCache: unknown; termContractCachedAt: Date | null;
+		} | null>;
+	};
 	sectionMirror: { findMany: (args: unknown) => Promise<Array<{
 		id: number; externalId: number; displayOrder: number; gradeLevelId: number; programType: string | null;
 		isActiveForScheduling: boolean; isStale: boolean;
 	}>> };
 	subject: { findMany: (args: unknown) => Promise<Array<{
 		id: number; code: string; name: string; schedulingDisposition: string; gradeLevels: number[];
-		programScopes: string[]; rotationFamily: string | null; modularOrder: number | null; minMinutesPerWeek: number; isActive: boolean;
+		programScopes: string[]; rotationFamily: string | null; modularOrder: number | null; minMinutesPerWeek: number;
+		preferredRoomType: string | null; requiredFeatures: string[]; isActive: boolean;
 	}>> };
 	schedulingPolicy: { findUnique: (args: unknown) => Promise<{ periodLengthMinutes: number | null } | null> };
 };
@@ -627,6 +738,69 @@ export async function resolveSoleActiveNonArchivedYear(
 	return { schoolYearId: rows[0].enrollProSchoolYearId, yearLabel: rows[0].yearLabel };
 }
 
+export interface PersistedTermStructure {
+	format: 'TRIMESTER' | 'QUARTERS';
+	terms: DerivedTermInput[];
+	revision: string;
+}
+
+export function canonicalTermStructureRevision(
+	schoolId: number,
+	schoolYearId: number,
+	format: 'TRIMESTER' | 'QUARTERS',
+	terms: DerivedTermInput[],
+): string {
+	return sha256Upper({
+		schoolId,
+		schoolYearId,
+		format,
+		terms: [...terms].sort((a, b) => a.order - b.order).map((term) => ({ identity: term.identity, order: term.order })),
+	});
+}
+
+/**
+ * Structurally validate a persisted EnrollPro term snapshot. The stored
+ * `semanticRevision` is intentionally NOT trusted as the binding revision:
+ * PostgreSQL JSONB reorders object keys, so the upstream order-sensitive hash
+ * cannot round-trip. The revision is recomputed canonically here; any semantic
+ * change still changes the canonical revision.
+ */
+export function normalizePersistedTermStructure(
+	raw: unknown,
+	schoolId: number,
+	schoolYearId: number,
+): { ok: true; structure: PersistedTermStructure } | { ok: false; message: string } {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, message: 'The saved EnrollPro term snapshot is not an object.' };
+	const record = raw as Record<string, unknown>;
+	if (record.schoolId !== schoolId) return { ok: false, message: 'The saved EnrollPro term snapshot belongs to another school.' };
+	const schoolYear = record.schoolYear as { id?: unknown } | undefined;
+	if (!schoolYear || schoolYear.id !== schoolYearId) return { ok: false, message: 'The saved EnrollPro term snapshot belongs to another school year.' };
+	const format = record.format;
+	if (format !== 'TRIMESTER' && format !== 'QUARTERS') return { ok: false, message: 'The saved EnrollPro term snapshot has an unsupported format.' };
+	const expectedCount = format === 'TRIMESTER' ? 3 : 4;
+	const rawTerms = record.terms;
+	if (!Array.isArray(rawTerms) || rawTerms.length !== expectedCount) return { ok: false, message: 'The saved EnrollPro term snapshot has an invalid term count.' };
+	const terms: DerivedTermInput[] = [];
+	const seen = new Set<string>();
+	for (let index = 0; index < rawTerms.length; index += 1) {
+		const term = rawTerms[index];
+		if (!term || typeof term !== 'object' || Array.isArray(term)) return { ok: false, message: 'The saved EnrollPro term snapshot has a malformed term.' };
+		const item = term as Record<string, unknown>;
+		const identity = typeof item.identity === 'string' && item.identity.trim().length > 0 ? item.identity : null;
+		const displayLabel = typeof item.displayLabel === 'string' && item.displayLabel.trim().length > 0 ? item.displayLabel : null;
+		const order = item.order === undefined ? index + 1 : item.order;
+		if (!identity || !displayLabel || order !== index + 1) return { ok: false, message: 'The saved EnrollPro term snapshot has malformed or out-of-order terms.' };
+		const key = identity.trim().toUpperCase();
+		if (seen.has(key)) return { ok: false, message: 'The saved EnrollPro term snapshot has duplicate term identities.' };
+		seen.add(key);
+		terms.push({ identity, displayLabel, order: index + 1 });
+	}
+	return {
+		ok: true,
+		structure: { format, terms, revision: canonicalTermStructureRevision(schoolId, schoolYearId, format, terms) },
+	};
+}
+
 export interface DerivedDemandDependencies {
 	client?: DataContext;
 	termContract?: VerifiedTermContract;
@@ -661,7 +835,7 @@ export async function buildDerivedDemand(
 			where: { schoolId },
 			select: {
 				id: true, code: true, name: true, schedulingDisposition: true, gradeLevels: true, programScopes: true,
-				rotationFamily: true, modularOrder: true, minMinutesPerWeek: true, isActive: true,
+				rotationFamily: true, modularOrder: true, minMinutesPerWeek: true, preferredRoomType: true, requiredFeatures: true, isActive: true,
 			},
 		}),
 		client.schedulingPolicy.findUnique({
@@ -670,26 +844,45 @@ export async function buildDerivedDemand(
 		}),
 	]);
 
-	let contract = dependencies.termContract;
-	if (!contract) {
-		const resolution = await resolveEnrollProTermContract({ schoolId, schoolYearId });
-		if (resolution.state === 'BLOCKED' || !resolution.contract) {
+	let termStructure: PersistedTermStructure;
+	if (dependencies.termContract) {
+		const contract = dependencies.termContract;
+		const terms = contract.terms.map((term) => ({ identity: term.identity, displayLabel: term.displayLabel, order: term.order }));
+		termStructure = {
+			format: contract.format,
+			terms,
+			revision: canonicalTermStructureRevision(schoolId, schoolYearId, contract.format, terms),
+		};
+	} else {
+		// TRANSACTION-CONSISTENT TERM AUTHORITY: the persisted verified snapshot is
+		// read exclusively through the supplied client. No global Prisma client and
+		// no live EnrollPro network call occurs here, so this is safe inside a
+		// Serializable Teaching Load / publication transaction.
+		const mirror = await client.enrollProSchoolYearMirror.findUnique({
+			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
+			select: { isActive: true, isArchived: true, termContractCache: true, termContractCachedAt: true },
+		});
+		if (!mirror || !mirror.termContractCache || !mirror.termContractCachedAt) {
 			return {
 				ok: false,
 				scope: { schoolId, schoolYearId },
-				blockers: [blocker('TERM_STRUCTURE_UNAVAILABLE', resolution.message || 'The EnrollPro ordered term structure is unavailable.')],
+				blockers: [blocker('TERM_STRUCTURE_UNAVAILABLE', 'No persisted verified EnrollPro term snapshot exists for the active year. Run the explicit rollover/sync action to persist it.')],
 			};
 		}
-		contract = resolution.contract;
+		const persisted = normalizePersistedTermStructure(mirror.termContractCache, schoolId, schoolYearId);
+		if (!persisted.ok) {
+			return { ok: false, scope: { schoolId, schoolYearId }, blockers: [blocker('TERM_STRUCTURE_UNAVAILABLE', persisted.message)] };
+		}
+		termStructure = persisted.structure;
 	}
 
 	return deriveCanonicalDemand({
 		schoolId,
 		schoolYearId,
 		yearLabel: activeYear.yearLabel,
-		termFormat: contract.format,
-		termStructureRevision: contract.semanticRevision,
-		terms: contract.terms.map((term) => ({ identity: term.identity, displayLabel: term.displayLabel, order: term.order })),
+		termFormat: termStructure.format,
+		termStructureRevision: termStructure.revision,
+		terms: termStructure.terms,
 		sections: sectionRows.map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
@@ -708,6 +901,8 @@ export async function buildDerivedDemand(
 			rotationFamily: subject.rotationFamily,
 			modularOrder: subject.modularOrder,
 			minMinutesPerWeek: subject.minMinutesPerWeek,
+			preferredRoomType: subject.preferredRoomType,
+			requiredFeatures: subject.requiredFeatures,
 			isActive: subject.isActive,
 		})),
 		periodLengthMinutes: dependencies.periodLengthMinutes ?? policyRow?.periodLengthMinutes ?? 45,

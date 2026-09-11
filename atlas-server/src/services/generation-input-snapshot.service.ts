@@ -3,8 +3,9 @@ import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { getDataContext } from '../lib/data-context.js';
+import { buildDerivedDemand } from './derived-demand.service.js';
 
-export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects';
+export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects' | 'derivedDemand';
 
 export type GenerationInputDomainSnapshot = {
 	fingerprint: string;
@@ -145,9 +146,6 @@ export async function computeGenerationInputSnapshot(
 		subjectAggregate,
 		classTemplateAggregate,
 		classTemplateSubjectAggregate,
-		termConfig,
-		offeringAggregate,
-		offeringTermAggregate,
 	] = await Promise.all([
 		client.facultyMirror.aggregate({
 			where: { schoolId, isStale: false },
@@ -207,20 +205,6 @@ export async function computeGenerationInputSnapshot(
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },
 		}),
-		client.schoolYearTermConfig.findUnique({
-			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-			select: { id: true, termCount: true, updatedAt: true },
-		}),
-		client.schoolYearOffering.aggregate({
-			where: { schoolId, schoolYearId, isActive: true },
-			_count: { _all: true },
-			_max: { id: true, version: true, updatedAt: true },
-		}),
-		client.offeringTermAssignment.aggregate({
-			where: { offering: { schoolId, schoolYearId, isActive: true } },
-			_count: { _all: true },
-			_max: { id: true, createdAt: true },
-		}),
 	]);
 	// Exact row-content revision digests close the aggregate max/count blind spot:
 	// any scoped source-row mutation changes at least one domain fingerprint, even
@@ -252,13 +236,39 @@ export async function computeGenerationInputSnapshot(
 				SELECT 'subject' AS "tableName", id, to_jsonb(s.*) AS row FROM subjects s WHERE school_id = $1 AND is_active = true
 				UNION ALL SELECT 'template', id, to_jsonb(t.*) FROM class_templates t WHERE school_id = $1 AND is_active = true
 				UNION ALL SELECT 'binding', cts.id, to_jsonb(cts.*) FROM class_template_subjects cts JOIN class_templates t ON t.id = cts.template_id WHERE t.school_id = $1
-				UNION ALL SELECT 'termConfig', id, to_jsonb(tc.*) FROM school_year_term_configs tc WHERE school_id = $1 AND school_year_id = $2
-				UNION ALL SELECT 'offering', id, to_jsonb(o.*) FROM school_year_offerings o WHERE school_id = $1 AND school_year_id = $2 AND is_active = true
-				UNION ALL SELECT 'offeringTerm', ota.id, to_jsonb(ota.*) FROM offering_term_assignments ota JOIN school_year_offerings o ON o.id = ota.offering_id WHERE o.school_id = $1 AND o.school_year_id = $2 AND o.is_active = true
 			) x) AS "subjects"
 	`, schoolId, schoolYearId);
 	const exact = exactRows[0];
 	if (!exact) throw new Error('GENERATION_INPUT_EXACT_DIGEST_UNAVAILABLE');
+
+	// DEMAND-C01R: bind the authoritative derived-demand revision (ordered EnrollPro
+	// terms + active sections + Subject scheduling/room semantics + period length)
+	// into generation/publication freshness through the supplied client. Legacy
+	// SchoolYearTermConfig, SchoolYearOffering, and OfferingTermAssignment are
+	// intentionally excluded from current-year authority.
+	let derivedDemandSignals: Record<string, number | string | null>;
+	try {
+		const derived = await buildDerivedDemand(schoolId, schoolYearId, { client: client as never });
+		derivedDemandSignals = derived.ok
+			? {
+				derivedDemandRevision: derived.revision,
+				termFormat: derived.termStructure.format,
+				termCount: derived.termStructure.terms.length,
+				timetableLineCount: derived.totalLines,
+				teachingLoadPairCount: derived.totalPairs,
+			}
+			: {
+				derivedDemandRevision: null,
+				derivedDemandBlockedCount: derived.blockers.length,
+				derivedDemandBlockerCodes: derived.blockers.map((entry) => entry.code).sort().join(','),
+			};
+	} catch (error) {
+		derivedDemandSignals = {
+			derivedDemandRevision: null,
+			derivedDemandBlockedCount: 1,
+			derivedDemandBlockerCodes: (error as { code?: string }).code ?? 'ERROR',
+		};
+	}
 
 	const domains: Record<GenerationInputDomain, GenerationInputDomainSnapshot> = {
 		teachingLoad: buildDomainSnapshot({
@@ -302,16 +312,6 @@ export async function computeGenerationInputSnapshot(
 		}),
 		subjects: buildDomainSnapshot({
 			exactRevisionDigest: exact.subjects,
-			termConfigId: termConfig?.id ?? null,
-			termCount: termConfig?.termCount ?? null,
-			termConfigUpdatedAt: iso(termConfig?.updatedAt),
-			activeOfferingCount: offeringAggregate._count._all,
-			activeOfferingMaxId: offeringAggregate._max.id,
-			activeOfferingMaxVersion: offeringAggregate._max.version,
-			activeOfferingMaxUpdatedAt: iso(offeringAggregate._max.updatedAt),
-			offeringTermCount: offeringTermAggregate._count._all,
-			offeringTermMaxId: offeringTermAggregate._max.id,
-			offeringTermMaxCreatedAt: iso(offeringTermAggregate._max.createdAt),
 			activeSubjectCount: subjectAggregate._count._all,
 			subjectMaxId: subjectAggregate._max.id,
 			subjectMaxUpdatedAt: iso(subjectAggregate._max.updatedAt),
@@ -322,6 +322,7 @@ export async function computeGenerationInputSnapshot(
 			classTemplateSubjectMaxId: classTemplateSubjectAggregate._max.id,
 			classTemplateSubjectMaxCreatedAt: iso(classTemplateSubjectAggregate._max.createdAt),
 		}),
+		derivedDemand: buildDomainSnapshot(derivedDemandSignals),
 	};
 
 	return {
