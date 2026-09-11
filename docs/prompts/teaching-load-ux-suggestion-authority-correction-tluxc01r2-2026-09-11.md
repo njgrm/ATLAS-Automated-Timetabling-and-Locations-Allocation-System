@@ -128,4 +128,3 @@ in `finally` and prove its write detector with a rolled-back positive control.
 Return `REVIEW_REQUIRED`, never `GO`, with the immutable range and evidence.
 If the correction cannot stay inside this boundary, return
 `PLANNER_DECISION_REQUIRED` with the smallest concrete blocker.
-
