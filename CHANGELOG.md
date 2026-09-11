@@ -1,5 +1,38 @@
 # Changelog
 
+## [2026-09-11] — RR-TERM-CACHE-C01 Term-Authority Catch-Up
+
+### Added
+- `GET /api/v1/runtime/rollover-status` now reports persisted ordered-term
+  authority separately from year drift (`termAuthority`: `PERSISTED_CURRENT`,
+  `MISSING`, `PERSISTED_STALE`, `UPSTREAM_UNAVAILABLE`,
+  `INVALID_UPSTREAM_CONTRACT`, `CACHE_INVALID`, `YEAR_NOT_MIRRORED`,
+  `PERSISTED_UNVERIFIED`); `drift.recommendedAction` never implies term
+  readiness.
+- Narrow term-authority catch-up: zero-write
+  `POST /api/v1/runtime/term-authority/preview` (live EnrollPro contract,
+  stable fingerprint, exact confirmation text) and privileged,
+  actor-school-scoped, fingerprinted `POST /api/v1/runtime/term-authority/apply`
+  that writes only the active mirror's `termContractCache`/`termContractCachedAt`
+  plus one `TERM_CACHE_SYNC_APPLIED` audit; drift or scope mismatch is a typed
+  4xx with zero writes, and identical replay is idempotent with no second audit.
+- `RolloverGuidanceCard` exposes exactly one `Save terms` repair action
+  (zero-write preview first) for an aligned year whose ordered terms are
+  missing/stale; it never invokes the broad faculty/section rollover apply.
+
+### Changed
+- `teachingLoadResetRequired` is namespaced under
+  `teachingLoadReset { scope: 'DUMMY_YEAR_RESET_PREVIEW', applicable, reason }`
+  and is only true when the typed dummy/test-data reset path actually applies;
+  an aligned populated year is never described as needing a Teaching Load reset.
+- A reachable `ACTIVE_TERM_UNRESOLVED` no longer invalidates the ordered term
+  structure.
+
+### Decisions Made
+- Year alignment and persisted term authority are separate states. The live
+  term-cache catch-up remains a separately approved HIGH action and was not
+  executed; no deployment or live cache write occurred.
+
 ## [2026-09-11] — TL-RR01R Teaching Load Carry-Forward Correction
 
 ### Fixed
