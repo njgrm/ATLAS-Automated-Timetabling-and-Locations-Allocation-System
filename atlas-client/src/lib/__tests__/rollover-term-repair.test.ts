@@ -61,11 +61,14 @@ test('year-drift term state never claims a term repair', () => {
 
 test('the card wires the narrow preview/apply contract and not the broad rollover apply for this state', () => {
 	const source = readFileSync(new URL('../../components/runtime/RolloverGuidanceCard.tsx', import.meta.url), 'utf8');
-	assert.ok(source.includes('previewTermCacheSync(schoolId)'), 'term repair opens the zero-write term preview');
+	assert.ok(source.includes('previewTermCacheSync(requestSchoolId)'), 'term repair opens the zero-write term preview for the resolved actor school');
 	assert.ok(source.includes('applyTermCacheSync(schoolId'), 'term repair persists through the narrow term-cache apply');
 	assert.ok(source.includes('data-testid="rollover-term-repair-action"'), 'one repair action is exposed');
 	assert.ok(source.includes('data-testid="rollover-term-repair-apply"'), 'the preview dialog owns the apply control');
 	assert.ok(source.includes('describeTermAuthority(status?.termAuthority)'), 'the card renders the separate term-authority state');
+	// RR-TERM-CACHE-C01R: no school-1 default may remain in the card or its
+	// term-authority wrappers.
+	assert.doesNotMatch(source, /schoolId\s*=\s*1(?!\d)/, 'the card must not default schoolId to 1');
 
 	const repairStart = source.indexOf('const handleTermRepair');
 	const applyStart = source.indexOf('const handleTermApply');

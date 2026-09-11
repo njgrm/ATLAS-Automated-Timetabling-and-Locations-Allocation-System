@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Archive, CheckCircle2, Loader2, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,11 +15,20 @@ import {
 	previewArchiveAndSync,
 	previewRolloverSync,
 	previewTermCacheSync,
+	resolveActorSchoolId,
 	type ArchiveAndSyncPreviewResult,
 	type RecoveryClassifierResult,
 	type RolloverStatus,
-	type TermCachePreviewResult,
 } from '@/lib/settings';
+import {
+	acceptTermRepairPreview,
+	bindTermRepairPreview,
+	initialTermRepairScopeState,
+	isResolvedActorSchoolId,
+	isTermRepairPreviewApplicable,
+	resetTermRepairForScope,
+	type TermRepairScopeState,
+} from '@/lib/term-authority-repair-scope';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -40,7 +49,13 @@ import { cn } from '@/lib/utils';
  * `docs/phases/setup-content-area-improvement-plan-2026-08-08.md` Phase 0B.
  */
 type RolloverGuidanceCardProps = {
-	schoolId?: number;
+	/**
+	 * The authenticated actor school. Required — there is deliberately no
+	 * school-1 default. Omitted-prop callers must use
+	 * {@link ActorScopedRolloverGuidanceCard}, which resolves `/auth/me` and
+	 * renders this card only once the actor school is a strict positive integer.
+	 */
+	schoolId: number;
 	compact?: boolean;
 	dismissible?: boolean;
 	/** Where the destructive year-setup/reset surface lives. Defaults to `/admin/year-setup`. */
@@ -50,6 +65,32 @@ type RolloverGuidanceCardProps = {
 	onApplied?: (status: RolloverStatus) => void;
 	onStatus?: (status: RolloverStatus) => void;
 };
+
+type ActorScopedRolloverGuidanceCardProps = Omit<RolloverGuidanceCardProps, 'schoolId'>;
+
+/**
+ * RR-TERM-CACHE-C01R — fail-closed actor-scoped wrapper for callers that do not
+ * already hold the authenticated school (Sections, Faculty). It resolves
+ * `/auth/me` and renders nothing — dispatching no rollover/term request — until
+ * the actor school is a strict positive integer. It never falls back to school 1.
+ */
+export function ActorScopedRolloverGuidanceCard(props: ActorScopedRolloverGuidanceCardProps) {
+	const [actorSchoolId, setActorSchoolId] = useState<number | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void resolveActorSchoolId().then((id) => {
+			if (cancelled) return;
+			setActorSchoolId(isResolvedActorSchoolId(id) ? id : null);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	if (!isResolvedActorSchoolId(actorSchoolId)) return null;
+	return <RolloverGuidanceCard {...props} schoolId={actorSchoolId} />;
+}
 
 const DISMISS_STORAGE_PREFIX = 'atlas.rollover-banner.dismissed.';
 
@@ -90,7 +131,7 @@ function driftNextStep(status: string, recommendedAction?: string): string {
 }
 
 export function RolloverGuidanceCard({
-	schoolId = 1,
+	schoolId,
 	compact = false,
 	dismissible = true,
 	adminHref = '/admin/year-setup',
@@ -116,11 +157,17 @@ export function RolloverGuidanceCard({
 	const [archivePreview, setArchivePreview] = useState<ArchiveAndSyncPreviewResult | null>(null);
 	const [archivePreviewLoading, setArchivePreviewLoading] = useState(false);
 	const [archiving, setArchiving] = useState(false);
-	const [showTermRepair, setShowTermRepair] = useState(false);
-	const [termPreview, setTermPreview] = useState<TermCachePreviewResult | null>(null);
+	const [termRepair, setTermRepair] = useState<TermRepairScopeState>(initialTermRepairScopeState);
 	const [termPreviewLoading, setTermPreviewLoading] = useState(false);
-	const [termConfirmText, setTermConfirmText] = useState('');
-	const [termApplying, setTermApplying] = useState(false);
+	const showTermRepair = termRepair.dialogOpen;
+	const termPreview = termRepair.preview;
+	const termApplying = termRepair.applying;
+	const termConfirmText = termRepair.confirmationText;
+	// Late-arriving async preview responses must not bind to a previous school.
+	const schoolIdRef = useRef(schoolId);
+	useEffect(() => {
+		schoolIdRef.current = schoolId;
+	}, [schoolId]);
 
 	const loadStatus = async (includeCounts = false) => {
 		setLoading(true);
@@ -162,6 +209,16 @@ export function RolloverGuidanceCard({
 	};
 
 	useEffect(() => {
+		// RR-TERM-CACHE-C01R: an actor-school change is authoritative. Close the
+		// repair dialog and discard any prior preview, confirmation text, error,
+		// or pending apply before the new school's status loads. No request is
+		// issued from stale scope.
+		setTermRepair((current) => resetTermRepairForScope(current, schoolId));
+		setError(null);
+	}, [schoolId]);
+
+	useEffect(() => {
+		if (!isResolvedActorSchoolId(schoolId)) return;
 		void loadStatus(false);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [schoolId]);
@@ -342,55 +399,60 @@ export function RolloverGuidanceCard({
 		}
 	};
 
-	// RR-TERM-CACHE-C01: one narrow repair path. The button opens a zero-write
-	// preview; only the dialog's apply persists the ordered term authority. The
-	// broad faculty/section rollover apply is never invoked here.
+	// RR-TERM-CACHE-C01 / C01R: one narrow repair path. The button opens a
+	// zero-write preview; only the dialog's apply persists the ordered term
+	// authority. The broad faculty/section rollover apply is never invoked here.
+	// Every dispatch is gated on a strict positive actor school, and a preview
+	// that resolves late for a previous school is dropped.
 	const handleTermRepair = async () => {
-		setShowTermRepair(true);
+		if (!isResolvedActorSchoolId(schoolId)) return;
+		const requestSchoolId = schoolId;
+		setTermRepair({ ...initialTermRepairScopeState(), dialogOpen: true });
 		setTermPreviewLoading(true);
-		setTermPreview(null);
-		setTermConfirmText('');
 		setError(null);
 		try {
-			setTermPreview(await previewTermCacheSync(schoolId));
+			const preview = await previewTermCacheSync(requestSchoolId);
+			if (!acceptTermRepairPreview(schoolIdRef.current, requestSchoolId)) return;
+			setTermRepair((current) => bindTermRepairPreview(current, requestSchoolId, preview));
 		} catch (err: any) {
+			if (!acceptTermRepairPreview(schoolIdRef.current, requestSchoolId)) return;
 			setError(err?.response?.data?.message ?? err?.message ?? 'ATLAS could not preview the ordered terms.');
-			setShowTermRepair(false);
+			setTermRepair(initialTermRepairScopeState());
 		} finally {
 			setTermPreviewLoading(false);
 		}
 	};
 
 	const handleTermApply = async () => {
-		if (!termPreview) return;
-		setTermApplying(true);
+		if (!isTermRepairPreviewApplicable(termRepair, schoolId, termConfirmText)) return;
+		const preview = termRepair.preview;
+		if (!preview) return;
+		setTermRepair((current) => ({ ...current, applying: true }));
 		setError(null);
 		try {
 			const result = await applyTermCacheSync(schoolId, {
 				confirmationText: termConfirmText,
-				fingerprint: termPreview.fingerprint,
+				fingerprint: preview.fingerprint,
 			});
-			setShowTermRepair(false);
-			setTermPreview(null);
-			setTermConfirmText('');
+			setTermRepair(initialTermRepairScopeState());
 			await loadStatus(true);
 			toast.success(`Saved ordered terms for ${result.yearLabel}.`);
 		} catch (err: any) {
 			const message = err?.response?.data?.message ?? err?.message ?? 'ATLAS could not save the ordered terms.';
 			setError(message);
+			setTermRepair((current) => ({ ...current, applying: false }));
 			toast.error(message);
-		} finally {
-			setTermApplying(false);
 		}
 	};
 
-	// RR-TERM-CACHE-C01: the shared term-repair dialog. It is the ONLY
+	// RR-TERM-CACHE-C01 / C01R: the shared term-repair dialog. It is the ONLY
 	// persistence surface for the narrow catch-up and is opened only after the
 	// zero-write preview resolves. It never calls the broad rollover apply.
 	const termRepairDialog = (
 		<Dialog open={showTermRepair} onOpenChange={(open) => {
-			setShowTermRepair(open);
-			if (!open) setTermConfirmText('');
+			setTermRepair((current) => open
+				? { ...current, dialogOpen: true }
+				: resetTermRepairForScope(current, schoolId));
 		}}>
 			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md" hideClose={termApplying} data-testid="rollover-term-repair-dialog">
 				<DialogHeader>
@@ -419,7 +481,7 @@ export function RolloverGuidanceCard({
 							<Input
 								id="term-repair-confirmation"
 								value={termConfirmText}
-								onChange={(event) => setTermConfirmText(event.target.value)}
+								onChange={(event) => setTermRepair((current) => ({ ...current, confirmationText: event.target.value }))}
 								placeholder={termPreview.confirmationText}
 								disabled={termApplying}
 								autoComplete="off"
@@ -428,12 +490,12 @@ export function RolloverGuidanceCard({
 					</>
 				) : null}
 				<DialogFooter>
-					<Button type="button" variant="outline" size="sm" onClick={() => setShowTermRepair(false)} disabled={termApplying}>Cancel</Button>
+					<Button type="button" variant="outline" size="sm" onClick={() => setTermRepair((current) => resetTermRepairForScope(current, schoolId))} disabled={termApplying}>Cancel</Button>
 					<Button
 						type="button"
 						size="sm"
 						onClick={() => void handleTermApply()}
-						disabled={termApplying || termPreviewLoading || !termPreview || termConfirmText !== termPreview.confirmationText}
+						disabled={!isTermRepairPreviewApplicable(termRepair, schoolId, termConfirmText) || termPreviewLoading}
 						data-testid="rollover-term-repair-apply"
 					>
 						{termApplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

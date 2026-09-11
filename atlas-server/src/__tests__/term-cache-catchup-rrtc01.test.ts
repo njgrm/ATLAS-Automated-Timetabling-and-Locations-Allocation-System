@@ -99,7 +99,13 @@ test('RR-TC-C01 mounted term-authority catch-up against a disposable PostgreSQL 
 		// ── Fake EnrollPro (mutable term variant for drift) ───────────────────
 		let activeSchoolId = 0;
 		let termVariant: 'original' | 'renamed' = 'original';
-		enrollProServer = http.createServer((req, res) => {
+		// RR-TERM-CACHE-C01R: when armed, the fake active-term read creates a
+		// SECOND same-school active, non-archived mirror. This lands AFTER the
+		// apply's preflight election but BEFORE its Serializable transaction
+		// re-election, proving the complete-set control is real.
+		const SECOND_YEAR_ID = SCHOOL_YEAR_ID + 1;
+		let createSecondMirrorOnNextActiveTerm = false;
+		enrollProServer = http.createServer(async (req, res) => {
 			const url = new URL(req.url ?? '/', 'http://127.0.0.1');
 			res.setHeader('content-type', 'application/json');
 			if (url.pathname.endsWith('/integration/v1/health')) {
@@ -116,6 +122,12 @@ test('RR-TC-C01 mounted term-authority catch-up against a disposable PostgreSQL 
 				return;
 			}
 			if (url.pathname.endsWith('/integration/v1/active-term')) {
+				if (createSecondMirrorOnNextActiveTerm) {
+					createSecondMirrorOnNextActiveTerm = false;
+					await prisma.enrollProSchoolYearMirror.create({
+						data: { schoolId: activeSchoolId, enrollProSchoolYearId: SECOND_YEAR_ID, yearLabel: '2031-2032', isActive: true, isArchived: false, syncStatus: 'synced' },
+					});
+				}
 				res.statusCode = 409;
 				res.end(JSON.stringify({ code: 'ACTIVE_TERM_UNRESOLVED', message: 'no term contains today' }));
 				return;
@@ -206,8 +218,43 @@ test('RR-TC-C01 mounted term-authority catch-up against a disposable PostgreSQL 
 		const baseUrl = `http://127.0.0.1:${port}`;
 		const privileged = jwt.sign({ userId: 1, role: 'officer', schoolId, authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
 		const crossSchool = jwt.sign({ userId: 2, role: 'officer', schoolId: schoolId + 1, authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
+		const facultyToken = jwt.sign({ userId: 3, role: 'faculty', schoolId, authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
+		const noSchoolActor = jwt.sign({ userId: 4, role: 'officer', authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
+		const noActor = jwt.sign({ userId: 0, role: 'officer', schoolId, authSource: 'local' }, JWT_SECRET, { expiresIn: '10m' });
+		const systemToken = 'rrtc01-system-token-that-is-not-a-jwt';
 		const post = (path: string, body: unknown, token = privileged) => fetch(`${baseUrl}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 		const get = (path: string, token = privileged) => fetch(`${baseUrl}${path}`, { headers: { authorization: `Bearer ${token}` } });
+
+		// ── 0. JWT-only, privileged, actor-school-scoped authority matrix ────
+		// Every rejection must happen BEFORE any service/upstream/DB dispatch:
+		// the instrumentation recorder must observe zero operations.
+		type AuthorityCase = { label: string; path: string; headers: Record<string, string>; body: unknown; status: number; code?: string };
+		const authorityCases: AuthorityCase[] = [
+			{ label: 'preview missing auth header', path: '/api/v1/runtime/term-authority/preview', headers: {}, body: { schoolId }, status: 401, code: 'NO_TOKEN' },
+			{ label: 'preview system token', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${systemToken}` }, body: { schoolId }, status: 401 },
+			{ label: 'preview integration-key only', path: '/api/v1/runtime/term-authority/preview', headers: { 'x-integration-key': systemToken }, body: { schoolId }, status: 401, code: 'NO_TOKEN' },
+			{ label: 'preview non-privileged faculty', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${facultyToken}` }, body: { schoolId }, status: 403, code: 'FORBIDDEN' },
+			{ label: 'preview missing actor school', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${noSchoolActor}` }, body: { schoolId }, status: 403, code: 'SCHOOL_SCOPE_REQUIRED' },
+			{ label: 'preview missing actor user', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${noActor}` }, body: { schoolId }, status: 403, code: 'ACTOR_USER_REQUIRED' },
+			{ label: 'preview cross-school actor', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${crossSchool}` }, body: { schoolId }, status: 403, code: 'CROSS_SCHOOL_DENIED' },
+			{ label: 'preview invalid school parameter', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${privileged}` }, body: { schoolId: 0 }, status: 400, code: 'INVALID_PARAM' },
+			{ label: 'preview missing school parameter', path: '/api/v1/runtime/term-authority/preview', headers: { authorization: `Bearer ${privileged}` }, body: {}, status: 400, code: 'INVALID_PARAM' },
+			{ label: 'apply missing auth header', path: '/api/v1/runtime/term-authority/apply', headers: {}, body: { schoolId }, status: 401, code: 'NO_TOKEN' },
+			{ label: 'apply system token', path: '/api/v1/runtime/term-authority/apply', headers: { authorization: `Bearer ${systemToken}` }, body: { schoolId }, status: 401 },
+			{ label: 'apply non-privileged faculty', path: '/api/v1/runtime/term-authority/apply', headers: { authorization: `Bearer ${facultyToken}` }, body: { schoolId }, status: 403, code: 'FORBIDDEN' },
+			{ label: 'apply missing actor school', path: '/api/v1/runtime/term-authority/apply', headers: { authorization: `Bearer ${noSchoolActor}` }, body: { schoolId }, status: 403, code: 'SCHOOL_SCOPE_REQUIRED' },
+			{ label: 'apply missing actor user', path: '/api/v1/runtime/term-authority/apply', headers: { authorization: `Bearer ${noActor}` }, body: { schoolId }, status: 403, code: 'ACTOR_USER_REQUIRED' },
+			{ label: 'apply cross-school actor', path: '/api/v1/runtime/term-authority/apply', headers: { authorization: `Bearer ${crossSchool}` }, body: { schoolId }, status: 403, code: 'CROSS_SCHOOL_DENIED' },
+			{ label: 'apply invalid school parameter', path: '/api/v1/runtime/term-authority/apply', headers: { authorization: `Bearer ${privileged}` }, body: { schoolId: -1 }, status: 400, code: 'INVALID_PARAM' },
+		];
+		for (const testCase of authorityCases) {
+			recorded.length = 0;
+			const res = await fetch(`${baseUrl}${testCase.path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...testCase.headers }, body: JSON.stringify(testCase.body) });
+			const json = (await res.json()) as any;
+			assert.equal(res.status, testCase.status, `${testCase.label} → ${testCase.status} (got ${res.status}/${json.code})`);
+			if (testCase.code) assert.equal(json.code, testCase.code, `${testCase.label} → ${testCase.code}`);
+			assert.equal(recorded.length, 0, `${testCase.label} dispatches zero service/upstream/DB operations`);
+		}
 
 		// ── 1. aligned year + missing term authority, and no false TL reset ──
 		recorded.length = 0;
@@ -337,6 +384,57 @@ test('RR-TC-C01 mounted term-authority catch-up against a disposable PostgreSQL 
 		recorded.length = 0;
 		await instrumented.enrollProSchoolYearMirror.updateMany({ where: { schoolId }, data: { syncStatus: 'synced' } });
 		assert.equal(writes().filter((w) => w.model === 'EnrollProSchoolYearMirror').length, 1, 'recorder observes a real mirror write');
+
+		// ── 11. complete active-year election inside the Serializable tx ─────
+		// Clean slate so a fresh preview is READY.
+		await prisma.enrollProSchoolYearMirror.updateMany({ where: { schoolId }, data: { termContractCache: null, termContractCachedAt: null } });
+		const ambPreviewRes = await post('/api/v1/runtime/term-authority/preview', { schoolId });
+		const ambPreview = (await ambPreviewRes.json()) as any;
+		assert.equal(ambPreviewRes.status, 200, 'ambiguity preview returns 200');
+		assert.equal(ambPreview.state, 'READY', 'ambiguity preview is READY');
+
+		// Arm the fake upstream: during the apply's live fetch a SECOND same-
+		// school active, non-archived mirror appears — after apply preflight,
+		// before the transaction re-election.
+		createSecondMirrorOnNextActiveTerm = true;
+		const auditBeforeAmb = await prisma.auditLog.count({ where: { schoolId, action: 'TERM_CACHE_SYNC_APPLIED' } });
+		const facultySubjectsBeforeAmb = await prisma.facultySubject.count({ where: { schoolId } });
+		const generationBeforeAmb = await prisma.generationRun.count({ where: { schoolId } });
+		const publicationBeforeAmb = await prisma.publishedScheduleRevision.count({ where: { schoolId } });
+		recorded.length = 0;
+		const ambApplyRes = await post('/api/v1/runtime/term-authority/apply', { schoolId, confirmationText: ambPreview.confirmationText, fingerprint: ambPreview.fingerprint });
+		const ambApply = (await ambApplyRes.json()) as any;
+		assert.equal(ambApplyRes.status, 409, `ambiguous active-year apply → 409 (got ${ambApplyRes.status}/${ambApply.code})`);
+		assert.equal(ambApply.code, 'ACTIVE_YEAR_AMBIGUOUS', 'ambiguous active-year apply is typed ACTIVE_YEAR_AMBIGUOUS');
+		assert.equal(writes().length, 0, 'ambiguous apply performs zero writes');
+		const ambMirror = await prisma.enrollProSchoolYearMirror.findFirstOrThrow({ where: { schoolId, enrollProSchoolYearId: SECOND_YEAR_ID }, select: { isActive: true, isArchived: true } });
+		assert.equal(ambMirror.isActive, true, 'the second active mirror was created by the fixture');
+		assert.equal(ambMirror.isArchived, false);
+		const stillUncached = await prisma.enrollProSchoolYearMirror.findUniqueOrThrow({ where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: SCHOOL_YEAR_ID } }, select: { termContractCache: true } });
+		assert.equal(stillUncached.termContractCache, null, 'no mirror-cache write under ambiguity');
+		assert.equal(await prisma.auditLog.count({ where: { schoolId, action: 'TERM_CACHE_SYNC_APPLIED' } }), auditBeforeAmb, 'no audit row under ambiguity');
+		assert.equal(await prisma.facultySubject.count({ where: { schoolId } }), facultySubjectsBeforeAmb, 'Teaching Load rows untouched under ambiguity');
+		assert.equal(await prisma.generationRun.count({ where: { schoolId } }), generationBeforeAmb, 'no generation writes under ambiguity');
+		assert.equal(await prisma.publishedScheduleRevision.count({ where: { schoolId } }), publicationBeforeAmb, 'no publication writes under ambiguity');
+
+		// Old selected-row-only authority would still accept: the composite
+		// lookup returns the still-active preview mirror. The complete-set
+		// election is what rejects the ambiguous fixture.
+		const oldStyle = await prisma.enrollProSchoolYearMirror.findUnique({ where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: SCHOOL_YEAR_ID } }, select: { isActive: true, isArchived: true } });
+		assert.ok(oldStyle && oldStyle.isActive === true && oldStyle.isArchived === false, 'selected-row-only lookup would accept the ambiguous fixture');
+
+		// Deactivate the competing year: a fresh preview/apply succeeds again.
+		await prisma.enrollProSchoolYearMirror.updateMany({ where: { schoolId, enrollProSchoolYearId: SECOND_YEAR_ID }, data: { isActive: false } });
+		const freshPreviewRes = await post('/api/v1/runtime/term-authority/preview', { schoolId });
+		const freshPreview = (await freshPreviewRes.json()) as any;
+		assert.equal(freshPreviewRes.status, 200, 'fresh preview after deactivation returns 200');
+		assert.equal(freshPreview.state, 'READY', 'fresh preview after deactivation is READY');
+		recorded.length = 0;
+		const freshApplyRes = await post('/api/v1/runtime/term-authority/apply', { schoolId, confirmationText: freshPreview.confirmationText, fingerprint: freshPreview.fingerprint });
+		const freshApply = (await freshApplyRes.json()) as any;
+		assert.equal(freshApplyRes.status, 200, `fresh apply after deactivation → 200 (got ${freshApplyRes.status}/${freshApply.code})`);
+		assert.equal(freshApply.written, true, 'fresh apply writes the cache');
+		assert.equal(writes().filter((w) => w.model === 'AuditLog' && w.action === 'create').length, 1, 'fresh apply writes exactly one audit row');
 	} finally {
 		if (appServer) await new Promise<void>((resolve) => appServer!.close(() => resolve()));
 		if (enrollProServer) await new Promise<void>((resolve) => enrollProServer!.close(() => resolve()));

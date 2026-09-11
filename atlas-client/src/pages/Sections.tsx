@@ -53,7 +53,7 @@ import { SectionsFilterToolbar } from '@/components/sections/SectionsFilterToolb
 import { cn } from '@/lib/utils';
 import type { RoomSectionMetadata } from '@/components/BuildingView';
 import type { Building, SectionSummaryResponse } from '@/types';
-import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
@@ -816,7 +816,7 @@ export default function Sections() {
 		>
 
 			<div className="shrink-0 px-4 pt-1 lg:px-5">
-				<RolloverGuidanceCard compact />
+				<ActorScopedRolloverGuidanceCard compact />
 			</div>
 
 			{/* Status Banners */}

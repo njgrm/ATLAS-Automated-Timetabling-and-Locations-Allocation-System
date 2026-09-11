@@ -1,5 +1,50 @@
 # Changelog
 
+## [2026-09-12] — RR-TERM-CACHE-C01R Term-Authority Scope/Authority Correction
+
+### Fixed
+- `POST /api/v1/runtime/term-authority/preview` and `/apply` are now JWT-only
+  privileged operator actions (JWT `authenticate`, never the system token) with
+  strict actor user/school authority: missing/invalid JWT → 401, non-privileged
+  → 403 `FORBIDDEN`, missing actor school → 403 `SCHOOL_SCOPE_REQUIRED`,
+  cross-school → 403 `CROSS_SCHOOL_DENIED`, missing actor user → 403
+  `ACTOR_USER_REQUIRED`, malformed/missing school parameter → 400 `INVALID_PARAM`.
+  Every rejection happens before any service, upstream, or database dispatch —
+  including the zero-write preview, which is still a tenant-isolation surface.
+- `applyTermCacheSync` independently rejects a missing/non-positive actor id
+  (403 `ACTOR_USER_REQUIRED`) before any dispatch; the route no longer passes
+  `?? 0`.
+- The term-authority client wrappers (`previewTermCacheSync`,
+  `applyTermCacheSync`) and `RolloverGuidanceCard` no longer default `schoolId`
+  to 1. `RolloverGuidanceCard` now requires an explicit actor school;
+  omitted-prop callers (Sections, Faculty) use the new fail-closed
+  `ActorScopedRolloverGuidanceCard`, which resolves `/auth/me` and dispatches no
+  request until the actor school is a strict positive integer. Dashboard,
+  Teaching Load, Admin Year Setup, and Schedule Review pass their resolved actor
+  school explicitly.
+- An actor-school change now closes the repair dialog and clears the prior
+  preview, confirmation text, errors, and pending apply; a late-arriving preview
+  response for a previous school is dropped and can never be submitted.
+- `applyTermCacheSync` re-elects the complete same-school active, non-archived
+  mirror set through the transaction client inside the existing Serializable
+  transaction before writing. A previously selected row remaining active is not
+  sufficient authority when a second active row now exists; zero rows →
+  `ACTIVE_YEAR_UNAVAILABLE`, more than one → `ACTIVE_YEAR_AMBIGUOUS`.
+
+### Added
+- Mounted-route authority matrix (preview and apply) and a disposable-PostgreSQL
+  active-year ambiguity matrix proving the complete-set election inside the
+  transaction rejects a second active mirror with zero cache/audit/Teaching
+  Load/generation/publication writes, while a selected-row-only lookup would
+  have accepted it.
+- Client actor-scope/lifecycle suite covering unresolved scope, actor-school
+  transitions, stale-preview rejection, and production caller wiring.
+
+### Decisions Made
+- This is a source/test correction only. No deployment, live cache write,
+  generation, or publication occurred; the live term-cache catch-up remains a
+  separately approved HIGH action.
+
 ## [2026-09-11] — RR-TERM-CACHE-C01 Term-Authority Catch-Up
 
 ### Added

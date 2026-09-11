@@ -878,9 +878,32 @@ type ActiveYearMirrorRow = {
 	termContractCachedAt: Date | null;
 };
 
-async function resolveActiveYearMirror(schoolId: number): Promise<ActiveYearMirrorRow> {
-	const client = getDataContext<any>();
-	const rows = await client.enrollProSchoolYearMirror.findMany({
+/**
+ * Minimal read surface shared by the ambient data context and a Prisma
+ * transaction client. The term-cache apply path MUST re-elect the active year
+ * through the transaction client it is already inside, so this resolver accepts
+ * the caller's client instead of always reaching for the global context.
+ */
+type ActiveYearMirrorReadClient = {
+	enrollProSchoolYearMirror: {
+		findMany: (args: {
+			where: { schoolId: number; isActive: boolean; isArchived: boolean };
+			select: { id: true; enrollProSchoolYearId: true; yearLabel: true; termContractCache: true; termContractCachedAt: true };
+			orderBy: Array<Record<string, 'asc' | 'desc'>>;
+		}) => Promise<ActiveYearMirrorRow[]>;
+	};
+};
+
+/**
+ * Elect the single active, non-archived school-year mirror for a school from
+ * the COMPLETE same-school set. Fails closed on zero (`ACTIVE_YEAR_UNAVAILABLE`)
+ * or more than one (`ACTIVE_YEAR_AMBIGUOUS`) qualifying row. Callers inside a
+ * transaction must pass `tx` so the election observes the transaction's own
+ * snapshot rather than a stale preflight read.
+ */
+async function resolveActiveYearMirror(schoolId: number, client?: ActiveYearMirrorReadClient): Promise<ActiveYearMirrorRow> {
+	const dataClient = client ?? (getDataContext<any>() as ActiveYearMirrorReadClient);
+	const rows = await dataClient.enrollProSchoolYearMirror.findMany({
 		where: { schoolId, isActive: true, isArchived: false },
 		select: { id: true, enrollProSchoolYearId: true, yearLabel: true, termContractCache: true, termContractCachedAt: true },
 		orderBy: [{ enrollProSchoolYearId: 'asc' }, { id: 'asc' }],
@@ -892,6 +915,15 @@ async function resolveActiveYearMirror(schoolId: number): Promise<ActiveYearMirr
 		throw termAuthorityError(409, 'ACTIVE_YEAR_AMBIGUOUS', 'More than one active, non-archived school-year mirror exists for this school.');
 	}
 	return rows[0] as ActiveYearMirrorRow;
+}
+
+function activeYearCacheRow(mirror: ActiveYearMirrorRow): TermAuthorityMirrorRow {
+	return {
+		id: mirror.id,
+		isArchived: false,
+		termContractCache: mirror.termContractCache,
+		termContractCachedAt: mirror.termContractCachedAt,
+	};
 }
 
 export type TermCachePreviewResult = {
@@ -939,11 +971,7 @@ export async function previewTermCacheSync(input: {
 		);
 	}
 	const contract = live.contract;
-	const cache = readValidCache(
-		{ id: mirror.id, isArchived: false, termContractCache: mirror.termContractCache, termContractCachedAt: mirror.termContractCachedAt },
-		input.schoolId,
-		yearId,
-	);
+	const cache = readValidCache(activeYearCacheRow(mirror), input.schoolId, yearId);
 	const persistedRevision = cache.valid ? cache.contract!.semanticRevision : null;
 	const fingerprint = termCacheFingerprint({
 		schoolId: input.schoolId,
@@ -1017,6 +1045,12 @@ export async function applyTermCacheSync(input: TermCacheApplyInput): Promise<Te
 	if (!Number.isInteger(input.schoolId) || input.schoolId <= 0) {
 		throw termAuthorityError(400, 'INVALID_PARAM', 'schoolId must be a positive integer.');
 	}
+	// Authority control (RR-TERM-CACHE-C01R): the apply path independently
+	// rejects a missing/invalid actor before any service, upstream, or DB
+	// dispatch. The route also enforces this; the service must not trust it.
+	if (!Number.isInteger(input.actorId) || input.actorId <= 0) {
+		throw termAuthorityError(403, 'ACTOR_USER_REQUIRED', 'Saving ordered term authority requires an authenticated actor identity.');
+	}
 	const mirror = await resolveActiveYearMirror(input.schoolId);
 	const yearId = mirror.enrollProSchoolYearId;
 	const expectedConfirmation = getTermCacheConfirmationText(input.schoolId, yearId);
@@ -1040,13 +1074,14 @@ export async function applyTermCacheSync(input: TermCacheApplyInput): Promise<Te
 
 	// Revalidate the preview against the freshly fetched live contract BEFORE any
 	// write. A changed upstream revision (reorder/rename) yields a different
-	// fingerprint and is rejected with zero writes.
-	const preMirror = await readMirrorRow(input.schoolId, yearId);
-	const preCache = readValidCache(preMirror, input.schoolId, yearId);
+	// fingerprint and is rejected with zero writes. The active-year mirror was
+	// already elected from the COMPLETE same-school set above, so its bound
+	// cache state is the preview's persisted side.
+	const preCache = readValidCache(activeYearCacheRow(mirror), input.schoolId, yearId);
 	const expectedFingerprint = termCacheFingerprint({
 		schoolId: input.schoolId,
 		schoolYearId: yearId,
-		mirrorId: preMirror!.id,
+		mirrorId: mirror.id,
 		format: contract.format,
 		liveSemanticRevision: contract.semanticRevision,
 		persistedSemanticRevision: preCache.valid ? preCache.contract!.semanticRevision : null,
@@ -1059,14 +1094,16 @@ export async function applyTermCacheSync(input: TermCacheApplyInput): Promise<Te
 	const mirrorLabel = mirror.yearLabel;
 	try {
 		return await (getDataContext<any>() as any).$transaction(async (tx: any) => {
-			const txMirror = await tx.enrollProSchoolYearMirror.findUnique({
-				where: { schoolId_enrollProSchoolYearId: { schoolId: input.schoolId, enrollProSchoolYearId: yearId } },
-				select: { id: true, isActive: true, isArchived: true, termContractCache: true, termContractCachedAt: true },
-			});
-			if (!txMirror || txMirror.isArchived || !txMirror.isActive) {
+			// Re-elect the COMPLETE same-school active/non-archived set through
+			// the transaction client. A previously selected row remaining active
+			// is NOT sufficient authority when a second active row now exists:
+			// `resolveActiveYearMirror` fails closed on ACTIVE_YEAR_AMBIGUOUS
+			// (and ACTIVE_YEAR_UNAVAILABLE) before any write.
+			const txMirror = await resolveActiveYearMirror(input.schoolId, tx as ActiveYearMirrorReadClient);
+			if (txMirror.id !== mirror.id || txMirror.enrollProSchoolYearId !== yearId) {
 				throw termAuthorityError(409, 'ACTIVE_YEAR_CHANGED', 'The active school-year mirror changed since the preview. Re-run the preview before saving.');
 			}
-			const txCache = readValidCache(txMirror, input.schoolId, yearId);
+			const txCache = readValidCache(activeYearCacheRow(txMirror), input.schoolId, yearId);
 			const txFingerprint = termCacheFingerprint({
 				schoolId: input.schoolId,
 				schoolYearId: yearId,
