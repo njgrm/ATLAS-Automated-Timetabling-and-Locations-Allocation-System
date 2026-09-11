@@ -17,7 +17,8 @@ test('the suggestion preview never claims full capacity success from coverage al
 	assert.doesNotMatch(modal, />Complete Coverage</);
 
 	// Balance is derived from the structured distribution summary, not coverage.
-	assert.match(modal, /const hasImbalance = Boolean\(distribution && !distribution\.summary\.balanced\)/);
+	assert.match(modal, /const hasImbalance = Boolean\(distribution && distributionEvaluated && !distribution\.summary\.balanced\)/);
+	assert.match(modal, /const distributionEvaluated = distribution\?\.summary\.distributionEvaluated !== false/);
 	assert.match(modal, /hasImbalance/);
 
 	// A dedicated imbalance surface with separate counts exists.
@@ -32,7 +33,7 @@ test('the suggestion preview never claims full capacity success from coverage al
 	assert.match(modal, /distribution\?\.summary\.balanced === true/);
 	assert.match(modal, /Balanced Teaching Load/);
 	assert.match(modal, /no reallocation moves are proposed/);
-	// A missing/unevaluated distribution must not be treated as balanced.
+	// A missing or unevaluated distribution must not be treated as balanced.
 	assert.match(modal, /teaching-load-distribution-unevaluated/);
 	assert.match(modal, /balance not evaluated/);
 	// The distribution counts are shown even when a coverage shortage coexists.
@@ -45,4 +46,5 @@ test('client AutoFillSummaryResult carries the structured distribution plan', ()
 	assert.match(types, /TeachingLoadDistributionPlan/);
 	assert.match(types, /distribution\?: TeachingLoadDistributionPlan/);
 	assert.match(types, /movesApplied\?: number/);
+	assert.match(types, /distributionEvaluated: boolean/);
 });

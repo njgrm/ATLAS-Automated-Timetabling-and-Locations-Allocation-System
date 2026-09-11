@@ -168,8 +168,10 @@ export function AutoFillSummaryModal({
 	const distribution = result?.distribution ?? null;
 	// Balance is independent of coverage. A fully owned Teaching Load can still
 	// have above-standard teachers and proposed moves, and must never be reported
-	// as complete success.
-	const hasImbalance = Boolean(distribution && !distribution.summary.balanced);
+	// as complete success. An unevaluated distribution is neither balanced nor an
+	// imbalance verdict.
+	const distributionEvaluated = distribution?.summary.distributionEvaluated !== false;
+	const hasImbalance = Boolean(distribution && distributionEvaluated && !distribution.summary.balanced);
 	const hasResult = Boolean(result);
 	const coverageMode = result?.coverageMode ?? 'REAL_FACULTY_STANDARD';
 	const rawHours = report?.missingHoursPerWeek ?? 0;
@@ -503,7 +505,7 @@ export function AutoFillSummaryModal({
 									</div>
 								</div>
 							</div>
-						) : hasResult && result && !hasShortage && !distribution ? (
+						) : hasResult && result && !hasShortage && !distributionEvaluated ? (
 							<div className="flex flex-col items-center justify-center py-12 text-center space-y-4 max-w-md mx-auto" data-testid="teaching-load-distribution-unevaluated">
 								<div className="size-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
 									<Info className="size-8" />

@@ -108,6 +108,18 @@
   - F3/F4/F5/F6/F7/F8 addressed: standard-mode receiver cap, credited-minutes hard-cap count, full-relief donor accounting, reviewed-vs-refreshed plan comparison, shortage-branch distribution counts, and a neutral "balance not evaluated" state.
 - Evidence: server distribution tests 12/12; client distribution-ui 2/2; both tsc/build green; full candidate Playwright 3/3 (read-only walk, design/height, intercepted-write distribution preview) at 1440x900, 390x844, 320px reflow.
 
+### TL-UX-C01R review round 2 and correction
+- Reviewer (task `ses_f7247dcebffecyXpm0RGCfKLYX`) verdict: `CORRECTION_REQUIRED`.
+  - BLOCKING F1-RESIDUAL: the zero-section early return used `emptyDistributionPlan()` with `distributionEvaluated: true, balanced: true`, so an empty preview could still render as balanced success.
+  - Non-blocking: the client did not consume `distributionEvaluated`; `sectionsResolved` was optional (future fail-open); plan comparison skipped for legacy payloads; unsorted receiver evaluation could make the refreshed plan differ from the reviewed plan on equal-capacity ties.
+- Correction (additive commit after `743b43b0`):
+  - `emptyDistributionPlan()` now returns `distributionEvaluated: false, balanced: false`.
+  - `sectionsResolved` is required on `OverCapRebalanceResult`.
+  - `realFaculty` iteration for receiver selection is sorted by faculty id for deterministic plans.
+  - The client gates the imbalance state on `distributionEvaluated !== false` and routes unevaluated/missing distribution to the neutral "balance not evaluated" state.
+  - Added a production-path test for `emptyDistributionPlan` (server) and updated the client UI regression.
+- Evidence: server distribution tests 13/13; client distribution-ui 2/2; both tsc/build green; full candidate Playwright 3/3.
+
 ### TL-UX-C01R remaining risks
 - Move application re-validates donor ownership, receiver standard capacity, and grade parity inside the transaction; it does not independently recompute the full rotation-family capacity ledger for a receiver with many rotating subjects beyond the standard cap check.
 - The distribution plan's counts are unit-verified; a DB-backed end-to-end apply test was not run because the isolated worktree has no test database.

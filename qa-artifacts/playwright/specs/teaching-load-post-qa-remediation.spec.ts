@@ -193,7 +193,7 @@ const YEAR9_PREVIEW_FIXTURE = {
 			],
 			summary: {
 				coveredRows: 265, uncoveredRows: 0, proposedMoves: 14, unresolvedImbalance: 0,
-				aboveStandardFaculty: 7, hardCapBreaches: 0, balanced: false,
+				aboveStandardFaculty: 7, hardCapBreaches: 0, distributionEvaluated: true, balanced: false,
 			},
 		},
 	},

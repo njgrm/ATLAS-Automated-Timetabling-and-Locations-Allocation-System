@@ -1533,7 +1533,12 @@ export function summarizeDistributionPlan(input: {
 	};
 }
 
-function emptyDistributionPlan(): TeachingLoadDistributionPlan {
+/**
+ * Distribution plan for the zero-section early return. There is nothing to
+ * evaluate, so this is explicitly NOT a balanced result — a failed/empty
+ * preview must never render as success.
+ */
+export function emptyDistributionPlan(): TeachingLoadDistributionPlan {
 	return {
 		retains: [],
 		inserts: [],
@@ -1545,8 +1550,8 @@ function emptyDistributionPlan(): TeachingLoadDistributionPlan {
 			unresolvedImbalance: 0,
 			aboveStandardFaculty: 0,
 			hardCapBreaches: 0,
-			distributionEvaluated: true,
-			balanced: true,
+			distributionEvaluated: false,
+			balanced: false,
 		},
 	};
 }
@@ -1591,7 +1596,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 		// If the evaluator resolved no sections it could not judge distribution.
 		// Treat that as unevaluated so `balanced` can never be inferred from a
 		// silently empty over-cap list.
-		if (rebalance.sectionsResolved != null && rebalance.sectionsResolved <= 0) {
+		if (rebalance.sectionsResolved <= 0) {
 			distributionEvaluated = false;
 		}
 	} catch {
@@ -2590,7 +2595,7 @@ export interface OverCapRebalanceResult {
 	facultySubjectRowsUpdated: number;
 	facultyMirrorVersionsBumped: number;
 	/** Sections the evaluator resolved. 0 means distribution was not evaluated. */
-	sectionsResolved?: number;
+	sectionsResolved: number;
 }
 
 export async function previewOrApplyOverCapRebalance(
@@ -2711,6 +2716,10 @@ export async function previewOrApplyOverCapRebalance(
 	]);
 
 	const realFaculty = faculty.filter((m) => !m.isPlaceholder);
+	// Deterministic receiver evaluation order so an identical database state
+	// always produces the same plan and the reviewed-vs-refreshed comparison is
+	// stable.
+	const realFacultyByStableId = [...realFaculty].sort((left, right) => left.id - right.id);
 	const currentYearSectionIdSet = new Set(allSectionIds);
 	const subjectById = new Map(subjects.map((s) => [s.id, s]));
 
@@ -2839,7 +2848,7 @@ export async function previewOrApplyOverCapRebalance(
 			// receiver. This never bypasses tier, capacity, scope, or uniqueness.
 			let bestAdviserPreference = false;
 
-			for (const candidate of realFaculty) {
+			for (const candidate of realFacultyByStableId) {
 				if (candidate.id === overFaculty.facultyId) continue;
 				if (candidate.isPlaceholder) continue;
 

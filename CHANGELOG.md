@@ -18,7 +18,8 @@
 - `unresolvedImbalance` counts a donor only when the proposed moves cover the whole excess; `hardCapBreaches` compares total credited minutes against the absolute cap.
 - The reviewed-proposal apply recomputes receiver and donor `FacultySubject.gradeLevels` from the resulting `sectionIds` (parity invariant) and re-checks receiver capacity against the selected standard mode, while still re-validating ownership and capacity inside the Serializable transaction.
 - The refreshed reallocation plan is compared against the reviewed preview plan before any write; a mismatch returns `TEACHING_LOAD_PROPOSAL_STALE`.
-- The modal shows a neutral "balance not evaluated" state when distribution is missing, and shows the distribution counts even when a coverage shortage coexists.
+- The modal shows a neutral "balance not evaluated" state when distribution is missing or flagged unevaluated, and shows the distribution counts even when a coverage shortage coexists.
+- The zero-section preview path now returns `distributionEvaluated:false, balanced:false` (never a false balanced success), the receiver evaluation order is deterministic by faculty id, and the distribution test suite covers the production zero-section plan.
 
 ### Verification
 - Server/client `tsc --noEmit` and production builds pass; server distribution tests 12/12; client ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21.

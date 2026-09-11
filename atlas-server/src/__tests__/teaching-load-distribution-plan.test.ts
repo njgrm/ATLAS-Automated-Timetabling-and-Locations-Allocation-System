@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { summarizeDistributionPlan } from '../services/teaching-load-automation.service.js';
+import { summarizeDistributionPlan, emptyDistributionPlan } from '../services/teaching-load-automation.service.js';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -106,6 +106,12 @@ test('uncovered rows always falsify balanced even when nobody is over standard',
 
 	assert.equal(summary.uncoveredRows, 3);
 	assert.equal(summary.balanced, false);
+});
+
+test('the production zero-section distribution plan is never balanced', () => {
+	const plan = emptyDistributionPlan();
+	assert.equal(plan.summary.distributionEvaluated, false);
+	assert.equal(plan.summary.balanced, false, 'a zero-section preview must not render as balanced success');
 });
 
 test('an unevaluated distribution can never be reported as balanced', () => {
