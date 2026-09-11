@@ -1,6 +1,6 @@
 # ATLAS Active Delivery Streams
 
-Last reconciled: 2026-09-11 (Asia/Manila)
+Last reconciled: 2026-09-12 (Asia/Manila)
 
 This is the current operational register for executor, QA, integration, and
 operator-action streams. Historical phase plans and per-stream ledgers are
@@ -35,6 +35,14 @@ hard blockers before separately approving publication.
   `ses_f6ed2bab5ffeWTf6B3FlAyh8cI` (`ACCEPT_READY` 17/17, blocked 0,
   unperformed 0), integrated by the primary planner at merge `8c0a1207`
   (see stream row for integration-tier reruns); no return remains.
+- Cycle recovery: `rrtc01r-20260912` (COMPLETE) closed 2026-09-12
+  (Asia/Manila). RR-TERM-CACHE-C01R candidate `86376ba7` (base `904818d4`),
+  executor task `ses_f6eb907c8ffe6wL543zVg9J8vf`, fresh QA task
+  `ses_f6ea90129ffeLNAgqyXpBndWvg` (`ACCEPT_READY` 17/17, blocked 0,
+  unperformed 0), integrated by the primary planner at merge `a1256506`; the
+  bounded deployment packet is prepared at
+  `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`. No return
+  remains.
 - Cycle recovery: `w1-runtime-deploy-20260911`
   (`DEPLOYED_ACCEPTANCE_INCOMPLETE`) updated 2026-09-11
   22:52 Asia/Manila. The approved HIGH `W1-RUNTIME-DEPLOY` packet was executed:
@@ -94,8 +102,9 @@ hard blockers before separately approving publication.
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7` live; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Four mandatory authenticated/diagnostic rows remain blocked; active year 9 is aligned but its required persisted term snapshot is missing | Deployment identity, rollover-disabled log, localhost/Tailnet health, unauthenticated responsive pages, and zero unauthorized DB writes are independently verified. QA's global `ACCEPT_READY` is rejected because mandatory Stage C/D checks were not run | RR-TERM-CACHE-C01 source is integrated at `8c0a1207`; in the next bounded runtime window deploy that correction, then complete the separately approved catch-up and authenticated Stage C/diagnostic |
-| RR-TERM-CACHE-C01 | Separate year alignment from persisted ordered-term readiness and provide one narrow, previewed term-cache catch-up path | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01`; `77894b7a...45f08955`; merge `8c0a1207` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0); planner pre-QA reproduced status 11/11 and client 6/6; integration-tier reruns C02 8/8, cache-instrumentation 32/32 zero-residue, lifecycle 208/0, rr-ux01 pass; both builds/startup previously verified; rollover-automation suite not independently rerun (seeded-disposable only; all changed-field assertions expect false and the change is strictly more conservative) | Closed in source; deploy the correction in the next bounded runtime window, then prepare the reviewed term-cache catch-up preview and stop for its separate HIGH approval |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7` live; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Four mandatory authenticated/diagnostic rows remain blocked; active year 9 is aligned but its required persisted term snapshot is missing | Deployment identity, rollover-disabled log, localhost/Tailnet health, unauthenticated responsive pages, and zero unauthorized DB writes are independently verified. QA's global `ACCEPT_READY` is rejected because mandatory Stage C/D checks were not run | RR-TERM-CACHE-C01R correction is integrated at merge `a1256506`; execute the prepared deployment packet `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`, then complete the separately approved catch-up and authenticated Stage C/diagnostic |
+| RR-TERM-CACHE-C01 | Separate year alignment from persisted ordered-term readiness and provide one narrow, previewed term-cache catch-up path | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01`; `77894b7a...45f08955`; merge `8c0a1207` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0); planner pre-QA reproduced status 11/11 and client 6/6; integration-tier reruns C02 8/8, cache-instrumentation 32/32 zero-residue, lifecycle 208/0, rr-ux01 pass; both builds/startup previously verified; rollover-automation suite not independently rerun (seeded-disposable only; all changed-field assertions expect false and the change is strictly more conservative) | Closed in source; its deployment is superseded by the RR-TERM-CACHE-C01R correction (merge `a1256506`), which must be deployed before the reviewed term-cache catch-up preview |
+| RR-TERM-CACHE-C01R | Close term-authority JWT/actor-school authority, client school-1 defaults, and in-transaction complete active-year election | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01r`; `904818d4...86376ba7`; merge `a1256506` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0): mounted JWT/system-token matrix with zero dispatch, no school-1 defaults, fail-closed actor-scoped wrapper, scope-transition clearing, in-transaction complete-set re-election (`ACTIVE_YEAR_AMBIGUOUS`, zero writes), replay/audit invariants, both tsc/builds, isolated built-server 401s; integration gates rerun on the merged tree | Closed in source; execute the prepared bounded deployment packet, then prepare the reviewed term-cache catch-up preview and stop for its separate HIGH approval |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -129,23 +138,25 @@ hard blockers before separately approving publication.
    integrated; no wave follow-up remains before the runtime deployment.
 4. W1 deployment evidence is integrated at `ed44d62f` and the runtime is live,
    but acceptance is incomplete. Authenticated Stage C/D awaits an operator
-   session decision. In parallel, RR-TERM-CACHE-C01 is integrated at merge
-   `8c0a1207`: year alignment and persisted term authority are separate states
-   with one narrow preview/apply repair contract.
-5. Deploy the RR-TERM-CACHE-C01 correction in the next bounded runtime window,
-   prepare and independently review the term-cache catch-up preview, then stop
-   for its separate HIGH approval. After an approved catch-up, run the canonical
-   readiness diagnostic for the live school/year. Only if it proves zero hard
-   blockers and exact source freshness, prepare the fingerprinted generation
-   approval package; otherwise return the typed blocker list and corrective
-   handoff.
+   session decision. RR-TERM-CACHE-C01R is integrated at merge `a1256506`: year
+   alignment and persisted term authority stay separate states, and the narrow
+   preview/apply repair contract now has JWT-only actor-school authority, no
+   client school-1 default, and a complete in-transaction active-year election.
+5. Execute the prepared RR-TERM-CACHE-C01R deployment packet
+   (`docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`) in the next
+   bounded runtime window, then prepare and independently review the term-cache
+   catch-up preview and stop for its separate HIGH approval. After an approved
+   catch-up, run the canonical readiness diagnostic for the live school/year.
+   Only if it proves zero hard blockers and exact source freshness, prepare the
+   fingerprinted generation approval package; otherwise return the typed blocker
+   list and corrective handoff.
 6. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
-- No new executor stream is authorized. RR-TERM-CACHE-C01 source is integrated
-  at merge `8c0a1207`; no shared-runtime action was taken. The W1 deployment is
+- No new executor stream is authorized. RR-TERM-CACHE-C01R source is integrated
+  at merge `a1256506`; no shared-runtime action was taken. The W1 deployment is
   live and its accepted evidence is integrated at `ed44d62f`; authenticated
   acceptance and the canonical generation diagnostic remain blocked on an
   operator session decision. Carry-forward apply, suggestion apply, generation,
@@ -178,9 +189,11 @@ restart the shared runtime while live browser QA is active.
   deployment evidence integrated at `ed44d62f`. Its acceptance remains
   incomplete. Next operator decision: a reusable or authorized officer session
   for authenticated Stage C/D (a fresh login write is outside current
-  authority). RR-TERM-CACHE-C01 source is integrated at `8c0a1207`; deploying
-  the correction and preparing its separately approved term-cache catch-up
-  preview remain the next bounded runtime steps.
+  authority). RR-TERM-CACHE-C01R is integrated at `a1256506`; its deployment
+  packet is prepared at
+  `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`, and executing
+  it plus preparing the separately approved term-cache catch-up preview remain
+  the next bounded runtime steps.
 
 ## Update protocol
 
