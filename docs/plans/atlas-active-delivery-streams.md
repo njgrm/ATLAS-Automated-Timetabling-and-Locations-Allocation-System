@@ -25,6 +25,10 @@ hard blockers before separately approving publication.
 - All three source lanes passed independent QA and the combined integration
   gates. The approved term schema migration is applied and verified; deploying
   the integrated runtime remains a separate service-lifecycle action.
+- DEMAND-C01 through C01R2 is independently accepted and integrated at
+  `b96caf40`. Derived demand and ordered-term consumers now share one authority;
+  live use still requires the bounded runtime deployment and explicit rollover
+  term-cache sync.
 - The EnrollPro fork and canonical READ_ONLY clone were fast-forwarded to
   correction commit `5887d685`. Live probes confirm the authoritative ordered
   three-term contract for year 9 / `2030-2031` and strict malformed-ID
@@ -50,10 +54,10 @@ hard blockers before separately approving publication.
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
-| DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `CORRECTION_REQUIRED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...422460fa` | C01R closes its original six defects, but downstream publication/revision/routes/client still reject or hide Q4 and the expanded generation snapshot remains schema version 1 | Primary planner reproduced the focused demand/TL/timetable/publication gates and confirmed hard-coded 1..3 production consumers plus the unversioned snapshot shape; the protected PostgreSQL concurrency suite correctly refused the non-disposable live-like DB target | Execute `docs/prompts/derived-demand-authority-c01r2-ordered-term-consumer-closure-2026-09-11.md` as one additive correction; do not integrate `422460fa` |
-| UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
-| TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `BLOCKED` | MEDIUM preview; HIGH apply | Not started | DEMAND-C01 plus visible archived history | Carry-forward rules are defined in the governing sequence | Build zero-write preview after DEMAND-C01; require a separate approval for apply |
-| GEN-C02 | Use canonical term-aware derived demand and close grade-window/class-program-slot/hard-blocker gaps | `BLOCKED` | MEDIUM source; HIGH generation | Not started | DEMAND-C01 and reconciled/carry-forward current-year Teaching Load | GEN-C01 proved the old production-demand mismatch and is superseded | Execute read-only canonical dry-run work after derived demand is authoritative |
+| DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `INTEGRATED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...c9263b5f`; integration `b96caf40` | Live deployment and explicit rollover term-cache sync remain separate | Primary planner reproduced C01/C01R/C01R2 authority, timetable, publication, term, TypeScript, and production-build gates; doc-only merge conflicts were reconciled | Closed in source; verify derived year-9 demand during bounded runtime deployment/sync |
+| UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `PLANNED` | MEDIUM UI | Fresh worktree from post-DEMAND main | Live runtime proof follows W1 deployment; source work is unlocked | DEMAND-C01 is integrated and the product decision is recorded in the governing sequence | Execute one-shot derived-setup UX removal in parallel with TL-RR01 and GEN-C02 |
+| TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `PLANNED` | MEDIUM preview; HIGH apply | Fresh worktree from post-DEMAND main | Live preview requires deployed demand authority and synced year-9 terms; apply remains separately gated | DEMAND-C01 and archived Teaching Load history are integrated | Build the complete zero-write carry-forward preview workflow; stop before any live apply |
+| GEN-C02 | Use canonical term-aware derived demand and close grade-window/class-program-slot/hard-blocker gaps | `PLANNED` | MEDIUM source; HIGH generation | Fresh worktree from post-DEMAND main | Live dry-run requires deployed/synced demand and reconciled or carried-forward year-9 Teaching Load | DEMAND-C01 is integrated; GEN-C01 diagnostics identify legacy pre-generation demand and setup gaps | Execute the complete source/read-only generation-readiness closure; do not generate live |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
 
@@ -75,23 +79,24 @@ hard blockers before separately approving publication.
    one bounded runtime deployment without interrupting live QA.
 2. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
    TT-UX01 integration step remains.
-3. Complete DEMAND-C01R2 as one ordered-term consumer closure on its existing
-   branch, then commission fresh independent QA over the complete immutable
-   range.
-4. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
-   their file ownership is disjoint.
-5. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
+3. DEMAND-C01R2 is integrated. Dispatch UX-C01, TL-RR01 preview, and GEN-C02 as
+   three large parallel one-shot streams with disjoint product ownership.
+4. Coordinate the bounded runtime deployment and explicit rollover term-cache
+   sync before any live year-9 preview claims.
+5. Resolve GEN-C02 and Teaching Load readiness blockers and produce a zero-hard-blocker generation
    preview.
 6. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
-- DEMAND-C01R2 is the active cross-layer authority lane; do not run another
-  demand, generation, publication, revision, or timetable-term consumer lane
-  against its unaccepted contract.
-- A bounded Wave-1 runtime deployment is safe only when no executor is using
-  the shared Tailnet runtime for browser evidence.
+- UX-C01 (client navigation/setup UX), TL-RR01 (Teaching Load carry-forward),
+  and GEN-C02 (generation/pre-generation readiness) may run in parallel from
+  the post-DEMAND main when their prompts preserve disjoint product files.
+- Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
+  integration owner; executor documentation overlap is resolved at integration.
+- A bounded runtime deployment is safe only when no executor is using the
+  shared Tailnet runtime for browser evidence.
 
 Do not integrate the current DEMAND-C01 candidate or start UX-C01, TL-RR01,
 GEN-C02, generation, or publication until DEMAND-C01R passes fresh independent
@@ -99,8 +104,9 @@ QA. Do not restart the shared runtime while live browser QA is active.
 
 ## Awaited returns and decisions
 
-- DEMAND-C01R2 executor correction and a fresh independent QA verdict are
-  awaited. Candidate `422460fa` is rejected for integration.
+- No DEMAND executor return remains. DEMAND-C01R2 is integrated at `b96caf40`.
+- The next awaited returns will be UX-C01, TL-RR01, and GEN-C02 after their
+  one-shot packets are dispatched.
 - EnrollPro correction `5887d685` has been pulled and its live contract is
   available. No EnrollPro executor return is awaited.
 - TERM-CONSUME-C02, DASH-RESILIENCE-C01, TL-UX-C01R2, and MIG-GUARD-R1 are
