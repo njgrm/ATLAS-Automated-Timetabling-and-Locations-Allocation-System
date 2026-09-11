@@ -23,6 +23,33 @@
   ordered-term contract inside the bounded server authority lane must return to
   the primary planner rather than silently reduce the contract.
 
+## [2026-09-11] — MIG-GUARD-R1 Guarded Migration Schema-Path Correction
+
+### Added
+- Added `buildPrismaMigrateArgs` and `hasForwardedSchemaFlag` to the guarded
+  migration wrapper so the canonical command owns the schema flag explicitly.
+- Added a focused failing-first `migration-guard` test (31 assertions) plus the
+  `test:migration-guard` script.
+
+### Changed
+- `npm run migrate:guarded` now always supplies
+  `--schema ../prisma/schema.prisma` from the `atlas-server/` invocation
+  context, so it no longer requires a manual `-- -- --schema ...` argument.
+- Supported forwarded Prisma arguments are preserved in order; a forwarded
+  `--schema <path>` or `--schema=<path>` now fails closed with
+  `SCHEMA_FLAG_CONFLICT` before the backup gate and before any spawn.
+
+### Decisions Made
+- A forwarded schema is rejected rather than silently stripped or allowed to
+  override the canonical path, per the prompt's required "reject ... rather
+  than creating ambiguous precedence" behavior.
+- Backup selection, checksum, target, freshness, and `pg_restore --list`
+  revalidation ordering is unchanged, and every gate failure still spawns
+  nothing. No live migration, database mutation, or service restart occurred.
+
+### Open Questions
+- None. This is a `LOW` source correction pending independent QA verification.
+
 ## [2026-09-11] — TERM-CONSUME-C02 Ordered Structure vs Active-Term Resolution
 
 ### Added
