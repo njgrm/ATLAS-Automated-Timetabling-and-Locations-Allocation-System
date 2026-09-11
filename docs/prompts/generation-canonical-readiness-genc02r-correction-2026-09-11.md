@@ -2,11 +2,12 @@
 
 ## Objective
 
-Correct the two remaining GEN-C02 server evidence gaps without duplicating the
-parallel UX-C01 client work. Preserve the accepted legacy-demand closure and
-readiness architecture, add executable 2026–2027 stakeholder-shape parity, and
-prove the mounted readiness diagnostic is zero-write against a disposable
-PostgreSQL ATLAS fixture.
+Correct every independently reproduced GEN-C02 production blocker without
+duplicating the parallel UX-C01 client work. Preserve the accepted
+legacy-demand closure, add executable 2026–2027 stakeholder-shape parity,
+enforce exact actor/current-year/Teaching-Load authority, make readiness and
+generation consume one passive assembly, and prove the mounted diagnostic is
+zero-write against a disposable PostgreSQL ATLAS fixture.
 
 ## Immutable Git boundary
 
@@ -97,6 +98,129 @@ name matches the repository's disposable-target guard (for example
   Assert zero residue even after a failing assertion.
 - Do not weaken the existing publication concurrency target-name guard.
 
+## Correction 3 — actor-school authority on both entry points
+
+The candidate added a privileged-role check but did not bind either the new
+diagnostic or the existing generation trigger to the authenticated actor's
+school. Correct this in `generation.router.ts` without editing authentication
+middleware:
+
+- unresolved actor school must return a typed 403 before service invocation;
+- a school mismatch must return a typed 403 before service invocation;
+- a matching actor school may proceed;
+- cover both `GET .../readiness/diagnostic` and `POST .../runs` through the
+  mounted router;
+- assert zero reads/writes/service calls for rejected scope.
+
+`SYSTEM_ADMIN` is not an implicit cross-school bypass. If a cross-school system
+operation is needed later, it requires a separately designed integration
+contract rather than a URL parameter.
+
+## Correction 4 — return blocked readiness instead of throwing
+
+The live read-only year-9 probe currently reaches the expected
+`TERM_STRUCTURE_UNAVAILABLE` authority gap, then `consumeDraftPlacementsForRun`
+throws `DERIVED_DEMAND_BLOCKED`; the diagnostic therefore fails instead of
+returning its structured blocker result.
+
+- If derived demand or term authority is unavailable, return `status=BLOCKED`,
+  `generateAllowed=false`, and the typed authority blocker list.
+- Do not call downstream draft/scheduler paths that require resolved demand.
+- Convert other expected read-only prerequisite failures into the corresponding
+  deterministic blocker. Do not swallow programming errors or database faults.
+- Add a mounted missing-term case proving HTTP 200 structured blocked readiness,
+  exact repair ownership, and zero writes.
+
+## Correction 5 — one passive pre-write assembly for readiness and generation
+
+The candidate shares only timetable-shape construction. It still duplicates
+most input reads, Teaching Load mapping, scheduler input construction, and
+validator context between `generation-readiness.service.ts` and
+`generation.service.ts`. The production trigger also creates a QUEUED/RUNNING
+run and emits a notification before canonical demand is resolved, then invokes
+write-capable setup helpers (`syncSectionsFromExternal`, default/template/window
+ensures, and get-or-create policy behavior).
+
+- Extract one read-only canonical input assembly used by both readiness and the
+  real trigger: active-year authority, verified ordered terms, derived demand,
+  section snapshot, exact Teaching Load ownership, subjects, rooms, persisted
+  policy/windows/templates, retained placements, scheduler input, validator
+  context, and freshness revisions.
+- Generation must be a passive consumer of those authorities. It must not sync
+  sections, create/heal defaults, create policy/windows/templates, or otherwise
+  repair setup implicitly. Those actions belong to explicit setup/rollover
+  workflows.
+- Resolve and validate the complete immutable assembly before creating a
+  GenerationRun, audit/event, or other write. A blocked or stale preflight must
+  produce the same typed blocker contract as readiness and create no failed or
+  placeholder run.
+- Once preflight succeeds, the HIGH generation action may persist its run using
+  that exact assembly; revalidate its source revisions before the first write or
+  fail stale with zero writes.
+- Prove through real entry points that readiness and trigger receive equal
+  revisions, demand identities/totals, shapes, Teaching Load candidates, and
+  validator policy. A source mutation between preview and trigger must fail
+  stale rather than silently rebuild from different inputs.
+
+Do not import or cherry-pick an obsolete unreviewed branch wholesale. Reuse any
+sound existing helper design only after reconciling it with current
+`origin/main` and this candidate.
+
+## Correction 6 — correct grade and window authority domains
+
+Two similarly named values must not be interchanged:
+
+- `SectionMirror.gradeLevelId` is the EnrollPro internal grade identity and must
+  be normalized with the internal-ID mapping. `displayOrder` is presentation
+  ordering and must not determine curriculum demand.
+- `GradeShiftWindow.gradeLevel` and canonical slot grade levels are already
+  actual grades 7–10. They must not be passed through an internal-ID normalizer
+  that maps `7→9` or `8→10`.
+
+Add mutants proving demand is unchanged when only section `displayOrder`
+changes, while changing the authoritative grade identity changes scope; and
+prove Grade 7/8 windows cannot match Grade 9/10 contracts or vice versa. Pin the
+live-compatible 17–20 → 7–10 mapping without school-specific assumptions.
+
+## Correction 7 — exact Teaching Load owner is the scheduler authority
+
+Current readiness counts `SubjectSectionOwnership`, but the scheduler candidate
+pool is built from broad `FacultySubject.sectionIds` and may choose a different
+qualified teacher, especially when flexible assignment is enabled. That would
+make a schedule disagree with the reconciled Teaching Load.
+
+- For every derived subject/section pair, resolve exactly one active canonical
+  `SubjectSectionOwnership` owner and its matching `FacultySubject` scope.
+- Missing, duplicate/conflicting, inactive/stale, or scope-mismatched ownership
+  is a typed Teaching Load blocker with the exact pair and term identities.
+- The scheduler candidate set for ordinary pair demand must be the canonical
+  owner, not every broadly qualified faculty member. Flexible qualification may
+  inform a repair suggestion but must not silently override approved ownership.
+- Retained placements naming a different faculty member must be rejected stale.
+- Prove a mutant where two same-department faculty have FacultySubject scope but
+  only one owns the pair; readiness and the generated candidate must use only
+  the owner. Prove that toggling flexible assignment cannot change this.
+- Preserve explicit cohort behavior only when the cohort has a separately
+  authoritative owner contract; otherwise fail closed rather than unioning
+  unrelated pair owners.
+
+## Correction 8 — readiness truth must include shape and zero-write truth
+
+- `generateAllowed` must be false if the diagnostic's before/after evidence is
+  not identical. Compute and bind zero-write truth before the final status.
+- Generic hard-constraint validation is insufficient. Validate every scheduled
+  entry against its exact grade/program canonical CLASS rows, term, break/event
+  exclusions, and shift frame; shape violations are HARD readiness blockers and
+  prevent generation.
+- Preserve exact `termIdentity`/term order on unassigned and hard blockers. Do
+  not return `termIdentity:null` when the scheduler item identifies a term.
+- Strengthen canonical-template coverage so duplicates, missing rows, wrong
+  ordering, wrong row kind, or cross-grade/program substitution cannot pass via
+  set de-duplication.
+- Add negative controls for an injected write, a wrong-shift entry with zero
+  generic validator violations, a duplicate canonical row, and an unassigned
+  rotation line whose returned blocker names the correct term.
+
 ## UX-C01 integration dependency
 
 GEN-C02R owns the server contract only. It must keep a stable typed readiness
@@ -123,6 +247,8 @@ this dependency honestly; do not claim the complete operator workflow closed.
   and isolated built-server health/route mount with rollover automation
   disabled.
 - No client gate is required in this correction because UX-C01 owns that path.
+- Mounted actor-school negative controls and passive-trigger pre-write controls.
+- Exact Teaching Load owner-selection and grade/window-domain mutants.
 
 Obtain one fresh independent changed-scope review over
 `6f7b3c52...<new-candidate>`. Fix material findings with additive commits and

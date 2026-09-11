@@ -13,11 +13,17 @@
 - Assigned Simple Timetable readiness consumption to the already completed
   UX-C01 candidate instead of authorizing duplicate edits across parallel
   branches.
+- Enlarged GEN-C02R after production-path review found actor-school, passive
+  preflight, blocked-result, exact Teaching Load owner, grade/window authority,
+  and readiness-status defects independent of the originally missing evidence.
 
 ### Decisions Made
 - Kept GEN-C02R server-only because UX-C01 owns `useTimetableData.ts`.
 - Required real disposable-database route evidence; an in-memory write recorder
   remains useful but is not the decisive production-path proof.
+- Required generation to consume persisted setup passively and reject blocked
+  authority before creating a run; setup healing remains an explicit rollover
+  or operator workflow.
 
 ### Open Questions
 - UX-C01 still needs an executor handoff and independent QA before the combined
