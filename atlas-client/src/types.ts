@@ -715,7 +715,7 @@ export type RoomScheduleEntry = {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
-	termIndex: 1 | 2 | 3;
+	termIndex: number;
 };
 
 export type RoomScheduleCell = {
@@ -1103,7 +1103,7 @@ export interface RunSummary {
 		}>;
 		roomAssignmentReasonCounts?: Record<string, number>;
 		zoneDistributionByTerm?: Array<{
-			termIndex: 1 | 2 | 3;
+			termIndex: number;
 			total: number;
 			byZone: Record<string, { count: number; percent: number }>;
 		}>;
@@ -1139,7 +1139,7 @@ export interface ScheduledEntry {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
-	termIndex?: 1 | 2 | 3;
+	termIndex?: number;
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -1153,7 +1153,7 @@ export interface ScheduledEntry {
 	metadata?: {
 		modularGroupId?: string;
 		modularAssignments?: Array<{
-			termIndex: 1 | 2 | 3;
+			termIndex: number;
 			facultyId: number;
 			subjectCode: string;
 		}>;

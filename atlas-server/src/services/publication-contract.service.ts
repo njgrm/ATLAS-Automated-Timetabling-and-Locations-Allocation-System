@@ -99,12 +99,15 @@ function countRequiredUnassigned(unassignedItems: unknown): number {
 	return unassignedItems.length;
 }
 
-function validateScheduleEntries(entries: unknown): asserts entries is Array<Record<string, unknown>> {
+function validateScheduleEntries(entries: unknown, termCount: number): asserts entries is Array<Record<string, unknown>> {
 	if (!Array.isArray(entries) || entries.some((entry) => {
 		const record = asRecord(entry);
-		return !record || typeof record.entryId !== 'string' || ![1, 2, 3].includes(Number(record.termIndex));
+		return !record || typeof record.entryId !== 'string' || !Number.isInteger(Number(record.termIndex)) || Number(record.termIndex) < 1;
 	})) {
-		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'Every published entry must have an identity and termIndex 1, 2, or 3.');
+		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'Every published entry must have an identity and a positive integer termIndex.');
+	}
+	if (entries.some((entry) => Number((entry as Record<string, unknown>).termIndex) > termCount)) {
+		throw fail(422, 'PUBLICATION_TERM_INDEX_OUTSIDE_CONTRACT', `Every published entry termIndex must be within the verified ${termCount}-term contract for the active school year.`);
 	}
 	const entryIds = entries.map((entry) => String((entry as Record<string, unknown>).entryId));
 	if (new Set(entryIds).size !== entryIds.length) {
@@ -242,7 +245,7 @@ export async function publishSchedule(
 		if (!summary) {
 			throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'The selected run has no valid schedule snapshot.');
 		}
-		validateScheduleEntries(run.draftEntries);
+		validateScheduleEntries(run.draftEntries, derivedAuthority.termStructure.terms.length);
 		const hardViolationCount = countViolations(run.violations, 'HARD');
 		if (hardViolationCount !== 0) {
 			throw fail(422, 'PUBLISH_BLOCKED_HARD_VIOLATIONS', 'Cannot publish while hard violations exist.', {

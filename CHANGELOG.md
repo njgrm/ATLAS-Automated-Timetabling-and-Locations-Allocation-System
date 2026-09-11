@@ -1,5 +1,41 @@
 # Changelog
 
+## [2026-09-11] — DEMAND-C01R2 Ordered-Term Consumer Closure
+
+### Added
+- Added `atlas-server/src/services/academic-term.service.ts`, the one authoritative
+  ordered-term model (syntactic `1..4` parsing, exact-contract semantic validation,
+  persisted verified contract loader, and active-term resolution that fails closed).
+- Added `derived-demand-correction-c01r2.test.ts` (controls 1–10, including a
+  disposable quarterly PostgreSQL fixture for publication/revision/public reads)
+  and the client `academic-term.test.ts` (control 7a–7d).
+
+### Changed
+- Generation/review reads, exports, publication, published revisions, and public
+  published-schedule reads now consume the verified ordered-term contract and
+  expose Q4; out-of-contract indices fail typed with zero writes.
+- `runtime/context` projects exact ordered EnrollPro labels (`orderedTerms`,
+  `termFormat`, `termCount`); the timetable client uses a bounded numeric term
+  type with exact labels and `T1`/`T2`/... only as a fail-closed fallback.
+- The generation input snapshot is now `schemaVersion: 2`; `derivedDemand` is a
+  required domain, and a schema-v1 run resolves to `SNAPSHOT_VERSION_MISMATCH`
+  instead of comparing as fresh.
+
+### Decisions Made
+- `termIndex=active` resolves only from the persisted verified EnrollPro contract
+  and fails closed with `TERM_FILTER_NOT_READY`; explicit numeric reads remain
+  available while active resolution is unavailable, provided the verified
+  structure contains the index.
+- Legacy `SchoolYearTermConfig` is no longer consulted for publication or
+  published-revision term authority; the persisted derived/verified contract is
+  authoritative.
+- The strict disposable-database concurrency suite target guard was not weakened;
+  it was not run because no disposable target is provisioned in this environment.
+
+### Open Questions
+- The strict `publication-contract-postgres-concurrency` suite still needs a
+  provisioned disposable database for a full local rerun.
+
 ## [2026-09-11] — DEMAND-C01R Derived Demand Authority Closure
 
 ### Added

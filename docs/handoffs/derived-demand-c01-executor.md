@@ -174,3 +174,35 @@ Plus `teaching-load-reconciliation.test.ts` binds `preview.derivedDemandRevision
 ## Not performed
 
 No Teaching Load reconciliation, generation, publication, deployment, port 5001 restart, schema/migration change, companion-system edit, amend, rebase, merge, or push. Live active-year derived reads are read-only and fail closed.
+
+# DEMAND-C01R2 — Ordered-Term Consumer Closure (correction commits)
+
+- Correction base: `422460fa98d6d2e686d134b996a029cf1c0b939b`
+- Original base: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6`
+- Review range: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6...<new-candidate>`
+- Status: `REVIEW_REQUIRED` (never `GO`)
+- Risk tier: `MEDIUM` (source; no schema/live mutation)
+
+## Corrections delivered
+
+1. **One ordered-term model** — `atlas-server/src/services/academic-term.service.ts` centralizes syntactic parse (`1..4`), exact-contract semantic validation, `loadVerifiedOrderedTermContract`, and `resolveRequestedTermIndex` (explicit numeric reads work while active is unavailable; `active` fails closed with `TERM_FILTER_NOT_READY`). No clamp/cycle/default/relabel/drop.
+2. **Generation/review reads** — `getLatestRunViolations`/`getRunViolations` validate the requested term against the verified contract; summary/class-program exports resolve `active` through the persisted verified authority; workbook export no longer calls the live active-term adapter.
+3. **Publication/revision authority** — initial publication validates every run entry against the verified contract term count (`PUBLICATION_TERM_INDEX_OUTSIDE_CONTRACT`, zero writes); published revisions load the contract from the supplied transaction client and reject out-of-contract source/previous/next terms (`REVISION_TERM_INDEX_OUTSIDE_CONTRACT` / `REVISION_ENTRY_TERM_OUTSIDE_CONTRACT`, zero writes).
+4. **Public/privileged published reads** — expose Q4 and resolve `active` from the persisted verified contract.
+5. **Timetable client** — exact ordered labels projected through `runtime/context` (`orderedTerms`/`termFormat`/`termCount`); bounded numeric term type, Q4 toolbar/state/pivots, exact-label rendering with `T1`/`T2`/... fallback, and repair-to-`all` on school/year/contract change.
+6. **Honest snapshot version** — generation input snapshot `schemaVersion: 2` with required domains; schema-v1 ? `UNKNOWN`/`SNAPSHOT_VERSION_MISMATCH`, never fresh.
+
+## RED-to-GREEN evidence
+
+- `atlas-server/src/__tests__/derived-demand-correction-c01r2.test.ts` — 7/7 (controls 1–10; 4/5/6 on a disposable quarterly PostgreSQL fixture with zero residue).
+- `atlas-client/src/lib/__tests__/academic-term.test.ts` — 4/4 (control 7a–7d).
+- Regression: derived-demand authority/C01R, term-subject authority, term-contract C02, cache instrumentation 32/0, timetable candidate/insertion, passive Teaching Load, publication readiness, Teaching Load reconciliation 170/0; server+client `tsc`/build; built-server health 200 / term-filtered route 401 mounted / alive; `git diff --check` 0.
+
+## Remaining risks
+
+- `NON_BLOCKING`: `publication-contract-postgres-concurrency.test.ts` needs an explicitly disposable database not provisioned here; its fixture was updated to a persisted quarterly contract cache and v2 snapshot, and its target guard was not weakened, but the suite was not run in this environment.
+- `NON_BLOCKING`: `pre-generation-draft.service.ts` still uses legacy `computeDemand()` (successor `GEN-C02`).
+
+## Not performed
+
+No Teaching Load reconciliation, generation, publication, revision, deployment, port 5001 restart, schema/migration change, companion-system edit, amend, rebase, merge, or push. No live-data mutation; the disposable PostgreSQL fixture rows were fully removed with a zero-residue assertion.

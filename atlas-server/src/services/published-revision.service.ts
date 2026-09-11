@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { getDataContext } from '../lib/data-context.js';
 import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
 import { runSerializablePublicationTransaction } from './serializable-transaction-retry.js';
+import { loadVerifiedOrderedTermContract, MAX_ACADEMIC_TERM_INDEX, isTermIndexWithinContract } from './academic-term.service.js';
 
 const db = () => getDataContext();
 
@@ -71,6 +72,11 @@ function isPositiveInteger(value: unknown): value is number {
 
 function isPositiveInt32(value: unknown): value is number {
 	return isPositiveInteger(value) && Number(value) <= 2_147_483_647;
+}
+
+/** Syntactic term-index shape only (positive integer within the supported family). */
+function isSyntacticTermIndex(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_ACADEMIC_TERM_INDEX;
 }
 
 function asSummaryRecord(summary: unknown): Record<string, unknown> {
@@ -147,8 +153,8 @@ function normalizeChanges(changes: PublishedRevisionEntryChange[] | null | undef
 		if (unknownFields.length > 0) {
 			throw err(400, 'REVISION_CHANGE_FIELD_INVALID', `Revision change ${entryId} contains unsupported fields.`, { details: { entryId, unknownFields } });
 		}
-		if (change.next.termIndex !== undefined && (typeof change.next.termIndex !== 'number' || ![1, 2, 3].includes(change.next.termIndex))) {
-			throw err(400, 'REVISION_TERM_INDEX_INVALID', `Revision change ${entryId} must use termIndex 1, 2, or 3.`);
+		if (change.next.termIndex !== undefined && !isSyntacticTermIndex(change.next.termIndex)) {
+			throw err(400, 'REVISION_TERM_INDEX_INVALID', `Revision change ${entryId} must use a supported integer termIndex 1..${MAX_ACADEMIC_TERM_INDEX}.`);
 		}
 		const nextFields = Object.keys(change.next);
 		if (nextFields.length === 0 || nextFields.some((field) => !Object.prototype.hasOwnProperty.call(change.previous, field))) {
@@ -159,7 +165,9 @@ function normalizeChanges(changes: PublishedRevisionEntryChange[] | null | undef
 			if (['subjectId', 'sectionId'].includes(field) && (!Number.isInteger(value) || Number(value) < 1)) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', `${field} must be a positive integer.`);
 			if (field === 'day' && (typeof value !== 'string' || !['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'].includes(value))) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', 'day must be a school weekday.');
 			if (['startTime', 'endTime'].includes(field) && (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) throw err(400, 'REVISION_CHANGE_VALUE_INVALID', `${field} must use HH:mm.`);
-			if (field === 'termIndex' && (typeof value !== 'number' || ![1, 2, 3].includes(value))) throw err(400, 'REVISION_TERM_INDEX_INVALID', `Revision change ${entryId} must use termIndex 1, 2, or 3.`);
+			// Syntactic only here; the exact-contract range is enforced inside the
+			// serializable transaction against the verified ordered-term authority.
+			if (field === 'termIndex' && !isSyntacticTermIndex(value)) throw err(400, 'REVISION_TERM_INDEX_INVALID', `Revision change ${entryId} must use a supported integer termIndex 1..${MAX_ACADEMIC_TERM_INDEX}.`);
 		}
 
 		return {
@@ -295,15 +303,22 @@ export async function createPublishedScheduleRevision(
 		if (activeYears.length !== 1 || activeYears[0].enrollProSchoolYearId !== input.schoolYearId) {
 			throw err(409, 'PUBLISHED_REVISION_ACTIVE_YEAR_REQUIRED', 'Published revisions require the single runtime-active school year.');
 		}
-		const termConfig = await tx.schoolYearTermConfig.findUnique({
-			where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
-			select: { termCount: true, termIdentities: true, isActive: true },
-		});
-		const termIdentities = Array.isArray(termConfig?.termIdentities) ? termConfig.termIdentities : [];
-		const normalizedTerms = termIdentities.map((identity) => typeof identity === 'string' ? identity.trim() : '');
-		if (!termConfig?.isActive || termConfig.termCount !== 3 || normalizedTerms.length !== 3
-			|| normalizedTerms.some((identity) => identity.length === 0) || new Set(normalizedTerms).size !== 3) {
-			throw err(409, 'PUBLISHED_REVISION_TERM_CONTRACT_INVALID', 'Published revisions require the current ordered three-term configuration.');
+		// DEMAND-C01R2: the exact ordered-term authority is the persisted verified
+		// EnrollPro contract, read through the transaction client. A QUARTERS
+		// (four-term) contract is valid; legacy SchoolYearTermConfig is not
+		// authoritative.
+		const termContract = await loadVerifiedOrderedTermContract(input.schoolId, input.schoolYearId, tx as never);
+		if (!termContract) {
+			throw err(409, 'PUBLISHED_REVISION_TERM_CONTRACT_INVALID', 'Published revisions require a verified ordered EnrollPro term contract for the active school year.');
+		}
+		const termCount = termContract.terms.length;
+		for (const change of changes) {
+			for (const [side, values] of [['previous', change.previous], ['next', change.next]] as const) {
+				const termIndex = (values as Record<string, unknown>).termIndex;
+				if (termIndex !== undefined && !isTermIndexWithinContract(Number(termIndex), termContract.terms)) {
+					throw err(409, 'REVISION_TERM_INDEX_OUTSIDE_CONTRACT', `Revision change ${change.entryId} ${side} termIndex ${String(termIndex)} is outside the verified ${termCount}-term ${termContract.format} contract.`);
+				}
+			}
 		}
 
 		const resolved = await resolveAuthoritativeLatestRevision(tx, {
@@ -351,9 +366,11 @@ export async function createPublishedScheduleRevision(
 			changedEntryIds,
 		);
 		const existingEntryIds = new Set(existingEntries.map((entry) => entry.entryId));
-		if (existingEntries.length !== changedEntryIds.length || changedEntryIds.some((entryId) => !existingEntryIds.has(entryId))
-			|| existingEntries.some((entry) => ![1, 2, 3].includes(Number(entry.entry.termIndex)))) {
+		if (existingEntries.length !== changedEntryIds.length || changedEntryIds.some((entryId) => !existingEntryIds.has(entryId))) {
 			throw err(422, 'REVISION_ENTRY_NOT_FOUND', 'Every revision change must target one valid entry in the published source run.');
+		}
+		if (existingEntries.some((entry) => !isTermIndexWithinContract(Number(entry.entry.termIndex), termContract.terms))) {
+			throw err(422, 'REVISION_ENTRY_TERM_OUTSIDE_CONTRACT', `Every revised source entry must carry a termIndex within the verified ${termCount}-term ${termContract.format} contract.`);
 		}
 		const effectiveEntries = new Map(existingEntries.map((entry) => [entry.entryId, { ...entry.entry }]));
 		for (const revision of resolved.revisionChain) {

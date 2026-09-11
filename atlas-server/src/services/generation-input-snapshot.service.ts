@@ -7,13 +7,25 @@ import { buildDerivedDemand } from './derived-demand.service.js';
 
 export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects' | 'derivedDemand';
 
+/** DEMAND-C01R2: `derivedDemand` is now a required freshness domain, so the shape is versioned honestly. */
+export const GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION = 2;
+
+const REQUIRED_GENERATION_INPUT_DOMAINS: readonly GenerationInputDomain[] = [
+	'teachingLoad',
+	'policy',
+	'rooms',
+	'sections',
+	'subjects',
+	'derivedDemand',
+];
+
 export type GenerationInputDomainSnapshot = {
 	fingerprint: string;
 	signals: Record<string, number | string | null>;
 };
 
 export type GenerationInputSnapshot = {
-	schemaVersion: 1;
+	schemaVersion: typeof GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION;
 	schoolId: number;
 	schoolYearId: number;
 	computedAt: string;
@@ -66,10 +78,19 @@ export function extractGenerationInputSnapshot(summary: unknown): GenerationInpu
 	if (!isRecord(summary)) return null;
 	const candidate = summary.inputSnapshot;
 	if (!isRecord(candidate)) return null;
-	if (candidate.schemaVersion !== 1) return null;
+	if (typeof candidate.schemaVersion !== 'number' || !Number.isInteger(candidate.schemaVersion)) return null;
 	if (typeof candidate.fingerprint !== 'string') return null;
 	if (!isRecord(candidate.domains)) return null;
-	return candidate as GenerationInputSnapshot;
+	// A current-version snapshot must carry every required freshness domain. A
+	// legacy snapshot is returned as-is so comparison reports SNAPSHOT_VERSION_MISMATCH
+	// instead of falsely treating the run as fresh.
+	if (candidate.schemaVersion >= GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION) {
+		for (const domain of REQUIRED_GENERATION_INPUT_DOMAINS) {
+			const snapshot = candidate.domains[domain];
+			if (!isRecord(snapshot) || typeof snapshot.fingerprint !== 'string') return null;
+		}
+	}
+	return candidate as unknown as GenerationInputSnapshot;
 }
 
 export function compareGenerationInputSnapshots(
@@ -326,7 +347,7 @@ export async function computeGenerationInputSnapshot(
 	};
 
 	return {
-		schemaVersion: 1,
+		schemaVersion: GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION,
 		schoolId,
 		schoolYearId,
 		computedAt: new Date().toISOString(),

@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getDataContext } from '../lib/data-context.js';
 import { extractSseToken } from '../middleware/authenticate.js';
+import { MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { attachSseErrorGuard, registerSseCleanup, sseWrite } from '../lib/sse.js';
 import {
@@ -53,7 +54,7 @@ function parseTermIndexQuery(raw: unknown): number | 'active' | 'INVALID' | unde
 	const value = String(raw).trim().toLowerCase();
 	if (value === 'active') return 'active';
 	const n = Number(value);
-	if (n === 1 || n === 2 || n === 3) return n;
+	if (Number.isInteger(n) && n >= 1 && n <= MAX_ACADEMIC_TERM_INDEX) return n;
 	return 'INVALID';
 }
 
@@ -107,7 +108,7 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 		if (scheduleOptions.invalidTermIndex) {
 			res.status(400).json({
 				code: 'INVALID_TERM_INDEX',
-				message: 'termIndex must be 1, 2, 3, or "active".',
+				message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".`,
 			});
 			return;
 		}

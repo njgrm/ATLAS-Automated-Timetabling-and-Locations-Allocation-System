@@ -72,3 +72,46 @@
 - `NON_BLOCKING`: `pre-generation-draft.service.ts` still calls legacy `computeDemand()` (successor `GEN-C02` scope).
 - `NON_BLOCKING`: the upstream `enrollpro-term-contract.service.ts` `semanticRevisionFor`/`validateCachedContract` remain order-sensitive over JSONB; DEMAND-C01R consumes the persisted structure with a canonical revision instead of editing that TERM-CONSUME-C02 file.
 - `BLOCKING`: none identified for source acceptance.
+
+## DEMAND-C01R2 — Ordered-Term Consumer Closure (correction pass)
+
+- Correction base: `422460fa98d6d2e686d134b996a029cf1c0b939b` (DEMAND-C01R candidate)
+- Original base: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6`
+- Review range: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6...<new-candidate>`
+- Authoritative prompt: `docs/prompts/derived-demand-authority-c01r2-ordered-term-consumer-closure-2026-09-11.md`
+- Risk tier: `MEDIUM` source; no schema/live mutation
+- Status: `REVIEW_REQUIRED` (never `GO`)
+
+### Corrections delivered
+
+1. `academic-term.service.ts` centralizes ordered-term parsing/validation and the persisted verified contract loader (`loadVerifiedOrderedTermContract`) plus `resolveRequestedTermIndex` (explicit numeric works while active is unavailable; `active` fails closed).
+2. Generation/review reads validate the requested term against the verified contract; exports resolve `active` through persisted verified authority; the live `fetchEnrollProActiveTerm` path was removed from workbook export.
+3. Initial publication validates run entries against the verified contract term count (typed zero-write rejection); published revisions load the verified contract inside the Serializable transaction and validate source/previous/next term indices (typed zero-write rejection).
+4. Public/privileged published-schedule reads expose Q4 and resolve `active` from the persisted verified contract.
+5. `runtime/context` projects exact `orderedTerms`/`termFormat`/`termCount`; the timetable client uses a bounded numeric term type, exact labels, and repair-on-change.
+6. Generation input snapshot bumped to `schemaVersion: 2` with required domains; schema-v1 resolves to `SNAPSHOT_VERSION_MISMATCH`, never fresh.
+
+### RED-to-GREEN controls
+
+- `atlas-server/src/__tests__/derived-demand-correction-c01r2.test.ts` — controls 1–10 (7 tests; controls 4/5/6 on a disposable quarterly PostgreSQL fixture with zero residue).
+- `atlas-client/src/lib/__tests__/academic-term.test.ts` — control 7a–7d.
+
+### Focused gate results
+
+- `derived-demand-correction-c01r2.test.ts` — pass 7 / fail 0
+- `derived-demand-authority.test.ts` — 10/0; `derived-demand-correction-c01r.test.ts` — 10/0
+- `term-subject-authority.test.ts` — 13/0; `term-contract-atlas-consumption-c02.test.ts` — 8/0
+- `term-contract-cache-instrumentation.test.ts` — 32/0
+- `timetable-candidate-domain.test.ts` — 12/0; `timetable-ttc02-insertion.test.ts` — 17/0; `generation-passive-teaching-load.test.ts` — PASS
+- `publication-contract-readiness.test.ts` — all checks passed
+- `teaching-load-reconciliation.test.ts` — 170 passed / 0 failed, zero residue
+- Client `academic-term.test.ts` — 4/0
+- Server `tsc --noEmit` 0; client `tsc --noEmit` 0; server `npm run build` 0; client `npm run build` 0
+- Built server port 5099 `ROLLOVER_AUTO_SYNC_ENABLED=false` — health 200, `/generation/1/9/runs/latest/violations?termIndex=4` 401 (mounted), process alive
+- `git diff --check` — 0
+
+### Remaining risks
+
+- `NON_BLOCKING`: `publication-contract-postgres-concurrency.test.ts` requires an explicitly disposable database (`PUBC01R_DISPOSABLE_DATABASE`) which is not provisioned in this environment; its fixture was updated to a persisted quarterly contract cache and v2 snapshot but the suite was not run here. The target guard was NOT weakened.
+- `NON_BLOCKING`: `pre-generation-draft.service.ts` still uses legacy `computeDemand()` (successor `GEN-C02`).
+- `BLOCKING`: none identified for source acceptance.

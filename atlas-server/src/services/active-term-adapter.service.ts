@@ -17,6 +17,10 @@ export type ActiveTermResult = {
 	matchedSchoolYear: boolean | null;
 	code: string | null;
 	message: string;
+	/** Exact ordered labels from the persisted verified EnrollPro contract (DEMAND-C01R2). */
+	orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
+	termFormat?: 'TRIMESTER' | 'QUARTERS' | null;
+	termCount?: number | null;
 };
 
 export function normalizeTermIndex(rawTerm: string | null | undefined, orderedTermIdentities?: string[]): { termIndex: number | null; normalizedTerm: string | null } {

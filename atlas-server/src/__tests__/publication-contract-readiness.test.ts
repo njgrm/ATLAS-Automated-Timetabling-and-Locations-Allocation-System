@@ -16,7 +16,7 @@ const FIXED_NOW = new Date('2030-01-02T03:04:05.000Z');
 function snapshot(fingerprint = 'current'): GenerationInputSnapshot {
 	const domain = { fingerprint: 'same', signals: {} };
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		schoolId: 51,
 		schoolYearId: 81,
 		computedAt: FIXED_NOW.toISOString(),
@@ -190,7 +190,13 @@ function makeRevisionFixture(options: RevisionFixtureOptions = {}) {
 	const tx: any = {
 		$executeRawUnsafe: async () => 1,
 		$queryRawUnsafe: async () => changedEntries,
-		enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 81 }] },
+		enrollProSchoolYearMirror: {
+			findMany: async () => [{ enrollProSchoolYearId: 81 }],
+			findUnique: async ({ where }: any) => {
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
+		},
 		schoolYearTermConfig: { findUnique: async () => ({ termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true }) },
 		generationRun: { findFirst: async () => ({ id: 91, status: 'COMPLETED', runType: 'FULL', version: 5, summary: generationRunSummary }) },
 		publishedScheduleRevision: {
@@ -372,7 +378,13 @@ async function main() {
 	const revisionTx: any = {
 		$executeRawUnsafe: async () => 1,
 		$queryRawUnsafe: async () => [{ entryId: 'e-1', entry: { entryId: 'e-1', roomId: 30, termIndex: 1 } }],
-		enrollProSchoolYearMirror: { findMany: async () => [{ enrollProSchoolYearId: 81 }] },
+		enrollProSchoolYearMirror: {
+			findMany: async () => [{ enrollProSchoolYearId: 81 }],
+			findUnique: async ({ where }: any) => {
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
+		},
 		schoolYearTermConfig: { findUnique: async () => ({ termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true }) },
 		generationRun: { findFirst: async () => ({ id: 91, status: 'COMPLETED', runType: 'FULL', version: 5, summary: { isPublished: true, publishedAt: FIXED_NOW.toISOString(), publication: { revisionId: 700, sourceRunVersion: 5 } } }) },
 		publishedScheduleRevision: {
@@ -551,7 +563,13 @@ async function main() {
 			targetedParams = params;
 			return publishedEntries.map((elem) => ({ elem }));
 		},
-		enrollProSchoolYearMirror: { findFirst: async () => ({ yearLabel: '2030-2031' }) },
+		enrollProSchoolYearMirror: {
+			findFirst: async () => ({ yearLabel: '2030-2031' }),
+			findUnique: async ({ where }: any) => {
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
+		},
 	};
 	const effective = await withDataContext(readFixture, () => resolvePublishedRun(51, 81, { requestedDate: '2030-01-03' }, { sectionId: 10 }, 81));
 	assert.deepEqual(effective.entries.map((entry) => [entry.entryId, entry.sectionId]), [['e-1', 12], ['e-2', 10]], 'revision changes apply in original entry order');
@@ -610,6 +628,10 @@ async function main() {
 		enrollProSchoolYearMirror: {
 			findFirst: async () => ({ enrollProSchoolYearId: 81, yearLabel: '2030-2031' }),
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],
+			findUnique: async ({ where }: any) => {
+				const key = where?.schoolId_enrollProSchoolYearId ?? {};
+				return { isActive: true, isArchived: false, termContractCachedAt: new Date(), termContractCache: validTermCache(key.schoolId, key.enrollProSchoolYearId) };
+			},
 		},
 		facultyMirror: {
 			findFirst: async ({ where }: any) => ({ id: where.externalId === 200020 ? 20 : 21 }),

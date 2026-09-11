@@ -30,6 +30,7 @@ import {
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
 import { buildDerivedDemand, toSchedulerDemandOverride } from './derived-demand.service.js';
+import { resolveRequestedTermIndex } from './academic-term.service.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import { getSectionSummary, syncSectionsFromExternal } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -1763,6 +1764,7 @@ function filterViolationsByTerm(
 }
 
 export async function getRunViolations(runId: number, schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
+	const resolvedTermIndex = termIndex === undefined ? undefined : await resolveRequestedTermIndex(schoolId, schoolYearId, termIndex);
 	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
@@ -1770,7 +1772,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
 	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
+	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, resolvedTermIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
 
@@ -1786,6 +1788,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 }
 
 export async function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
+	const resolvedTermIndex = termIndex === undefined ? undefined : await resolveRequestedTermIndex(schoolId, schoolYearId, termIndex);
 	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
 	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
@@ -1794,7 +1797,7 @@ export async function getLatestRunViolations(schoolId: number, schoolYearId: num
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
 	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
+	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, resolvedTermIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
 

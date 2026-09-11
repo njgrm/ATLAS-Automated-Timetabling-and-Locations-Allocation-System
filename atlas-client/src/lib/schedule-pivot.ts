@@ -33,7 +33,7 @@ function mapEntry(
 		startTime: e.startTime,
 		endTime: e.endTime,
 		durationMinutes: e.durationMinutes,
-		termIndex: (e.termIndex ?? 1) as 1 | 2 | 3,
+		termIndex: e.termIndex ?? 1,
 	};
 }
 

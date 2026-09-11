@@ -117,8 +117,9 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	showFullDay: boolean;
 	setShowFullDay: (value: boolean) => void;
 	hiddenRowCount: number;
-	termFilter: 'all' | 1 | 2 | 3;
-	onTermFilterChange: (value: 'all' | 1 | 2 | 3) => void;
+	termFilter: 'all' | number;
+	onTermFilterChange: (value: 'all' | number) => void;
+	termOptions: ReadonlyArray<{ value: string; label: string }>;
 	activeTermIndex: number | null;
 	collaborationConnected?: boolean;
 	presence?: any[];
