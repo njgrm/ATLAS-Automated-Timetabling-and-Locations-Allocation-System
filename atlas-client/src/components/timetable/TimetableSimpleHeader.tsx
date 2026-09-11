@@ -18,7 +18,6 @@ import {
 	Play,
 	GraduationCap,
 	RefreshCw,
-	Send,
 	Settings2,
 	SlidersHorizontal,
 	Sun,
@@ -30,6 +29,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
+import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -104,11 +104,38 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
 	const readiness = readinessLabel(context);
-	const curriculumReadiness = context.curriculumReadiness ?? { state: 'unavailable' as const, message: 'Curriculum readiness is unavailable.' };
-	const generationReady = curriculumReadiness.state === 'ready';
+	const setupState = describeSetupState(context.curriculumReadiness);
 	const scopeResolved = Number.isInteger(context.schoolId) && context.schoolId > 0
 		&& Number.isInteger(context.schoolYearId) && (context.schoolYearId ?? 0) > 0;
-	const canPlanOrGenerate = scopeResolved && generationReady && !context.generating && !context.loading;
+
+	// A failed or invalidated run is history, not a timetable that can be reviewed or published.
+	const hasGeneratedRun = Boolean(context.draft);
+	// Run-scoped daily tools are only meaningful once a schedule or draft exists.
+	const runToolsAvailable = hasGeneratedRun || context.isPreGenerationWorkspace;
+	// Newest run failed while nothing reviewable exists: name it explicitly so
+	// operators do not read this as "nothing ever happened".
+	const latestRunFailed = !hasGeneratedRun && (context.runs?.[0]?.status === 'FAILED');
+	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
+	const isRunPublished = draftSummaryRaw?.isPublished === true;
+
+	// One shared capability and generation decision for Simple and Advanced.
+	const capabilities = deriveTimetableCapabilities({
+		scopeResolved,
+		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		generating: context.generating,
+		isPreGeneration: context.isPreGenerationWorkspace,
+		hasGeneratedRun,
+		isPublished: isRunPublished,
+		latestRunFailed,
+		hardCount: context.hardCount,
+		unassignedCount: context.summary?.unassignedCount ?? 0,
+		softCount: context.softCount,
+		hasSelectedEntry: context.hasSelectedEntry,
+		requestPendingCount: context.requestPendingCount,
+	});
+	const generationGate = capabilities.generation;
+	const generationReady = generationGate.enabled;
+	const canPlanOrGenerate = scopeResolved && generationReady && !context.loading;
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
 	const ActiveIcon = activeTaskDefinition.icon;
 	const currentEntityIsValid = hasPivotValue(context, context.entityFilter);
@@ -137,13 +164,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	}, [activeTask, blockerReasonFilter, context]);
 
-	// A failed or invalidated run is history, not a timetable that can be reviewed or published.
-	const hasGeneratedRun = Boolean(context.draft);
-	// Newest run failed while nothing reviewable exists: name it explicitly so
-	// operators do not read this as "nothing ever happened".
-	const latestRunFailed = !hasGeneratedRun && (context.runs?.[0]?.status === 'FAILED');
-	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
-	const isRunPublished = draftSummaryRaw?.isPublished === true;
 	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
 	const publishBlockedReason = context.hardCount > 0
 		? `${context.hardCount} hard blocker${context.hardCount === 1 ? '' : 's'} must be fixed before publish.`
@@ -176,7 +196,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const handleLifecycleAction = () => {
 		switch (lifecycleAction.kind) {
 			case 'resolve-scope': break;
-			case 'fix-setup': navigate('/curriculum-requirements'); break;
+			case 'fix-setup': navigate(YEAR_SETUP_HREF); break;
 			case 'start-draft': void startTask('plan-draft'); break;
 			case 'generate':
 				if (generationReady) context.handleTriggerGenerate();
@@ -398,47 +418,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						onViewModeChange={handleViewModeChange}
 						onEntityChange={handleEntityChange}
 					/>
-					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} />
-
-					{hasGeneratedRun && (
-						<TooltipProvider delayDuration={300}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										type="button"
-										variant={isRunPublished ? 'outline' : publishBlocked ? 'outline' : 'default'}
-										size="sm"
-										className={cn(
-											'hidden',
-											isRunPublished && 'border-emerald-200 bg-emerald-50 text-emerald-800',
-											!isRunPublished && !publishBlocked && 'bg-emerald-600 text-white hover:bg-emerald-700',
-										)}
-										disabled={publishBlocked}
-										onClick={handlePublishClick}
-										data-testid="timetable-simple-publish-action"
-									>
-										{isRunPublished ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <Send className="size-3.5" aria-hidden="true" />}
-										<span className="hidden sm:inline">{isRunPublished ? 'Published' : 'Publish'}</span>
-										<span className="sr-only sm:hidden">{isRunPublished ? 'Published schedule' : 'Publish schedule'}</span>
-									</Button>
-								</TooltipTrigger>
-								{publishBlocked && (
-									<TooltipContent side="bottom" className="max-w-xs" data-testid="timetable-publish-blocked-reason">
-										<p>{publishBlockedReason}</p>
-										<p className="mt-1 text-xs opacity-80">Click to review and fix issues.</p>
-									</TooltipContent>
-								)}
-								{isRunPublished && (
-									<TooltipContent side="bottom" className="max-w-xs">
-										<p>This schedule is published.</p>
-										{(context.summary?.unassignedCount ?? 0) > 0 && (
-											<p className="mt-1 text-xs opacity-80">{context.summary?.unassignedCount} follow-up item{(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need review.</p>
-										)}
-									</TooltipContent>
-								)}
-							</Tooltip>
-						</TooltipProvider>
-					)}
+					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} lifecycle={capabilities.lifecycle} />
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
@@ -446,7 +426,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								type="button"
 								variant="outline"
 								size="sm"
-								className="h-8 shrink gap-1 px-1.5 text-xs sm:gap-1.5 sm:px-2.5"
+								className="h-8 min-h-11 min-w-11 shrink gap-1 px-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:gap-1.5 sm:px-2.5"
 								aria-label="More"
 								data-testid="timetable-simple-more-trigger"
 							>
@@ -458,13 +438,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<div className="space-y-2">
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-daily-tasks">
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Daily tasks</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('place-unresolved'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-place-unresolved" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('place-unresolved'); }}>
 										<ClipboardCheck className="size-3.5" aria-hidden="true" />
 										Place unresolved sessions
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('swap-sessions'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-swap-sessions" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('swap-sessions'); }}>
 										<ArrowRightLeft className="size-3.5" aria-hidden="true" />
 										Swap sessions
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
 									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!canPlanOrGenerate} onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
 										<CalendarClock className="size-3.5" aria-hidden="true" />
@@ -472,11 +454,13 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
+										disabled={!runToolsAvailable}
 										onSelect={(event) => { event.preventDefault(); openTeacherDeparture(); }}
 										data-testid="teacher-departure-trigger"
 									>
 										<UserRoundX className="size-3.5" aria-hidden="true" />
 										Teacher leaving / Reassign load
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
@@ -504,9 +488,10 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
 									<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
+									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
 										<ListChecks className="size-3.5" aria-hidden="true" />
 										Review issues
+										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
@@ -745,20 +730,26 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<p className="truncate text-sm font-semibold text-foreground" data-testid="timetable-simple-next-action">
 								No timetable exists for {visibleYearLabel ?? 'the active school year'}
 							</p>
-							<p className="hidden max-w-xl truncate text-xs text-muted-foreground sm:block" data-testid="timetable-curriculum-readiness-message">
-								{curriculumReadiness.message}
+							<p className="break-words text-xs text-muted-foreground" data-testid="timetable-curriculum-readiness-message">
+								{setupState.message}
 							</p>
+							{setupState.repair.kind === 'navigate' && (
+								<p className="text-xs text-muted-foreground" data-testid="timetable-setup-repair-hint">
+									Term and setup data are managed on Year Setup.
+								</p>
+							)}
 							{latestRunFailed && (
-								<p className="hidden max-w-xl truncate text-xs font-medium text-red-700 sm:block" data-testid="timetable-last-generation-failed-message">
+								<p className="break-words text-xs font-medium text-red-700" data-testid="timetable-last-generation-failed-message">
 									The last generation run failed. Review setup, then try generating again.
 								</p>
 							)}
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+						<TimetableStatusLegend compact />
 						{lifecycleAction.kind === 'fix-setup' ? (
 							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
-								<Link to="/curriculum-requirements">
+								<Link to={YEAR_SETUP_HREF}>
 									<BookOpen className="size-3.5" aria-hidden="true" />
 									{lifecycleAction.label}
 								</Link>
@@ -840,6 +831,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					)}
 
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+					<TimetableStatusLegend compact />
 					{activeTask && activeTaskDefinition.href ? (
 						<Button
 							asChild
