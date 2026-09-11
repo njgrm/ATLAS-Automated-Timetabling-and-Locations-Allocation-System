@@ -4,8 +4,11 @@
 - Worktree: `D:/ATLAS-worktrees/teaching-load-ux-c01`
 - Branch: `work/teaching-load-ux-c01`
 - Base SHA: `36c5d3d1735728c1870f5e0ccfe36ca54a8a6b5d` (refreshed `origin/main`)
-- First candidate SHA: `dcd8ffe5a3b4b90cdecc83bc370c743d01387bd7`
-- Correction candidate SHA: `9982ae173eabf6395acc020029665e22b2da398f`
+- C01 first candidate SHA: `dcd8ffe5a3b4b90cdecc83bc370c743d01387bd7`
+- C01 correction candidate SHA: `9982ae173eabf6395acc020029665e22b2da398f`
+- C01 final candidate SHA: `1f867eb82124c181c79cfcb9cf5227c4577efad3`
+- C01R correction commits: `7bcaaae4` -> `743b43b0` -> `dcb071b8` -> `34346374`
+- C01R final candidate SHA: `3434637403f7fdd90fc594d1948abb7a46ff3231` (final independent review: `ACCEPT_READY`)
 - Risk: MEDIUM source/UI with HIGH interaction guardrails; no live mutation authorized.
 
 ## Status
@@ -129,6 +132,12 @@
   - `distributionEvaluated` is false when distribution is absent.
   - Added a render-level Playwright test that intercepts the suggestion POST with a zero-section/unevaluated fixture and asserts the neutral header and no balanced copy.
 - Evidence: client distribution-ui 2/2; full candidate Playwright 4/4 (read-only walk, design/height, intercepted-write imbalance, zero-section header) at 1440x900, 390x844, 320px reflow.
+
+### TL-UX-C01R final review
+- Reviewer (task `ses_f722ada96ffer6FmQw18iuW5JW`) verdict: `ACCEPT_READY`.
+- Confirmed: the unevaluated/zero-section path renders the neutral header and Info icon with no balanced copy; the genuinely balanced and imbalanced positive controls still render correctly; all rerun gates green; worktree clean, no test removals.
+- Non-blocking residuals carried: the render-level Playwright test is candidate-gated and was not re-run by the read-only reviewer; the client header unit test is source-scan; `distributionEvaluated` is typed required while the client guards `!== false` (pre-existing semantics).
+- Executor returns `REVIEW_REQUIRED`; formal planner/QA acceptance and integration remain the planner's action.
 
 ### TL-UX-C01R remaining risks
 - Move application re-validates donor ownership, receiver standard capacity, and grade parity inside the transaction; it does not independently recompute the full rotation-family capacity ledger for a receiver with many rotating subjects beyond the standard cap check.
