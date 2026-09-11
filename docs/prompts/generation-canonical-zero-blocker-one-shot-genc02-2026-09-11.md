@@ -60,6 +60,37 @@ future zero-hard-blocker generation. Do not perform a live generation.
     require its existing authority and must not be called by tests against live
     school data.
 
+## Mandatory 2026–2027 stakeholder shape contract
+
+Read and trace the actual stakeholder sources and the accepted policy evidence,
+not only existing helper output:
+
+- `stakeholderFiles/aral-prog_G7_Class-Program_SY2026-2027docx.docx`;
+- `stakeholderFiles/DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx`;
+- `docs/verification/class-program-policy-baseline-2026-08-29.md` when present;
+- the canonical class-program/shift tests and current production resolver.
+
+The dry run and real trigger assembly must enforce the accepted shape:
+
+- Grade 7/8 use the approved morning frame beginning at `06:00` and never use
+  Grade 9/10 afternoon-only rows.
+- Grade 9/10 use the approved afternoon frame `09:45–18:30` and never fall back
+  to Grade 7/8 morning rows.
+- Regular and STE/SPA/SPS sections use their exact canonical base and
+  specialization rows; breaks/events are display/blocking events, not class
+  demand.
+- The duplicated stakeholder `12:15–13:00` Lunch versus Flag/HG/TLE row remains
+  resolved safely as blocked lunch. Do not schedule HG or invent an overlapping
+  class row.
+- The documented Friday ARAL/TLE variant remains an explicit unresolved
+  stakeholder decision unless a newer authoritative source resolves it. Do not
+  silently encode or discard it while claiming exact stakeholder parity.
+
+Add matrix assertions over every active grade/program/term: zero entries outside
+its canonical rows, zero cross-shift fallback, correct break exclusion, complete
+derived-demand coverage, and stable export/display ordering. A dry run with zero
+generic hard violations but a wrong shift or class-program shape is NOT ready.
+
 ## Required controls and QA
 
 - Failing-first source and production-entry tests proving each named legacy
@@ -69,6 +100,9 @@ future zero-hard-blocker generation. Do not perform a live generation.
 - Trimester and quarterly fixtures; rotation/reference-only/HG behavior;
   stale-lock/source-revision rejection; room capacity/type/features; faculty,
   section, and interval conflicts.
+- Stakeholder-shape tests for every active Grade 7–10 program, including morning
+  versus afternoon separation, canonical specialization rows, lunch/health
+  breaks, export parity, and a mutant proving a cross-shift fallback fails.
 - Disposable PostgreSQL zero-write instrumentation around the mounted
   diagnostic, plus rolled-back positive controls and exact cleanup.
 - Reuse the real scheduler in dry-run mode and assert before/after signatures,
