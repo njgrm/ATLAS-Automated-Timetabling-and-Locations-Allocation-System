@@ -4231,3 +4231,22 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - The Friday ARAL/TLE stakeholder note remains an explicit unresolved decision and is not silently encoded by this correction.
+## [2026-09-11] — GEN-C02R1 production preflight correction packet
+
+### Added
+- Added a bounded additive correction packet for shared passive generation
+  preflight, production stakeholder-shape proof, and exact nonuniform rotation
+  totals.
+
+### Changed
+- Marked GEN-C02 at `3ecb0419` as correction-required after independent QA and
+  primary-planner source verification.
+
+### Decisions Made
+- Helper-only slot-table assertions are not sufficient evidence for emitted
+  schedule shape, display/export parity, or zero-write trigger behavior.
+- Four-term fixtures remain a portability regression while the live school
+  continues to use its authoritative three-term contract.
+
+### Open Questions
+- None for this bounded correction; live generation remains separately gated.
