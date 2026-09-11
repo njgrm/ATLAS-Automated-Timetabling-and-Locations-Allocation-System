@@ -20,6 +20,7 @@
 - The refreshed reallocation plan is compared against the reviewed preview plan before any write; a mismatch returns `TEACHING_LOAD_PROPOSAL_STALE`.
 - The modal shows a neutral "balance not evaluated" state when distribution is missing or flagged unevaluated, and shows the distribution counts even when a coverage shortage coexists.
 - The zero-section preview path now returns `distributionEvaluated:false, balanced:false` (never a false balanced success), the receiver evaluation order is deterministic by faculty id, and the distribution test suite covers the production zero-section plan.
+- The suggestion preview header and icon are now gated on `distributionEvaluated`: an unevaluated/zero-section preview renders "Coverage complete, balance not evaluated" and never the balanced-success title. A render-level Playwright regression covers the zero-section shape.
 
 ### Verification
 - Server/client `tsc --noEmit` and production builds pass; server distribution tests 12/12; client ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21.

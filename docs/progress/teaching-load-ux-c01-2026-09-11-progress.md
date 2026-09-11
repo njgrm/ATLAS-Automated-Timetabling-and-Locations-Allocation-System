@@ -120,6 +120,16 @@
   - Added a production-path test for `emptyDistributionPlan` (server) and updated the client UI regression.
 - Evidence: server distribution tests 13/13; client distribution-ui 2/2; both tsc/build green; full candidate Playwright 3/3.
 
+### TL-UX-C01R review round 3 and correction
+- Reviewer (task `ses_f72394c67ffeZovRhR6OD9GqEP`) verdict: `CORRECTION_REQUIRED`.
+  - BLOCKING F1: the modal header title/icon still asserted balance for an unevaluated distribution (server body was fixed but the title was not).
+  - Non-blocking: an absent distribution fell through to the analyzing spinner; the UI regression was source-scan only.
+- Correction (additive commit after `dcb071b8`):
+  - Title now reads "Coverage complete, balance not evaluated" when `!distributionEvaluated`; the header icon is neutral (Info) instead of BadgeCheck.
+  - `distributionEvaluated` is false when distribution is absent.
+  - Added a render-level Playwright test that intercepts the suggestion POST with a zero-section/unevaluated fixture and asserts the neutral header and no balanced copy.
+- Evidence: client distribution-ui 2/2; full candidate Playwright 4/4 (read-only walk, design/height, intercepted-write imbalance, zero-section header) at 1440x900, 390x844, 320px reflow.
+
 ### TL-UX-C01R remaining risks
 - Move application re-validates donor ownership, receiver standard capacity, and grade parity inside the transaction; it does not independently recompute the full rotation-family capacity ledger for a receiver with many rotating subjects beyond the standard cap check.
 - The distribution plan's counts are unit-verified; a DB-backed end-to-end apply test was not run because the isolated worktree has no test database.

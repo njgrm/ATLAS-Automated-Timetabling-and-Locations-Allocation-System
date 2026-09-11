@@ -170,7 +170,7 @@ export function AutoFillSummaryModal({
 	// have above-standard teachers and proposed moves, and must never be reported
 	// as complete success. An unevaluated distribution is neither balanced nor an
 	// imbalance verdict.
-	const distributionEvaluated = distribution?.summary.distributionEvaluated !== false;
+	const distributionEvaluated = distribution ? distribution.summary.distributionEvaluated !== false : false;
 	const hasImbalance = Boolean(distribution && distributionEvaluated && !distribution.summary.balanced);
 	const hasResult = Boolean(result);
 	const coverageMode = result?.coverageMode ?? 'REAL_FACULTY_STANDARD';
@@ -209,7 +209,9 @@ export function AutoFillSummaryModal({
 				? 'Review suggested Teaching Load draft'
 				: hasImbalance
 					? 'Coverage complete, rebalance proposed'
-					: 'Suggested Teaching Load covers all rows and is balanced';
+					: !distributionEvaluated
+						? 'Coverage complete, balance not evaluated'
+						: 'Suggested Teaching Load covers all rows and is balanced';
 	const description = reviewOnly
 		? 'Review the current saved Teaching Load assignments, unassigned pairs, and warnings. Use Suggest Teaching Load draft to prepare new assignments.'
 		: !hasResult
@@ -255,7 +257,7 @@ export function AutoFillSummaryModal({
 					
 					<div className="relative z-10 flex flex-col items-start gap-3">
 						<div className="bg-white/20 p-2 rounded-xl backdrop-blur-md border border-white/20">
-							{!hasResult ? <Zap className="size-6 animate-pulse" /> : hasShortage ? <AlertTriangle className="size-6" /> : <BadgeCheck className="size-6" />}
+							{!hasResult ? <Zap className="size-6 animate-pulse" /> : hasShortage || hasImbalance ? <AlertTriangle className="size-6" /> : distributionEvaluated ? <BadgeCheck className="size-6" /> : <Info className="size-6" />}
 						</div>
 						<div className="space-y-1">
 							<DialogTitle className="text-2xl font-bold tracking-tight">

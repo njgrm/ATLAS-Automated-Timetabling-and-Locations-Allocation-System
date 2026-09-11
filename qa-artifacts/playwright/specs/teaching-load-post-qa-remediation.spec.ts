@@ -249,3 +249,45 @@ test('suggestion preview shows distribution imbalance and one apply action', asy
 
 	expect(violations, `Candidate dispatched forbidden writes: ${JSON.stringify(violations)}`).toEqual([]);
 });
+
+test('unevaluated distribution never renders a balanced header', async ({ page }) => {
+	test.skip(!CANDIDATE, 'Intercepted-write header QA runs only against the isolated candidate.');
+	const violations = await installMutationGuard(page, 'abort');
+	const unevaluatedFixture = {
+		proposal: { id: 9002, status: 'PENDING', suggestedAssignmentCount: 0, unresolvedCount: 0 },
+		preview: {
+			preserved: 0, created: 0, assignmentsCreated: 0, uniqueTeachersAffected: 0, unresolved: 0,
+			coverageMode: 'REAL_FACULTY_STANDARD', sectionSource: 'enrollpro', sectionFallbackReason: null,
+			warnings: ['No active sections were resolved for the selected school year. Auto-fill cannot continue.'],
+			staffingReport: { unassignedSections: 0 },
+			suggestedRows: [],
+			distribution: {
+				retains: [], inserts: [], moves: [],
+				summary: {
+					coveredRows: 0, uncoveredRows: 0, proposedMoves: 0, unresolvedImbalance: 0,
+					aboveStandardFaculty: 0, hardCapBreaches: 0, distributionEvaluated: false, balanced: false,
+				},
+			},
+		},
+	};
+	await page.route('**/faculty-assignments/suggestion-proposals', async (route) => {
+		if (route.request().method().toUpperCase() === 'POST') {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(unevaluatedFixture) });
+			return;
+		}
+		await route.continue();
+	});
+	await loginReadOnly(page);
+	await page.setViewportSize({ width: 1280, height: 720 });
+	await page.goto('/teaching-load', { waitUntil: 'domcontentloaded' });
+	const previewAction = page.getByTestId('teaching-load-suggest-draft-action');
+	await expect(previewAction).toBeVisible({ timeout: 60_000 });
+	await previewAction.click();
+
+	const dialog = page.getByTestId('teaching-load-suggestion-preview');
+	await expect(dialog).toBeVisible({ timeout: 30_000 });
+	await expect(dialog.locator('h2', { hasText: 'Coverage complete, balance not evaluated' })).toBeVisible();
+	await expect(dialog.getByText(/covers all rows and is balanced/i)).toHaveCount(0);
+	await expect(dialog.getByText(/everyone is within their workload capacity/i)).toHaveCount(0);
+	expect(violations, `Candidate dispatched forbidden writes: ${JSON.stringify(violations)}`).toEqual([]);
+});
