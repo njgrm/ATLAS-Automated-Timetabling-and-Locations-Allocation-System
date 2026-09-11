@@ -1,5 +1,41 @@
 # Changelog
 
+## [2026-09-11] — DEMAND-C01 Derived Demand and Ordered-Term Closure
+
+### Added
+- Added one deterministic derived-demand authority derived from the active
+  EnrollPro year, its persisted verified ordered-term contract, active section
+  mirrors, and ATLAS Subject scheduling metadata.
+- Added a shared academic-term authority for exact trimester and quarter
+  validation across generation reads, exports, publication, revisions, public
+  schedules, and timetable client filtering.
+- Added focused authority, correction, transaction, publication, and client
+  controls for scoped rotations, Q4 preservation, revision completeness,
+  transaction-client use, typed blocker propagation, and snapshot versioning.
+
+### Changed
+- Teaching Load reconciliation, timetable demand, and generation assembly now
+  consume the same canonical demand revision instead of annual Curriculum
+  Requirements rows.
+- Generation snapshots now use schema version 2 and require the derived-demand
+  freshness domain; older snapshots resolve as version-mismatched rather than
+  fresh.
+- Timetable term controls now use the exact ordered EnrollPro identities and
+  labels; a trimester rejects term 4 while a quarterly contract preserves it
+  through review and publication paths.
+
+### Decisions Made
+- Persisted verified EnrollPro term authority is the transaction-consistent
+  source; write-authorizing paths perform no implicit network/cache repair.
+- Reference-only Subjects create neither timetable demand nor Teaching Load
+  pairs. Rotation completeness is evaluated per applicable grade/program scope.
+- Live reconciliation, generation, publication, deployment, and database
+  mutation remain separately gated and were not authorized by this integration.
+
+### Open Questions
+- `pre-generation-draft.service.ts` and the Teaching Load Workload Inspector's
+  static term buckets remain successor work for GEN-C02/TL follow-up.
+
 ## [2026-09-11] — DEMAND-C01R Ordered-Term Consumer QA
 
 ### Added

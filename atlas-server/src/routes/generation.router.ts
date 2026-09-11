@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
+import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
@@ -240,10 +241,15 @@ router.get(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
-			const termIndex = req.query.termIndex === undefined ? undefined : Number(req.query.termIndex);
-			if (termIndex !== undefined && ![1, 2, 3].includes(termIndex)) {
-				res.status(400).json({ code: 'INVALID_PARAM', message: 'termIndex must be 1, 2, or 3 when provided.' });
-				return;
+			const termIndexRaw = req.query.termIndex;
+			let termIndex: number | undefined;
+			if (termIndexRaw !== undefined) {
+				const parsedTermIndex = parseSupportedTermIndex(termIndexRaw);
+				if (parsedTermIndex === null) {
+					res.status(400).json({ code: 'INVALID_PARAM', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX} when provided.` });
+					return;
+				}
+				termIndex = parsedTermIndex;
 			}
 
 			const report = await genService.getLatestRunViolations(schoolId, schoolYearId, termIndex);
@@ -345,10 +351,15 @@ router.get(
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
-			const termIndex = req.query.termIndex === undefined ? undefined : Number(req.query.termIndex);
-			if (termIndex !== undefined && ![1, 2, 3].includes(termIndex)) {
-				res.status(400).json({ code: 'INVALID_PARAM', message: 'termIndex must be 1, 2, or 3 when provided.' });
-				return;
+			const termIndexRaw = req.query.termIndex;
+			let termIndex: number | undefined;
+			if (termIndexRaw !== undefined) {
+				const parsedTermIndex = parseSupportedTermIndex(termIndexRaw);
+				if (parsedTermIndex === null) {
+					res.status(400).json({ code: 'INVALID_PARAM', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX} when provided.` });
+					return;
+				}
+				termIndex = parsedTermIndex;
 			}
 
 			const report = await genService.getRunViolations(runId, schoolId, schoolYearId, termIndex);
@@ -533,23 +544,24 @@ router.get(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 
 			const termIndexRaw = req.query.termIndex;
-			let termIndex: number | 'active' | undefined;
+			let requestedTerm: number | 'active' | undefined;
 			if (termIndexRaw != null) {
 				const val = String(termIndexRaw).trim().toLowerCase();
-				if (val === 'active') termIndex = 'active';
+				if (val === 'active') requestedTerm = 'active';
 				else {
-					const n = Number(val);
-					if (n === 1 || n === 2 || n === 3) termIndex = n;
-					else {
-						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: 'termIndex must be 1, 2, 3, or "active".' });
+					const parsedTermIndex = parseSupportedTermIndex(val);
+					if (parsedTermIndex === null) {
+						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
 						return;
 					}
+					requestedTerm = parsedTermIndex;
 				}
 			}
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
 
 			const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId, termIndex });
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			const termSuffix = termIndex != null ? `-term${termIndex === 'active' ? '-active' : termIndex}` : '';
+			const termSuffix = termIndex != null ? `-term${termIndex}` : '';
 			res.setHeader('Content-Disposition', `attachment; filename="summary-teacher-schedule${termSuffix}.xlsx"`);
 			res.send(buffer);
 		} catch (e: any) {
@@ -561,8 +573,8 @@ router.get(
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
 				return;
 			}
-			if (e?.message === 'TERM_FILTER_NOT_READY') {
-				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified or entries lack reliable termIndex.' });
+			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
+				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified from the persisted EnrollPro term authority.' });
 				return;
 			}
 			next(e);
@@ -591,19 +603,20 @@ router.get(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 
 			const termIndexRaw = req.query.termIndex;
-			let termIndex: number | 'active' | undefined;
+			let requestedTerm: number | 'active' | undefined;
 			if (termIndexRaw != null) {
 				const val = String(termIndexRaw).trim().toLowerCase();
-				if (val === 'active') termIndex = 'active';
+				if (val === 'active') requestedTerm = 'active';
 				else {
-					const n = Number(val);
-					if (n === 1 || n === 2 || n === 3) termIndex = n;
-					else {
-						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: 'termIndex must be 1, 2, 3, or "active".' });
+					const parsedTermIndex = parseSupportedTermIndex(val);
+					if (parsedTermIndex === null) {
+						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
 						return;
 					}
+					requestedTerm = parsedTermIndex;
 				}
 			}
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
 
 			const specializationVisibilityRaw = req.query.specializationVisibility as string | undefined;
 			let specializationVisibility: 'hidden' | 'visible' | undefined;
@@ -619,7 +632,7 @@ router.get(
 
 			const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, specializationVisibility });
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			const termSuffix = termIndex != null ? `-term${termIndex === 'active' ? '-active' : termIndex}` : '';
+			const termSuffix = termIndex != null ? `-term${termIndex}` : '';
 			res.setHeader('Content-Disposition', `attachment; filename="class-program${termSuffix}.xlsx"`);
 			res.send(buffer);
 		} catch (e: any) {
@@ -631,8 +644,8 @@ router.get(
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
 				return;
 			}
-			if (e?.message === 'TERM_FILTER_NOT_READY') {
-				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified or entries lack reliable termIndex.' });
+			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
+				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified from the persisted EnrollPro term authority.' });
 				return;
 			}
 			next(e);

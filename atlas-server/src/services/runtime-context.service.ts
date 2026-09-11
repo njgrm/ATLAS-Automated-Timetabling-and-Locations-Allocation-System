@@ -2,6 +2,7 @@ import { getDataContext } from '../lib/data-context.js';
 import { findMappingConflicts, fetchSectionExternalIds, resolveMappingConflictAction } from './enrollpro-rollover.service.js';
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
 import { fetchEnrollProActiveTerm, type ActiveTermResult } from './active-term-adapter.service.js';
+import { normalizePersistedTermStructure } from './derived-demand.service.js';
 
 const db = () => getDataContext();
 
@@ -251,6 +252,8 @@ export async function resolveRuntimeContext(
 				sectionCount: true,
 				syncStatus: true,
 				lastFailureSummary: true,
+				termContractCache: true,
+				termContractCachedAt: true,
 			},
 		}),
 		db().schedulingPolicy.findFirst({
@@ -376,10 +379,22 @@ export async function resolveRuntimeContext(
 	};
 
 	if (verifyUpstream) {
+		// Resolve the persisted ordered identities first so the live active-term
+		// index is resolved against the exact contract rather than a T# guess.
+		let persistedOrderedIdentities: string[] | undefined;
+		if (schoolYearMirror?.termContractCache) {
+			const persisted = normalizePersistedTermStructure(
+				schoolYearMirror.termContractCache,
+				schoolId,
+				schoolYearMirror.enrollProSchoolYearId,
+			);
+			if (persisted.ok) persistedOrderedIdentities = persisted.structure.terms.map((term) => term.identity);
+		}
+
 		// Fetch school year and active term in parallel — each is independent
 		const [upstreamYear, activeTermResponse] = await Promise.all([
 			fetchEnrollProActiveSchoolYear(authToken).catch(() => null),
-			fetchEnrollProActiveTerm(authToken).catch(() => null),
+			fetchEnrollProActiveTerm(authToken, schoolYearMirror?.enrollProSchoolYearId ?? undefined, persistedOrderedIdentities).catch(() => null),
 		]);
 
 		// Process active term result (independent of school year)
@@ -446,6 +461,36 @@ export async function resolveRuntimeContext(
 					? `ATLAS is aligned with EnrollPro active term ${activeTermResult.activeTerm}.`
 					: `EnrollPro active term ${activeTermResult.activeTerm} is from a different school year (expected ${upstreamYear.id}, got ${activeTermResult.schoolYearId}).`;
 			}
+		}
+	}
+
+	// DEMAND-C01R2: expose the exact ordered labels from the persisted verified
+	// EnrollPro term contract so client academic-term surfaces never invent or
+	// truncate labels. This is a read-only projection of already-verified data.
+	if (schoolYearMirror?.termContractCache && schoolYearMirror.termContractCachedAt) {
+		const persisted = normalizePersistedTermStructure(
+			schoolYearMirror.termContractCache,
+			schoolId,
+			schoolYearMirror.enrollProSchoolYearId,
+		);
+		if (persisted.ok) {
+			const orderedTerms = persisted.structure.terms.map((term) => ({ identity: term.identity, displayLabel: term.displayLabel, order: term.order }));
+			const activeTermIndexWithinContract = activeTermResult.termIndex != null
+				&& orderedTerms.some((term) => term.order === activeTermResult.termIndex);
+			activeTermResult = {
+				...activeTermResult,
+				orderedTerms,
+				termFormat: persisted.structure.format,
+				termCount: orderedTerms.length,
+				...(activeTermResult.termIndex != null && !activeTermIndexWithinContract
+					? {
+						verified: false,
+						termIndex: null,
+						code: activeTermResult.code ?? 'ACTIVE_TERM_OUTSIDE_CONTRACT',
+						message: 'EnrollPro active term is outside the persisted ordered term contract.',
+					}
+					: {}),
+			};
 		}
 	}
 

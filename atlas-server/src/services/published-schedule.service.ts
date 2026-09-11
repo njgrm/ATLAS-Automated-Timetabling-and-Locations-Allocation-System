@@ -2,6 +2,7 @@ import { getDataContext } from '../lib/data-context.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import { buildSpecialEventSlots } from './schedule-constructor.js';
 import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
+import { isTermIndexWithinContract, loadVerifiedOrderedTermContract } from './academic-term.service.js';
 
 const db = () => getDataContext();
 
@@ -567,21 +568,25 @@ export async function getPublishedSchedulePayload(
 		const requestedTerm = options.termIndex;
 
 		if (requestedTerm === 'active') {
-			try {
-				const { fetchEnrollProActiveTerm } = await import('./active-term-adapter.service.js');
-				const activeTermResult = await fetchEnrollProActiveTerm();
-				if (activeTermResult.verified && activeTermResult.termIndex !== null) {
-					resolvedTermIndex = activeTermResult.termIndex;
-					activeTermVerified = true;
-					termScope = 'active';
-				} else {
-					throw err(501, 'TERM_FILTER_NOT_READY', 'Active term cannot be verified. Use explicit termIndex (1, 2, 3) or omit termIndex for all-term read.');
-				}
-			} catch (e: any) {
-				if (e.statusCode === 501) throw e;
-				throw err(501, 'TERM_FILTER_NOT_READY', 'Active term verification failed. Use explicit termIndex (1, 2, 3) or omit termIndex for all-term read.');
+			// The active term resolves only through the persisted, verified EnrollPro
+			// ordered contract and fails closed when it is unavailable.
+			const contract = await loadVerifiedOrderedTermContract(resolved.source.schoolId, resolved.source.schoolYearId);
+			if (!contract || contract.activeTermOrder == null) {
+				throw err(501, 'TERM_FILTER_NOT_READY', 'The active term cannot be verified from the persisted EnrollPro term authority. Use an explicit termIndex or omit termIndex for an all-term read.');
 			}
+			resolvedTermIndex = contract.activeTermOrder;
+			activeTermVerified = true;
+			termScope = 'active';
 		} else {
+			// Semantic validation: reject an index absent from the exact school/year
+			// contract. A missing contract fails closed rather than guessing.
+			const contract = await loadVerifiedOrderedTermContract(resolved.source.schoolId, resolved.source.schoolYearId);
+			if (!contract) {
+				throw err(409, 'TERM_STRUCTURE_UNAVAILABLE', 'No verified ordered term contract is available for this school year, so the requested term cannot be validated.');
+			}
+			if (!isTermIndexWithinContract(requestedTerm, contract.terms)) {
+				throw err(400, 'TERM_INDEX_OUTSIDE_CONTRACT', `termIndex ${requestedTerm} is outside the verified ${contract.terms.length}-term ${contract.format} contract for this school year.`);
+			}
 			resolvedTermIndex = requestedTerm;
 			termScope = 'explicit';
 		}

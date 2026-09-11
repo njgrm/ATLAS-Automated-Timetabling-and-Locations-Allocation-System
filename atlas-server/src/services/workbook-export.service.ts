@@ -6,7 +6,8 @@ type ExportOptions = {
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;
-	termIndex?: number | 'active';
+	/** Resolved numeric term index from the verified ordered-term authority (1..termCount). */
+	termIndex?: number;
 	specializationVisibility?: 'hidden' | 'visible';
 };
 
@@ -114,25 +115,11 @@ async function loadExportContext(options: ExportOptions): Promise<ExportContext>
 	const displaySlots = (summary?.timetableDisplaySlots as TimeSlot[] | undefined) ?? [];
 	let entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
 
-	// Term filtering for export
+	// Term filtering for export. The caller resolves `active` through the
+	// persisted verified EnrollPro term authority before reaching this service,
+	// so only an explicit contract-validated numeric index arrives here.
 	if (options.termIndex !== undefined) {
-		let resolvedTermIndex: number;
-
-		if (options.termIndex === 'active') {
-			try {
-				const { fetchEnrollProActiveTerm } = await import('./active-term-adapter.service.js');
-				const activeTermResult = await fetchEnrollProActiveTerm();
-				if (!activeTermResult.verified || activeTermResult.termIndex === null) {
-					throw new Error('TERM_FILTER_NOT_READY');
-				}
-				resolvedTermIndex = activeTermResult.termIndex;
-			} catch {
-				throw new Error('TERM_FILTER_NOT_READY');
-			}
-		} else {
-			resolvedTermIndex = options.termIndex;
-		}
-
+		const resolvedTermIndex = options.termIndex;
 		entries = entries.filter((entry) => {
 			const entryTermIndex = (entry as any).termIndex;
 			return entryTermIndex != null && entryTermIndex === resolvedTermIndex;

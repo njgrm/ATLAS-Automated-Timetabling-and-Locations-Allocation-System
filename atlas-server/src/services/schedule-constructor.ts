@@ -59,6 +59,13 @@ const DEFAULT_PERIOD_SLOTS = [
 
 const STANDARD_PERIOD_MINUTES = 45;
 
+/**
+ * Maximum verified ordered-term cardinality the scheduler term model supports.
+ * EnrollPro admits `TRIMESTER` (3) and `QUARTERS` (4). Term indices are used
+ * verbatim: a fourth ordered term is never collapsed onto term 3.
+ */
+export const MAX_SUPPORTED_TERMS = 4;
+
 // ─── Input types ───
 
 export interface SubjectInput {
@@ -677,7 +684,7 @@ export interface UnassignedItem {
 	 * `termIndex` AFTER charging this session would have been attempted; in
 	 * refusal rows it represents the load at the time of refusal.
 	 */
-	termIndex?: 1 | 2 | 3;
+	termIndex?: 1 | 2 | 3 | 4;
 	facultyTermLoad?: number;
 	facultyMax?: number;
 }
@@ -694,7 +701,7 @@ export interface ConstructorResult {
 }
 
 export interface ModularAssignment {
-	termIndex: 1 | 2 | 3;
+	termIndex: 1 | 2 | 3 | 4;
 	facultyId: number;
 	subjectCode: string;
 }
@@ -1232,7 +1239,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return false;
 	}
 
-	function getQualifiedFacultyIds(item: DemandItem, day: string, slot: { startTime: string; endTime: string }, pi: number, unavailableTimeRanges?: Map<number, UnavailableTimeRange[]>, termIndex?: 1 | 2 | 3): { ids: number[], reason?: UnassignedItem['reason'] } {
+	function getQualifiedFacultyIds(item: DemandItem, day: string, slot: { startTime: string; endTime: string }, pi: number, unavailableTimeRanges?: Map<number, UnavailableTimeRange[]>, termIndex?: 1 | 2 | 3 | 4): { ids: number[], reason?: UnassignedItem['reason'] } {
 		const subject = subjectMap.get(item.subjectId);
 		
 		// Priority 1: Explicit Assignments from qualifiedMap
@@ -1355,11 +1362,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		const missingTerms: number[] = [];
 
 		for (const moduleSubject of sortedModules) {
-			const termIndex: 1 | 2 | 3 = moduleSubject.modularOrder <= 1
-				? 1
-				: moduleSubject.modularOrder === 2
-					? 2
-					: 3;
+			const termIndex = Number.isInteger(moduleSubject.modularOrder)
+				&& moduleSubject.modularOrder >= 1
+				&& moduleSubject.modularOrder <= MAX_SUPPORTED_TERMS
+				? (moduleSubject.modularOrder as 1 | 2 | 3 | 4)
+				: null;
+			if (termIndex == null) {
+				// Never collapse, clamp, cycle, or alias an out-of-range rotation
+				// order onto another term.
+				missingTerms.push(moduleSubject.modularOrder);
+				continue;
+			}
 			const subjectRow = subjectMap.get(moduleSubject.subjectId);
 			const explicitFacultyIds = qualifiedMap.get(`${moduleSubject.subjectId}:${item.sectionId}`) ?? [];
 			const tieredFacultyIds = subjectRow
@@ -1439,13 +1452,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// A session with a `sessionTermIndex` charges facultyLoadByTerm[thatTerm];
 	// a session WITHOUT a term index charges baseLoad (i.e., runs every term).
 	const facultyLoadBase = new Map<number, number>();
-	const facultyLoadByTerm = new Map<number, Map<1 | 2 | 3, number>>();
+	const facultyLoadByTerm = new Map<number, Map<1 | 2 | 3 | 4, number>>();
 	const facultyLoad = new Map<number, number>();
 	const facultyMax = new Map(faculty.map((f) => [f.id, f.maxHoursPerWeek * 60]));
 
-	function chargeFacultyLoad(facId: number, minutes: number, termIndex: 1 | 2 | 3 | undefined): void {
-		if (termIndex === 1 || termIndex === 2 || termIndex === 3) {
-			const termMap = facultyLoadByTerm.get(facId) ?? new Map<1 | 2 | 3, number>();
+	function chargeFacultyLoad(facId: number, minutes: number, termIndex: 1 | 2 | 3 | 4 | undefined): void {
+		if (termIndex === 1 || termIndex === 2 || termIndex === 3 || termIndex === 4) {
+			const termMap = facultyLoadByTerm.get(facId) ?? new Map<1 | 2 | 3 | 4, number>();
 			termMap.set(termIndex, (termMap.get(termIndex) ?? 0) + minutes);
 			facultyLoadByTerm.set(facId, termMap);
 		} else {
@@ -1455,9 +1468,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		facultyLoad.set(facId, (facultyLoad.get(facId) ?? 0) + minutes);
 	}
 
-	function getFacultyProjectedLoadForTerm(facId: number, termIndex: 1 | 2 | 3 | undefined): number {
+	function getFacultyProjectedLoadForTerm(facId: number, termIndex: 1 | 2 | 3 | 4 | undefined): number {
 		const baseLoad = facultyLoadBase.get(facId) ?? 0;
-		if (termIndex === 1 || termIndex === 2 || termIndex === 3) {
+		if (termIndex === 1 || termIndex === 2 || termIndex === 3 || termIndex === 4) {
 			const termMap = facultyLoadByTerm.get(facId);
 			const termLoad = termMap?.get(termIndex) ?? 0;
 			return baseLoad + termLoad;
@@ -1465,10 +1478,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		// Non-rotation candidate check — every term carries baseLoad plus any rotation charge.
 		const termMap = facultyLoadByTerm.get(facId);
 		if (!termMap) return baseLoad;
-		const term1 = termMap.get(1) ?? 0;
-		const term2 = termMap.get(2) ?? 0;
-		const term3 = termMap.get(3) ?? 0;
-		return baseLoad + Math.max(term1, term2, term3);
+		return baseLoad + Math.max(0, ...termMap.values());
 	}
 	const roomById = new Map(rooms.map((room) => [room.id, room]));
 

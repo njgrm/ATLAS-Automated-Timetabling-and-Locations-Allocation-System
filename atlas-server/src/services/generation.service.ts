@@ -20,7 +20,6 @@ import {
 } from './constraint-validator.js';
 import {
 	constructBaseline,
-	computeDemand,
 	buildTimetableShapeContract,
 	buildUnionDisplaySlots,
 	type ConstructorInput,
@@ -30,6 +29,8 @@ import {
 	type UnassignedItem,
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
+import { buildDerivedDemand, toSchedulerDemandOverride } from './derived-demand.service.js';
+import { resolveRequestedTermIndex } from './academic-term.service.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import { getSectionSummary, syncSectionsFromExternal } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -274,7 +275,7 @@ export interface RunSummary {
 			facultyConsecutiveLimitExceeded: number;
 			noValidPeriodInPolicyWindow: number;
 		};
-		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }>;
+		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number }> }>;
 	};
 	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
 	configuredShiftWindowCount?: number;
@@ -282,11 +283,14 @@ export interface RunSummary {
 		term1: number;
 		term2: number;
 		term3: number;
+		term4?: number;
 	};
 	timetableShapeContracts?: TimetableShapeContract[];
 	canonicalTemplateVersion?: string;
 	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>;
 	inputSnapshot?: GenerationInputSnapshot;
+	/** DEMAND-C01: canonical derived-demand semantic revision the run was built from. */
+	derivedDemandRevision?: string;
 }
 
 function normalizeProgramType(programType?: string | null): string {
@@ -500,8 +504,8 @@ export function buildHomeRoomFallbackDiagnostics(
 function buildZoneDistributionByTerm(
 	entries: ScheduledEntry[],
 	roomZoneByRoomId: Map<number, string>,
-): Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }> {
-	const termAgg = new Map<1 | 2 | 3, Map<string, number>>();
+): Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number }> }> {
+	const termAgg = new Map<1 | 2 | 3 | 4, Map<string, number>>();
 	for (const entry of entries) {
 		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
 		const zone = roomZoneByRoomId.get(entry.roomId) ?? 'UNSPECIFIED';
@@ -510,7 +514,11 @@ function buildZoneDistributionByTerm(
 		termAgg.set(termIndex, zoneMap);
 	}
 
-	const terms: Array<1 | 2 | 3> = [1, 2, 3];
+	// Preserve the historical trimester shape; surface the fourth ordered term
+	// only when a verified four-term (QUARTERS) run actually carries it.
+	const highestTerm = Math.max(3, ...termAgg.keys()) as 1 | 2 | 3 | 4;
+	const terms: Array<1 | 2 | 3 | 4> = [];
+	for (let term = 1; term <= highestTerm; term += 1) terms.push(term as 1 | 2 | 3 | 4);
 	return terms.map((termIndex) => {
 		const zoneMap = termAgg.get(termIndex) ?? new Map<string, number>();
 		const total = [...zoneMap.values()].reduce((sum, count) => sum + count, 0);
@@ -525,20 +533,21 @@ function buildZoneDistributionByTerm(
 	});
 }
 
-function normalizeTermIndex(value: unknown): 1 | 2 | 3 {
+function normalizeTermIndex(value: unknown): 1 | 2 | 3 | 4 {
 	const parsed = Number(value);
 	if (parsed === 2) return 2;
 	if (parsed === 3) return 3;
+	if (parsed === 4) return 4;
 	return 1;
 }
 
-function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 {
+function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 | 4 {
 	const firstTermIndex = entry.metadata?.modularAssignments?.[0]?.termIndex;
-	if (firstTermIndex === 2 || firstTermIndex === 3) return firstTermIndex;
+	if (firstTermIndex === 2 || firstTermIndex === 3 || firstTermIndex === 4) return firstTermIndex;
 	return 1;
 }
 
-function resolveEntryTermIndex(entry: ScheduledEntry): 1 | 2 | 3 {
+function resolveEntryTermIndex(entry: ScheduledEntry): 1 | 2 | 3 | 4 {
 	return normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex ?? deriveTermIndexFromMetadata(entry));
 }
 
@@ -549,17 +558,16 @@ function ensureEntriesHaveTermIndex(entries: ScheduledEntry[]): ScheduledEntry[]
 	return entries;
 }
 
-function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: number; term3: number } {
-	return entries.reduce(
-		(acc, entry) => {
-			const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
-			if (termIndex === 2) acc.term2 += 1;
-			else if (termIndex === 3) acc.term3 += 1;
-			else acc.term1 += 1;
-			return acc;
-		},
-		{ term1: 0, term2: 0, term3: 0 },
-	);
+function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: number; term3: number; term4?: number } {
+	const counts = { term1: 0, term2: 0, term3: 0, term4: 0 };
+	for (const entry of entries) {
+		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
+		if (termIndex === 2) counts.term2 += 1;
+		else if (termIndex === 3) counts.term3 += 1;
+		else if (termIndex === 4) counts.term4 += 1;
+		else counts.term1 += 1;
+	}
+	return counts.term4 > 0 ? counts : { term1: counts.term1, term2: counts.term2, term3: counts.term3 };
 }
 
 export function buildQualifiedCoverageBySubject(
@@ -943,7 +951,19 @@ export async function triggerGenerationRun(
 		});
 
 		const schedulableSubjects = subjects.filter((subject) => subject.code !== 'HG');
-		const demand = computeDemand(sectionsByGrade, schedulableSubjects, cohorts, classTemplatePeriods);
+		// DEMAND-C01: the canonical derived-demand contract is the sole demand
+		// authority on the current-year path. A typed blocker replaces any silent
+		// fallback to legacy catalog `computeDemand()` or persisted offerings.
+		const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId, {
+			periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes ?? 45,
+		});
+		if (!derivedDemand.ok) {
+			throw err(409, 'DERIVED_DEMAND_BLOCKED', 'The canonical derived demand could not be resolved for this school year.', {
+				actionHint: 'Resolve the active school year term structure and Subject rotation metadata before generating.',
+				details: { schoolId, schoolYearId, blockers: derivedDemand.blockers },
+			});
+		}
+		const demand = toSchedulerDemandOverride(derivedDemand, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
 		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
 		const constructorInput: ConstructorInput = {
 			schoolId,
@@ -1012,6 +1032,7 @@ export async function triggerGenerationRun(
 			buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
 			classTemplatePeriods,
 			timetableShapes: timetableShapeContracts,
+			demandOverride: demand,
 		};
 		const result = runHybridScheduler(constructorInput);
 		const entriesWithTerms = ensureEntriesHaveTermIndex(result.entries);
@@ -1196,6 +1217,7 @@ export async function triggerGenerationRun(
 			canonicalTemplateVersion: CANONICAL_TEMPLATE_VERSION,
 			timetableDisplaySlots,
 			inputSnapshot,
+			derivedDemandRevision: derivedDemand.revision,
 		};
 
 		const finishedAt = new Date();
@@ -1723,7 +1745,7 @@ function filterViolationsByTerm(
 	entries: ScheduledEntry[],
 	termIndex?: number,
 ): Violation[] {
-	if (termIndex !== 1 && termIndex !== 2 && termIndex !== 3) {
+	if (termIndex !== 1 && termIndex !== 2 && termIndex !== 3 && termIndex !== 4) {
 		return violations;
 	}
 
@@ -1742,6 +1764,7 @@ function filterViolationsByTerm(
 }
 
 export async function getRunViolations(runId: number, schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
+	const resolvedTermIndex = termIndex === undefined ? undefined : await resolveRequestedTermIndex(schoolId, schoolYearId, termIndex);
 	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
@@ -1749,7 +1772,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
 	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
+	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, resolvedTermIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
 
@@ -1765,6 +1788,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 }
 
 export async function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
+	const resolvedTermIndex = termIndex === undefined ? undefined : await resolveRequestedTermIndex(schoolId, schoolYearId, termIndex);
 	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
 	const run = await db().generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
@@ -1773,7 +1797,7 @@ export async function getLatestRunViolations(schoolId: number, schoolYearId: num
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
 	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
+	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, resolvedTermIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
 

@@ -156,6 +156,9 @@ export interface AtlasRuntimeContext {
 		matchedSchoolYear: boolean | null;
 		code: string | null;
 		message: string;
+		orderedTerms?: Array<{ identity: string; displayLabel: string; order: number }>;
+		termFormat?: 'TRIMESTER' | 'QUARTERS' | null;
+		termCount?: number | null;
 	};
 }
 

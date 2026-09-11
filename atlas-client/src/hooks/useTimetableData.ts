@@ -245,7 +245,7 @@ type UseTimetableDataInput = {
 	setViewMode: React.Dispatch<React.SetStateAction<'section' | 'faculty' | 'room'>>;
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
-	termFilter: 'all' | 1 | 2 | 3;
+	termFilter: 'all' | number;
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
 	unassignedReasonFilter: UnassignedReason | 'all';

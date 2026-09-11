@@ -25,7 +25,7 @@ function requireDisposableTarget(): void {
 function snapshot(schoolId: number, schoolYearId: number, fingerprint = 'fixture-input-v1'): GenerationInputSnapshot {
 	const domain = { fingerprint: 'fixture-domain-v1', signals: {} };
 	return {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		schoolId,
 		schoolYearId,
 		computedAt: NOW.toISOString(),
@@ -36,6 +36,7 @@ function snapshot(schoolId: number, schoolYearId: number, fingerprint = 'fixture
 			rooms: domain,
 			sections: domain,
 			subjects: domain,
+			derivedDemand: domain,
 		},
 	};
 }
@@ -208,8 +209,27 @@ async function main(): Promise<void> {
 
 		const school = await prisma.school.create({ data: { name: 'PUB-C01R2 Disposable School', shortName: 'PUBC01R2' } });
 		schoolId = school.id;
+		const fixtureTermCache = {
+			schoolId,
+			schoolYear: { id: schoolYearId, yearLabel: 'Disposable 2030-2031' },
+			format: 'TRIMESTER' as const,
+			terms: [
+				{ identity: 'T1', displayLabel: 'T1', order: 1 },
+				{ identity: 'T2', displayLabel: 'T2', order: 2 },
+				{ identity: 'T3', displayLabel: 'T3', order: 3 },
+			],
+		};
 		await prisma.enrollProSchoolYearMirror.create({
-			data: { schoolId, enrollProSchoolYearId: schoolYearId, yearLabel: 'Disposable 2030-2031', isActive: true, isArchived: false, lastSyncedAt: NOW },
+			data: {
+				schoolId,
+				enrollProSchoolYearId: schoolYearId,
+				yearLabel: 'Disposable 2030-2031',
+				isActive: true,
+				isArchived: false,
+				lastSyncedAt: NOW,
+				termContractCache: fixtureTermCache,
+				termContractCachedAt: NOW,
+			},
 		});
 		await prisma.schoolYearTermConfig.create({
 			data: { schoolId, schoolYearId, termCount: 3, termIdentities: ['T1', 'T2', 'T3'], isActive: true, createdBy: actorId },
@@ -350,9 +370,9 @@ async function main(): Promise<void> {
 		});
 		const ambiguousYear = await zeroWriteGuard(publish, 'ACTIVE_SCHOOL_YEAR_AMBIGUOUS');
 		await prisma.enrollProSchoolYearMirror.delete({ where: { id: secondYear.id } });
-		await prisma.schoolYearTermConfig.update({ where: { schoolId_schoolYearId: { schoolId, schoolYearId } }, data: { termIdentities: ['T1', 'T1', ''] } });
+		await prisma.enrollProSchoolYearMirror.updateMany({ where: { schoolId, enrollProSchoolYearId: schoolYearId }, data: { termContractCache: Prisma.JsonNull } });
 		const invalidTerms = await zeroWriteGuard(publish, 'PUBLICATION_TERM_CONTRACT_INVALID');
-		await prisma.schoolYearTermConfig.update({ where: { schoolId_schoolYearId: { schoolId, schoolYearId } }, data: { termIdentities: ['T1', 'T2', 'T3'] } });
+		await prisma.enrollProSchoolYearMirror.updateMany({ where: { schoolId, enrollProSchoolYearId: schoolYearId }, data: { termContractCache: fixtureTermCache, termContractCachedAt: NOW } });
 
 		const staleRun = await prisma.generationRun.create({
 			data: {

@@ -518,6 +518,8 @@ export interface UnassignedReadinessSummary {
   unresolvedLines: number;
   lineStates: UnassignedReadinessLine[];
   sourceRevisionSha256: string;
+  /** Canonical derived-demand semantic revision consumed by this read (demand authority identity). */
+  derivedDemandRevision: string | null;
   rooms: { teachingRoomCount: number; compatibleRoomCount: number };
   lockedSessionCount: number;
   zeroWrite: true;
@@ -543,6 +545,13 @@ export async function summarizeUnassignedInsertionReadiness(
   schoolYearId: number,
 ): Promise<UnassignedReadinessSummary> {
   const demand = await buildCanonicalTimetableDemand(schoolId, schoolYearId);
+  // FAIL CLOSED: a blocked derived-demand authority must never be rendered as an
+  // empty-looking summary or downgraded into a per-line not-found state.
+  if (demand.derivedDemandBlockers.length > 0) {
+    throw previewError(409, 'DERIVED_DEMAND_BLOCKED', 'Timetable demand cannot be derived for the active year.', {
+      blockers: demand.derivedDemandBlockers,
+    });
+  }
   const policy = await readDayShapePolicy(schoolId, schoolYearId);
   const weeklySlots = policy ? buildWeeklyDayShape(policy) : [];
 
@@ -651,6 +660,7 @@ export async function summarizeUnassignedInsertionReadiness(
     unresolvedLines,
     lineStates,
     sourceRevisionSha256: demand.sourceRevision.sha256,
+    derivedDemandRevision: demand.derivedDemandRevision,
     rooms: { teachingRoomCount, compatibleRoomCount: candidateRooms.length },
     lockedSessionCount: lockedRows.length,
     zeroWrite: true,
@@ -666,6 +676,7 @@ export interface InsertionPreviewResult {
   line: UnassignedReadinessLine;
   candidates: CandidateSlot[];
   state: LinePlacementState;
+  derivedDemandRevision: string | null;
   bound: {
     sourceRevisionSha256: string;
     cycleVersion: number;
@@ -676,11 +687,12 @@ export interface InsertionPreviewResult {
   zeroWrite: true;
 }
 
-function previewError(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
-  const error = new Error(message) as Error & { statusCode: number; code: string };
-  error.statusCode = statusCode;
-  error.code = code;
-  return error;
+function previewError(statusCode: number, code: string, message: string, details?: Record<string, unknown>): Error & { statusCode: number; code: string; details?: Record<string, unknown> } {
+	const error = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, unknown> };
+	error.statusCode = statusCode;
+	error.code = code;
+	if (details) error.details = details;
+	return error;
 }
 
 export function buildInsertionFingerprint(input: {
@@ -734,6 +746,7 @@ export async function previewUnassignedInsertion(
       line,
       candidates,
       state: line.state,
+      derivedDemandRevision: summary.derivedDemandRevision,
       bound: {
         sourceRevisionSha256: summary.sourceRevisionSha256,
         cycleVersion: summary.ownership.cycleVersion,
@@ -768,6 +781,7 @@ export async function previewUnassignedInsertion(
     line,
     candidates,
     state: 'INDIVIDUALLY_PREVIEWABLE',
+    derivedDemandRevision: summary.derivedDemandRevision,
     bound: {
       sourceRevisionSha256: summary.sourceRevisionSha256,
       cycleVersion: summary.ownership.cycleVersion,

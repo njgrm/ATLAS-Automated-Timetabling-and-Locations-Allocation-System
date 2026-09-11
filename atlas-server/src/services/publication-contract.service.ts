@@ -9,6 +9,7 @@ import {
 	extractGenerationInputSnapshot,
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
+import { buildDerivedDemand } from './derived-demand.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -98,12 +99,15 @@ function countRequiredUnassigned(unassignedItems: unknown): number {
 	return unassignedItems.length;
 }
 
-function validateScheduleEntries(entries: unknown): asserts entries is Array<Record<string, unknown>> {
+function validateScheduleEntries(entries: unknown, termCount: number): asserts entries is Array<Record<string, unknown>> {
 	if (!Array.isArray(entries) || entries.some((entry) => {
 		const record = asRecord(entry);
-		return !record || typeof record.entryId !== 'string' || ![1, 2, 3].includes(Number(record.termIndex));
+		return !record || typeof record.entryId !== 'string' || !Number.isInteger(Number(record.termIndex)) || Number(record.termIndex) < 1;
 	})) {
-		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'Every published entry must have an identity and termIndex 1, 2, or 3.');
+		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'Every published entry must have an identity and a positive integer termIndex.');
+	}
+	if (entries.some((entry) => Number((entry as Record<string, unknown>).termIndex) > termCount)) {
+		throw fail(422, 'PUBLICATION_TERM_INDEX_OUTSIDE_CONTRACT', `Every published entry termIndex must be within the verified ${termCount}-term contract for the active school year.`);
 	}
 	const entryIds = entries.map((entry) => String((entry as Record<string, unknown>).entryId));
 	if (new Set(entryIds).size !== entryIds.length) {
@@ -165,16 +169,16 @@ export async function publishSchedule(
 				details: { requestedSchoolYearId: input.schoolYearId, activeSchoolYearId: activeYears[0].enrollProSchoolYearId },
 			});
 		}
-		const termConfig = await tx.schoolYearTermConfig.findUnique({
-			where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
-			select: { termCount: true, termIdentities: true, isActive: true },
-		});
-		const termIdentities = Array.isArray(termConfig?.termIdentities) ? termConfig.termIdentities : [];
-		const normalizedTermIdentities = termIdentities.map((identity) => typeof identity === 'string' ? identity.trim() : '');
-		if (!termConfig || !termConfig.isActive || termConfig.termCount !== 3
-			|| normalizedTermIdentities.length !== 3 || normalizedTermIdentities.some((identity) => identity.length === 0)
-			|| new Set(normalizedTermIdentities).size !== 3) {
-			throw fail(409, 'PUBLICATION_TERM_CONTRACT_INVALID', 'Publication requires one current ordered three-term configuration.');
+		// DEMAND-C01R: current-year term authority is the persisted derived-demand
+		// contract (verified ordered EnrollPro terms + active sections + Subject
+		// scheduling/room semantics + period length), read through the transaction
+		// client. Legacy SchoolYearTermConfig is no longer authoritative and a
+		// QUARTERS (four-term) contract is valid.
+		const derivedAuthority = await buildDerivedDemand(input.schoolId, input.schoolYearId, { client: tx as never });
+		if (!derivedAuthority.ok) {
+			throw fail(409, 'PUBLICATION_TERM_CONTRACT_INVALID', 'Publication requires a verified derived-demand term authority for the active year.', {
+				details: { blockers: derivedAuthority.blockers },
+			});
 		}
 
 		const run = await tx.generationRun.findFirst({
@@ -241,7 +245,7 @@ export async function publishSchedule(
 		if (!summary) {
 			throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'The selected run has no valid schedule snapshot.');
 		}
-		validateScheduleEntries(run.draftEntries);
+		validateScheduleEntries(run.draftEntries, derivedAuthority.termStructure.terms.length);
 		const hardViolationCount = countViolations(run.violations, 'HARD');
 		if (hardViolationCount !== 0) {
 			throw fail(422, 'PUBLISH_BLOCKED_HARD_VIOLATIONS', 'Cannot publish while hard violations exist.', {

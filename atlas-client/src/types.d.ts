@@ -592,7 +592,7 @@ export interface RunSummary {
         }>;
         roomAssignmentReasonCounts?: Record<string, number>;
         zoneDistributionByTerm?: Array<{
-            termIndex: 1 | 2 | 3;
+            termIndex: number;
             total: number;
             byZone: Record<string, {
                 count: number;
@@ -630,7 +630,7 @@ export interface ScheduledEntry {
         roomAssignmentReason?: string;
         modularGroupId?: string;
         modularAssignments?: Array<{
-            termIndex: 1 | 2 | 3;
+            termIndex: number;
             facultyId: number;
             subjectCode: string;
         }>;
