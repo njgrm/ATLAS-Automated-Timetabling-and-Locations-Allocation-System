@@ -98,9 +98,10 @@ hard blockers before separately approving publication.
 - A bounded runtime deployment is safe only when no executor is using the
   shared Tailnet runtime for browser evidence.
 
-Do not integrate the current DEMAND-C01 candidate or start UX-C01, TL-RR01,
-GEN-C02, generation, or publication until DEMAND-C01R passes fresh independent
-QA. Do not restart the shared runtime while live browser QA is active.
+DEMAND-C01 is integrated, so UX-C01, TL-RR01, and GEN-C02 source work is
+unlocked. Live Teaching Load apply, generation, and publication remain locked
+behind their separate previews, QA, and explicit approvals. Do not restart the
+shared runtime while live browser QA is active.
 
 ## Awaited returns and decisions
 
