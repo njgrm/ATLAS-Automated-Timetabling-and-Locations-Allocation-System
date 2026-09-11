@@ -1,5 +1,52 @@
 # Changelog
 
+## [2026-09-11] — GEN-C02R Stakeholder Shape and Mounted Zero-Write Correction
+
+### Added
+- Executable 2026-2027 stakeholder-shape parity tests for the Grade 7/8 morning
+  (`06:00`) and Grade 9/10 afternoon (`09:45–18:30`) frames, program-scope
+  coverage, blocked lunch/health breaks, and a cross-shift substitution mutant.
+- A mounted disposable-PostgreSQL zero-write proof that provisions a guarded
+  `atlas_restore_drill_<date>_genc02r*` database, applies the canonical schema,
+  seeds a minimal fixture, invokes the authenticated privileged readiness route,
+  asserts `zeroWrite:true` with unchanged before/after domain signatures, runs a
+  rolled-back positive control, and drops the database with zero residue.
+- Mounted actor-school authority on both the readiness diagnostic and the
+  generation trigger; unresolved or mismatched scope returns a typed 403 before
+  any service invocation (`SYSTEM_ADMIN` is not a cross-school bypass).
+- `CANONICAL_SHAPE_CAPACITY_EXCEEDED`, `CANONICAL_SHAPE_VIOLATION`,
+  `ROTATION_DEMAND_INCONSISTENT`, and `TL_OWNERSHIP_CONFLICT` typed blockers.
+- `ConstructorInput.pairOwners`: the canonical Teaching Load owner is the sole
+  scheduler candidate for its pair.
+- Readiness `decisionNotes` surfacing the unresolved Friday ARAL/TLE and
+  duplicate-lunch stakeholder decisions.
+
+### Changed
+- Readiness returns structured `BLOCKED` results instead of throwing when the
+  active-year/term authority is unavailable; downstream draft/scheduler paths are
+  skipped. Zero-write truth is bound into `generateAllowed`.
+- Removed the `shouldBypassShapeFilter` loophole: demand above the canonical
+  CLASS capacity is a HARD blocker, never permission to leave the canonical
+  shape. Every scheduled entry is validated against its canonical CLASS rows.
+- Section curriculum grade now derives from the EnrollPro internal
+  `gradeLevelId` (`displayOrder` is presentation only); actual-grade shift
+  windows are no longer passed through the internal-ID normalizer.
+- Nonuniform rotating families fail closed instead of collapsing to the family
+  maximum; per-pair projections preserve each member's exact term, minutes, and
+  session count.
+
+### Decisions Made
+- Generation remains HIGH and was not invoked against live data; the disposable
+  proof ran only inside a new, dropped database.
+- The operator-surface dependency (UX-C01) is explicitly deferred: the server
+  contract is stable but the Simple/Advanced Timetable client still gates on
+  `/curriculum-requirements/:year/readiness`.
+
+### Open Questions
+- Correction 5 (one passive pre-write assembly shared by readiness and the real
+  trigger) remains outstanding; the trigger still performs setup-sync/ensure
+  steps before canonical demand resolution.
+
 ## [2026-09-11] — GEN-C02 Canonical Generation Readiness and Zero-Blocker Dry Run
 
 ### Added

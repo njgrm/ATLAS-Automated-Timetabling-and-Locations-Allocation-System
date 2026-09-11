@@ -117,6 +117,16 @@ Active-year rollover update (`2026-08-06`):
 - Follow-up new-year readiness proof on `2026-08-06`: Dashboard and Campus readiness widgets no longer request `/runs/latest/timetable` before latest-run metadata confirms a current-year run exists; they now show a no-current-timetable empty state instead. Tailnet Playwright verification passed on desktop, mobile portrait, and mobile landscape.
 - Rollover contract note: `docs/reference/enrollpro-rollover-contract-2026-2027.md`.
 
+Canonical Generation Readiness stream (`2026-09-11`, GEN-C02 / GEN-C02R):
+- New read-only diagnostic `GET /api/v1/generation/:schoolId/:schoolYearId/readiness/diagnostic` (privileged; actor-school bound; `?enforceShiftWindows=true` opt-in). It returns the canonical derived-demand revision, pair/line/term totals, Teaching Load coverage, resource/window/slot coverage, retained-lock rejections, real-scheduler assigned/unassigned counts, hard/soft violations, a deterministic blocker list with owning repair surface and next action, unresolved stakeholder decision notes, and a before/after database-signature zero-write proof.
+- The diagnostic executes the real `runHybridScheduler` + `validateHardConstraints` + derived-demand path and is guaranteed zero-write; `generateAllowed` is false whenever the before/after signature differs.
+- Current-year generation, pre-generation draft, timetable sync/setup, and quick-place no longer consult the legacy catalog `computeDemand()`; `runHybridScheduler` fails closed without a canonical derived-demand override.
+- Canonical shape authority is enforced: demand above the exact canonical CLASS capacity is a `CANONICAL_SHAPE_CAPACITY_EXCEEDED` blocker (no shift-widening escape hatch), and every scheduled entry is validated against its grade/program canonical CLASS rows.
+- Section grade scope is derived from the EnrollPro internal `gradeLevelId`; `displayOrder` is presentation only. Shift windows are already actual grades.
+- Exactly one canonical `SubjectSectionOwnership` owner is the scheduler candidate authority per pair; flexible qualification cannot override it.
+- Nonuniform rotating families fail closed with `ROTATION_DEMAND_INCONSISTENT` rather than collapsing to the family maximum.
+- Operator-surface dependency: the Simple/Advanced Timetable client still gates on `/curriculum-requirements/:year/readiness` until the separately accepted UX-C01 candidate consumes this endpoint.
+
 Rollover Readiness stream (`2026-08-31`, RR-01 through RR-04):
 - Health-first probing: `getRolloverStatus`, `previewRolloverSync`, and `applyRolloverSync` call `GET /api/integration/v1/health` first. When health fails, `enrollpro-unreachable` is returned immediately without hitting other feeds.
 - Failure semantics: `applyRolloverSync` catch-block preserves the existing mirror's `isActive` state. Failed applies record `syncStatus: 'failed'`, `failedPhase`, and `failedAt` in mirror metadata. A `ROLLOVER_SYNC_FAILED` audit log entry is written.
