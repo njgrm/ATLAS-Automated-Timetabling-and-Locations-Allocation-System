@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getExpectedCanonicalSlots, KNOWN_PROGRAM_TYPES } from '../services/class-program-slot.service.js';
+import { getExpectedCanonicalSlots, validateCanonicalTemplateRows, KNOWN_PROGRAM_TYPES } from '../services/class-program-slot.service.js';
 import type { ProgramType } from '@prisma/client';
 
 function minutes(value: string): number {
@@ -96,3 +96,15 @@ test('C1-6 mutant control. A cross-shift substitution would violate the frame bo
 	// Conversely an afternoon-only row must not appear in the morning contract.
 	assert.equal(grade7Base.some((row) => row.startTime === '15:30' || row.startTime === '16:15'), false);
 });
+
+test('C8. duplicate canonical rows are detected; set de-duplication cannot hide them', () => {
+	const rows = slots(7, 'REGULAR').map((slot, index) => ({
+		id: index + 1, gradeLevel: 7, programType: 'REGULAR' as const, dayOfWeek: null,
+		startTime: slot.startTime, endTime: slot.endTime, rowKind: slot.rowKind, subjectFamily: null, subjectLabel: null, sourceLabel: 'x', sourceNote: null, isActive: true,
+	}));
+	assert.equal(validateCanonicalTemplateRows(rows, 7, 'REGULAR').some((issue) => issue.startsWith('duplicate-rows:')), false);
+	const duplicated = [...rows, { ...rows[0], id: 999 }];
+	const issues = validateCanonicalTemplateRows(duplicated, 7, 'REGULAR');
+	assert.ok(issues.some((issue) => issue.startsWith('duplicate-rows:')), 'a duplicated canonical row must be reported');
+});
+

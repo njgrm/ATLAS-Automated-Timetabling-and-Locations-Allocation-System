@@ -248,6 +248,9 @@ export function validateCanonicalTemplateRows(
 	const issues: string[] = [];
 	for (const key of expectedKeys) if (!actualKeys.has(key)) issues.push(`missing:${key}`);
 	for (const key of actualKeys) if (!expectedKeys.has(key)) issues.push(`unexpected:${key}`);
+	// GEN-C02R Correction 8: set de-duplication must not hide duplicates that
+	// would silently pass the old missing/unexpected check.
+	if (actualKeys.size !== rows.length) issues.push(`duplicate-rows:${rows.length - actualKeys.size}`);
 	for (const row of rows) {
 		const duration = toMinutes(row.endTime) - toMinutes(row.startTime);
 		if (row.rowKind === 'CLASS' && duration !== 45) issues.push(`invalid-class-duration:${row.startTime}-${row.endTime}`);
