@@ -1,5 +1,39 @@
 # Changelog
 
+## [2026-09-11] — TERM-CONSUME-C02 Ordered Structure vs Active-Term Resolution
+
+### Added
+- Separated EnrollPro's authoritative ordered term structure from current
+  active-term resolution in `enrollpro-term-contract.service.ts`. The active
+  term is now a typed state (`RESOLVED`, `UNRESOLVED`, `UNAVAILABLE`,
+  `CONTRACT_INVALID`) with a nullable `activeTerm`.
+- Added `syncActiveTermContractAuthority` as the single explicit cache writer,
+  invoked only through the actor-scoped rollover path
+  (`POST /runtime/rollover-sync/apply` → `applyRolloverSync({ syncTermContract: true })`).
+- Added failing-first C02 tests plus a DB-backed mounted-route zero-write
+  instrumentation test with a rolled-back positive control and a rollover-path
+  idempotency proof.
+
+### Changed
+- A valid `/integration/v1/school-year` 200 plus `/integration/v1/active-term`
+  409 `ACTIVE_TERM_UNRESOLVED` now yields `VERIFIED_LIVE` with `activeTerm: null`
+  instead of `ENROLLPRO_UNREACHABLE`.
+- Passive reads no longer persist. `GET /subjects/scheduling-authority` performs
+  zero Prisma writes; a cache is used only as exact-school/year, revision-matched
+  degraded data.
+- The semantic revision now binds the ordered structure only, so active-term
+  availability changes do not invalidate the cache identity.
+
+### Decisions Made
+- Cache persistence is opt-in on the rollover service so service-direct callers
+  keep identical network/call behavior; the route opts in.
+- The client `TermAuthority` contract keeps the exact ordered identities and
+  accesses `activeTerm` null-safely.
+
+### Open Questions
+- DEMAND-C01 must consume this authority in its own successor stream; this pass
+  does not implement derived demand, Teaching Load, generation, or publication.
+
 ## [2026-09-11] — TT-UX01 Planner Review and Correction Handoff
 
 ### Added

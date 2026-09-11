@@ -596,7 +596,7 @@ stats={subjectStats}
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{termAuthority.contract.terms.map((term) => (
 							<Badge key={term.identity} variant="outline" className="bg-background/70">
-								{term.displayLabel}{term.identity === termAuthority.contract?.activeTerm.identity ? ' · Active' : ''}
+								{term.displayLabel}{term.identity === termAuthority.contract?.activeTerm?.identity ? ' · Active' : ''}
 							</Badge>
 						))}
 					</div>

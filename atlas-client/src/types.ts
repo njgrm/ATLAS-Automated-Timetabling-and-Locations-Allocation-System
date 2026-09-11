@@ -101,7 +101,14 @@ export type TermAuthority = {
 		schoolYear: { id: number; yearLabel: string };
 		format: 'TRIMESTER' | 'QUARTERS';
 		terms: Array<{ identity: string; displayLabel: string; order: number; startDate: string | null; endDate: string | null }>;
-		activeTerm: { identity: string; displayLabel: string; order: number };
+		activeTerm: { identity: string; displayLabel: string; order: number } | null;
+		activeTermState: {
+			availability: 'RESOLVED' | 'UNRESOLVED' | 'UNAVAILABLE' | 'CONTRACT_INVALID';
+			code: string | null;
+			message: string;
+			reachable: boolean;
+			identity: string | null;
+		};
 		semanticRevision: string;
 	};
 };
