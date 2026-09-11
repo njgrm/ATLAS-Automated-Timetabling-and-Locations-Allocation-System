@@ -17,6 +17,7 @@
     "backup": "tsx src/scripts/atlas-backup.ts backup",
     "backup:retention": "tsx src/scripts/atlas-backup.ts retention",
     "migrate:guarded": "tsx src/scripts/atlas-migrate.ts",
+    "test:migration-guard": "tsx src/__tests__/migration-guard.test.ts",
     "test:auth": "npm run test:system-token-auth && tsx src/__tests__/local-auth.test.ts && tsx src/__tests__/auth-login-integration.test.ts",
     "test:system-token-auth": "tsx src/__tests__/system-token-auth.test.ts",
     "test:seed-email-rules": "tsx src/__tests__/seed-email-rules.test.ts",
