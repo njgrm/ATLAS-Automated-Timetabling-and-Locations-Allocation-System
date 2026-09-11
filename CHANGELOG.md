@@ -1,5 +1,28 @@
 # Changelog
 
+## [2026-09-11] — DEMAND-C01 Independent QA Correction Handoff
+
+### Added
+- Added the bounded DEMAND-C01R executor prompt covering per-scope rotation
+  completeness, complete ordered-term preservation, transactional term
+  authority, canonical revision completeness, generation/publication
+  freshness, and typed Timetable blocker propagation.
+
+### Changed
+- Marked DEMAND-C01 `CORRECTION_REQUIRED` in the living delivery register and
+  kept UX-C01, TL-RR01, GEN-C02, generation, and publication blocked behind a
+  corrected independently accepted demand contract.
+
+### Decisions Made
+- Rejected candidate `eae274bf` after independent QA reproduced incomplete
+  rotation acceptance and a demand-revision collision and source inspection
+  confirmed Q4 collapse and cross-consumer authority gaps.
+
+### Open Questions
+- None for dispatch. Any correction that cannot preserve EnrollPro's complete
+  ordered-term contract inside the bounded server authority lane must return to
+  the primary planner rather than silently reduce the contract.
+
 ## [2026-09-11] — TERM-CONSUME-C02 Ordered Structure vs Active-Term Resolution
 
 ### Added
