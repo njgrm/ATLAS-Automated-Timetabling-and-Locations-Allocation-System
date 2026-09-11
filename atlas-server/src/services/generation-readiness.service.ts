@@ -657,7 +657,32 @@ async function buildGenerationReadinessWithContext(
 	// ── Real scheduler dry run + validator ──────────────────────────────────
 	let scheduler: GenerationReadinessResult['scheduler'] = { ran: false, assignedCount: 0, unassignedCount: 0, policyBlockedCount: 0, classesProcessed: 0, selectedProfileId: null, runtimeMs: 0 };
 	let violations: GenerationReadinessResult['violations'] = { hardCount: 0, softCount: 0, hardCodes: {}, softCodes: {} };
-	const schedulerCanRun = derived.ok && sectionsByGrade.length > 0 && !missingSlotScopes.length && policy.present;
+	let schedulerCanRun = derived.ok && sectionsByGrade.length > 0 && !missingSlotScopes.length && policy.present;
+	// GEN-C02R Correction 10: nonuniform rotating families fail closed before the
+	// scheduler is invoked; the typed blocker is reported through readiness.
+	let demand: DemandItem[] = [];
+	if (schedulerCanRun && derived.ok) {
+		try {
+			demand = toSchedulerDemandOverride(derived, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
+		} catch (error) {
+			const code = (error as { code?: string }).code;
+			const projectionCodes = new Set(['ROTATION_DEMAND_INCONSISTENT', 'DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', 'DERIVED_DEMAND_PROJECTION_INCOMPLETE']);
+			if (code == null || !projectionCodes.has(code)) throw error;
+			blockers.push({
+				code,
+				category: 'DEMAND_AUTHORITY',
+				termIdentity: null,
+				sectionId: null,
+				subjectId: null,
+				subjectCode: null,
+				entity: `Derived demand projection · school ${schoolId} · year ${schoolYearId}`,
+				reason: error instanceof Error ? error.message : String(error),
+				owningSurface: 'Subject rotation authority',
+				nextAction: 'Make every rotating-family member uniform per ordered term or correct the Subject rotation metadata, then re-run readiness.',
+			});
+			schedulerCanRun = false;
+		}
+	}
 	if (schedulerCanRun && derived.ok) {
 		const templateProfiles = await getTemplatePeriodProfiles(schoolId);
 		const canonicalSlotsByGradeProgram = new Map<string, Array<{ startTime: string; endTime: string; subjectFamily: string | null; subjectLabel?: string | null; rowKind: string }>>();
@@ -692,7 +717,6 @@ async function buildGenerationReadinessWithContext(
 			blockers.push(capacityBlocker);
 		}
 
-		const demand = toSchedulerDemandOverride(derived, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
 		const constructorInput: ConstructorInput = {
 			schoolId, schoolYearId,
 			roomingStrategy: 'HOME_ROOM_FIRST',

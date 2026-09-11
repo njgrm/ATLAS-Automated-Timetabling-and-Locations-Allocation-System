@@ -26,6 +26,7 @@ import {
 	deriveCanonicalDemand,
 	buildDerivedDemand,
 	toPerPairDemandItems,
+	toSchedulerDemandOverride,
 	type DerivedDemandInput,
 	type DerivedSubjectInput,
 	type DerivedSectionInput,
@@ -176,6 +177,8 @@ interface MockOverrides {
 	hugeMathMinutes?: boolean;
 	/** C6: change presentation ordering only; authoritative grade must not move. */
 	displayOrderOverride?: number;
+	/** C10: make one rotation-family member nonuniform in weekly minutes. */
+	nonuniformRotation?: boolean;
 }
 
 function buildMockClient(overrides: MockOverrides = {}) {
@@ -204,7 +207,7 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		{ id: 11, code: 'MATH', name: 'Mathematics', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: overrides.hugeMathMinutes ? 5000 : 240, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
 		{ id: 12, code: 'ENG', name: 'English', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
 		{ id: 13, code: 'SCI_BIO', name: 'Science Biology', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 1, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
-		{ id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 2, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
+		{ id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 2, minMinutesPerWeek: overrides.nonuniformRotation ? 300 : 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
 		{ id: 15, code: 'SCI_PHY', name: 'Science Physics', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 3, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
 	];
 
@@ -393,3 +396,47 @@ test('C9. demand above canonical CLASS capacity is a typed HARD blocker (never a
 	assert.ok(capacityBlocker?.sectionId, 'the capacity blocker must name the section');
 	assert.equal(readiness.generateAllowed, false);
 });
+
+test('C10a. a nonuniform rotating family fails closed instead of collapsing to the family maximum', () => {
+	const input = derivedInput();
+	const nonuniform = { ...input, subjects: input.subjects.map((s) => s.id === 14 ? { ...s, minMinutesPerWeek: 300 } : s) };
+	const result = deriveCanonicalDemand(nonuniform);
+	assert.equal(result.ok, true);
+	if (!result.ok) return;
+
+	const sectionsByGrade: SectionsByGrade[] = [{
+		gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7,
+		sections: [{ mirrorId: 501, id: 9001, name: '7-A', maxCapacity: 50, enrolledCount: 40, gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR' }],
+	}];
+	const subjects = derivedSubjects().map((s): ConstructorInput['subjects'][number] => ({
+		id: s.id, code: s.code, name: s.name, minMinutesPerWeek: s.id === 14 ? 300 : s.minMinutesPerWeek,
+		preferredRoomType: 'CLASSROOM', gradeLevels: s.gradeLevels, programScopes: s.programScopes,
+	}));
+
+	// Per-pair projection still preserves each member's exact per-term totals.
+	const items = toPerPairDemandItems(result, sectionsByGrade, subjects);
+	const bio = items.find((item) => item.subjectId === 13);
+	const chem = items.find((item) => item.subjectId === 14);
+	const phy = items.find((item) => item.subjectId === 15);
+	assert.deepEqual(bio?.applicableTermIdentities, ['T1']);
+	assert.deepEqual(chem?.applicableTermIdentities, ['T2']);
+	assert.deepEqual(phy?.applicableTermIdentities, ['T3']);
+	assert.equal(bio?.sessionsPerWeek, 3);
+	assert.equal(chem?.sessionsPerWeek, 5, 'the uneven member keeps its own session count');
+	assert.equal(phy?.sessionsPerWeek, 3);
+
+	// The collapsed scheduler lane must fail closed rather than use max(5) for all terms.
+	assert.throws(
+		() => toSchedulerDemandOverride(result, sectionsByGrade, subjects),
+		(error: unknown) => (error as { code?: string }).code === 'ROTATION_DEMAND_INCONSISTENT',
+	);
+});
+
+test('C10b. readiness reports ROTATION_DEMAND_INCONSISTENT and does not run the scheduler', async () => {
+	const { client } = buildMockClient({ nonuniformRotation: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(readiness.schedulerExecuted, false);
+	assert.ok(readiness.blockers.some((entry) => entry.code === 'ROTATION_DEMAND_INCONSISTENT'));
+	assert.equal(readiness.generateAllowed, false);
+});
+

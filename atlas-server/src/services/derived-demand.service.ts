@@ -609,6 +609,23 @@ export function toSchedulerDemandOverride(
 		const first = ordered[0];
 		const section = sectionByExternalId.get(first.sectionExternalId)!;
 		const primarySubject = subjectById.get(first.subjectId)!;
+
+		// GEN-C02R Correction 10: a rotating family may be collapsed into one
+		// modular lane ONLY when every member preserves exactly one ordered term
+		// and the same weekly minutes/session count. Collapsing a nonuniform family
+		// with the family maximum would over/under-schedule individual terms. Fail
+		// closed with a typed blocker instead of substituting the maximum.
+		const distinctMinutes = new Set(ordered.map((pair) => pair.weeklyMinutes));
+		const distinctSessions = new Set(ordered.map((pair) => pair.sessionsPerWeek));
+		const nonUniformTerm = ordered.some((pair) => pair.termIdentities.length !== 1);
+		if (distinctMinutes.size > 1 || distinctSessions.size > 1 || nonUniformTerm) {
+			throw projectionError('ROTATION_DEMAND_INCONSISTENT', `Rotation family ${first.rotationFamily} is not uniform across ordered terms for section ${first.sectionExternalId}; exact per-term demand cannot be collapsed.`, {
+				rotationFamily: first.rotationFamily,
+				sectionExternalId: first.sectionExternalId,
+				members: ordered.map((pair) => ({ subjectId: pair.subjectId, subjectCode: pair.subjectCode, rotationOrder: pair.rotationOrder, weeklyMinutes: pair.weeklyMinutes, sessionsPerWeek: pair.sessionsPerWeek, termIdentities: pair.termIdentities })),
+			});
+		}
+
 		const maxMinutes = Math.max(...ordered.map((pair) => pair.weeklyMinutes));
 		const periodLength = first.periodLengthMinutes;
 		const sessionsPerWeek = Math.max(1, Math.ceil(maxMinutes / periodLength));
