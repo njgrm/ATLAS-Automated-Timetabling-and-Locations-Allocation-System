@@ -1,5 +1,5 @@
 /**
- * GEN-C02R Correction 3 — actor-school authority on the mounted generation
+ * GEN-C02R Correction 3 â€” actor-school authority on the mounted generation
  * entry points.
  *
  * Run: `npx tsx src/__tests__/generation-readiness-actor-scope-genc02r.test.ts`
@@ -101,4 +101,3 @@ test('UX-C01 dependency. The mounted readiness diagnostic stays exposed with its
 	assert.match(source, /buildGenerationReadiness/, 'the route must consume the canonical readiness service');
 	assert.match(source, /assertActorSchoolScope/, 'the route must bind the actor school');
 });
-

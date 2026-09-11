@@ -1,5 +1,5 @@
 /**
- * GEN-C02 â€” canonical generation readiness and legacy-consumer closure.
+ * GEN-C02 Ã¢â‚¬â€ canonical generation readiness and legacy-consumer closure.
  *
  * Run (server workspace): `npx tsx src/__tests__/generation-canonical-readiness-genc02.test.ts`
  *
@@ -41,7 +41,7 @@ import type { SectionsByGrade } from '../services/section-adapter.js';
 const SCHOOL_ID = 41;
 const SCHOOL_YEAR_ID = 8;
 
-// â”€â”€â”€ 1. Legacy consumer closure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ 1. Legacy consumer closure Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function readServiceSource(relative: string): string {
 	return readFileSync(fileURLToPath(new URL(`../services/${relative}`, import.meta.url)), 'utf8');
@@ -80,7 +80,7 @@ test('1b. the hybrid scheduler fails closed without the derived demand override'
 	assert.equal(empty.unassignedItems.length, 0);
 });
 
-// â”€â”€â”€ 2. Derived per-pair projection parity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ 2. Derived per-pair projection parity Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 const TERM_CONTRACT: VerifiedTermContract = {
 	schoolId: SCHOOL_ID,
@@ -153,7 +153,7 @@ test('2. per-pair projection preserves subject identity, ordered terms, and pari
 	}));
 	const items = toPerPairDemandItems(result, sectionsByGrade, subjects);
 
-	// One item per (subject, section) pair â€” rotation members are NOT collapsed.
+	// One item per (subject, section) pair Ã¢â‚¬â€ rotation members are NOT collapsed.
 	assert.equal(items.length, result.totalPairs);
 	assert.equal(items.length, 5);
 	const bio = items.find((item) => item.subjectId === 13);
@@ -164,7 +164,7 @@ test('2. per-pair projection preserves subject identity, ordered terms, and pari
 	assert.equal(math?.sessionsPerWeek, 4);
 });
 
-// â”€â”€â”€ 3-5. Read-only readiness dry run with an in-memory client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ 3-5. Read-only readiness dry run with an in-memory client Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 interface MockOverrides {
 	ownership?: boolean;
@@ -355,7 +355,7 @@ test('6. a retained placement that no longer matches live demand is reported, ne
 	assert.ok(readiness.blockers.some((entry) => entry.code.startsWith('RETAINED_LOCK_')), 'a rejected retained lock must surface as a blocker');
 });
 
-// â”€â”€â”€ GEN-C02R corrections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ GEN-C02R corrections Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 test('C4a. unavailable term authority returns structured blocked readiness (no throw, zero writes)', async () => {
 	const { client, writes } = buildMockClient({ noTermCache: true });
@@ -477,5 +477,3 @@ test('C7. the canonical owner is the only scheduler candidate for its pair', asy
 	assert.ok(mathEntries.length > 0, 'the owned pair must be scheduled');
 	assert.equal(mathEntries.every((entry) => entry.facultyId === 71), true, 'only the canonical owner may be assigned');
 });
-
-
