@@ -175,7 +175,9 @@ test('the over-cap plan builder carries the bounded adviser tie-break', () => {
 
 test('the reviewed apply persists moves inside the same Serializable transaction', () => {
 	const proposal = source('src/services/teaching-load-suggestion-proposal.service.ts');
-	assert.match(proposal, /refreshedPreview\.distribution\?\.moves/);
+	assert.match(proposal, /refreshedPreview\.distribution/);
+	assert.match(proposal, /isCompleteEvaluatedDistribution/);
+	assert.match(proposal, /distributionPlanSignature/);
 	assert.match(proposal, /TEACHING_LOAD_PROPOSAL_STALE/);
 	assert.match(proposal, /movesApplied/);
 	assert.match(proposal, /isolationLevel: 'Serializable'/);
