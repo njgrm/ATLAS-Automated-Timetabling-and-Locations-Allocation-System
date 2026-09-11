@@ -115,3 +115,10 @@
 - `NON_BLOCKING`: `publication-contract-postgres-concurrency.test.ts` requires an explicitly disposable database (`PUBC01R_DISPOSABLE_DATABASE`) which is not provisioned in this environment; its fixture was updated to a persisted quarterly contract cache and v2 snapshot but the suite was not run here. The target guard was NOT weakened.
 - `NON_BLOCKING`: `pre-generation-draft.service.ts` still uses legacy `computeDemand()` (successor `GEN-C02`).
 - `BLOCKING`: none identified for source acceptance.
+
+### Executor advisory review (DEMAND-C01R2)
+
+- Reviewer context handle: `ses_f70c81000ffeU2CC1qmSrI5X36` (fresh independent changed-scope reviewer; read-only, did not implement).
+- Reviewed range: `ec7d54ed3b94db51fca9a8095a4be13f592b90e6...5347c5db34fbb08761059ac473b83a07d5e37324` (C01R2 delta `422460fa...5347c5db`).
+- Verdict: `ACCEPT_READY` — zero BLOCKING findings. Reviewer independently reran: server/client `tsc`, C01R2 7/7 (controls 4/5/6 disposable PG, zero residue), C01R 10/10, readiness passed, client academic-term 4/4, derived-demand-authority 10/10, term-contract C02 8/8, TL reconciliation 170/0, ttc02 17/17, `git diff --check` clean. Confirmed a trimester rejects Q4 and a quarter accepts Q4 at real service entry points, active fails closed, out-of-contract publication/revision writes nothing, schema-v1 ? `SNAPSHOT_VERSION_MISMATCH`. The strict disposable-DB concurrency suite correctly refused the non-disposable local database (target guard not weakened).
+- Non-blocking observations (no correction commit required): (a) control 7 is helper + wiring proof without a mounted React render test; (b) `atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx` still maps `[1,2,3]` term buckets — outside this prompt's authorized boundary; (c) the C01R2 PG fixture is a row-level disposable fixture (unique fake school/year, zero residue) without a database-name guard, matching the `teaching-load-reconciliation` convention.
