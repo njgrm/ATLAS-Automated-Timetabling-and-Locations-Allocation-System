@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticateWithSystemToken } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import { resolveRuntimeContext } from '../services/runtime-context.service.js';
 import {
@@ -359,34 +359,65 @@ router.post('/rollover-archive/apply', authenticateWithSystemToken, async (req: 
 	}
 });
 
-// ─── RR-TERM-CACHE-C01: narrow, actor-scoped term-authority catch-up ───
+// ─── RR-TERM-CACHE-C01 / C01R: narrow, actor-scoped term-authority catch-up ───
 //
 // Year alignment is reported separately by `/rollover-status`. This contract
 // repairs ONLY a missing/stale persisted ordered-term cache; it never runs the
-// broad faculty/section/Teaching Load rollover apply.
+// broad faculty/section/Teaching Load rollover apply. Both routes are JWT-only
+// privileged operator actions scoped to the authenticated actor's school.
 
-function assertActorTermCacheScope(req: Request, res: Response, schoolId: number): boolean {
+/**
+ * Strict positive-integer parse for the term-authority school parameter. Unlike
+ * the shared `parseSchoolId`, a missing/malformed value must NEVER default to
+ * school 1 — the catch-up workflow is an actor-scoped operator action.
+ */
+function parseStrictTermAuthoritySchoolId(raw: unknown): number | null {
+	if (raw === undefined || raw === null || raw === '') return null;
+	const value = typeof raw === 'number' ? raw : Number(raw);
+	return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+type TermAuthorityCaller = { schoolId: number; actorId: number };
+
+/**
+ * JWT-only, privileged, actor-school-scoped authority gate for BOTH
+ * term-authority routes. It responds with the required typed rejection and
+ * returns `null` before any service, upstream, or database dispatch when the
+ * caller is not a same-school privileged operator.
+ */
+function authorizeTermAuthorityCaller(req: Request, res: Response): TermAuthorityCaller | null {
+	if (!isPrivilegedRole(req.user?.role)) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview or save ordered term authority.' });
+		return null;
+	}
+	const actorId = Number(req.user?.userId);
+	if (!Number.isInteger(actorId) || actorId <= 0) {
+		res.status(403).json({ code: 'ACTOR_USER_REQUIRED', message: 'An authenticated actor identity is required to preview or save ordered term authority.' });
+		return null;
+	}
+	const schoolId = parseStrictTermAuthoritySchoolId(req.body?.schoolId ?? req.query.schoolId);
+	if (schoolId == null) {
+		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
+		return null;
+	}
 	const actorSchool = Number(req.user?.schoolId);
 	if (!Number.isInteger(actorSchool) || actorSchool <= 0) {
 		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Saving term authority requires an authenticated actor school.' });
-		return false;
+		return null;
 	}
 	if (actorSchool !== schoolId) {
-		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot save term authority for another school.' });
-		return false;
+		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot operate on term authority for another school.' });
+		return null;
 	}
-	return true;
+	return { schoolId, actorId };
 }
 
-router.post('/term-authority/preview', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/term-authority/preview', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
-		const result = await withSchoolLock(schoolId, () => previewTermCacheSync({
-			schoolId,
+		const caller = authorizeTermAuthorityCaller(req, res);
+		if (!caller) return;
+		const result = await withSchoolLock(caller.schoolId, () => previewTermCacheSync({
+			schoolId: caller.schoolId,
 			authToken: getUpstreamAuthToken(req),
 		}));
 		res.json(result);
@@ -395,21 +426,13 @@ router.post('/term-authority/preview', authenticateWithSystemToken, async (req: 
 	}
 });
 
-router.post('/term-authority/apply', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/term-authority/apply', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!isPrivilegedRole(req.user?.role)) {
-			res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can save ordered term authority.' });
-			return;
-		}
-		const schoolId = parseSchoolId(req.body?.schoolId ?? req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
-		if (!assertActorTermCacheScope(req, res, schoolId)) return;
-		const result = await withSchoolLock(schoolId, () => applyTermCacheSync({
-			schoolId,
-			actorId: req.user?.userId ?? 0,
+		const caller = authorizeTermAuthorityCaller(req, res);
+		if (!caller) return;
+		const result = await withSchoolLock(caller.schoolId, () => applyTermCacheSync({
+			schoolId: caller.schoolId,
+			actorId: caller.actorId,
 			authToken: getUpstreamAuthToken(req),
 			confirmationText: req.body?.confirmationText,
 			fingerprint: req.body?.fingerprint,

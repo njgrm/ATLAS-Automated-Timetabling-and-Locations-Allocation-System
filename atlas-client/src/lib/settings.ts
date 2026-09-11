@@ -653,15 +653,21 @@ export function describeTermAuthority(termAuthority: TermAuthorityStatus | null 
 	};
 }
 
-export async function previewTermCacheSync(schoolId = 1): Promise<TermCachePreviewResult> {
+export async function previewTermCacheSync(schoolId: number): Promise<TermCachePreviewResult> {
+	if (!Number.isInteger(schoolId) || schoolId <= 0) {
+		throw new Error('An authenticated actor school is required to preview ordered term authority.');
+	}
 	const { data } = await atlasApi.post<TermCachePreviewResult>('/runtime/term-authority/preview', { schoolId });
 	return data;
 }
 
 export async function applyTermCacheSync(
-	schoolId = 1,
+	schoolId: number,
 	input: { confirmationText: string; fingerprint: string },
 ): Promise<TermCacheApplyResult> {
+	if (!Number.isInteger(schoolId) || schoolId <= 0) {
+		throw new Error('An authenticated actor school is required to save ordered term authority.');
+	}
 	const { data } = await atlasApi.post<TermCacheApplyResult>('/runtime/term-authority/apply', {
 		schoolId,
 		confirmationText: input.confirmationText,

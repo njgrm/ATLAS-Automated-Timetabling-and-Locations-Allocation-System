@@ -322,7 +322,7 @@ export default function Dashboard() {
 	const rolloverBlocking = rolloverStatus !== null && !rolloverAligned;
 
 	const {
-		loading, actorScopeBlocked, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
+		loading, actorScopeBlocked, actorSchoolId, buildings, campusImageUrl, subjectCount, facultyCount, sectionCount,
 		unassignedSubjectCount, missingCoverageSubjectIds, buildingSetupStatus, teachingRoomCount,
 		totalRoomCount, activeSchoolYearLabel, activeTerm, activeTermPublished,
 		activeTermUnassignedCount, activeTermHardViolationCount,
@@ -568,9 +568,10 @@ export default function Dashboard() {
 						</Card>
 					) : null}
 
-					{/* Year status guidance */}
-					{rolloverStatus === null || rolloverBlocking ? (
-						<RolloverGuidanceCard compact onStatus={setRolloverStatus} />
+					{/* Year status guidance — only once the authenticated actor school
+					    is resolved. No school-1 fallback and no request from unset scope. */}
+					{actorSchoolId != null && !actorScopeBlocked && (rolloverStatus === null || rolloverBlocking) ? (
+						<RolloverGuidanceCard compact schoolId={actorSchoolId} onStatus={setRolloverStatus} />
 					) : null}
 
 					{/* Stat tiles */}

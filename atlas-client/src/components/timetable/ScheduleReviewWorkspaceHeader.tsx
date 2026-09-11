@@ -737,7 +737,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			</div>
 
 			<div className="px-4 pb-1.5">
-				<RolloverGuidanceCard compact onStatus={setRolloverStatus} onApplied={() => handleRefresh()} />
+				{Number.isInteger(schoolId) && schoolId > 0 ? (
+					<RolloverGuidanceCard compact schoolId={schoolId} onStatus={setRolloverStatus} onApplied={() => handleRefresh()} />
+				) : null}
 			</div>
 
 			{false && showSourceTruthNotice && (

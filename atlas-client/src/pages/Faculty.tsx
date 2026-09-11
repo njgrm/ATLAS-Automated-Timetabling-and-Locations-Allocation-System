@@ -50,7 +50,7 @@ import {
 	getFacultyLoadSortRank,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
-import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 import {
 	getCachedFacultyAssignmentsSummary,
 	requestWithRetry,
@@ -723,7 +723,7 @@ return (
 		>
 
 			<div className="shrink-0 px-4 pt-1 lg:px-5">
-				<RolloverGuidanceCard compact />
+				<ActorScopedRolloverGuidanceCard compact />
 			</div>
 
 			{/* Status Banners */}
