@@ -4179,3 +4179,19 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 
 - Await the pushed EnrollPro correction SHA and its independent QA result.
+
+## [2026-09-11] — GEN-C02R Canonical Capacity and Rotation Demand Correction
+
+### Added
+- Added fail-closed canonical-capacity acceptance criteria to the GEN-C02R one-shot.
+- Added exact per-term rotating-family minute and session parity requirements.
+
+### Changed
+- Expanded the generation correction packet after production-path review found an out-of-shape capacity bypass and max-based rotating-demand collapse risk.
+
+### Decisions Made
+- Demand that exceeds an approved timetable shape shall remain a hard blocker rather than authorize fallback placement.
+- Rotating-family identity parity alone is insufficient; each ordered term shall retain its own exact demand.
+
+### Open Questions
+- The Friday ARAL/TLE stakeholder note remains an explicit unresolved decision and is not silently encoded by this correction.

@@ -221,6 +221,63 @@ make a schedule disagree with the reconciled Teaching Load.
   generic validator violations, a duplicate canonical row, and an unassigned
   rotation line whose returned blocker names the correct term.
 
+## Correction 9 — canonical capacity is a constraint, never an escape hatch
+
+The current constructor computes canonical weekly capacity and deliberately
+bypasses canonical shape filtering when a section's requested sessions exceed
+that capacity. This can reduce the unassigned count by placing sessions in
+broader fallback slots outside the approved stakeholder shift/class-program
+shape. Remove that authority loophole.
+
+- No production path may use demand greater than canonical capacity as
+  permission to ignore canonical CLASS rows, shift windows, breaks, events, or
+  program-specific rows.
+- If a section/term requires more weekly sessions than its exact canonical
+  shape can hold, readiness and generation preflight must return a typed HARD
+  `CANONICAL_SHAPE_CAPACITY_EXCEEDED` blocker before any write.
+- The blocker must name school/year, section, subject or rotation family, grade,
+  program, term identity, required sessions, available canonical sessions, and
+  the owning repair surface. It must not recommend silently widening the shift.
+- Delete or make unreachable the existing `shouldBypassShapeFilter` behavior.
+  A fallback slot may be considered only if it is itself an authoritative row
+  in the exact grade/program/term contract; generic day-span availability is
+  insufficient.
+- Add a failing-first mutant whose demand is one session above canonical
+  capacity. The mutant must remain unassigned/blocked and must never acquire an
+  out-of-shape entry. Prove the same blocker and totals through readiness and
+  trigger preflight.
+- Assert that every generated/dry-run entry belongs to the authoritative
+  canonical row set. A lower unassigned count achieved by leaving that set is a
+  test failure, not an optimization.
+
+## Correction 10 — rotating families preserve exact per-term demand
+
+The current scheduler projection can collapse a rotating family using the
+maximum member minutes and then prove only identity coverage. That is not
+enough: members may legitimately differ in weekly minutes or session counts,
+and a maximum-based projection can over-schedule or under-schedule individual
+terms.
+
+- Bind every rotating-family member to its ordered term identity and preserve
+  that member's exact `weeklyMinutes`, `sessionsPerWeek`, subject identity,
+  owner, section, room requirements, and source revision.
+- Readiness, scheduler input, generated/effective entries, validation, display,
+  and export must agree on exact per-term minutes and session totals. Identity-
+  only or set-only parity does not satisfy this requirement.
+- Do not substitute the family's maximum minutes/session count for every term.
+  Either support nonuniform family members correctly or return a typed
+  `ROTATION_DEMAND_INCONSISTENT` blocker before writes when an unsupported
+  combination is encountered.
+- Add trimester and quarter fixtures with unequal family-member minutes and
+  session counts. Prove that each term receives only its own member's totals,
+  that term order remains authoritative, and that changing one member changes
+  only the corresponding term's projection/revision.
+- Add a negative control showing that the old max-based collapse and the old
+  identity-only parity check would pass while exact term totals are wrong.
+- Preserve effective-resource expansion for modular entries, but verify that
+  expansion neither duplicates nor drops sessions and retains the canonical
+  Teaching Load owner for each member/term.
+
 ## UX-C01 integration dependency
 
 GEN-C02R owns the server contract only. It must keep a stable typed readiness
@@ -249,6 +306,10 @@ this dependency honestly; do not claim the complete operator workflow closed.
 - No client gate is required in this correction because UX-C01 owns that path.
 - Mounted actor-school negative controls and passive-trigger pre-write controls.
 - Exact Teaching Load owner-selection and grade/window-domain mutants.
+- Canonical-capacity overflow, out-of-shape fallback, and all-entry shape-set
+  membership mutants.
+- Nonuniform rotating-family per-term minute/session parity and max-collapse
+  negative controls for both trimester and quarter contracts.
 
 Obtain one fresh independent changed-scope review over
 `6f7b3c52...<new-candidate>`. Fix material findings with additive commits and
