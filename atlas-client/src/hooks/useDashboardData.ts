@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import atlasApi from '@/lib/api';
-import { isUpstreamBackedSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { expireAtlasSession } from '@/lib/auth';
 import { countSubjectsWithMissingCoverage } from '@/lib/coverage';
 import { resolveActorSchoolId } from '@/lib/settings';
 import type { Building, SubjectCoverageSummary } from '@/types';
@@ -31,6 +31,25 @@ export type DashboardCurriculumState = {
 } | null;
 
 /**
+ * DASH-RESILIENCE-C01 — explicit per-domain availability. A failed domain read
+ * is `false` and its values are `null`; a genuine persisted zero is `true` with
+ * value `0`. Availability is what lets the UI distinguish "unavailable" from
+ * "empty" without inventing business values.
+ */
+export type DashboardDomainAvailability = {
+	campus: boolean;
+	subjects: boolean;
+	faculty: boolean;
+	sections: boolean;
+	generation: boolean;
+	curriculum: boolean;
+};
+
+export function unavailableDomainAvailability(): DashboardDomainAvailability {
+	return { campus: false, subjects: false, faculty: false, sections: false, generation: false, curriculum: false };
+}
+
+/**
  * EVAL-C01 — Dashboard catalog/read scope.
  *
  * The Dashboard may only read for the authenticated actor's school. While the
@@ -54,6 +73,8 @@ export function resolveDashboardRequestScope(actorSchoolId: number | null | unde
  * EVAL-C01 — cleared domain state applied when the actor school changes (or
  * is unresolved). Every school-scoped value returns to empty so the previous
  * school's lifecycle, run identity, and publication state can never linger.
+ * DASH-RESILIENCE-C01 — unknown values are `null`, never a synthetic `0`,
+ * `[]`, or `NONE`.
  */
 export function initialDashboardDomainState() {
 	return {
@@ -64,7 +85,7 @@ export function initialDashboardDomainState() {
 		sectionCount: null as number | null,
 		unassignedSubjectCount: null as number | null,
 		missingCoverageSubjectIds: null as number[] | null,
-		latestRunStatus: 'NONE' as LatestRunStatus,
+		latestRunStatus: null as LatestRunStatus | null,
 		latestRunId: null as number | null,
 		violationCount: null as number | null,
 		assignedCount: null as number | null,
@@ -73,6 +94,84 @@ export function initialDashboardDomainState() {
 		curriculum: null as DashboardCurriculumState,
 		activeSchoolYearId: null as number | null,
 		activeSchoolYearLabel: null as string | null,
+		domainAvailability: unavailableDomainAvailability(),
+	};
+}
+
+/**
+ * DASH-RESILIENCE-C01 — classify a failed readiness load.
+ *
+ * HTTP 401 is an authentication failure (the canonical expired-session UX owns
+ * it); HTTP 403 is a scope rejection (the canonical blocked-scope UX owns it).
+ * Every other status is a transient data-source failure that may be retried.
+ */
+export type DashboardLoadErrorKind = 'auth' | 'scope' | 'unavailable';
+
+export function classifyDashboardLoadError(status: number | null | undefined): DashboardLoadErrorKind {
+	if (status === 401) return 'auth';
+	if (status === 403) return 'scope';
+	return 'unavailable';
+}
+
+export type DashboardLoadFailureDecision = {
+	/** Keep the last same-school snapshot visible. */
+	retainSnapshot: boolean;
+	/** Clear every school-scoped value back to unavailable (null). */
+	resetDomainState: boolean;
+	/** Render the blocked-scope card and dispatch no further requests. */
+	blocked: boolean;
+	/** Invoke the canonical expired-session path (clear storage + sign-in). */
+	expireSession: boolean;
+	sourceState: DashboardReadinessSourceState;
+	sourceMessage: string;
+	blockedMessage: string | null;
+};
+
+/**
+ * DASH-RESILIENCE-C01 — pure failure policy for the single readiness pipeline.
+ *
+ * A transient failure preserves the last successful snapshot ONLY for the same
+ * actor school. A 401/403 is authoritative: it clears the snapshot, dispatches
+ * nothing further, and routes to the canonical auth/scope UX.
+ */
+export function resolveDashboardLoadFailure(args: {
+	errorKind: DashboardLoadErrorKind;
+	requestSchoolId: number;
+	lastSuccessSchoolId: number | null;
+}): DashboardLoadFailureDecision {
+	if (args.errorKind === 'auth') {
+		return {
+			retainSnapshot: false,
+			resetDomainState: true,
+			blocked: true,
+			expireSession: true,
+			sourceState: 'no_saved_data',
+			sourceMessage: 'Your session expired. Sign in again to load setup readiness.',
+			blockedMessage: 'Your session expired. Sign in again to continue.',
+		};
+	}
+	if (args.errorKind === 'scope') {
+		return {
+			retainSnapshot: false,
+			resetDomainState: true,
+			blocked: true,
+			expireSession: false,
+			sourceState: 'no_saved_data',
+			sourceMessage: 'We could not confirm your school. Sign in again before reviewing setup.',
+			blockedMessage: 'ATLAS rejected this school request. No dashboard data was loaded.',
+		};
+	}
+	const retain = args.lastSuccessSchoolId != null && args.lastSuccessSchoolId === args.requestSchoolId;
+	return {
+		retainSnapshot: retain,
+		resetDomainState: !retain,
+		blocked: false,
+		expireSession: false,
+		sourceState: 'partial_degraded',
+		sourceMessage: retain
+			? 'Showing saved data. Some checks are unavailable.'
+			: 'Readiness data is unavailable right now. Try again in a moment.',
+		blockedMessage: null,
 	};
 }
 
@@ -83,27 +182,43 @@ type DashboardReadinessSummary = {
 	resolvedAt: string;
 	sourceState: DashboardReadinessSourceState;
 	sourceMessage: string;
+	activeTerm: {
+		source: string;
+		reachable: boolean;
+		verified: boolean;
+		activeTerm: string | null;
+		termIndex: number | null;
+		schoolYearId: number | null;
+		matchedSchoolYear: boolean | null;
+		code: string | null;
+		message: string;
+	} | null;
 	campus: {
+		available: boolean;
 		buildings: Building[];
 		campusImageUrl: string | null;
-		teachingRoomCount: number;
-		totalRoomCount: number;
+		teachingRoomCount: number | null;
+		totalRoomCount: number | null;
 		buildingSetupStatus: BuildingSetupStatus;
 	};
 	subjects: {
-		subjectCount: number;
-		unassignedSubjectCount: number;
+		available: boolean;
+		subjectCount: number | null;
+		unassignedSubjectCount: number | null;
 	};
 	faculty: {
-		facultyCount: number;
+		available: boolean;
+		facultyCount: number | null;
 		lastSyncedAt: string | null;
 	};
 	sections: {
+		available: boolean;
 		sectionCount: number | null;
 		lastSyncedAt: string | null;
 	};
 	generation: {
-		latestRunStatus: LatestRunStatus;
+		available: boolean;
+		latestRunStatus: LatestRunStatus | null;
 		latestRunId: number | null;
 		publishedRunId: number | null;
 		violationCount: number | null;
@@ -114,6 +229,17 @@ type DashboardReadinessSummary = {
 	curriculum: DashboardCurriculumState;
 	lifecyclePhase: LifecyclePhase;
 };
+
+function availabilityFromSummary(summary: DashboardReadinessSummary): DashboardDomainAvailability {
+	return {
+		campus: summary.campus?.available === true,
+		subjects: summary.subjects?.available === true,
+		faculty: summary.faculty?.available === true,
+		sections: summary.sections?.available === true,
+		generation: summary.generation?.available === true,
+		curriculum: summary.curriculum !== null && summary.curriculum !== undefined,
+	};
+}
 
 export type DashboardData = {
 	loading: boolean;
@@ -137,7 +263,7 @@ export type DashboardData = {
 	activeTermPublished: boolean | null;
 	activeTermUnassignedCount: number | null;
 	activeTermHardViolationCount: number | null;
-	latestRunStatus: LatestRunStatus;
+	latestRunStatus: LatestRunStatus | null;
 	latestRunId: number | null;
 	violationCount: number | null;
 	assignedCount: number | null;
@@ -148,6 +274,7 @@ export type DashboardData = {
 	readinessSourceState: DashboardReadinessSourceState;
 	readinessSourceMessage: string;
 	readinessResolvedAt: string | null;
+	domainAvailability: DashboardDomainAvailability;
 	refreshDashboard: () => void;
 	retryActorScope: () => void;
 };
@@ -184,7 +311,7 @@ export function useDashboardData(): DashboardData {
 	const [activeTermPublished, setActiveTermPublished] = useState<boolean | null>(null);
 	const [activeTermUnassignedCount, setActiveTermUnassignedCount] = useState<number | null>(null);
 	const [activeTermHardViolationCount, setActiveTermHardViolationCount] = useState<number | null>(null);
-	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus>('NONE');
+	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus | null>(null);
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
 	const [violationCount, setViolationCount] = useState<number | null>(null);
 	const [assignedCount, setAssignedCount] = useState<number | null>(null);
@@ -198,8 +325,10 @@ export function useDashboardData(): DashboardData {
 	const [readinessSourceState, setReadinessSourceState] = useState<DashboardReadinessSourceState>('checking_source');
 	const [readinessSourceMessage, setReadinessSourceMessage] = useState('Checking readiness source.');
 	const [readinessResolvedAt, setReadinessResolvedAt] = useState<string | null>(null);
+	const [domainAvailability, setDomainAvailability] = useState<DashboardDomainAvailability>(unavailableDomainAvailability());
 	const [refreshNonce, setRefreshNonce] = useState(0);
 	const boundActorRef = useRef<number | null>(null);
+	const lastSuccessSchoolIdRef = useRef<number | null>(null);
 
 	const resetDomainState = useCallback(() => {
 		const cleared = initialDashboardDomainState();
@@ -219,6 +348,7 @@ export function useDashboardData(): DashboardData {
 		setCurriculum(cleared.curriculum);
 		setActiveSchoolYearId(cleared.activeSchoolYearId);
 		setActiveSchoolYearLabel(cleared.activeSchoolYearLabel);
+		setDomainAvailability(cleared.domainAvailability);
 		setActiveTerm(null);
 		setActiveTermPublished(null);
 		setActiveTermUnassignedCount(null);
@@ -270,6 +400,7 @@ export function useDashboardData(): DashboardData {
 		const scope = resolveDashboardRequestScope(actorSchoolId);
 		if (!scope.ready) {
 			resetDomainState();
+			lastSuccessSchoolIdRef.current = null;
 			setDataSource('none');
 			setReadinessSourceState('no_saved_data');
 			setReadinessSourceMessage('We could not confirm your school. Sign in again before reviewing setup.');
@@ -281,192 +412,25 @@ export function useDashboardData(): DashboardData {
 		}
 
 		// EVAL-C01: actor school changed — clear the old school's state and
-		// rebind every request to the new school.
+		// rebind every request to the new school. DASH-RESILIENCE-C01: a
+		// retained snapshot is NEVER carried across an actor-school change.
 		if (boundActorRef.current !== scope.schoolId) {
 			boundActorRef.current = scope.schoolId;
+			lastSuccessSchoolIdRef.current = null;
 			resetDomainState();
 		}
 		setActorScopeBlocked(null);
 
 		const schoolId = scope.schoolId;
 		setLoading(true);
-		setReadinessSourceState('checking_source');
-		setReadinessSourceMessage('Checking readiness source.');
 
-		const loadLegacyDashboardData = () => Promise.all([
-			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${schoolId}/buildings`),
-			atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${schoolId}/campus-image`).catch(() => ({ data: { campusImageUrl: null } })),
-			atlasApi.get<{ count: number; unassignedCount: number }>(`/subjects/stats/${schoolId}`).catch(() => ({ data: { count: 0, unassignedCount: 0 } })),
-		])
-			.then(([bRes, campusImageRes, statsRes]) => {
-				if (cancelled) return;
-				setBuildings(bRes.data.buildings);
-				setCampusImageUrl(campusImageRes.data.campusImageUrl ?? null);
-				setSubjectCount(statsRes.data.count);
-				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? 0);
-				setSummaryTeachingRoomCount(null);
-				setSummaryTotalRoomCount(null);
-				setSummaryBuildingSetupStatus(null);
-				setSummaryLifecyclePhase(null);
-				atlasApi.get<{ faculty: unknown[] }>(`/faculty?schoolId=${schoolId}`)
-					.then((fRes) => { if (!cancelled) setFacultyCount(fRes.data.faculty.length); })
-					.catch(() => { if (!cancelled) setFacultyCount(null); });
-				resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
-					.then(async (initialContext) => {
-						if (cancelled) return;
-						let context = initialContext;
-						// EVAL-C01: never inherit another school's cached year
-						// context. Refresh once; a persisting mismatch blocks
-						// every year-scoped request below.
-						if (context.schoolId != null && context.schoolId !== schoolId) {
-							try {
-								const refreshed = await resolveActiveSchoolYearContext({ forceRefresh: true, allowStaleOnError: true, allowEnrollProFallback: false });
-								if (cancelled) return;
-								context = refreshed;
-							} catch {
-								if (!cancelled) {
-									setActorScopeBlocked('The active-year context belongs to a different school. No dashboard data was loaded.');
-									setLoading(false);
-								}
-								return;
-							}
-							if (context.schoolId != null && context.schoolId !== schoolId) {
-								if (!cancelled) {
-									setActorScopeBlocked('The active-year context belongs to a different school. No dashboard data was loaded.');
-									setSectionCount(null);
-									setLoading(false);
-								}
-								return;
-							}
-						}
-						setDataSource(isUpstreamBackedSchoolYearSource(context.source) ? 'live' : 'cached');
-						setReadinessSourceState(isUpstreamBackedSchoolYearSource(context.source) ? 'verified_live' : 'using_saved_data');
-						setReadinessSourceMessage(isUpstreamBackedSchoolYearSource(context.source) ? 'Verified live readiness data.' : 'Using saved readiness data.');
-						setReadinessResolvedAt(context.cachedAt);
-						setActiveSchoolYearId(context.activeSchoolYearId ?? null);
-						setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
-						if (context.activeTerm?.activeTerm) {
-							setActiveTerm({ activeTerm: context.activeTerm.activeTerm, termIndex: context.activeTerm.termIndex });
-							// Fetch current-term readiness data
-							const termIdx = context.activeTerm.termIndex;
-							const syIdForTerm = context.activeSchoolYearId;
-							if (termIdx && syIdForTerm) {
-								// Check if current term has published schedule
-								atlasApi.get<{ source?: { termScope?: string } }>(`/schools/${schoolId}/schedules/published`, { params: { termIndex: termIdx } })
-									.then((r) => {
-										if (!cancelled) setActiveTermPublished(r.data?.source?.termScope === 'explicit' || r.data?.source?.termScope === 'active');
-									})
-									.catch(() => { if (!cancelled) setActiveTermPublished(false); });
-								// Fetch current-term violations
-								atlasApi.get<{ violations?: unknown[]; totalCount?: number }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex: termIdx } })
-									.then((r) => {
-										if (cancelled) return;
-										const total = typeof r.data.totalCount === 'number'
-											? r.data.totalCount
-											: Array.isArray(r.data.violations) ? r.data.violations.length : null;
-										setActiveTermHardViolationCount(total);
-									})
-									.catch(() => { if (!cancelled) setActiveTermHardViolationCount(null); });
-								// Fetch current-term unassigned count from latest run
-								atlasApi.get<{ run?: { unassignedItems?: Array<{ termIndex?: number }> } }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest`)
-									.then((r) => {
-										if (cancelled) return;
-										const unassigned = r.data.run?.unassignedItems;
-										if (Array.isArray(unassigned)) {
-											const termUnassigned = unassigned.filter((item) => item.termIndex === termIdx);
-											setActiveTermUnassignedCount(termUnassigned.length);
-										} else {
-											setActiveTermUnassignedCount(null);
-										}
-									})
-									.catch(() => { if (!cancelled) setActiveTermUnassignedCount(null); });
-							}
-						}
-						// Override unassignedSubjectCount with subject-section coverage truth (actor-scoped)
-						if (context.activeSchoolYearId) {
-							fetchActorCoverageSummary(schoolId, context.activeSchoolYearId)
-								.then((coverage) => {
-									if (!cancelled) {
-										setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
-										setMissingCoverageSubjectIds(coverage.rows.filter((r) => r.uncoveredSectionCount > 0).map((r) => r.subjectId));
-									}
-								})
-								.catch(() => { /* keep legacy stats value as degraded fallback */ });
-						}
-						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
-						const syId = context.activeSchoolYearId;
-						// Curriculum Requirements readiness (existing read contract only)
-						atlasApi.get<{ readiness: { ready: boolean; termConfigPresent: boolean; requirementCount: number; blockers: Array<{ code: string; message: string }> } }>(`/curriculum-requirements/${syId}/readiness`)
-							.then((r) => {
-								if (cancelled) return;
-								const readiness = r.data.readiness;
-								const blocker = readiness.blockers[0] ?? null;
-								setCurriculum({
-									ready: readiness.ready,
-									termConfigPresent: readiness.termConfigPresent,
-									requirementCount: readiness.requirementCount,
-									blockerCode: blocker?.code ?? null,
-									blockerMessage: blocker?.message ?? null,
-								});
-							})
-							.catch(() => { if (!cancelled) setCurriculum(null); });
-						// Sections summary
-						atlasApi.get<{ totalSections: number }>(`/sections/summary/${syId}?schoolId=${schoolId}`)
-							.then((r) => { if (!cancelled) setSectionCount(r.data.totalSections); })
-							.catch(() => { if (!cancelled) setSectionCount(null); });
-						// Latest generation run
-						atlasApi.get<{ run: { id: number; status: string; summary?: { assignedCount?: number; unassignedCount?: number; hardViolationCount?: number } } | null }>(`/generation/${schoolId}/${syId}/runs/latest`)
-							.then((r) => {
-								if (cancelled) return;
-								const run = r.data.run;
-								if (!run) { setLatestRunStatus('NONE'); setLatestRunId(null); return; }
-								setLatestRunId(run.id);
-								const s = (run.status || '').toUpperCase();
-								if (s === 'COMPLETED' || s === 'SUCCESS') setLatestRunStatus('COMPLETED');
-								else if (s === 'IN_PROGRESS' || s === 'RUNNING' || s === 'PENDING') setLatestRunStatus('IN_PROGRESS');
-								else if (s === 'FAILED' || s === 'ERROR') setLatestRunStatus('FAILED');
-								else setLatestRunStatus('NONE');
-								// Extract summary fields for run health donut
-								if (run.summary) {
-									setAssignedCount(run.summary.assignedCount ?? null);
-									setUnassignedCount(run.summary.unassignedCount ?? null);
-									setHardViolationCount(run.summary.hardViolationCount ?? null);
-								}
-							})
-							.catch(() => { if (!cancelled) { setLatestRunStatus('NONE'); setLatestRunId(null); } });
-						// Latest violations
-						atlasApi.get<{ violations?: unknown[]; totalCount?: number }>(`/generation/${schoolId}/${syId}/runs/latest/violations`)
-							.then((r) => {
-								if (cancelled) return;
-								const total = typeof r.data.totalCount === 'number'
-									? r.data.totalCount
-									: Array.isArray(r.data.violations) ? r.data.violations.length : null;
-								setViolationCount(total);
-							})
-							.catch(() => { if (!cancelled) setViolationCount(null); });
-					})
-					.catch(() => {
-						if (!cancelled) {
-							setSectionCount(null);
-							setReadinessSourceState('partial_degraded');
-							setReadinessSourceMessage('Some readiness sources are unavailable.');
-						}
-					});
-			})
-			.catch(() => {
-				if (!cancelled) {
-					setBuildings([]);
-					setDataSource('none');
-					setReadinessSourceState('no_saved_data');
-					setReadinessSourceMessage('No saved readiness data is available yet.');
-				}
-			})
-			.finally(() => { if (!cancelled) setLoading(false); });
-
+		// DASH-RESILIENCE-C01 — the readiness summary is the SINGLE
+		// authoritative load pipeline. There is no legacy fan-out fallback.
 		atlasApi.get<DashboardReadinessSummary>('/dashboard/readiness-summary', { params: { schoolId } })
 			.then((response) => {
 				if (cancelled) return;
 				const summary = response.data;
+				lastSuccessSchoolIdRef.current = schoolId;
 				setBuildings(summary.campus.buildings ?? []);
 				setCampusImageUrl(summary.campus.campusImageUrl ?? null);
 				setSubjectCount(summary.subjects.subjectCount);
@@ -477,17 +441,6 @@ export function useDashboardData(): DashboardData {
 				setActiveSchoolYearId(summary.activeSchoolYearId);
 				setActiveSchoolYearLabel(summary.activeSchoolYearLabel);
 				setCurriculum(summary.curriculum ?? null);
-				// Override unassignedSubjectCount with subject-section coverage truth (actor-scoped)
-				if (summary.activeSchoolYearId) {
-					fetchActorCoverageSummary(schoolId, summary.activeSchoolYearId)
-						.then((coverage) => {
-							if (!cancelled) {
-								setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
-								setMissingCoverageSubjectIds(coverage.rows.filter((r) => r.uncoveredSectionCount > 0).map((r) => r.subjectId));
-							}
-						})
-						.catch(() => { /* keep readiness-summary value as degraded fallback */ });
-				}
 				setLatestRunStatus(summary.generation.latestRunStatus);
 				setLatestRunId(summary.generation.latestRunId);
 				setViolationCount(summary.generation.violationCount);
@@ -498,23 +451,85 @@ export function useDashboardData(): DashboardData {
 				setReadinessSourceState(summary.sourceState);
 				setReadinessSourceMessage(summary.sourceMessage);
 				setReadinessResolvedAt(summary.resolvedAt);
+				setDomainAvailability(availabilityFromSummary(summary));
+				setActiveTerm(
+					summary.activeTerm && summary.activeTerm.activeTerm
+						? { activeTerm: summary.activeTerm.activeTerm, termIndex: summary.activeTerm.termIndex }
+						: null,
+				);
 				setLoading(false);
+
+				// Actor-scoped, non-authoritative enrichment. Failures keep the
+				// summary values (including null) — they never substitute zero.
+				if (summary.activeSchoolYearId) {
+					fetchActorCoverageSummary(schoolId, summary.activeSchoolYearId)
+						.then((coverage) => {
+							if (!cancelled) {
+								setUnassignedSubjectCount(countSubjectsWithMissingCoverage(coverage));
+								setMissingCoverageSubjectIds(coverage.rows.filter((r) => r.uncoveredSectionCount > 0).map((r) => r.subjectId));
+							}
+						})
+						.catch(() => { /* keep the summary value */ });
+				}
+
+				const termIndex = summary.activeTerm?.termIndex ?? null;
+				const syIdForTerm = summary.activeSchoolYearId;
+				if (termIndex && syIdForTerm) {
+					atlasApi.get<{ source?: { termScope?: string } }>(`/schools/${schoolId}/schedules/published`, { params: { termIndex } })
+						.then((r) => {
+							if (!cancelled) setActiveTermPublished(r.data?.source?.termScope === 'explicit' || r.data?.source?.termScope === 'active');
+						})
+						.catch(() => { if (!cancelled) setActiveTermPublished(null); });
+					atlasApi.get<{ violations?: unknown[]; totalCount?: number }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest/violations`, { params: { termIndex } })
+						.then((r) => {
+							if (cancelled) return;
+							const total = typeof r.data.totalCount === 'number'
+								? r.data.totalCount
+								: Array.isArray(r.data.violations) ? r.data.violations.length : null;
+							setActiveTermHardViolationCount(total);
+						})
+						.catch(() => { if (!cancelled) setActiveTermHardViolationCount(null); });
+					atlasApi.get<{ run?: { unassignedItems?: Array<{ termIndex?: number }> } }>(`/generation/${schoolId}/${syIdForTerm}/runs/latest`)
+						.then((r) => {
+							if (cancelled) return;
+							const unassigned = r.data.run?.unassignedItems;
+							if (Array.isArray(unassigned)) {
+								setActiveTermUnassignedCount(unassigned.filter((item) => item.termIndex === termIndex).length);
+							} else {
+								setActiveTermUnassignedCount(null);
+							}
+						})
+						.catch(() => { if (!cancelled) setActiveTermUnassignedCount(null); });
+				} else {
+					setActiveTermPublished(null);
+					setActiveTermUnassignedCount(null);
+					setActiveTermHardViolationCount(null);
+				}
 			})
 			.catch((error) => {
-				// EVAL-C01: a scope rejection is authoritative — never fall
-				// through to legacy requests for another (or no) school.
-				if (error?.response?.status === 403) {
-					if (!cancelled) {
-						resetDomainState();
-						setDataSource('none');
-						setReadinessSourceState('no_saved_data');
-						setReadinessSourceMessage('We could not confirm your school. Sign in again before reviewing setup.');
-						setActorScopeBlocked('ATLAS rejected this school request. No dashboard data was loaded.');
-						setLoading(false);
-					}
-					return;
+				if (cancelled) return;
+				// DASH-RESILIENCE-C01 — classify the failure and dispatch
+				// NOTHING else. A transient failure retains the same-school
+				// snapshot; 401/403 are authoritative and clear it.
+				const kind = classifyDashboardLoadError(error?.response?.status);
+				const decision = resolveDashboardLoadFailure({
+					errorKind: kind,
+					requestSchoolId: schoolId,
+					lastSuccessSchoolId: lastSuccessSchoolIdRef.current,
+				});
+				if (decision.expireSession) {
+					lastSuccessSchoolIdRef.current = null;
+					expireAtlasSession();
 				}
-				void loadLegacyDashboardData();
+				if (decision.resetDomainState) {
+					lastSuccessSchoolIdRef.current = null;
+					resetDomainState();
+				}
+				setDataSource(decision.retainSnapshot ? 'cached' : 'none');
+				setReadinessSourceState(decision.sourceState);
+				setReadinessSourceMessage(decision.sourceMessage);
+				setActorScopeBlocked(decision.blockedMessage);
+				setLoading(false);
 			});
 
 		return () => {
@@ -532,6 +547,7 @@ export function useDashboardData(): DashboardData {
 	);
 
 	const buildingSetupStatus = useMemo<BuildingSetupStatus>(() => {
+		if (!domainAvailability.campus) return { done: false, subMessage: 'Campus readiness is unavailable.' };
 		if (summaryBuildingSetupStatus) return summaryBuildingSetupStatus;
 		const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
 		const teachingBuildingsWithoutRooms = teachingBuildings.filter((b) => b.rooms.length === 0);
@@ -552,7 +568,7 @@ export function useDashboardData(): DashboardData {
 			}
 		}
 		return { done, subMessage };
-	}, [buildings, summaryBuildingSetupStatus]);
+	}, [buildings, summaryBuildingSetupStatus, domainAvailability.campus]);
 
 	const lifecyclePhase = useMemo<LifecyclePhase>(() => {
 		if (summaryLifecyclePhase) return summaryLifecyclePhase;
@@ -567,6 +583,7 @@ export function useDashboardData(): DashboardData {
 			(sectionCount ?? 0) > 0 &&
 			buildingSetupStatus.done;
 		if (!setupReady) return 'SETUP';
+		if (latestRunStatus === null) return 'SETUP';
 		if (latestRunStatus === 'NONE') return 'PREFERENCES';
 		if (latestRunStatus === 'IN_PROGRESS') return 'GENERATION';
 		if (latestRunStatus === 'FAILED') return 'GENERATION';
@@ -616,6 +633,7 @@ export function useDashboardData(): DashboardData {
 		readinessSourceState,
 		readinessSourceMessage,
 		readinessResolvedAt,
+		domainAvailability,
 		refreshDashboard,
 		retryActorScope,
 	};

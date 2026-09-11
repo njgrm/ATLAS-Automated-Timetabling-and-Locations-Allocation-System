@@ -147,7 +147,7 @@ export interface AtlasRuntimeContext {
 		} | null;
 	};
 	activeTerm?: {
-		source: 'enrollpro-verified' | 'enrollpro-unreachable' | 'enrollpro-contract-drift' | 'atlas-unverified';
+		source: 'enrollpro-verified' | 'enrollpro-unresolved' | 'enrollpro-unreachable' | 'enrollpro-contract-drift' | 'atlas-unverified';
 		reachable: boolean;
 		verified: boolean;
 		activeTerm: string | null;

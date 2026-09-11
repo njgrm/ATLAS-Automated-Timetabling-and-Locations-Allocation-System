@@ -11,13 +11,23 @@ type RunHealthDonutProps = {
 	assignedCount: number | null;
 	unassignedCount: number | null;
 	hardViolationCount: number | null;
-	latestRunStatus: string;
+	latestRunStatus: string | null;
 	loading: boolean;
 };
 
 export function RunHealthDonut({ assignedCount, unassignedCount, hardViolationCount, latestRunStatus, loading }: RunHealthDonutProps) {
 	if (loading) {
 		return <div className='h-[180px] flex items-center justify-center text-sm text-muted-foreground'>Loading...</div>;
+	}
+
+	// DASH-RESILIENCE-C01 — an unavailable generation read is not "no run yet".
+	if (latestRunStatus === null) {
+		return (
+			<div className='h-[180px] flex flex-col items-center justify-center text-sm text-muted-foreground'>
+				<AlertTriangle className='size-8 mb-2 opacity-50' />
+				<p>Run health unavailable</p>
+			</div>
+		);
 	}
 
 	if (latestRunStatus === 'NONE') {

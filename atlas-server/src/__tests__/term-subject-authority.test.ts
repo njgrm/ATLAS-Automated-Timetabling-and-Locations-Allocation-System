@@ -276,6 +276,48 @@ test('generic active-term adapter resolves T4 and rejects a mismatched year', as
 	});
 });
 
+test('DASH-RESILIENCE-C01: reachable active-term 409 ACTIVE_TERM_UNRESOLVED stays typed, never unreachable', async () => {
+	await withEnrollProFixture({
+		'/integration/v1/active-term': {
+			status: 409,
+			body: { code: 'ACTIVE_TERM_UNRESOLVED', message: 'No term contains the current date.' },
+		},
+	}, async (baseUrl) => {
+		const previousApi = process.env.ENROLLPRO_API;
+		const previousToken = process.env.ENROLLPRO_SERVICE_TOKEN;
+		process.env.ENROLLPRO_API = baseUrl;
+		process.env.ENROLLPRO_SERVICE_TOKEN = 'fixture-token';
+		try {
+			const result = await fetchEnrollProActiveTerm(undefined, 88, ['T1', 'T2', 'T3']);
+			assert.equal(result.reachable, true, 'a typed 409 is a reachable upstream state');
+			assert.equal(result.verified, false);
+			assert.equal(result.code, 'ACTIVE_TERM_UNRESOLVED');
+			assert.notEqual(result.source, 'enrollpro-unreachable', 'typed 409 must not collapse to unreachable');
+			assert.match(result.message, /unresolved|current date|no term/i);
+		} finally {
+			if (previousApi === undefined) delete process.env.ENROLLPRO_API; else process.env.ENROLLPRO_API = previousApi;
+			if (previousToken === undefined) delete process.env.ENROLLPRO_SERVICE_TOKEN; else process.env.ENROLLPRO_SERVICE_TOKEN = previousToken;
+		}
+	});
+});
+
+test('DASH-RESILIENCE-C01: active-term network failure stays unreachable and preserves the source', async () => {
+	const previousApi = process.env.ENROLLPRO_API;
+	const previousToken = process.env.ENROLLPRO_SERVICE_TOKEN;
+	// Reserved TEST-NET port with no listener: deterministic connection refusal.
+	process.env.ENROLLPRO_API = 'http://127.0.0.1:1';
+	process.env.ENROLLPRO_SERVICE_TOKEN = 'fixture-token';
+	try {
+		const result = await fetchEnrollProActiveTerm(undefined, 88, ['T1', 'T2', 'T3']);
+		assert.equal(result.reachable, false);
+		assert.equal(result.verified, false);
+		assert.equal(result.source, 'enrollpro-unreachable');
+	} finally {
+		if (previousApi === undefined) delete process.env.ENROLLPRO_API; else process.env.ENROLLPRO_API = previousApi;
+		if (previousToken === undefined) delete process.env.ENROLLPRO_SERVICE_TOKEN; else process.env.ENROLLPRO_SERVICE_TOKEN = previousToken;
+	}
+});
+
 test('matching verified cache is degraded, while cross-year cache blocks', async () => {
 	const live = await withResolvedFixtureContract();
 	const matchingCache: CachedTermContractRecord = {

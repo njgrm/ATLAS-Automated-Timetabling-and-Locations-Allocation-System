@@ -50,6 +50,48 @@
 ### Open Questions
 - None. This is a `LOW` source correction pending independent QA verification.
 
+## [2026-09-11] — DASH-RESILIENCE-C01 Saved Dashboard Truth During Upstream Failures
+
+### Added
+- `available` discriminators on every `/dashboard/readiness-summary` domain
+  (`campus`, `subjects`, `faculty`, `sections`, `generation`) plus a typed
+  `activeTerm` field, so unavailable domains and typed term states are explicit
+  in the API contract.
+- `aggregateDashboardSummary` in `dashboard-readiness.service.ts`: a pure,
+  testable assembler that never coerces a failed domain read into `0`, `[]`, or
+  `NONE`.
+- Client helpers `classifyDashboardLoadError`, `resolveDashboardLoadFailure`,
+  `unavailableDomainAvailability`, and `expireAtlasSession`, with failing-first
+  decision-path tests.
+- A concise Dashboard degraded state (saved-data copy + one Retry) and
+  availability-aware stat tiles/checklist.
+- Server `dashboard-stale-readiness.test.ts` covering typed 409, EnrollPro
+  outage, unavailable-vs-zero, mounted-route 409/401, and zero-residue.
+
+### Changed
+- `active-term-adapter.service.ts` preserves a reachable HTTP 409
+  `ACTIVE_TERM_UNRESOLVED` as `source:'enrollpro-unresolved'`, `reachable:true`,
+  `code:'ACTIVE_TERM_UNRESOLVED'`; other non-2xx preserve the upstream code and
+  stay `enrollpro-unreachable`.
+- `useDashboardData` uses `/dashboard/readiness-summary` as its SINGLE load
+  pipeline; the legacy fan-out fallback was removed.
+- HTTP 401 now routes through the canonical expired-session UX
+  (`atlas:session-expired` → `/login`); HTTP 403 shows the blocked-scope card.
+  Neither dispatches legacy or fallback-school requests.
+- A transient same-school refresh failure retains the last successful snapshot;
+  a snapshot is never retained across an actor-school change.
+
+### Decisions Made
+- Unavailable is modeled explicitly (nullable values + `available:false`) rather
+  than with valid-looking placeholders; the lifecycle holds at `SETUP` for any
+  unknown value.
+- The superseded Curriculum Requirements workflow is out of scope and recorded
+  as the DEMAND-C01/UX-C01 dependency.
+
+### Open Questions
+- None blocking review. The planner owns integration sequencing with
+  `TL-UX-C01R2` and the shared-runtime deployment gate.
+
 ## [2026-09-11] — TERM-CONSUME-C02 Ordered Structure vs Active-Term Resolution
 
 ### Added
