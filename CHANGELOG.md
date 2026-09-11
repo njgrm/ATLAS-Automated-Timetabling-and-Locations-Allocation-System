@@ -4250,3 +4250,22 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - None for this bounded correction; live generation remains separately gated.
+## [2026-09-11] — UX-C01R generation-readiness correction packet
+
+### Added
+- Added a bounded UX correction packet that separates derived-demand input
+  readiness from complete generation readiness.
+
+### Changed
+- Marked UX-C01 correction-required after primary-planner review found that the
+  Timetable and Dashboard can overclaim readiness from the narrower derived
+  demand result.
+
+### Decisions Made
+- The GEN-C02 diagnostic is the sole generation gate; derived demand remains an
+  explanatory setup milestone.
+- UX-C01R and GEN-C02R1 may execute in parallel against a pinned interface, but
+  final acceptance requires combined integration tests.
+
+### Open Questions
+- None for source correction. Live generation remains separately gated.
