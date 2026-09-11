@@ -10,6 +10,7 @@ import {
 	minutesBetween,
 } from '@/lib/timetable-utils';
 import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
+import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
 import { buildTimetableGenerationPath } from '@/components/timetable/timetableSchoolScope';
 import type {
 	Building,
@@ -76,12 +77,7 @@ type TimetableApiErrorPayload = {
 	actionHint?: string;
 };
 
-export type TimetableCurriculumReadinessState =
-	| { state: 'loading'; message: string }
-	| { state: 'ready'; message: string }
-	| { state: 'blocked'; message: string; code: string | null }
-	| { state: 'unavailable'; message: string }
-	| { state: 'failed'; message: string };
+export type { TimetableCurriculumReadinessState };
 
 function getTimetableApiErrorPayload(error: unknown): TimetableApiErrorPayload | null {
 	const payload = (error as { response?: { data?: TimetableApiErrorPayload } } | null)?.response?.data;
@@ -476,7 +472,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const [schoolYearContext, setSchoolYearContext] = useState<ActiveSchoolYearContext | null>(null);
 	const [schoolId, setSchoolId] = useState<number | null>(null);
 	const resolvedSchoolIdRef = useRef<number | null>(null);
-	const [curriculumReadiness, setCurriculumReadiness] = useState<TimetableCurriculumReadinessState>({ state: 'loading', message: 'Checking year, terms, and subject demand…' });
+	const generationReadinessSeqRef = useRef(0);
+	const [curriculumReadiness, setCurriculumReadiness] = useState<TimetableCurriculumReadinessState>({ state: 'loading', message: 'Checking generation readiness…' });
+	// UX-C01R — a school/year change invalidates any prior readiness decision so
+	// a stale ready result can never gate generation for a different scope.
+	useEffect(() => {
+		generationReadinessSeqRef.current += 1;
+		setCurriculumReadiness({ state: 'loading', message: 'Checking generation readiness…' });
+	}, [schoolId, schoolYearId]);
 	useEffect(() => {
 		selectedRunIdRef.current = selectedRunId;
 	}, [selectedRunId]);
@@ -1179,31 +1182,30 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [schoolId, setRuns]);
 
 	const fetchCurriculumReadiness = useCallback(async (syId: number) => {
-		if (!schoolId) {
-			setCurriculumReadiness({ state: 'unavailable', message: 'Your school scope could not be verified.' });
+		if (!schoolId || resolvedSchoolIdRef.current !== schoolId) {
+			setCurriculumReadiness({ state: 'unavailable', message: 'Your school scope could not be verified. Sign in again, then retry.' });
 			return;
 		}
-		setCurriculumReadiness({ state: 'loading', message: 'Checking year, terms, and subject demand…' });
+		// UX-C01R — only the canonical generation diagnostic may gate generation.
+		// The narrower derived-demand readiness route proves demand derivation; it
+		// does not include Teaching Load ownership, canonical shape, policy/
+		// template/window, retained-placement, or hard-validator blockers.
+		const requestSeq = generationReadinessSeqRef.current + 1;
+		generationReadinessSeqRef.current = requestSeq;
+		setCurriculumReadiness({ state: 'loading', message: 'Checking generation readiness (Teaching Load, shape, policy, validators)…' });
 		try {
-			const { data } = await atlasApi.get<{ available?: boolean; ready?: boolean; blockerMessage?: string | null; blockers?: Array<{ code?: string; message?: string }> }>(
-				`/derived-demand/${schoolId}/${syId}/readiness`,
+			const { data } = await atlasApi.get<{ readiness?: unknown }>(
+				buildTimetableGenerationPath(schoolId, syId, '/readiness/diagnostic'),
 			);
-			if (data.available !== true) {
-				setCurriculumReadiness({ state: 'unavailable', message: 'Derived demand is unavailable for this school year.' });
-			} else if (data.ready) {
-				setCurriculumReadiness({ state: 'ready', message: 'Year, terms, and subject demand are ready for generation.' });
-			} else {
-				const blocker = data.blockers?.[0];
-				setCurriculumReadiness({
-					state: 'blocked',
-					code: blocker?.code ?? null,
-					message: blocker?.message ?? data.blockerMessage ?? 'Derived demand needs attention before generation.',
-				});
-			}
+			if (requestSeq !== generationReadinessSeqRef.current) return;
+			// A diagnostic for a different school/year, a failed read, or a
+			// derived-ready-but-blocked diagnostic never reuses a prior ready.
+			setCurriculumReadiness(deriveGenerationReadinessState(data?.readiness, { schoolId, schoolYearId: syId }));
 		} catch (error) {
+			if (requestSeq !== generationReadinessSeqRef.current) return;
 			setCurriculumReadiness({
 				state: 'failed',
-				message: buildTimetableErrorMessage(error, 'Derived demand could not be checked. Retry before generating.'),
+				message: buildTimetableErrorMessage(error, 'Generation readiness could not be checked. Retry before generating.'),
 			});
 		}
 	}, [schoolId]);

@@ -8,6 +8,8 @@
  * Run: `npx tsx --test src/hooks/__tests__/dashboard-lifecycle-truth.test.ts`
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -223,4 +225,78 @@ test('review with violations => audit action with blocker count', () => {
 	});
 	assert.equal(next.href, '/audit?focus=timetable');
 	assert.ok(next.warn);
+});
+
+// --- UX-C01R: derived-demand readiness is an input milestone, not generation approval ---
+
+const READY_DERIVED = {
+	available: true,
+	ready: true,
+	yearLabel: '2030-2031',
+	revision: 'REV-A',
+	termStructure: { format: 'QUARTERS' as const, terms: [{ identity: 'Q1', displayLabel: 'Quarter 1', order: 1 }] },
+	blockers: [],
+	subjectMetadataExceptions: [],
+	totals: { totalLines: 40, totalPairs: 12, byTerm: { Q1: 40 } },
+	blockerCode: null,
+	blockerMessage: null,
+	error: null,
+};
+
+function preferencesNext(derivedDemand: typeof READY_DERIVED | null) {
+	return pickNextStep({
+		phase: 'PREFERENCES',
+		subjectCount: 22,
+		facultyCount: 42,
+		sectionCount: 20,
+		unassignedSubjectCount: 0,
+		missingCoverageSubjectIds: [],
+		buildingsDone: true,
+		latestRunStatus: 'NONE',
+		violationCount: null,
+		derivedDemand,
+		degraded: false,
+	});
+}
+
+test('UX-C01R: demand inputs ready => check generation readiness, never "generate" or "zero blockers"', () => {
+	const next = preferencesNext(READY_DERIVED);
+	assert.equal(next.cta, 'Check generation readiness');
+	assert.equal(next.href, '/timetable');
+	assert.doesNotMatch(next.title, /generate the timetable/i);
+	assert.doesNotMatch(next.body, /setup is complete/i);
+	assert.doesNotMatch(next.body, /zero blocker/i);
+});
+
+test('UX-C01R negative control: derived-ready with missing exact owner still asks for a readiness check', () => {
+	// The Dashboard only knows demand inputs are ready; exact subject-section
+	// ownership is verified on the Timetable, so the primary action must not
+	// claim generation is safe.
+	const next = preferencesNext(READY_DERIVED);
+	assert.equal(next.href, '/timetable');
+	assert.doesNotMatch(next.cta, /^generate/i);
+});
+
+test('UX-C01R negative control: derived-ready with a shape blocker still asks for a readiness check', () => {
+	const next = preferencesNext(READY_DERIVED);
+	assert.equal(next.cta, 'Check generation readiness');
+	assert.notEqual(next.href, '/curriculum-requirements');
+});
+
+test('UX-C01R negative control: stale prior-school readiness is cleared, never carried into the next school', () => {
+	assert.equal(initialDashboardDomainState().derivedDemand, null);
+	// A transient failure retains only the same-school snapshot; a school change clears it.
+	const otherSchool = resolveDashboardLoadFailure({ errorKind: 'unavailable', requestSchoolId: 6, lastSuccessSchoolId: 5 });
+	assert.equal(otherSchool.retainSnapshot, false);
+	assert.equal(otherSchool.resetDomainState, true);
+});
+
+test('UX-C01R: the Dashboard copy never presents derived demand as final generation authority', () => {
+	const dashboardSource = readFileSync(resolve(import.meta.dirname, '../../pages/Dashboard.tsx'), 'utf8');
+	assert.doesNotMatch(dashboardSource, /Every subject has a teacher/);
+	assert.doesNotMatch(dashboardSource, /Setup is complete\. Run the generator/);
+	assert.match(dashboardSource, /Check generation readiness/);
+	assert.match(dashboardSource, /input milestone/);
+	// Teaching Load language distinguishes subject-level coverage from exact ownership.
+	assert.match(dashboardSource, /exact subject-section ownership/i);
 });

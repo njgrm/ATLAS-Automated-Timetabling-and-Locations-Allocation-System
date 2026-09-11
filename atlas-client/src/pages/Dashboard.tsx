@@ -289,7 +289,16 @@ export function pickNextStep(args: {
 		}
 	}
 	if (phase === 'PREFERENCES') {
-		return { title: 'Generate the timetable', body: 'Setup is complete. Run the generator and review the result.', cta: 'Open timetable', href: '/timetable' };
+		// UX-C01R — derived-demand inputs being ready is an input milestone, not
+		// final generation approval. Teaching Load ownership, canonical shape,
+		// policy/template/window, and hard-validator readiness are verified on the
+		// Timetable before generation, so the primary action is a readiness check.
+		return {
+			title: 'Check generation readiness',
+			body: 'Year, terms, subjects, and expected demand are ready. Confirm Teaching Load ownership, schedule shape, policy, and hard validators on the Timetable before generating.',
+			cta: 'Check generation readiness',
+			href: '/timetable',
+		};
 	}
 	if (phase === 'GENERATION') {
 		if (latestRunStatus === 'FAILED') {
@@ -355,8 +364,8 @@ export default function Dashboard() {
 		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, href: '/teachers', hint: !domainAvailability.faculty ? 'Faculty data is unavailable' : undefined },
 		{ label: 'EnrollPro year and ordered terms ready', done: derivedDemandAvailable && derivedTermStructure !== null && !derivedTermBlocker, href: '/admin/year-setup', hint: !derivedDemandAvailable ? 'Year and terms could not be read' : derivedTermBlocker ? (derivedTermBlocker.message ?? 'Refresh the active EnrollPro year and terms') : undefined },
 		{ label: 'Subject scheduling metadata complete', done: derivedDemandAvailable && derivedMetadataExceptions.length === 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Subject metadata could not be checked' : derivedMetadataExceptions.length > 0 ? (derivedMetadataExceptions[0].subjectCode ? `${derivedMetadataExceptions[0].subjectCode}: ${derivedMetadataExceptions[0].message}` : derivedMetadataExceptions[0].message) : undefined },
-		{ label: 'Derived demand prepared', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Derived demand could not be read' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} session${derivedTotals.totalLines === 1 ? '' : 's'}` : 'No derived demand yet' },
-		{ label: 'Every subject has a teacher', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Coverage is unavailable' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
+		{ label: 'Derived demand prepared (input milestone)', done: derivedDemandAvailable && (derivedTotals?.totalPairs ?? 0) > 0, href: '/subjects', hint: !derivedDemandAvailable ? 'Derived demand could not be read' : derivedTotals ? `${derivedTotals.totalPairs} subject-section pair${derivedTotals.totalPairs === 1 ? '' : 's'} · ${derivedTotals.totalLines} session${derivedTotals.totalLines === 1 ? '' : 's'} — inputs only, not final generation approval` : 'No derived demand yet' },
+		{ label: 'Subjects have teacher coverage', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Coverage is unavailable' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : 'Subject-level coverage only — exact subject-section ownership is confirmed on the Timetable' },
 		{ label: 'Buildings and rooms ready', done: domainAvailability.campus && buildingSetupStatus.done, href: '/map', hint: !domainAvailability.campus ? 'Campus data is unavailable' : buildingSetupStatus.subMessage },
 		{ label: 'Timetable generated and reviewed', done: domainAvailability.generation && latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: !domainAvailability.generation ? 'Generation status is unavailable' : latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
 		// EVAL-C01: only a resolved published schedule counts as published.

@@ -1,5 +1,55 @@
 # Changelog
 
+## [2026-09-11] — UX-C01R Generation Readiness and Formal QA Closure
+
+### Added
+- Added the pure client generation-readiness adapter
+  (`atlas-client/src/lib/timetable-generation-readiness.ts`) that parses the
+  canonical generation diagnostic, keeps the full readiness state (derived/source
+  revisions, `generateAllowed`, `schedulerExecuted`, blocker list, term
+  structure, demand totals, Teaching Load coverage, zero-write proof), and
+  derives exactly one smallest repair per blocked item.
+- Added failing-first client tests
+  (`uxc01r-generation-readiness.test.ts`) proving a derived-ready year with a
+  Teaching Load, canonical-shape, stale-source, policy/window/template, or
+  hard-validator blocker stays generation-blocked where the retired raw
+  `data.ready` boolean would have enabled it.
+- Added a mounted read-only route suite
+  (`uxc01r-derived-demand-route.test.ts`) proving auth/privilege/actor-scope/
+  malformed-param rejection happens before any authority call, that ready and
+  typed-blocked reads preserve revision/blockers/totals, that unclassified
+  failures stay errors, and — against a disposable PostgreSQL fixture — that the
+  route is zero-write with a rolled-back positive control.
+- Added `createDerivedDemandRouter(authority)` so the mounted route's authority
+  is injectable for gating and read/write instrumentation.
+
+### Changed
+- The Timetable generation gate now consumes the canonical GEN-C02 diagnostic
+  (`GET /api/v1/generation/:schoolId/:schoolYearId/readiness/diagnostic`) as its
+  sole authority instead of the derivation-only derived-demand readiness route;
+  the narrower derived-demand endpoint remains the Dashboard's input-milestone
+  read.
+- The client readiness state is cleared whenever the actor school or school year
+  changes, and a request-sequence guard prevents a stale cross-scope response
+  from gating generation.
+- The shared capability model now refuses generation unless the diagnostic
+  proves `generateAllowed`, zero-write, an executed scheduler dry run, and zero
+  blockers; blocked states surface the blocker's owning repair (Teaching Load,
+  rooms, or Year Setup) instead of a hard-coded destination.
+- Dashboard `PREFERENCES` copy now says `Check generation readiness` (opens the
+  Timetable) instead of `Generate the timetable`/`Setup is complete`; the
+  Teaching Load checklist item distinguishes subject-level coverage from exact
+  derived subject-section ownership, and derived demand is labelled an input
+  milestone.
+
+### Decisions Made
+- Derived demand is an input milestone, not generation authority: only the
+  canonical diagnostic that also binds Teaching Load ownership, shape, policy,
+  and validators may enable generation.
+- The Timetable positive ready-diagnostic browser matrix is deferred to combined
+  GEN-C02R1 integration because the diagnostic route is owned by GEN-C02R1 and is
+  not present in this candidate's base.
+
 ## [2026-09-11] — UX-C01 Derived Setup Operator UX
 
 ### Added

@@ -12,7 +12,9 @@
     "test:timetable-conflict": "tsx --test src/lib/__tests__/timetable-live-conflict.test.ts src/lib/__tests__/tactical-sandbox-dock-helpers.test.ts",
     "test:timetable-operator-ux": "tsx --test src/lib/__tests__/timetable-operator-workflow-state.test.ts src/lib/__tests__/timetable-ttc02-insertion.test.ts src/lib/__tests__/timetable-capabilities.test.ts src/lib/__tests__/timetable-operator-repair.test.ts",
     "test:ux-guardrails": "tsx --test src/lib/__tests__/ux-guardrails.test.ts src/lib/__tests__/public-schedule-grade.test.ts src/hooks/__tests__/useTeachingLoadRouteIntent.test.ts",
-    "test:derived-setup-ux": "tsx --test src/lib/__tests__/uxc01-derived-setup-surface.test.ts src/hooks/__tests__/dashboard-lifecycle-truth.test.ts"
+    "test:derived-setup-ux": "tsx --test src/lib/__tests__/uxc01-derived-setup-surface.test.ts src/hooks/__tests__/dashboard-lifecycle-truth.test.ts",
+    "test:derived-setup-readiness": "tsx --test src/lib/__tests__/uxc01r-generation-readiness.test.ts",
+    "test:uxc01r": "tsx --test src/lib/__tests__/uxc01-derived-setup-surface.test.ts src/lib/__tests__/uxc01r-generation-readiness.test.ts src/hooks/__tests__/dashboard-lifecycle-truth.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

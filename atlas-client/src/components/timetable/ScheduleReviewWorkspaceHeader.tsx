@@ -25,6 +25,7 @@ import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpe
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
+import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -233,6 +234,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		requestPendingCount,
 		driftBlocked: generationBlockedByDrift,
 		driftMessage: rolloverStatus?.drift.message ?? null,
+		generationDiagnostic: summarizeGenerationReadiness(context.curriculumReadiness),
+		readinessRepair: context.curriculumReadiness?.state === 'blocked' ? context.curriculumReadiness.repair : null,
 	});
 	const generationGate = capabilities.generation;
 	const generationRepairHref = generationGate.repair.kind === 'navigate' ? generationGate.repair.href : null;

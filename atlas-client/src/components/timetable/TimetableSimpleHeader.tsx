@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
+import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
@@ -132,9 +133,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		softCount: context.softCount,
 		hasSelectedEntry: context.hasSelectedEntry,
 		requestPendingCount: context.requestPendingCount,
+		generationDiagnostic: summarizeGenerationReadiness(context.curriculumReadiness),
+		readinessRepair: context.curriculumReadiness?.state === 'blocked' ? context.curriculumReadiness.repair : null,
 	});
 	const generationGate = capabilities.generation;
 	const generationReady = generationGate.enabled;
+	const setupRepair = generationGate.repair.kind === 'navigate' ? generationGate.repair : setupState.repair;
 	const canPlanOrGenerate = scopeResolved && generationReady && !context.loading;
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
 	const ActiveIcon = activeTaskDefinition.icon;
@@ -733,9 +737,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							<p className="break-words text-xs text-muted-foreground" data-testid="timetable-curriculum-readiness-message">
 								{setupState.message}
 							</p>
-							{setupState.repair.kind === 'navigate' && (
+							{setupRepair.kind === 'navigate' && (
 								<p className="text-xs text-muted-foreground" data-testid="timetable-setup-repair-hint">
-									Term and setup data are managed on Year Setup.
+									{setupRepair.label ? `Fix this in ${setupRepair.label}.` : 'Finish setup before generating.'}
 								</p>
 							)}
 							{latestRunFailed && (
@@ -747,11 +751,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 						<TimetableStatusLegend compact />
-						{lifecycleAction.kind === 'fix-setup' ? (
+						{lifecycleAction.kind === 'fix-setup' && setupRepair.kind === 'navigate' ? (
 							<Button asChild type="button" size="sm" className="h-11 gap-1.5 px-3 text-sm" data-testid="timetable-simple-primary-action">
-								<Link to={YEAR_SETUP_HREF}>
+								<Link to={setupRepair.href ?? YEAR_SETUP_HREF}>
 									<BookOpen className="size-3.5" aria-hidden="true" />
-									{lifecycleAction.label}
+									{setupRepair.label ?? lifecycleAction.label}
 								</Link>
 							</Button>
 						) : (
