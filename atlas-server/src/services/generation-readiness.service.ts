@@ -547,6 +547,31 @@ async function buildGenerationReadinessWithContext(
 	const coverage = derived.ok
 		? summarizeTeachingLoadCoverage(derived, ownershipBySubjectSection, facultyById, scopeByFacultySubject)
 		: { requiredPairs: 0, ownedPairs: 0, missingPairs: 0, inactiveOrStalePairs: 0, outsideScopePairs: 0, missing: [] };
+
+	// GEN-C02R Correction 7: exactly one canonical owner per pair is the scheduler
+	// authority. Duplicate/conflicting ownership is a typed blocker.
+	const pairOwners: Record<string, number> = {};
+	for (const [key, rows] of ownershipBySubjectSection) {
+		const owners = [...new Set(rows.map((row: any) => row.facultyId).filter((id: unknown): id is number => typeof id === 'number' && id > 0))];
+		if (owners.length === 0) continue;
+		const [subjectIdRaw, sectionIdRaw] = key.split(':');
+		if (owners.length > 1) {
+			blockers.push({
+				code: 'TL_OWNERSHIP_CONFLICT',
+				category: 'DATA_GAP',
+				termIdentity: null,
+				sectionId: Number(sectionIdRaw),
+				subjectId: Number(subjectIdRaw),
+				subjectCode: null,
+				entity: `Ownership · subject ${subjectIdRaw} · section ${sectionIdRaw}`,
+				reason: `Multiple canonical owners (${owners.join(', ')}) claim this section/subject pair.`,
+				owningSurface: 'Teaching Load',
+				nextAction: 'Reconcile the duplicate Teaching Load owners so exactly one remains, then re-run readiness.',
+			});
+			continue;
+		}
+		pairOwners[key] = owners[0];
+	}
 	for (const missing of coverage.missing) {
 		blockers.push({
 			code: 'TL_DEMAND_UNCOVERED',
@@ -742,6 +767,7 @@ async function buildGenerationReadinessWithContext(
 			classTemplatePeriods,
 			timetableShapes: timetableShapeContracts,
 			demandOverride: demand,
+			pairOwners,
 		};
 
 		const schedulerStartedAt = Date.now();

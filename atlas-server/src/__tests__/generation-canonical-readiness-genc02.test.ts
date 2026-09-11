@@ -440,3 +440,36 @@ test('C10b. readiness reports ROTATION_DEMAND_INCONSISTENT and does not run the 
 	assert.equal(readiness.generateAllowed, false);
 });
 
+test('C7. the canonical owner is the only scheduler candidate for its pair', async () => {
+	const { constructBaseline } = await import('../services/schedule-constructor.js');
+	const input: ConstructorInput = {
+		schoolId: SCHOOL_ID,
+		schoolYearId: SCHOOL_YEAR_ID,
+		sectionsByGrade: [{
+			gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7,
+			sections: [{ mirrorId: 501, id: 9001, name: '7-A', maxCapacity: 50, enrolledCount: 40, gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR' }],
+		}],
+		subjects: [{ id: 11, code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7], programScopes: ['REGULAR'] }],
+		faculty: [
+			{ id: 71, maxHoursPerWeek: 30, department: 'MATH' },
+			{ id: 72, maxHoursPerWeek: 30, department: 'MATH' },
+		],
+		facultySubjects: [
+			{ facultyId: 71, subjectId: 11, gradeLevels: [7], sectionIds: [9001] },
+			{ facultyId: 72, subjectId: 11, gradeLevels: [7], sectionIds: [9001] },
+		],
+		rooms: [{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, buildingId: 301, buildingZoneId: 'Z1', buildingGradeScope: [7] } as never],
+		preferences: [],
+		policy: { periodLengthMinutes: 60, periodsPerDay: 8, earliestStartTime: '07:00', latestEndTime: '17:00', enableLunchWindow: false, enableFlagCeremony: false, enableRecess: false } as never,
+		lockedEntries: [],
+		gradeWindows: [],
+		demandOverride: [{ sectionId: 9001, subjectId: 11, subjectCode: 'MATH', gradeLevel: 7, sessionsPerWeek: 1, durationPerSession: 60, enrolledCount: 40, entryKind: 'SECTION', programType: 'REGULAR', roomTypePreference: 'CLASSROOM' }],
+		pairOwners: { '11:9001': 71 },
+	};
+	const result = constructBaseline(input);
+	const mathEntries = result.entries.filter((entry) => entry.subjectId === 11 && entry.sectionId === 9001);
+	assert.ok(mathEntries.length > 0, 'the owned pair must be scheduled');
+	assert.equal(mathEntries.every((entry) => entry.facultyId === 71), true, 'only the canonical owner may be assigned');
+});
+
+

@@ -678,7 +678,7 @@ export async function triggerGenerationRun(
 		}
 
 		stage = 'sections-fetch';
-		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specialEvents] = await Promise.all([
+		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specialEvents, ownershipRows] = await Promise.all([
 			db().facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true, isStale: false },
 				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true },
@@ -735,6 +735,10 @@ export async function triggerGenerationRun(
 			db().policySpecialEvent.findMany({
 				where: { schoolId, schoolYearId, enabled: true },
 				orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+			}),
+			db().subjectSectionOwnership.findMany({
+				where: { schoolId, schoolYearId },
+				select: { subjectId: true, sectionId: true, facultyId: true },
 			}),
 		]);
 
@@ -883,6 +887,28 @@ export async function triggerGenerationRun(
 			});
 		}
 		const demand = toSchedulerDemandOverride(derivedDemand, sectionsByGrade, schedulableSubjects as Parameters<typeof toSchedulerDemandOverride>[2]);
+		// GEN-C02R Correction 7: exactly one canonical Teaching Load owner per pair
+		// is the scheduler candidate authority; conflicting ownership fails closed.
+		const canonicalPairOwners: Record<string, number> = {};
+		const ownerConflicts: string[] = [];
+		const ownersByKey = new Map<string, Set<number>>();
+		for (const row of ownershipRows) {
+			if (row.facultyId == null) continue;
+			const key = `${row.subjectId}:${row.sectionId}`;
+			const owners = ownersByKey.get(key) ?? new Set<number>();
+			owners.add(row.facultyId);
+			ownersByKey.set(key, owners);
+		}
+		for (const [key, owners] of ownersByKey) {
+			if (owners.size > 1) { ownerConflicts.push(key); continue; }
+			canonicalPairOwners[key] = [...owners][0];
+		}
+		if (ownerConflicts.length > 0) {
+			throw err(409, 'TL_OWNERSHIP_CONFLICT', 'Generation is blocked because more than one canonical Teaching Load owner claims a section/subject pair.', {
+				actionHint: 'Reconcile duplicate Teaching Load owners, then generate again.',
+				details: { schoolId, schoolYearId, conflicts: ownerConflicts.sort() },
+			});
+		}
 		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
 		const constructorInput: ConstructorInput = {
 			schoolId,
@@ -952,6 +978,7 @@ export async function triggerGenerationRun(
 			classTemplatePeriods,
 			timetableShapes: timetableShapeContracts,
 			demandOverride: demand,
+			pairOwners: canonicalPairOwners,
 		};
 		const result = runHybridScheduler(constructorInput);
 		const entriesWithTerms = ensureEntriesHaveTermIndex(result.entries);
