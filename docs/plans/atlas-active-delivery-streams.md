@@ -25,14 +25,22 @@ hard blockers before separately approving publication.
   `git diff --check`, and isolated built-server mount probes passed on all three
   integration trees. The dirty `D:/ATLAS` checkout was never an integration
   boundary.
-- Cycle recovery: `readiness-wave-20260911` closed 2026-09-11 (Asia/Manila);
-  QA tasks `ses_f6f668ffcffe1ULPdPjVT04A7C` (GEN),
+- Cycle recovery: `readiness-wave-20260911` (COMPLETE) closed 2026-09-11
+  (Asia/Manila); QA tasks `ses_f6f668ffcffe1ULPdPjVT04A7C` (GEN),
   `ses_f6f66737affeT2ec6hA674pxcm` (UX), `ses_f6f665c6cffeQ8ofy3A5E64vGS` (TL);
-  merges `c3744dc6` / `fc8796c6` / `8f210d7c`; no executor or QA return remains.
-  Next recoverable action = obtain explicit HIGH approval for the bounded
-  `W1-RUNTIME-DEPLOY` runtime deployment and Tailnet acceptance, then run the
-  read-only generation readiness preview. No deployment, live generation,
-  carry-forward apply, or publication is authorized by this register.
+  merges `c3744dc6` / `fc8796c6` / `8f210d7c`; no return remains.
+- Cycle recovery: `w1-runtime-deploy-20260911` ACTIVE (opened 2026-09-11 22:17
+  Asia/Manila). Objective: execute the approved HIGH `W1-RUNTIME-DEPLOY` packet
+  — deploy approved product commit `fdd0c8c7` to the shared Tailnet runtime,
+  then read-only Tailnet acceptance, rollover preview, and canonical generation
+  diagnostic. The approved packet is committed with this cycle opening at
+  `docs/prompts/w1-runtime-deploy-tailnet-acceptance-2026-09-11.md`. Planner
+  worktree `D:/ATLAS-worktrees/planner-w1-deploy` (`docs/w1-runtime-deploy`);
+  executor worktree `D:/ATLAS-worktrees/w1-runtime-deploy`
+  (`work/w1-runtime-deploy-20260911`, base `fdd0c8c7`); executor/QA task IDs are
+  recorded at dispatch/return. Next recoverable action = dispatch the executor,
+  then fresh QA on its deployment evidence range. No rollover sync, Teaching
+  Load mutation, generation, or publication is authorized.
 - Wave 1 and subsequent accepted planner evidence are integrated and pushed.
   TT-UX01R2 is independently ratified at integration merge `a0ca05e5`.
   TERM-CONSUME-C02 is independently accepted at `a55abf7e`, integrated by the
@@ -72,7 +80,7 @@ hard blockers before separately approving publication.
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `PLANNED` | HIGH shared-runtime deployment/cutover | `origin/main` `282dca6a`; isolated build passed | Explicit operator approval and coordination with live browser activity; source integration is not deployment authority | Combined server/client type-checks and production builds pass after Dashboard, Teaching Load authority, migration-guard, and readiness-wave integration | Obtain explicit HIGH approval, then perform one bounded shared-runtime deployment and Tailnet acceptance; no data apply, generation, or publication |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `RUNNING` | HIGH shared-runtime deployment/cutover | Approved product commit `fdd0c8c7`; packet committed at cycle opening; executor `work/w1-runtime-deploy-20260911` from `fdd0c8c7` | Approval excludes rollover sync and every live-data mutation; stop/replace only ATLAS ports 5001/5174 with rollover automation disabled | Cycle opened 2026-09-11 with the embedded operator approval; combined type-checks/builds pass on the reviewed tree | Run the bounded deployment and read-only acceptance; fresh QA on the evidence range; stop before rollover sync, generation, or publication |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -104,8 +112,9 @@ hard blockers before separately approving publication.
    TT-UX01 integration step remains.
 3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
    integrated; no wave follow-up remains before the runtime deployment.
-4. Obtain explicit HIGH approval, then coordinate the bounded runtime deployment
-   and explicit rollover term-cache sync before any live year-9 preview claims.
+4. Execute the approved bounded runtime deployment and read-only Tailnet
+   acceptance. If rollover term-cache sync is needed, prepare its separate HIGH
+   preview and stop for a new approval before any mutation.
 5. After the bounded deployment, run the read-only canonical generation
    readiness diagnostic for the live school/year. Only if it proves zero hard
    blockers and exact source freshness, prepare the fingerprinted generation
@@ -116,11 +125,11 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- No executor stream is authorized without a separate planner packet. The next
-  action is operator-coordinated and HIGH: the bounded `W1-RUNTIME-DEPLOY`
-  service-lifecycle deployment and Tailnet acceptance, which unlocks live
-  readiness verification. Carry-forward apply, suggestion apply, generation,
-  and publication remain separately gated.
+- The only authorized executor stream is the HIGH `W1-RUNTIME-DEPLOY` packet at
+  `docs/prompts/w1-runtime-deploy-tailnet-acceptance-2026-09-11.md`. It unlocks
+  live readiness verification but authorizes no rollover sync or data mutation.
+  Carry-forward apply, suggestion apply, generation, and publication remain
+  separately gated.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
   integration owner; executor documentation overlap is resolved at integration.
 - A bounded runtime deployment is safe only when no executor is using the
@@ -141,13 +150,14 @@ restart the shared runtime while live browser QA is active.
 - TERM-CONSUME-C02, DASH-RESILIENCE-C01, TL-UX-C01R2, and MIG-GUARD-R1 are
   accepted and integrated; no executor return remains for those streams.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
-  verified. Runtime deployment remains a separate planner-coordinated action.
+  verified. Runtime deployment approval is received and the
+  `w1-runtime-deploy-20260911` cycle is ACTIVE.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
-- The shared runtime still needs the bounded deployment/Tailnet acceptance;
-  source integration alone does not authorize data apply, generation, or
-  publication.
+- The shared runtime deployment/Tailnet acceptance is executing under the
+  approved packet; source integration alone does not authorize data apply,
+  generation, or publication.
 
 ## Update protocol
 
