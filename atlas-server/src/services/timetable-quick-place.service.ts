@@ -475,17 +475,22 @@ export async function applyQuickPlace(
 			};
 		});
 
-	const { getTemplatePeriodProfiles } = await import('./class-template.service.js');
-	const templateProfiles = await getTemplatePeriodProfiles(schoolId);
-	const classTemplatePeriods: Record<string, number> = {};
-	for (const profile of templateProfiles) {
-		classTemplatePeriods[profile.programType.toUpperCase()] = profile.periodsPerDay;
+	// DEMAND-C01 / GEN-C02: compute coverage diagnostics from the canonical
+	// derived-demand authority. Legacy catalog `computeDemand()` is no longer
+	// consulted on this current-year path.
+	const { buildDerivedDemand, toPerPairDemandItems } = await import('./derived-demand.service.js');
+	const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId);
+	if (!derivedDemand.ok) {
+		const error = new Error('The canonical derived demand could not be resolved for this school year.') as Error & { statusCode: number; code: string };
+		error.statusCode = 409;
+		error.code = 'DERIVED_DEMAND_BLOCKED';
+		throw error;
 	}
-	const cohorts = await prisma.instructionalCohort.findMany({
-		where: { schoolId, schoolYearId, isActive: true },
-	});
-	const { computeDemand } = await import('./schedule-constructor.js');
-	const demand = computeDemand(sectionsByGrade, activeSubjects as any, cohorts as any, classTemplatePeriods);
+	const demand = toPerPairDemandItems(
+		derivedDemand,
+		sectionsByGrade,
+		activeSubjects as unknown as Parameters<typeof toPerPairDemandItems>[2],
+	);
 
 	const qualifiedFacultyCoverageBySubject = buildQualifiedCoverageBySubject(demand, normalizedFacultySubjects);
 	const slotSaturationByInterval = buildSlotSaturation(finalEntries, refData.rooms.length);

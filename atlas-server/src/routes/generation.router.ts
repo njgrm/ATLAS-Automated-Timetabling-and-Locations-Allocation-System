@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
+import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
@@ -58,6 +59,31 @@ router.post(
 				authToken,
 			});
 			res.status(201).json({ run });
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/readiness/diagnostic — zero-write canonical readiness ───
+
+router.get(
+	'/:schoolId/:schoolYearId/readiness/diagnostic',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can run the generation readiness diagnostic.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			const enforceShiftWindows = req.query.enforceShiftWindows === 'true';
+			const readiness = await buildGenerationReadiness(schoolId, schoolYearId, { enforceShiftWindows });
+			res.status(200).json({ readiness });
 		} catch (e) { next(e); }
 	},
 );

@@ -745,6 +745,13 @@ export interface DemandItem {
 		minMinutesPerWeek: number;
 	}>;
 	modularExpectedCount?: number;
+	/**
+	 * DEMAND-C01/GEN-C02: ordered term identities this demand pair actually runs
+	 * in. Present on derived-demand projections so per-subject consumers (draft
+	 * board, sync/setup, quick-place) can enforce exact ordered-term identity and
+	 * reject wrong-term retained placements instead of silently carrying them.
+	 */
+	applicableTermIdentities?: string[];
 }
 
 export function evaluateConstructorCandidateInvariants(input: TimetableCandidateInvariantInput) {

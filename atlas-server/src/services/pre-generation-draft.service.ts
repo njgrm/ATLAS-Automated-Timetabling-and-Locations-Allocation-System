@@ -13,13 +13,13 @@ import {
 	buildUnionClassPeriodSlots,
 	buildUnionDisplaySlots,
 	mergeDisplaySlots,
-	computeDemand,
 	getDemandAssignmentKey,
 	type ConstructorInput,
 	type DemandItem,
 	type PeriodSlot,
 	type PolicyInput,
 } from './schedule-constructor.js';
+import { buildDerivedDemand, toPerPairDemandItems } from './derived-demand.service.js';
 import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
@@ -256,18 +256,36 @@ export interface DraftPlacementSwapResult {
 	resultingVersion: number;
 }
 
+export interface DraftConsumeRejection {
+	placementId: number;
+	sectionId: number;
+	subjectId: number;
+	termIndex: number;
+	code: 'MISSING_FACULTY_OR_ROOM' | 'STALE_OR_REMOVED_DEMAND' | 'WRONG_TERM' | 'REFERENCE_ONLY_DEMAND' | 'DEMAND_ALREADY_SATISFIED' | 'HARD_CONFLICT';
+	reason: string;
+}
+
 export interface DraftConsumeResult {
 	lockedEntries: ConstructorInput['lockedEntries'];
 	prePlacedCount: number;
 	invalidPrePlacedCount: number;
 	skippedPrePlacedReasons: string[];
 	acceptedPlacementIds: number[];
+	rejectedPlacements: DraftConsumeRejection[];
+	/** Canonical derived-demand revision the retained placements were validated against. */
+	derivedDemandRevision: string;
 }
 
 type DraftContext = Awaited<ReturnType<typeof loadDraftContext>>;
 
 interface LoadDraftContextOptions {
 	preferCachedSections?: boolean;
+	/**
+	 * GEN-C02: strict zero-write mode for the read-only readiness/dry-run. When
+	 * true, sections are loaded ONLY from the saved snapshot; no upstream
+	 * EnrollPro sync (which would persist a snapshot) is permitted.
+	 */
+	readOnly?: boolean;
 }
 
 interface ListDraftBoardStateOptions extends LoadDraftContextOptions {}
@@ -505,7 +523,7 @@ async function loadSectionsForDraftContext(
 	authToken: string | undefined,
 	options: LoadDraftContextOptions,
 ): Promise<SectionFetchResult> {
-	if (options.preferCachedSections) {
+	if (options.preferCachedSections || options.readOnly) {
 		const cached = await loadSectionSnapshot(schoolId, schoolYearId);
 		if (cached) {
 			return {
@@ -516,6 +534,9 @@ async function loadSectionsForDraftContext(
 				fallbackReason: 'Draft board fast-open uses the latest saved section snapshot.',
 				contractWarnings: ['Pre-generation draft board used the latest saved section snapshot for fast navigation. Placement preview and save still run full validation.'],
 			};
+		}
+		if (options.readOnly) {
+			throw err(409, 'SECTION_SNAPSHOT_UNAVAILABLE', 'A read-only draft/readiness read requires a saved EnrollPro section snapshot; no upstream sync is permitted on this path.');
 		}
 	}
 
@@ -533,6 +554,19 @@ async function loadSectionsForDraftContext(
 				contractWarnings: [`EnrollPro sections source failed (${fallbackReason}); using cached section snapshot instead.`],
 			};
 		});
+}
+
+async function loadPolicyForDraftContext(schoolId: number, schoolYearId: number, readOnly?: boolean) {
+	if (!readOnly) return getOrCreatePolicy(schoolId, schoolYearId);
+	// GEN-C02: strict read-only mode never auto-creates a policy row. A missing
+	// policy is a typed blocker on the readiness path, not a silent write.
+	const existing = await db().schedulingPolicy.findUnique({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+	});
+	if (!existing) {
+		throw err(409, 'POLICY_UNINITIALIZED', 'A read-only draft/readiness read requires a persisted scheduling policy; defaults are never created on this path.');
+	}
+	return existing;
 }
 
 async function loadDraftContext(schoolId: number, schoolYearId: number, authToken?: string, options: LoadDraftContextOptions = {}) {
@@ -579,7 +613,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 			},
 		}),
 		db().building.findMany({ where: { schoolId }, select: { id: true, name: true, shortCode: true, x: true, y: true } }),
-		getOrCreatePolicy(schoolId, schoolYearId),
+		loadPolicyForDraftContext(schoolId, schoolYearId, options.readOnly),
 		db().gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
 		db().lockedSession.findMany({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
 		db().instructionalCohort.findMany({
@@ -709,8 +743,22 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 			? mergeDisplaySlots(fallbackClassPeriodSlots, specialEventSlots)
 			: fallbackClassPeriodSlots);
 
-	const classTemplatePeriods = Object.fromEntries(templateProfiles.map((profile) => [profile.programType, profile.periodLengthMinutes]));
-	const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts, classTemplatePeriods);
+	// DEMAND-C01 / GEN-C02: the canonical derived-demand contract is the sole
+	// current-year demand authority for the draft workspace. The legacy catalog
+	// `computeDemand()` (term-blind, rotation-blind) is no longer consulted.
+	const derived = await buildDerivedDemand(schoolId, schoolYearId, {
+		periodLengthMinutes: policyRecord.periodLengthMinutes ?? undefined,
+	});
+	if (!derived.ok) {
+		throw err(409, 'DERIVED_DEMAND_BLOCKED', 'The canonical derived demand could not be resolved for this school year.', {
+			blockers: derived.blockers,
+		});
+	}
+	const demand = toPerPairDemandItems(
+		derived,
+		sectionResult.gradeLevels,
+		subjects as unknown as Parameters<typeof toPerPairDemandItems>[2],
+	);
 	const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
 	const qualifiedByKey = new Map<string, number[]>();
 	for (const assignment of facultySubjects) {
@@ -741,6 +789,8 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		demand,
 		demandByKey,
 		qualifiedByKey,
+		derivedDemandRevision: derived.revision,
+		termIdentities: derived.termStructure.terms.map((term) => term.identity),
 	};
 }
 
@@ -1602,15 +1652,27 @@ export async function removeSinglePlacement(schoolId: number, schoolYearId: numb
 	};
 }
 
-export async function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftConsumeResult> {
-	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
+export async function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number, authToken?: string, options: LoadDraftContextOptions = {}): Promise<DraftConsumeResult> {
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken, options);
 	const draftPlacements = ctx.placements.filter((placement) => placement.status === 'DRAFT');
 	const accepted: LockedSession[] = [];
 	const skippedPrePlacedReasons: string[] = [];
+	const rejectedPlacements: DraftConsumeRejection[] = [];
 	const acceptedCounts = new Map<string, number>();
+	const reject = (placement: LockedSession, code: DraftConsumeRejection['code'], reason: string) => {
+		skippedPrePlacedReasons.push(`Placement ${placement.id} skipped: ${reason}`);
+		rejectedPlacements.push({
+			placementId: placement.id,
+			sectionId: placement.sectionId,
+			subjectId: placement.subjectId,
+			termIndex: placement.termIndex,
+			code,
+			reason,
+		});
+	};
 	for (const placement of draftPlacements) {
 		if (placement.facultyId == null || placement.roomId == null) {
-			skippedPrePlacedReasons.push(`Placement ${placement.id} is missing faculty or room assignment.`);
+			reject(placement, 'MISSING_FACULTY_OR_ROOM', 'Placement is missing a faculty or room assignment.');
 			continue;
 		}
 		const input: DraftPlacementInput = {
@@ -1630,13 +1692,32 @@ export async function consumeDraftPlacementsForRun(runId: number, schoolId: numb
 		try {
 			demandItem = validateInputOrThrow(input, ctx);
 		} catch (error) {
+			// ORPHANED_ASSIGNMENT_SCOPE = the demand identity no longer exists
+			// (removed subject/section, or reference-only/GG demand). It is
+			// reported, never carried into generation.
+			const code = (error as { code?: string }).code;
 			const message = error instanceof Error ? error.message : String(error);
-			skippedPrePlacedReasons.push(`Placement ${placement.id} skipped: ${message}`);
+			reject(placement, code === 'ORPHANED_SUBJECT' ? 'REFERENCE_ONLY_DEMAND' : 'STALE_OR_REMOVED_DEMAND', message);
 			continue;
+		}
+		// Ordered-term identity: a retained placement is valid only when its own
+		// term is part of this subject's derived demand for the section. A
+		// reference-only, rotation-mismatched, or removed term is rejected.
+		const applicableTerms = demandItem.applicableTermIdentities ?? [];
+		const placementTermIdentity = ctx.termIdentities[placement.termIndex - 1];
+		if (applicableTerms.length > 0) {
+			if (!placementTermIdentity) {
+				reject(placement, 'WRONG_TERM', `Placement term index ${placement.termIndex} is outside the ordered term contract.`);
+				continue;
+			}
+			if (!applicableTerms.includes(placementTermIdentity)) {
+				reject(placement, 'WRONG_TERM', `Demand for subject ${placement.subjectId} does not run in term ${placementTermIdentity}; it runs in [${applicableTerms.join(', ')}].`);
+				continue;
+			}
 		}
 		const assignmentKey = buildAssignmentKey(input);
 		if ((acceptedCounts.get(assignmentKey) ?? 0) >= demandItem.sessionsPerWeek) {
-			skippedPrePlacedReasons.push(`Placement ${placement.id} skipped: scheduling demand for ${assignmentKey} is already fully pre-placed.`);
+			reject(placement, 'DEMAND_ALREADY_SATISFIED', `Scheduling demand for ${assignmentKey} is already fully pre-placed.`);
 			continue;
 		}
 		const acceptedContextEntries = accepted.map((row) => {
@@ -1647,7 +1728,7 @@ export async function consumeDraftPlacementsForRun(runId: number, schoolId: numb
 		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, [...acceptedContextEntries, candidateEntry], ctx));
 		const hardViolations = validation.violations.filter((violation) => violation.severity === 'HARD');
 		if (hardViolations.length > 0) {
-			skippedPrePlacedReasons.push(`Placement ${placement.id} skipped: ${hardViolations.map((violation) => violation.code).join(', ')}`);
+			reject(placement, 'HARD_CONFLICT', hardViolations.map((violation) => violation.code).join(', '));
 			continue;
 		}
 		accepted.push(placement);
@@ -1666,6 +1747,8 @@ export async function consumeDraftPlacementsForRun(runId: number, schoolId: numb
 			cohortCode: placement.cohortCode,
 		})),
 		prePlacedCount: accepted.length,
+		rejectedPlacements,
+		derivedDemandRevision: ctx.derivedDemandRevision,
 		invalidPrePlacedCount: skippedPrePlacedReasons.length,
 		skippedPrePlacedReasons,
 		acceptedPlacementIds: accepted.map((placement) => placement.id),

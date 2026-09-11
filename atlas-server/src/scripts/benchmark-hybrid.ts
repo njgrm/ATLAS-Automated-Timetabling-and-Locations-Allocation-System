@@ -19,7 +19,7 @@
  *   - Benchmark must be reproducible across identical inputs.
  */
 
-import { constructBaseline, type ConstructorInput } from '../services/schedule-constructor.js';
+import { constructBaseline, computeDemand, type ConstructorInput } from '../services/schedule-constructor.js';
 import { runHybridScheduler } from '../services/hybrid-scheduler.js';
 import type { SectionsByGrade } from '../services/section-adapter.js';
 
@@ -170,7 +170,16 @@ function runBaseline(input: ConstructorInput): BenchmarkRun {
 
 function runHybrid(input: ConstructorInput): BenchmarkRun & { selectedProfile: string; seedCount: number } {
 	const t0 = performance.now();
-	const result = runHybridScheduler(input);
+	// This synthetic benchmark has no ordered-term authority; it uses the pure
+	// catalog demand explicitly as its deterministic fixture. Production always
+	// supplies the canonical derived-demand override.
+	const demandOverride = input.demandOverride ?? computeDemand(
+		input.sectionsByGrade,
+		input.subjects,
+		input.cohorts ?? [],
+		input.classTemplatePeriods ?? {},
+	);
+	const result = runHybridScheduler({ ...input, demandOverride });
 	const runtimeMs = performance.now() - t0;
 	return {
 		label: 'hybrid',

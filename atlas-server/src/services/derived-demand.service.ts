@@ -647,6 +647,72 @@ export function toSchedulerDemandOverride(
 	return sorted;
 }
 
+/**
+ * Project the derived demand contract into one `DemandItem` per
+ * (subject, section) Teaching Load pair WITHOUT collapsing rotating families.
+ *
+ * Used by the pre-generation draft board, timetable sync/setup, and quick-place
+ * coverage so those consumers build the same demand identities/revision as the
+ * generation trigger rather than the legacy catalog `computeDemand()`. Rotating
+ * family members keep their own Subject identity and carry the ordered term
+ * identities they run in, so wrong-term retained placements can be rejected.
+ */
+export function toPerPairDemandItems(
+	result: DerivedDemandSuccess,
+	sectionsByGrade: SectionsByGrade[],
+	subjects: SubjectInput[],
+): DemandItem[] {
+	const sectionByExternalId = new Map<number, SectionsByGrade['sections'][number]>();
+	for (const grade of sectionsByGrade) {
+		for (const section of grade.sections) sectionByExternalId.set(section.id, section);
+	}
+	const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+
+	// FAIL CLOSED: any derived pair that cannot map to its section or Subject
+	// snapshot is projection drift, never a silent skip.
+	const missingSectionIds = new Set<number>();
+	const missingSubjectIds = new Set<number>();
+	for (const pair of result.teachingLoadPairs) {
+		if (!sectionByExternalId.has(pair.sectionExternalId)) missingSectionIds.add(pair.sectionExternalId);
+		if (!subjectById.has(pair.subjectId)) missingSubjectIds.add(pair.subjectId);
+	}
+	if (missingSectionIds.size > 0 || missingSubjectIds.size > 0) {
+		throw projectionError('DERIVED_DEMAND_PROJECTION_INCOMPLETE', 'Derived demand cannot be projected for the consumer: section or Subject snapshots are missing.', {
+			missingSectionIds: [...missingSectionIds].sort((a, b) => a - b),
+			missingSubjectIds: [...missingSubjectIds].sort((a, b) => a - b),
+		});
+	}
+
+	const items = result.teachingLoadPairs.map((pair) => ({
+		...toSectionDemandItem(pair, sectionByExternalId.get(pair.sectionExternalId)!, subjectById.get(pair.subjectId)!),
+		applicableTermIdentities: [...pair.termIdentities],
+	}));
+	const sorted = items.sort((a, b) => a.gradeLevel - b.gradeLevel || a.sectionId - b.sectionId || a.subjectId - b.subjectId);
+	assertPerPairProjectionParity(result, sorted);
+	return sorted;
+}
+
+/**
+ * Assert exact per-pair parity: every derived Teaching Load pair is represented
+ * exactly once, and the ordered term identities survive the projection.
+ */
+export function assertPerPairProjectionParity(result: DerivedDemandSuccess, items: DemandItem[]): void {
+	const pairKeys = new Set(result.teachingLoadPairs.map((pair) => `${pair.subjectId}:${pair.sectionExternalId}`));
+	const projectedKeys = new Set(items.map((item) => `${item.subjectId}:${item.sectionId}`));
+	if (pairKeys.size !== projectedKeys.size || pairKeys.size !== result.totalPairs) {
+		throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand per-pair projection parity mismatch: expected ${result.totalPairs} pairs, projected ${projectedKeys.size}.`, { expected: result.totalPairs, projected: projectedKeys.size });
+	}
+	for (const key of pairKeys) {
+		if (!projectedKeys.has(key)) throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand per-pair projection is missing pair ${key}.`, { missingPair: key });
+	}
+	for (const item of items) {
+		const expectedTerms = result.teachingLoadPairs.find((pair) => pair.subjectId === item.subjectId && pair.sectionExternalId === item.sectionId)?.termIdentities ?? [];
+		if ((item.applicableTermIdentities ?? []).join('|') !== [...expectedTerms].join('|')) {
+			throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand per-pair projection term drift for ${item.subjectId}:${item.sectionId}.`, { subjectId: item.subjectId, sectionId: item.sectionId });
+		}
+	}
+}
+
 function projectionError(code: string, message: string, details: Record<string, unknown>): Error & { statusCode: number; code: string; details: Record<string, unknown> } {
 	const error = new Error(message) as Error & { statusCode: number; code: string; details: Record<string, unknown> };
 	error.statusCode = 409;
