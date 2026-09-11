@@ -18,6 +18,7 @@ import {
 	type RolloverAwarenessNotice,
 } from '@/lib/rollover-awareness';
 import {
+	ATLAS_SESSION_EXPIRED_EVENT,
 	clearAtlasAuthStorage,
 	clearBridgeToken,
 	clearLocalToken,
@@ -374,6 +375,21 @@ export function AppShell() {
 		if (bridgeUser?.role !== 'faculty') return;
 		if (!isFacultyPortalRoute(location.pathname)) navigate('/my', { replace: true });
 	}, [bridgeUser?.role, location.pathname, navigate]);
+
+	// DASH-RESILIENCE-C01 — canonical expired-session handling. A dashboard
+	// data request that returns HTTP 401 raises this event; the shell performs
+	// the same clear-and-navigate flow as a failed session verification so no
+	// business values are rendered from an unauthorized read.
+	useEffect(() => {
+		const handleExpiredSession = () => {
+			setBridgeUser(null);
+			setAuthSource(null);
+			clearAtlasAuthStorage();
+			navigate('/login', { replace: true });
+		};
+		window.addEventListener(ATLAS_SESSION_EXPIRED_EVENT, handleExpiredSession);
+		return () => window.removeEventListener(ATLAS_SESSION_EXPIRED_EVENT, handleExpiredSession);
+	}, [navigate]);
 
 	const handleLogout = () => {
 		if (authSource === 'bridge') {

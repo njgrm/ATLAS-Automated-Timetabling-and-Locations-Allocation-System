@@ -173,7 +173,7 @@ export function pickNextStep(args: {
 	unassignedSubjectCount: number | null;
 	missingCoverageSubjectIds: number[] | null;
 	buildingsDone: boolean;
-	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | null;
 	violationCount: number | null;
 	curriculumMissing: boolean;
 	degraded: boolean;
@@ -257,11 +257,13 @@ export default function Dashboard() {
 		latestRunStatus, violationCount,
 		assignedCount, unassignedCount, hardViolationCount, curriculum,
 		lifecyclePhase, readinessSourceState, readinessSourceMessage, refreshDashboard, retryActorScope,
+		domainAvailability, dataSource,
 	} = useDashboardData();
 
 	// EVAL-C01: every surface below derives from this one coherent snapshot.
 	const curriculumMissing = curriculum !== null && !curriculum.ready;
 	const degraded = readinessSourceState === 'partial_degraded';
+	const degradedTitle = dataSource === 'cached' ? 'Showing saved data' : 'Some checks are unavailable';
 
 	const next = pickNextStep({
 		phase: lifecyclePhase, subjectCount, facultyCount, sectionCount,
@@ -270,22 +272,22 @@ export default function Dashboard() {
 	});
 
 	const stats: StatTile[] = [
-		{ label: 'Sections', value: loading ? '\u2026' : sectionCount === null ? '\u2014' : `${sectionCount}`, footer: sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: sectionCount === null, href: '/sections', actionLabel: 'Check sections' },
-		{ label: 'Subjects', value: loading ? '\u2026' : `${subjectCount ?? 0}`, footer: 'Curriculum loaded', icon: BookOpen, tone: 'brand', href: '/subjects', actionLabel: 'Review subjects' },
-		{ label: 'Teachers', value: loading ? '\u2026' : `${facultyCount ?? 0}`, footer: 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', href: '/teachers', actionLabel: 'Review teachers' },
-		{ label: 'Teaching Rooms', value: loading ? '\u2026' : `${teachingRoomCount}/${totalRoomCount}`, footer: buildingSetupStatus.done ? 'Ready for placement' : 'Some rooms unmarked', icon: Building2, tone: buildingSetupStatus.done ? 'brand' : 'amber', warn: !buildingSetupStatus.done && !loading, href: '/map', actionLabel: 'Check rooms' },
+		{ label: 'Sections', value: loading ? '\u2026' : !domainAvailability.sections || sectionCount === null ? '\u2014' : `${sectionCount}`, footer: !domainAvailability.sections || sectionCount === null ? 'Enrollment unavailable' : activeSchoolYearLabel ? `S.Y. ${activeSchoolYearLabel}` : 'Active school year', icon: GraduationCap, tone: 'violet', warn: !domainAvailability.sections || sectionCount === null, href: '/sections', actionLabel: 'Check sections' },
+		{ label: 'Subjects', value: loading ? '\u2026' : !domainAvailability.subjects ? '\u2014' : `${subjectCount ?? 0}`, footer: !domainAvailability.subjects ? 'Unavailable' : 'Curriculum loaded', icon: BookOpen, tone: 'brand', warn: !domainAvailability.subjects, href: '/subjects', actionLabel: 'Review subjects' },
+		{ label: 'Teachers', value: loading ? '\u2026' : !domainAvailability.faculty ? '\u2014' : `${facultyCount ?? 0}`, footer: !domainAvailability.faculty ? 'Unavailable' : 'Synced from EnrollPro', icon: UserCheck, tone: 'sky', warn: !domainAvailability.faculty, href: '/teachers', actionLabel: 'Review teachers' },
+		{ label: 'Teaching Rooms', value: loading ? '\u2026' : !domainAvailability.campus ? '\u2014' : `${teachingRoomCount}/${totalRoomCount}`, footer: !domainAvailability.campus ? 'Unavailable' : buildingSetupStatus.done ? 'Ready for placement' : 'Some rooms unmarked', icon: Building2, tone: !domainAvailability.campus ? 'amber' : buildingSetupStatus.done ? 'brand' : 'amber', warn: !domainAvailability.campus || (!buildingSetupStatus.done && !loading), href: '/map', actionLabel: 'Check rooms' },
 	];
 
 	const checklist = [
-		{ label: 'Sections loaded for school year', done: (sectionCount ?? 0) > 0, href: '/sections', hint: sectionCount === null ? 'Enrollment unavailable' : undefined },
-		{ label: 'Subjects added', done: (subjectCount ?? 0) > 0, href: '/subjects' },
-		{ label: 'Teachers synced from EnrollPro', done: (facultyCount ?? 0) > 0, href: '/teachers' },
-		{ label: 'Every subject has a teacher', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
+		{ label: 'Sections loaded for school year', done: domainAvailability.sections && (sectionCount ?? 0) > 0, href: '/sections', hint: !domainAvailability.sections ? 'Enrollment unavailable' : sectionCount === null ? 'Enrollment unavailable' : undefined },
+		{ label: 'Subjects added', done: domainAvailability.subjects && (subjectCount ?? 0) > 0, href: '/subjects', hint: !domainAvailability.subjects ? 'Subject data is unavailable' : undefined },
+		{ label: 'Teachers synced from EnrollPro', done: domainAvailability.faculty && (facultyCount ?? 0) > 0, href: '/teachers', hint: !domainAvailability.faculty ? 'Faculty data is unavailable' : undefined },
+		{ label: 'Every subject has a teacher', done: domainAvailability.subjects && unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, href: missingCoverageSubjectIds && missingCoverageSubjectIds.length > 0 ? `/teaching-load?view=subjects&filter=missing-coverage` : '/teaching-load', hint: !domainAvailability.subjects ? 'Coverage is unavailable' : unassignedSubjectCount && unassignedSubjectCount > 0 ? `${unassignedSubjectCount} unassigned` : undefined },
 		// EVAL-C01: missing term setup or Curriculum Requirements is a
 		// setup/generation blocker with a direct repair link.
 		{ label: 'Curriculum Requirements ready', done: curriculum !== null && curriculum.ready, href: '/subjects/requirements', hint: curriculum !== null && !curriculum.ready ? (curriculum.blockerMessage ?? 'Term setup or required subjects are missing') : undefined },
-		{ label: 'Buildings and rooms ready', done: buildingSetupStatus.done, href: '/map', hint: buildingSetupStatus.subMessage },
-		{ label: 'Timetable generated and reviewed', done: latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
+		{ label: 'Buildings and rooms ready', done: domainAvailability.campus && buildingSetupStatus.done, href: '/map', hint: !domainAvailability.campus ? 'Campus data is unavailable' : buildingSetupStatus.subMessage },
+		{ label: 'Timetable generated and reviewed', done: domainAvailability.generation && latestRunStatus === 'COMPLETED' && (violationCount ?? 0) === 0, href: '/timetable', hint: !domainAvailability.generation ? 'Generation status is unavailable' : latestRunStatus === 'FAILED' ? 'The latest generation run failed' : latestRunStatus === 'IN_PROGRESS' ? 'Generation is still running' : violationCount && violationCount > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : undefined },
 		// EVAL-C01: only a resolved published schedule counts as published.
 		// A reviewed timetable is "ready to publish", not published.
 		{ label: 'Schedule published', done: lifecyclePhase === 'PUBLISHED', href: '/schedules', hint: lifecyclePhase === 'PUBLISHED' ? 'Published schedule is live' : 'Review the timetable before publishing' },
@@ -460,6 +462,32 @@ export default function Dashboard() {
 						</Card>
 					) : null}
 
+					{/* DASH-RESILIENCE-C01: concise degraded state with exactly one
+					    retry action. Retained same-school saved data stays visible. */}
+					{!actorScopeBlocked && degraded ? (
+						<Card data-testid='dashboard-degraded-banner' className='border-amber-200 bg-amber-50/60'>
+							<CardContent className='flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between'>
+								<div className='flex items-start gap-3 min-w-0'>
+									<AlertTriangle className='mt-0.5 h-5 w-5 shrink-0 text-amber-600' />
+									<div className='min-w-0'>
+										<p className='text-sm font-semibold text-amber-900'>{degradedTitle}</p>
+										<p className='text-xs leading-relaxed text-amber-800'>{readinessSourceMessage}</p>
+									</div>
+								</div>
+								<Button
+									type='button'
+									onClick={refreshDashboard}
+									disabled={loading}
+									data-testid='dashboard-degraded-retry'
+									className='h-9 shrink-0 rounded-xl bg-amber-600 px-4 text-xs font-semibold text-white hover:bg-amber-700'
+								>
+									<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+									Retry
+								</Button>
+							</CardContent>
+						</Card>
+					) : null}
+
 					{/* Year status guidance */}
 					{rolloverStatus === null || rolloverBlocking ? (
 						<RolloverGuidanceCard compact onStatus={setRolloverStatus} />
@@ -587,31 +615,31 @@ export default function Dashboard() {
 											<p className='text-xs font-bold uppercase tracking-wider text-slate-400'>Before generation</p>
 											<div className='grid grid-cols-2 gap-2.5'>
 												<div className='flex items-center gap-2.5 text-sm'>
-													{(unassignedSubjectCount ?? 0) > 0 ? (
+													{!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? (
 														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
 													) : (
 														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
 													)}
-													<span className={(unassignedSubjectCount ?? 0) > 0 ? 'text-slate-900 font-medium' : 'text-slate-500'}>
-														{(unassignedSubjectCount ?? 0) > 0 ? `${unassignedSubjectCount} unassigned` : 'Subjects assigned'}
+													<span className={!domainAvailability.subjects || (unassignedSubjectCount ?? 0) > 0 ? 'text-slate-900 font-medium' : 'text-slate-500'}>
+														{!domainAvailability.subjects ? 'Coverage unavailable' : (unassignedSubjectCount ?? 0) > 0 ? `${unassignedSubjectCount} unassigned` : 'Subjects assigned'}
 													</span>
 												</div>
 												<div className='flex items-center gap-2.5 text-sm'>
-													{buildingSetupStatus.done ? (
+													{domainAvailability.campus && buildingSetupStatus.done ? (
 														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
 													) : (
 														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
 													)}
-													<span className={buildingSetupStatus.done ? 'text-slate-500' : 'text-slate-900 font-medium'}>Rooms ready</span>
+													<span className={domainAvailability.campus && buildingSetupStatus.done ? 'text-slate-500' : 'text-slate-900 font-medium'}>{!domainAvailability.campus ? 'Rooms unavailable' : 'Rooms ready'}</span>
 												</div>
 												<div className='flex items-center gap-2.5 text-sm'>
-													{(violationCount ?? 0) > 0 ? (
+													{!domainAvailability.generation || (violationCount ?? 0) > 0 ? (
 														<AlertTriangle className='w-4 h-4 shrink-0 text-amber-500' />
 													) : (
 														<CheckCircle2 className='w-4 h-4 shrink-0 text-emerald-500' />
 													)}
-													<span className={(violationCount ?? 0) > 0 ? 'text-slate-900 font-medium' : 'text-slate-500'}>
-														{(violationCount ?? 0) > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : 'No blockers'}
+													<span className={!domainAvailability.generation || (violationCount ?? 0) > 0 ? 'text-slate-900 font-medium' : 'text-slate-500'}>
+														{!domainAvailability.generation ? 'Run status unavailable' : (violationCount ?? 0) > 0 ? `${violationCount} review blocker${violationCount === 1 ? '' : 's'}` : 'No blockers'}
 													</span>
 												</div>
 												<div className='flex items-center gap-2.5 text-sm'>

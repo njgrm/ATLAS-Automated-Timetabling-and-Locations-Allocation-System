@@ -1,5 +1,24 @@
 export const ATLAS_BRIDGE_TOKEN_KEY = 'atlas_bridge_token';
 export const ATLAS_LOCAL_TOKEN_KEY = 'atlas_local_token';
+
+/**
+ * DASH-RESILIENCE-C01 — canonical expired-session signal.
+ *
+ * A data request that returns HTTP 401 has lost its authority. The app shell
+ * owns the canonical redirect to sign-in; this helper clears the session
+ * storage and raises one app-wide event so the shell performs the same
+ * clear-and-navigate flow it uses after `verifySessionToken()` fails. It never
+ * renders business values (zeros) for the failed read.
+ */
+export const ATLAS_SESSION_EXPIRED_EVENT = 'atlas:session-expired';
+
+export function expireAtlasSession(): void {
+	clearAtlasAuthStorage();
+	if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+		window.dispatchEvent(new CustomEvent(ATLAS_SESSION_EXPIRED_EVENT));
+	}
+}
+
 const ATLAS_AUTH_COOKIE_NAME = 'atlasAuthToken';
 const ATLAS_AUTH_COOKIE_PATH = '/api/v1';
 

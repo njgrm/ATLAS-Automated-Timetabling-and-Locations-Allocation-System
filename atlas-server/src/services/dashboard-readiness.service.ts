@@ -57,10 +57,13 @@ type DashboardBuilding = {
 };
 
 type CampusReadinessData = {
+	/** DASH-RESILIENCE-C01 — false when the campus read failed. A failed read is
+	 * never rendered as an empty-but-valid campus. */
+	available: boolean;
 	buildings: DashboardBuilding[];
 	campusImageUrl: string | null;
-	teachingRoomCount: number;
-	totalRoomCount: number;
+	teachingRoomCount: number | null;
+	totalRoomCount: number | null;
 	buildingSetupStatus: {
 		done: boolean;
 		subMessage?: string;
@@ -68,28 +71,68 @@ type CampusReadinessData = {
 };
 
 type SubjectReadinessData = {
-	subjectCount: number;
-	unassignedSubjectCount: number;
+	available: boolean;
+	subjectCount: number | null;
+	unassignedSubjectCount: number | null;
 };
 
 type FacultyReadinessData = {
-	facultyCount: number;
+	available: boolean;
+	facultyCount: number | null;
 	lastSyncedAt: string | null;
 };
 
 type SectionReadinessData = {
+	available: boolean;
 	sectionCount: number | null;
 	lastSyncedAt: string | null;
 };
 
 type LatestRunReadinessData = {
-	latestRunStatus: DashboardLatestRunStatus;
+	available: boolean;
+	/** null means generation status is unavailable, distinct from a real NONE. */
+	latestRunStatus: DashboardLatestRunStatus | null;
 	latestRunId: number | null;
 	violationCount: number | null;
 	isPublished: boolean;
 	publishedRunId: number | null;
 	createdAt: string | null;
 	finishedAt: string | null;
+};
+
+/** Raw shapes returned by the individual domain reads before availability is applied. */
+type CampusReadData = {
+	campusImageUrl: string | null;
+	updatedAt: Date | null;
+	buildings: DashboardBuilding[];
+};
+
+type GenerationReadData = {
+	latestRunStatus: DashboardLatestRunStatus;
+	latestRunId: number | null;
+	violationCount: number | null;
+	createdAt: string | null;
+	finishedAt: string | null;
+};
+
+type SubjectReadData = {
+	subjectCount: number;
+	unassignedSubjectCount: number;
+};
+
+type FacultyReadData = {
+	facultyCount: number;
+	lastSyncedAt: string | null;
+};
+
+type SectionReadData = {
+	sectionCount: number | null;
+	lastSyncedAt: string | null;
+};
+
+type PublicationReadData = {
+	isPublished: boolean;
+	publishedRunId: number | null;
 };
 
 export type DashboardCurriculumReadiness = {
@@ -113,6 +156,8 @@ export type DashboardReadinessSummary = {
 	sections: SectionReadinessData;
 	generation: LatestRunReadinessData;
 	curriculum: DashboardCurriculumReadiness | null;
+	/** DASH-RESILIENCE-C01 — typed active-term state (may be reachable but unresolved). */
+	activeTerm: RuntimeContextResult['activeTerm'] | null;
 	lifecyclePhase: DashboardLifecyclePhase;
 	sources: {
 		runtimeContext: DomainSource;
@@ -192,11 +237,49 @@ function summarizeCampus(buildings: DashboardBuilding[], campusImageUrl: string 
 	}
 
 	return {
+		available: true,
 		buildings,
 		campusImageUrl,
 		teachingRoomCount,
 		totalRoomCount,
 		buildingSetupStatus: { done, ...(subMessage ? { subMessage } : {}) },
+	};
+}
+
+/** DASH-RESILIENCE-C01 — explicit unavailable placeholders (never zero/empty truth). */
+function unavailableCampus(): CampusReadinessData {
+	return {
+		available: false,
+		buildings: [],
+		campusImageUrl: null,
+		teachingRoomCount: null,
+		totalRoomCount: null,
+		buildingSetupStatus: { done: false },
+	};
+}
+
+function unavailableSubjects(): SubjectReadinessData {
+	return { available: false, subjectCount: null, unassignedSubjectCount: null };
+}
+
+function unavailableFaculty(): FacultyReadinessData {
+	return { available: false, facultyCount: null, lastSyncedAt: null };
+}
+
+function unavailableSections(): SectionReadinessData {
+	return { available: false, sectionCount: null, lastSyncedAt: null };
+}
+
+function unavailableGeneration(): LatestRunReadinessData {
+	return {
+		available: false,
+		latestRunStatus: null,
+		latestRunId: null,
+		violationCount: null,
+		isPublished: false,
+		publishedRunId: null,
+		createdAt: null,
+		finishedAt: null,
 	};
 }
 
@@ -327,12 +410,12 @@ export function buildDashboardPublicationWhere(args: { schoolId: number; schoolY
  *   status, and strictly-resolved publication.
  */
 export function resolveDashboardLifecycle(args: {
-	subjectCount: number;
-	facultyCount: number;
+	subjectCount: number | null;
+	facultyCount: number | null;
 	sectionCount: number | null;
-	unassignedSubjectCount: number;
+	unassignedSubjectCount: number | null;
 	buildingsDone: boolean;
-	latestRunStatus: DashboardLatestRunStatus;
+	latestRunStatus: DashboardLatestRunStatus | null;
 	publishedRunPresent: boolean;
 	curriculumReady: boolean;
 	hasDomainError: boolean;
@@ -342,26 +425,30 @@ export function resolveDashboardLifecycle(args: {
 
 	if (!args.curriculumReady) return { phase: 'SETUP', isPublished: false };
 
+	// DASH-RESILIENCE-C01 — unavailable domains are null, never a synthetic
+	// zero/NONE. Any null count fails the readiness arithmetic, and an unknown
+	// generation status holds the lifecycle at SETUP instead of advancing.
 	const setupReady =
-		args.subjectCount > 0 &&
-		args.facultyCount > 0 &&
+		(args.subjectCount ?? 0) > 0 &&
+		(args.facultyCount ?? 0) > 0 &&
 		args.unassignedSubjectCount === 0 &&
 		(args.sectionCount ?? 0) > 0 &&
 		args.buildingsDone;
 
 	if (!setupReady) return { phase: 'SETUP', isPublished: false };
+	if (args.latestRunStatus === null) return { phase: 'SETUP', isPublished: false };
 	if (args.latestRunStatus === 'NONE') return { phase: 'PREFERENCES', isPublished: false };
 	if (args.latestRunStatus === 'IN_PROGRESS' || args.latestRunStatus === 'FAILED') return { phase: 'GENERATION', isPublished: false };
 	return { phase: 'REVIEW', isPublished: false };
 }
 
 function lifecyclePhase(args: {
-	subjectCount: number;
-	facultyCount: number;
+	subjectCount: number | null;
+	facultyCount: number | null;
 	sectionCount: number | null;
-	unassignedSubjectCount: number;
+	unassignedSubjectCount: number | null;
 	buildingsDone: boolean;
-	latestRunStatus: DashboardLatestRunStatus;
+	latestRunStatus: DashboardLatestRunStatus | null;
 	latestRunIsPublished: boolean;
 }): DashboardLifecyclePhase {
 	return resolveDashboardLifecycle({
@@ -574,19 +661,63 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 		}),
 	]);
 
-	const campus = campusResult.data
+	return aggregateDashboardSummary({
+		schoolId: input.schoolId,
+		resolvedAt,
+		activeSchoolYearId,
+		activeSchoolYearLabel,
+		runtimeContext,
+		runtimeResult,
+		campusResult,
+		subjectResult,
+		facultyResult,
+		sectionResult,
+		generationResult,
+		publicationResult,
+		curriculumResult,
+	});
+}
+
+export type DashboardReadinessAggregateInput = {
+	schoolId: number;
+	resolvedAt: string;
+	activeSchoolYearId: number | null;
+	activeSchoolYearLabel: string | null;
+	runtimeContext: RuntimeContextResult | null;
+	runtimeResult: SafeResult<RuntimeContextResult | null>;
+	campusResult: SafeResult<CampusReadData>;
+	subjectResult: SafeResult<SubjectReadData>;
+	facultyResult: SafeResult<FacultyReadData>;
+	sectionResult: SafeResult<SectionReadData>;
+	generationResult: SafeResult<GenerationReadData>;
+	publicationResult: SafeResult<PublicationReadData>;
+	curriculumResult: SafeResult<DashboardCurriculumReadiness | null>;
+};
+
+/**
+ * DASH-RESILIENCE-C01 — assemble the readiness snapshot from the individual
+ * domain reads. A failed read becomes an explicit `available: false` domain
+ * with null values; it is never coerced into `0`, `[]`, or `NONE`. The
+ * lifecycle resolver then treats every null as fail-closed.
+ */
+export function aggregateDashboardSummary(input: DashboardReadinessAggregateInput): DashboardReadinessSummary {
+	const { runtimeResult, runtimeContext, campusResult, subjectResult, facultyResult, sectionResult, generationResult, publicationResult, curriculumResult } = input;
+
+	const campus = campusResult.ok && campusResult.data
 		? summarizeCampus(campusResult.data.buildings, campusResult.data.campusImageUrl)
-		: summarizeCampus([], null);
-	const subjects = subjectResult.data ?? { subjectCount: 0, unassignedSubjectCount: 0 };
-	const faculty = facultyResult.data ?? { facultyCount: 0, lastSyncedAt: null };
-	const sections = sectionResult.data ?? { sectionCount: null, lastSyncedAt: null };
-	const latestRun = generationResult.data ?? {
-		latestRunStatus: 'NONE' as const,
-		latestRunId: null,
-		violationCount: null,
-		createdAt: null,
-		finishedAt: null,
-	};
+		: unavailableCampus();
+	const subjects: SubjectReadinessData = subjectResult.ok && subjectResult.data
+		? { available: true, ...subjectResult.data }
+		: unavailableSubjects();
+	const faculty: FacultyReadinessData = facultyResult.ok && facultyResult.data
+		? { available: true, ...facultyResult.data }
+		: unavailableFaculty();
+	const sections: SectionReadinessData = sectionResult.ok && sectionResult.data
+		? { available: true, ...sectionResult.data }
+		: unavailableSections();
+	const latestRun: LatestRunReadinessData = generationResult.ok && generationResult.data
+		? { available: true, isPublished: false, publishedRunId: null, ...generationResult.data }
+		: unavailableGeneration();
 	const curriculum = curriculumResult.ok ? curriculumResult.data : null;
 	const hasDomainError = !runtimeResult.ok || !campusResult.ok || !subjectResult.ok || !facultyResult.ok || !sectionResult.ok || !generationResult.ok || !publicationResult.ok || !curriculumResult.ok;
 	const publication = publicationResult.ok
@@ -604,6 +735,7 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 		hasDomainError,
 	});
 	const generation: LatestRunReadinessData = {
+		available: latestRun.available,
 		latestRunStatus: latestRun.latestRunStatus,
 		latestRunId: latestRun.latestRunId,
 		violationCount: latestRun.violationCount,
@@ -613,20 +745,24 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 		finishedAt: latestRun.finishedAt,
 	};
 	const hasSavedData = Boolean(
-		activeSchoolYearId || campus.buildings.length > 0 || subjects.subjectCount > 0 || faculty.facultyCount > 0 || sections.sectionCount,
+		input.activeSchoolYearId
+			|| campus.buildings.length > 0
+			|| (subjects.subjectCount ?? 0) > 0
+			|| (faculty.facultyCount ?? 0) > 0
+			|| (sections.sectionCount ?? 0) > 0,
 	);
 	const sourceState = overallSourceState({
 		runtimeContext,
-		hasSchoolYear: Boolean(activeSchoolYearId),
+		hasSchoolYear: Boolean(input.activeSchoolYearId),
 		hasSavedData,
 		hasDomainError,
 	});
 
 	return {
 		schoolId: input.schoolId,
-		activeSchoolYearId,
-		activeSchoolYearLabel,
-		resolvedAt,
+		activeSchoolYearId: input.activeSchoolYearId,
+		activeSchoolYearLabel: input.activeSchoolYearLabel,
+		resolvedAt: input.resolvedAt,
 		sourceState: sourceState.state,
 		sourceMessage: sourceState.message,
 		campus,
@@ -635,6 +771,7 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 		sections,
 		generation,
 		curriculum,
+		activeTerm: runtimeContext?.activeTerm ?? null,
 		lifecyclePhase: lifecycle.phase,
 		sources: {
 			runtimeContext: runtimeResult.ok && runtimeContext
@@ -648,22 +785,22 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 					runtimeContext.source,
 					runtimeContext.resolvedAt,
 				)
-				: source('no_saved_data', 'No active school year context is available.', 'atlas.runtime_context', resolvedAt, runtimeResult.error),
+				: source('no_saved_data', 'No active school year context is available.', 'atlas.runtime_context', input.resolvedAt, runtimeResult.error),
 			campus: campusResult.ok
 				? source(campus.buildings.length > 0 ? 'using_saved_data' : 'no_saved_data', 'Campus readiness loaded from ATLAS.', 'atlas.buildings', iso(campusResult.data?.updatedAt))
-				: source('partial_degraded', 'Campus readiness could not be loaded.', 'atlas.buildings', resolvedAt, campusResult.error),
+				: source('partial_degraded', 'Campus readiness could not be loaded.', 'atlas.buildings', input.resolvedAt, campusResult.error),
 			subjects: subjectResult.ok
-				? source(subjects.subjectCount > 0 ? 'using_saved_data' : 'no_saved_data', 'Subject readiness loaded from ATLAS.', 'atlas.subjects', resolvedAt)
-				: source('partial_degraded', 'Subject readiness could not be loaded.', 'atlas.subjects', resolvedAt, subjectResult.error),
+				? source((subjects.subjectCount ?? 0) > 0 ? 'using_saved_data' : 'no_saved_data', 'Subject readiness loaded from ATLAS.', 'atlas.subjects', input.resolvedAt)
+				: source('partial_degraded', 'Subject readiness could not be loaded.', 'atlas.subjects', input.resolvedAt, subjectResult.error),
 			faculty: facultyResult.ok
-				? source(faculty.facultyCount > 0 ? 'using_saved_data' : 'no_saved_data', 'Faculty readiness loaded from ATLAS mirror.', 'atlas.faculty_mirrors', faculty.lastSyncedAt)
-				: source('partial_degraded', 'Faculty readiness could not be loaded.', 'atlas.faculty_mirrors', resolvedAt, facultyResult.error),
+				? source((faculty.facultyCount ?? 0) > 0 ? 'using_saved_data' : 'no_saved_data', 'Faculty readiness loaded from ATLAS mirror.', 'atlas.faculty_mirrors', faculty.lastSyncedAt)
+				: source('partial_degraded', 'Faculty readiness could not be loaded.', 'atlas.faculty_mirrors', input.resolvedAt, facultyResult.error),
 			sections: sectionResult.ok
-				? source(sections.sectionCount && sections.sectionCount > 0 ? 'using_saved_data' : 'no_saved_data', 'Section readiness loaded from ATLAS mirror.', 'atlas.section_mirrors', sections.lastSyncedAt)
-				: source('partial_degraded', 'Section readiness could not be loaded.', 'atlas.section_mirrors', resolvedAt, sectionResult.error),
+				? source((sections.sectionCount ?? 0) > 0 ? 'using_saved_data' : 'no_saved_data', 'Section readiness loaded from ATLAS mirror.', 'atlas.section_mirrors', sections.lastSyncedAt)
+				: source('partial_degraded', 'Section readiness could not be loaded.', 'atlas.section_mirrors', input.resolvedAt, sectionResult.error),
 			generation: generationResult.ok
 				? source(generation.latestRunId ? 'using_saved_data' : 'no_saved_data', 'Latest generation status loaded from ATLAS.', 'atlas.generation_runs', generation.finishedAt ?? generation.createdAt)
-				: source('partial_degraded', 'Latest generation status could not be loaded.', 'atlas.generation_runs', resolvedAt, generationResult.error),
+				: source('partial_degraded', 'Latest generation status could not be loaded.', 'atlas.generation_runs', input.resolvedAt, generationResult.error),
 			curriculum: curriculumResult.ok && curriculum
 				? source(
 					curriculum.ready ? 'using_saved_data' : 'no_saved_data',
@@ -671,9 +808,9 @@ export async function getDashboardReadinessSummary(input: DashboardSummaryInput)
 						? 'Curriculum Requirements are ready for this school year.'
 						: (curriculum.blockerMessage ?? 'Curriculum Requirements need attention before generation.'),
 					'atlas.curriculum_requirements',
-					resolvedAt,
+					input.resolvedAt,
 				)
-				: source('partial_degraded', 'Curriculum Requirements could not be checked.', 'atlas.curriculum_requirements', resolvedAt, curriculumResult.error),
+				: source('partial_degraded', 'Curriculum Requirements could not be checked.', 'atlas.curriculum_requirements', input.resolvedAt, curriculumResult.error),
 		},
 	};
 }

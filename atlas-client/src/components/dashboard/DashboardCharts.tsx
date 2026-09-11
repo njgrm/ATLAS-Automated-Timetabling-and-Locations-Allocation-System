@@ -10,7 +10,7 @@ type DashboardChartsProps = {
 	assignedCount: number | null;
 	unassignedCount: number | null;
 	hardViolationCount: number | null;
-	latestRunStatus: string;
+	latestRunStatus: string | null;
 };
 
 function ChartSkeleton() {

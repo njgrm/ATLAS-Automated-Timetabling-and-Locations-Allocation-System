@@ -11,8 +11,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	classifyDashboardLoadError,
 	initialDashboardDomainState,
+	resolveDashboardLoadFailure,
 	resolveDashboardRequestScope,
+	unavailableDomainAvailability,
 } from '../useDashboardData';
 import { pickNextStep } from '../../pages/Dashboard';
 
@@ -43,7 +46,8 @@ test('cleared domain state carries no stale run, publication, or year identity',
 	assert.equal(cleared.sectionCount, null);
 	assert.equal(cleared.unassignedSubjectCount, null);
 	assert.equal(cleared.missingCoverageSubjectIds, null);
-	assert.equal(cleared.latestRunStatus, 'NONE');
+	// DASH-RESILIENCE-C01: unknown is null, never a synthetic NONE.
+	assert.equal(cleared.latestRunStatus, null);
 	assert.equal(cleared.latestRunId, null);
 	assert.equal(cleared.violationCount, null);
 	assert.equal(cleared.assignedCount, null);
@@ -52,6 +56,58 @@ test('cleared domain state carries no stale run, publication, or year identity',
 	assert.equal(cleared.curriculum, null);
 	assert.equal(cleared.activeSchoolYearId, null);
 	assert.equal(cleared.activeSchoolYearLabel, null);
+	assert.deepEqual(cleared.domainAvailability, unavailableDomainAvailability());
+	assert.deepEqual(cleared.domainAvailability, {
+		campus: false, subjects: false, faculty: false, sections: false, generation: false, curriculum: false,
+	});
+});
+
+test('DASH-RESILIENCE-C01: load errors classify 401 as auth, 403 as scope, everything else as transient', () => {
+	assert.equal(classifyDashboardLoadError(401), 'auth');
+	assert.equal(classifyDashboardLoadError(403), 'scope');
+	assert.equal(classifyDashboardLoadError(500), 'unavailable');
+	assert.equal(classifyDashboardLoadError(0), 'unavailable');
+	assert.equal(classifyDashboardLoadError(null), 'unavailable');
+	assert.equal(classifyDashboardLoadError(undefined), 'unavailable');
+});
+
+test('DASH-RESILIENCE-C01: 401 clears data, dispatches nothing, and routes to the session-expired path', () => {
+	const decision = resolveDashboardLoadFailure({ errorKind: 'auth', requestSchoolId: 5, lastSuccessSchoolId: 5 });
+	assert.equal(decision.retainSnapshot, false);
+	assert.equal(decision.resetDomainState, true);
+	assert.equal(decision.blocked, true);
+	assert.equal(decision.expireSession, true);
+	assert.equal(decision.sourceState, 'no_saved_data');
+	assert.match(decision.sourceMessage, /session expired|sign in/i);
+});
+
+test('DASH-RESILIENCE-C01: 403 is a scope rejection with no fallback school and no session expiry', () => {
+	const decision = resolveDashboardLoadFailure({ errorKind: 'scope', requestSchoolId: 5, lastSuccessSchoolId: 5 });
+	assert.equal(decision.retainSnapshot, false);
+	assert.equal(decision.resetDomainState, true);
+	assert.equal(decision.blocked, true);
+	assert.equal(decision.expireSession, false);
+	assert.match(decision.blockedMessage ?? '', /rejected this school request/i);
+});
+
+test('DASH-RESILIENCE-C01: a transient same-school refresh failure retains the last snapshot', () => {
+	const decision = resolveDashboardLoadFailure({ errorKind: 'unavailable', requestSchoolId: 5, lastSuccessSchoolId: 5 });
+	assert.equal(decision.retainSnapshot, true);
+	assert.equal(decision.resetDomainState, false);
+	assert.equal(decision.blocked, false);
+	assert.equal(decision.expireSession, false);
+	assert.equal(decision.sourceState, 'partial_degraded');
+	assert.match(decision.sourceMessage, /saved data/i);
+});
+
+test('DASH-RESILIENCE-C01: a transient failure with no same-school snapshot clears to unavailable placeholders', () => {
+	const firstLoad = resolveDashboardLoadFailure({ errorKind: 'unavailable', requestSchoolId: 5, lastSuccessSchoolId: null });
+	assert.equal(firstLoad.retainSnapshot, false);
+	assert.equal(firstLoad.resetDomainState, true);
+
+	const otherSchool = resolveDashboardLoadFailure({ errorKind: 'unavailable', requestSchoolId: 6, lastSuccessSchoolId: 5 });
+	assert.equal(otherSchool.retainSnapshot, false, 'snapshots never cross a school scope');
+	assert.equal(otherSchool.resetDomainState, true);
 });
 
 test('missing Curriculum Requirements => setup repair action (never publish)', () => {

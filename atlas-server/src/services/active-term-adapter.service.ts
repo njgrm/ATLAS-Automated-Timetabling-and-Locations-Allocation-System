@@ -5,7 +5,37 @@
  * hardcoded three-term ceiling.
  */
 
-export type ActiveTermSource = 'enrollpro-verified' | 'enrollpro-unreachable' | 'enrollpro-contract-drift' | 'atlas-unverified';
+export type ActiveTermSource = 'enrollpro-verified' | 'enrollpro-unresolved' | 'enrollpro-unreachable' | 'enrollpro-contract-drift' | 'atlas-unverified';
+
+/**
+ * Extract a typed EnrollPro error code from a JSON error envelope without
+ * changing the caller-facing contract vocabulary.
+ */
+function extractActiveTermErrorCode(body: unknown): string | null {
+	if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+	const record = body as Record<string, unknown>;
+	const direct = typeof record.code === 'string' && record.code.trim().length > 0 ? record.code.trim() : null;
+	if (direct) return direct.toUpperCase();
+	const errorField = record.error;
+	if (typeof errorField === 'string' && errorField.trim().length > 0) return errorField.trim().toUpperCase();
+	if (errorField && typeof errorField === 'object' && !Array.isArray(errorField)) {
+		const nested = (errorField as Record<string, unknown>).code;
+		if (typeof nested === 'string' && nested.trim().length > 0) return nested.trim().toUpperCase();
+	}
+	return null;
+}
+
+function extractActiveTermErrorMessage(body: unknown): string | null {
+	if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+	const record = body as Record<string, unknown>;
+	if (typeof record.message === 'string' && record.message.trim().length > 0) return record.message.trim();
+	const errorField = record.error;
+	if (errorField && typeof errorField === 'object' && !Array.isArray(errorField)) {
+		const nested = (errorField as Record<string, unknown>).message;
+		if (typeof nested === 'string' && nested.trim().length > 0) return nested.trim();
+	}
+	return null;
+}
 
 export type ActiveTermResult = {
 	source: ActiveTermSource;
@@ -69,6 +99,47 @@ export async function fetchEnrollProActiveTerm(
 		});
 
 		if (!res.ok) {
+			let body: unknown = null;
+			try {
+				body = await res.json();
+			} catch {
+				body = null;
+			}
+			const code = extractActiveTermErrorCode(body);
+			const upstreamMessage = extractActiveTermErrorMessage(body);
+
+			// DASH-RESILIENCE-C01 — a reachable, typed non-2xx is a contract
+			// result, not a network outage. HTTP 409 `ACTIVE_TERM_UNRESOLVED` is
+			// the valid "no term contains today" state and must stay reachable.
+			if (res.status === 409) {
+				if (code === 'ACTIVE_TERM_UNRESOLVED') {
+					return {
+						source: 'enrollpro-unresolved',
+						reachable: true,
+						verified: false,
+						activeTerm: null,
+						termIndex: null,
+						schoolYearId: null,
+						matchedSchoolYear: null,
+						code: 'ACTIVE_TERM_UNRESOLVED',
+						message: upstreamMessage ?? 'EnrollPro has no term containing the current date.',
+					};
+				}
+				return {
+					source: 'enrollpro-contract-drift',
+					reachable: true,
+					verified: false,
+					activeTerm: null,
+					termIndex: null,
+					schoolYearId: null,
+					matchedSchoolYear: null,
+					code: code ?? 'ACTIVE_TERM_CONFLICT',
+					message: upstreamMessage ?? `EnrollPro active-term endpoint returned HTTP 409${code ? ` (${code})` : ''}.`,
+				};
+			}
+
+			// Other non-2xx statuses are source failures; preserve the typed
+			// upstream code when one is supplied.
 			return {
 				source: 'enrollpro-unreachable',
 				reachable: false,
@@ -77,8 +148,8 @@ export async function fetchEnrollProActiveTerm(
 				termIndex: null,
 				schoolYearId: null,
 				matchedSchoolYear: null,
-				code: null,
-				message: `EnrollPro active-term endpoint returned ${res.status}.`,
+				code,
+				message: `EnrollPro active-term endpoint returned ${res.status}${code ? ` (${code})` : ''}.`,
 			};
 		}
 
