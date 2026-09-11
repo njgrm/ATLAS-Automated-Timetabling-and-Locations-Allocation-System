@@ -1987,6 +1987,40 @@ export type SuggestedRowPreview = {
 	warning?: string | null;
 };
 
+export type DistributionMoveAction = {
+	action: 'MOVE';
+	ownershipId: number;
+	facultySubjectId: number;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sectionId: number;
+	sectionName: string;
+	fromFacultyId: number;
+	fromFacultyName: string;
+	toFacultyId: number;
+	toFacultyName: string;
+	minutes: number;
+};
+
+export type TeachingLoadDistributionSummary = {
+	coveredRows: number;
+	uncoveredRows: number;
+	proposedMoves: number;
+	unresolvedImbalance: number;
+	aboveStandardFaculty: number;
+	hardCapBreaches: number;
+	distributionEvaluated: boolean;
+	balanced: boolean;
+};
+
+export type TeachingLoadDistributionPlan = {
+	retains: Array<{ action: 'RETAIN'; subjectId: number; sectionId: number; facultyId: number }>;
+	inserts: Array<{ action: 'INSERT'; subjectId: number; sectionId: number; facultyId: number }>;
+	moves: DistributionMoveAction[];
+	summary: TeachingLoadDistributionSummary;
+};
+
 export type AutoFillSummaryResult = {
 	preserved: number;
 	created: number;
@@ -1997,6 +2031,8 @@ export type AutoFillSummaryResult = {
 	warnings: string[];
 	sectionSource?: 'enrollpro' | 'stub' | 'cached-enrollpro' | 'atlas-mirror';
 	sectionFallbackReason?: string | null;
+	distribution?: TeachingLoadDistributionPlan;
+	movesApplied?: number;
 	staffingReport: StaffingReport;
 	staffingTruth?: StaffingTruthComparison;
 	teacherXResolution?: {

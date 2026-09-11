@@ -9,6 +9,7 @@ import {
 import type { ExternalSection, Subject } from '@/types';
 
 type UseAssignmentHistoryParams = {
+	scopeKey: string | null;
 	selectedId: number | null; // Keep for interface compatibility if needed, but history is global
 	subjects: Subject[];
 	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
@@ -28,6 +29,7 @@ function cloneAssignments(assignments: FacultyAssignmentDraft[]): FacultyAssignm
 type GlobalSnapshot = Record<number, FacultyAssignmentDraft[]>;
 
 export function useAssignmentHistory({
+	scopeKey,
 	selectedId,
 	subjects,
 	effectiveAssignmentsByFaculty,
@@ -38,13 +40,21 @@ export function useAssignmentHistory({
 	const [undoStack, setUndoStack] = useState<GlobalSnapshot[]>([]);
 	const [redoStack, setRedoStack] = useState<GlobalSnapshot[]>([]);
 
+	// Canonical persisted identity only. Display-name matching is never authority.
 	const homeroomSubjectIds = useMemo(() => {
 		const ids = new Set<number>();
 		for (const subject of subjects) {
-			if (subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom')) ids.add(subject.id);
+			if (subject.code === 'HG') ids.add(subject.id);
 		}
 		return ids;
 	}, [subjects]);
+
+	// A scope change invalidates the whole local history so stale undo/redo
+	// snapshots can never be replayed against a different school/year.
+	useEffect(() => {
+		setUndoStack([]);
+		setRedoStack([]);
+	}, [scopeKey]);
 
 	const splitImmutableAssignments = useCallback((assignments: FacultyAssignmentDraft[]) => {
 		const immutable = assignments.filter((assignment) => homeroomSubjectIds.has(assignment.subjectId));

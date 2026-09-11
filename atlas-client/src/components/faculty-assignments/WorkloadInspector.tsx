@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
-import { Switch } from '@/ui/switch';
 import { cn } from '@/lib/utils';
 import type { FacultySummary, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
 import { gradeLabel } from '@/lib/grade-labels';
@@ -31,7 +30,6 @@ type WorkloadInspectorProps = {
 	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
 	teachingStandardHours: number | null;
 	policyReady: boolean;
-	onToggleCanTeachOutsideDepartment?: (checked: boolean) => void;
 	onClose?: () => void;
 };
 
@@ -53,7 +51,6 @@ export function WorkloadInspector({
 	activeTermIndex,
 	teachingStandardHours,
 	policyReady,
-	onToggleCanTeachOutsideDepartment,
 	onClose
 }: WorkloadInspectorProps) {
 	if (!selected) {
@@ -206,21 +203,6 @@ export function WorkloadInspector({
 						</div>
 					)}
 				</div>
-
-				{/* Cross-Department Teaching Switch */}
-				{!selected.isPlaceholder && (
-					<div className="flex items-center justify-between p-4 rounded-xl border border-border/40 bg-muted/5">
-						<div className="space-y-0.5">
-							<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/80 block">Cross-Dept Teaching</span>
-							<p className="text-[10px] text-muted-foreground font-medium">Allow assignments outside own department.</p>
-						</div>
-						<Switch
-							checked={selected.canTeachOutsideDepartment}
-							onCheckedChange={onToggleCanTeachOutsideDepartment}
-							disabled={isReadOnlyMode}
-						/>
-					</div>
-				)}
 
 				{/* Handled Classes Summary */}
 				<section className="space-y-4">

@@ -103,6 +103,65 @@ export interface SuggestedRowPreview {
 	warning?: string | null;
 }
 
+export interface DistributionRetainAction {
+	action: 'RETAIN';
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+}
+
+export interface DistributionInsertAction {
+	action: 'INSERT';
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+}
+
+export interface DistributionMoveAction {
+	action: 'MOVE';
+	ownershipId: number;
+	facultySubjectId: number;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sectionId: number;
+	sectionName: string;
+	fromFacultyId: number;
+	fromFacultyName: string;
+	toFacultyId: number;
+	toFacultyName: string;
+	minutes: number;
+}
+
+export interface TeachingLoadDistributionSummary {
+	/** Subject-section pairs that already have a valid owner. */
+	coveredRows: number;
+	/** Subject-section pairs still without an owner. */
+	uncoveredRows: number;
+	/** Exact reallocation moves proposed for existing over-standard owners. */
+	proposedMoves: number;
+	/** Above-standard owners that still have no eligible receiver after the plan. */
+	unresolvedImbalance: number;
+	/** Faculty above the teaching standard / individual weekly maximum (e.g. 30h). */
+	aboveStandardFaculty: number;
+	/** Faculty above the policy absolute hard cap (e.g. 40h). */
+	hardCapBreaches: number;
+	/**
+	 * Whether the distribution evaluator actually ran. False means the result is
+	 * unknown, and `balanced` must not be trusted as success.
+	 */
+	distributionEvaluated: boolean;
+	/** True only when distribution was evaluated AND coverage and balance are safe. */
+	balanced: boolean;
+}
+
+export interface TeachingLoadDistributionPlan {
+	retains: DistributionRetainAction[];
+	inserts: DistributionInsertAction[];
+	moves: DistributionMoveAction[];
+	summary: TeachingLoadDistributionSummary;
+}
+
 export interface AutoFillResult {
 	preserved: number;
 	created: number;
@@ -125,6 +184,10 @@ export interface AutoFillResult {
 		stillUncoveredSubjectCodes: string[];
 	};
 	suggestedRows?: SuggestedRowPreview[];
+	/** Coverage + distribution plan. Never report full success from coverage alone. */
+	distribution?: TeachingLoadDistributionPlan;
+	/** Moves actually persisted by an apply call. */
+	movesApplied?: number;
 }
 
 export type TeachingLoadSplitBrainReasonCode =
@@ -1416,6 +1479,162 @@ function buildSectionSourceWarning(sectionResult: SectionFetchResult): string | 
 	return 'Using saved ATLAS section data for this preview.';
 }
 
+/**
+ * Pure summary of a coverage + distribution plan. Exported so the exact counts
+ * can be asserted without a database. `balanced` is only true when coverage is
+ * complete AND no move is proposed AND nobody is above the teaching standard or
+ * the absolute hard cap. It must never be derived from coverage alone.
+ */
+export function summarizeDistributionPlan(input: {
+	coveredRows: number;
+	uncoveredRows: number;
+	moves: Array<{ fromFacultyId: number; minutes?: number }>;
+	overCapFaculty: Array<{ facultyId?: number; teachingMinutes: number; totalCreditedMinutes?: number; overMinutes: number }>;
+	hardCapMinutes: number;
+	distributionEvaluated?: boolean;
+}): TeachingLoadDistributionSummary {
+	const distributionEvaluated = input.distributionEvaluated !== false;
+	const aboveStandardFaculty = input.overCapFaculty.length;
+	const hardCapBreaches = input.overCapFaculty.filter(
+		(member) => (member.totalCreditedMinutes ?? member.teachingMinutes) > input.hardCapMinutes,
+	).length;
+	// A donor is resolved only when the proposed moves cover the whole amount the
+	// donor is over; a partially-relieved donor still leaves an unresolved row.
+	// Donors without a stable id (unusual) fall back to the distinct-donor count.
+	let unresolvedImbalance = 0;
+	const donorIds = new Set(input.moves.map((move) => move.fromFacultyId));
+	for (const member of input.overCapFaculty) {
+		if (member.overMinutes <= 0) continue;
+		if (member.facultyId == null) continue;
+		const movedMinutes = input.moves
+			.filter((move) => move.fromFacultyId === member.facultyId)
+			.reduce((sum, move) => sum + Math.max(0, Number(move.minutes ?? 0) || 0), 0);
+		if (movedMinutes < member.overMinutes) unresolvedImbalance += 1;
+	}
+	const unknownIdDonors = input.overCapFaculty.filter((member) => member.facultyId == null).length;
+	if (unknownIdDonors > 0) {
+		unresolvedImbalance += Math.max(0, unknownIdDonors - donorIds.size);
+	}
+	const balanced =
+		distributionEvaluated
+		&& input.uncoveredRows === 0
+		&& input.moves.length === 0
+		&& aboveStandardFaculty === 0
+		&& hardCapBreaches === 0;
+	return {
+		coveredRows: Math.max(0, input.coveredRows),
+		uncoveredRows: Math.max(0, input.uncoveredRows),
+		proposedMoves: input.moves.length,
+		unresolvedImbalance,
+		aboveStandardFaculty,
+		hardCapBreaches,
+		distributionEvaluated,
+		balanced,
+	};
+}
+
+/**
+ * Distribution plan for the zero-section early return. There is nothing to
+ * evaluate, so this is explicitly NOT a balanced result — a failed/empty
+ * preview must never render as success.
+ */
+export function emptyDistributionPlan(): TeachingLoadDistributionPlan {
+	return {
+		retains: [],
+		inserts: [],
+		moves: [],
+		summary: {
+			coveredRows: 0,
+			uncoveredRows: 0,
+			proposedMoves: 0,
+			unresolvedImbalance: 0,
+			aboveStandardFaculty: 0,
+			hardCapBreaches: 0,
+			distributionEvaluated: false,
+			balanced: false,
+		},
+	};
+}
+
+/**
+ * Build the single coverage + distribution plan for the daily suggestion
+ * workflow. It preserves valid existing rows, structures coverage inserts, and
+ * reuses the canonical over-cap rebalance preview so distribution moves are
+ * exact structured actions, never warning strings.
+ */
+async function buildTeachingLoadDistributionPlan(params: {
+	schoolId: number;
+	schoolYearId: number;
+	authToken?: string;
+	preserved: number;
+	unresolved: number;
+	suggestedRows: SuggestedRowPreview[];
+}): Promise<TeachingLoadDistributionPlan> {
+	const retains: DistributionRetainAction[] = [];
+	const inserts: DistributionInsertAction[] = [];
+
+	for (const row of params.suggestedRows) {
+		const facultyId = row.facultyId ?? null;
+		if (facultyId == null || !Number.isInteger(facultyId) || facultyId <= 0) continue;
+		if (row.assignmentType === 'KEPT_EXISTING') {
+			retains.push({ action: 'RETAIN', subjectId: row.subjectId, sectionId: row.sectionId, facultyId });
+		} else if (row.assignmentType === 'REAL_TEACHER') {
+			inserts.push({ action: 'INSERT', subjectId: row.subjectId, sectionId: row.sectionId, facultyId });
+		}
+	}
+
+	let rebalance: OverCapRebalanceResult;
+	let distributionEvaluated = true;
+	try {
+		rebalance = await previewOrApplyOverCapRebalance({
+			schoolId: params.schoolId,
+			schoolYearId: params.schoolYearId,
+			actorId: 0,
+			authToken: params.authToken,
+			previewOnly: true,
+		});
+		// If the evaluator resolved no sections it could not judge distribution.
+		// Treat that as unevaluated so `balanced` can never be inferred from a
+		// silently empty over-cap list.
+		if (rebalance.sectionsResolved <= 0) {
+			distributionEvaluated = false;
+		}
+	} catch {
+		distributionEvaluated = false;
+		rebalance = {
+			applied: false,
+			schoolId: params.schoolId,
+			schoolYearId: params.schoolYearId,
+			overCapFaculty: [],
+			proposedMoves: [],
+			movesApplied: 0,
+			ownershipRowsMoved: 0,
+			facultySubjectRowsUpdated: 0,
+			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: 0,
+		};
+	}
+
+	const moves: DistributionMoveAction[] = rebalance.proposedMoves.map((move) => ({
+		action: 'MOVE',
+		...move,
+	}));
+
+	return {
+		retains,
+		inserts,
+		moves,
+		summary: summarizeDistributionPlan({
+			coveredRows: params.preserved,
+			uncoveredRows: params.unresolved,
+			moves,
+			overCapFaculty: rebalance.overCapFaculty,
+			hardCapMinutes: HARD_CAP_MIN,
+			distributionEvaluated,
+		}),
+	};
+}
+
 export async function autoFill(
 	schoolId: number,
 	schoolYearId: number,
@@ -1501,6 +1720,7 @@ export async function autoFill(
 			sectionFallbackReason: sectionResult.fallbackReason ?? null,
 			staffingReport: emptyReport,
 			staffingTruth: emptyTruth,
+			distribution: emptyDistributionPlan(),
 		};
 	}
 
@@ -1966,7 +2186,7 @@ export async function autoFill(
 		for (const [facultyId, info] of overCapFacultyById) {
 			const overHours = Math.round((info.overMinutes / 60) * 10) / 10;
 			warnings.push(
-				`Teacher already over cap: ${info.facultyName} exceeds max by ${overHours}h/week (${Math.round(info.overMinutes)} min). Existing assignments preserved — use rebalance to redistribute.`,
+				`Teacher above the teaching standard: ${info.facultyName} is over their weekly maximum by ${overHours}h/week (${Math.round(info.overMinutes)} min). The suggestion plan proposes exact reallocation moves where a qualified same-department receiver has capacity.`,
 			);
 		}
 	}
@@ -2032,6 +2252,23 @@ export async function autoFill(
 		}
 	}
 
+	const distribution = await buildTeachingLoadDistributionPlan({
+		schoolId,
+		schoolYearId,
+		authToken,
+		preserved,
+		unresolved: finalUnresolved,
+		suggestedRows,
+	});
+
+	if (distribution.summary.aboveStandardFaculty > 0) {
+		warnings.push(
+			`Distribution: ${distribution.summary.aboveStandardFaculty} teacher${distribution.summary.aboveStandardFaculty === 1 ? '' : 's'} are above the teaching standard. `
+			+ `${distribution.summary.proposedMoves} exact reallocation move${distribution.summary.proposedMoves === 1 ? '' : 's'} proposed to qualified same-department receivers; `
+			+ `${distribution.summary.unresolvedImbalance} imbalance row${distribution.summary.unresolvedImbalance === 1 ? '' : 's'} remain unresolved.`,
+		);
+	}
+
 	return {
 		preserved,
 		created: totalCreated,
@@ -2046,6 +2283,7 @@ export async function autoFill(
 		staffingTruth,
 		teacherXResolution,
 		suggestedRows,
+		distribution,
 	};
 }
 
@@ -2356,6 +2594,8 @@ export interface OverCapRebalanceResult {
 	ownershipRowsMoved: number;
 	facultySubjectRowsUpdated: number;
 	facultyMirrorVersionsBumped: number;
+	/** Sections the evaluator resolved. 0 means distribution was not evaluated. */
+	sectionsResolved: number;
 }
 
 export async function previewOrApplyOverCapRebalance(
@@ -2391,6 +2631,7 @@ export async function previewOrApplyOverCapRebalance(
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: allSectionIds.length,
 		};
 	}
 
@@ -2475,6 +2716,10 @@ export async function previewOrApplyOverCapRebalance(
 	]);
 
 	const realFaculty = faculty.filter((m) => !m.isPlaceholder);
+	// Deterministic receiver evaluation order so an identical database state
+	// always produces the same plan and the reviewed-vs-refreshed comparison is
+	// stable.
+	const realFacultyByStableId = [...realFaculty].sort((left, right) => left.id - right.id);
 	const currentYearSectionIdSet = new Set(allSectionIds);
 	const subjectById = new Map(subjects.map((s) => [s.id, s]));
 
@@ -2540,6 +2785,7 @@ export async function previewOrApplyOverCapRebalance(
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: allSectionIds.length,
 		};
 	}
 
@@ -2597,8 +2843,12 @@ export async function previewOrApplyOverCapRebalance(
 			let bestReceiver: typeof realFaculty[number] | null = null;
 			let bestTier = Infinity;
 			let bestSpareMinutes = -1;
+			// Adviser tie-break: an adviser with no real (non-HG) teaching pair for
+			// their advised section is preferred over an otherwise equally eligible
+			// receiver. This never bypasses tier, capacity, scope, or uniqueness.
+			let bestAdviserPreference = false;
 
-			for (const candidate of realFaculty) {
+			for (const candidate of realFacultyByStableId) {
 				if (candidate.id === overFaculty.facultyId) continue;
 				if (candidate.isPlaceholder) continue;
 
@@ -2611,10 +2861,23 @@ export async function previewOrApplyOverCapRebalance(
 				const spareMinutes = candidateCap - candidateTeaching;
 				if (spareMinutes < minutes) continue;
 
-				if (tier < bestTier || (tier === bestTier && spareMinutes > bestSpareMinutes)) {
+				const isAdviserForSection = candidate.isClassAdviser === true && candidate.advisedSectionId === ownership.sectionId;
+				const hasRealPairForSection = existingOwnerships.some(
+					(existing) => existing.facultyId === candidate.id
+						&& existing.sectionId === ownership.sectionId
+						&& subjectById.get(existing.subjectId)?.code?.toUpperCase() !== HG_SUBJECT_CODE,
+				);
+				const adviserPreference = isAdviserForSection && !hasRealPairForSection;
+
+				const betterTier = tier < bestTier;
+				const sameTier = tier === bestTier;
+				const betterPreference = sameTier && adviserPreference && !bestAdviserPreference;
+				const samePreference = sameTier && adviserPreference === bestAdviserPreference;
+				if (betterTier || betterPreference || (samePreference && spareMinutes > bestSpareMinutes)) {
 					bestReceiver = candidate;
 					bestTier = tier;
 					bestSpareMinutes = spareMinutes;
+					bestAdviserPreference = adviserPreference;
 				}
 			}
 
@@ -2653,6 +2916,7 @@ export async function previewOrApplyOverCapRebalance(
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
 			facultyMirrorVersionsBumped: 0,
+			sectionsResolved: allSectionIds.length,
 		};
 	}
 
@@ -2801,5 +3065,6 @@ export async function previewOrApplyOverCapRebalance(
 		ownershipRowsMoved,
 		facultySubjectRowsUpdated,
 		facultyMirrorVersionsBumped,
+		sectionsResolved: allSectionIds.length,
 	};
 }

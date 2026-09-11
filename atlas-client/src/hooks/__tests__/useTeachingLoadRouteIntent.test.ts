@@ -16,9 +16,11 @@ test('parseRouteIntent: no parameters returns null viewMode', () => {
 	assert.equal(intent.task, null);
 });
 
-test('parseRouteIntent: view=subjects without facultyId opens subjects mode', () => {
+test('parseRouteIntent: legacy view=subjects without facultyId opens Sections coverage mode', () => {
+	// The Subjects tab was removed as a top-level Teaching Load mode. The legacy
+	// `view=subjects` token now routes to the single Sections coverage surface.
 	const intent = parseRouteIntent(params({ view: 'subjects' }));
-	assert.equal(intent.viewMode, 'subjects');
+	assert.equal(intent.viewMode, 'allocation');
 });
 
 test('parseRouteIntent: view=subjects with facultyId does NOT open subjects mode', () => {
@@ -27,9 +29,9 @@ test('parseRouteIntent: view=subjects with facultyId does NOT open subjects mode
 	assert.equal(intent.facultyId, 7);
 });
 
-test('parseRouteIntent: task=missing-load without facultyId opens subjects mode (school-wide)', () => {
+test('parseRouteIntent: task=missing-load without facultyId opens Sections coverage (school-wide)', () => {
 	const intent = parseRouteIntent(params({ task: 'missing-load' }));
-	assert.equal(intent.viewMode, 'subjects');
+	assert.equal(intent.viewMode, 'allocation');
 	assert.equal(intent.task, 'missing-load');
 	assert.equal(intent.facultyId, null);
 });
@@ -62,8 +64,8 @@ test('parseRouteIntent: task=over-cap opens teacher mode', () => {
 
 test('parseRouteIntent: view=subjects takes precedence over sectionId', () => {
 	const intent = parseRouteIntent(params({ view: 'subjects', sectionId: '42' }));
-	assert.equal(intent.viewMode, 'subjects');
-	assert.equal(intent.sectionId, null, 'sectionId must be null when view=subjects wins');
+	assert.equal(intent.viewMode, 'allocation');
+	assert.equal(intent.sectionId, null, 'sectionId must be null when the coverage view wins');
 });
 
 test('parseRouteIntent: sectionId takes precedence over facultyId alone', () => {

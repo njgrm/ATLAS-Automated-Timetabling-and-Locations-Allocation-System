@@ -74,6 +74,62 @@
 - The proposed approval sentence is recorded as NOT ACTIVE until planner/QA
   acceptance; no live schema or data mutation was performed.
 
+## [2026-09-11] — TL-UX-C01R Teaching Load Suggestion and Balance Authority
+
+### Added
+- Structured `TeachingLoadDistributionPlan` (`RETAIN`/`INSERT`/`MOVE`) and `TeachingLoadDistributionSummary` on the suggestion preview, with separate covered, uncovered, proposed-move, unresolved-imbalance, above-standard, and absolute-hard-cap counts.
+- Bounded adviser tie-break in the canonical over-cap plan builder: an adviser with no real (non-HG) teaching pair for their advised section is preferred over an otherwise equally eligible receiver.
+- Server distribution-plan tests (9) and client distribution-UI regression tests (2); intercepted-write Playwright distribution preview test.
+
+### Changed
+- The daily suggestion preview now composes the canonical over-cap rebalance plan, so a fully owned Teaching Load with above-standard teachers reports an explicit imbalance and exact moves instead of a false complete-coverage/capacity success.
+- The reviewed-proposal apply persists the coverage inserts and the distribution moves in the same `Serializable` transaction, re-validating each move's ownership and receiver capacity inside the transaction; any mismatch returns `TEACHING_LOAD_PROPOSAL_STALE` with zero writes.
+- `AutoFillSummaryModal` renders a distinct "Coverage complete, rebalance proposed" state with one apply action; the misleading "everyone is within their workload capacity" copy is removed.
+- Corrected the prior handoff's changed-path count to 26.
+
+### Correction (independent review follow-up)
+- Fail closed on distribution-evaluation failure: the preview summary carries `distributionEvaluated`, and `balanced` is forced false when the over-cap evaluator could not run (exception, or zero sections resolved).
+- `unresolvedImbalance` counts a donor only when the proposed moves cover the whole excess; `hardCapBreaches` compares total credited minutes against the absolute cap.
+- The reviewed-proposal apply recomputes receiver and donor `FacultySubject.gradeLevels` from the resulting `sectionIds` (parity invariant) and re-checks receiver capacity against the selected standard mode, while still re-validating ownership and capacity inside the Serializable transaction.
+- The refreshed reallocation plan is compared against the reviewed preview plan before any write; a mismatch returns `TEACHING_LOAD_PROPOSAL_STALE`.
+- The modal shows a neutral "balance not evaluated" state when distribution is missing or flagged unevaluated, and shows the distribution counts even when a coverage shortage coexists.
+- The zero-section preview path now returns `distributionEvaluated:false, balanced:false` (never a false balanced success), the receiver evaluation order is deterministic by faculty id, and the distribution test suite covers the production zero-section plan.
+- The suggestion preview header and icon are now gated on `distributionEvaluated`: an unevaluated/zero-section preview renders "Coverage complete, balance not evaluated" and never the balanced-success title. A render-level Playwright regression covers the zero-section shape.
+
+### Verification
+- Server/client `tsc --noEmit` and production builds pass; server distribution tests 12/12; client ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21, reconciliation-ui 5/5, distribution-ui 2/2, ux-guardrails 21/21.
+- Isolated-candidate Playwright at 1440x900, 390x844, and 320px reflow shows the move preview, separate counts, and one keyboard-reachable apply action with zero forbidden writes.
+- Live read-only proof: year 9 has 7 above-standard donors (37.5h each), 14 exact moves, and the idle ESP/FIL receivers; `previewOnly` apply is false and the before/after signature is identical (265/265, 42 faculty, 0 runs).
+
+### Open Questions
+- Distribution-plan tests are unit/source-scan because the isolated worktree has no `DATABASE_URL`; DB-backed route suites fail closed without it and were not run against live.
+- The production over-cap rebalance endpoint remains a protected surface and is not a competing daily UI control.
+
+## [2026-09-11] — TL-UX-C01 Teaching Load Workspace Consolidation
+
+### Added
+- `transferExactSectionPair` and `buildSaveCommitReceipt` production helpers for exact-pair ownership transfer and truthful multi-teacher save receipts.
+- Focused ownership-integrity tests plus scope/HG/dead-control guardrail tests.
+
+### Changed
+- Removed the Teaching Load split-brain preview request, state, and warning plumbing; the daily page no longer calls `integrity/reconcile-split-brain`.
+- Removed the daily current-year reconciliation panel, global reset, staffing-audit sheet, teacher jump list, duplicate mobile mode items, and the redundant Details/Skip/Find repair actions.
+- Collapsed the Subjects mode into the single Sections coverage/navigation surface; over-cap now filters the teacher list instead of opening a contradictory report.
+- `Change owner` transfers exactly the selected subject-section pair; the implicit `sectionIds[0]` two-way exchange is removed.
+- Bound drafts, history, filters, dialogs, selection, hover, and repair state to `(actorSchoolId, activeSchoolYearId)`; scope changes reset before any request or edit.
+- HG exclusion uses canonical catalog code `HG` only, never display-name matching.
+- Compacted the operator workspace so the assignment area receives the majority of remaining height at desktop and mobile viewports.
+
+### Verification
+- Client TypeScript and production build pass; ownership-integrity 11/11, canonical-workload 33/33, route-intent 21/21.
+- Live Tailnet read-only baseline and isolated candidate Playwright matrices through the Tailnet IP pass with zero candidate non-login writes; workspace height floors hold at 1440x900, 1280x720, 1024x768, 390x844, 360x800, and 640x360.
+- Independent advisory review 1 found one blocking defect (name-based HG detection in `SubjectRow`); correction `9982ae17` fixed it and a fresh changed-scope review returned `ACCEPT_READY`.
+- No live Teaching Load mutation, migration, generation, publication, or companion edit was performed.
+
+### Open Questions
+- Server-side advised-section suggestion priority (Pass E server half) remains deferred.
+- Multi-teacher save stays per-faculty atomic with an exact partial-commit receipt rather than one cross-faculty transaction.
+
 ## [2026-09-10] — RR-UX01 Rollover Awareness and Read-Only Teaching Load History
 
 ### Added
