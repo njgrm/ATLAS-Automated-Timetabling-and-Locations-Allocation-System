@@ -16,26 +16,23 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Readiness-wave cycle `readiness-wave-20260911` (CYCLE_ACTIVE): GEN-C02R1
-  (`6f7b3c52...b1348113`), UX-C01R (`89440321...9e280369`), and TL-RR01R
-  (`95ceedf9...f66ca392`) each passed a fresh independent QA (`ACCEPT_READY`,
-  only NON_BLOCKING documentation/coverage findings). GEN-C02R1 is integrated at
-  merge `c3744dc6` and UX-C01R is integrated at merge `fc8796c6`; TL-RR01R
-  awaits independent integration. Combined client/server type-checks, builds,
-  focused suites, disposable-PostgreSQL zero-write checks, `git diff --check`,
-  and an isolated built-server mount probe passed on both integration trees.
-  The dirty `D:/ATLAS` checkout is not an integration boundary.
-- Cycle recovery: objective = intake, independently QA, correct if necessary,
-  and integrate the GEN-C02R1 + UX-C01R + TL-RR01R readiness wave; planner
-  session = primary planner (OpenCode); QA child tasks
-  `ses_f6f668ffcffe1ULPdPjVT04A7C` (GEN), `ses_f6f66737affeT2ec6hA674pxcm` (UX),
-  `ses_f6f665c6cffeQ8ofy3A5E64vGS` (TL); executor sessions GEN
-  `ses_f6fb5354fffevESkJSuYmHRG89`, UX `ses_f6fa23afeffeHXHQUV1mss1zia`, TL
-  `ses_f6fa64129ffesWoUEEEwKJdImK`; worktrees `integration-term-consume-c02` /
-  `ux-c01-derived-setup` / `tl-rr01r`; candidates `b1348113` (integrated),
-  `9e280369` (integrated), `f66ca392` (next); next recoverable action =
-  integrate TL-RR01R independently from current main. Updated 2026-09-11
-  (Asia/Manila).
+- Readiness-wave cycle `readiness-wave-20260911` (COMPLETE): GEN-C02R1
+  (`6f7b3c52...b1348113`) is integrated at `c3744dc6`, UX-C01R
+  (`89440321...9e280369`) at `fc8796c6`, and TL-RR01R (`95ceedf9...f66ca392`)
+  at `8f210d7c`. All three passed fresh independent QA (`ACCEPT_READY`, only
+  NON_BLOCKING documentation/coverage findings); combined client/server
+  type-checks, builds, focused suites, disposable-PostgreSQL zero-write checks,
+  `git diff --check`, and isolated built-server mount probes passed on all three
+  integration trees. The dirty `D:/ATLAS` checkout was never an integration
+  boundary.
+- Cycle recovery: `readiness-wave-20260911` closed 2026-09-11 (Asia/Manila);
+  QA tasks `ses_f6f668ffcffe1ULPdPjVT04A7C` (GEN),
+  `ses_f6f66737affeT2ec6hA674pxcm` (UX), `ses_f6f665c6cffeQ8ofy3A5E64vGS` (TL);
+  merges `c3744dc6` / `fc8796c6` / `8f210d7c`; no executor or QA return remains.
+  Next recoverable action = coordinate the bounded `W1-RUNTIME-DEPLOY` runtime
+  deployment and Tailnet acceptance, then run the read-only generation readiness
+  preview. No live generation, carry-forward apply, or publication is
+  authorized.
 - Wave 1 and subsequent accepted planner evidence are integrated and pushed.
   TT-UX01R2 is independently ratified at integration merge `a0ca05e5`.
   TERM-CONSUME-C02 is independently accepted at `a55abf7e`, integrated by the
@@ -81,7 +78,7 @@ hard blockers before separately approving publication.
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `INTEGRATED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...c9263b5f`; integration `b96caf40` | Live deployment and explicit rollover term-cache sync remain separate | Primary planner reproduced C01/C01R/C01R2 authority, timetable, publication, term, TypeScript, and production-build gates; doc-only merge conflicts were reconciled | Closed in source; verify derived year-9 demand during bounded runtime deployment/sync |
 | UX-C01R | Gate every Timetable generation action on the canonical generation diagnostic; stop Dashboard overclaiming final readiness | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/ux-c01-derived-setup`; `89440321...9e280369`; merge `fc8796c6` | Combined positive readiness browser matrix belongs to the bounded runtime deployment | Fresh independent QA ACCEPT_READY: 36/36 UX-C01R + 58/58 operator UX + 21/21 guardrails client; 6/6 + 11/11 + 9/9 + 5/5 server incl. disposable-PostgreSQL zero-write; both tsc/build; field-for-field contract parity; integration gates and isolated mount probe reproduced on the merged tree; runtime-map attribution corrected at integration | Closed in source; verify the positive readiness UX during the bounded runtime deployment |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01`; `89440321...23eae7de`; integration merge `618589dc` | Live preview requires deployed demand authority and synced year-9 terms; apply remains separately gated | Independent QA ACCEPT_READY: reproduced 8/8 authority+mutant, 11/11 client helpers, 60/60 disposable-PostgreSQL mounted-route, server/client type-checks+builds, health 200 on a live built process; the pre-existing `teaching-load-reconciliation-route.test.ts` failure reproduced identically on base and candidate; only `CHANGELOG.md` conflicted (docs-only union) | Closed in source at `origin/main` `618589dc`; do not invoke carry-forward apply without a separate reviewed preview and explicit HIGH approval |
-| TL-RR01R | Correct integrated carry-forward grade authority, workload-policy gating, and actor identity | `ACCEPT_READY` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01r`; `95ceedf9...f66ca392` | Live apply remains separately gated; independent of GEN/UX integration | Fresh independent QA ACCEPT_READY: 12/12 authority incl. displayOrder mutants; 87/87 disposable-PostgreSQL mounted suite; tsc/build; active DB untouched (zero carry-forward audit and fixture rows); no live apply | Integrate independently from current `origin/main` |
+| TL-RR01R | Correct integrated carry-forward grade authority, workload-policy gating, and actor identity | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01r`; `95ceedf9...f66ca392`; merge `8f210d7c` | Live apply remains separately gated | Fresh independent QA ACCEPT_READY: 12/12 authority incl. displayOrder mutants; 87/87 disposable-PostgreSQL mounted suite; tsc/build; active DB untouched; integration reproduced 87/87 on the merged tree plus a built-server mount probe | Closed in source; live preview requires the bounded runtime deployment and year-9 term sync; apply requires its own reviewed preview and explicit HIGH approval |
 | GEN-C02R1 | Consume one shared passive preflight in readiness and the real generation trigger; prove stakeholder shape and nonuniform rotation | `INTEGRATED` | MEDIUM source; HIGH generation | `integration/readiness-20260911`; `6f7b3c52...b1348113`; merge `c3744dc6` | None | Fresh independent QA ACCEPT_READY (5/5 production-trigger, 12/12 stakeholder shape, 7/7 rotation, 5/5 actor scope, 14/14 canonical, 1/1 disposable-PostgreSQL zero-write; tsc/build/startup/diff-check); integration gates reproduced on the merged tree | Closed in source; do not run live generation without its separate fingerprinted preview and explicit HIGH approval |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
@@ -104,36 +101,39 @@ hard blockers before separately approving publication.
    one bounded runtime deployment without interrupting live QA.
 2. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
    TT-UX01 integration step remains.
-3. GEN-C02R1 (`c3744dc6`) and UX-C01R (`fc8796c6`) are integrated; TL-RR01R
-   (`f66ca392`) integrates independently next. Combined readiness gates ran on
-   both integration trees.
+3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
+   integrated; no wave follow-up remains before the runtime deployment.
 4. Coordinate the bounded runtime deployment and explicit rollover term-cache
    sync before any live year-9 preview claims.
-5. Resolve GEN-C02 and Teaching Load readiness blockers and produce a zero-hard-blocker generation
-   preview.
+5. After the bounded deployment, run the read-only canonical generation
+   readiness diagnostic for the live school/year and produce the
+   zero-hard-blocker generation preview; prepare the fingerprinted generation
+   approval package.
 6. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
-- This readiness-wave integration is serialized by the planner; no parallel
-  executor stream is authorized while the three candidates integrate.
+- No executor stream is authorized without a separate planner packet. The next
+  safe action is operator-coordinated: the bounded `W1-RUNTIME-DEPLOY`
+  service-lifecycle deployment and Tailnet acceptance (read-only), which
+  unlocks live readiness verification. Carry-forward apply, suggestion apply,
+  generation, and publication remain separately gated.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
   integration owner; executor documentation overlap is resolved at integration.
 - A bounded runtime deployment is safe only when no executor is using the
   shared Tailnet runtime for browser evidence.
 
-DEMAND-C01 and TL-RR01 are integrated, so UX-C01 and GEN-C02R source work is
-unlocked. Live Teaching Load carry-forward apply, generation, and publication
+DEMAND-C01, TL-RR01, and the readiness-wave streams are integrated. Live
+Teaching Load carry-forward apply, suggestion apply, generation, and publication
 remain locked behind their separate previews, QA, and explicit approvals. Do not
 restart the shared runtime while live browser QA is active.
 
 ## Awaited returns and decisions
 
 - No DEMAND executor return remains. DEMAND-C01R2 is integrated at `b96caf40`.
-- All three readiness-wave candidates passed fresh QA. GEN-C02R1 and
-  UX-C01R are integrated; TL-RR01R awaits independent integration. No executor
-  return remains for this wave.
+- All three readiness-wave candidates passed fresh QA and are integrated. No
+  executor or QA return remains for this wave.
 - EnrollPro correction `5887d685` has been pulled and its live contract is
   available. No EnrollPro executor return is awaited.
 - TERM-CONSUME-C02, DASH-RESILIENCE-C01, TL-UX-C01R2, and MIG-GUARD-R1 are
