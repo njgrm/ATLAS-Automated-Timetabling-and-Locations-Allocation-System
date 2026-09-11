@@ -727,6 +727,18 @@ function SimpleGeneratedPlottingTray({ context }: { context: LeftRailContentCont
 	});
 
 	if (sortedItems.length === 0) {
+		if (!context.summary) {
+			return (
+				<div
+					className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground"
+					data-testid="simple-plotting-no-run"
+				>
+					<CalendarClock className="size-7 text-muted-foreground/60" aria-hidden="true" />
+					<p className="font-semibold text-foreground">No generated run yet.</p>
+					<p>Generate a schedule before placing or reviewing sessions.</p>
+				</div>
+			);
+		}
 		return (
 			<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
 				<CheckCircle2 className="size-7 text-emerald-500" aria-hidden="true" />

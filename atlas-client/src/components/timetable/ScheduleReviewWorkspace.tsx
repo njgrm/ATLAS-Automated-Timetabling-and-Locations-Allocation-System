@@ -9,9 +9,10 @@ import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/time
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { AlertCircle, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
 import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 
 const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/TeacherDepartureRecoverySheet').then((module) => ({
@@ -53,6 +54,7 @@ function TimetableDragOverlay({
 
 export default function ScheduleReviewWorkspace() {
 	const state = useScheduleReviewWorkspaceState();
+	const navigate = useNavigate();
 	const [layoutMode, setLayoutModeState] = useState<TimetableLayoutMode>(() => {
 		if (typeof window === 'undefined') return 'simple';
 		return window.localStorage.getItem('atlas_timetable_layout_mode') === 'advanced' ? 'advanced' : 'simple';
@@ -173,6 +175,26 @@ export default function ScheduleReviewWorkspace() {
 		state.rightPanelContext?.rightPanelRef?.current?.expand();
 	};
 
+	// R3: selected-class room repair in Simple mode, routed through the same
+	// manual-edit surface Advanced uses for Change Room.
+	const openSelectedChangeRoom = () => {
+		if (!state.selectedEntry) return;
+		state.headerContext.enterManualEditView('CHANGE_ROOM');
+	};
+
+	// R3: Teaching Load owner repair deep-links to the exact subject/section/
+	// teacher context instead of masquerading as the bulk teacher-leaving flow.
+	const openSelectedOwnerRepair = () => {
+		const entry = state.selectedEntry;
+		if (!entry) return;
+		const params = new URLSearchParams();
+		if (entry.facultyId != null) params.set('facultyId', String(entry.facultyId));
+		if (entry.sectionId != null) params.set('sectionId', String(entry.sectionId));
+		if (entry.subjectId != null) params.set('subjectId', String(entry.subjectId));
+		params.set('task', 'missing-load');
+		navigate(`/teaching-load?${params.toString()}`);
+	};
+
 	const selectedPrimaryAction = activeSimpleTask === 'swap-sessions'
 		? {
 			label: 'Swap',
@@ -288,22 +310,37 @@ export default function ScheduleReviewWorkspace() {
 									<span className="hidden sm:inline">More</span>
 								</Button>
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-56">
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null); }} data-testid="teacher-departure-selected-action">
-									<UserRoundX className="mr-2 size-3.5" aria-hidden="true" />
-									Change teacher
-								</DropdownMenuItem>
+							<DropdownMenuContent align="end" className="w-64">
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); startMoveSelectedEntry(); }}>
 									<Move className="mr-2 size-3.5" aria-hidden="true" />
-									Move
+									Move time
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedChangeRoom(); }} data-testid="timetable-simple-selected-change-room-action">
+									<DoorOpen className="mr-2 size-3.5" aria-hidden="true" />
+									Change room
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); setActiveSimpleTask('swap-sessions'); }} data-testid="timetable-simple-selected-swap-action">
 									<ArrowRightLeft className="mr-2 size-3.5" aria-hidden="true" />
-									Swap
+									Swap sessions
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSimpleSelectedDetails(); }} data-testid="timetable-simple-selected-details-action">
 									<BookOpen className="mr-2 size-3.5" aria-hidden="true" />
-									Details
+									View class details
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openSelectedOwnerRepair(); }} data-testid="timetable-simple-selected-owner-repair-action">
+									<GraduationCap className="mr-2 size-3.5" aria-hidden="true" />
+									<span className="flex flex-col">
+										<span>Change Teaching Load owner</span>
+										<span className="text-[0.68rem] text-muted-foreground">Opens Teaching Load for this subject, section, and teacher</span>
+									</span>
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null); }} data-testid="teacher-departure-selected-action">
+									<UserRoundX className="mr-2 size-3.5" aria-hidden="true" />
+									<span className="flex flex-col">
+										<span>Teacher leaving (all classes)</span>
+										<span className="text-[0.68rem] text-muted-foreground">Bulk repair for every class this teacher handles</span>
+									</span>
 								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={(event) => {
 									event.preventDefault();
@@ -473,10 +510,11 @@ export default function ScheduleReviewWorkspace() {
 							</div>
 							<div className="rounded-xl border border-border bg-background p-3" data-testid="simple-details-summary-card">
 								<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Actions</p>
-								<div className="mt-2 grid gap-1.5 text-xs text-muted-foreground sm:grid-cols-3">
-									<span className="rounded-lg bg-muted px-2 py-1">Move: choose new slot</span>
-									<span className="rounded-lg bg-muted px-2 py-1">Swap: choose another class</span>
-									<span className="rounded-lg bg-muted px-2 py-1">Reassign: use Teaching Load</span>
+								<div className="mt-2 grid gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
+									<span className="rounded-lg bg-muted px-2 py-1">Move time: choose a new slot</span>
+									<span className="rounded-lg bg-muted px-2 py-1">Change room: pick another room</span>
+									<span className="rounded-lg bg-muted px-2 py-1">Swap sessions: choose another class</span>
+									<span className="rounded-lg bg-muted px-2 py-1">Owner repair: opens Teaching Load</span>
 								</div>
 							</div>
 							<SheetFooter className="gap-2 sm:gap-0">
@@ -486,11 +524,24 @@ export default function ScheduleReviewWorkspace() {
 									variant="outline"
 									onClick={() => {
 										setSimpleDetailsOpen(false);
-										openTeacherDepartureRecovery(state.selectedEntry?.facultyId ?? null);
+										openSelectedChangeRoom();
 									}}
+									data-testid="timetable-simple-details-change-room"
 								>
-									<UserRoundX className="mr-1.5 size-3.5" aria-hidden="true" />
-									Reassign teacher
+									<DoorOpen className="mr-1.5 size-3.5" aria-hidden="true" />
+									Change room
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => {
+										setSimpleDetailsOpen(false);
+										openSelectedOwnerRepair();
+									}}
+									data-testid="timetable-simple-details-owner-repair"
+								>
+									<GraduationCap className="mr-1.5 size-3.5" aria-hidden="true" />
+									Change owner
 								</Button>
 								<Button
 									type="button"

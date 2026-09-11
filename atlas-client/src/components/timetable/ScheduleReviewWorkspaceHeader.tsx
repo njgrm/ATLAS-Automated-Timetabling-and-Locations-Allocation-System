@@ -24,6 +24,7 @@ import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetabl
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
+import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -209,6 +210,41 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const visibleViolations = violations ?? [];
 	const unassignedCount = summary?.unassignedCount ?? 0;
 	const generationBlockedByDrift = rolloverStatus?.drift.status === 'atlas-stale' || rolloverStatus?.drift.status === 'mapping-conflict';
+
+	// R1: Advanced consumes the exact same generation decision as Simple. No
+	// separate readiness boolean may gate a generation trigger.
+	const scopeResolved = Number.isInteger(schoolId) && schoolId > 0
+		&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0;
+	const isRunPublished = Boolean((draft?.summary as unknown as Record<string, unknown> | null)?.isPublished);
+	const latestRunFailed = !draft && runOptions[0]?.status === 'FAILED';
+	const capabilities = deriveTimetableCapabilities({
+		scopeResolved,
+		curriculumState: context.curriculumReadiness?.state ?? 'unavailable',
+		generating,
+		isPreGeneration: isPreGenerationWorkspace,
+		hasGeneratedRun: Boolean(draft),
+		isPublished: isRunPublished,
+		latestRunFailed,
+		hardCount,
+		unassignedCount,
+		softCount,
+		hasSelectedEntry,
+		requestPendingCount,
+		driftBlocked: generationBlockedByDrift,
+		driftMessage: rolloverStatus?.drift.message ?? null,
+	});
+	const generationGate = capabilities.generation;
+	const generationRepairHref = generationGate.repair.kind === 'navigate' ? generationGate.repair.href : null;
+	const generationRepairLabel = generationGate.repair.label ?? 'Fix setup';
+	const handleGenerationTrigger = () => {
+		if (generationGate.enabled) {
+			handleTriggerGenerate();
+			return;
+		}
+		if (generationGate.repair.kind === 'retry') {
+			handleRefresh();
+		}
+	};
 	const expandLeftPanelForTask = () => {
 		leftPanelRef.current?.expand();
 		if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -321,25 +357,34 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
 					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
 				>
-					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : `Generated Run #${activeGeneratedRunId ?? '-'}`}
+					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : activeGeneratedRunId != null ? `Generated Run #${activeGeneratedRunId}` : 'No generated run yet'}
 				</Badge>
 
 				{showSourceTruthNotice && (
-					<Badge
-						variant="outline"
-						data-testid="timetable-source-truth"
-						className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 truncate px-2 text-xs font-semibold', sourceTone)}
-					>
-						<Info className="size-3.5 shrink-0" aria-hidden="true" />
-						<span className="truncate">
-							{sourceLabel}
-							{schoolYearId ? ` · School year #${schoolYearId}` : ''}
-							{visibleRunId ? ` · Run #${visibleRunId}` : ''}
-						</span>
-						<span className="sr-only" data-testid="timetable-run-source-note">
-							{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
-						</span>
-					</Badge>
+					<TooltipProvider delayDuration={300}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									variant="outline"
+									data-testid="timetable-source-truth"
+									className={cn('h-7 max-w-[34vw] shrink-0 gap-1.5 px-2 text-xs font-semibold', sourceTone)}
+								>
+									<Info className="size-3.5 shrink-0" aria-hidden="true" />
+									<span className="truncate">
+										{sourceLabel}
+										{schoolYearId ? ` · School year #${schoolYearId}` : ''}
+										{visibleRunId ? ` · Run #${visibleRunId}` : ''}
+									</span>
+									<span className="sr-only" data-testid="timetable-run-source-note">
+										{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+									</span>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-xs text-xs" data-testid="timetable-run-source-disclosure">
+								{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				)}
 
 				<div data-tutorial="run-selector" className="shrink-0">
@@ -455,21 +500,31 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Button
-								variant="default"
-								size="sm"
-								className="h-8 gap-1.5"
-								disabled={generating || loading || !schoolYearId || generationBlockedByDrift}
-								onClick={handleTriggerGenerate}
-							>
-								{generating ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-								{generating ? 'Generating…' : 'Generate'}
-							</Button>
+							{generationRepairHref ? (
+								<Button asChild variant="default" size="sm" className="h-8 gap-1.5" data-testid="timetable-advanced-generate-repair">
+									<Link to={generationRepairHref}>
+										<Wrench className="size-3.5" />
+										{generationRepairLabel}
+									</Link>
+								</Button>
+							) : (
+								<Button
+									variant="default"
+									size="sm"
+									className="h-8 gap-1.5"
+									disabled={!generationGate.enabled || loading}
+									onClick={handleGenerationTrigger}
+									data-testid="timetable-advanced-generate"
+								>
+									{generating ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+									{generating ? 'Generating…' : 'Generate'}
+								</Button>
+							)}
 						</TooltipTrigger>
 						<TooltipContent>
-							{generationBlockedByDrift
-								? (rolloverStatus?.drift.message ?? 'Sync the active school year before generating.')
-								: 'Trigger a new schedule generation run'}
+							{generationGate.enabled
+								? 'Trigger a new schedule generation run'
+								: (generationGate.reason ?? 'Generation is not available yet.')}
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
@@ -856,7 +911,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								<TooltipContent>{hasSelectedEntry ? 'Repair the selected class without regenerating.' : 'Select a timetable class before using manual repair.'}</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-						<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={generating || loading || !schoolYearId} onClick={handleTriggerGenerate}>
+						<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={!generationGate.enabled || loading} onClick={handleGenerationTrigger}>
 							<RotateCw className="size-3.5" />
 							<span className="hidden sm:inline">Regenerate Draft</span>
 						</Button>

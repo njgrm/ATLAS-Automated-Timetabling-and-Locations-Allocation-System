@@ -22,6 +22,84 @@
 - None for the bounded correction. EnrollPro's complete ordered term contract
   remains an external dependency for derived demand and generation readiness.
 
+## [2026-09-11] — TT-UX01R2 Simple Timetable operator closure
+
+### Added
+- `atlas-client/src/lib/timetable-capabilities.ts`: one pure, shared capability
+  and generation-decision model used by both Simple and Advanced modes
+  (`deriveTimetableCapabilities`, `describeSetupState`, `YEAR_SETUP_HREF`).
+- Failing-first tests `timetable-capabilities.test.ts` (13) and
+  `timetable-operator-repair.test.ts` (10), wired into
+  `test:timetable-operator-ux`.
+- Click-path matrix
+  `docs/verification/timetable-simple-operator-click-path-matrix-2026-09-11.md`.
+- Controlled Playwright fixtures/specs for real production Timetable components
+  under `qa-artifacts/playwright/` (uncommitted browser evidence).
+
+### Changed
+- Simple and Advanced generation triggers now consume the same capability
+  decision; Advanced can no longer bypass the readiness gate. The Advanced
+  Generate button becomes a single Year Setup repair when setup blocks.
+- Removed the superseded `/curriculum-requirements` repair path from Timetable
+  copy and navigation; setup repair routes to `/admin/year-setup`.
+- Simple selected-class menu now exposes `Move time`, `Change room`,
+  `Swap sessions`, `View class details`, and a `Change Teaching Load owner`
+  deep-link; bulk teacher leaving is relabelled `Teacher leaving (all classes)`.
+- Placement candidate cells render `Place`/`Swap` labels and the Simple header
+  keeps a persistent status legend; hard/soft cells keep `Blocked`/`Warning`.
+- Swap/placement dialogs list decisive blockers and grouped warnings with a
+  bounded initial list + Expand; draft swap commit is disabled on any hard
+  blocker.
+- Tutorial is state-aware (no-run / generated / published) and honest about the
+  one-click + Undo write contract.
+
+### Decisions Made
+- `deriveSimpleLifecycleAction` remains the lifecycle reducer; the new model
+  composes it and adds per-action gates rather than duplicating logic.
+- Live Tailnet runtime at QA time: school year 9 / 2030-2031 / atlas-persisted /
+  drift aligned; zero live writes issued.
+- The live bundle is pre-correction (`D:\ATLAS`), so live QA is a read-only
+  baseline; corrected behavior is proven on the candidate fixtures.
+
+### Open Questions
+- Full component-render test harness (React Testing Library/Vitest) is still
+  absent; R3–R7 coverage currently mixes pure decision tests with production
+  source-wiring tests plus Playwright interaction evidence.
+
+## [2026-09-11] — TT-UX01 Timetable Operator Readiness
+
+### Added
+- Failing-first production-consumer tests for ten timetable readiness contracts
+  (TTX-01..TTX-12 excluding already-fixed TTX-10) in
+  `atlas-client/src/lib/__tests__/timetable-operator-workflow-state.test.ts`.
+- Accessible disabled reason for the entity `SearchableSelect` (`disabled`,
+  `disabledReason`) and a tutorial "target unavailable" status message.
+
+### Changed
+- Removed the no-run center `Start Pre-Generation Draft` write CTA; the center
+  empty state now defers to the single header lifecycle action.
+- Gated run-derived rail/drawer "clean"/"placed" claims on run existence.
+- Advanced run badge shows `No generated run yet` instead of `Generated Run #-`.
+- Deciding readiness and failed-run copy is fully visible and untruncated at all
+  widths; the source-truth badge gained a tooltip disclosure.
+- Run-dependent More-menu items (`Place unresolved sessions`, `Swap sessions`,
+  `Review issues`) are disabled with a screen-reader reason when no run/draft
+  exists; empty schedule selectors are disabled with a reason.
+- Tutorial `Show me` reports an unavailable target instead of silently no-opping;
+  the tutorial trigger gained an accessible name and 44px mobile target.
+- Removed the permanently hidden `timetable-simple-publish-action`.
+- Room-request summary treats `NO_ACTIVE_DRAFT` as an empty state, deduplicates
+  the duplicate request, and only requests when a `COMPLETED` run exists.
+
+### Decisions Made
+- TTX-10 was already fixed upstream at base (guidance/run-source notes are
+  `sr-only`); no duplicate implementation, only a tooltip disclosure added.
+- The `test:timetable-conflict`, `test:ux-guardrails`, and `test:auth-session`
+  packaging defect is recorded, not repaired; no untracked files were copied.
+
+### Open Questions
+- None. Candidate is `REVIEW_REQUIRED`; no live deployment is authorized.
+
 ## [2026-09-11] — TERM-LIVE-APPLY Guarded Migration Closure
 
 ### Changed

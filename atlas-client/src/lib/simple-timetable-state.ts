@@ -68,8 +68,10 @@ export type SimpleLifecycleInput = {
 	/** False while the actor school/year scope is still unresolved. No
 	 * timetable request may be treated as actionable in that state. */
 	scopeResolved?: boolean;
-	/** Curriculum Requirements gate: 'blocked' means setup inputs are not
-	 * ready and generation must not be offered as the next action. */
+	/** Setup/term authority gate: 'blocked' means setup inputs are not
+	 * ready and generation must not be offered as the next action. The repair
+	 * destination is the Year Setup surface, never the superseded curriculum
+	 * requirements page. */
 	curriculumState?: 'loading' | 'ready' | 'blocked' | 'unavailable' | 'failed';
 	/** True when the newest run failed and no generated run is reviewable. */
 	latestRunFailed?: boolean;
@@ -97,10 +99,11 @@ export function deriveSimpleLifecycleAction(input: SimpleLifecycleInput): Simple
 	if (input.curriculumState === 'unavailable' || input.curriculumState === 'failed') {
 		return { kind: 'retry-readiness', label: 'Retry setup check', disabled: false, interactive: true };
 	}
-	// Setup inputs blocked: the single next action is repairing setup, never
-	// generation or publish.
+	// Setup inputs blocked: the single next action is repairing setup on the
+	// Year Setup surface, never generation, publish, or the superseded
+	// curriculum requirements page.
 	if (input.curriculumState === 'blocked') {
-		return { kind: 'fix-setup', label: 'Fix Curriculum Requirements', disabled: false, interactive: true };
+		return { kind: 'fix-setup', label: 'Open Year Setup', disabled: false, interactive: true };
 	}
 	if (input.isPreGeneration) {
 		return { kind: 'generate', label: 'Generate when ready', disabled: false, interactive: true };

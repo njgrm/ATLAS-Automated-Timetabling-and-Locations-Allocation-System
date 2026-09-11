@@ -145,6 +145,10 @@ export type ScheduleReviewDialogsContext = {
 	draftBoardSummary: DraftBoardState['counts'] | null;
 	followUps: Set<string>;
 	confirmGenerate: (enforceShiftWindowsOverride?: boolean) => void;
+	/** Actor school year context so the generation confirmation can summarize
+	 * the exact school year and source the operator is about to generate for. */
+	activeSchoolYearLabel?: string | null;
+	schoolYearSource?: 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache' | null;
 	showResetDraftDialog: boolean;
 	setShowResetDraftDialog: Dispatch<SetStateAction<boolean>>;
 	openPreGenerationWorkspace: (resetExisting: boolean) => Promise<void>;
