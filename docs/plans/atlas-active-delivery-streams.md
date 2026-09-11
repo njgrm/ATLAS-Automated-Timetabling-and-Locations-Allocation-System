@@ -29,10 +29,10 @@ hard blockers before separately approving publication.
   QA tasks `ses_f6f668ffcffe1ULPdPjVT04A7C` (GEN),
   `ses_f6f66737affeT2ec6hA674pxcm` (UX), `ses_f6f665c6cffeQ8ofy3A5E64vGS` (TL);
   merges `c3744dc6` / `fc8796c6` / `8f210d7c`; no executor or QA return remains.
-  Next recoverable action = coordinate the bounded `W1-RUNTIME-DEPLOY` runtime
-  deployment and Tailnet acceptance, then run the read-only generation readiness
-  preview. No live generation, carry-forward apply, or publication is
-  authorized.
+  Next recoverable action = obtain explicit HIGH approval for the bounded
+  `W1-RUNTIME-DEPLOY` runtime deployment and Tailnet acceptance, then run the
+  read-only generation readiness preview. No deployment, live generation,
+  carry-forward apply, or publication is authorized by this register.
 - Wave 1 and subsequent accepted planner evidence are integrated and pushed.
   TT-UX01R2 is independently ratified at integration merge `a0ca05e5`.
   TERM-CONSUME-C02 is independently accepted at `a55abf7e`, integrated by the
@@ -41,7 +41,8 @@ hard blockers before separately approving publication.
   planner verification and are combined on `integration/readiness-20260911`.
 - TL-RR01 is independently accepted and integrated as merge `618589dc`; the
   planner pushed it to `origin/main` (`8052d727...618589dc`) after a docs-only
-  `CHANGELOG.md` union conflict. `origin/main` is now `618589dc`.
+  `CHANGELOG.md` union conflict. That was an intermediate transition; final
+  `origin/main` for this reconciliation is `282dca6a`.
 - All three source lanes passed independent QA and the combined integration
   gates. The approved term schema migration is applied and verified; deploying
   the integrated runtime remains a separate service-lifecycle action.
@@ -65,13 +66,13 @@ hard blockers before separately approving publication.
 |---|---|---|---|---|---|---|---|
 | GEN-ZW01 | Make generation passive over Teaching Load and close actor/audit/write authority | `INTEGRATED` | MEDIUM | `work/generation-zw01`; `e39da520...00488bbf` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
 | RR-UX01 | Visible rollover awareness, one Year Setup status surface, and read-only archived Teaching Load | `INTEGRATED` | MEDIUM | `work/rollover-rrux01`; `00488bbf...ea44e155` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
-| TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | Live migration remains separate | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Prepare the separate live migration preview; do not apply without HIGH approval |
+| TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | None in source; migration is already closed separately | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Closed in source; migration 0001 is recorded under TERM-LIVE-APPLY and must not be re-run |
 | W1-INTEGRATION | Combine the three accepted Wave-1 source lanes | `INTEGRATED` | MEDIUM | `integration/rollover-derived-demand-w1`; `e39da520...36c5d3d1` | None | Shared-doc-only conflicts matched forecast; focused GEN/RR/TERM suites, both builds/type-checks, diff-check, and isolated server health passed | Closed and pushed to `origin/main` at `36c5d3d1` |
-| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `ACCEPT_READY` | External dependency; READ_ONLY QA | EnrollPro `396a9892...5887d685`; canonical mirror `D:\EnrollPro` clean at `5887d685` | ATLAS consumption and deployment remain separate | Source review confirms strict integer parsing and validate-before-write term mutation; live probes return the ordered three-term year-9 contract, reject malformed/duplicate IDs with typed 400s, and return truthful 409 `ACTIVE_TERM_UNRESOLVED` for the 2026/2030 calendar mismatch | Consume the corrected contract in ATLAS; do not edit the EnrollPro mirror |
+| ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `ACCEPT_READY` | External dependency; READ_ONLY QA | EnrollPro `396a9892...5887d685`; canonical mirror `D:\EnrollPro` clean at `5887d685` | Runtime deployment/acceptance remains separate | Source review confirms strict integer parsing and validate-before-write term mutation; live probes return the ordered three-term year-9 contract, reject malformed/duplicate IDs with typed 400s, and return truthful 409 `ACTIVE_TERM_UNRESOLVED` for the 2026/2030 calendar mismatch; ATLAS consumption is integrated through TERM-CONSUME-C02 | Keep the mirror READ_ONLY; verify the integrated consumer against the matched deployed runtime |
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `PLANNED` | MEDIUM service lifecycle | Current integration branch; isolated build passed | Coordinate with live browser activity; source integration is not deployment authority | Combined server/client type-checks and production builds pass after Dashboard, Teaching Load authority, and migration-guard integration | Perform one bounded shared-runtime deployment and Tailnet acceptance; no data apply, generation, or publication |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `PLANNED` | HIGH shared-runtime deployment/cutover | `origin/main` `282dca6a`; isolated build passed | Explicit operator approval and coordination with live browser activity; source integration is not deployment authority | Combined server/client type-checks and production builds pass after Dashboard, Teaching Load authority, migration-guard, and readiness-wave integration | Obtain explicit HIGH approval, then perform one bounded shared-runtime deployment and Tailnet acceptance; no data apply, generation, or publication |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -103,22 +104,23 @@ hard blockers before separately approving publication.
    TT-UX01 integration step remains.
 3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
    integrated; no wave follow-up remains before the runtime deployment.
-4. Coordinate the bounded runtime deployment and explicit rollover term-cache
-   sync before any live year-9 preview claims.
+4. Obtain explicit HIGH approval, then coordinate the bounded runtime deployment
+   and explicit rollover term-cache sync before any live year-9 preview claims.
 5. After the bounded deployment, run the read-only canonical generation
-   readiness diagnostic for the live school/year and produce the
-   zero-hard-blocker generation preview; prepare the fingerprinted generation
-   approval package.
+   readiness diagnostic for the live school/year. Only if it proves zero hard
+   blockers and exact source freshness, prepare the fingerprinted generation
+   approval package; otherwise return the typed blocker list and corrective
+   handoff.
 6. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
 - No executor stream is authorized without a separate planner packet. The next
-  safe action is operator-coordinated: the bounded `W1-RUNTIME-DEPLOY`
-  service-lifecycle deployment and Tailnet acceptance (read-only), which
-  unlocks live readiness verification. Carry-forward apply, suggestion apply,
-  generation, and publication remain separately gated.
+  action is operator-coordinated and HIGH: the bounded `W1-RUNTIME-DEPLOY`
+  service-lifecycle deployment and Tailnet acceptance, which unlocks live
+  readiness verification. Carry-forward apply, suggestion apply, generation,
+  and publication remain separately gated.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
   integration owner; executor documentation overlap is resolved at integration.
 - A bounded runtime deployment is safe only when no executor is using the
