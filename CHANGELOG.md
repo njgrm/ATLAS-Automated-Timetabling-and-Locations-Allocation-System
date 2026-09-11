@@ -1,5 +1,30 @@
 # Changelog
 
+## [2026-09-11] — DEMAND-C01R Ordered-Term Consumer QA
+
+### Added
+- Added the one-shot DEMAND-C01R2 correction handoff covering the complete
+  quarterly term path through generation reads, review, revision, publication,
+  public schedules, exports, and the timetable client.
+
+### Changed
+- Marked candidate `422460fa` correction-required after independent production
+  inspection found downstream hard-coded three-term gates and an unversioned
+  generation snapshot shape.
+- Recorded one-shot prompt sizing as the default for future coherent phases,
+  while retaining separate dependency and HIGH-action gates.
+
+### Decisions Made
+- Withheld integration even though the original DEMAND-C01R controls pass:
+  producing Q4 demand while hiding or rejecting Q4 downstream is a material
+  end-to-end authority defect.
+- Kept DEMAND-C01R2 on the existing branch as additive history and included all
+  affected ordered-term consumers in one correction packet.
+
+### Open Questions
+- None for execution. Live reconciliation, generation, publication, migration,
+  and deployment remain unauthorized.
+
 ## [2026-09-11] — Dashboard, Teaching Load Authority, and Migration Guard Integration
 
 ### Added

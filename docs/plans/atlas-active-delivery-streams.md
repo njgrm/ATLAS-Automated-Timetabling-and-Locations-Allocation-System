@@ -50,7 +50,7 @@ hard blockers before separately approving publication.
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
-| DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `CORRECTION_REQUIRED` | MEDIUM | `work/derived-demand-c01`; `ec7d54ed...eae274bf` | Candidate accepts incomplete per-scope rotation, collapses Q4 to term 3, omits demand-shaping revision inputs, reads term authority outside supplied transactions, leaves generation/publication freshness on legacy offering tables, and suppresses typed blockers in Timetable summary/preview | Independent QA reproduced genuine incomplete-family acceptance and a period-length revision collision; production inspection confirmed Q4 collapse, global term resolution, legacy publication snapshot, and silent projection/blocker loss | Execute `docs/prompts/derived-demand-authority-c01r-2026-09-11.md` as an additive correction on the existing branch; do not integrate `eae274bf` |
+| DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `CORRECTION_REQUIRED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...422460fa` | C01R closes its original six defects, but downstream publication/revision/routes/client still reject or hide Q4 and the expanded generation snapshot remains schema version 1 | Primary planner reproduced the focused demand/TL/timetable/publication gates and confirmed hard-coded 1..3 production consumers plus the unversioned snapshot shape; the protected PostgreSQL concurrency suite correctly refused the non-disposable live-like DB target | Execute `docs/prompts/derived-demand-authority-c01r2-ordered-term-consumer-closure-2026-09-11.md` as one additive correction; do not integrate `422460fa` |
 | UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `BLOCKED` | MEDIUM preview; HIGH apply | Not started | DEMAND-C01 plus visible archived history | Carry-forward rules are defined in the governing sequence | Build zero-write preview after DEMAND-C01; require a separate approval for apply |
 | GEN-C02 | Use canonical term-aware derived demand and close grade-window/class-program-slot/hard-blocker gaps | `BLOCKED` | MEDIUM source; HIGH generation | Not started | DEMAND-C01 and reconciled/carry-forward current-year Teaching Load | GEN-C01 proved the old production-demand mismatch and is superseded | Execute read-only canonical dry-run work after derived demand is authoritative |
@@ -75,8 +75,9 @@ hard blockers before separately approving publication.
    one bounded runtime deployment without interrupting live QA.
 2. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
    TT-UX01 integration step remains.
-3. Correct DEMAND-C01 on its existing branch, then commission fresh independent
-   QA over the complete immutable range.
+3. Complete DEMAND-C01R2 as one ordered-term consumer closure on its existing
+   branch, then commission fresh independent QA over the complete immutable
+   range.
 4. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
    their file ownership is disjoint.
 5. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
@@ -86,8 +87,9 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- DEMAND-C01R is the active server authority lane; do not run another demand
-  consumer lane against its unaccepted contract.
+- DEMAND-C01R2 is the active cross-layer authority lane; do not run another
+  demand, generation, publication, revision, or timetable-term consumer lane
+  against its unaccepted contract.
 - A bounded Wave-1 runtime deployment is safe only when no executor is using
   the shared Tailnet runtime for browser evidence.
 
@@ -97,7 +99,8 @@ QA. Do not restart the shared runtime while live browser QA is active.
 
 ## Awaited returns and decisions
 
-- DEMAND-C01R executor correction and a fresh independent QA verdict are awaited.
+- DEMAND-C01R2 executor correction and a fresh independent QA verdict are
+  awaited. Candidate `422460fa` is rejected for integration.
 - EnrollPro correction `5887d685` has been pulled and its live contract is
   available. No EnrollPro executor return is awaited.
 - TERM-CONSUME-C02, DASH-RESILIENCE-C01, TL-UX-C01R2, and MIG-GUARD-R1 are
@@ -117,3 +120,11 @@ For each status change, update the affected row, the queue, safe parallel work,
 and awaited returns in the same planner turn. Record only current concise truth
 here; put detailed commands, test counts, findings, and correction history in
 the stream's progress ledger and Git commits.
+
+For new implementation phases, prefer the largest coherent one-shot packet
+that can be completed and independently reviewed without crossing an unmet
+dependency, an unresolved product decision, a conflicting worktree boundary,
+or a separate HIGH action. Do not split one production contract into ceremonial
+micro-phases. Keep review-found corrections narrow and additive, and keep live
+data applies, generation, publication, migration, deployment, and other locked
+actions behind their own explicit gates.
