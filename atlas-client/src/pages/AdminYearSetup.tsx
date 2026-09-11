@@ -4,6 +4,7 @@ import { Archive, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 import { RolloverResetPanel } from '@/components/runtime/RolloverResetPanel';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
+import { CarryForwardReviewPanel } from '@/components/runtime/CarryForwardReviewPanel';
 import { Button } from '@/ui/button';
 import { verifySessionToken, type RolloverStatus } from '@/lib/settings';
 import { clearAtlasAuthStorage, clearUserRoleCache, hasAnyAuthToken } from '@/lib/auth';
@@ -135,6 +136,14 @@ export default function AdminYearSetup() {
 							</ul>
 						</div>
 					) : null}
+
+					{/* Optional audited carry-forward preview (zero-write). Apply is a
+						separate, separately approved HIGH action and is not reachable here. */}
+					<CarryForwardReviewPanel
+						schoolId={schoolId}
+						activeSchoolYearId={status?.enrollProActiveYear?.id ?? null}
+						archivedYears={status?.archivedYears ?? []}
+					/>
 
 					{/* Destructive reset -- only here, demoted to the advanced disclosure */}
 					<RolloverResetPanel schoolId={schoolId} status={status} onApplied={setStatus} />
