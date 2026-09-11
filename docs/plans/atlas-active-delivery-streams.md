@@ -29,18 +29,20 @@ hard blockers before separately approving publication.
   (Asia/Manila); QA tasks `ses_f6f668ffcffe1ULPdPjVT04A7C` (GEN),
   `ses_f6f66737affeT2ec6hA674pxcm` (UX), `ses_f6f665c6cffeQ8ofy3A5E64vGS` (TL);
   merges `c3744dc6` / `fc8796c6` / `8f210d7c`; no return remains.
-- Cycle recovery: `w1-runtime-deploy-20260911` ACTIVE (opened 2026-09-11 22:17
-  Asia/Manila). Objective: execute the approved HIGH `W1-RUNTIME-DEPLOY` packet
-  — deploy approved product commit `fdd0c8c7` to the shared Tailnet runtime,
-  then read-only Tailnet acceptance, rollover preview, and canonical generation
-  diagnostic. The approved packet is committed with this cycle opening at
-  `docs/prompts/w1-runtime-deploy-tailnet-acceptance-2026-09-11.md`. Planner
-  worktree `D:/ATLAS-worktrees/planner-w1-deploy` (`docs/w1-runtime-deploy`);
-  executor worktree `D:/ATLAS-worktrees/w1-runtime-deploy`
-  (`work/w1-runtime-deploy-20260911`, base `fdd0c8c7`); executor/QA task IDs are
-  recorded at dispatch/return. Next recoverable action = dispatch the executor,
-  then fresh QA on its deployment evidence range. No rollover sync, Teaching
-  Load mutation, generation, or publication is authorized.
+- Cycle recovery: `w1-runtime-deploy-20260911` ACTIVE (opened 2026-09-11 22:17;
+  executor returned 22:42 Asia/Manila). Objective: execute the approved HIGH
+  `W1-RUNTIME-DEPLOY` packet — deploy approved product commit `fdd0c8c7` to the
+  shared Tailnet runtime, then read-only Tailnet acceptance, rollover preview,
+  and canonical generation diagnostic. Deployed live: server PID 11564 +
+  client PID 6756 from `D:/ATLAS-worktrees/w1-runtime-deploy`, Tailnet health
+  200, rollover automation disabled, zero unauthorized writes. Executor task
+  `ses_f6f297342ffes5Eg42fvNe7GbE` returned `REVIEW_REQUIRED` with candidate
+  `1ead5622` (base `fdd0c8c7`; docs-only evidence). Next recoverable action =
+  fresh QA on `fdd0c8c7...1ead5622`, then integrate the accepted evidence and
+  close the cycle. Authenticated Stage C surfaces and the canonical generation
+  diagnostic are `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` pending an operator
+  session or decision. No rollover sync, Teaching Load mutation, generation, or
+  publication is authorized.
 - Wave 1 and subsequent accepted planner evidence are integrated and pushed.
   TT-UX01R2 is independently ratified at integration merge `a0ca05e5`.
   TERM-CONSUME-C02 is independently accepted at `a55abf7e`, integrated by the
@@ -80,7 +82,7 @@ hard blockers before separately approving publication.
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `RUNNING` | HIGH shared-runtime deployment/cutover | Approved product commit `fdd0c8c7`; packet committed at cycle opening; executor `work/w1-runtime-deploy-20260911` from `fdd0c8c7` | Approval excludes rollover sync and every live-data mutation; stop/replace only ATLAS ports 5001/5174 with rollover automation disabled | Cycle opened 2026-09-11 with the embedded operator approval; combined type-checks/builds pass on the reviewed tree | Run the bounded deployment and read-only acceptance; fresh QA on the evidence range; stop before rollover sync, generation, or publication |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `REVIEW_REQUIRED` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7` live; candidate `fdd0c8c7...1ead5622` (`work/w1-runtime-deploy-20260911`, docs-only evidence) | Authenticated acceptance and the generation diagnostic need an operator session; rollover sync, TL apply, generation, and publication remain separately gated | Deployed server PID 11564 + client PID 6756 from the approved worktree; localhost/Tailnet health 200; rollover-disabled log; SIGNATURE_DIFFS=0 (audit 232→232); preview `aligned`/`NONE`; authenticated surfaces `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` | Fresh independent QA on the candidate range; then integrate the evidence docs and close the cycle |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -112,9 +114,9 @@ hard blockers before separately approving publication.
    TT-UX01 integration step remains.
 3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
    integrated; no wave follow-up remains before the runtime deployment.
-4. Execute the approved bounded runtime deployment and read-only Tailnet
-   acceptance. If rollover term-cache sync is needed, prepare its separate HIGH
-   preview and stop for a new approval before any mutation.
+4. The approved bounded runtime deployment is executed; candidate `1ead5622`
+   awaits fresh QA. If rollover term-cache sync is ever needed, prepare its
+   separate HIGH preview and stop for a new approval before any mutation.
 5. After the bounded deployment, run the read-only canonical generation
    readiness diagnostic for the live school/year. Only if it proves zero hard
    blockers and exact source freshness, prepare the fingerprinted generation
@@ -125,9 +127,9 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- The only authorized executor stream is the HIGH `W1-RUNTIME-DEPLOY` packet at
-  `docs/prompts/w1-runtime-deploy-tailnet-acceptance-2026-09-11.md`. It unlocks
-  live readiness verification but authorizes no rollover sync or data mutation.
+- No new executor stream is authorized. The W1 deployment is live and its
+  evidence awaits fresh QA; authenticated acceptance and the canonical
+  generation diagnostic remain blocked on an operator session decision.
   Carry-forward apply, suggestion apply, generation, and publication remain
   separately gated.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
@@ -155,9 +157,9 @@ restart the shared runtime while live browser QA is active.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
-- The shared runtime deployment/Tailnet acceptance is executing under the
-  approved packet; source integration alone does not authorize data apply,
-  generation, or publication.
+- The shared runtime now serves `fdd0c8c7` with rollover automation disabled;
+  its deployment evidence awaits fresh QA. Source integration alone does not
+  authorize data apply, generation, or publication.
 
 ## Update protocol
 
