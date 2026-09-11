@@ -27,6 +27,7 @@ import { Prisma } from '@prisma/client';
 
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { getDataContext } from '../lib/data-context.js';
+import { normalizeGradeLevelSync } from './class-program-slot.service.js';
 import { computeTeachingLoadMinutes } from './faculty-assignment.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { buildDepartmentAuthoritySourceRevision } from './department-authority.service.js';
@@ -79,6 +80,19 @@ export function normalizeCarryForwardProgramType(programType: string | null | un
 }
 
 /**
+ * Resolve the authoritative grade number for a `SectionMirror` row from its
+ * `gradeLevelId` using the established EnrollPro-grade normalization.
+ *
+ * `SectionMirror.displayOrder` is presentation/ordering metadata and MUST NEVER
+ * be used as grade authority: EnrollPro internal grade ids do not equal the
+ * actual grade number (e.g. feed id 17 = Grade 7), and two different grades can
+ * share the same display order.
+ */
+export function resolveCarryForwardGrade(gradeLevelId: number): number {
+	return normalizeGradeLevelSync(gradeLevelId);
+}
+
+/**
  * Canonical section identity: grade + program + normalized name. Deliberately
  * excludes every database/external id so a re-IDed but semantically identical
  * section still matches, and an id-reused but renamed section does not.
@@ -89,6 +103,18 @@ export function canonicalCarryForwardSectionKey(
 	name: string,
 ): string {
 	return `${gradeLevel}:${normalizeCarryForwardProgramType(programType)}:${normalizeCarryForwardSectionName(name)}`;
+}
+
+/**
+ * Canonical identity straight from a persisted `SectionMirror`-shaped row. The
+ * grade is resolved from `gradeLevelId`; any `displayOrder` field is ignored.
+ */
+export function canonicalCarryForwardSectionKeyFromMirror(section: {
+	gradeLevelId: number;
+	programType: string | null;
+	name: string;
+}): string {
+	return canonicalCarryForwardSectionKey(resolveCarryForwardGrade(section.gradeLevelId), section.programType, section.name);
 }
 
 export interface CarryForwardSectionCandidate {
@@ -569,7 +595,7 @@ export async function readCarryForwardSourceSnapshot(
 		}),
 		tx.sectionMirror.findMany({
 			where: { schoolId, schoolYearId: sourceYearId },
-			select: { externalId: true, name: true, displayOrder: true, programType: true },
+			select: { externalId: true, name: true, gradeLevelId: true, programType: true },
 		}),
 		tx.facultyMirror.findMany({ where: { schoolId }, select: { id: true, externalId: true, employeeId: true } }),
 		tx.subject.findMany({ where: { schoolId }, select: { id: true, code: true } }),
@@ -585,7 +611,8 @@ export async function readCarryForwardSourceSnapshot(
 		sectionsByExternalId.set(section.externalId, {
 			sectionMirrorId: 0,
 			externalId: section.externalId,
-			gradeLevel: section.displayOrder,
+			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
+			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId),
 			programType: section.programType,
 			name: section.name,
 		});
@@ -620,6 +647,14 @@ export async function readCarryForwardSourceSnapshot(
 				subjectCode: row.sourceSubjectCode,
 			}))
 			.sort((a, b) => a.ownershipId - b.ownershipId),
+		sections: [...sectionsByExternalId.values()]
+			.map((section) => ({
+				externalId: section.externalId,
+				gradeLevel: section.gradeLevel,
+				programType: normalizeCarryForwardProgramType(section.programType),
+				name: normalizeCarryForwardSectionName(section.name),
+			}))
+			.sort((a, b) => a.externalId - b.externalId),
 	});
 
 	return {
@@ -658,7 +693,7 @@ export async function readCarryForwardTargetSnapshot(
 	] = await Promise.all([
 		tx.sectionMirror.findMany({
 			where: { schoolId, schoolYearId: targetYearId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, externalId: true, name: true, displayOrder: true, programType: true },
+			select: { id: true, externalId: true, name: true, gradeLevelId: true, programType: true },
 		}),
 		tx.facultyMirror.findMany({ where: { schoolId }, orderBy: { id: 'asc' } }),
 		tx.subject.findMany({ where: { schoolId } }),
@@ -694,7 +729,8 @@ export async function readCarryForwardTargetSnapshot(
 		sections: (sections as any[]).map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			gradeLevel: section.displayOrder,
+			// Authoritative grade from gradeLevelId; displayOrder is never grade truth.
+			gradeLevel: resolveCarryForwardGrade(section.gradeLevelId),
 			programType: section.programType,
 			name: section.name,
 		})),
@@ -754,7 +790,7 @@ export async function readCarryForwardTargetSnapshot(
 			cycle: { state: cycleRead.source.state, version: cycleRead.source.version },
 			derivedDemandRevision: derivedDemand.ok ? derivedDemand.revision : null,
 			derivedDemandBlockers: derivedDemand.ok ? [] : derivedDemand.blockers.map((blocker) => blocker.code).sort(),
-			sections: [...(sections as any[])].map((row) => ({ id: row.id, externalId: row.externalId, name: row.name, displayOrder: row.displayOrder, programType: row.programType })).sort((a, b) => a.id - b.id),
+			sections: [...(sections as any[])].map((row) => ({ id: row.id, externalId: row.externalId, name: row.name, gradeLevelId: row.gradeLevelId, gradeLevel: resolveCarryForwardGrade(row.gradeLevelId), programType: row.programType })).sort((a, b) => a.id - b.id),
 			faculty: (faculty as any[]).map((row) => ({ id: row.id, externalId: row.externalId, department: row.department, specialization: row.specialization, canTeachOutsideDepartment: row.canTeachOutsideDepartment, isClassAdviser: row.isClassAdviser, advisedSectionId: row.advisedSectionId, isActiveForScheduling: row.isActiveForScheduling, isPlaceholder: row.isPlaceholder, isStale: row.isStale, version: row.version })).sort((a, b) => a.id - b.id),
 			subjects: (subjects as any[]).map((row) => ({ id: row.id, code: row.code, minMinutesPerWeek: row.minMinutesPerWeek, programScopes: row.programScopes, gradeLevels: row.gradeLevels, allowedSpecializations: row.allowedSpecializations, ownerDepartment: row.ownerDepartment, rotationFamily: row.rotationFamily, modularOrder: row.modularOrder, termMode: row.termGroupId, isActive: row.isActive, schedulingDisposition: row.schedulingDisposition })).sort((a, b) => a.id - b.id),
 			ownership: (ownership as any[]).map((row) => ({ id: row.id, subjectId: row.subjectId, sectionId: row.sectionId, facultyId: row.facultyId })).sort((a, b) => a.id - b.id),
@@ -868,7 +904,13 @@ export async function buildCarryForwardPlan(
 	};
 	recomputeMinutes();
 
-	const hardCap = target.workloadPolicy.status === 'CONFIGURED' ? target.workloadPolicy.hardCapMinutes : Number.POSITIVE_INFINITY;
+	// FAIL CLOSED: an unconfigured workload policy must never be treated as an
+	// infinite hard cap. The preview/apply callers also gate on this before any
+	// write; this guard is defense-in-depth for direct plan construction.
+	if (target.workloadPolicy.status !== 'CONFIGURED') {
+		throw err(409, 'WORKLOAD_POLICY_UNCONFIGURED', 'The effective workload policy for the active year is unconfigured; carry-forward requires a configured standard and hard cap.');
+	}
+	const hardCap = target.workloadPolicy.hardCapMinutes;
 
 	// Detect duplicate source rows that would resolve to the same target pair.
 	const resolvedTargetPairByRow = new Map<number, { targetPairKey: string | null; sectionMirrorId: number | null; subjectId: number | null }>();
@@ -1147,6 +1189,9 @@ export async function previewTeachingLoadCarryForward(
 
 	if (!target.derivedDemand.ok) {
 		throw err(409, 'DERIVED_DEMAND_BLOCKED', `Current demand authority is unavailable: ${target.derivedDemand.blockers.map((blocker) => blocker.code).join(', ')}.`);
+	}
+	if (target.workloadPolicy.status !== 'CONFIGURED') {
+		throw err(409, 'WORKLOAD_POLICY_UNCONFIGURED', 'The effective workload policy for the active year is unconfigured; carry-forward preview is blocked until the policy is set.');
 	}
 
 	const plan = await buildCarryForwardPlan(source, target, schoolId);
@@ -1428,6 +1473,12 @@ export async function applyTeachingLoadCarryForward(input: ApplyTeachingLoadCarr
 	if (!Number.isInteger(input.actorSchoolId) || input.actorSchoolId <= 0 || input.actorSchoolId !== schoolId) {
 		throw err(403, 'SCHOOL_MISMATCH', 'Request school does not match the authenticated actor school.');
 	}
+	// Strict positive authenticated actor user id. Missing, zero, negative,
+	// fractional, or wrong-type ids fail closed with a typed 403 BEFORE any
+	// service/DB access (this runs outside the transaction).
+	if (typeof input.actorId !== 'number' || !Number.isInteger(input.actorId) || input.actorId <= 0) {
+		throw err(403, 'ACTOR_USER_REQUIRED', 'Carry-forward apply requires a strict positive authenticated actor user id.');
+	}
 	if (input.confirmationText !== TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION) {
 		throw err(400, 'CONFIRMATION_REQUIRED', `confirmationText="${TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION}" is required.`);
 	}
@@ -1465,6 +1516,13 @@ export async function applyTeachingLoadCarryForward(input: ApplyTeachingLoadCarr
 
 			const source = await readCarryForwardSourceSnapshot(tx, schoolId, sourceYearId, resolution);
 			const target = await readCarryForwardTargetSnapshot(tx, schoolId, targetYearId, resolution);
+			// Revalidate the effective workload policy INSIDE the Serializable
+			// transaction FIRST so a policy change between preview and apply fails
+			// closed with the typed policy blocker before any write, never with an
+			// infinite hard cap.
+			if (target.workloadPolicy.status !== 'CONFIGURED') {
+				throw err(409, 'WORKLOAD_POLICY_UNCONFIGURED', 'The effective workload policy for the active year became unconfigured since the preview; re-run the preview after configuring the policy.');
+			}
 			if (source.revision !== expectedSourceRevision) {
 				throw err(409, 'SOURCE_DRIFT', 'The archived source Teaching Load changed since the preview. Re-run the preview before applying.');
 			}

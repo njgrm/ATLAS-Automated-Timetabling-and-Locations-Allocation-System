@@ -6,11 +6,13 @@ import test from 'node:test';
 import {
 	TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION,
 	canonicalCarryForwardSectionKey,
+	canonicalCarryForwardSectionKeyFromMirror,
 	classifyCarryForwardRow,
 	matchTargetFacultyByExternalIdentity,
 	matchTargetSectionByCanonicalKey,
 	normalizeCarryForwardProgramType,
 	normalizeCarryForwardSectionName,
+	resolveCarryForwardGrade,
 	type CarryForwardRowDecisionInput,
 	type CarryForwardSectionCandidate,
 } from '../services/teaching-load-carry-forward.service.js';
@@ -41,6 +43,67 @@ test('section identity is canonical grade + program + normalized name, never an 
 		canonicalCarryForwardSectionKey(7, 'regular', ' sampaguita '),
 		'case/whitespace variants of the same section produce one canonical key',
 	);
+});
+
+test('grade authority is SectionMirror.gradeLevelId via EnrollPro normalization, never displayOrder', () => {
+	// Current EnrollPro feed ids 17-20 map to Grades 7-10.
+	assert.equal(resolveCarryForwardGrade(17), 7);
+	assert.equal(resolveCarryForwardGrade(18), 8);
+	assert.equal(resolveCarryForwardGrade(19), 9);
+	assert.equal(resolveCarryForwardGrade(20), 10);
+	// Legacy ids 5/6 map to Grades 7/8; 7-10 pass through as actual grades.
+	assert.equal(resolveCarryForwardGrade(5), 7);
+	assert.equal(resolveCarryForwardGrade(6), 8);
+	assert.equal(resolveCarryForwardGrade(7), 7);
+	assert.equal(resolveCarryForwardGrade(10), 10);
+	// The mirror helper uses gradeLevelId only and ignores any displayOrder field.
+	assert.equal(
+		canonicalCarryForwardSectionKeyFromMirror({ gradeLevelId: 17, programType: 'REGULAR', name: 'Sampaguita' }),
+		canonicalCarryForwardSectionKey(7, 'REGULAR', 'Sampaguita'),
+	);
+});
+
+test('FAILING-FIRST MUTANT: displayOrder-as-grade matches different actual grades that share display order/name/program', () => {
+	// Same display order, name, and program, but DIFFERENT actual grades.
+	const sourceMirror = { gradeLevelId: 17, displayOrder: 3, programType: 'REGULAR', name: 'Merged' };
+	const targetA = { sectionMirrorId: 10, externalId: 500, gradeLevelId: 17, displayOrder: 3, programType: 'REGULAR', name: 'Merged' };
+	const targetB = { sectionMirrorId: 20, externalId: 501, gradeLevelId: 18, displayOrder: 3, programType: 'REGULAR', name: 'Merged' };
+
+	const toCandidate = (row: { sectionMirrorId: number; externalId: number; gradeLevelId: number; programType: string; name: string }): CarryForwardSectionCandidate => ({
+		sectionMirrorId: row.sectionMirrorId,
+		externalId: row.externalId,
+		gradeLevel: resolveCarryForwardGrade(row.gradeLevelId),
+		programType: row.programType,
+		name: row.name,
+	});
+	const toDisplayOrderCandidate = (row: { sectionMirrorId: number; externalId: number; displayOrder: number; programType: string; name: string }): CarryForwardSectionCandidate => ({
+		sectionMirrorId: row.sectionMirrorId,
+		externalId: row.externalId,
+		gradeLevel: row.displayOrder,
+		programType: row.programType,
+		name: row.name,
+	});
+
+	const corrected = matchTargetSectionByCanonicalKey(toCandidate({ sectionMirrorId: 0, externalId: 1, gradeLevelId: sourceMirror.gradeLevelId, programType: sourceMirror.programType, name: sourceMirror.name }), [toCandidate(targetA), toCandidate(targetB)]);
+	assert.equal(corrected.status, 'MATCH');
+	assert.equal(corrected.status === 'MATCH' ? corrected.section.sectionMirrorId : null, 10, 'corrected matcher resolves the same actual grade only');
+
+	const mutant = matchTargetSectionByCanonicalKey(toDisplayOrderCandidate({ sectionMirrorId: 0, externalId: 1, displayOrder: sourceMirror.displayOrder, programType: sourceMirror.programType, name: sourceMirror.name }), [toDisplayOrderCandidate(targetA), toDisplayOrderCandidate(targetB)]);
+	assert.equal(mutant.status, 'AMBIGUOUS', 'displayOrder-as-grade collapses two different grades into an ambiguous match');
+	assert.notEqual(corrected.status, mutant.status, 'using displayOrder as grade authority produces a different, incorrect plan');
+});
+
+test('FAILING-FIRST MUTANT: display order changing independently must not break a real grade match', () => {
+	const sourceMirror = { gradeLevelId: 17, displayOrder: 9, programType: 'REGULAR', name: 'Rizal' };
+	const targetMirror = { sectionMirrorId: 7, externalId: 900, gradeLevelId: 17, displayOrder: 1, programType: 'REGULAR', name: 'Rizal' };
+
+	const correctedSource: CarryForwardSectionCandidate = { sectionMirrorId: 0, externalId: 1, gradeLevel: resolveCarryForwardGrade(sourceMirror.gradeLevelId), programType: sourceMirror.programType, name: sourceMirror.name };
+	const correctedTarget: CarryForwardSectionCandidate = { sectionMirrorId: targetMirror.sectionMirrorId, externalId: targetMirror.externalId, gradeLevel: resolveCarryForwardGrade(targetMirror.gradeLevelId), programType: targetMirror.programType, name: targetMirror.name };
+	assert.equal(matchTargetSectionByCanonicalKey(correctedSource, [correctedTarget]).status, 'MATCH', 'same gradeLevelId matches despite a different displayOrder');
+
+	const mutantSource: CarryForwardSectionCandidate = { ...correctedSource, gradeLevel: sourceMirror.displayOrder };
+	const mutantTarget: CarryForwardSectionCandidate = { ...correctedTarget, gradeLevel: targetMirror.displayOrder };
+	assert.equal(matchTargetSectionByCanonicalKey(mutantSource, [mutantTarget]).status, 'MISSING', 'displayOrder-as-grade wrongly rejects the real match');
 });
 
 test('FAILING-FIRST MUTANT: an ID-only matcher picks the wrong renamed/re-IDed section', () => {
@@ -135,6 +198,16 @@ test('FAILING-FIRST MUTANT: an overwrite-nonempty classifier would carry an occu
 
 test('the apply confirmation text is an explicit, non-empty contract', () => {
 	assert.equal(TEACHING_LOAD_CARRY_FORWARD_CONFIRMATION, 'APPLY TEACHING LOAD CARRY-FORWARD');
+});
+
+test('an unconfigured workload policy fails closed with a typed blocker and no infinite hard cap', () => {
+	const service = source('src/services/teaching-load-carry-forward.service.ts');
+	assert.equal(service.includes('Number.POSITIVE_INFINITY'), false, 'no infinite hard-cap fallback may exist');
+	assert.ok(service.includes("'WORKLOAD_POLICY_UNCONFIGURED'"), 'a typed unconfigured-policy blocker exists');
+	// The apply path must revalidate the policy inside the Serializable transaction.
+	const applyIndex = service.indexOf('export async function applyTeachingLoadCarryForward');
+	const revalidateIndex = service.indexOf("'WORKLOAD_POLICY_UNCONFIGURED'", applyIndex);
+	assert.ok(revalidateIndex > applyIndex, 'apply revalidates the policy inside its transaction');
 });
 
 test('the archived history surface stays read-only (no carry-forward mutation controls)', () => {

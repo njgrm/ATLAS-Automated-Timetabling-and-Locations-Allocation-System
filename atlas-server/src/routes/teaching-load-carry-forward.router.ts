@@ -16,6 +16,16 @@ function actorSchoolIdOf(req: Request): number | null {
 	return typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
 }
 
+/**
+ * Strict positive authenticated actor user id. Missing, zero, negative,
+ * fractional, or non-number ids return null and are rejected before any
+ * service/DB access.
+ */
+function actorUserIdOf(req: Request): number | null {
+	const userId = req.user?.userId;
+	return typeof userId === 'number' && Number.isInteger(userId) && userId > 0 ? userId : null;
+}
+
 type StrictBodyResult =
 	| { ok: true; body: Record<string, unknown> }
 	| { ok: false; statusCode: number; code: string; message: string };
@@ -75,6 +85,13 @@ router.post('/carry-forward/preview', authenticate, requirePrivilegedRole, async
 // transaction that aborts atomically on any drift.
 router.post('/carry-forward/apply', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
+		// Strict actor user id BEFORE body parsing or any service invocation, so a
+		// malformed identity performs zero reads and zero writes.
+		const actorUserId = actorUserIdOf(req);
+		if (actorUserId == null) {
+			res.status(403).json({ code: 'ACTOR_USER_REQUIRED', message: 'A strict positive authenticated actor user id is required to apply carry-forward.' });
+			return;
+		}
 		const parsed = readStrictBody(req.body, [
 			'schoolId',
 			'targetSchoolYearId',
@@ -101,7 +118,7 @@ router.post('/carry-forward/apply', authenticate, requirePrivilegedRole, async (
 		}
 		res.json(await applyTeachingLoadCarryForward({
 			actorSchoolId: actorSchoolIdOf(req),
-			actorId: req.user?.userId ?? 0,
+			actorId: actorUserId,
 			schoolId,
 			targetSchoolYearId,
 			sourceSchoolYearId,
