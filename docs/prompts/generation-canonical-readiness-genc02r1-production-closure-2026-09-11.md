@@ -173,4 +173,3 @@ Commit the bounded candidate and return `REVIEW_REQUIRED` (and
   diff results, fresh QA verdict, and all remaining blockers;
 - explicit confirmation that no live generation, publication, Teaching Load
   apply, deployment/restart, migration, or companion edit occurred.
-
