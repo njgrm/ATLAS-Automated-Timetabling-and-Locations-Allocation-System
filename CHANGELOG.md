@@ -1,5 +1,26 @@
 # Changelog
 
+## [2026-09-11] — Dashboard, Teaching Load Authority, and Migration Guard Integration
+
+### Added
+- Integrated Dashboard saved-readiness resilience, transaction-bound Teaching
+  Load suggestion authority, and guarded migration schema-path coverage.
+
+### Changed
+- Updated the living delivery register to close the three accepted source
+  streams and unlock one separately coordinated runtime deployment.
+
+### Decisions Made
+- Accepted the three immutable candidate ranges after primary-planner source
+  inspection, focused test reproduction, combined type-checks, production
+  builds, and a clean integration diff.
+- Kept live Teaching Load apply, database migration, generation, publication,
+  and runtime lifecycle actions outside source-integration authority.
+
+### Open Questions
+- DEMAND-C01R remains the active correction lane. Its dependent consumer streams
+  remain blocked pending a fresh accepted derived-demand contract.
+
 ## [2026-09-11] — DEMAND-C01 Independent QA Correction Handoff
 
 ### Added

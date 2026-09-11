@@ -20,10 +20,8 @@ hard blockers before separately approving publication.
   TT-UX01R2 is independently ratified at integration merge `a0ca05e5`.
   TERM-CONSUME-C02 is independently accepted at `a55abf7e`, integrated by the
   primary planner at `5fa9b227`, and pushed through main `bb5cd487`.
-  TL-UX-C01/C01R was pushed by a QA delegate
-  at `151f02ee`, but primary-planner re-review found material suggestion-apply
-  authority gaps; that integrated feature is now `CORRECTION_REQUIRED` and
-  must not be deployed or used for writes until TL-UX-C01R2 is accepted.
+  TL-UX-C01R2, DASH-RESILIENCE-C01, and MIG-GUARD-R1 have now passed primary
+  planner verification and are combined on `integration/readiness-20260911`.
 - All three source lanes passed independent QA and the combined integration
   gates. The approved term schema migration is applied and verified; deploying
   the integrated runtime remains a separate service-lifecycle action.
@@ -47,10 +45,10 @@ hard blockers before separately approving publication.
 | ENROLLPRO-TERM-HANDOFF | Make EnrollPro expose authoritative ordered term identities, labels, dates, and active term | `ACCEPT_READY` | External dependency; READ_ONLY QA | EnrollPro `396a9892...5887d685`; canonical mirror `D:\EnrollPro` clean at `5887d685` | ATLAS consumption and deployment remain separate | Source review confirms strict integer parsing and validate-before-write term mutation; live probes return the ordered three-term year-9 contract, reject malformed/duplicate IDs with typed 400s, and return truthful 409 `ACTIVE_TERM_UNRESOLVED` for the 2026/2030 calendar mismatch | Consume the corrected contract in ATLAS; do not edit the EnrollPro mirror |
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
-| MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `PLANNED` | LOW | Fresh branch from current `origin/main` | None; must preserve backup revalidation and spawn ordering | First live invocation passed its backup gate but Prisma stopped before migration because the wrapper omitted `../prisma/schema.prisma`; supported forwarded argument succeeded | Execute `docs/prompts/migration-guard-command-correction-r1-2026-09-11.md`; no live migration |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `BLOCKED` | MEDIUM service lifecycle | Current `origin/main`; isolated build before shared-runtime action | DASH-RESILIENCE-C01 and TL-UX-C01R2 must be integrated; coordinate live browser runs | Port 5001 is healthy but serves the pre-integration bundle; the current main contains a TL suggestion apply path that primary QA has marked do-not-deploy | Correct TL suggestion authority and integrate Dashboard resilience, then perform one bounded build/restart/Tailnet acceptance |
-| DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `PLANNED` | MEDIUM cross-layer read path | Fresh worktree from current `origin/main` | May run beside TL/TT UX; avoid their files and all data mutation | Live EnrollPro health/year routes are 200 and Dashboard saved counts are 20 sections/22 subjects/42 faculty/98 teaching rooms, but ATLAS maps typed active-term 409 to unreachable and its legacy fallback substitutes zeros/empties on failed reads | Execute `docs/prompts/dashboard-stale-readiness-correction-2026-09-11.md`; commit and return a reviewed read-only candidate |
-| TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `CORRECTION_REQUIRED` | HIGH write/concurrency guards | Integrated precursor `36c5d3d1...2aad67a3` at merge `151f02ee`; fresh correction branch required | Primary review found unreviewed legacy-plan moves, partial in-transaction revalidation, stale move minutes/qualification authority, and default/credited cap drift | Unit gates remain green, but no PostgreSQL apply fixture existed and source inspection disproves the claimed all-authority revalidation | Execute `docs/prompts/teaching-load-ux-suggestion-authority-correction-tluxc01r2-2026-09-11.md`; do not deploy or invoke suggestion apply |
+| MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `PLANNED` | MEDIUM service lifecycle | Current integration branch; isolated build passed | Coordinate with live browser activity; source integration is not deployment authority | Combined server/client type-checks and production builds pass after Dashboard, Teaching Load authority, and migration-guard integration | Perform one bounded shared-runtime deployment and Tailnet acceptance; no data apply, generation, or publication |
+| DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
+| TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `CORRECTION_REQUIRED` | MEDIUM | `work/derived-demand-c01`; `ec7d54ed...eae274bf` | Candidate accepts incomplete per-scope rotation, collapses Q4 to term 3, omits demand-shaping revision inputs, reads term authority outside supplied transactions, leaves generation/publication freshness on legacy offering tables, and suppresses typed blockers in Timetable summary/preview | Independent QA reproduced genuine incomplete-family acceptance and a period-length revision collision; production inspection confirmed Q4 collapse, global term resolution, legacy publication snapshot, and silent projection/blocker loss | Execute `docs/prompts/derived-demand-authority-c01r-2026-09-11.md` as an additive correction on the existing branch; do not integrate `eae274bf` |
 | UX-C01 | Remove Curriculum Requirements/Decision Workspace from normal workflow and explain derived setup plainly | `BLOCKED` | MEDIUM UI | Not started | DEMAND-C01 must be real first | Product decision recorded in governing sequence | Start in parallel with later demand-consumer work only after DEMAND-C01 establishes replacement truth |
@@ -73,32 +71,25 @@ hard blockers before separately approving publication.
 
 ## Dependency-ordered queue
 
-1. Execute TL-UX-C01R2 against the current main; keep the integrated suggestion
-   apply path do-not-deploy until its PostgreSQL authority suite passes.
-2. Execute DASH-RESILIENCE-C01 after TERM-CONSUME-C02 so expired sessions and
-   typed active-term states cannot appear as empty school data, then coordinate
-   one integrated runtime deployment without interrupting live QA.
-3. Correct the guarded command's default Prisma schema path; do not re-run the
-   already applied migration.
-4. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
+1. TL-UX-C01R2, DASH-RESILIENCE-C01, and MIG-GUARD-R1 are integrated; coordinate
+   one bounded runtime deployment without interrupting live QA.
+2. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
    TT-UX01 integration step remains.
-5. Correct DEMAND-C01 on its existing branch, then commission fresh independent
+3. Correct DEMAND-C01 on its existing branch, then commission fresh independent
    QA over the complete immutable range.
-6. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
+4. After DEMAND-C01, run UX-C01, TL-RR01 preview, and GEN-C02 in parallel where
    their file ownership is disjoint.
-8. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
+5. Resolve GEN-C02 hard blockers and produce a zero-hard-blocker generation
    preview.
-9. Obtain explicit HIGH approval, generate once, verify the completed run, then
+6. Obtain explicit HIGH approval, generate once, verify the completed run, then
    prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
-- TL-UX-C01R2 in a fresh worktree, confined to Teaching Load suggestion
-  preview/apply authority and a disposable PostgreSQL fixture; no live apply.
-- DASH-RESILIENCE-C01 now that TERM-CONSUME-C02 is integrated.
-- MIG-GUARD-R1 source/test correction, with no live migration.
 - DEMAND-C01R is the active server authority lane; do not run another demand
   consumer lane against its unaccepted contract.
+- A bounded Wave-1 runtime deployment is safe only when no executor is using
+  the shared Tailnet runtime for browser evidence.
 
 Do not integrate the current DEMAND-C01 candidate or start UX-C01, TL-RR01,
 GEN-C02, generation, or publication until DEMAND-C01R passes fresh independent
@@ -109,15 +100,16 @@ QA. Do not restart the shared runtime while live browser QA is active.
 - DEMAND-C01R executor correction and a fresh independent QA verdict are awaited.
 - EnrollPro correction `5887d685` has been pulled and its live contract is
   available. No EnrollPro executor return is awaited.
-- TERM-CONSUME-C02 is accepted and integrated; no executor return remains.
-  DASH-RESILIENCE-C01 and DEMAND-C01 are now unlocked within disjoint bounds.
+- TERM-CONSUME-C02, DASH-RESILIENCE-C01, TL-UX-C01R2, and MIG-GUARD-R1 are
+  accepted and integrated; no executor return remains for those streams.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
   verified. Runtime deployment remains a separate planner-coordinated action.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
-- TL-UX-C01R2 is awaiting a fresh executor correction. The pushed predecessor
-  is not deployment-ready and its suggestion apply must not be invoked.
+- The shared runtime still needs the bounded deployment/Tailnet acceptance;
+  source integration alone does not authorize data apply, generation, or
+  publication.
 
 ## Update protocol
 
