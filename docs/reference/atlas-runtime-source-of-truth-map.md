@@ -125,7 +125,8 @@ Canonical Generation Readiness stream (`2026-09-11`, GEN-C02 / GEN-C02R):
 - Section grade scope is derived from the EnrollPro internal `gradeLevelId`; `displayOrder` is presentation only. Shift windows are already actual grades.
 - Exactly one canonical `SubjectSectionOwnership` owner is the scheduler candidate authority per pair; flexible qualification cannot override it.
 - Nonuniform rotating families fail closed with `ROTATION_DEMAND_INCONSISTENT` rather than collapsing to the family maximum.
-- Operator-surface dependency: the Simple/Advanced Timetable client still gates on `/curriculum-requirements/:year/readiness` until the separately accepted UX-C01 candidate consumes this endpoint.
+- GEN-C02R1 (`2026-09-11`): `triggerGenerationRun()` consumes the same shared read-only preflight/assembly (`generation-preflight.service.ts`) as the readiness dry run and revalidates its bound revisions before its first write; missing setup, blocked authority, and stale revisions return typed `GENERATION_PREFLIGHT_BLOCKED` / `GENERATION_PREFLIGHT_STALE` with zero writes, and generation no longer calls setup-healing writers (`syncSectionsFromExternal`, `ensureDefaultTemplates`, `ensureTemplatesForProgramTypes`, `ensurePhase3GradeWindows`, `getOrCreatePolicy`, canonical slot creation).
+- Operator surface (`2026-09-11`, UX-C01R integrated): the Simple/Advanced Timetable client consumes this diagnostic as the sole generation gate; the retired `/curriculum-requirements/:year/readiness` surface is no longer dispatched.
 
 Rollover Readiness stream (`2026-08-31`, RR-01 through RR-04):
 - Health-first probing: `getRolloverStatus`, `previewRolloverSync`, and `applyRolloverSync` call `GET /api/integration/v1/health` first. When health fails, `enrollpro-unreachable` is returned immediately without hitting other feeds.
