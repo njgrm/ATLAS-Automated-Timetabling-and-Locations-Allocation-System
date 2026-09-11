@@ -1,5 +1,41 @@
 # Changelog
 
+## [2026-09-11] — TL-RR01 Teaching Load Rollover Carry-Forward
+
+### Added
+- Added an optional, audited Teaching Load carry-forward workflow that previews
+  reuse of compatible assignments from one same-school archived year into the
+  sole active year.
+- Added `POST /api/v1/teaching-load/carry-forward/preview` (zero-write) and the
+  implemented-but-not-invoked `POST /api/v1/teaching-load/carry-forward/apply`
+  (strict body, operator JWT, privileged role, actor-school scoped).
+- Added a pure canonical matcher (grade + program + normalized section name,
+  stable faculty external identity) and a typed per-row reason contract
+  (`EXACT_CARRY`, `ALREADY_OCCUPIED`, `MISSING_FACULTY`, `MISSING_SECTION`,
+  `NO_CURRENT_DEMAND`, `UNQUALIFIED`, `CAP_BLOCKED`, `AMBIGUOUS`, `OTHER`).
+- Added the Year Setup "Start from last year (optional)" preview panel and
+  client decision helpers, plus disposable PostgreSQL, mounted-route, and
+  isolated Playwright coverage.
+
+### Changed
+- Teaching Load transition guidance now points officers to the optional
+  carry-forward preview in Year Setup instead of a daily-page competing action.
+
+### Decisions Made
+- Apply writes only EMPTY target pairs, refreshes the target Teaching Load
+  cycle once, records exactly one actor audit, is idempotent on replay, and
+  aborts atomically with a typed 409 and zero partial writes on any drift.
+- Archived source rows, occupied target pairs, department authority, derived
+  demand, generation, publication, and catalog rows are never modified by
+  carry-forward. Advisory credit is neutral and cannot hide an overload.
+- No live carry-forward apply was authorized or performed by this stream; the
+  client exposes no apply action.
+
+### Open Questions
+- Live preview requires the integrated runtime deployment and the explicit
+  year-9 term snapshot sync; the guarded carry-forward apply remains behind its
+  own separate HIGH approval.
+
 ## [2026-09-11] — DEMAND-C01 Derived Demand and Ordered-Term Closure
 
 ### Added

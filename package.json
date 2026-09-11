@@ -21,6 +21,7 @@
     "test:visual:update": "playwright test -c playwright.config.ts --update-snapshots",
     "test:visual:faculty": "playwright test -c playwright.config.ts qa-artifacts/playwright/specs/faculty-full-matrix.spec.ts",
     "test:visual:teaching-load-remediation": "playwright test -c playwright.config.ts qa-artifacts/playwright/specs/teaching-load-post-qa-remediation.spec.ts",
+    "test:visual:carry-forward": "playwright test -c playwright.carry-forward.config.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev --name init",

@@ -483,7 +483,7 @@ export function teachingLoadScopeParams(
  */
 export function buildGuidedEmptyTeachingLoadMessage(schoolYearLabel: string | null): string {
 	const year = schoolYearLabel?.trim() ? schoolYearLabel.trim() : 'the active school year';
-	return `Build ${year} Teaching Load first. Start with the suggested draft or use the guided repair queue.`;
+	return `Build ${year} Teaching Load first. Start with the suggested draft or use the guided repair queue. Optionally, Year Setup can preview carrying forward compatible assignments from an archived year first.`;
 }
 
 /**
