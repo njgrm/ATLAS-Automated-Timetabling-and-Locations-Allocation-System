@@ -12,7 +12,6 @@
 
 import {
 	constructBaseline,
-	computeDemand,
 	type ConstructorInput,
 	type ConstructorResult,
 	type DemandItem,
@@ -423,10 +422,17 @@ export function runHybridScheduler(input: ConstructorInput): HybridSchedulerResu
 	const seedQuality: SeedQualitySummary[] = [];
 	const candidates: Array<{ result: ConstructorResult; profile: SeedProfile; fitness: FitnessScore }> = [];
 
-	// H-ALG-1: Compute base demand once, permute per profile. DEMAND-C01: when
-	// the caller supplies the canonical derived-demand override, it is the
-	// authority and `computeDemand()` is never consulted on the current-year path.
-	const baseDemand = input.demandOverride ?? computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
+	// H-ALG-1 / DEMAND-C01 / GEN-C02: the caller MUST supply the canonical
+	// derived-demand override. This orchestrator never falls back to the legacy
+	// catalog `computeDemand()` (term-blind, rotation-blind): a missing override
+	// is a typed failure so no current-year path can silently use legacy demand.
+	if (input.demandOverride == null) {
+		const error = new Error('runHybridScheduler requires the canonical derived demand override; legacy catalog demand is not permitted on the current-year path.') as Error & { statusCode: number; code: string };
+		error.statusCode = 409;
+		error.code = 'DERIVED_DEMAND_REQUIRED';
+		throw error;
+	}
+	const baseDemand = input.demandOverride;
 
 	for (const profile of SEED_PROFILES) {
 		try {

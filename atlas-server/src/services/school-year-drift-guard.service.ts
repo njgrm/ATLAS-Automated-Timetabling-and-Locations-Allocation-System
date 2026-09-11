@@ -1,5 +1,5 @@
 import { fetchEnrollProActiveSchoolYear } from './section-adapter.js';
-import { prisma } from '../lib/prisma.js';
+import { getDataContext } from '../lib/data-context.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -23,7 +23,7 @@ function err(
 }
 
 async function getSavedActiveSchoolYearId(schoolId: number): Promise<number | null> {
-	const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+	const mirror = await getDataContext().enrollProSchoolYearMirror.findFirst({
 		where: { schoolId, isActive: true },
 		orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
 		select: { enrollProSchoolYearId: true },

@@ -248,6 +248,9 @@ export function validateCanonicalTemplateRows(
 	const issues: string[] = [];
 	for (const key of expectedKeys) if (!actualKeys.has(key)) issues.push(`missing:${key}`);
 	for (const key of actualKeys) if (!expectedKeys.has(key)) issues.push(`unexpected:${key}`);
+	// GEN-C02R Correction 8: set de-duplication must not hide duplicates that
+	// would silently pass the old missing/unexpected check.
+	if (actualKeys.size !== rows.length) issues.push(`duplicate-rows:${rows.length - actualKeys.size}`);
 	for (const row of rows) {
 		const duration = toMinutes(row.endTime) - toMinutes(row.startTime);
 		if (row.rowKind === 'CLASS' && duration !== 45) issues.push(`invalid-class-duration:${row.startTime}-${row.endTime}`);
@@ -318,11 +321,25 @@ export async function ensureCanonicalClassProgramSlots(
 	schoolYearId: number,
 ): Promise<{ seeded: number; coverage: CanonicalTemplateCoverage[] }> {
 	const seeded = await seedClassProgramSlots(schoolId, schoolYearId);
+	const coverage = await readCanonicalClassProgramSlotsCoverage(schoolId, schoolYearId);
+	return { seeded: seeded.seeded, coverage };
+}
+
+/**
+ * GEN-C02: read-only canonical class-program template coverage. Identical
+ * validation to `ensureCanonicalClassProgramSlots` but performs NO seeding, so
+ * the readiness/dry-run can report missing templates as a blocker instead of
+ * mutating persisted authority.
+ */
+export async function readCanonicalClassProgramSlotsCoverage(
+	schoolId: number,
+	schoolYearId: number,
+): Promise<CanonicalTemplateCoverage[]> {
 	const rows = await db().classProgramSlot.findMany({
 		where: { schoolId, schoolYearId, isActive: true },
 		select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true },
 	});
-	const coverage = [7, 8, 9, 10].flatMap((gradeLevel) => KNOWN_PROGRAM_TYPES.map((programType) => {
+	return [7, 8, 9, 10].flatMap((gradeLevel) => KNOWN_PROGRAM_TYPES.map((programType) => {
 		const matching = rows.filter((row) => row.gradeLevel === gradeLevel && row.programType === programType);
 		return {
 			gradeLevel,
@@ -332,7 +349,6 @@ export async function ensureCanonicalClassProgramSlots(
 			issues: validateCanonicalTemplateRows(matching, gradeLevel, programType),
 		};
 	}));
-	return { seeded: seeded.seeded, coverage };
 }
 
 // ─── Resolver ───

@@ -612,6 +612,13 @@ export interface ConstructorInput {
 	 * When provided, this array is used directly instead of calling computeDemand().
 	 */
 	demandOverride?: DemandItem[];
+	/**
+	 * GEN-C02R Correction 7: canonical Teaching Load owner for each
+	 * `subjectId:sectionId` pair. When present, the scheduler candidate pool for
+	 * that pair is the owner only; flexible qualification may not override
+	 * approved ownership.
+	 */
+	pairOwners?: Record<string, number>;
 }
 
 export interface LockedEntryInput {
@@ -745,6 +752,13 @@ export interface DemandItem {
 		minMinutesPerWeek: number;
 	}>;
 	modularExpectedCount?: number;
+	/**
+	 * DEMAND-C01/GEN-C02: ordered term identities this demand pair actually runs
+	 * in. Present on derived-demand projections so per-subject consumers (draft
+	 * board, sync/setup, quick-place) can enforce exact ordered-term identity and
+	 * reject wrong-term retained placements instead of silently carrying them.
+	 */
+	applicableTermIdentities?: string[];
 }
 
 export function evaluateConstructorCandidateInvariants(input: TimetableCandidateInvariantInput) {
@@ -1167,7 +1181,7 @@ function timeToMinutes(t: string): number {
 // ─── Main constructor ───
 
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
-	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes } = input;
+	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes, pairOwners } = input;
 	const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
 
 	// Build period slots dynamically from the active policy day shape.
@@ -1222,6 +1236,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			qualifiedMap.set(key, arr);
 		}
 	}
+	// GEN-C02R Correction 7: canonical owner is the candidate authority for its
+	// pair. This overrides the broad qualified pool so a generated schedule
+	// cannot disagree with the reconciled Teaching Load.
+	const isOwnerControlledPair = (subjectId: number, sectionId: number): boolean =>
+		pairOwners != null && pairOwners[`${subjectId}:${sectionId}`] !== undefined;
+	if (pairOwners) {
+		for (const [key, ownerFacultyId] of Object.entries(pairOwners)) {
+			if (!Number.isInteger(ownerFacultyId)) continue;
+			qualifiedMap.set(key, [ownerFacultyId]);
+		}
+	}
 
 	function isFacultyQualified(f: FacultyInput, s: SubjectInput): boolean {
 		const departmentMatch = matchesSubjectOwnershipDepartment(
@@ -1266,7 +1291,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		// Priority 2: Optional fallback to tiered qualification when flexible assignment is enabled.
 		// For cohort entries, also widen the pool when explicit assignment depth is too thin
 		// to avoid single-teacher slot starvation on inter-section sessions.
-		const shouldAugmentWithTieredCandidates = subject != null && allowFlexible;
+		// GEN-C02R Correction 7: flexible qualification must never override the
+		// canonical owner for an ordinary (non-cohort) pair.
+		const ownerControlled = item.entryKind !== 'COHORT' && isOwnerControlledPair(item.subjectId, item.sectionId);
+		const shouldAugmentWithTieredCandidates = subject != null && allowFlexible && !ownerControlled;
 		if (shouldAugmentWithTieredCandidates && subject) {
 			const tieredCandidates = faculty.filter((facultyMember) => isFacultyQualified(facultyMember, subject)).map((facultyMember) => facultyMember.id);
 			if (candidates.length === 0) {
@@ -1815,23 +1843,22 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: FALLBACK_PERIOD_SLOTS.length }, (_, i) => i);
 		const shapeContract = resolveTimetableShapeContract(timetableShapes, item.gradeLevel, item.programType);
 		if (shapeContract) {
-			const sectionDemandSessions = item.entryKind === 'SECTION'
-				? (sectionWeeklyDemandSessions.get(item.sectionId) ?? item.sessionsPerWeek)
-				: item.sessionsPerWeek;
-			const shapeWeeklyCapacity = shapeContract.periodSlots.length * DAYS.length;
-			const shouldBypassShapeFilter = item.entryKind === 'SECTION' && sectionDemandSessions > shapeWeeklyCapacity;
-			if (!shouldBypassShapeFilter) {
-				// Use canonical CLASS slots if available, otherwise use shape contract period slots
-				const canonicalClassSlots = shapeContract.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
-				const allowedSlots = canonicalClassSlots && canonicalClassSlots.length > 0
-					? canonicalClassSlots
-					: shapeContract.periodSlots;
-				const allowedSlotKeys = new Set(allowedSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
-				gradeValidPeriods = gradeValidPeriods.filter((pi) => {
-					const slot = FALLBACK_PERIOD_SLOTS[pi];
-					return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
-				});
-			}
+			// GEN-C02R Correction 9: canonical capacity is a constraint, never an
+			// escape hatch. The former `shouldBypassShapeFilter` treated demand
+			// greater than the canonical weekly capacity as permission to fall back
+			// to broader day-span slots outside the approved shift/class-program
+			// shape. That loophole is removed: fallback slots must themselves be
+			// authoritative canonical CLASS rows (or shape period slots). Overflow
+			// is reported by readiness/preflight as CANONICAL_SHAPE_CAPACITY_EXCEEDED.
+			const canonicalClassSlots = shapeContract.canonicalSlots?.filter(s => s.rowKind === 'CLASS');
+			const allowedSlots = canonicalClassSlots && canonicalClassSlots.length > 0
+				? canonicalClassSlots
+				: shapeContract.periodSlots;
+			const allowedSlotKeys = new Set(allowedSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+			gradeValidPeriods = gradeValidPeriods.filter((pi) => {
+				const slot = FALLBACK_PERIOD_SLOTS[pi];
+				return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
+			});
 		}
 		const normalizedItemGradeLevel = normalizeGradeLevel(item.gradeLevel);
 		const gradeProgramKey = `${normalizedItemGradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;

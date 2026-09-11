@@ -1,5 +1,131 @@
 # Changelog
 
+## [2026-09-11] — GEN-C02R1 Production Preflight Closure
+
+### Added
+- One shared read-only generation preflight/assembly
+  (`generation-preflight.service.ts`) consumed by both the readiness diagnostic
+  and the real `triggerGenerationRun()` entry point, binding actor/active-year
+  authority, ordered-term and derived-demand revisions, exact
+  `SubjectSectionOwnership`/`FacultySubject` scope, subjects, rooms and building
+  scope, policy, grade windows, class-program/template coverage, special events,
+  retained drafts, occupancy, scheduler input, shape contracts, validator
+  context, and source revisions.
+- Executable production-path closure for the 2026-2027 stakeholder shape and
+  nonuniform rotation contracts: a wrong-shift substitution mutant that the
+  generic hard-constraint validator does not catch (the canonical shape
+  validator must still block with `generateAllowed=false`), TRIMESTER and
+  QUARTERS unequal-member totals, and family-max-collapse mutants.
+
+### Changed
+- `triggerGenerationRun()` now completes the shared preflight and revalidates
+  its bound revisions before its first write (run create/update, event, audit,
+  draft consumption, lock). Missing setup, blocked authority, and stale
+  revisions return typed `GENERATION_PREFLIGHT_BLOCKED` /
+  `GENERATION_PREFLIGHT_STALE` results with zero writes, and generation no
+  longer calls setup-healing writers (`syncSectionsFromExternal`,
+  `ensureDefaultTemplates`, `ensureTemplatesForProgramTypes`,
+  `ensurePhase3GradeWindows`, `getOrCreatePolicy`, canonical slot creation).
+
+### Open Questions
+- None outstanding for this stream at integration.
+
+## [2026-09-11] — GEN-C02R Stakeholder Shape and Mounted Zero-Write Correction
+
+### Added
+- Executable 2026-2027 stakeholder-shape parity tests for the Grade 7/8 morning
+  (`06:00`) and Grade 9/10 afternoon (`09:45–18:30`) frames, program-scope
+  coverage, blocked lunch/health breaks, and a cross-shift substitution mutant.
+- A mounted disposable-PostgreSQL zero-write proof that provisions a guarded
+  `atlas_restore_drill_<date>_genc02r*` database, applies the canonical schema,
+  seeds a minimal fixture, invokes the authenticated privileged readiness route,
+  asserts `zeroWrite:true` with unchanged before/after domain signatures, runs a
+  rolled-back positive control, and drops the database with zero residue.
+- Mounted actor-school authority on both the readiness diagnostic and the
+  generation trigger; unresolved or mismatched scope returns a typed 403 before
+  any service invocation (`SYSTEM_ADMIN` is not a cross-school bypass).
+- `CANONICAL_SHAPE_CAPACITY_EXCEEDED`, `CANONICAL_SHAPE_VIOLATION`,
+  `ROTATION_DEMAND_INCONSISTENT`, and `TL_OWNERSHIP_CONFLICT` typed blockers.
+- `ConstructorInput.pairOwners`: the canonical Teaching Load owner is the sole
+  scheduler candidate for its pair.
+- Readiness `decisionNotes` surfacing the unresolved Friday ARAL/TLE and
+  duplicate-lunch stakeholder decisions.
+
+### Changed
+- Readiness returns structured `BLOCKED` results instead of throwing when the
+  active-year/term authority is unavailable; downstream draft/scheduler paths are
+  skipped. Zero-write truth is bound into `generateAllowed`.
+- Removed the `shouldBypassShapeFilter` loophole: demand above the canonical
+  CLASS capacity is a HARD blocker, never permission to leave the canonical
+  shape. Every scheduled entry is validated against its canonical CLASS rows.
+- Section curriculum grade now derives from the EnrollPro internal
+  `gradeLevelId` (`displayOrder` is presentation only); actual-grade shift
+  windows are no longer passed through the internal-ID normalizer.
+- Nonuniform rotating families fail closed instead of collapsing to the family
+  maximum; per-pair projections preserve each member's exact term, minutes, and
+  session count.
+
+### Decisions Made
+- Generation remains HIGH and was not invoked against live data; the disposable
+  proof ran only inside a new, dropped database.
+- The operator-surface dependency (UX-C01) is explicitly deferred: the server
+  contract is stable but the Simple/Advanced Timetable client still gates on
+  `/curriculum-requirements/:year/readiness`.
+
+### Open Questions
+- Correction 5 (one passive pre-write assembly shared by readiness and the real
+  trigger) was subsequently closed by the GEN-C02R1 closure entry above.
+
+## [2026-09-11] — GEN-C02 Canonical Generation Readiness and Zero-Blocker Dry Run
+
+### Added
+- Added one read-only canonical generation readiness/dry-run service
+  (`generation-readiness.service.ts`) that consumes the derived-demand
+  authority, the shared shape assembly, the real hybrid scheduler, the real
+  constraint validator, and the real retained-lock consumer, and returns
+  authority revisions, pair/line/session totals by exact term, Teaching Load
+  coverage, room/capacity/feature inventory, grade-window and class-program-slot
+  coverage, policy, retained locks, scheduler assigned/unassigned, hard/soft
+  violations, a deterministic blocker matrix, and a before/after database
+  signature zero-write proof.
+- Added a shared `generation-shape-assembly.service.ts` used by both the real
+  generation trigger and the readiness dry run so shape contracts and grade
+  normalization cannot drift.
+- Added `toPerPairDemandItems` / `assertPerPairProjectionParity` to the derived
+  demand authority: a subject-identity-preserving, ordered-term-carrying
+  projection for the draft board, sync/setup, and quick-place consumers.
+- Added `readCanonicalClassProgramSlotsCoverage` (read-only, no seeding).
+- Mounted privileged `GET /api/v1/generation/:schoolId/:schoolYearId/readiness/diagnostic`.
+- Added `generation-canonical-readiness-genc02.test.ts` covering legacy-consumer
+  closure, per-pair projection parity, zero-write dry run, determinism,
+  uncovered-demand blockers, and retained-lock rejection.
+
+### Changed
+- `pre-generation-draft.service.ts`, `timetable-sync-setup.service.ts`, and
+  `timetable-quick-place.service.ts` no longer call the legacy catalog
+  `computeDemand()`; they consume the canonical derived-demand projection.
+- `hybrid-scheduler.ts` no longer falls back to legacy catalog demand: it fails
+  closed with `DERIVED_DEMAND_REQUIRED` when no canonical override is supplied.
+- Draft/readiness reads support a strict `readOnly` mode that never syncs
+  sections upstream and never auto-creates a scheduling policy.
+- Retained pre-generation placements are validated against ordered-term identity
+  and reported as structured rejections (`WRONG_TERM`, `STALE_OR_REMOVED_DEMAND`,
+  `REFERENCE_ONLY_DEMAND`, `DEMAND_ALREADY_SATISFIED`, `HARD_CONFLICT`) instead
+  of being silently carried.
+
+### Decisions Made
+- Generation remains HIGH: the dry run never creates runs, drafts, locks,
+  audits, cycles, assignments, revisions, snapshots, or notifications, and the
+  production trigger keeps its existing authority.
+- Blocker ownership is deterministic across data gaps, policy blockers, genuine
+  resource infeasibility, and search/algorithm limits.
+
+### Open Questions
+- The Simple/Advanced operator UI still gates generation on the legacy
+  `/curriculum-requirements/:syId/readiness` surface; wiring the new
+  `generateAllowed` decision into the timetable capability gate is the remaining
+  bounded follow-up (closed by the UX-C01R stream).
+
 ## [2026-09-11] — GEN-C02 Planner Correction Boundary
 
 ### Added

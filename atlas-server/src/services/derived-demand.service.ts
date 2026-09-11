@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { getDataContext } from '../lib/data-context.js';
-import { normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { normalizeGradeLevelSync, normalizeInternalGradeId } from './class-program-slot.service.js';
 import type { DemandItem, SubjectInput } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
@@ -526,6 +526,100 @@ export function toDerivedDemandPairIdentities(result: DerivedDemandSuccess): Der
 		.sort((a, b) => a.key.localeCompare(b.key));
 }
 
+/**
+ * GEN-C02R1 Finding F4: exact per-order-term demand projection.
+ *
+ * Unlike the collapsed scheduler override, this projection preserves EACH
+ * rotating-family member's own ordered term, weekly minutes, session count, and
+ * duration, so unequal-member (nonuniform) rotation contracts can be asserted
+ * per term instead of silently collapsing to the family maximum. It performs no
+ * collapsing and no I/O.
+ */
+export interface DerivedPerTermDemandLine {
+	termIdentity: string;
+	termIndex: number;
+	subjectId: number;
+	subjectCode: string;
+	sectionMirrorId: number;
+	sectionExternalId: number;
+	gradeLevel: number;
+	programType: string;
+	weeklyMinutes: number;
+	sessionsPerWeek: number;
+	durationPerSession: number;
+	rotationFamily: string | null;
+	rotationOrder: number | null;
+	termMode: 'ALL' | 'ROTATING_FAMILY_MEMBER';
+	ownerFacultyId: number | null;
+}
+
+export function toPerTermDemandLines(
+	result: DerivedDemandSuccess,
+	ownerByPair: Record<string, number> = {},
+): DerivedPerTermDemandLine[] {
+	return result.timetableLines
+		.map((line) => {
+			const sessionsPerWeek = Math.max(1, line.sessionsPerWeek);
+			return {
+				termIdentity: line.termIdentity,
+				termIndex: line.termIndex,
+				subjectId: line.subjectId,
+				subjectCode: line.subjectCode,
+				sectionMirrorId: line.sectionMirrorId,
+				sectionExternalId: line.sectionExternalId,
+				gradeLevel: line.gradeLevel,
+				programType: line.programType,
+				weeklyMinutes: line.weeklyMinutes,
+				sessionsPerWeek,
+				durationPerSession: Math.ceil(line.weeklyMinutes / sessionsPerWeek),
+				rotationFamily: line.rotationFamily,
+				rotationOrder: line.rotationOrder,
+				termMode: line.termMode,
+				ownerFacultyId: ownerByPair[`${line.subjectId}:${line.sectionExternalId}`] ?? null,
+			};
+		})
+		.sort((a, b) =>
+			`${String(a.gradeLevel).padStart(2, '0')}:${a.programType}:${String(a.sectionExternalId).padStart(10, '0')}:${String(a.subjectId).padStart(10, '0')}:${String(a.termIndex).padStart(3, '0')}`
+				.localeCompare(`${String(b.gradeLevel).padStart(2, '0')}:${b.programType}:${String(b.sectionExternalId).padStart(10, '0')}:${String(b.subjectId).padStart(10, '0')}:${String(b.termIndex).padStart(3, '0')}`),
+		);
+}
+
+/**
+ * Fail closed when a per-term projection drops, duplicates, or rewrites the
+ * exact per-term weekly minutes/session count of the canonical derived demand.
+ * This is the corrected assertion the former family-maximum collapse cannot
+ * satisfy.
+ */
+export function assertPerTermDemandParity(result: DerivedDemandSuccess, lines: DerivedPerTermDemandLine[]): void {
+	const canonical = new Map<string, DerivedTimetableLine>();
+	for (const line of result.timetableLines) {
+		canonical.set(`${line.subjectId}:${line.sectionExternalId}:${line.termIdentity}`, line);
+	}
+	const seen = new Set<string>();
+	for (const line of lines) {
+		const key = `${line.subjectId}:${line.sectionExternalId}:${line.termIdentity}`;
+		if (seen.has(key)) {
+			throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection duplicated ${key}.`, { duplicate: key });
+		}
+		seen.add(key);
+		const expected = canonical.get(key);
+		if (!expected) {
+			throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection produced an unverified line ${key}.`, { unknownLine: key });
+		}
+		const expectedSessions = Math.max(1, expected.sessionsPerWeek);
+		if (line.termIndex !== expected.termIndex || line.weeklyMinutes !== expected.weeklyMinutes || line.sessionsPerWeek !== expectedSessions) {
+			throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection rewrote totals for ${key}: expected term ${expected.termIndex} ${expected.weeklyMinutes}m/${expectedSessions} sessions.`, {
+				line: key,
+				expected: { termIndex: expected.termIndex, weeklyMinutes: expected.weeklyMinutes, sessionsPerWeek: expectedSessions },
+				actual: { termIndex: line.termIndex, weeklyMinutes: line.weeklyMinutes, sessionsPerWeek: line.sessionsPerWeek },
+			});
+		}
+	}
+	if (seen.size !== canonical.size) {
+		throw projectionError('PER_TERM_DEMAND_PARITY_MISMATCH', `Per-term demand projection mismatch: expected ${canonical.size} canonical term lines, projected ${seen.size}.`, { expected: canonical.size, projected: seen.size });
+	}
+}
+
 function toSectionDemandItem(
 	pair: DerivedTeachingLoadPair,
 	section: SectionsByGrade['sections'][number],
@@ -609,6 +703,23 @@ export function toSchedulerDemandOverride(
 		const first = ordered[0];
 		const section = sectionByExternalId.get(first.sectionExternalId)!;
 		const primarySubject = subjectById.get(first.subjectId)!;
+
+		// GEN-C02R Correction 10: a rotating family may be collapsed into one
+		// modular lane ONLY when every member preserves exactly one ordered term
+		// and the same weekly minutes/session count. Collapsing a nonuniform family
+		// with the family maximum would over/under-schedule individual terms. Fail
+		// closed with a typed blocker instead of substituting the maximum.
+		const distinctMinutes = new Set(ordered.map((pair) => pair.weeklyMinutes));
+		const distinctSessions = new Set(ordered.map((pair) => pair.sessionsPerWeek));
+		const nonUniformTerm = ordered.some((pair) => pair.termIdentities.length !== 1);
+		if (distinctMinutes.size > 1 || distinctSessions.size > 1 || nonUniformTerm) {
+			throw projectionError('ROTATION_DEMAND_INCONSISTENT', `Rotation family ${first.rotationFamily} is not uniform across ordered terms for section ${first.sectionExternalId}; exact per-term demand cannot be collapsed.`, {
+				rotationFamily: first.rotationFamily,
+				sectionExternalId: first.sectionExternalId,
+				members: ordered.map((pair) => ({ subjectId: pair.subjectId, subjectCode: pair.subjectCode, rotationOrder: pair.rotationOrder, weeklyMinutes: pair.weeklyMinutes, sessionsPerWeek: pair.sessionsPerWeek, termIdentities: pair.termIdentities })),
+			});
+		}
+
 		const maxMinutes = Math.max(...ordered.map((pair) => pair.weeklyMinutes));
 		const periodLength = first.periodLengthMinutes;
 		const sessionsPerWeek = Math.max(1, Math.ceil(maxMinutes / periodLength));
@@ -645,6 +756,72 @@ export function toSchedulerDemandOverride(
 	const sorted = items.sort((a, b) => a.gradeLevel - b.gradeLevel || a.sectionId - b.sectionId || a.subjectId - b.subjectId);
 	assertProjectionParity(result, sorted);
 	return sorted;
+}
+
+/**
+ * Project the derived demand contract into one `DemandItem` per
+ * (subject, section) Teaching Load pair WITHOUT collapsing rotating families.
+ *
+ * Used by the pre-generation draft board, timetable sync/setup, and quick-place
+ * coverage so those consumers build the same demand identities/revision as the
+ * generation trigger rather than the legacy catalog `computeDemand()`. Rotating
+ * family members keep their own Subject identity and carry the ordered term
+ * identities they run in, so wrong-term retained placements can be rejected.
+ */
+export function toPerPairDemandItems(
+	result: DerivedDemandSuccess,
+	sectionsByGrade: SectionsByGrade[],
+	subjects: SubjectInput[],
+): DemandItem[] {
+	const sectionByExternalId = new Map<number, SectionsByGrade['sections'][number]>();
+	for (const grade of sectionsByGrade) {
+		for (const section of grade.sections) sectionByExternalId.set(section.id, section);
+	}
+	const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+
+	// FAIL CLOSED: any derived pair that cannot map to its section or Subject
+	// snapshot is projection drift, never a silent skip.
+	const missingSectionIds = new Set<number>();
+	const missingSubjectIds = new Set<number>();
+	for (const pair of result.teachingLoadPairs) {
+		if (!sectionByExternalId.has(pair.sectionExternalId)) missingSectionIds.add(pair.sectionExternalId);
+		if (!subjectById.has(pair.subjectId)) missingSubjectIds.add(pair.subjectId);
+	}
+	if (missingSectionIds.size > 0 || missingSubjectIds.size > 0) {
+		throw projectionError('DERIVED_DEMAND_PROJECTION_INCOMPLETE', 'Derived demand cannot be projected for the consumer: section or Subject snapshots are missing.', {
+			missingSectionIds: [...missingSectionIds].sort((a, b) => a - b),
+			missingSubjectIds: [...missingSubjectIds].sort((a, b) => a - b),
+		});
+	}
+
+	const items = result.teachingLoadPairs.map((pair) => ({
+		...toSectionDemandItem(pair, sectionByExternalId.get(pair.sectionExternalId)!, subjectById.get(pair.subjectId)!),
+		applicableTermIdentities: [...pair.termIdentities],
+	}));
+	const sorted = items.sort((a, b) => a.gradeLevel - b.gradeLevel || a.sectionId - b.sectionId || a.subjectId - b.subjectId);
+	assertPerPairProjectionParity(result, sorted);
+	return sorted;
+}
+
+/**
+ * Assert exact per-pair parity: every derived Teaching Load pair is represented
+ * exactly once, and the ordered term identities survive the projection.
+ */
+export function assertPerPairProjectionParity(result: DerivedDemandSuccess, items: DemandItem[]): void {
+	const pairKeys = new Set(result.teachingLoadPairs.map((pair) => `${pair.subjectId}:${pair.sectionExternalId}`));
+	const projectedKeys = new Set(items.map((item) => `${item.subjectId}:${item.sectionId}`));
+	if (pairKeys.size !== projectedKeys.size || pairKeys.size !== result.totalPairs) {
+		throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand per-pair projection parity mismatch: expected ${result.totalPairs} pairs, projected ${projectedKeys.size}.`, { expected: result.totalPairs, projected: projectedKeys.size });
+	}
+	for (const key of pairKeys) {
+		if (!projectedKeys.has(key)) throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand per-pair projection is missing pair ${key}.`, { missingPair: key });
+	}
+	for (const item of items) {
+		const expectedTerms = result.teachingLoadPairs.find((pair) => pair.subjectId === item.subjectId && pair.sectionExternalId === item.sectionId)?.termIdentities ?? [];
+		if ((item.applicableTermIdentities ?? []).join('|') !== [...expectedTerms].join('|')) {
+			throw projectionError('DERIVED_DEMAND_PROJECTION_PARITY_MISMATCH', `Derived demand per-pair projection term drift for ${item.subjectId}:${item.sectionId}.`, { subjectId: item.subjectId, sectionId: item.sectionId });
+		}
+	}
 }
 
 function projectionError(code: string, message: string, details: Record<string, unknown>): Error & { statusCode: number; code: string; details: Record<string, unknown> } {
@@ -886,7 +1063,11 @@ export async function buildDerivedDemand(
 		sections: sectionRows.map((section) => ({
 			sectionMirrorId: section.id,
 			externalId: section.externalId,
-			gradeLevel: normalizeGradeLevelSync(section.displayOrder),
+			// GEN-C02R Correction 6: the authoritative grade is the EnrollPro
+			// internal `gradeLevelId`, normalized via the internal-ID mapping.
+			// `displayOrder` is presentation ordering only and must never determine
+			// curriculum demand scope.
+			gradeLevel: normalizeInternalGradeId(section.gradeLevelId),
 			programType: section.programType,
 			isActiveForScheduling: section.isActiveForScheduling,
 			isStale: section.isStale,

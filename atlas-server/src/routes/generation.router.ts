@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
+import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
@@ -20,6 +21,31 @@ function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
 	if (!Number.isInteger(n) || n < 1) return `${name} must be a positive integer.`;
 	return n;
+}
+
+function actorSchoolId(req: Request): number | null {
+	const schoolId = Number(req.user?.schoolId);
+	return Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
+}
+
+/**
+ * GEN-C02R Correction 3: bind privileged generation/readiness actions to the
+ * authenticated actor's school. `SYSTEM_ADMIN` is not an implicit cross-school
+ * bypass. Returns true when the route may proceed; otherwise it has already
+ * written the typed 403 response and the caller must return before any service
+ * invocation (zero reads/writes/service calls for rejected scope).
+ */
+function assertActorSchoolScope(req: Request, res: Response, schoolId: number): boolean {
+	const actorSchool = actorSchoolId(req);
+	if (actorSchool === null) {
+		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Authenticated school scope is required for generation actions.' });
+		return false;
+	}
+	if (actorSchool !== schoolId) {
+		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot run generation actions for another school.' });
+		return false;
+	}
+	return true;
 }
 
 // ─── POST /:schoolId/:schoolYearId/runs — trigger generation run ───
@@ -42,6 +68,7 @@ router.post(
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
 			const ignoreRoomRequestGate = req.body?.ignoreRoomRequestGate === true;
 			const enforceShiftWindows = req.body?.enforceShiftWindows === true;
 			const roomerStrategy = req.body?.roomerStrategy ?? 'HOME_ROOM_FIRST';
@@ -58,6 +85,33 @@ router.post(
 				authToken,
 			});
 			res.status(201).json({ run });
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/readiness/diagnostic — zero-write canonical readiness ───
+
+router.get(
+	'/:schoolId/:schoolYearId/readiness/diagnostic',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can run the generation readiness diagnostic.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+
+			const enforceShiftWindows = req.query.enforceShiftWindows === 'true';
+			const readiness = await buildGenerationReadiness(schoolId, schoolYearId, { enforceShiftWindows });
+			res.status(200).json({ readiness });
 		} catch (e) { next(e); }
 	},
 );

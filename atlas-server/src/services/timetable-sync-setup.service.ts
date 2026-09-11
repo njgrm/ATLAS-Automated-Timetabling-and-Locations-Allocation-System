@@ -1,8 +1,8 @@
 import { prisma } from '../lib/prisma.js';
 import { loadRunContext, isPublishedSummary } from './manual-edit.service.js';
 import { validateHardConstraints } from './constraint-validator.js';
-import { computeDemand, type DemandItem, type UnassignedItem } from './schedule-constructor.js';
-import { getTemplatePeriodProfiles } from './class-template.service.js';
+import { type DemandItem, type UnassignedItem } from './schedule-constructor.js';
+import { buildDerivedDemand, toPerPairDemandItems } from './derived-demand.service.js';
 import { computeGenerationInputSnapshot } from './generation-input-snapshot.service.js';
 import { getSectionSummary } from './section.service.js';
 import type { ScheduledEntry } from './constraint-validator.js';
@@ -112,28 +112,18 @@ export async function syncTimetableSetup(
 	}
 
 	// 4. Track displaced and new curriculum sessions (rebuild unassigned list)
-	const cohorts = await prisma.instructionalCohort.findMany({
-		where: { schoolId, schoolYearId, isActive: true },
-		orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
-		select: {
-			cohortCode: true,
-			specializationCode: true,
-			specializationName: true,
-			gradeLevel: true,
-			memberSectionIds: true,
-			expectedEnrollment: true,
-			preferredRoomType: true,
-		},
-	});
-
-	const templateProfiles = await getTemplatePeriodProfiles(schoolId);
-	const classTemplatePeriods: Record<string, number> = {};
-	for (const profile of templateProfiles) {
-		classTemplatePeriods[profile.programType.toUpperCase()] = profile.periodsPerDay;
+	// Compute target curriculum demand from the canonical derived-demand
+	// authority (DEMAND-C01 / GEN-C02). Legacy catalog `computeDemand()` is no
+	// longer consulted on this current-year path.
+	const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId);
+	if (!derivedDemand.ok) {
+		throw err(409, 'DERIVED_DEMAND_BLOCKED', 'The canonical derived demand could not be resolved for this school year. Resolve the ordered term contract and Subject rotation metadata before syncing.');
 	}
-
-	// Compute target curriculum demand
-	const demand = computeDemand(sectionsByGrade, activeSubjects as any, cohorts, classTemplatePeriods);
+	const demand = toPerPairDemandItems(
+		derivedDemand,
+		sectionsByGrade,
+		activeSubjects as unknown as Parameters<typeof toPerPairDemandItems>[2],
+	);
 
 	const entryMatchesDemand = (entry: ScheduledEntry, item: DemandItem) => {
 		if (item.entryKind === 'COHORT' && item.cohortCode) {
