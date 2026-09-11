@@ -305,6 +305,12 @@ test('3. the readiness dry run executes the real scheduler and performs zero wri
 	assert.deepEqual(writes, [], 'the readiness dry run must perform zero writes');
 	assert.equal(readiness.databaseSignature.zeroWrite, true, 'before/after database signature must be identical');
 
+	// UX-C01 stable contract: the operator surface requires these exact fields.
+	for (const key of ['derivedDemandRevision', 'generateAllowed', 'blockers', 'totals', 'scheduler', 'violations', 'teachingLoadCoverage', 'decisionNotes', 'databaseSignature', 'termStructure']) {
+		assert.ok(key in readiness, `readiness payload must expose ${key}`);
+	}
+	assert.ok(Array.isArray(readiness.decisionNotes) && readiness.decisionNotes.length > 0, 'unresolved stakeholder decisions must be surfaced');
+
 	// No retained locks configured: none reported.
 	assert.equal(readiness.retainedLocks.retainedCount, 0);
 	assert.equal(readiness.retainedLocks.rejected.length, 0);

@@ -11,6 +11,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 
@@ -92,3 +94,11 @@ test('C3. SYSTEM_ADMIN without a bound school is not a cross-school bypass', asy
 		assert.equal(readiness.body.code, 'SCHOOL_SCOPE_REQUIRED');
 	});
 });
+
+test('UX-C01 dependency. The mounted readiness diagnostic stays exposed with its contract', () => {
+	const source = readFileSync(fileURLToPath(new URL('../routes/generation.router.ts', import.meta.url)), 'utf8');
+	assert.match(source, /readiness\/diagnostic/, 'the mounted route path must remain');
+	assert.match(source, /buildGenerationReadiness/, 'the route must consume the canonical readiness service');
+	assert.match(source, /assertActorSchoolScope/, 'the route must bind the actor school');
+});
+
