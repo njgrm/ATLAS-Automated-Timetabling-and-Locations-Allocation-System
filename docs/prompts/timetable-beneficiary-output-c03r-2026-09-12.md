@@ -65,6 +65,18 @@ into one weekly schedule.
 8. Keep actor-school/year authorization, run-id binding, effective published
    revisions, stable ordering, memory-sensitive latest-run selection, and no
    heavy all-run payload scans.
+9. Close the day-scope gap in the actual scheduler. `schedule-constructor.ts`
+   currently preserves a day-scoped special-event boundary in the generic
+   period list and then expands that list across every weekday. Candidate
+   construction must reject a class intersecting Flag/HGP on Monday while
+   retaining that same interval as a valid class period on other instructional
+   weekdays.
+10. Close the day-scope gap in the main Timetable workspace, not only the room
+    schedule projection. `TimetableGrid.tsx` and `useTimetableData.ts` currently
+    treat every special-event slot as blocked on every weekday because the
+    grid slot contract omits `dayOfWeek`. Carry the event's weekday through the
+    real grid and placement-conflict map so Monday Flag/HGP neither renders nor
+    blocks Tuesday–Friday.
 
 ## Required failing-first evidence
 
@@ -72,6 +84,11 @@ into one weekly schedule.
   subjects must occupy different weekday cells; the old key must fail.
 - A Monday-only flag event appears only in Monday, with Tuesday's first-period
   teaching cell still available.
+- A real `constructBaseline()` control must prove Monday placement in the flag
+  interval is rejected while an otherwise identical Tuesday placement remains
+  eligible. A helper-only slot test is insufficient.
+- A production `TimetableGrid`/placement-conflict control must prove the main
+  workspace renders and blocks the event only on Monday.
 - A five-weekday section workbook contains the expected weekday headings and
   exact per-day subject/teacher cells.
 - G7/G8 morning and G9/G10 afternoon/special fixtures respect their persisted
@@ -93,10 +110,12 @@ data with zero writes. Do not generate or publish a live schedule.
 ## Verification and boundaries
 
 Run focused output/export, stakeholder-shape, canonical-readiness, route,
-client projection, server/client type checks, production builds, built-module
-imports where relevant, and `git diff --check`. Browser QA is not required for
-this source/export correction; later live runtime acceptance owns rendered
-download verification.
+client projection/main-grid, server/client type checks, production builds,
+built-module imports where relevant, and `git diff --check`. If a build is
+blocked by missing `@types/node` or another worktree dependency, prove whether
+the blocker reproduces on the unchanged base and report it honestly; do not
+convert it into a pass. Browser QA is not required for this source/export
+correction; later live runtime acceptance owns rendered download verification.
 
 No live generation, publication, deployment, restart, Teaching Load mutation,
 database/schema/migration change, or companion-repository edit. Commit only
