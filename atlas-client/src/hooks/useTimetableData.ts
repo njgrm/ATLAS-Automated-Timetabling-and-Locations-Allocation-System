@@ -11,6 +11,7 @@ import {
 	minutesBetween,
 } from '@/lib/timetable-utils';
 import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
+import { matchesTermScope } from '@/lib/timetable-term-scope';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
 import { buildTimetableGenerationPath } from '@/components/timetable/timetableSchoolScope';
 import type {
@@ -304,8 +305,8 @@ export type TimetableDataState = {
 	preGenEntries: ScheduledEntry[];
 	isPreGenerationWorkspace: boolean;
 	activeGridEntriesBase: ScheduledEntry[];
-	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
-	displayTimeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
+	displayTimeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 	hiddenRowCount: number;
 	getCellConflict: ((cellId: string) => import('@/types').CellConflictInfo | null) | null;
 	getLiveCellConflict: (source: any, cellId: string) => import('@/types').CellConflictInfo | null;
@@ -485,7 +486,21 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		selectedRunIdRef.current = selectedRunId;
 	}, [selectedRunId]);
 
-	const violations = useMemo(() => violationReport?.violations ?? [], [violationReport]);
+	// TT-OUTPUT-C03R3: the selected term's violation rail contains only that
+	// term's actionable items. Violations with no term identity are global and
+	// remain visible for every term.
+	const violations = useMemo(() => {
+		const all = violationReport?.violations ?? [];
+		if (typeof termFilter !== 'number') return all;
+		const termByEntryId = new Map((draft?.entries ?? []).map((entry) => [entry.entryId, entry.termIndex]));
+		return all.filter((violation) => {
+			const metaTerm = (violation.meta as { termIndex?: unknown } | undefined)?.termIndex;
+			if (typeof metaTerm === 'number') return metaTerm === termFilter;
+			const entryIds = violation.entities?.entryIds ?? [];
+			if (entryIds.length === 0) return true;
+			return entryIds.some((entryId) => termByEntryId.get(entryId) === termFilter);
+		});
+	}, [violationReport, termFilter, draft]);
 	const violationIndex = useMemo(() => buildViolationIndex(violations), [violations]);
 
 	const highlightedEntryIds = useMemo(() => {
@@ -713,6 +728,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		let allFacultyOptions: number[] | undefined;
 		let roomId: number | undefined;
 		let sourceEntryId: string | undefined;
+		// TT-OUTPUT-C03R3: the edited term scope; conflict identity is term-aware.
+		let termIndex: number | undefined = typeof termFilter === 'number' ? termFilter : undefined;
 
 		if (dragItem) {
 			if (dragItem.type === 'entry') {
@@ -720,19 +737,23 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				facultyId = dragItem.entry.facultyId;
 				roomId = dragItem.entry.roomId;
 				sourceEntryId = dragItem.entry.entryId;
+				termIndex = dragItem.entry.termIndex ?? termIndex;
 			} else if (dragItem.type === 'draftQueue') {
 				sectionId = dragItem.item.sectionId;
 				facultyId = dragItem.item.facultyOptions[0];
 				allFacultyOptions = dragItem.item.facultyOptions;
+				termIndex = (dragItem.item as { termIndex?: number }).termIndex ?? termIndex;
 			} else if (dragItem.type === 'draftPlacement') {
 				sectionId = dragItem.placement.sectionId;
 				facultyId = dragItem.placement.facultyId ?? undefined;
 				roomId = dragItem.placement.roomId ?? undefined;
 				sourceEntryId = `draft-placement-${dragItem.placement.id}`;
+				termIndex = (dragItem.placement as { termIndex?: number }).termIndex ?? termIndex;
 			} else if (dragItem.type === 'unassigned') {
 				sectionId = dragItem.item.sectionId;
 				facultyId = dragItem.item.facultyId ?? undefined;
 				roomId = dragItem.item.homeRoomId ?? undefined;
+				termIndex = (dragItem.item as { termIndex?: number }).termIndex ?? termIndex;
 			}
 		} else if (preGenKbSource) {
 			if (preGenKbSource.type === 'draftQueue') {
@@ -751,16 +772,18 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				facultyId = kbSelectedSource.entry.facultyId;
 				roomId = kbSelectedSource.entry.roomId;
 				sourceEntryId = kbSelectedSource.entry.entryId;
+				termIndex = kbSelectedSource.entry.termIndex ?? termIndex;
 			} else if (kbSelectedSource.type === 'unassigned') {
 				sectionId = kbSelectedSource.item.sectionId;
 				facultyId = kbSelectedSource.item.facultyId ?? undefined;
 				roomId = kbSelectedSource.item.homeRoomId ?? undefined;
+				termIndex = (kbSelectedSource.item as { termIndex?: number }).termIndex ?? termIndex;
 			}
 		}
 
 		if (!sectionId) return null;
-		return { sectionId, facultyId, allFacultyOptions, roomId, sourceEntryId };
-	}, [dragItem, kbSelectedSource, preGenKbSource]);
+		return { sectionId, facultyId, allFacultyOptions, roomId, sourceEntryId, termIndex };
+	}, [dragItem, kbSelectedSource, preGenKbSource, termFilter]);
 
 	const legacyCellConflictMap = useMemo<Map<string, import('@/types').CellConflictInfo> | null>(() => {
 		if (!conflictContext) return null;
@@ -812,7 +835,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		for (const slot of timeSlots) {
 			for (const day of DAYS) {
 				const key = `${day}-${slot.startTime}-${slot.endTime}`;
-				if (slot.isSpecialEvent) {
+				// Day-scoped events block only their own weekday; the interval stays
+				// schedulable on the other instructional weekdays.
+				if (slot.isSpecialEvent && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
 					map.set(key, {
 						kind: 'hard',
 						reasons: [`${slot.eventName ?? 'Special event'} slot is non-schedulable`],
@@ -958,14 +983,15 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const cached = liveDragConflictRef.current;
 		if (!cached || cached.source !== source || cached.entries !== activeGridEntriesBase) {
 			let context: import('@/lib/timetable-live-conflict').TimetableConflictContext | null = null;
+			const activeTerm = typeof termFilter === 'number' ? termFilter : undefined;
 			if (source.type === 'entry') {
-				context = { sectionId: source.entry.sectionId, facultyId: source.entry.facultyId, roomId: source.entry.roomId, sourceEntryId: source.entry.entryId };
+				context = { sectionId: source.entry.sectionId, facultyId: source.entry.facultyId, roomId: source.entry.roomId, sourceEntryId: source.entry.entryId, termIndex: source.entry.termIndex ?? activeTerm };
 			} else if (source.type === 'draftQueue') {
-				context = { sectionId: source.item.sectionId, facultyId: source.item.facultyOptions?.[0], allFacultyOptions: source.item.facultyOptions };
+				context = { sectionId: source.item.sectionId, facultyId: source.item.facultyOptions?.[0], allFacultyOptions: source.item.facultyOptions, termIndex: (source.item as { termIndex?: number }).termIndex ?? activeTerm };
 			} else if (source.type === 'draftPlacement') {
-				context = { sectionId: source.placement.sectionId, facultyId: source.placement.facultyId ?? undefined, roomId: source.placement.roomId ?? undefined, sourceEntryId: `draft-placement-${source.placement.id}` };
+				context = { sectionId: source.placement.sectionId, facultyId: source.placement.facultyId ?? undefined, roomId: source.placement.roomId ?? undefined, sourceEntryId: `draft-placement-${source.placement.id}`, termIndex: (source.placement as { termIndex?: number }).termIndex ?? activeTerm };
 			} else if (source.type === 'unassigned') {
-				context = { sectionId: source.item.sectionId, facultyId: source.item.facultyId ?? undefined, roomId: source.item.homeRoomId ?? undefined };
+				context = { sectionId: source.item.sectionId, facultyId: source.item.facultyId ?? undefined, roomId: source.item.homeRoomId ?? undefined, termIndex: (source.item as { termIndex?: number }).termIndex ?? activeTerm };
 			}
 			const lookup = createLiveConflictLookup(activeGridEntriesBase, timeSlots, context, {
 				facultyName: (id) => {
@@ -987,31 +1013,35 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 		const activeLookup = liveDragConflictRef.current?.lookup;
 		return activeLookup?.(cellId) ?? null;
-	}, [activeGridEntriesBase, facultyMap, getCellConflict, liveConflictIndex, roomMap, sectionMap, subjectMap, timeSlots]);
+	}, [activeGridEntriesBase, facultyMap, getCellConflict, liveConflictIndex, roomMap, sectionMap, subjectMap, termFilter, timeSlots]);
 
 	const filteredDraftEntries = useMemo(() => {
 		return activeGridEntriesBase.filter((entry) => {
 			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
 			if (!matchesProgramFilter(programType, programFilter)) return false;
 			if (!matchesEntryKindFilter(entry.entryKind, entryKindFilter)) return false;
-			if (termFilter !== 'all') {
-				const entryTermIndex = entry.termIndex ?? null;
-				// Entries without termIndex are visible in all-term review only
-				if (entryTermIndex === null) return false;
-				if (entryTermIndex !== termFilter) return false;
-			}
+			// Term is the authoritative schedule scope: an entry belongs to exactly
+			// one numeric term; entries without a termIndex stay all-term-only.
+			if (!matchesTermScope(entry, termFilter)) return false;
 			return true;
 		});
 	}, [activeGridEntriesBase, entryKindFilter, programFilter, termFilter, sectionMap]);
 
 	const programKindFilteredUnassignedItems = useMemo(() => {
+		const unassignedTerm = typeof termFilter === 'number' ? termFilter : null;
 		return (draft?.unassignedItems ?? []).filter((item) => {
 			const programType = item.programType ?? sectionMap.get(item.sectionId)?.programType ?? null;
 			if (!matchesProgramFilter(programType, programFilter)) return false;
 			if (!matchesEntryKindFilter(item.entryKind, entryKindFilter)) return false;
+			// TT-OUTPUT-C03R3: the selected term's unresolved rail contains only
+			// that term's actionable items; a missing term is never Term 1.
+			if (unassignedTerm !== null) {
+				const itemTerm = (item as { termIndex?: number }).termIndex;
+				if (itemTerm !== unassignedTerm) return false;
+			}
 			return true;
 		});
-	}, [draft, entryKindFilter, programFilter, sectionMap]);
+	}, [draft, entryKindFilter, programFilter, sectionMap, termFilter]);
 
 	const filteredUnassignedItems = useMemo(() => {
 		return programKindFilteredUnassignedItems.filter((item) => {

@@ -19,6 +19,8 @@ import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js'
 import {
 	expandEffectiveScheduledResources,
 	findEffectiveFacultyOverlaps,
+	entryTermScope,
+	effectiveTermsOverlap,
 } from './effective-scheduled-resources.js';
 
 // ─── Violation codes ───
@@ -301,6 +303,10 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			for (let j = i + 1; j < dayEntries.length; j++) {
 				const a = dayEntries[i];
 				const b = dayEntries[j];
+				// TT-OUTPUT-C03R3: term-aware conflict identity. Rotating/longitudinal
+				// entries in different ordered terms may share the same room and
+				// interval; only same-term (or unscoped) overlaps conflict.
+				if (!effectiveTermsOverlap(entryTermScope(a), entryTermScope(b))) continue;
 				if (timesOverlap(a, b) && !isSameCohortGroup(a, b)) {
 					violations.push({
 						...base,
@@ -332,6 +338,9 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				const left = dayEntries[index];
 				const right = dayEntries[nextIndex];
 				if (left.entryId === right.entryId) continue;
+				// TT-OUTPUT-C03R3: a section repeats the same weekly grid in every
+				// ordered term; only same-term (or unscoped) overlaps conflict.
+				if (!effectiveTermsOverlap(entryTermScope(left), entryTermScope(right))) continue;
 				if (timesOverlap(left, right) && !isSameCohortGroup(left, right)) {
 					violations.push({
 						...base,

@@ -740,10 +740,10 @@ export type RoomScheduleView = {
 		status: string;
 		generatedAt?: string;
 	};
-	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean }>;
+	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string }>;
 	days: string[];
 	grid: Array<{
-		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean };
+		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string };
 		cells: RoomScheduleCell[];
 	}>;
 	summary: {
@@ -1124,9 +1124,9 @@ export interface RunSummary {
 		periodLengthMinutes: number;
 		periodsPerDay: number;
 		periodSlots: Array<{ startTime: string; endTime: string }>;
-		displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+		displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 	}>;
-	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 }
 
 export interface ScheduledEntry {
@@ -1222,6 +1222,8 @@ export interface UnassignedItem {
 	adviserId?: number | null;
 	adviserName?: string | null;
 	homeRoomId?: number | null;
+	/** TT-OUTPUT-C03R3 — the ordered term this unassigned session belongs to. */
+	termIndex?: number;
 	homeRoomFallbackCause?:
 		| 'HOME_ROOM_OCCUPIED'
 		| 'NO_SAME_ZONE_STANDARD_ROOM'
@@ -1261,6 +1263,8 @@ export interface ManualEditProposal {
 	unassignedKey?: string;
 	entryKind?: 'SECTION' | 'COHORT';
 	cohortCode?: string | null;
+	/** TT-OUTPUT-C03R3 — ordered term for a PLACE_UNASSIGNED proposal. */
+	termIndex?: number;
 	entryId?: string;
 	targetDay?: string;
 	targetStartTime?: string;
@@ -1528,6 +1532,8 @@ export interface PeriodSlot {
 	endTime: string;
 	isSpecialEvent?: boolean;
 	eventName?: string;
+	/** When present, a special event applies only to this weekday. */
+	dayOfWeek?: string;
 }
 
 export interface DraftBoardState {

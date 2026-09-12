@@ -86,11 +86,27 @@ const DAY_ORDER: Record<string, number> = {
 	FRIDAY: 5,
 };
 
-function sortRowsByDayAndTime(rows: TeacherProgramWorkloadRow[]): TeacherProgramWorkloadRow[] {
+function displayTimeToMinutes(timeSlot: string): number {
+	const match = timeSlot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+	if (!match) return Number.MAX_SAFE_INTEGER;
+	let hour = Number(match[1]);
+	const minute = Number(match[2]);
+	const period = match[3].toUpperCase();
+	if (period === 'AM' && hour === 12) hour = 0;
+	if (period === 'PM' && hour < 12) hour += 12;
+	return hour * 60 + minute;
+}
+
+export function sortTeacherProgramWorkloadRows(rows: TeacherProgramWorkloadRow[]): TeacherProgramWorkloadRow[] {
 	return [...rows].sort((a, b) => {
 		const dayDiff = (DAY_ORDER[a.day] ?? 99) - (DAY_ORDER[b.day] ?? 99);
 		if (dayDiff !== 0) return dayDiff;
-		return a.timeSlot.localeCompare(b.timeSlot);
+		const timeDiff = displayTimeToMinutes(a.timeSlot) - displayTimeToMinutes(b.timeSlot);
+		if (timeDiff !== 0) return timeDiff;
+		return a.label.localeCompare(b.label)
+			|| (a.gradeAndSection ?? '').localeCompare(b.gradeAndSection ?? '')
+			|| (a.room ?? '').localeCompare(b.room ?? '')
+			|| a.source.localeCompare(b.source);
 	});
 }
 
@@ -114,11 +130,18 @@ export async function buildTeacherProgramExportShape(params: {
 	schoolYearId: number;
 	runId: number;
 	facultyId: number;
+	/** Resolved numeric ordered-term index from the verified term authority. */
+	termIndex?: number;
+	/** Disposable read-only client for source-level export contract tests. */
+	client?: any;
+	/** Disposable published-schedule resolver for source-level export contract tests. */
+	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{ entries?: unknown[] }>;
 }): Promise<TeacherProgramExportShape> {
-	const { schoolId, schoolYearId, runId, facultyId } = params;
+	const { schoolId, schoolYearId, runId, facultyId, termIndex, client, publishedScheduleResolver } = params;
+	const db = (client ?? prisma) as typeof prisma;
 
 	// 1. Load faculty mirror
-	const faculty = await prisma.facultyMirror.findFirst({
+	const faculty = await db.facultyMirror.findFirst({
 		where: { id: facultyId, schoolId, isStale: false },
 	});
 	if (!faculty) throw new Error('FACULTY_NOT_FOUND');
@@ -126,7 +149,7 @@ export async function buildTeacherProgramExportShape(params: {
 	const fullName = [faculty.lastName, faculty.firstName].filter(Boolean).join(', ');
 
 	// 2. Load generation run
-	const run = await prisma.generationRun.findFirst({
+	const run = await db.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, summary: true, draftEntries: true },
 	});
@@ -136,13 +159,13 @@ export async function buildTeacherProgramExportShape(params: {
 	if (run.status !== 'COMPLETED' && !isPublished) throw new Error('RUN_NOT_COMPLETED');
 
 	// 3. Load school year label
-	const mirror = await prisma.enrollProSchoolYearMirror.findFirst({
+	const mirror = await db.enrollProSchoolYearMirror.findFirst({
 		where: { schoolId, enrollProSchoolYearId: schoolYearId },
 		select: { yearLabel: true },
 	});
 
 	// 4. Load scheduling policy for break configuration
-	const policy = await prisma.schedulingPolicy.findFirst({
+	const policy = await db.schedulingPolicy.findFirst({
 		where: { schoolId, schoolYearId },
 		select: {
 			lunchStartTime: true,
@@ -162,19 +185,20 @@ export async function buildTeacherProgramExportShape(params: {
 		endTime: string;
 		isSpecialEvent?: boolean;
 		eventName?: string;
+		dayOfWeek?: string;
 	}> | undefined) ?? [];
 
 	// 5. Load reference maps
 	const [subjects, rooms, buildings] = await Promise.all([
-		prisma.subject.findMany({
+		db.subject.findMany({
 			where: { schoolId, isActive: true },
 			select: { id: true, name: true, code: true },
 		}),
-		prisma.room.findMany({
+		db.room.findMany({
 			where: { building: { schoolId } },
 			select: { id: true, name: true, building: { select: { name: true } } },
 		}),
-		prisma.building.findMany({
+		db.building.findMany({
 			where: { schoolId },
 			select: { id: true, name: true },
 		}),
@@ -183,7 +207,6 @@ export async function buildTeacherProgramExportShape(params: {
 	const subjectMap = new Map(subjects.map(s => [s.id, s]));
 	const roomMap = new Map(rooms.map(r => [r.id, { name: r.name, buildingName: r.building.name }]));
 	const buildingMap = new Map(buildings.map(b => [b.id, b.name]));
-
 	// 6. Extract teaching entries for this faculty from the run
 	type RunEntry = {
 		entryId: string;
@@ -195,26 +218,79 @@ export async function buildTeacherProgramExportShape(params: {
 		startTime: string;
 		endTime: string;
 		durationMinutes: number;
+		termIndex?: number | null;
 	};
 
 	// For published runs, resolve revision-effective entries via the published schedule service.
 	// Do NOT fall back to draftEntries — published schedule resolution failures must be explicit.
 	let facultyEntries: RunEntry[];
 	if (isPublished) {
-		const { getPublishedFacultySchedule } = await import('./published-schedule.service.js');
-		const published = await getPublishedFacultySchedule(schoolId, facultyId, schoolYearId);
-		facultyEntries = (published.entries ?? []) as unknown as RunEntry[];
+		const resolvePublished = publishedScheduleResolver ?? (async (resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId) => {
+			const { getPublishedFacultySchedule } = await import('./published-schedule.service.js');
+			return getPublishedFacultySchedule(resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId);
+		});
+		const published = await resolvePublished(schoolId, facultyId, schoolYearId);
+		// The revision-effective published service returns presentation entries
+		// with nested subject/section/faculty/room references. Normalize that
+		// production shape before applying the same printable identity and
+		// reference-only filters used for draft runs; casting it to RunEntry
+		// silently produced Unknown Subject/null section/null room output.
+		facultyEntries = (published.entries ?? []).map((entry) => {
+			const value = entry as {
+				entryId?: string;
+				day?: string;
+				startTime?: string;
+				endTime?: string;
+				durationMinutes?: number;
+				subject?: { id?: number | null };
+				section?: { externalId?: number | null; id?: number | null };
+				faculty?: { id?: number | null };
+				room?: { id?: number | null };
+				termIndex?: number | null;
+			};
+			return {
+				entryId: value.entryId ?? `published-${facultyId}-${value.day ?? 'UNKNOWN'}-${value.startTime ?? 'UNKNOWN'}`,
+				facultyId: value.faculty?.id ?? facultyId,
+				roomId: value.room?.id ?? null,
+				subjectId: value.subject?.id ?? null,
+				sectionId: value.section?.externalId ?? value.section?.id ?? null,
+				day: value.day ?? 'UNKNOWN',
+				startTime: value.startTime ?? '',
+				endTime: value.endTime ?? '',
+				durationMinutes: value.durationMinutes ?? minutesBetween(value.startTime ?? '', value.endTime ?? ''),
+				termIndex: value.termIndex ?? null,
+			};
+		});
 	} else {
 		const allEntries = (run.draftEntries ?? []) as unknown as RunEntry[];
 		facultyEntries = allEntries.filter(e => e.facultyId === facultyId);
 	}
+
+	// Selected ordered-term export: one committed term never mixes another term's
+	// rotating subject/teacher/room. Missing term identity fails closed.
+	if (termIndex !== undefined) {
+		if (facultyEntries.some((entry) => entry.termIndex == null)) {
+			const error = new Error('TERM_FILTER_NOT_READY');
+			(error as Error & { code?: string }).code = 'TERM_FILTER_NOT_READY';
+			throw error;
+		}
+		facultyEntries = facultyEntries.filter((entry) => entry.termIndex === termIndex);
+	}
+
+	// Reference-only rows are never printable teaching output. Generation
+	// preflight rejects these subjects, but keep exports fail-closed for older
+	// or manually edited runs that still contain a stale HG/ARAL entry.
+	facultyEntries = facultyEntries.filter((entry) => {
+		const code = entry.subjectId != null ? subjectMap.get(entry.subjectId)?.code?.trim().toUpperCase() : null;
+		return code !== 'HG' && code !== 'ARAL';
+	});
 
 	// 7. Load section mirrors for grade/section labels
 	// Run entries carry EnrollPro section IDs (externalId), not ATLAS local IDs.
 	// Query both externalId and id to resolve all possible matches.
 	const sectionIds = [...new Set(facultyEntries.map(e => e.sectionId).filter((id): id is number => id != null))];
 	const sections = sectionIds.length > 0
-		? await prisma.sectionMirror.findMany({
+		? await db.sectionMirror.findMany({
 			where: { OR: [
 				{ externalId: { in: sectionIds }, schoolId, schoolYearId },
 				{ id: { in: sectionIds }, schoolId, schoolYearId },
@@ -244,7 +320,9 @@ export async function buildTeacherProgramExportShape(params: {
 	const breakSlots = displaySlots.filter(s => s.isSpecialEvent);
 	const schoolDays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 	for (const slot of breakSlots) {
-		for (const day of schoolDays) {
+		const eventDay = slot.dayOfWeek?.trim().toUpperCase();
+		const days = eventDay && schoolDays.includes(eventDay) ? [eventDay] : schoolDays;
+		for (const day of days) {
 			rows.push({
 				kind: 'BREAK',
 				label: slot.eventName ?? 'Break',
@@ -380,7 +458,7 @@ export async function buildTeacherProgramExportShape(params: {
 			id: schoolYearId,
 			label: mirror?.yearLabel ?? String(schoolYearId),
 		},
-		rows: sortRowsByDayAndTime(rows),
+		rows: sortTeacherProgramWorkloadRows(rows),
 		summary: workloadSummary,
 	};
 }

@@ -13,6 +13,7 @@ import {
 } from '@/lib/schedule-review-helpers';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
 import { buildAcademicTermOptions, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
+import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
 import atlasApi from '@/lib/api';
 import type {
@@ -582,9 +583,17 @@ export function useScheduleReviewWorkspaceState() {
 		setTermFilter((current) => repairTermFilter(current, schoolYearContext?.activeTerm?.orderedTerms ?? null));
 	}, [schoolYearId, schoolYearContext?.activeTerm?.orderedTerms]);
 
+	const resetTermScopedUiRef = useRef<() => void>(() => {});
 	const handleTermFilterChange = useCallback((value: 'all' | number) => {
 		setUserOverrodeTermFilter(true);
 		setTermFilter(value);
+		// TT-OUTPUT-C03R3: selecting another ordered term invalidates every
+		// term-scoped actionable object from the previous term. Preserve the
+		// generated run and the chosen layout (viewMode/presentationMode/entity
+		// filter); clear selection, previews, assignment dialogs, swap state,
+		// repair drawers, pending confirmations, inline action status, and the
+		// term-scoped Undo affordance so a stale object can never dispatch.
+		resetTermScopedUiRef.current();
 	}, []);
 
 	const focusSection = useCallback((sectionId: number) => {
@@ -902,6 +911,10 @@ export function useScheduleReviewWorkspaceState() {
 		setShowEditHistory(false);
 	}, []);
 
+	// Bind the term-change reset to the run-scoped reset without creating a
+	// use-before-declaration cycle; the callback only runs on user interaction.
+	resetTermScopedUiRef.current = resetRunScopedUi;
+
 	const prevScopeRef = useRef<{ schoolId: number | null; schoolYearId: number | null }>({ schoolId: null, schoolYearId: null });
 
 	/** TT-C04: actor school/year transitions rebind the whole workspace. Clear
@@ -954,11 +967,15 @@ export function useScheduleReviewWorkspaceState() {
 			return;
 		}
 		const defaultRoomId = resolveGeneratedPlacementRoomId(item, day, startTime, endTime);
-		const targetSlotOccupied = (draft?.entries ?? []).some((entry: ScheduledEntry) => (
-			entry.day === day
-			&& entry.startTime === startTime
-			&& entry.endTime === endTime
-		));
+		// TT-OUTPUT-C03R3: the fast-path occupancy check is term-aware. Another
+		// ordered term occupying the same slot is longitudinal repetition, not a
+		// collision; only same-term (or unscoped) occupancy blocks this placement.
+		const targetSlotOccupied = isTargetSlotOccupiedForTerm(draft?.entries ?? [], {
+			day,
+			startTime,
+			endTime,
+			termIndex: item.termIndex ?? null,
+		});
 
 		// Fast path: owner + room are unambiguous, slot is empty, and the authoritative
 		// preview is clean (zero hard, zero soft). Skip the review dialog and commit.
@@ -968,6 +985,8 @@ export function useScheduleReviewWorkspaceState() {
 				sectionId: item.sectionId,
 				subjectId: item.subjectId,
 				session: item.session,
+				// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+				termIndex: item.termIndex,
 				entryKind: item.entryKind,
 				cohortCode: item.cohortCode,
 				targetDay: day,
@@ -1085,6 +1104,8 @@ export function useScheduleReviewWorkspaceState() {
 			sectionId: item.sectionId,
 			subjectId: item.subjectId,
 			session: item.session,
+			// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+			termIndex: item.termIndex,
 			entryKind: item.entryKind,
 			cohortCode: item.cohortCode,
 			targetDay: day,
@@ -1137,6 +1158,8 @@ export function useScheduleReviewWorkspaceState() {
 			sectionId: item.sectionId,
 			subjectId: item.subjectId,
 			session: item.session,
+			// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+			termIndex: item.termIndex,
 			entryKind: item.entryKind,
 			cohortCode: item.cohortCode,
 			targetDay: day,

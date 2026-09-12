@@ -1,5 +1,7 @@
 /** Pure invariant checks shared by timetable construction, validation/repair, and preview. */
 
+import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
+
 export type CandidateInvariantReason =
 	| 'INVALID_IDENTIFIER'
 	| 'INVALID_INTERVAL'
@@ -36,7 +38,13 @@ export interface TimetableCandidateInvariantInput extends CandidateInterval {
 	room: CandidateRoomInvariant;
 	gradeLevel: number;
 	allowedRoomTypes: string[];
-	occupied?: Array<CandidateInterval & { facultyId: number; sectionId: number; roomId: number }>;
+	/**
+	 * TT-OUTPUT-C03R3 — the ordered term this candidate is placed in. Occupancy in
+	 * another term is longitudinal repetition, not a collision. `undefined`/0
+	 * means unscoped and overlaps every term.
+	 */
+	termIndex?: number | null;
+	occupied?: Array<CandidateInterval & { facultyId: number; sectionId: number; roomId: number; termIndex?: number | null }>;
 }
 
 export interface CandidateInvariantVerdict {
@@ -105,8 +113,13 @@ export function evaluateCandidateInvariants(
 	if (!roomCanFitEnrollment(input.room.capacity, input.enrolledCount)) reasons.push('ROOM_CAPACITY_EXCEEDED');
 
 	const occupied = input.occupied ?? [];
+	const candidateTerm = entryTermScope({ termIndex: input.termIndex ?? undefined });
 	for (const resource of options.occupancyResources ?? ['facultyId', 'sectionId', 'roomId']) {
-		if (occupied.some((entry) => entry[resource] === input[resource] && intervalsOverlap(input, entry))) {
+		if (occupied.some((entry) => (
+			entry[resource] === input[resource]
+			&& effectiveTermsOverlap(entryTermScope(entry), candidateTerm)
+			&& intervalsOverlap(input, entry)
+		))) {
 			reasons.push(resource === 'facultyId'
 				? 'FACULTY_TIME_CONFLICT'
 				: resource === 'sectionId'

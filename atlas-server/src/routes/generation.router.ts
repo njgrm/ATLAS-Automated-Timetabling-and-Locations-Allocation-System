@@ -596,6 +596,7 @@ router.get(
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
 			const termIndexRaw = req.query.termIndex;
 			let requestedTerm: number | 'active' | undefined;
@@ -655,6 +656,7 @@ router.get(
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
 			const termIndexRaw = req.query.termIndex;
 			let requestedTerm: number | 'active' | undefined;
@@ -728,12 +730,30 @@ router.get(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 			const facultyId = positiveInt(req.query.facultyId, 'facultyId');
 			if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+
+			const termIndexRaw = req.query.termIndex;
+			let requestedTerm: number | 'active' | undefined;
+			if (termIndexRaw != null) {
+				const val = String(termIndexRaw).trim().toLowerCase();
+				if (val === 'active') requestedTerm = 'active';
+				else {
+					const parsedTermIndex = parseSupportedTermIndex(val);
+					if (parsedTermIndex === null) {
+						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+						return;
+					}
+					requestedTerm = parsedTermIndex;
+				}
+			}
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
 
 			const shape = await buildTeacherProgramExportShape({
 				schoolId,
 				schoolYearId,
 				runId,
 				facultyId,
+				termIndex,
 			});
 
 			const docxBuffer = await generateTeacherProgramDocx(shape);
@@ -753,6 +773,10 @@ router.get(
 			}
 			if (e?.message === 'RUN_NOT_COMPLETED') {
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
+				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the run has no verified ordered-term identity.' });
 				return;
 			}
 			// Published schedule resolution errors from getPublishedFacultySchedule
@@ -787,6 +811,8 @@ router.get(
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+
 			const gradeLevel = positiveInt(req.query.gradeLevel, 'gradeLevel');
 			if (typeof gradeLevel === 'string') { res.status(400).json({ code: 'INVALID_GRADE_LEVEL', message: 'gradeLevel must be a positive integer (7, 8, 9, or 10).' }); return; }
 			if (gradeLevel < 7 || gradeLevel > 10) {
@@ -800,15 +826,54 @@ router.get(
 				return;
 			}
 
+			// Bind the requested/effective source run and ordered term exactly like
+			// the reviewed workbook route. An absent runId resolves the latest
+			// completed run; an absent termIndex keeps all terms of that run.
+			let runId: number | undefined;
+			if (req.query.runId != null) {
+				const parsedRunId = positiveInt(req.query.runId, 'runId');
+				if (typeof parsedRunId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsedRunId }); return; }
+				runId = parsedRunId;
+			}
+			const termIndexRaw = req.query.termIndex;
+			let requestedTerm: number | 'active' | undefined;
+			if (termIndexRaw != null) {
+				const val = String(termIndexRaw).trim().toLowerCase();
+				if (val === 'active') requestedTerm = 'active';
+				else {
+					const parsedTermIndex = parseSupportedTermIndex(val);
+					if (parsedTermIndex === null) {
+						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+						return;
+					}
+					requestedTerm = parsedTermIndex;
+				}
+			}
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
+
 			const matrix = await generateClassProgramMatrix({
 				schoolId,
 				schoolYearId,
 				gradeLevel,
 				visibility,
+				runId,
+				termIndex,
 			});
 
 			res.json({ data: matrix });
-		} catch (e) {
+		} catch (e: any) {
+			if (e?.message === 'RUN_NOT_FOUND') {
+				res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Generation run not found.' });
+				return;
+			}
+			if (e?.message === 'RUN_NOT_COMPLETED') {
+				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
+				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the source run has no verified ordered-term identity.' });
+				return;
+			}
 			next(e);
 		}
 	},

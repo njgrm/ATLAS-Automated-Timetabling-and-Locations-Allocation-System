@@ -242,6 +242,12 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 		if (hasShiftEvents) {
 			// Use shift-specific events for blocked windows
 			for (const evt of policy.specialEvents!) {
+				// A day-scoped event is rendered on that day while the same
+				// time boundary remains a valid class slot for the other
+				// weekdays. FLAG_OR_HGP rows historically omitted dayOfWeek in
+				// persisted schema-shaped input, but their contract is Monday.
+				const eventDay = evt.dayOfWeek ?? (evt.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined);
+				if (eventDay) continue;
 				blockedWindows.push({
 					start: timeToMinutes(evt.startTime),
 					end: timeToMinutes(evt.endTime),
@@ -249,12 +255,10 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 			}
 		} else {
 			// Fall back to global policy fields
-			if (policy.enableFlagCeremony ?? true) {
-				blockedWindows.push({
-					start: timeToMinutes(policy.flagCeremonyStartTime ?? '07:00'),
-					end: timeToMinutes(policy.flagCeremonyEndTime ?? '07:30'),
-				});
-			}
+			// Flag ceremony is Monday-only by contract. Because these fallback
+			// period slots are day-agnostic, retain the boundary here and let
+			// buildSpecialEventSlots() render the Monday-only event alongside
+			// the shared weekly time grid.
 
 			if (policy.enableRecess ?? true) {
 				blockedWindows.push({
@@ -324,7 +328,7 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 		endTime: evt.endTime,
 		isSpecialEvent: true,
 		eventName: evt.label,
-				dayOfWeek: evt.dayOfWeek ?? undefined,
+				dayOfWeek: evt.dayOfWeek ?? (evt.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined),
 			});
 		}
 	} else {
@@ -371,6 +375,75 @@ function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodS
 		if (leftStart !== rightStart) return leftStart - rightStart;
 		return timeToMinutes(left.endTime) - timeToMinutes(right.endTime);
 	});
+}
+
+/** A special event bound to one weekday (e.g. Monday Flag/HGP). */
+export interface DayScopedEventWindow {
+	day: string;
+	startTime: string;
+	endTime: string;
+	label: string;
+}
+
+/**
+ * Resolve the weekday a persisted special event belongs to.
+ * Schema-shaped `FLAG_OR_HGP` rows historically omitted `dayOfWeek`; their
+ * canonical contract is Monday. Events without an explicit day and without the
+ * Flag/HGP identity (recess, lunch) apply to every weekday.
+ */
+export function resolveSpecialEventDayOfWeek(
+	eventType: string | null | undefined,
+	dayOfWeek: string | null | undefined,
+	label: string | null | undefined,
+): string | null {
+	const explicitDay = (dayOfWeek ?? '').trim().toUpperCase();
+	if (explicitDay) return explicitDay;
+	const normalizedType = (eventType ?? '').trim().toUpperCase();
+	const normalizedLabel = (label ?? '').trim().toUpperCase();
+	if (normalizedType === 'FLAG_OR_HGP' || normalizedLabel.includes('FLAG')) return 'MONDAY';
+	return null;
+}
+
+/**
+ * Day-scoped non-schedulable windows. A Monday-only event must block candidate
+ * construction on Monday while leaving the identical interval eligible on every
+ * other instructional weekday.
+ */
+export function buildDayScopedEventWindows(policy?: PolicyInput): DayScopedEventWindow[] {
+	if (!policy) return [];
+	const windows: DayScopedEventWindow[] = [];
+	const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
+	if (hasShiftEvents) {
+		for (const evt of policy.specialEvents!) {
+			const day = resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label);
+			if (!day) continue;
+			windows.push({ day, startTime: evt.startTime, endTime: evt.endTime, label: evt.label });
+		}
+	} else if (policy.enableFlagCeremony ?? true) {
+		windows.push({
+			day: 'MONDAY',
+			startTime: policy.flagCeremonyStartTime ?? '07:00',
+			endTime: policy.flagCeremonyEndTime ?? '07:30',
+			label: 'FLAG CEREMONY',
+		});
+	}
+	return windows;
+}
+
+export function isIntervalBlockedByDayScopedEvent(
+	windows: DayScopedEventWindow[],
+	day: string,
+	startTime: string,
+	endTime: string,
+): boolean {
+	if (windows.length === 0) return false;
+	const slotStart = timeToMinutes(startTime);
+	const slotEnd = timeToMinutes(endTime);
+	return windows.some((window) =>
+		window.day === day
+		&& timeToMinutes(window.startTime) < slotEnd
+		&& slotStart < timeToMinutes(window.endTime),
+	);
 }
 
 /** Exported for use by room-schedule service and other consumers. */
@@ -1202,6 +1275,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Build period slots dynamically from the active policy day shape.
 	const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
 	const FALLBACK_PERIOD_SLOTS = PERIOD_SLOTS.length > 0 ? PERIOD_SLOTS : buildPeriodSlots(policy);
+	// Day-scoped special events (Monday Flag/HGP) block ONLY their own weekday.
+	// The underlying interval stays a valid class period for other weekdays.
+	const dayScopedEventWindows = buildDayScopedEventWindows(policy);
 
 	// Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
 	const rawDemand = input.demandOverride ?? computeDemand(
@@ -1929,6 +2005,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				// Use canonical CLASS rows directly as candidates
 				for (const canonicalSlot of canonicalClassSlots!) {
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, canonicalSlot.startTime, canonicalSlot.endTime))) continue;
+					if (isIntervalBlockedByDayScopedEvent(dayScopedEventWindows, day, canonicalSlot.startTime, canonicalSlot.endTime)) continue;
 
 					let score = 1;
 					if (daysUsedForPair.has(day)) score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
@@ -1943,6 +2020,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				for (const pi of gradeValidPeriods) {
 					const slot = FALLBACK_PERIOD_SLOTS[pi];
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime))) continue;
+					if (isIntervalBlockedByDayScopedEvent(dayScopedEventWindows, day, slot.startTime, slot.endTime)) continue;
 
 					let score = 1;
 					if (daysUsedForPair.has(day)) score += item.entryKind === 'COHORT' ? 1.5 : 2.5;

@@ -299,6 +299,7 @@ export type RoomScheduleView = {
         endTime: string;
         eventLabel?: string | null;
         isSpecialEvent?: boolean;
+        dayOfWeek?: string;
     }>;
     days: string[];
     grid: Array<{
@@ -870,6 +871,8 @@ export interface PeriodSlot {
     endTime: string;
     isSpecialEvent?: boolean;
     eventName?: string;
+    /** When present, a special event applies only to this weekday. */
+    dayOfWeek?: string;
 }
 export interface DraftBoardState {
     placements: DraftPlacement[];

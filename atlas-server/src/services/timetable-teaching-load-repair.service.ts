@@ -16,6 +16,7 @@ import {
 	type ManualEditBatchPreviewResult,
 } from './manual-edit.service.js';
 import { validateHardConstraints, type ScheduledEntry, type Violation } from './constraint-validator.js';
+import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 import type { DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
@@ -254,11 +255,13 @@ function findSuggestedPlacements(
 
 			const isSectionBusy = projectedEntries.some(
 				e => e.sectionId === item.sectionId && e.day === day && e.startTime === slot.startTime
+					&& effectiveTermsOverlap(entryTermScope(e), entryTermScope(item))
 			);
 			if (isSectionBusy) continue;
 
 			const isTeacherBusy = projectedEntries.some(
 				e => e.facultyId === facultyId && e.day === day && e.startTime === slot.startTime
+					&& effectiveTermsOverlap(entryTermScope(e), entryTermScope(item))
 			);
 			if (isTeacherBusy) continue;
 
@@ -266,6 +269,7 @@ function findSuggestedPlacements(
 				if (validSlots.length >= 3) break;
 				const isRoomBusy = projectedEntries.some(
 					e => e.roomId === room.id && e.day === day && e.startTime === slot.startTime
+						&& effectiveTermsOverlap(entryTermScope(e), entryTermScope(item))
 				);
 				if (isRoomBusy) continue;
 
@@ -279,6 +283,8 @@ function findSuggestedPlacements(
 					startTime: slot.startTime,
 					endTime: slot.endTime,
 					durationMinutes: minutesBetween(slot.startTime, slot.endTime),
+					// TT-OUTPUT-C03R3: probe in the unassigned item's ordered term.
+					termIndex: item.termIndex,
 					entryKind: item.entryKind || 'SECTION',
 					programType: item.programType,
 					programCode: item.programCode,
@@ -335,6 +341,8 @@ function findSuggestedPlacements(
 		sectionId: item.sectionId,
 		subjectId: item.subjectId,
 		session: item.session,
+		// TT-OUTPUT-C03R3: bind the suggested placement to the item's ordered term.
+		termIndex: item.termIndex,
 		targetDay: s.day,
 		targetStartTime: s.startTime,
 		targetEndTime: s.endTime,
@@ -507,7 +515,10 @@ function bindPlacementToUnassignedChange(
 		&& change.toFacultyId === proposal.targetFacultyId
 		&& (proposal.unassignedKey == null || proposal.unassignedKey === change.unassignedKey)
 		&& (proposal.entryKind == null || proposal.entryKind === change.entryKind)
-		&& (proposal.cohortCode === undefined || proposal.cohortCode === (change.cohortCode ?? null)),
+		&& (proposal.cohortCode === undefined || proposal.cohortCode === (change.cohortCode ?? null))
+		// TT-OUTPUT-C03R3: an explicit placement term must match the unassigned
+		// item's own ordered term so the repair cannot bind the wrong term's item.
+		&& (proposal.termIndex == null || (change.sourceUnassignedItem?.termIndex ?? null) === proposal.termIndex),
 	);
 	if (matches.length !== 1) {
 		throw err(

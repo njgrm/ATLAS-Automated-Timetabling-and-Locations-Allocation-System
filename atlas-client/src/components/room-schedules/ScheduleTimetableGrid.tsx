@@ -120,12 +120,16 @@ export function ScheduleTimetableGrid({
 							if (cellData === null) return null;
 
 							if (cellData.entries.length === 0) {
+								const eventAppliesToDay = row.timeSlot.isSpecialEvent
+									&& (!row.timeSlot.dayOfWeek || row.timeSlot.dayOfWeek === view.days[dayIdx]);
 								return (
 									<td
 										key={dayIdx}
 										rowSpan={cellData.rowSpan}
 										className="border-b border-r last:border-r-0 px-1 py-1"
-									/>
+									>
+										{eventAppliesToDay ? <span className="text-xs font-semibold text-muted-foreground">{row.timeSlot.eventLabel}</span> : null}
+									</td>
 								);
 							}
 

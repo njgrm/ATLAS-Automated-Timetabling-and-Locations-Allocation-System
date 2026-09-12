@@ -9,6 +9,7 @@ import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
 import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots } from './schedule-constructor.js';
+import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 import * as policyService from './scheduling-policy.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 
@@ -41,7 +42,7 @@ export interface RoomScheduleEntry {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
-	termIndex: 1 | 2 | 3 | 4;
+	termIndex: number;
 }
 
 export interface RoomScheduleCell {
@@ -66,10 +67,10 @@ export interface RoomScheduleView {
 		status: string;
 		generatedAt?: string;
 	};
-	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null }>;
+	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string }>;
 	days: typeof DAYS;
 	grid: Array<{
-		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null };
+		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string };
 		cells: RoomScheduleCell[];
 	}>;
 	summary: {
@@ -107,6 +108,9 @@ export async function getRoomScheduleView(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
+		// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
+		// derived from the canonical event identity (Flag/HGP is Monday-only).
+		dayOfWeek: se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined,
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));
@@ -208,6 +212,7 @@ export async function getRoomScheduleView(
 				endTime: slot.endTime,
 				isSpecialEvent: slot.isSpecialEvent,
 				eventName: slot.eventName,
+				dayOfWeek: slot.dayOfWeek,
 			}));
 		}
 
@@ -246,7 +251,9 @@ export async function getRoomScheduleView(
 	const grid = PERIOD_SLOTS.map((slot) => {
 		const eventLabel = slot.eventName ?? null;
 		const cells: RoomScheduleCell[] = DAYS.map((day) => {
-			if (slot.isSpecialEvent) {
+			// Day-scoped events (Monday Flag/HGP) block only their own weekday; the
+			// same interval stays an ordinary room slot on other weekdays.
+			if (slot.isSpecialEvent && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
 				return {
 					day,
 					occupied: false,
@@ -266,10 +273,27 @@ export async function getRoomScheduleView(
 				startTime: e.startTime,
 				endTime: e.endTime,
 				durationMinutes: e.durationMinutes,
-				termIndex: (e.termIndex ?? 1) as 1 | 2 | 3 | 4,
+				// TT-OUTPUT-C03R3: a missing term is NOT coerced to Term 1. Resolved
+				// runs always carry an explicit numeric term; 0 means unscoped/legacy.
+				termIndex: typeof e.termIndex === 'number' ? e.termIndex : 0,
 			}));
 
-			const hasConflict = mapped.length > 1;
+			// Term-aware conflict identity: the same physical slot across different
+			// ordered terms is intentional repetition, not a double-booking. Two
+			// distinct source slots overlapping in the SAME term are a conflict.
+			const sourceKeyOf = (e: ScheduledEntry): string =>
+				(e as ScheduledEntry & { sourceEntryId?: string }).sourceEntryId ?? e.entryId;
+			let hasConflict = false;
+			for (let left = 0; left < overlapping.length && !hasConflict; left += 1) {
+				for (let right = left + 1; right < overlapping.length; right += 1) {
+					const a = overlapping[left];
+					const b = overlapping[right];
+					if (sourceKeyOf(a) === sourceKeyOf(b)) continue;
+					if (!effectiveTermsOverlap(entryTermScope(a), entryTermScope(b))) continue;
+					hasConflict = true;
+					break;
+				}
+			}
 			if (hasConflict) conflictCount++;
 
 			return {
@@ -280,7 +304,7 @@ export async function getRoomScheduleView(
 			};
 		});
 
-		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime, eventLabel }, cells };
+		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime, eventLabel, isSpecialEvent: slot.isSpecialEvent, dayOfWeek: slot.dayOfWeek }, cells };
 	});
 
 	// 6) Summary — unique-entry aggregation to avoid per-cell inflation
@@ -312,7 +336,7 @@ export async function getRoomScheduleView(
 			status: sourceStatus,
 			generatedAt: sourceGeneratedAt,
 		},
-		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime, eventLabel: s.eventName ?? null })),
+		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime, eventLabel: s.eventName ?? null, isSpecialEvent: s.isSpecialEvent, dayOfWeek: s.dayOfWeek })),
 		days: DAYS,
 		grid,
 		summary: {
