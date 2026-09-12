@@ -32,8 +32,16 @@ import {
 	type DerivedSectionInput,
 } from '../services/derived-demand.service.js';
 import { runHybridScheduler } from '../services/hybrid-scheduler.js';
-import { getExpectedCanonicalSlots } from '../services/class-program-slot.service.js';
+import { getExpectedCanonicalSlots, normalizeInternalGradeId } from '../services/class-program-slot.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
+import { buildGenerationPreflight, buildPreflightConstructorInput } from '../services/generation-preflight.service.js';
+import {
+	buildTimetableOutputProjections,
+	validateTermTeacherResolution,
+	validateTimetableShapePolicy,
+} from '../services/timetable-shape-policy.service.js';
+import { normalizeProgramType } from '../services/generation-shape-assembly.service.js';
+import type { ScheduledEntry } from '../services/constraint-validator.js';
 import type { VerifiedTermContract } from '../services/enrollpro-term-contract.service.js';
 import type { ConstructorInput } from '../services/schedule-constructor.js';
 import type { SectionsByGrade } from '../services/section-adapter.js';
@@ -179,6 +187,8 @@ interface MockOverrides {
 	displayOrderOverride?: number;
 	/** C10: make one rotation-family member nonuniform in weekly minutes. */
 	nonuniformRotation?: boolean;
+	/** C03R3: give each subject its own qualified teacher (canonical clean fixture). */
+	distinctTeachers?: boolean;
 }
 
 function buildMockClient(overrides: MockOverrides = {}) {
@@ -211,11 +221,22 @@ function buildMockClient(overrides: MockOverrides = {}) {
 		{ id: 15, code: 'SCI_PHY', name: 'Science Physics', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 3, minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
 	];
 
-	const faculty = [{ id: 71, externalId: 710, firstName: 'A', lastName: 'Teacher', department: 'REGULAR', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true }];
-	const facultySubjects = [11, 12, 13, 14, 15].map((subjectId) => ({ facultyId: 71, subjectId, gradeLevels: [7], sectionIds: [9001] }));
+	const faculty = overrides.distinctTeachers
+		? [
+			{ id: 71, externalId: 710, firstName: 'A', lastName: 'Math', department: 'REGULAR', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true },
+			{ id: 72, externalId: 720, firstName: 'B', lastName: 'Eng', department: 'REGULAR', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true },
+			{ id: 73, externalId: 730, firstName: 'C', lastName: 'Bio', department: 'SCIENCE', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true },
+			{ id: 74, externalId: 740, firstName: 'D', lastName: 'Chem', department: 'SCIENCE', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true },
+			{ id: 75, externalId: 750, firstName: 'E', lastName: 'Phy', department: 'SCIENCE', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true },
+		]
+		: [{ id: 71, externalId: 710, firstName: 'A', lastName: 'Teacher', department: 'REGULAR', maxHoursPerWeek: 30, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true }];
+	const teacherBySubject: Record<number, number> = overrides.distinctTeachers
+		? { 11: 71, 12: 72, 13: 73, 14: 74, 15: 75 }
+		: { 11: 71, 12: 71, 13: 71, 14: 71, 15: 71 };
+	const facultySubjects = [11, 12, 13, 14, 15].map((subjectId) => ({ facultyId: teacherBySubject[subjectId], subjectId, gradeLevels: [7], sectionIds: [9001] }));
 	const ownership = overrides.ownership === false
 		? []
-		: [11, 12, 13, 14, 15].map((subjectId, index) => ({ id: index + 1, subjectId, sectionId: 9001, facultyId: 71, facultySubjectId: index + 1 }));
+		: [11, 12, 13, 14, 15].map((subjectId, index) => ({ id: index + 1, subjectId, sectionId: 9001, facultyId: teacherBySubject[subjectId], facultySubjectId: index + 1 }));
 
 	const rooms = [{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], buildingId: 301, buildingZoneId: 'Z1', building: { gradeScope: [7] } }];
 	const buildings = [{ id: 301, name: 'Building 1', x: 0, y: 0 }];
@@ -476,4 +497,69 @@ test('C7. the canonical owner is the only scheduler candidate for its pair', asy
 	const mathEntries = result.entries.filter((entry) => entry.subjectId === 11 && entry.sectionId === 9001);
 	assert.ok(mathEntries.length > 0, 'the owned pair must be scheduled');
 	assert.equal(mathEntries.every((entry) => entry.facultyId === 71), true, 'only the canonical owner may be assigned');
+});
+
+// ─── TT-OUTPUT-C03R3: readiness must validate RESOLVED per-term entries ──────
+//
+// The constructor emits COMPACT base entries: a year-long subject session has no
+// term identity and a rotating family is one lane carrying
+// `metadata.modularAssignments[]`. The readiness diagnostic validated the raw
+// entries, so it false-blocked an otherwise clean year-long + rotation dataset
+// with ROTATION_TERM_INVALID, TERM_TEACHER_UNRESOLVED, and
+// OUTPUT_SHAPE_MISMATCH. These two tests fail on the pre-fix consumer.
+
+test('C03R3a. the readiness diagnostic validates resolved per-term entries and reports the canonical fixture READY', async () => {
+	const { client, writes } = buildMockClient({ distinctTeachers: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+
+	assert.equal(readiness.schedulerExecuted, true, 'the real hybrid scheduler must run');
+	assert.equal(readiness.violations.hardCount, 0, 'a cleanly resolved schedule must have zero hard violations');
+	const codes = readiness.blockers.map((entry) => entry.code);
+	for (const code of ['ROTATION_TERM_INVALID', 'TERM_TEACHER_UNRESOLVED', 'OUTPUT_SHAPE_MISMATCH']) {
+		assert.equal(codes.includes(code), false, `${code} must not be reported once per-term entries are resolved before validation`);
+	}
+	assert.equal(readiness.status, 'READY');
+	assert.equal(readiness.generateAllowed, true, 'year-long + rotation demand must be generateAllowed');
+	assert.deepEqual(writes, [], 'the readiness dry run must remain zero-write');
+});
+
+test('C03R3b mutant: validating the raw compact entries reproduces the false block the fix removes', async () => {
+	// Reconstruct the pre-fix production consumer: run the REAL shared preflight
+	// and the REAL scheduler, then feed the RAW `result.entries` straight into the
+	// same shape/teacher checks. This proves the resolution step (not merely a new
+	// assertion) is load-bearing.
+	const { client } = buildMockClient({ distinctTeachers: true });
+	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	const assembly = preflight.assembly;
+	assert.ok(assembly.derived, 'the canonical derived demand must be available');
+	if (!assembly.derived) return;
+
+	const rawEntries = runHybridScheduler(buildPreflightConstructorInput(assembly, {})).entries as ScheduledEntry[];
+	const rawShapePolicy = validateTimetableShapePolicy({
+		termAuthority: { format: assembly.derived.termStructure.format, terms: assembly.derived.termStructure.terms.map((term) => ({ identity: term.identity, order: term.order })), cachedAt: 'derived-demand-authority' },
+		validateShiftWindows: false,
+		shiftWindows: [],
+		sections: assembly.sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
+		shapes: assembly.timetableShapeContracts,
+		rooms: assembly.rooms,
+		subjects: assembly.subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
+		entries: rawEntries.map((entry) => ({ entryId: entry.entryId, sectionId: entry.sectionId, facultyId: entry.facultyId, roomId: entry.roomId, subjectId: entry.subjectId, termIndex: entry.termIndex ?? 0, startTime: entry.startTime, endTime: entry.endTime })),
+		outputProjections: buildTimetableOutputProjections(rawEntries),
+	});
+	const rawTeacherBlockers = validateTermTeacherResolution(rawEntries.map((entry) => ({ subjectId: entry.subjectId, sectionId: entry.sectionId, termIndex: entry.termIndex ?? 0, facultyId: entry.facultyId })));
+	const rawCodes = [...rawShapePolicy.map((entry) => entry.code), ...rawTeacherBlockers.map((entry) => entry.code)];
+
+	assert.ok(rawCodes.includes('ROTATION_TERM_INVALID'), 'raw compact entries must false-block with ROTATION_TERM_INVALID');
+	assert.ok(
+		rawCodes.includes('TERM_TEACHER_UNRESOLVED') || rawCodes.includes('OUTPUT_SHAPE_MISMATCH'),
+		'raw compact entries must false-block the teacher/shape checks',
+	);
+
+	// Positive control: the fixed readiness consumer on the exact same fixture
+	// reports none of those blockers and allows generation.
+	const { client: fixedClient } = buildMockClient({ distinctTeachers: true });
+	const readiness = await buildGenerationReadiness(SCHOOL_ID, SCHOOL_YEAR_ID, { client: fixedClient, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(readiness.blockers.some((entry) => entry.code === 'ROTATION_TERM_INVALID'), false, 'the resolved consumer must not report ROTATION_TERM_INVALID');
+	assert.equal(readiness.blockers.some((entry) => entry.code === 'TERM_TEACHER_UNRESOLVED'), false, 'the resolved consumer must not report TERM_TEACHER_UNRESOLVED');
+	assert.equal(readiness.generateAllowed, true);
 });
