@@ -197,7 +197,7 @@ hard blockers before separately approving publication.
 | ACTOR-SCOPE-C01 | Close actor-school/year scope end to end: remove school-1 defaults from actor-sensitive helpers, bind client consumers to the authenticated token epoch, and gate the runtime read routes on explicit actor school | `INTEGRATED` | MEDIUM source; deployment stays HIGH | `work/actor-scope-c01`; `a4dcd061...98ab5e04`; merge `d44f29e0` | Live deployment and the remaining defaulting `parseSchoolId` sites on non-listed runtime mutation routes are separate successor actions | Fresh QA `ACCEPT_READY` (mandatory 18/18, blocked 0, unperformed 0): real-path epoch suites, 55/55 focused client tests, two independent mutant controls, mounted disposable-PostgreSQL runtime-route matrix with zero DB/upstream dispatch on every rejection, both builds; integration reproduced product-tree identity, client 55/55, and server 3/3 on the merged tree | Closed in source; deployed via ACTOR-SCOPE-DEPLOY-RESTORE (`d44f29e0` live, acceptance closed); the remaining defaulting sites stay backlog-only |
 | ACTOR-SCOPE-DEPLOY-RESTORE | Restore the shared runtime from the confirmed outage by deploying product pin `d44f29e0` on 5001/5174 with rollover automation disabled, then run the bounded authenticated Tailnet Stage C acceptance | `INTEGRATED` | HIGH shared-runtime deploy-as-restore | `work/actor-scope-deploy-restore-20260912`; `d44f29e0...534832bc`; merge `1add5323` | Runtime remains `EPHEMERAL_DEPLOYMENT` until the separately gated supervisor install | Fresh QA `ses_f6b893b57ffelxC4Jcm0m2HPxB` `ACCEPT_READY` 13/13 (blocked 0, unperformed 0): C2/C3/C4-positive/C5/C6/C8 on live Tailnet; DB delta exactly one `LOCAL_LOGIN_SUCCESS` (id 762, actor 46) + `last_login_at`, all else 0; product tree == pin; wave audit `ses_f6b724735ffezVWNnma0wKLgLJ` `AUDIT_CLEAR` 8/8 (F1–F4 non-blocking docs-only, reconciled) | Lane A COMPLETE; capsule at `docs/reviews/runtime-stability-wave-20260912/wave-completion-audit.md`; runtime stays `EPHEMERAL_DEPLOYMENT` pending the separately gated supervisor install |
 | RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `INTEGRATED` | MEDIUM source/test; HIGH future live install | `work/runtime-supervision-c01`; `cf9b7e6e...05143d65`; merge `0ec3b8f7` | Install remains separately gated by the prepared HIGH packet | Round-2 pin correction `05143d65` passed fresh QA `ses_f6b56dd43ffeG3CSnFNNJBficZ` `ACCEPT_READY` 8/8 (blocked 0, unperformed 0): real-tree pin positive (previously unsatisfiable), equality-mutant failing-first, `PIN_MISMATCH`/`RELEASE_SHA_*` fail-closed, distinct status, inventory redaction, 56/56 ops, ports untouched. Pre-install audit `ses_f6b5175c6ffejlywhgblmX7c5k` `AUDIT_CLEAR` 14/14 | Closed in source; install packet prepared at `docs/prompts/runtime-supervisor-live-install-2026-09-12.md` — do not install until the operator approves |
-| RUNTIME-SUPERVISION-LIVE-INSTALL | Replace the ephemeral runtime by installing the reviewed supervisor on 5001/5174 with boot recovery and rollback | `EXECUTING` | HIGH shared-runtime cutover + boot-task registration | Packet `docs/prompts/runtime-supervisor-live-install-2026-09-12.md`; frozen release `9d293879`; executor `/root/runtime_supervisor_install_executor` | Exact operator approval received 2026-09-12; executor must revalidate the recorded listeners and all packet preconditions before mutation | Pre-install audit `AUDIT_CLEAR` 14/14; P1–P5 embedded; planner activation preflight found PIDs 38468/38460 still owning 5001/5174 and Tailnet health/root 200; rollover invariant and `d44f29e0` fallback remain pinned | Await executor `REVIEW_REQUIRED`; then fresh QA owns the sole approved authenticated acceptance and returns to the planner for integration/audit |
+| RUNTIME-SUPERVISION-LIVE-INSTALL | Replace the ephemeral runtime by installing the reviewed supervisor on 5001/5174 with boot recovery and rollback | `CORRECTION_REQUIRED` | HIGH shared-runtime cutover + boot-task registration | Failed candidate `60cfe3d4...2794c40f`; retry packet `docs/prompts/runtime-supervisor-live-install-correction-2026-09-12.md`; frozen release `9d293879`; QA `CORRECTION_REQUIRED` | Both ONSTART registration attempts returned Access Denied; no supervisor task exists; manual d44 fallback is healthy; legacy task remains unchanged/enabled; retry requires elevated Administrator executor and separate approval | Exact final range verified clean with one docs handoff path; Tailnet root/health 200, fallback PIDs 28940/40696, no task, DB signatures unchanged, no QA login; browser origin/desktop/mobile login snapshots were read-only | Do not integrate. Obtain the correction approval, rerun the same cutover from an elevated process, prove task/no-limit/boot recovery, then fresh QA reviews the exact final range |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -234,15 +234,12 @@ hard blockers before separately approving publication.
    runtime with the exact approved login delta (audit id 762); evidence
    integrated at `1add5323`. Lane A wave audit `AUDIT_CLEAR` 8/8; the runtime
    stays `EPHEMERAL_DEPLOYMENT` until the supervisor install.
-5. RUNTIME-SUPERVISION-C01 is closed in source (`0ec3b8f7`); the pre-install
-   audit cleared 14/14 and the HIGH installation packet at
-   `docs/prompts/runtime-supervisor-live-install-2026-09-12.md` is now approved
-   and executing under a fresh executor after independent pre-action
-   re-verification. A fresh QA owns the single approved login. The term-cache
-   catch-up preview/apply (HIGH)
-   is the next data action after (or in parallel with) the install; its apply
-   is a separate approval. The deployed `d44f29e0` pin already includes the
-   RR-TERM-CACHE-C01/R/R2 authority (`a1256506`/`a633db50`/`a4dcd061`).
+5. RUNTIME-SUPERVISION-C01 is closed in source (`0ec3b8f7`). The first HIGH
+   install attempt was rolled back because Windows denied both boot-task
+   registrations; the manual `d44f29e0` fallback is healthy and the legacy task
+   is unchanged. A corrected retry packet now requires an elevated Administrator
+   executor and a fresh approval. The term-cache catch-up preview/apply (HIGH)
+   remains a separate data action and must not share this listener cutover.
 6. After an approved term-cache catch-up, run the canonical readiness
    diagnostic for the live school/year. Only if it proves zero hard blockers
    and exact source freshness, prepare the fingerprinted generation approval
@@ -252,8 +249,8 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- The shared runtime (PIDs 38468/38460 on 5001/5174) serves the accepted
-  `d44f29e0` pin; its Stage C acceptance is closed. No other stream may start,
+- The shared runtime currently serves the accepted `d44f29e0` fallback on the
+  restored PIDs (reverify at execution); its Stage C acceptance is closed. No other stream may start,
   stop, restart, or replace it; the only planned listener change is the
   separately gated supervisor install. Carry-forward apply, suggestion apply,
   generation, and publication remain separately gated. The remaining
@@ -298,9 +295,11 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
 - No RUNTIME-SUPERVISION-C01 source executor return remains; the pin correction
   `05143d65` passed fresh QA (`ACCEPT_READY` 8/8) and is integrated at merge
   `0ec3b8f7`; the pre-install audit cleared 14/14. The exact HIGH approval was
-  received. Awaited return: executor `/root/runtime_supervisor_install_executor`
-  must return one immutable `REVIEW_REQUIRED` evidence candidate before fresh
-  QA begins; no second operator decision is pending.
+    received. The first live-install attempt returned `CORRECTION_REQUIRED` at
+    final candidate `2794c40f`; no product candidate was integrated. Awaited:
+    operator approval for the elevated retry packet, then a new executor and
+    fresh QA return. No term-cache, Teaching Load, generation, or publication
+    action is unlocked by this correction.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.

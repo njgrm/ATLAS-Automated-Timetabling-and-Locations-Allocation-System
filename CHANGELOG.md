@@ -4694,3 +4694,16 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - None for source correction. Live generation remains separately gated.
+## [2026-09-12] — Runtime supervisor install correction
+
+### Added
+- Prepared a bounded elevated-process retry packet after the approved live supervisor install rolled back when both boot-task registration attempts returned Access Denied.
+
+### Changed
+- Marked `RUNTIME-SUPERVISION-LIVE-INSTALL` `CORRECTION_REQUIRED`; the manual d44 fallback remains active and the legacy task remains unchanged.
+
+### Decisions Made
+- No task-registration workaround, credential export, security-policy change, or unrelated runtime mutation is authorized.
+
+### Open Questions
+- Operator must separately approve and execute the retry from an elevated Administrator process.
