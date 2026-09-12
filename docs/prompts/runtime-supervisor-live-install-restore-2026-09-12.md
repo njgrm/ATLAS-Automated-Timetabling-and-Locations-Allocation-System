@@ -20,6 +20,16 @@ with swap wording.
 `RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE-CORRECTION-2026-09-12`. This preparation
 was docs-only; no live mutation was performed.
 
+**Revision:** R1 (2026-09-12). The R0 candidate
+`2fa973e5c39112efb13d105312262e40a99e0bc7` (the first copy of this packet, which
+referenced the in-worktree env source
+`D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env`) is marked
+`SUPERSEDED — NON_APPLICABLE` and preserved unamended for history. R1 moves the
+durable `ATLAS_RUNTIME_ENV_FILE` reference outside every Git worktree to
+`D:\ATLAS-runtime-config\atlas-server.env`, and adds durable-config
+provisioning, ACL restriction, SHA-256 equality proof, dual-context environment
+delivery, and scheduled-task read proof to the future HIGH boundary.
+
 ## 0. Confirmed starting condition (read-only, verified 2026-09-12)
 
 - Tailnet `https://njgrm.buru-degree.ts.net` `GET /api/v1/health` returns **502**.
@@ -43,11 +53,18 @@ was docs-only; no live mutation was performed.
 - Startable fallback checkout `D:\ATLAS-runtime-fallback-d44-20260912` is at
   `d44f29e04d359ad9b18e4443b0fd4fed1daeaecd` with built `atlas-server/dist` and
   `atlas-client/dist`.
-- Operator environment file (existence/metadata only; never printed):
+- Verified operator environment **staging source** (existence/metadata only;
+  never printed):
   `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env`
-  (2290 bytes, LastWrite `2026-09-07T00:52:40+08:00`).
+  (2290 bytes, LastWrite `2026-09-07T00:52:40+08:00`). This lives inside a Git
+  worktree and is **not** the durable runtime reference.
+- Durable runtime environment reference (target; outside every Git worktree and
+  deployed source checkout; local-only operator configuration; never staged or
+  committed): `D:\ATLAS-runtime-config\atlas-server.env`. It does not exist yet
+  (verified `D:\ATLAS-runtime-config` and the file are absent) and is created
+  only during the future HIGH action.
 - Sanitized database target (verified from the single active `DATABASE_URL` line
-  of that env file; credentials never printed):
+  of the staging source; credentials never printed):
   `localhost:5432/atlas_recovery_clean_rebuild_20260905`.
   - **Reconciliation note:** the operator approval request wrote
     `atlas_recovery_clean_rebuild_20250905` (`2025`). The named env file's active
@@ -70,8 +87,11 @@ listener.
 - Supervisor release: `9d2938791460c1d19059e5eddd30d7bba623fdad`
 - Product pin served by the supervisor: `d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`
 - Durable source dir: `D:\ATLAS-runtime-supervised-20260912`
-- Operator environment file:
-  `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env`
+- Durable runtime environment file:
+  `D:\ATLAS-runtime-config\atlas-server.env` (outside every Git worktree and
+  deployed source checkout; local-only operator configuration; never staged or
+  committed). Verified staging source:
+  `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env`.
 - Log dir: `D:\ATLAS-runtime-supervised-20260912\ops\runtime\logs` (contract default)
 - Ports: 5001 (supervised server) and 5174 (supervised production host) **only**
 - `ROLLOVER_AUTO_SYNC_ENABLED=false`
@@ -91,9 +111,13 @@ companion-repository edits.
 1. Durable release checkout at `9d293879` containing `ops/runtime/**`, built
    `atlas-server/dist`, and a production `atlas-client/dist` (verified).
 2. A startable `d44f29e0` fallback artifact on disk (verified).
-3. Absolute `ATLAS_RUNTIME_SOURCE_DIR`, absolute `ATLAS_RUNTIME_ENV_FILE`, and
-   `ATLAS_RUNTIME_RELEASE_SHA` delivered to the task account (not yet set;
-   delivery is step 1 of execution).
+3. The durable environment file `D:\ATLAS-runtime-config\atlas-server.env`
+   exists with the verified content and an operator/task-account + `SYSTEM` +
+   `Administrators`-only ACL, and `ATLAS_RUNTIME_SOURCE_DIR`,
+   `ATLAS_RUNTIME_ENV_FILE` (the durable target), and
+   `ATLAS_RUNTIME_RELEASE_SHA` are delivered to both the immediate elevated
+   process and the boot-task account (not yet set; delivery is step 1 of
+   execution).
 4. Ports 5001 and 5174 empty at execution time.
 5. Legacy task inspected; not modified before supervised health.
 6. No zero-downtime claim; an outage window is already in effect.
@@ -104,10 +128,29 @@ companion-repository edits.
    the sanitized DB target and every BEFORE signature (ports, PIDs, health,
    task state). Confirm the Vite-5175 and unrelated `tsx` PIDs are untouched. If
    a 5001/5174 listener appeared, STOP.
-2. **Environment delivery (elevated).** Set machine-wide environment variables
-   (`setx /M`) or an equivalent wrapper so the task account sees
-   `ATLAS_RUNTIME_SOURCE_DIR`, `ATLAS_RUNTIME_ENV_FILE`, and
-   `ATLAS_RUNTIME_RELEASE_SHA=9d293879...`. Prove visibility in a secret-free log.
+2. **Durable environment configuration and delivery (elevated).**
+   a. Create `D:\ATLAS-runtime-config` if absent.
+   b. Copy the verified staging source
+      `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env`
+      **byte-identically** to `D:\ATLAS-runtime-config\atlas-server.env`.
+   c. Retain the verified sanitized target
+      `localhost:5432/atlas_recovery_clean_rebuild_20260905`.
+   d. Apply an ACL on the durable file readable only by the executing
+      operator/task account, `SYSTEM`, and `Administrators`.
+   e. Verify source-vs-durable **SHA-256 equality without printing either
+      value** (record only a boolean).
+   f. Deliver the environment to **two** contexts — never rely only on
+      `setx /M` for the current process: (i) the immediate elevated process
+      used to start the supervisor, and (ii) the scheduled-task process after
+      reboot. Set
+      `ATLAS_RUNTIME_ENV_FILE=D:\ATLAS-runtime-config\atlas-server.env`,
+      `ATLAS_RUNTIME_SOURCE_DIR`, and
+      `ATLAS_RUNTIME_RELEASE_SHA=9d293879...` in both.
+   g. Prove the scheduled-task identity can **read** the durable file (a
+      read-only existence/hash check under that identity), without displaying
+      its contents.
+   h. Never display or commit the file contents; record only existence, length,
+      ACL summary, and the hash-equality boolean.
 3. **Offline preflight in the durable dir (no binding).** Review
    `node ops/runtime/cli.mjs install-preview` and
    `node ops/runtime/cli.mjs status`.
@@ -152,8 +195,11 @@ companion-repository edits.
 No listener start/stop outside 5001/5174; no kill of unrelated processes; no
 login; no term-cache apply/sync; no Teaching Load mutation; no generation; no
 publication; no migration/schema; no companion-repository edit; no
-Tailnet/registry/firewall change beyond the authorized machine environment
-delivery in step 2.
+Tailnet/firewall change, and no registry change beyond the authorized
+machine-level environment delivery in step 2. The durable-config actions in
+step 2 (create directory, byte-identical copy, ACL restriction, hash check,
+dual-context delivery) are the only authorized filesystem/ACL changes. The
+durable environment file is local-only and must never be staged or committed.
 
 ## 7. Roles and evidence
 
@@ -168,21 +214,28 @@ delivery in step 2.
 > I approve HIGH action RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE-2026-09-12:
 > the shared runtime is in a confirmed outage (Tailnet 502; no process owns
 > 5001/5174), so this is a deploy-as-restore with no incumbent to stop; from the
-> elevated Administrator executor, start the reviewed supervisor at release
+> elevated Administrator executor, create `D:\ATLAS-runtime-config` if absent
+> and copy the verified source
+> `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env`
+> byte-identically into `D:\ATLAS-runtime-config\atlas-server.env`, retaining the
+> sanitized target `localhost:5432/atlas_recovery_clean_rebuild_20260905`,
+> applying an ACL readable only by the executing operator/task account, `SYSTEM`,
+> and `Administrators`, and verifying source-vs-durable SHA-256 equality without
+> printing values; start the reviewed supervisor at release
 > `9d2938791460c1d19059e5eddd30d7bba623fdad` serving the pinned product
 > `d44f29e04d359ad9b18e4443b0fd4fed1daeaecd` from
-> `D:\ATLAS-runtime-supervised-20260912` with operator environment file
-> `D:\ATLAS-worktrees\integration-rrtc01r-20260912\atlas-server\.env` (sanitized
-> database target `localhost:5432/atlas_recovery_clean_rebuild_20260905`) on
-> ports 5001 and 5174 only with `ROLLOVER_AUTO_SYNC_ENABLED=false`; deliver and
-> prove `ATLAS_RUNTIME_SOURCE_DIR`, `ATLAS_RUNTIME_ENV_FILE`, and
-> `ATLAS_RUNTIME_RELEASE_SHA` to the task account; register
+> `D:\ATLAS-runtime-supervised-20260912` on ports 5001 and 5174 only with
+> `ROLLOVER_AUTO_SYNC_ENABLED=false`; set
+> `ATLAS_RUNTIME_ENV_FILE=D:\ATLAS-runtime-config\atlas-server.env`,
+> `ATLAS_RUNTIME_SOURCE_DIR`, and `ATLAS_RUNTIME_RELEASE_SHA` for both the
+> immediate elevated process and the boot task, and prove the scheduled-task
+> identity can read the durable file without displaying its contents; register
 > `ATLAS-Runtime-Supervisor` at boot with `ExecutionTimeLimit=PT0S` (no limit);
 > require one owned PID per port plus local `/api/v1/health` and
 > `/api/v1/health/ready` 200 and Tailnet 200; disable `ATLAS-DevServer-Temp2`
 > only after supervised health and successful registration; use the startable
 > `d44f29e0` fallback from `D:\ATLAS-runtime-fallback-d44-20260912` on any
 > failure; never stop or modify the port-5175 Vite process or the unrelated
-> `tsx` process; and stop before login, term-cache apply/sync, Teaching Load
-> mutation, generation, publication, migration/schema, or companion-repository
-> changes.
+> `tsx` process; never display or commit the durable environment file; and stop
+> before login, term-cache apply/sync, Teaching Load mutation, generation,
+> publication, migration/schema, or companion-repository changes.
