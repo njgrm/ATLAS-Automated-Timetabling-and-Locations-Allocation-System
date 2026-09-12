@@ -212,8 +212,8 @@ with no epoch re-check) — confirmed by inspection of `42faf6a7`. After
 
 ### Correction commit list (additive)
 
-- `db381da3` — fix(scope): fail closed on unresolved sections scope and discard late session responses.
-- `<tip>` — docs(scope): record actor-scope-c01 correction round 1 (this section).
+- `db381da3` — fix(scope): fail closed on unresolved sections scope and discard late session responses. (product code tip)
+- `765d1803` and `625f6370` — docs(scope): correction round 1 record and trailing-blank trim. (documentation tip)
 
 ### Gates rerun (all green)
 
