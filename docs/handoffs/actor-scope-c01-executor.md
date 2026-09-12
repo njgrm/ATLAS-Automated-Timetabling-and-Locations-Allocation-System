@@ -150,3 +150,87 @@ or convert to actor scope.
   (searched `atlas-server/src/**`). The affected runtime route is covered by the
   new mounted suite and by `term-cache-catchup-rrtc01.test.ts`.
 - No live/browser acceptance was possible (Tailnet down); no runtime claims made.
+
+## CORRECTION ROUND 1 (F1 + F2)
+
+Fresh independent QA reviewed `a4dcd061...42faf6a7` and returned
+`CORRECTION_REQUIRED` with two in-scope blocking defects. Additive correction
+commits: `db381da3` (F1 + F2) and a whitespace-only follow-up. Pre-correction
+QA tip: `42faf6a7`. The full range remains `a4dcd061..<new tip>`.
+
+### F1 — Sections must never dispatch scoped requests with school 0
+
+- `Sections.tsx`: `const scopedSchoolId = isResolvedActorSchoolId(actorSchoolId) ? actorSchoolId : null;`
+  is now the only school passed to children. The four child consumers
+  (`SectionMobileCard`, `SectionRow`, `SectionRoomMapModal`,
+  `HomeRoomAutoAssignDialog`) render ONLY when `scopedSchoolId != null`; never `0`.
+- On actor-school change (including unresolved) an effect clears
+  `activeSchoolYearId`, `detailTarget`, and closes `globalBrowseModalOpen` /
+  `autoAssignOpen`, so no child survives across a scope change.
+- Defense in depth:
+  - `SectionRoomMapModal.tsx` exports `fetchSectionRoomMapBuildings(schoolId)`,
+    which returns `null` for any non-strict-positive school (zero dispatch); the
+    modal uses it and the load effect also requires `schoolId > 0`.
+  - `HomeRoomAutoAssignDialog.tsx` exports `requestHomeRoomAutoAssign(...)`,
+    which returns `null` for a non-positive school/school-year (zero dispatch);
+    preview, apply, and the open effect all guard on valid scope.
+  - `SectionRoomPicker.tsx` renders the map modal only when `schoolId > 0`.
+- Sweep: the only remaining `?? 0` in the section files is a display count
+  (`result?.counts.assigned ?? 0`), not a dispatch.
+
+### F2 — MyDashboard / MySchedule late session-A responses
+
+- Both pages capture `getPreferredAccessToken()` + `getAtlasTokenEpochVersion()`
+  before any await and re-check after every await; effect-local `loadSeqRef`
+  cancellation increments on actor-school change / unmount.
+- The scope-gated network reads now route through the shared, tested
+  `runActorScoped` mechanism via exported production functions:
+  - `MyDashboard.tsx` → `loadMyDashboardScoped(schoolId, schoolYearId)` returns
+    `ok | discarded | unresolved`; the component applies state only on `ok`.
+  - `MySchedule.tsx` → `loadMyScheduleScoped(schoolId, schoolYearId, facultyId, requestDate)`
+    returns the payload or `null`; the component applies state only on non-null.
+- A late A response resolves to `discarded`/`null` in both orderings and is
+  never applied; offline-cache fallbacks are also gated on the captured epoch.
+
+### Failing-first record (execution)
+
+With the production fix stashed (`git stash push -m actor-scope-c01-correction-f1f2`)
+and HEAD at the QA tip `42faf6a7`, the new control suites were run and FAILED:
+
+```
+npx tsx --test src/lib/__tests__/section-scope-dispatch.test.ts src/lib/__tests__/session-scope-late-discard.test.ts
+  SyntaxError: The requested module '@/components/sections/SectionRoomMapModal' does not provide an export named 'fetchSectionRoomMapBuildings'
+  SyntaxError: The requested module '@/pages/MyDashboard' does not provide an export named 'loadMyDashboardScoped'
+  tests 2 / pass 0 / fail 2
+```
+
+The old code dispatched unconditionally (the old `SectionRoomMapModal.loadMapData`
+and `HomeRoomAutoAssignDialog.fetchPreview` called `atlasApi` with whatever
+`schoolId` was passed, and `MyDashboard`/`MySchedule` applied post-await state
+with no epoch re-check) — confirmed by inspection of `42faf6a7`. After
+`git stash pop`, the same suites pass 9/9.
+
+### Correction commit list (additive)
+
+- `db381da3` — fix(scope): fail closed on unresolved sections scope and discard late session responses.
+- `<tip>` — docs(scope): record actor-scope-c01 correction round 1 (this section).
+
+### Gates rerun (all green)
+
+- Client `npx tsc --noEmit` → 0 errors.
+- Client `npm run build` → `✓ built in 4.50s`, exit 0.
+- Client focused (52/52): `actor-school-session-epoch`, `actor-scope-session`,
+  `term-authority-actor-scope`, `dashboard-lifecycle-truth`,
+  `section-scope-dispatch` (4), `session-scope-late-discard` (5).
+- Server `npm run build` → exit 0.
+- Server `runtime-router-actor-scope.test.ts` → 2/2; `term-cache-catchup-rrtc01.test.ts` → 1/1 (disposable).
+- `git diff --check a4dcd061..HEAD` → clean; worktree clean after commit.
+
+### Forbidden-scope statement
+
+Only the allowed paths changed: `Sections.tsx`, section child components that
+receive/pass `schoolId` (`SectionRoomMapModal`, `HomeRoomAutoAssignDialog`,
+`SectionRoomPicker`), `MyDashboard.tsx`, `MySchedule.tsx`, and two new client
+test files. `actor-scope-session.ts` and the server were not touched in this
+round. No `?? 1`/`|| 1` fallback was introduced; no non-listed residual was changed.
+

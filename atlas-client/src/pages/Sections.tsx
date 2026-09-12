@@ -948,13 +948,13 @@ export default function Sections() {
 			/>
 
 			{scopedSchoolId != null && (
-				<SectionRoomMapModal 
-					open={globalBrowseModalOpen} 
-					onOpenChange={setGlobalBrowseModalOpen} 
-					sectionName="Global Browse" 
-					sectionId={0} 
-					currentRoomId={null} 
-					onSelect={() => {}} 
+				<SectionRoomMapModal
+					open={globalBrowseModalOpen}
+					onOpenChange={setGlobalBrowseModalOpen}
+					sectionName="Global Browse"
+					sectionId={0}
+					currentRoomId={null}
+					onSelect={() => {}}
 					schoolId={scopedSchoolId}
 					roomOccupancy={roomOccupancyMap}
 					roomSectionData={roomSectionDataMap}
