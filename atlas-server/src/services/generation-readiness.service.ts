@@ -27,6 +27,7 @@ import {
 	sortPreflightBlockers,
 	STAKEHOLDER_DECISION_NOTES,
 	validateCanonicalEntryShapes,
+	classifyShapePolicyBlocker,
 	summarizePreflightParity,
 	type GenerationBlockerCategory,
 	type GenerationPreflightBlocker,
@@ -37,8 +38,11 @@ import {
 	type GenerationPreflightTeachingLoadCoverage,
 } from './generation-preflight.service.js';
 import type { CanonicalTemplateCoverage } from './class-program-slot.service.js';
+import { normalizeInternalGradeId } from './class-program-slot.service.js';
 import type { DerivedDemandBlocker } from './derived-demand.service.js';
 import type { DraftConsumeRejection } from './pre-generation-draft.service.js';
+import { normalizeProgramType } from './generation-shape-assembly.service.js';
+import { buildTimetableOutputProjections, validateTermTeacherResolution, validateTimetableShapePolicy } from './timetable-shape-policy.service.js';
 
 const db = () => getDataContext();
 
@@ -181,6 +185,20 @@ async function buildGenerationReadinessWithContext(
 			selectedProfileId: result.selectedProfileId,
 			runtimeMs: Date.now() - schedulerStartedAt,
 		};
+		if (assembly.derived.totalLines === 0 || assembly.derived.totalPairs === 0 || result.entries.length === 0) {
+			blockers.push({
+				code: 'EMPTY_SCHEDULE_OUTPUT',
+				category: 'ALGORITHM_LIMIT',
+				termIdentity: null,
+				sectionId: null,
+				subjectId: null,
+				subjectCode: null,
+				entity: 'Canonical readiness scheduler output',
+				reason: 'The readiness dry run produced no scheduled entries; an empty schedule cannot be reported ready.',
+				owningSurface: 'Generation readiness diagnostic',
+				nextAction: 'Resolve demand or placement blockers, then re-run readiness.',
+			});
+		}
 
 		const validatorCtx = buildPreflightValidatorContext(assembly, result.entries as ScheduledEntry[], 0);
 		const validation = validateHardConstraints(validatorCtx);
@@ -192,6 +210,23 @@ async function buildGenerationReadinessWithContext(
 		// validator. An out-of-shape entry is a HARD blocker.
 		const shapeViolations = validateCanonicalEntryShapes(result.entries as ScheduledEntry[], assembly.timetableShapeContracts, buildSectionScopeMap(assembly.sectionsByGrade));
 		for (const shapeViolation of shapeViolations) blockers.push(shapeViolation);
+		const outputShapePolicy = validateTimetableShapePolicy({
+			termAuthority: { format: assembly.derived.termStructure.format, terms: assembly.derived.termStructure.terms.map((term) => ({ identity: term.identity, order: term.order })), cachedAt: 'derived-demand-authority' },
+			validateShiftWindows: false,
+			shiftWindows: [],
+			sections: assembly.sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
+			shapes: assembly.timetableShapeContracts,
+			rooms: assembly.rooms,
+			subjects: assembly.subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
+			entries: (result.entries as ScheduledEntry[]).map((entry) => ({ entryId: entry.entryId, sectionId: entry.sectionId, facultyId: entry.facultyId, roomId: entry.roomId, subjectId: entry.subjectId, termIndex: entry.termIndex ?? 0, startTime: entry.startTime, endTime: entry.endTime })),
+			outputProjections: buildTimetableOutputProjections(result.entries as ScheduledEntry[]),
+		});
+		for (const shapeBlocker of outputShapePolicy.filter((entry) => entry.code === 'OUTPUT_SHAPE_MISMATCH' || entry.code === 'ROTATION_TERM_INVALID')) {
+			blockers.push(classifyShapePolicyBlocker(shapeBlocker));
+		}
+		for (const teacherBlocker of validateTermTeacherResolution((result.entries as ScheduledEntry[]).map((entry) => ({ subjectId: entry.subjectId, sectionId: entry.sectionId, termIndex: entry.termIndex ?? 0, facultyId: entry.facultyId })))) {
+			blockers.push(classifyShapePolicyBlocker(teacherBlocker));
+		}
 		if (shapeViolations.length > 0) {
 			violations = {
 				...violations,

@@ -18,6 +18,7 @@ export interface SpecialEventRowLike {
 	programType: string | null;
 	startTime: string;
 	endTime: string;
+	dayOfWeek?: string | null;
 	enabled: boolean;
 }
 
@@ -27,6 +28,7 @@ export interface EffectiveSpecialEvent {
 	label: string;
 	startTime: string;
 	endTime: string;
+	dayOfWeek?: string | null;
 	gradeGroup: string | null;
 	programType: string | null;
 }
@@ -133,6 +135,7 @@ function toEffective(row: SpecialEventRowLike): EffectiveSpecialEvent {
 		label: row.label,
 		startTime: row.startTime,
 		endTime: row.endTime,
+		dayOfWeek: row.dayOfWeek ?? null,
 		gradeGroup: row.gradeGroup,
 		programType: row.programType,
 	};
