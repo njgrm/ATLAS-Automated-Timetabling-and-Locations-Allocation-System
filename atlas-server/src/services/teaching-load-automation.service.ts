@@ -89,14 +89,14 @@ type PersistedQualificationAuthority = {
 	specializationAliases: Array<{ alias: string; canonical: string }>;
 };
 
-async function loadPersistedQualificationAuthority(schoolId: number): Promise<PersistedQualificationAuthority> {
-	const client = db() as any;
+async function loadPersistedQualificationAuthority(schoolId: number, client?: unknown): Promise<PersistedQualificationAuthority> {
+	const actor = (client ?? db()) as any;
 	const [aliasRows, labelRows, prefixRows, permissionRows, specializationAliases] = await Promise.all([
-		client.departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
-		client.departmentLabel.findMany({ where: { schoolId }, select: { code: true, label: true } }),
-		client.subjectOwnerPrefix.findMany({ where: { schoolId }, select: { prefix: true, department: true } }),
-		client.crossDepartmentPermission.findMany({ where: { schoolId }, select: { facultyId: true, subjectId: true } }),
-		client.specializationAlias.findMany({ where: { schoolId }, select: { alias: true, canonical: true } }),
+		actor.departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
+		actor.departmentLabel.findMany({ where: { schoolId }, select: { code: true, label: true } }),
+		actor.subjectOwnerPrefix.findMany({ where: { schoolId }, select: { prefix: true, department: true } }),
+		actor.crossDepartmentPermission.findMany({ where: { schoolId }, select: { facultyId: true, subjectId: true } }),
+		actor.specializationAlias.findMany({ where: { schoolId }, select: { alias: true, canonical: true } }),
 	]);
 
 	return {
@@ -1237,6 +1237,23 @@ function evaluateCanonicalTeachingLoadQualification(
 		specializationAliases: authority.specializationAliases,
 	}, authority.policy);
 	return { tier: result.tier, authority: canonicalQualificationAuthority(result), reason: result.reason };
+}
+
+/**
+ * Transaction-bound canonical receiver evaluation. The reviewed suggestion-apply
+ * path must re-validate a move's receiver against the SAME persisted-only policy
+ * snapshot used to preview it, resolved through the caller's transaction client
+ * so the authority cannot change between the validation read and the write.
+ */
+export async function evaluateTeachingLoadReceiverQualification(
+	client: unknown,
+	schoolId: number,
+	faculty: TeachingLoadQualificationFaculty & { id?: number },
+	subject: TeachingLoadQualificationSubject & { id?: number; programScopes?: string[] },
+	sectionProgramType: string,
+): Promise<{ tier: number | null; authority: TeachingLoadQualificationAuthority | null; reason: string }> {
+	const authority = await loadPersistedQualificationAuthority(schoolId, client);
+	return evaluateCanonicalTeachingLoadQualification(faculty, subject, sectionProgramType, authority);
 }
 
 function compareSubjectsDeterministically(sa: SubjectRow, sb: SubjectRow): number {

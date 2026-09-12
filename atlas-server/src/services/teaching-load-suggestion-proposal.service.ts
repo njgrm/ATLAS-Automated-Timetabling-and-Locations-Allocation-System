@@ -3,7 +3,7 @@ import { Prisma, type TeachingLoadSuggestionStatus } from '@prisma/client';
 import { getDataContext } from '../lib/data-context.js';
 import {
 	autoFill,
-	resolveTeachingLoadQualification,
+	evaluateTeachingLoadReceiverQualification,
 	type AutoFillResult,
 	type CoverageMode,
 	type TeachingLoadDistributionPlan,
@@ -543,6 +543,7 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 					ownerDepartment: true,
 					requiredFeatures: true,
 					allowedSpecializations: true,
+					programScopes: true,
 				},
 			})
 			: [];
@@ -550,17 +551,22 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		if (moveSubjectById.size !== moveSubjectIds.length) {
 			throw distributionStale('A subject referenced by the reviewed plan no longer exists. Preview a fresh proposal.');
 		}
-		const moveAliasRows = await tx.specializationAlias.findMany({
-			where: { schoolId: existing.schoolId },
-			select: { canonical: true, alias: true },
-		});
-		const moveAliasesByCanonical = new Map<string, Set<string>>();
-		for (const alias of moveAliasRows) {
-			const canonKey = alias.canonical.trim().toLowerCase();
-			const aliasSet = moveAliasesByCanonical.get(canonKey) ?? new Set<string>();
-			aliasSet.add(alias.alias.trim().toLowerCase());
-			moveAliasesByCanonical.set(canonKey, aliasSet);
-		}
+		// The canonical persisted-only evaluator needs the section's program type,
+		// resolved through this transaction so preview and apply agree.
+		const moveSectionIds = [...new Set(planMoves.map((move) => move.sectionId))];
+		const moveSectionRows = moveSectionIds.length > 0
+			? await tx.sectionMirror.findMany({
+				where: {
+					schoolId: existing.schoolId,
+					schoolYearId: existing.schoolYearId,
+					externalId: { in: moveSectionIds },
+				},
+				select: { externalId: true, programType: true },
+			})
+			: [];
+		const moveSectionProgramTypeById = new Map<number, string>(
+			moveSectionRows.map((section: any) => [section.externalId, (section.programType as string) ?? 'REGULAR']),
+		);
 
 		for (const move of planMoves) {
 			const ownership = await tx.subjectSectionOwnership.findUnique({
@@ -608,25 +614,30 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 				throw distributionStale('A subject weekly-minutes change invalidated the reviewed move. Preview a fresh proposal.');
 			}
 
-			const qualification = resolveTeachingLoadQualification({
-				faculty: receiver,
-				subject: moveSubject,
-				aliasesByCanonical: moveAliasesByCanonical,
-			});
+			const qualification = await evaluateTeachingLoadReceiverQualification(
+				tx,
+				existing.schoolId,
+				receiver,
+				moveSubject,
+				moveSectionProgramTypeById.get(move.sectionId) ?? 'REGULAR',
+			);
 			if (qualification.tier !== move.toQualificationTier || qualification.authority !== move.toQualificationAuthority) {
 				throw distributionStale('A proposed receiver qualification or authority changed since the reviewed preview. Preview a fresh proposal.');
 			}
 
-			const hgSubject = await tx.subject.findFirst({
-				where: { schoolId: existing.schoolId, code: 'HG' },
+			// HG (advisory-covered) and ARAL (excluded program) contribute no
+			// ordinary teaching minutes; receiver capacity mirrors the preview.
+			const nonDemandSubjects = await tx.subject.findMany({
+				where: { schoolId: existing.schoolId, code: { in: ['HG', 'ARAL'] } },
 				select: { id: true },
 			});
+			const nonDemandSubjectIds = nonDemandSubjects.map((subject: any) => subject.id);
 			const receiverOwned = await tx.subjectSectionOwnership.findMany({
 				where: {
 					schoolId: existing.schoolId,
 					schoolYearId: existing.schoolYearId,
 					facultyId: move.toFacultyId,
-					...(hgSubject ? { subjectId: { not: hgSubject.id } } : {}),
+					...(nonDemandSubjectIds.length > 0 ? { subjectId: { notIn: nonDemandSubjectIds } } : {}),
 				},
 				select: { facultySubject: { select: { subject: { select: { minMinutesPerWeek: true } } } } },
 			});
