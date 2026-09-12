@@ -47,9 +47,9 @@ hard blockers before separately approving publication.
   authenticated session (zero cookies, no token, protected routes redirect to
   `/login`). Per the approved sentence the execution stopped before any
   listener, environment, or task change — no deployment occurred; the incumbent
-  runtime is untouched. Awaiting the operator's decision on one bounded login
-  authorization (exact audit delta) or a split deployment/acceptance boundary.
-  No fresh login yet; no apply/sync/generation/publication.
+  runtime is untouched. The operator authorized exactly one bounded login
+  (2026-09-12) and execution resumed. No other login; no
+  apply/sync/generation/publication.
 - Shared runtime RESTORED (2026-09-12, Asia/Manila) under the operator's exact
   HIGH approval: supervised release `9d293879` (pin `d44f29e0`) serves server
   5001 (PID 15388) and production host 5174 (PID 22272); local
@@ -256,7 +256,7 @@ hard blockers before separately approving publication.
 | RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `INTEGRATED` | MEDIUM source/test; HIGH future live install | `work/runtime-supervision-c01`; `cf9b7e6e...05143d65`; merge `0ec3b8f7` | Install remains separately gated by the prepared HIGH packet | Round-2 pin correction `05143d65` passed fresh QA `ses_f6b56dd43ffeG3CSnFNNJBficZ` `ACCEPT_READY` 8/8 (blocked 0, unperformed 0): real-tree pin positive (previously unsatisfiable), equality-mutant failing-first, `PIN_MISMATCH`/`RELEASE_SHA_*` fail-closed, distinct status, inventory redaction, 56/56 ops, ports untouched. Pre-install audit `ses_f6b5175c6ffejlywhgblmX7c5k` `AUDIT_CLEAR` 14/14 | Closed in source; original install packet SUPERSEDED; the deploy-as-restore packet (R1) was approved and executed — runtime restored (see RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE row) |
 | RUNTIME-SUPERVISION-LIVE-INSTALL | Replace the ephemeral runtime by installing the reviewed supervisor on 5001/5174 with boot recovery and rollback | `SUPERSEDED` | HIGH shared-runtime cutover + boot-task registration | Correction packet `docs/prompts/runtime-supervisor-live-install-correction-2026-09-12.md`; frozen release `9d293879`; no candidate created | Replaced by the deploy-as-restore boundary after the runtime outage was reconfirmed (`d44f29e0` no longer running; Tailnet 502; no 5001/5174 listener) | Prior attempt `2794c40f` was independently rejected for Access Denied task registration; the elevated retry never ran because the runtime was found down before execution | Historical record; do not execute with swap wording |
 | RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE | Restore the down shared runtime by starting the reviewed supervisor (`9d293879`, pin `d44f29e0`) on empty 5001/5174, registering boot recovery, then disabling the legacy task after health | `INTEGRATED` — COMPLETE (post-action audit cleared) | HIGH shared-runtime deploy-as-restore + boot-task registration | approval received 2026-09-12 (DB `atlas_recovery_clean_rebuild_20260905` confirmed); executor task `ses_f6aa9bd82ffeZuVkjof36wri6Z`; evidence `f52e4b1e...5c699f36`; merge `1792cca9`; pre-action audit `ses_f6abf6c5effeY3MI5UGXRdUkeQ`; post-action audit `ses_f6a97cff2ffe6GdgWaJ4O2A0c4` | Closed; residuals recorded (reboot-start unexercised; running supervisor is a detached manual process; ONSTART task is the restart mechanism) | Live: 5001→15388 / 5174→22272, health/ready/Tailnet 200, boot task ONSTART/`PT0S`, legacy Disabled; fresh QA `ACCEPT_READY` 9/9; post-action audit `AUDIT_CLEAR` 14/14; capsules under `docs/reviews/runtime-supervisor-live-install-restore-20260912/` | Closed; runtime map reconciled; next HIGH-prep is the term-cache catch-up preview (apply stays separately gated) |
-| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `BLOCKED` — `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` (stage-1 custodian stop; no deployment) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; audit spec `docs/prompts/tt-tl-runtime-acceptance-r3-final-audit-2026-09-12.md`; target `3d916b26`; current supervised release `9d293879` (pin `d44f29e0`); rollback: supervised reset to `9d293879` + `d44f29e0` manual fallback | Operator decision required: one bounded login authorization (fresh login creates an audit row) or split deployment from authenticated acceptance; no fresh login authorized yet | Stage-1 QA custodian `ses_f69dad967ffen0hM5EDqWA0Rib`: no authenticated session in the persistent profile (zero cookies/token; protected routes redirect to `/login`); EnrollPro proxy endpoints returned 502 (`/enrollpro-api/settings/public`, `/enrollpro-uploads/...`) — separate live observation; incumbent runtime untouched (no mutation) | On the operator's decision, re-run the R3 order (custodian preflight → build → pre-stop recheck → quiesce/switch → QA acceptance); otherwise keep blocked |
+| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `RUNNING` (bounded login authorized 2026-09-12; executing: custodian login+preflight → build → pre-stop recheck → switch → QA acceptance) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; audit spec `docs/prompts/tt-tl-runtime-acceptance-r3-final-audit-2026-09-12.md`; target `3d916b26`; current supervised release `9d293879` (pin `d44f29e0`); rollback: supervised reset to `9d293879` + `d44f29e0` manual fallback | Exactly one bounded login authorized (expected delta: one `LOCAL_LOGIN_SUCCESS` + `last_login_at`, nothing else); custodian retains the context through stages 2–3 and performs logout/token cleanup at the end; resident-supervisor quiesce required before any durable re-point | Stage-1 preflight blocked (no session) at `ses_f69dad967ffen0hM5EDqWA0Rib`; operator authorized the bounded login 2026-09-12; incumbent runtime untouched | Re-run the R3 order: custodian login+preflight, build phase, pre-stop recheck, quiesce/switch phase, QA acceptance; integrate the executor evidence commit |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
@@ -322,8 +322,9 @@ hard blockers before separately approving publication.
    the operator returned the exact R3 approval sentence on 2026-09-12. The
    stage-1 custodian preflight returned `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`
    (no authenticated session) and execution stopped before any mutation; the
-   operator decision on a bounded login or a split boundary is awaited before
-   the elevated executor deploys target
+   operator then authorized exactly one bounded login (one `LOCAL_LOGIN_SUCCESS`
+   + `last_login_at`) and execution resumed in the R3 order: custodian
+   login+preflight, build, pre-stop recheck, then the elevated executor deploys target
    `3d916b26` on 5001/5174 (machine env + boot task re-pointed; rollback =
    supervised reset to `9d293879`; `d44f29e0` retained only as a manual
    non-supervised last resort; rollover automation disabled), runs the
@@ -333,10 +334,9 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- The execution stopped at the stage-1 session gate with no mutation; no stream
-  is currently authorized to stop/start the supervisor-owned 5001/5174. On the
-  operator's session decision, `TT-TL-RUNTIME-ACCEPTANCE` resumes as the only
-  owner (target `3d916b26`,
+- The operator authorized the bounded login (2026-09-12) and execution resumed;
+  `TT-TL-RUNTIME-ACCEPTANCE` is the only stream authorized to stop/start the
+  supervisor-owned 5001/5174 (target `3d916b26`,
   rollback = supervised reset to `9d293879`; `d44f29e0` is a manual
   non-supervised last resort only); the incumbent supervised release `9d293879`
   keeps serving until the bounded stop/start, and read-only monitoring is
@@ -420,9 +420,12 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   `AUDIT_CLEAR` 10/10; the operator returned the exact R3 approval sentence on
   2026-09-12. The stage-1 custodian preflight blocked
   (`EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; no session in the persistent
-  profile; no mutation). Awaited: the operator's decision on one bounded login
-  authorization (exact audit delta declared) or a split deployment/acceptance
-  boundary. No executor or QA return remains in flight.
+  profile; no mutation). The operator then authorized exactly one bounded login
+  on 2026-09-12 (one `LOCAL_LOGIN_SUCCESS` + `last_login_at`, nothing else;
+  custody retained through stages 2–3; logout/token cleanup by the custodian at
+  the end) and execution resumed in the R3 order: custodian login+preflight →
+  build → pre-stop recheck → quiesce/switch → QA acceptance. No other login; no
+  apply/sync/generation/publication.
 - `TL-SUGGESTION-C03R`: awaited external executor candidate from the preserved
   dirty worktree, then fresh QA.
 - `TT-OUTPUT-C03R`: awaited external executor correction above `378a1f71`, then
