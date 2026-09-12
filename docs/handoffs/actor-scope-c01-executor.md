@@ -233,4 +233,3 @@ receive/pass `schoolId` (`SectionRoomMapModal`, `HomeRoomAutoAssignDialog`,
 `SectionRoomPicker`), `MyDashboard.tsx`, `MySchedule.tsx`, and two new client
 test files. `actor-scope-session.ts` and the server were not touched in this
 round. No `?? 1`/`|| 1` fallback was introduced; no non-listed residual was changed.
-
