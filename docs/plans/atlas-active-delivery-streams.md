@@ -68,7 +68,7 @@ hard blockers before separately approving publication.
   swap packet is superseded by the confirmed outage. Deployment was separately
   gated and not executed by that cycle.
 - Cycle recovery: `actor-scope-deploy-restore-20260912`
-  (`DEPLOYED_ACCEPTANCE_INCOMPLETE`) started
+  (`INTEGRATED` — acceptance closed, wave audit pending) started
   2026-09-12 (Asia/Manila) under the operator's explicit HIGH approval of
   ACTOR-SCOPE-DEPLOY-RESTORE-2026-09-12. Planner session
   `ses_f6bc8cee4ffe4v813ndCWIvFh1`. Deployment identity is the product pin
@@ -91,13 +91,30 @@ hard blockers before separately approving publication.
   signatures, and evidence quality all pass; C2/C3/C4-positive/C5/C6/C8 are
   blocked because the persistent profile holds no reusable session (planner
   independently confirmed: no cookie/sessionStorage token, `/auth/me` 401) and
-  the packet's single authorized login was consumed by the executor. Additive
-  documentation correction `534832bc` (docs-only) is unverified pending the
-  decision. Terminal state: `DEPLOYED_ACCEPTANCE_INCOMPLETE` with a required
-  operator decision — one additional recorded acceptance login for QA, or an
-  explicit waiver. No term-cache apply, rollover sync, Teaching Load mutation,
-  generation, or publication is authorized by this cycle; the wave audit is
-  deferred until acceptance closes.
+  the packet's single authorized login was consumed by the executor. Terminal
+  state was `DEPLOYED_ACCEPTANCE_INCOMPLETE` with one operator decision
+  pending. Closure (2026-09-12): the operator supplied the additional recorded
+  login (grant: one login; delta ≤ one `LOCAL_LOGIN_SUCCESS` row id > 761 plus
+  actor `last_login_at`). Fresh QA task `ses_f6b893b57ffelxC4Jcm0m2HPxB`
+  returned `ACCEPT_READY` 13/13 (blocked 0, unperformed 0): C2/C3/C4-positive/
+  C5/C6/C8 pass on the live runtime with the origin invariant asserted on every
+  row; DB delta is exactly one `LOCAL_LOGIN_SUCCESS` row (id 762, actor 46,
+  school 1) plus that actor's `last_login_at` (`2026-09-12T07:19:30.928Z`);
+  all other signatures delta 0; the QA-disclosed pre-login 401
+  credential-transfer attempt had zero DB/session footprint. Evidence
+  `d44f29e0...534832bc` integrated at merge `1add5323`; wave audit pending. No
+  term-cache apply, rollover sync, Teaching Load mutation, generation, or
+  publication is authorized by this cycle.
+- Cycle recovery: `runtime-stability-wave-20260912` (CYCLE_ACTIVE) started
+  2026-09-12 (Asia/Manila) under `CYCLE ON` with the recorded login approval.
+  Lane A closed its acceptance (above; evidence integrated `1add5323`). Lane B:
+  executor task `ses_f6b8926eaffeZnC8DZxv41BAjY` returned `REVIEW_REQUIRED` at
+  candidate `aa699b2c` (base `cf9b7e6e`; 28 files, +3106/−4; 51/51 ops tests;
+  builds and isolated-port lifecycle evidence with zero survivors); fresh
+  independent QA running on the immutable range. Live runtime stays
+  `EPHEMERAL_DEPLOYMENT` (PIDs 38468/38460); no supervisor install, term-cache
+  apply, rollover sync, Teaching Load mutation, generation, or publication
+  authorized.
 - Planner validation and live-state correction (2026-09-12, Asia/Manila):
   `rrtc01r2-20260912` source claims were independently reproduced by the primary
   planner (candidate worktree at `4489bbbd` clean; actor-school session-epoch
@@ -109,10 +126,10 @@ hard blockers before separately approving publication.
   and recorded PIDs 11564/6756 are absent; machine boot 2026-09-11 20:58
   predates the W1 deploy, so this is a post-deploy stop/crash, not a reboot.
   Earlier "live" wording in this register is superseded.
-- Cycle recovery: `w1-runtime-deploy-20260911`
-  (`DEPLOYED_ACCEPTANCE_INCOMPLETE`) updated 2026-09-11
+- Cycle recovery: `w1-runtime-deploy-20260911` (`SUPERSEDED` by the
+  2026-09-12 restore) updated 2026-09-11
   22:52 Asia/Manila. The approved HIGH `W1-RUNTIME-DEPLOY` packet was executed:
-  product `fdd0c8c7` is deployed live (server PID 11564 + client PID 6756 from
+  product `fdd0c8c7` was deployed live (server PID 11564 + client PID 6756 from
   `D:/ATLAS-worktrees/w1-runtime-deploy`) with Tailnet health 200, rollover
   automation disabled, and zero unauthorized writes (SIGNATURE_DIFFS=0; audit
   232→232). Executor task `ses_f6f297342ffes5Eg42fvNe7GbE` returned
@@ -168,13 +185,13 @@ hard blockers before separately approving publication.
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7` live; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Four mandatory authenticated/diagnostic rows remain blocked; active year 9 is aligned but its required persisted term snapshot is missing | Deployment identity, rollover-disabled log, localhost/Tailnet health, unauthenticated responsive pages, and zero unauthorized DB writes are independently verified. QA's global `ACCEPT_READY` is rejected because mandatory Stage C/D checks were not run | Runtime confirmed down 2026-09-12 (Tailnet 502; no listeners on 5001/5174; recorded PIDs absent): the stop-then-start swap packet is SUPERSEDED and must not be executed. The replacement deploy-as-restore packet was approved and executed on 2026-09-12 (see the ACTOR-SCOPE-DEPLOY-RESTORE row): product `d44f29e0` is live on 5001/5174 and its acceptance is `DEPLOYED_ACCEPTANCE_INCOMPLETE` pending the session decision. |
-| RR-TERM-CACHE-C01 | Separate year alignment from persisted ordered-term readiness and provide one narrow, previewed term-cache catch-up path | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01`; `77894b7a...45f08955`; merge `8c0a1207` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0); planner pre-QA reproduced status 11/11 and client 6/6; integration-tier reruns C02 8/8, cache-instrumentation 32/32 zero-residue, lifecycle 208/0, rr-ux01 pass; both builds/startup previously verified; rollover-automation suite not independently rerun (seeded-disposable only; all changed-field assertions expect false and the change is strictly more conservative) | Closed in source; its deployment is superseded by the RR-TERM-CACHE-C01R correction (merge `a1256506`), which must be deployed before the reviewed term-cache catch-up preview |
-| RR-TERM-CACHE-C01R | Close term-authority JWT/actor-school authority, client school-1 defaults, and in-transaction complete active-year election | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01r`; `904818d4...86376ba7`; merge `a1256506` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0): mounted JWT/system-token matrix with zero dispatch, no school-1 defaults, fail-closed actor-scoped wrapper, scope-transition clearing, in-transaction complete-set re-election (`ACTIVE_YEAR_AMBIGUOUS`, zero writes), replay/audit invariants, both tsc/builds, isolated built-server 401s; integration gates rerun on the merged tree | Closed in source; execute the prepared bounded deployment packet, then prepare the reviewed term-cache catch-up preview and stop for its separate HIGH approval |
-| RR-TERM-CACHE-C01R2 | Bind the client actor-school resolver cache to the authenticated token epoch and make the deploy packet's listener sequence executable (stop-then-start with per-stage rollback) | `INTEGRATED` | MEDIUM source + docs; deployment stays HIGH | `work/rr-term-cache-c01r2`; `781a457f...4489bbbd`; merge `a633db50` | Live deployment remains separately gated | Fresh QA `ACCEPT_READY` (mandatory 10/10, blocked 0, unperformed 0): real-path session-epoch transition (no-token fail-closed, logout/expiry, A→B re-login with zero school-1 dispatch, late obsolete-response discard in both orderings, bridge replacement, invalid-id rejection, zero scoped dispatch unresolved); independent mutant control 6/9 failing; client tsc/build; server status 11/11 + mounted disposable-PostgreSQL 1/1 preserved; packet re-read confirms stop-then-start and no zero-downtime claim | Closed in source; deploy only after the operator returns the corrected packet's approval sentence (pin recorded at merge `a633db50`) |
-| ACTOR-SCOPE-C01 | Close actor-school/year scope end to end: remove school-1 defaults from actor-sensitive helpers, bind client consumers to the authenticated token epoch, and gate the runtime read routes on explicit actor school | `INTEGRATED` | MEDIUM source; deployment stays HIGH | `work/actor-scope-c01`; `a4dcd061...98ab5e04`; merge `d44f29e0` | Live deployment and the remaining defaulting `parseSchoolId` sites on non-listed runtime mutation routes are separate successor actions | Fresh QA `ACCEPT_READY` (mandatory 18/18, blocked 0, unperformed 0): real-path epoch suites, 55/55 focused client tests, two independent mutant controls, mounted disposable-PostgreSQL runtime-route matrix with zero DB/upstream dispatch on every rejection, both builds; integration reproduced product-tree identity, client 55/55, and server 3/3 on the merged tree | Closed in source; execute only via the prepared deploy-as-restore packet and its own explicit HIGH approval |
-| ACTOR-SCOPE-DEPLOY-RESTORE | Restore the shared runtime from the confirmed outage by deploying product pin `d44f29e0` on 5001/5174 with rollover automation disabled, then run the bounded authenticated Tailnet Stage C acceptance | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deploy-as-restore | `work/actor-scope-deploy-restore-20260912`; `d44f29e0...7d874c7c` + additive correction `534832bc` | QA blocked on the missing reusable session; a second recorded login is outside the approved sentence — operator decision required (one additional login or explicit waiver). Runtime is `EPHEMERAL_DEPLOYMENT` | Fresh QA `ses_f6bb46404ffeB8erOdXSiL9uST`: `PLANNER_DECISION_REQUIRED` 27/21/6/0 — identity/range (product tree == pin), listeners/PIDs/logs/`EPHEMERAL`, Tailnet 200/origin, unauth 401 controls, DB signatures (single login footprint, zero residue), evidence quality all PASS; C2/C3/C4-positive/C5/C6/C8 blocked (no session; planner re-confirmed 401) | After the decision: if a login is authorized, fresh QA re-verifies C2–C6/C8 on the corrected range, then integrate evidence + wave audit; if waived, integrate with the limitation recorded and close `DEPLOYED_ACCEPTANCE_INCOMPLETE` |
-| RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `READY_FOR_EXECUTION` | MEDIUM source/test; HIGH future live install | Prompt `docs/prompts/runtime-stability-wave-2026-09-12.md`; fresh worktree `D:/ATLAS-worktrees/runtime-supervision-c01` from refreshed `origin/main` | Source and isolated-port proof have no blocker; live installation remains separately gated | Current runtime uses a transient copied `.env`, unmanaged PIDs, Vite dev/HMR, liveness-only health, and no restart-on-exit owner; stale `ATLAS-DevServer-Temp2` has no trigger/restart policy and last result 1 | Execute Lane B source/test only on isolated ports; fresh QA; integrate if accepted; then prepare a separate HIGH live-install packet |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `SUPERSEDED` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7`; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Replaced after the post-deploy outage by ACTOR-SCOPE-DEPLOY-RESTORE | Deployment identity, rollover-disabled log, unauthenticated pages, and zero unauthorized writes were independently verified; its global QA verdict was rejected for unperformed mandatory rows; the missing authenticated acceptance was completed by ACTOR-SCOPE-DEPLOY-RESTORE at the `d44f29e0` pin | Historical record; do not reuse its swap/probe wording. Remaining runtime work targets the `d44f29e0` restore and the future supervisor install |
+| RR-TERM-CACHE-C01 | Separate year alignment from persisted ordered-term readiness and provide one narrow, previewed term-cache catch-up path | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01`; `77894b7a...45f08955`; merge `8c0a1207` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0); planner pre-QA reproduced status 11/11 and client 6/6; integration-tier reruns C02 8/8, cache-instrumentation 32/32 zero-residue, lifecycle 208/0, rr-ux01 pass; both builds/startup previously verified; rollover-automation suite not independently rerun (seeded-disposable only; all changed-field assertions expect false and the change is strictly more conservative) | Closed in source; deployed via the `d44f29e0` restore (its own deployment was superseded by the C01R correction at `a1256506`); term-cache apply remains separately gated |
+| RR-TERM-CACHE-C01R | Close term-authority JWT/actor-school authority, client school-1 defaults, and in-transaction complete active-year election | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01r`; `904818d4...86376ba7`; merge `a1256506` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0): mounted JWT/system-token matrix with zero dispatch, no school-1 defaults, fail-closed actor-scoped wrapper, scope-transition clearing, in-transaction complete-set re-election (`ACTIVE_YEAR_AMBIGUOUS`, zero writes), replay/audit invariants, both tsc/builds, isolated built-server 401s; integration gates rerun on the merged tree | Closed in source; its code is deployed via the `d44f29e0` restore (the old bounded deployment packet is superseded). Prepare the reviewed term-cache catch-up preview and stop for its separate HIGH approval |
+| RR-TERM-CACHE-C01R2 | Bind the client actor-school resolver cache to the authenticated token epoch and make the deploy packet's listener sequence executable (stop-then-start with per-stage rollback) | `INTEGRATED` | MEDIUM source + docs; deployment stays HIGH | `work/rr-term-cache-c01r2`; `781a457f...4489bbbd`; merge `a633db50` | Live deployment remains separately gated | Fresh QA `ACCEPT_READY` (mandatory 10/10, blocked 0, unperformed 0): real-path session-epoch transition (no-token fail-closed, logout/expiry, A→B re-login with zero school-1 dispatch, late obsolete-response discard in both orderings, bridge replacement, invalid-id rejection, zero scoped dispatch unresolved); independent mutant control 6/9 failing; client tsc/build; server status 11/11 + mounted disposable-PostgreSQL 1/1 preserved; packet re-read confirms stop-then-start and no zero-downtime claim | Closed in source; deployed via the `d44f29e0` restore (the corrected swap packet is SUPERSEDED by the outage and must not be executed). Term-cache apply remains separately gated |
+| ACTOR-SCOPE-C01 | Close actor-school/year scope end to end: remove school-1 defaults from actor-sensitive helpers, bind client consumers to the authenticated token epoch, and gate the runtime read routes on explicit actor school | `INTEGRATED` | MEDIUM source; deployment stays HIGH | `work/actor-scope-c01`; `a4dcd061...98ab5e04`; merge `d44f29e0` | Live deployment and the remaining defaulting `parseSchoolId` sites on non-listed runtime mutation routes are separate successor actions | Fresh QA `ACCEPT_READY` (mandatory 18/18, blocked 0, unperformed 0): real-path epoch suites, 55/55 focused client tests, two independent mutant controls, mounted disposable-PostgreSQL runtime-route matrix with zero DB/upstream dispatch on every rejection, both builds; integration reproduced product-tree identity, client 55/55, and server 3/3 on the merged tree | Closed in source; deployed via ACTOR-SCOPE-DEPLOY-RESTORE (`d44f29e0` live, acceptance closed); the remaining defaulting sites stay backlog-only |
+| ACTOR-SCOPE-DEPLOY-RESTORE | Restore the shared runtime from the confirmed outage by deploying product pin `d44f29e0` on 5001/5174 with rollover automation disabled, then run the bounded authenticated Tailnet Stage C acceptance | `INTEGRATED` (wave audit pending) | HIGH shared-runtime deploy-as-restore | `work/actor-scope-deploy-restore-20260912`; `d44f29e0...534832bc`; merge `1add5323` | Runtime remains `EPHEMERAL_DEPLOYMENT` until the separately gated supervisor install | Fresh QA `ses_f6b893b57ffelxC4Jcm0m2HPxB` `ACCEPT_READY` 13/13 (blocked 0, unperformed 0): C2/C3/C4-positive/C5/C6/C8 on live Tailnet; DB delta exactly one `LOCAL_LOGIN_SUCCESS` (id 762, actor 46) + `last_login_at`, all else 0; product tree == pin; the pre-login 401 attempt has zero footprint | Run the Wave Completion Auditor on the integrated final tree, then close at terminal reconciliation; no live data actions authorized |
+| RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `REVIEW_REQUIRED` | MEDIUM source/test; HIGH future live install | `work/runtime-supervision-c01`; `cf9b7e6e...aa699b2c` | Fresh QA running; live installation remains separately gated | Executor `ses_f6b8926eaffeZnC8DZxv41BAjY`: candidate `aa699b2c` (28 files, +3106/−4) — pin/env-reference contract, one-owner-per-port, production static host + proxy parity (SPA/SSE/WS), restart with backoff, split liveness/readiness, rollover invariant, bounded logs, opt-in crash policy, reversible CLI previews, read-only legacy-task inventory; 51/51 ops tests, server/client builds, isolated-port lifecycle with zero survivors | Fresh QA on the immutable range; if accepted, integrate and run the pre-live-install Wave Completion Audit; do not install live |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -206,61 +223,49 @@ hard blockers before separately approving publication.
    TT-UX01 integration step remains.
 3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
    integrated; no wave follow-up remains before the runtime deployment.
-4. W1 deployment evidence is integrated at `ed44d62f`; the runtime outage was
-   restored on 2026-09-12 by `actor-scope-deploy-restore-20260912` (product
-   `d44f29e0` live on 5001/5174). The approved single acceptance login was
-   consumed by the executor and did not persist into the reusable profile
-   (sessionStorage-scoped auth), so independent QA cannot re-verify the six
-   authenticated rows without a new decision: one additional recorded login or
-   an explicit waiver. RR-TERM-CACHE-C01R is
-   integrated at merge `a1256506`: year
-   alignment and persisted term authority stay separate states, and the narrow
-   preview/apply repair contract now has JWT-only actor-school authority, no
-   client school-1 default, and a complete in-transaction active-year election.
-5. ACTOR-SCOPE-C01 (`a4dcd061...98ab5e04`, merge `d44f29e0`) is integrated and
-   the approved deploy-as-restore has restored the shared runtime. Acceptance
-   remains incomplete until fresh QA receives authority for one additional
-   login and passes C2/C3/C4-positive/C5/C6/C8, or the operator explicitly
-   accepts the incomplete boundary. In parallel, execute the source/test-only
-   RUNTIME-SUPERVISION-C01 lane from
-   `docs/prompts/runtime-stability-wave-2026-09-12.md`; do not install it live.
-   After acceptance closes and the supervisor source is independently accepted,
-   prepare the separate live-supervisor installation packet and the reviewed
-   term-cache catch-up preview. After an approved catch-up, run the canonical
-   readiness diagnostic for the live school/year.
-   Only if it proves zero hard blockers and exact source freshness, prepare the
-   fingerprinted generation approval package; otherwise return the typed
-   blocker list and corrective handoff.
-6. Obtain explicit HIGH approval, generate once, verify the completed run, then
-   prepare the separate publication preview and approval.
+4. `actor-scope-deploy-restore-20260912` closed its acceptance: fresh QA
+   `ACCEPT_READY` 13/13 (blocked 0, unperformed 0) on the live `d44f29e0`
+   runtime with the exact approved login delta (audit id 762); evidence
+   integrated at `1add5323`. Wave audit running; the runtime stays
+   `EPHEMERAL_DEPLOYMENT` until the supervisor install.
+5. RUNTIME-SUPERVISION-C01 source/test is at `REVIEW_REQUIRED` (`aa699b2c`);
+   fresh QA is running. After acceptance, integrate it and run its own Wave
+   Completion Audit, then prepare the separate HIGH live-supervisor
+   installation packet. The term-cache catch-up preview/apply (HIGH) follows;
+   its apply is a separate approval. The deployed `d44f29e0` pin already
+   includes the RR-TERM-CACHE-C01/R/R2 authority (`a1256506`/`a633db50`/
+   `a4dcd061`).
+6. After an approved term-cache catch-up, run the canonical readiness
+   diagnostic for the live school/year. Only if it proves zero hard blockers
+   and exact source freshness, prepare the fingerprinted generation approval
+   package; otherwise return the typed blocker list and corrective handoff.
+   Then obtain explicit HIGH approval, generate once, verify the completed run,
+   then prepare the separate publication preview and approval.
 
 ## Safe parallel work now
 
-- The `actor-scope-deploy-restore-20260912` deployment stream owns the shared
-  runtime; no other stream may start, stop, or probe 5001/5174 while it is
-  live, and the runtime must stay up for the pending QA re-verification.
-  ACTOR-SCOPE-C01 is integrated at merge `d44f29e0`; the restore is live on the
-  pinned tree and its acceptance awaits one operator decision (additional
-  login or waiver). Carry-forward apply, suggestion apply, generation, and
-  publication remain separately gated. The remaining
+- The shared runtime (PIDs 38468/38460 on 5001/5174) serves the accepted
+  `d44f29e0` pin; its Stage C acceptance is closed. No other stream may start,
+  stop, restart, or replace it; the only planned listener change is the
+  separately gated supervisor install. Carry-forward apply, suggestion apply,
+  generation, and publication remain separately gated. The remaining
   defaulting `parseSchoolId` sites on non-listed runtime mutation routes and the
   `DEFAULT_SCHOOL_ID` backlog pages (MapEditor, MapView, SpecializationMapping,
   PublicPublishedSchedule, coverage.ts, CreatePlaceholderDialog) are
   non-blocking observation backlog pending a separate bounded authorization
   lane.
-- `RUNTIME-SUPERVISION-C01` source/test is safe in parallel in its own clean
-  worktree using fake children and isolated ports only. It may not stop, restart,
-  probe through browser automation, or otherwise alter the live 5001/5174
-  runtime; it may not install/modify a Windows task or service.
+- `RUNTIME-SUPERVISION-C01` source/test runs only in its own worktree using
+  fake children and isolated ports. It may not stop, restart, probe through
+  browser automation, or otherwise alter the live 5001/5174 runtime; it may not
+  install/modify a Windows task or service, and live installation requires its
+  own approved HIGH packet.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
   integration owner; executor documentation overlap is resolved at integration.
-- A bounded runtime deployment is safe only when no executor is using the
-  shared Tailnet runtime for browser evidence.
 
 DEMAND-C01, TL-RR01, and the readiness-wave streams are integrated. Live
 Teaching Load carry-forward apply, suggestion apply, generation, and publication
-remain locked behind their separate previews, QA, and explicit approvals. Do not
-restart the shared runtime while live browser QA is active.
+remain locked behind their separate previews, QA, and explicit approvals.
+Shared-runtime listener changes beyond the supervisor packet remain locked.
 
 ## Awaited returns and decisions
 
@@ -275,24 +280,22 @@ restart the shared runtime while live browser QA is active.
   verified. The W1 runtime deployment is integrated, but its runtime was
   observed down on 2026-09-12 10:15.
 - No ACTOR-SCOPE-C01 source return remains; the candidate is integrated at
-  merge `d44f29e0`. The deploy-as-restore executor and fresh QA returns are in;
-  the cycle is `DEPLOYED_ACCEPTANCE_INCOMPLETE` (QA 27/21/6/0). Awaited: one
-  operator decision — authorize one additional recorded acceptance login for a
-  fresh QA re-verification of C2/C3/C4-positive/C5/C6/C8, or explicitly waive
-  independent re-verification. The old stop-then-start swap packet is
-  superseded and requires no decision.
-- RUNTIME-SUPERVISION-C01 has no executor return yet. Its source/test lane is
-  ready at `docs/prompts/runtime-stability-wave-2026-09-12.md`; live installation
-  is not authorized.
+  merge `d44f29e0`. The deploy-as-restore acceptance is closed: the operator
+  login grant was supplied and consumed exactly once with the approved delta;
+  fresh QA `ACCEPT_READY` 13/13 at candidate `534832bc`, evidence integrated at
+  `1add5323`; the wave audit is running. No operator decision is awaited for
+  these streams.
+- RUNTIME-SUPERVISION-C01 executor `ses_f6b8926eaffeZnC8DZxv41BAjY` returned
+  `REVIEW_REQUIRED` at `aa699b2c`; fresh independent QA is running. Live
+  installation is not authorized and remains a separate HIGH packet.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
-- The shared runtime was last deployed as `fdd0c8c7` with rollover automation
-  disabled and deployment evidence integrated at `ed44d62f`, but it was observed
-  down on 2026-09-12 (Tailnet 502; no listeners on 5001/5174); acceptance remains
-  incomplete. The approved deploy-as-restore (pin `d44f29e0`) is live on
-  5001/5174; acceptance is incomplete pending the session decision. After
-  acceptance closes, the next bounded runtime step is the separately reviewed
+- The shared runtime serves the accepted `d44f29e0` pin on 5001/5174
+  (`EPHEMERAL_DEPLOYMENT`: transient env copy, unmanaged PIDs, Vite dev
+  client). Its authenticated Stage C acceptance is closed with the exact
+  approved login delta. Next bounded runtime steps, in order: the separately
+  reviewed supervisor live-install packet (after the Lane B audit) and the
   term-cache catch-up preview (its apply remains a separate HIGH action).
 - Observation backlog (non-blocking, no new executor stream authorized): the
   non-listed runtime mutation routes still default `parseSchoolId` to school 1
