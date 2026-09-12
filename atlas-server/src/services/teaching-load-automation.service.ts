@@ -42,8 +42,26 @@ import {
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 import { WORKLOAD_DEFAULTS, workloadPolicyRevision, type WorkloadPolicy } from './workload-policy.service.js';
 import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import {
+	buildQualificationPolicySnapshot,
+	evaluateQualificationWithPolicy,
+	resolveSubjectAllowedOwnerDepartments as resolvePersistedAllowedOwnerDepartments,
+	type QualificationPolicy,
+	type QualificationResult,
+} from './qualification-evaluator.service.js';
 
 const db = () => getDataContext();
+
+// HG (Homeroom Guidance) is covered by the adviser's advisory credit and ARAL
+// Program is an explicitly excluded beneficiary program. Neither may generate
+// an ordinary Teaching Load demand row or consume teaching-minute capacity.
+const NON_DEMAND_SUBJECT_CODES = [HG_SUBJECT_CODE, 'ARAL'] as const;
+
+function isNonDemandSubjectCode(code: string | null | undefined): boolean {
+	if (!code) return false;
+	const normalized = code.trim().toUpperCase();
+	return NON_DEMAND_SUBJECT_CODES.some((entry) => entry === normalized);
+}
 
 // DO 005 s.2024 weekly minute caps — sourced from workload policy defaults
 const STANDARD_CAP_MIN = WORKLOAD_DEFAULTS.teachingStandardMinutes;
@@ -65,6 +83,34 @@ export const COVERAGE_MODES: CoverageMode[] = [
 const DEFAULT_COVERAGE_MODE: CoverageMode = 'REAL_FACULTY_STANDARD';
 const REAL_ONLY_STANDARD_MODE: CoverageMode = 'REAL_FACULTY_STANDARD';
 const REAL_ONLY_HARD_CAP_MODE: CoverageMode = 'REAL_FACULTY_HARD_CAP';
+
+type PersistedQualificationAuthority = {
+	policy: QualificationPolicy;
+	specializationAliases: Array<{ alias: string; canonical: string }>;
+};
+
+async function loadPersistedQualificationAuthority(schoolId: number): Promise<PersistedQualificationAuthority> {
+	const client = db() as any;
+	const [aliasRows, labelRows, prefixRows, permissionRows, specializationAliases] = await Promise.all([
+		client.departmentAlias.findMany({ where: { schoolId }, select: { alias: true, department: true } }),
+		client.departmentLabel.findMany({ where: { schoolId }, select: { code: true, label: true } }),
+		client.subjectOwnerPrefix.findMany({ where: { schoolId }, select: { prefix: true, department: true } }),
+		client.crossDepartmentPermission.findMany({ where: { schoolId }, select: { facultyId: true, subjectId: true } }),
+		client.specializationAlias.findMany({ where: { schoolId }, select: { alias: true, canonical: true } }),
+	]);
+
+	return {
+		policy: buildQualificationPolicySnapshot(schoolId, {
+			departmentAliases: aliasRows,
+			departmentLabels: labelRows,
+			subjectOwnerPrefixes: prefixRows,
+			crossDepartmentPermissions: permissionRows,
+			legacyCrossLanguageException: false,
+			persistedOnly: true,
+		}),
+		specializationAliases: specializationAliases.map((row: any) => ({ alias: row.alias, canonical: row.canonical })),
+	};
+}
 
 interface AutoFillOptions {
 	previewOnly?: boolean;
@@ -102,6 +148,39 @@ export interface SuggestedRowPreview {
 	facultyName: string;
 	assignmentType: 'KEPT_EXISTING' | 'REAL_TEACHER' | 'TEMPORARY_SUBSTITUTE';
 	warning?: string | null;
+}
+
+export type TeachingLoadCandidateRejectionReason =
+	| 'PROGRAM_SCOPE_INCOMPATIBLE'
+	| 'NOT_QUALIFIED'
+	| 'HARD_CAP_EXCEEDED'
+	| 'CURRENT_OWNER'
+	| 'PLACEHOLDER_FACULTY';
+
+export interface TeachingLoadCandidateRejection {
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number;
+	facultyName: string;
+	reason: TeachingLoadCandidateRejectionReason;
+}
+
+const MAX_CANDIDATE_REJECTIONS = 100;
+
+function appendBoundedCandidateRejections(
+	target: TeachingLoadCandidateRejection[],
+	rows: TeachingLoadCandidateRejection[],
+): void {
+	const seen = new Set(target.map((row) => `${row.subjectId}:${row.sectionId}:${row.facultyId}:${row.reason}`));
+	for (const row of rows) {
+		if (target.length >= MAX_CANDIDATE_REJECTIONS) return;
+		const key = `${row.subjectId}:${row.sectionId}:${row.facultyId}:${row.reason}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		target.push(row);
+	}
 }
 
 export interface DistributionRetainAction {
@@ -146,6 +225,8 @@ export interface TeachingLoadDistributionPlan {
 	retains: DistributionRetainAction[];
 	inserts: DistributionInsertAction[];
 	moves: DistributionMoveAction[];
+	/** Bounded, stable rejection details that explain why receivers were skipped. */
+	candidateRejections?: TeachingLoadCandidateRejection[];
 	/**
 	 * Exact persisted workload policy that produced this plan. Null when the
 	 * policy was UNCONFIGURED; the plan must then never be applied.
@@ -183,6 +264,8 @@ export interface AutoFillResult {
 		stillUncoveredSubjectCodes: string[];
 	};
 	suggestedRows?: SuggestedRowPreview[];
+	/** Bounded, stable rejection details for uncovered subject-section rows. */
+	candidateRejections?: TeachingLoadCandidateRejection[];
 	/** Coverage + distribution plan. Never report full success from coverage alone. */
 	distribution?: TeachingLoadDistributionPlan;
 	/** Moves actually persisted by an apply call. */
@@ -409,6 +492,7 @@ interface CoverageSimulationResult {
 	unresolvedPairs: UnresolvedPair[];
 	capacityUsed: Map<number, number>;
 	staffingReport: StaffingReport;
+	candidateRejections: TeachingLoadCandidateRejection[];
 }
 
 interface StaffingShortageBucket {
@@ -1039,6 +1123,7 @@ export type TeachingLoadQualificationAuthority =
 	| 'ALLOWED_SPECIALIZATION'
 	| 'DEPARTMENT'
 	| 'SPECIAL_PROGRAM_BASELINE'
+	| 'CROSS_DEPARTMENT_PERMISSION'
 	| 'OUTSIDE_DEPARTMENT_OVERRIDE';
 
 /**
@@ -1104,12 +1189,54 @@ export function resolveTeachingLoadQualification(input: {
 	return { tier: null, authority: null };
 }
 
-function resolveQualificationTier(
-	faculty: FacultyRow,
-	subject: SubjectRow,
-	aliasesByCanonical: Map<string, Set<string>>,
-): number | null {
-	return resolveTeachingLoadQualification({ faculty, subject, aliasesByCanonical }).tier;
+function canonicalQualificationAuthority(result: QualificationResult): TeachingLoadQualificationAuthority | null {
+	if (!result.eligible || result.tier == null) return null;
+	switch (result.reason) {
+		case 'SPECIALIZATION_ALIAS_MATCH': return 'SPECIALIZATION_ALIAS';
+		case 'SPECIALIZATION_AND_DEPARTMENT_MATCH': return 'ALLOWED_SPECIALIZATION';
+		case 'DEPARTMENT_MATCH': return 'DEPARTMENT';
+		case 'SPECIAL_PROGRAM_DEPARTMENT_MATCH': return 'SPECIAL_PROGRAM_BASELINE';
+		case 'CROSS_LANGUAGE_EXCEPTION': return 'DEPARTMENT';
+		case 'CROSS_DEPARTMENT_PERMISSION': return 'CROSS_DEPARTMENT_PERMISSION';
+		case 'CAN_TEACH_OUTSIDE_DEPARTMENT': return 'OUTSIDE_DEPARTMENT_OVERRIDE';
+		default: return null;
+	}
+}
+
+function evaluateCanonicalTeachingLoadQualification(
+	faculty: TeachingLoadQualificationFaculty & { id?: number },
+	subject: TeachingLoadQualificationSubject & { id?: number; programScopes?: string[] },
+	sectionProgramType: string,
+	authority: PersistedQualificationAuthority,
+): { tier: number | null; authority: TeachingLoadQualificationAuthority | null; reason: string } {
+	// Owner departments are resolved through the SAME persisted policy snapshot
+	// as reconciliation: the subject's persisted owner department, the persisted
+	// subject-owner prefix table, and explicit OWNER_DEPT features. In
+	// persisted-only mode this never falls back to legacy code prefixes or
+	// subject-name glossaries.
+	const allowedDepartments = resolvePersistedAllowedOwnerDepartments(
+		subject.ownerDepartment,
+		subject.code,
+		subject.name,
+		subject.requiredFeatures ?? [],
+		authority.policy,
+	);
+	const result = evaluateQualificationWithPolicy({
+		facultyId: faculty.id ?? 0,
+		facultyDepartment: faculty.department,
+		facultySpecialization: faculty.specialization,
+		canTeachOutsideDepartment: faculty.canTeachOutsideDepartment,
+		subjectId: subject.id ?? 0,
+		subjectCode: subject.code,
+		subjectName: subject.name,
+		subjectOwnerDepartment: subject.ownerDepartment,
+		subjectAllowedDepartments: allowedDepartments,
+		subjectAllowedSpecializations: subject.allowedSpecializations ?? [],
+		subjectProgramScopes: (subject.programScopes ?? []) as never,
+		sectionProgramType: sectionProgramType as never,
+		specializationAliases: authority.specializationAliases,
+	}, authority.policy);
+	return { tier: result.tier, authority: canonicalQualificationAuthority(result), reason: result.reason };
 }
 
 function compareSubjectsDeterministically(sa: SubjectRow, sb: SubjectRow): number {
@@ -1244,16 +1371,18 @@ export function __testRankCoverageCandidates(candidates: CoverageCandidateRankSn
 function findBestCandidateForMode(
 	subjectRow: SubjectRow,
 	sectionId: number,
+	sectionName: string,
+	sectionProgramType: string,
 	faculty: FacultyRow[],
 	coverageMode: CoverageMode,
 	capacityLedgersByFaculty: Map<number, CapacityLedger>,
 	capacityUsed: Map<number, number>,
-	aliasesByCanonical: Map<string, Set<string>>,
+	qualificationAuthority: PersistedQualificationAuthority,
 	subjectAssignmentCountByFacultyId?: Map<number, number>,
 	rotationLaneAssignmentCountByFacultyId?: Map<number, number>,
 	rotationFamilyAssignmentCountByFacultyId?: Map<number, number>,
 	nonTeachingMinutesByFaculty?: Map<number, number>,
-): FacultyRow | null {
+): { faculty: FacultyRow | null; rejections: TeachingLoadCandidateRejection[] } {
 	const candidates: Array<{
 		faculty: FacultyRow;
 		tier: number;
@@ -1263,6 +1392,7 @@ function findBestCandidateForMode(
 		rotationFamilyAssignedCount: number;
 		projectedRotationFamilyPeakMinutes: number;
 	}> = [];
+	const rejections: TeachingLoadCandidateRejection[] = [];
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 	const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
 	const laneKey = buildCapacityLaneKey({
@@ -1277,28 +1407,54 @@ function findBestCandidateForMode(
 	});
 
 	for (const member of faculty) {
+		const qualification = evaluateCanonicalTeachingLoadQualification(
+			member,
+			subjectRow,
+			sectionProgramType,
+			qualificationAuthority,
+		);
+		if (qualification.tier == null || qualification.authority == null) {
+			rejections.push({
+				subjectId: subjectRow.id,
+				subjectCode: subjectRow.code,
+				sectionId,
+				sectionName,
+				facultyId: member.id,
+				facultyName: `${member.lastName}, ${member.firstName}`,
+				reason: qualification.reason === 'PROGRAM_SCOPE_INCOMPATIBLE' ? 'PROGRAM_SCOPE_INCOMPATIBLE' : 'NOT_QUALIFIED',
+			});
+			continue;
+		}
 		const ledger = capacityLedgersByFaculty.get(member.id) ?? createEmptyCapacityLedger();
 		const used = capacityUsed.get(member.id) ?? 0;
 		const deltaMinutes = estimateCapacityLaneDeltaMinutes(ledger, laneKey, subjectMinutes);
 		const nonTeachingMinutes = nonTeachingMinutesByFaculty?.get(member.id) ?? 0;
 		const limit = resolveRealFacultyCapMinutes(member, realCoverageMode, nonTeachingMinutes);
-		if (used + deltaMinutes > limit) continue;
+		if (used + deltaMinutes > limit) {
+			rejections.push({
+				subjectId: subjectRow.id,
+				subjectCode: subjectRow.code,
+				sectionId,
+				sectionName,
+				facultyId: member.id,
+				facultyName: `${member.lastName}, ${member.firstName}`,
+				reason: 'HARD_CAP_EXCEEDED',
+			});
+			continue;
+		}
 
-		const tier = resolveQualificationTier(member, subjectRow, aliasesByCanonical);
-		if (tier != null) {
-			candidates.push({
+		candidates.push({
 				faculty: member,
-				tier,
+				tier: qualification.tier,
 				projectedUsedMinutes: used + deltaMinutes,
 				subjectAssignedCount: subjectAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				rotationLaneAssignedCount: rotationLaneAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				rotationFamilyAssignedCount: rotationFamilyAssignmentCountByFacultyId?.get(member.id) ?? 0,
 				projectedRotationFamilyPeakMinutes: estimateProjectedRotationFamilyPeakMinutes(ledger, laneKey, subjectMinutes),
 			});
-		}
 	}
 
-	if (candidates.length === 0) return null;
+	if (candidates.length === 0) return { faculty: null, rejections };
 
 	candidates.sort((a, b) => compareCoverageCandidateRank({
 		facultyId: a.faculty.id,
@@ -1318,7 +1474,7 @@ function findBestCandidateForMode(
 		projectedUsedMinutes: b.projectedUsedMinutes,
 	}));
 
-	return candidates[0].faculty;
+	return { faculty: candidates[0].faculty, rejections };
 }
 
 function simulateRealFacultyCoverage(input: {
@@ -1326,7 +1482,7 @@ function simulateRealFacultyCoverage(input: {
 	realFaculty: FacultyRow[];
 	candidatePairs: UnresolvedPair[];
 	baseCapacityLedgersByFaculty: Map<number, CapacityLedger>;
-	aliasesByCanonical: Map<string, Set<string>>;
+	qualificationAuthority: PersistedQualificationAuthority;
 	nonTeachingMinutesByFaculty?: Map<number, number>;
 }): CoverageSimulationResult {
 	const capacityLedgersByFaculty = cloneCapacityLedgers(input.baseCapacityLedgersByFaculty);
@@ -1351,6 +1507,7 @@ function simulateRealFacultyCoverage(input: {
 	});
 
 	const unresolvedPairs: UnresolvedPair[] = [];
+	const candidateRejections: TeachingLoadCandidateRejection[] = [];
 	let rowsClosedByRealFaculty = 0;
 	const rotationFamilyAssignmentCountsByFamily = new Map<string, Map<number, number>>();
 
@@ -1401,19 +1558,23 @@ function simulateRealFacultyCoverage(input: {
 			: undefined;
 
 		for (const pair of pairs) {
-			const candidate = findBestCandidateForMode(
+			const selection = findBestCandidateForMode(
 				subjectRow,
 				pair.sectionId,
+				pair.sectionName,
+				pair.sectionProgramType,
 				input.realFaculty,
 				input.coverageMode,
 				capacityLedgersByFaculty,
 				capacityUsed,
-				input.aliasesByCanonical,
+				input.qualificationAuthority,
 				subjectAssignmentCountByFacultyId,
 				rotationLaneAssignmentCountByFacultyId,
 				rotationFamilyAssignmentCountByFacultyId,
 				input.nonTeachingMinutesByFaculty,
 			);
+			appendBoundedCandidateRejections(candidateRejections, selection.rejections);
+			const candidate = selection.faculty;
 			if (!candidate) {
 				unresolvedPairs.push(pair);
 				continue;
@@ -1443,6 +1604,7 @@ function simulateRealFacultyCoverage(input: {
 		unresolvedPairs,
 		capacityUsed,
 		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode, input.nonTeachingMinutesByFaculty),
+		candidateRejections,
 	};
 }
 
@@ -1578,6 +1740,7 @@ export function emptyDistributionPlan(): TeachingLoadDistributionPlan {
 		retains: [],
 		inserts: [],
 		moves: [],
+		candidateRejections: [],
 		policy: null,
 		summary: {
 			coveredRows: 0,
@@ -1644,6 +1807,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 			schoolYearId: params.schoolYearId,
 			overCapFaculty: [],
 			proposedMoves: [],
+			candidateRejections: [],
 			movesApplied: 0,
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
@@ -1676,6 +1840,7 @@ async function buildTeachingLoadDistributionPlan(params: {
 		retains,
 		inserts,
 		moves,
+		candidateRejections: rebalance.candidateRejections,
 		policy: policyBinding,
 		summary: summarizeDistributionPlan({
 			coveredRows: params.preserved,
@@ -1821,18 +1986,10 @@ export async function autoFill(
 	const realFacultyIds = realFaculty.map((member) => member.id);
 	const placeholderFacultyIds = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
 
-	// Pre-fetch specialization aliases for strict qualification checks
-	const aliases = await db().specializationAlias.findMany({
-		where: { schoolId },
-		select: { canonical: true, alias: true },
-	});
-	const aliasesByCanonical = new Map<string, Set<string>>();
-	for (const alias of aliases) {
-		const canonKey = alias.canonical.trim().toLowerCase();
-		const aliasSet = aliasesByCanonical.get(canonKey) ?? new Set<string>();
-		aliasSet.add(alias.alias.trim().toLowerCase());
-		aliasesByCanonical.set(canonKey, aliasSet);
-	}
+	// One persisted-only qualification snapshot is shared by coverage and
+	// distribution evaluation for this preview. This keeps aliases, owner
+	// prefixes, cross-department permissions, and policy revision coherent.
+	const qualificationAuthority = await loadPersistedQualificationAuthority(schoolId);
 
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
 	const existingOwnerships = await db().subjectSectionOwnership.findMany({
@@ -1871,18 +2028,18 @@ export async function autoFill(
 	const preserved = resolvedPairs.size;
 
 	// HG is covered by the adviser's advisory credit (advisoryEquivalentHours)
-	// and must NOT consume teaching-capacity budget — exclude HG ownership rows
-	// from the capacity ledgers to avoid double-counting advisory duty.
-	const hgSubjectForCapacity = await db().subject.findFirst({
-		where: { schoolId, code: 'HG' },
+	// and ARAL Program is an excluded beneficiary program. Neither may consume
+	// teaching-capacity budget — exclude both from the capacity ledgers.
+	const nonDemandSubjectRowsForCapacity = await db().subject.findMany({
+		where: { schoolId, code: { in: [...NON_DEMAND_SUBJECT_CODES] } },
 		select: { id: true },
 	});
-	const hgSubjectIdForCapacity = hgSubjectForCapacity?.id ?? null;
-	const nonHgOwnershipRows = hgSubjectIdForCapacity == null
-		? existingOwnerships
-		: existingOwnerships.filter((o) => o.subjectId !== hgSubjectIdForCapacity);
+	const nonDemandSubjectIdSetForCapacity = new Set(nonDemandSubjectRowsForCapacity.map((row) => row.id));
+	const nonDemandOwnershipRows = existingOwnerships.filter(
+		(o) => !nonDemandSubjectIdSetForCapacity.has(o.subjectId),
+	);
 
-	const realOwnershipRows = nonHgOwnershipRows.filter((ownership) => realFacultyIds.includes(ownership.facultyId));
+	const realOwnershipRows = nonDemandOwnershipRows.filter((ownership) => realFacultyIds.includes(ownership.facultyId));
 	const {
 		capacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
 		capacityUsed: baseRealCapacityUsed,
@@ -1945,12 +2102,12 @@ export async function autoFill(
 	}
 
 	// ─── Step 3: Build work queue ─────────────────────────────────────────────
-	// Active subjects (not HG — HG is managed by hg-advisory.service)
+	// Active subjects (HG/ARAL are excluded — advisory and beneficiary programs)
 	const subjects = await db().subject.findMany({
 		where: {
 			schoolId,
 			isActive: true,
-			code: { not: 'HG' },
+			code: { notIn: [...NON_DEMAND_SUBJECT_CODES] },
 		},
 		select: {
 			id: true,
@@ -1972,6 +2129,7 @@ export async function autoFill(
 
 	const workQueue: UnresolvedPair[] = [];
 	const unresolvedPairs: UnresolvedPair[] = [];
+	const autoFillCandidateRejections: TeachingLoadCandidateRejection[] = [];
 	const allTeachablePairs: UnresolvedPair[] = [];
 	const teachablePairKeySet = new Set<string>();
 	for (const subject of subjects) {
@@ -2037,7 +2195,7 @@ export async function autoFill(
 		realFaculty,
 		candidatePairs: realCoverageQueue,
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
-		aliasesByCanonical,
+		qualificationAuthority,
 		nonTeachingMinutesByFaculty,
 	});
 	const hardCapSimulation = simulateRealFacultyCoverage({
@@ -2045,7 +2203,7 @@ export async function autoFill(
 		realFaculty,
 		candidatePairs: realCoverageQueue,
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
-		aliasesByCanonical,
+		qualificationAuthority,
 		nonTeachingMinutesByFaculty,
 	});
 
@@ -2081,6 +2239,7 @@ export async function autoFill(
 			sectionFallbackReason: sectionResult.fallbackReason ?? null,
 			staffingReport: selectedStaffingReport,
 			staffingTruth,
+			candidateRejections: selectedSimulation.candidateRejections,
 		};
 	}
 
@@ -2158,19 +2317,23 @@ export async function autoFill(
 			: null;
 
 		for (const pair of pairs) {
-			const candidate = findBestCandidateForMode(
+			const selection = findBestCandidateForMode(
 				subjectRow,
 				pair.sectionId,
+				pair.sectionName,
+				pair.sectionProgramType,
 				realFaculty,
 				realCoverageMode,
 				capacityLedgersByFaculty,
 				capacityUsed,
-				aliasesByCanonical,
+				qualificationAuthority,
 				subjectAssignmentCountByFacultyId,
 				rotationLaneAssignmentCountByFacultyId,
 				undefined,
 				nonTeachingMinutesByFaculty,
 			);
+			appendBoundedCandidateRejections(autoFillCandidateRejections, selection.rejections);
+			const candidate = selection.faculty;
 			if (!candidate) {
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
 				unresolvedPairs.push(pair);
@@ -2338,6 +2501,7 @@ export async function autoFill(
 		staffingTruth,
 		teacherXResolution,
 		suggestedRows,
+		candidateRejections: autoFillCandidateRejections,
 		distribution,
 	};
 }
@@ -2659,6 +2823,8 @@ export interface OverCapRebalanceResult {
 	policy: EffectiveWorkloadPolicy | null;
 	/** True only when a persisted effective policy was resolved and evaluated. */
 	evaluated: boolean;
+	/** Bounded, stable diagnostics explaining why receivers were skipped. */
+	candidateRejections: TeachingLoadCandidateRejection[];
 }
 
 export async function previewOrApplyOverCapRebalance(
@@ -2702,6 +2868,7 @@ export async function previewOrApplyOverCapRebalance(
 			schoolYearId: input.schoolYearId,
 			overCapFaculty: [],
 			proposedMoves: [],
+			candidateRejections: [],
 			movesApplied: 0,
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
@@ -2741,7 +2908,7 @@ export async function previewOrApplyOverCapRebalance(
 			},
 		}),
 		db().subject.findMany({
-			where: { schoolId: input.schoolId, isActive: true, code: { not: HG_SUBJECT_CODE } },
+			where: { schoolId: input.schoolId, isActive: true, code: { notIn: [...NON_DEMAND_SUBJECT_CODES] } },
 			select: {
 				id: true,
 				code: true,
@@ -2794,10 +2961,6 @@ export async function previewOrApplyOverCapRebalance(
 	]);
 
 	const realFaculty = faculty.filter((m) => !m.isPlaceholder);
-	// Deterministic receiver evaluation order so an identical database state
-	// always produces the same plan and the reviewed-vs-refreshed comparison is
-	// stable.
-	const realFacultyByStableId = [...realFaculty].sort((left, right) => left.id - right.id);
 	const currentYearSectionIdSet = new Set(allSectionIds);
 	const subjectById = new Map(subjects.map((s) => [s.id, s]));
 
@@ -2818,17 +2981,17 @@ export async function previewOrApplyOverCapRebalance(
 	}
 
 	// Build capacity tracking from existing ownerships.
-	// HG is covered by the advisory credit — exclude HG rows from the capacity
-	// ledger so advisory duty is not double-counted (same rule as the auto-fill path).
-	const hgSubjectForRebalance = await db().subject.findFirst({
-		where: { schoolId: input.schoolId, code: 'HG' },
+	// HG is covered by the advisory credit and ARAL is an excluded program —
+	// exclude both from the capacity ledger so neither consumes teaching minutes.
+	const nonDemandSubjectRowsForRebalance = await db().subject.findMany({
+		where: { schoolId: input.schoolId, code: { in: [...NON_DEMAND_SUBJECT_CODES] } },
 		select: { id: true },
 	});
-	const hgSubjectIdForRebalance = hgSubjectForRebalance?.id ?? null;
-	const nonHgRowsForRebalance = hgSubjectIdForRebalance == null
-		? existingOwnerships
-		: existingOwnerships.filter((o) => o.subjectId !== hgSubjectIdForRebalance);
-	const realOwnershipRows = nonHgRowsForRebalance.filter((o) => realFaculty.some((f) => f.id === o.facultyId));
+	const nonDemandSubjectIdSetForRebalance = new Set(nonDemandSubjectRowsForRebalance.map((row) => row.id));
+	const nonDemandOwnershipRowsForRebalance = existingOwnerships.filter(
+		(o) => !nonDemandSubjectIdSetForRebalance.has(o.subjectId),
+	);
+	const realOwnershipRows = nonDemandOwnershipRowsForRebalance.filter((o) => realFaculty.some((f) => f.id === o.facultyId));
 	const { capacityUsed } = buildInitialCapacityTracking(realOwnershipRows as ExistingOwnershipRow[]);
 
 	// Detect over-cap faculty from ACTUAL teaching minutes under the effective
@@ -2861,6 +3024,7 @@ export async function previewOrApplyOverCapRebalance(
 			schoolYearId: input.schoolYearId,
 			overCapFaculty: [],
 			proposedMoves: [],
+			candidateRejections: [],
 			movesApplied: 0,
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
@@ -2871,24 +3035,21 @@ export async function previewOrApplyOverCapRebalance(
 		};
 	}
 
-	// Build aliases for qualification checks
-	const aliases = await db().specializationAlias.findMany({
-		where: { schoolId: input.schoolId },
-		select: { canonical: true, alias: true },
-	});
-	const aliasesByCanonical = new Map<string, Set<string>>();
-	for (const alias of aliases) {
-		const canonKey = alias.canonical.trim().toLowerCase();
-		const aliasSet = aliasesByCanonical.get(canonKey) ?? new Set<string>();
-		aliasSet.add(alias.alias.trim().toLowerCase());
-		aliasesByCanonical.set(canonKey, aliasSet);
-	}
+	// Receiver selection uses the SAME persisted-only qualification snapshot as
+	// canonical reconciliation and the coverage path: department aliases/labels,
+	// subject owner prefixes, explicit cross-department permissions, and
+	// specialization aliases. Legacy prefix/glossary/name inference is disabled.
+	const qualificationAuthority = await loadPersistedQualificationAuthority(input.schoolId);
 
-	// Build section name map
+	// Build section name + program-type maps
 	const sectionNameMap = new Map<number, string>();
+	const sectionProgramTypeMap = new Map<number, string>();
 	for (const grade of sectionResult.gradeLevels) {
 		for (const section of grade.sections) {
-			if (section.id > 0) sectionNameMap.set(section.id, section.name);
+			if (section.id > 0) {
+				sectionNameMap.set(section.id, section.name);
+				sectionProgramTypeMap.set(section.id, section.programType ?? 'REGULAR');
+			}
 		}
 	}
 
@@ -2896,6 +3057,10 @@ export async function previewOrApplyOverCapRebalance(
 	const simCapacityUsed = new Map<number, number>(capacityUsed);
 
 	const proposedMoves: OverCapRebalanceMove[] = [];
+	const candidateRejections: TeachingLoadCandidateRejection[] = [];
+	// Placeholder/inactive faculty are part of the school roster and are reported
+	// transparently when they are not receivers; they never become candidates.
+	const facultyCandidatesByStableId = [...faculty].sort((left, right) => left.id - right.id);
 
 	// For each over-cap faculty, propose moves to bring them under cap
 	for (const overFaculty of overCapFaculty) {
@@ -2917,8 +3082,11 @@ export async function previewOrApplyOverCapRebalance(
 			const subject = subjectById.get(ownership.subjectId);
 			if (!subject) continue;
 
-			// Skip HG/advisory ownerships
-			if (subject.code.toUpperCase() === HG_SUBJECT_CODE) continue;
+			// HG/advisory and ARAL ownerships never generate ordinary demand or moves
+			if (isNonDemandSubjectCode(subject.code)) continue;
+
+			const sectionProgramType = sectionProgramTypeMap.get(ownership.sectionId) ?? 'REGULAR';
+			const ownershipRejections: TeachingLoadCandidateRejection[] = [];
 
 			// Find best receiver
 			let bestReceiver: typeof realFaculty[number] | null = null;
@@ -2930,13 +3098,51 @@ export async function previewOrApplyOverCapRebalance(
 			// receiver. This never bypasses tier, capacity, scope, or uniqueness.
 			let bestAdviserPreference = false;
 
-			for (const candidate of realFacultyByStableId) {
-				if (candidate.id === overFaculty.facultyId) continue;
-				if (candidate.isPlaceholder) continue;
+			for (const candidate of facultyCandidatesByStableId) {
+				if (candidate.id === overFaculty.facultyId) {
+					ownershipRejections.push({
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: candidate.id,
+						facultyName: `${candidate.lastName}, ${candidate.firstName}`,
+						reason: 'CURRENT_OWNER',
+					});
+					continue;
+				}
+				if (candidate.isPlaceholder) {
+					ownershipRejections.push({
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: candidate.id,
+						facultyName: `${candidate.lastName}, ${candidate.firstName}`,
+						reason: 'PLACEHOLDER_FACULTY',
+					});
+					continue;
+				}
 
-				const qualification = resolveTeachingLoadQualification({ faculty: candidate, subject, aliasesByCanonical });
+				const qualification = evaluateCanonicalTeachingLoadQualification(
+					candidate,
+					subject,
+					sectionProgramType,
+					qualificationAuthority,
+				);
 				const tier = qualification.tier;
-				if (tier == null || qualification.authority == null) continue;
+				if (tier == null || qualification.authority == null) {
+					ownershipRejections.push({
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: candidate.id,
+						facultyName: `${candidate.lastName}, ${candidate.firstName}`,
+						reason: qualification.reason === 'PROGRAM_SCOPE_INCOMPATIBLE' ? 'PROGRAM_SCOPE_INCOMPATIBLE' : 'NOT_QUALIFIED',
+					});
+					continue;
+				}
 
 				const candidateTeaching = simCapacityUsed.get(candidate.id) ?? 0;
 				// Receiver teaching capacity is measured from actual teaching minutes
@@ -2947,13 +3153,24 @@ export async function previewOrApplyOverCapRebalance(
 					effectiveStandardMinutes,
 				);
 				const spareMinutes = candidateCap - candidateTeaching;
-				if (spareMinutes < minutes) continue;
+				if (spareMinutes < minutes) {
+					ownershipRejections.push({
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: candidate.id,
+						facultyName: `${candidate.lastName}, ${candidate.firstName}`,
+						reason: 'HARD_CAP_EXCEEDED',
+					});
+					continue;
+				}
 
 				const isAdviserForSection = candidate.isClassAdviser === true && candidate.advisedSectionId === ownership.sectionId;
 				const hasRealPairForSection = existingOwnerships.some(
 					(existing) => existing.facultyId === candidate.id
 						&& existing.sectionId === ownership.sectionId
-						&& subjectById.get(existing.subjectId)?.code?.toUpperCase() !== HG_SUBJECT_CODE,
+						&& !isNonDemandSubjectCode(subjectById.get(existing.subjectId)?.code),
 				);
 				const adviserPreference = isAdviserForSection && !hasRealPairForSection;
 
@@ -2968,6 +3185,10 @@ export async function previewOrApplyOverCapRebalance(
 					bestSpareMinutes = spareMinutes;
 					bestAdviserPreference = adviserPreference;
 				}
+			}
+
+			if (!bestReceiver) {
+				appendBoundedCandidateRejections(candidateRejections, ownershipRejections);
 			}
 
 			if (bestReceiver && bestAuthority != null) {
@@ -3003,6 +3224,7 @@ export async function previewOrApplyOverCapRebalance(
 			schoolYearId: input.schoolYearId,
 			overCapFaculty,
 			proposedMoves,
+			candidateRejections,
 			movesApplied: 0,
 			ownershipRowsMoved: 0,
 			facultySubjectRowsUpdated: 0,
@@ -3154,6 +3376,7 @@ export async function previewOrApplyOverCapRebalance(
 		schoolYearId: input.schoolYearId,
 		overCapFaculty,
 		proposedMoves,
+		candidateRejections,
 		movesApplied: proposedMoves.length,
 		ownershipRowsMoved,
 		facultySubjectRowsUpdated,
