@@ -16,6 +16,15 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
+- Cycle recovery: `tt-tl-runtime-acceptance-20260912` (RUNNING) activated
+  2026-09-12 (Asia/Manila) by the operator (`CYCLE ON`) for the prepared packet
+  `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`: deploy target
+  `3d916b26` (contained in `origin/main` `4e5ef1f6`; rollback `d44f29e0`),
+  Tailnet-only read-only TT/TL acceptance, stop before any mutation. Planner
+  boundaries: `integration/tt-tl-runtime-acceptance-20260912`; pre-action wave
+  audit before executor dispatch; no login, no apply/sync/generation/
+  publication. Next recoverable action: run the pre-action audit, then dispatch
+  the elevated executor.
 - Shared runtime RESTORED (2026-09-12, Asia/Manila) under the operator's exact
   HIGH approval: supervised release `9d293879` (pin `d44f29e0`) serves server
   5001 (PID 15388) and production host 5174 (PID 22272); local
@@ -222,7 +231,7 @@ hard blockers before separately approving publication.
 | RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `INTEGRATED` | MEDIUM source/test; HIGH future live install | `work/runtime-supervision-c01`; `cf9b7e6e...05143d65`; merge `0ec3b8f7` | Install remains separately gated by the prepared HIGH packet | Round-2 pin correction `05143d65` passed fresh QA `ses_f6b56dd43ffeG3CSnFNNJBficZ` `ACCEPT_READY` 8/8 (blocked 0, unperformed 0): real-tree pin positive (previously unsatisfiable), equality-mutant failing-first, `PIN_MISMATCH`/`RELEASE_SHA_*` fail-closed, distinct status, inventory redaction, 56/56 ops, ports untouched. Pre-install audit `ses_f6b5175c6ffejlywhgblmX7c5k` `AUDIT_CLEAR` 14/14 | Closed in source; original install packet SUPERSEDED; the deploy-as-restore packet (R1) was approved and executed — runtime restored (see RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE row) |
 | RUNTIME-SUPERVISION-LIVE-INSTALL | Replace the ephemeral runtime by installing the reviewed supervisor on 5001/5174 with boot recovery and rollback | `SUPERSEDED` | HIGH shared-runtime cutover + boot-task registration | Correction packet `docs/prompts/runtime-supervisor-live-install-correction-2026-09-12.md`; frozen release `9d293879`; no candidate created | Replaced by the deploy-as-restore boundary after the runtime outage was reconfirmed (`d44f29e0` no longer running; Tailnet 502; no 5001/5174 listener) | Prior attempt `2794c40f` was independently rejected for Access Denied task registration; the elevated retry never ran because the runtime was found down before execution | Historical record; do not execute with swap wording |
 | RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE | Restore the down shared runtime by starting the reviewed supervisor (`9d293879`, pin `d44f29e0`) on empty 5001/5174, registering boot recovery, then disabling the legacy task after health | `INTEGRATED` — COMPLETE (post-action audit cleared) | HIGH shared-runtime deploy-as-restore + boot-task registration | approval received 2026-09-12 (DB `atlas_recovery_clean_rebuild_20260905` confirmed); executor task `ses_f6aa9bd82ffeZuVkjof36wri6Z`; evidence `f52e4b1e...5c699f36`; merge `1792cca9`; pre-action audit `ses_f6abf6c5effeY3MI5UGXRdUkeQ`; post-action audit `ses_f6a97cff2ffe6GdgWaJ4O2A0c4` | Closed; residuals recorded (reboot-start unexercised; running supervisor is a detached manual process; ONSTART task is the restart mechanism) | Live: 5001→15388 / 5174→22272, health/ready/Tailnet 200, boot task ONSTART/`PT0S`, legacy Disabled; fresh QA `ACCEPT_READY` 9/9; post-action audit `AUDIT_CLEAR` 14/14; capsules under `docs/reviews/runtime-supervisor-live-install-restore-20260912/` | Closed; runtime map reconciled; next HIGH-prep is the term-cache catch-up preview (apply stays separately gated) |
-| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; target `3d916b26`; current runtime `d44f29e0` | Requires explicit packet approval; no apply/generation/publication | Current Tailnet health is 200 on the supervised `d44f29e0` release; target source is descendant and combined source gates pass | Obtain approval for the prepared packet, then execute bounded stop/start and Tailnet read-only acceptance |
+| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `RUNNING` (operator activated cycle 2026-09-12; pre-action audit pending) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; target `3d916b26`; current supervised release `9d293879` (pin `d44f29e0`); rollback `d44f29e0` fallback; integration boundary `integration/tt-tl-runtime-acceptance-20260912` | No apply/generation/publication; browser rows limited to an existing session (no fresh login authorized) | Target descends from pin `d44f29e0` and is contained in `origin/main` `4e5ef1f6`; incumbent verified 2026-09-12: 5001/5174 owned, health/ready/Tailnet 200, supervisor task Ready, legacy Disabled, fallback startable; combined source gates passed per lane rows | Run the pre-action wave audit, then dispatch the elevated executor: bounded stop/start to target `3d916b26`, Tailnet read-only acceptance, one docs evidence commit, return `REVIEW_REQUIRED` |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
@@ -278,14 +287,20 @@ hard blockers before separately approving publication.
    package; otherwise return the typed blocker list and corrective handoff.
    Then obtain explicit HIGH approval, generate once, verify the completed run,
    then prepare the separate publication preview and approval.
+7. `TT-TL-RUNTIME-ACCEPTANCE` is operator-activated (2026-09-12): run the
+   pre-action wave audit, then deploy target `3d916b26` on 5001/5174 with
+   rollback `d44f29e0` and rollover automation disabled, run the Tailnet-only
+   read-only TT/TL acceptance with a docs-only evidence commit, and stop before
+   any apply, sync, generation, or publication.
 
 ## Safe parallel work now
 
-- The deploy-as-restore execution completed 2026-09-12 (runtime restored under
-  the supervised release); no other stream may start, stop, restart, or replace
-  the runtime; read-only monitoring is permitted. The post-action wave audit
-  cleared (`AUDIT_CLEAR` 14/14); the next unlock is the term-cache catch-up
-  preview preparation, with its apply separately gated.
+- The operator-activated `TT-TL-RUNTIME-ACCEPTANCE` deploy is the only stream
+  allowed to stop/start the supervisor-owned 5001/5174 (target `3d916b26`,
+  rollback `d44f29e0`); the incumbent supervised release `9d293879` keeps
+  serving until the bounded stop/start, and read-only monitoring is permitted.
+  The term-cache catch-up preview preparation remains the only other safe
+  HIGH-prep lane, with its apply separately gated.
   Carry-forward apply, suggestion apply, generation, and publication remain
   separately gated. The remaining defaulting `parseSchoolId` sites on non-listed
   runtime mutation routes and the `DEFAULT_SCHOOL_ID` backlog pages (MapEditor,
@@ -344,6 +359,10 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   returned `AUDIT_CLEAR` 14/14 (task `ses_f6a97cff2ffe6GdgWaJ4O2A0c4`). Nothing
   is awaited from this wave. No term-cache, Teaching Load, generation, or
   publication action is unlocked.
+- Operator activated `TT-TL-RUNTIME-ACCEPTANCE` (`CYCLE ON`, 2026-09-12). The
+  pre-action wave audit and, after it, the elevated executor return (docs-only
+  evidence commit SHA plus the live deploy/acceptance result) are awaited. No
+  other executor return remains.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
