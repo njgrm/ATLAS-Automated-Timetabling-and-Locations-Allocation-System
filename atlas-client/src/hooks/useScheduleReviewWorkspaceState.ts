@@ -13,6 +13,7 @@ import {
 } from '@/lib/schedule-review-helpers';
 import { decideAutoSavePlacement } from '@/lib/simple-timetable-state';
 import { buildAcademicTermOptions, repairTermFilter, type OrderedAcademicTerm } from '@/lib/academic-term';
+import { isTargetSlotOccupiedForTerm } from '@/lib/timetable-term-scope';
 import { formatTime } from '@/lib/utils';
 import atlasApi from '@/lib/api';
 import type {
@@ -966,11 +967,15 @@ export function useScheduleReviewWorkspaceState() {
 			return;
 		}
 		const defaultRoomId = resolveGeneratedPlacementRoomId(item, day, startTime, endTime);
-		const targetSlotOccupied = (draft?.entries ?? []).some((entry: ScheduledEntry) => (
-			entry.day === day
-			&& entry.startTime === startTime
-			&& entry.endTime === endTime
-		));
+		// TT-OUTPUT-C03R3: the fast-path occupancy check is term-aware. Another
+		// ordered term occupying the same slot is longitudinal repetition, not a
+		// collision; only same-term (or unscoped) occupancy blocks this placement.
+		const targetSlotOccupied = isTargetSlotOccupiedForTerm(draft?.entries ?? [], {
+			day,
+			startTime,
+			endTime,
+			termIndex: item.termIndex ?? null,
+		});
 
 		// Fast path: owner + room are unambiguous, slot is empty, and the authoritative
 		// preview is clean (zero hard, zero soft). Skip the review dialog and commit.
@@ -980,6 +985,8 @@ export function useScheduleReviewWorkspaceState() {
 				sectionId: item.sectionId,
 				subjectId: item.subjectId,
 				session: item.session,
+				// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+				termIndex: item.termIndex,
 				entryKind: item.entryKind,
 				cohortCode: item.cohortCode,
 				targetDay: day,
@@ -1097,6 +1104,8 @@ export function useScheduleReviewWorkspaceState() {
 			sectionId: item.sectionId,
 			subjectId: item.subjectId,
 			session: item.session,
+			// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+			termIndex: item.termIndex,
 			entryKind: item.entryKind,
 			cohortCode: item.cohortCode,
 			targetDay: day,
@@ -1149,6 +1158,8 @@ export function useScheduleReviewWorkspaceState() {
 			sectionId: item.sectionId,
 			subjectId: item.subjectId,
 			session: item.session,
+			// TT-OUTPUT-C03R3: keep the placement in the item's ordered term.
+			termIndex: item.termIndex,
 			entryKind: item.entryKind,
 			cohortCode: item.cohortCode,
 			targetDay: day,

@@ -61,6 +61,9 @@ export function evaluateQuickPlaceCandidateAgainstEntries(
 			day: entry.day,
 			startTime: entry.startTime,
 			endTime: entry.endTime,
+			// TT-OUTPUT-C03R3: carry each occupied entry's ordered term so the
+			// candidate probe only rejects same-term (or unscoped) collisions.
+			termIndex: entry.termIndex,
 		})),
 	});
 }
@@ -238,6 +241,8 @@ export async function solveQuickPlace(
 						gradeLevel: sectionMap.get(item.sectionId)?.displayOrder ?? item.gradeLevel,
 						// Quick-place deliberately permits its existing deferred fallback room type.
 						allowedRoomTypes: [room.type],
+						// TT-OUTPUT-C03R3: probe in the item's own ordered term.
+						termIndex: item.termIndex,
 					}, currentEntries);
 					if (!candidateVerdict.accepted) continue;
 
@@ -252,6 +257,8 @@ export async function solveQuickPlace(
 						startTime: slot.startTime,
 						endTime: slot.endTime,
 						durationMinutes: minutesBetween(slot.startTime, slot.endTime),
+						// TT-OUTPUT-C03R3: place in the item's own ordered term.
+						termIndex: item.termIndex,
 						entryKind: item.entryKind || 'SECTION',
 						programType: item.programType,
 						programCode: item.programCode,
@@ -317,6 +324,8 @@ export async function solveQuickPlace(
 				startTime: bestSlot.startTime,
 				endTime: bestSlot.endTime,
 				durationMinutes: minutesBetween(bestSlot.startTime, bestSlot.endTime),
+				// TT-OUTPUT-C03R3: keep the placed session in its own ordered term.
+				termIndex: item.termIndex,
 				entryKind: item.entryKind || 'SECTION',
 				programType: item.programType,
 				programCode: item.programCode,
@@ -432,6 +441,9 @@ export async function applyQuickPlace(
 			sectionId: p.sectionId,
 			subjectId: p.subjectId,
 			session: p.session,
+			// TT-OUTPUT-C03R3: bind the commit to the solver's resolved term so the
+			// persisted placement matches the exact per-term unassigned item.
+			termIndex: matchedEntry?.termIndex,
 			targetDay: p.day,
 			targetStartTime: p.startTime,
 			targetEndTime: p.endTime,

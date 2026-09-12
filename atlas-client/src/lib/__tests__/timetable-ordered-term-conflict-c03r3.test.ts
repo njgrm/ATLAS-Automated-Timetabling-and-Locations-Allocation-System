@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createLiveConflictInspector, type TimetableConflictContext } from '../timetable-live-conflict';
+import { isTargetSlotOccupiedForTerm } from '../timetable-term-scope';
 import type { ScheduledEntry } from '@/types';
 
 const TIME_SLOTS = [{ startTime: '06:00', endTime: '06:45' }];
@@ -80,4 +81,36 @@ test('C03R3: an unscoped edit context keeps every term visible (fail-safe)', () 
 	};
 	const inspector = createLiveConflictInspector(ENTRIES, TIME_SLOTS, context, MAPS)!;
 	assert.equal(inspector.getCompact('MONDAY-06:00-06:45')?.kind, 'blocked', 'an unscoped edit still sees same-slot occupancy');
+});
+
+// ─── Simple placement fast path ──────────────────────────────────────────────
+
+const SLOT_TARGET = { day: 'MONDAY', startTime: '06:00', endTime: '06:45' };
+
+test('C03R3: the placement fast path ignores another term occupying the slot', () => {
+	// Only term 1 occupies the slot; a term-2 placement must remain eligible.
+	const term1Only = [entry({ entryId: 'mon-t1', termIndex: 1 })];
+	assert.equal(
+		isTargetSlotOccupiedForTerm(term1Only, { ...SLOT_TARGET, termIndex: 2 }),
+		false,
+		'a term-1 occupant must not mark the slot occupied for a term-2 placement',
+	);
+});
+
+test('C03R3: the placement fast path still blocks a same-term and an unscoped occupant', () => {
+	assert.equal(
+		isTargetSlotOccupiedForTerm(ENTRIES, { ...SLOT_TARGET, termIndex: 1 }),
+		true,
+		'a same-term occupant still blocks the placement',
+	);
+	assert.equal(
+		isTargetSlotOccupiedForTerm([entry({ entryId: 'unscoped', termIndex: undefined })], { ...SLOT_TARGET, termIndex: 2 }),
+		true,
+		'an unscoped occupant overlaps every term and still blocks',
+	);
+	assert.equal(
+		isTargetSlotOccupiedForTerm(ENTRIES, { ...SLOT_TARGET }),
+		true,
+		'a missing target term is treated as unscoped (fail-safe)',
+	);
 });

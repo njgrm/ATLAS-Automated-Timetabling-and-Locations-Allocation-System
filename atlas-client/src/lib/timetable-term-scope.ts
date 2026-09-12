@@ -26,3 +26,22 @@ export function filterEntriesByTermScope<T extends Pick<ScheduledEntry, 'termInd
 ): T[] {
 	return entries.filter((entry) => matchesTermScope(entry, termFilter));
 }
+
+/**
+ * TT-OUTPUT-C03R3 — term-aware target-slot occupancy for the Simple placement
+ * fast path. Another ordered term occupying the identical slot is longitudinal
+ * repetition, not a collision. An unscoped entry (no `termIndex`) overlaps every
+ * term and still counts; a missing target term is treated as unscoped.
+ */
+export function isTargetSlotOccupiedForTerm<T extends Pick<ScheduledEntry, 'termIndex'>>(
+	entries: readonly (T & { day: string; startTime: string; endTime: string })[],
+	target: { day: string; startTime: string; endTime: string; termIndex?: number | null },
+): boolean {
+	const targetTerm = target.termIndex ?? null;
+	return entries.some((entry) => (
+		entry.day === target.day
+		&& entry.startTime === target.startTime
+		&& entry.endTime === target.endTime
+		&& (targetTerm === null || entry.termIndex == null || entry.termIndex === targetTerm)
+	));
+}

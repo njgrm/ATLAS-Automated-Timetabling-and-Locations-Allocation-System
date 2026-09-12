@@ -67,6 +67,12 @@ export interface ManualEditProposal {
 	unassignedKey?: string;
 	entryKind?: 'SECTION' | 'COHORT';
 	cohortCode?: string | null;
+	/**
+	 * TT-OUTPUT-C03R3 — ordered term for PLACE_UNASSIGNED. When provided, the
+	 * unassigned item is matched in exactly this term and the created entry keeps
+	 * it, so a placed session never becomes unscoped.
+	 */
+	termIndex?: 1 | 2 | 3 | 4;
 	/** The existing entryId being moved (for MOVE_ENTRY, CHANGE_ROOM, etc.) */
 	entryId?: string;
 	/** Target values */
@@ -328,6 +334,9 @@ export function validateManualCandidateInvariants(
 		room,
 		gradeLevel: refData.sectionGradeLevel.get(entry.sectionId) ?? 0,
 		allowedRoomTypes,
+		// TT-OUTPUT-C03R3: the manual candidate only collides with same-term
+		// occupancy; another term's identical slot is longitudinal repetition.
+		termIndex: entry.termIndex,
 		occupied: entries
 			.filter((candidate) => candidate.entryId !== entry.entryId)
 			.map((candidate) => ({
@@ -337,6 +346,7 @@ export function validateManualCandidateInvariants(
 				day: candidate.day,
 				startTime: candidate.startTime,
 				endTime: candidate.endTime,
+				termIndex: candidate.termIndex,
 			})),
 	});
 
@@ -456,16 +466,33 @@ function applyProposal(
 	let removedUnassigned: UnassignedItem | null = null;
 
 	if (proposal.editType === 'PLACE_UNASSIGNED') {
-		// Find matching unassigned item
-		const uIdx = newUnassigned.findIndex(
-			(u) =>
-				u.sectionId === proposal.sectionId &&
-				u.subjectId === proposal.subjectId &&
-				(proposal.session == null || u.session === proposal.session) &&
-				(proposal.entryKind == null || (u.entryKind ?? 'SECTION') === proposal.entryKind) &&
-				(proposal.cohortCode === undefined || (u.cohortCode ?? null) === proposal.cohortCode),
-		);
-		if (uIdx === -1) throw err(400, 'UNASSIGNED_NOT_FOUND', 'Specified unassigned item not found.');
+		// Find matching unassigned item. TT-OUTPUT-C03R3: when the proposal names
+		// an ordered term, match it exactly and reject an explicit disagreement; a
+		// placed session must never lose its term identity.
+		const matchesBase = (u: UnassignedItem): boolean =>
+			u.sectionId === proposal.sectionId
+			&& u.subjectId === proposal.subjectId
+			&& (proposal.session == null || u.session === proposal.session)
+			&& (proposal.entryKind == null || (u.entryKind ?? 'SECTION') === proposal.entryKind)
+			&& (proposal.cohortCode === undefined || (u.cohortCode ?? null) === proposal.cohortCode);
+
+		let uIdx: number;
+		if (proposal.termIndex != null) {
+			// Prefer the exact-term item; a term-less (legacy) item may still be
+			// scoped by the proposal. A concrete term that disagrees is rejected.
+			uIdx = newUnassigned.findIndex((u) => (u.termIndex ?? null) === proposal.termIndex && matchesBase(u));
+			if (uIdx === -1) {
+				const conflicting = newUnassigned.find((u) => matchesBase(u) && u.termIndex != null);
+				if (conflicting) {
+					throw err(400, 'TERM_MISMATCH', `Unassigned item term ${conflicting.termIndex ?? 'unscoped'} does not match the requested term ${proposal.termIndex}.`);
+				}
+				uIdx = newUnassigned.findIndex(matchesBase);
+			}
+			if (uIdx === -1) throw err(400, 'UNASSIGNED_NOT_FOUND', 'Specified unassigned item not found.');
+		} else {
+			uIdx = newUnassigned.findIndex(matchesBase);
+			if (uIdx === -1) throw err(400, 'UNASSIGNED_NOT_FOUND', 'Specified unassigned item not found.');
+		}
 
 		const uItem = newUnassigned[uIdx];
 		removedUnassigned = uItem;
@@ -474,6 +501,7 @@ function applyProposal(
 		}
 
 		const durationMinutes = timeToMinutes(proposal.targetEndTime) - timeToMinutes(proposal.targetStartTime);
+		const resolvedTermIndex = proposal.termIndex ?? uItem.termIndex;
 		const newEntry: ScheduledEntry = {
 			entryId: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 			facultyId: proposal.targetFacultyId,
@@ -484,6 +512,8 @@ function applyProposal(
 			startTime: proposal.targetStartTime,
 			endTime: proposal.targetEndTime,
 			durationMinutes,
+			// TT-OUTPUT-C03R3: keep the matched/proposed ordered term on the entry.
+			termIndex: resolvedTermIndex,
 			entryKind: uItem.entryKind,
 			programType: uItem.programType ?? null,
 			programCode: uItem.programCode ?? null,
