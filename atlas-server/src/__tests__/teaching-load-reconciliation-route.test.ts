@@ -87,7 +87,20 @@ async function main() {
     fixtureSchoolId = (created as any).id as number;
     assert(fixtureSchoolId > 0, `fixture school created (id=${fixtureSchoolId})`);
     await base.enrollProSchoolYearMirror.create({
-      data: { schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced' },
+      data: {
+        schoolId: fixtureSchoolId, enrollProSchoolYearId: fixtureYearId, yearLabel: '2029-2030', isActive: true, isArchived: false, syncStatus: 'synced',
+        termContractCache: {
+          schoolId: fixtureSchoolId,
+          schoolYear: { id: fixtureYearId, yearLabel: '2029-2030' },
+          format: 'TRIMESTER',
+          terms: [
+            { identity: 'Term 1', displayLabel: 'Term 1', order: 1 },
+            { identity: 'Term 2', displayLabel: 'Term 2', order: 2 },
+            { identity: 'Term 3', displayLabel: 'Term 3', order: 3 },
+          ],
+        },
+        termContractCachedAt: new Date(),
+      },
     });
     const termConfig = await base.schoolYearTermConfig.create({
       data: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, termCount: 3, termIdentities: ['Term 1', 'Term 2', 'Term 3'], isActive: true },
@@ -160,6 +173,7 @@ async function main() {
       return json;
     }
     const previewPath = '/api/v1/faculty-assignments/reconciliation/preview';
+    const diagnosticsPath = '/api/v1/faculty-assignments/authority-diagnostics';
     const applyPath = '/api/v1/faculty-assignments/reconciliation/apply';
     const readinessPath = '/api/v1/faculty-assignments/reconciliation/readiness';
     const previewBody = () => ({ schoolId: fixtureSchoolId, schoolYearId: fixtureYearId });
@@ -195,6 +209,17 @@ async function main() {
     assert(typeof numericPreview.fingerprint === 'string' && numericPreview.fingerprint.length === 64, 'numeric preview returns a canonical fingerprint');
     const stringPreview: any = await callRoute('R4 string preview succeeds', 'POST', previewPath, officerJwt(fixtureSchoolId), { schoolId: String(fixtureSchoolId), schoolYearId: String(fixtureYearId) }, 200);
     assertEqual(stringPreview.fingerprint, numericPreview.fingerprint, 'string-id and numeric-id previews share one fingerprint');
+    const diagnostics: any = await callRoute('R4 authority diagnostics succeeds', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(fixtureSchoolId), undefined, 200);
+    assert(Array.isArray(diagnostics.demandedSubjectSectionPairs), 'diagnostics report demanded subject-section pairs');
+    assert(Array.isArray(diagnostics.ownedSubjectSectionPairs), 'diagnostics report owned subject-section pairs');
+    assert(Array.isArray(diagnostics.unownedActiveFaculty), 'diagnostics report unowned active faculty');
+    assert(Array.isArray(diagnostics.validAdviserMappings), 'diagnostics report valid adviser mappings');
+    assert(Array.isArray(diagnostics.legacyHgOwnershipRows), 'diagnostics report legacy HG rows');
+    assert(Array.isArray(diagnostics.advisoryCreditEligibility), 'diagnostics report advisory-credit eligibility');
+    assert(typeof diagnostics.overloadCapacityTotals?.beforeTeachingMinutes === 'number', 'diagnostics report overload/capacity totals');
+    assert(Array.isArray(diagnostics.candidateCountsByDepartment), 'diagnostics report candidate counts by department');
+    assert(Array.isArray(diagnostics.unresolvedReasons), 'diagnostics report typed unresolved reasons');
+    assert(diagnostics.zeroWriteProof?.preview === true && diagnostics.zeroWriteProof?.writes === 0, 'diagnostics route is zero-write');
 
     section('R5. exact-fingerprint apply succeeds once; replay is zero-write');
     const before = await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });
