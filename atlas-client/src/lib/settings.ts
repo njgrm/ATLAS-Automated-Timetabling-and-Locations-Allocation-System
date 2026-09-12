@@ -435,21 +435,69 @@ export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 	return data;
 }
 
-// ─── Actor school scoping (Prompt 01A) ───
+// ─── Actor school scoping (Prompt 01A, RR-TERM-CACHE-C01R2) ───
 // Mutation ownership must come from the authenticated actor, never a client
-// constant. Resolves the caller's schoolId from /auth/me once per session.
+// constant. Resolves the caller's schoolId from /auth/me once per authenticated
+// token epoch.
+//
+// The cached actor school is bound to the exact preferred access token that
+// produced it. Any session change — logout to no token, same-tab re-login,
+// bridge-token replacement, session expiry, or actor-school switch — produces a
+// different token epoch and therefore invalidates the cached value. A late
+// /auth/me response from an obsolete session can neither return nor seed nor
+// overwrite the current scope. With no token the resolver is fail-closed: it
+// returns null and dispatches nothing.
 
 let cachedActorSchoolId: number | null = null;
+let cachedActorSchoolToken: string | null = null;
+
+function resetActorSchoolIdCache(): void {
+	cachedActorSchoolId = null;
+	cachedActorSchoolToken = null;
+}
+
+function isResolvedActorSchoolIdValue(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
 
 export async function resolveActorSchoolId(): Promise<number | null> {
-	if (cachedActorSchoolId != null) return cachedActorSchoolId;
+	// No authenticated session -> fail closed. Never reuse a cached school for
+	// an absent session and never dispatch /auth/me.
+	const tokenEpoch = getPreferredAccessToken();
+	if (!tokenEpoch) {
+		resetActorSchoolIdCache();
+		return null;
+	}
+
+	// A cached value is only reusable while the current token exactly matches
+	// the epoch that produced it.
+	if (cachedActorSchoolId != null && cachedActorSchoolToken === tokenEpoch) {
+		return cachedActorSchoolId;
+	}
+
+	// Any prior cached epoch belongs to a different session; drop it so a failed
+	// revalidation cannot leave a stale school available to a later call.
+	if (cachedActorSchoolId != null) {
+		resetActorSchoolIdCache();
+	}
+
 	try {
 		const { data } = await atlasApi.get<{ user?: { schoolId?: number | null } }>('/auth/me');
+		// The session may have changed while /auth/me was in flight. A late or
+		// obsolete response must not return, seed, or overwrite a school for a
+		// different (or absent) token epoch.
+		if (getPreferredAccessToken() !== tokenEpoch) {
+			return null;
+		}
 		const schoolId = data?.user?.schoolId;
-		if (typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0) {
+		if (isResolvedActorSchoolIdValue(schoolId)) {
 			cachedActorSchoolId = schoolId;
+			cachedActorSchoolToken = tokenEpoch;
 			return schoolId;
 		}
+		// Invalid/absent school id: fail closed and never cache a non-positive,
+		// non-integer, or absent value.
+		resetActorSchoolIdCache();
 	} catch {
 		// unauthenticated or auth/me unavailable — caller decides fallback
 	}

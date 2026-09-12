@@ -2,7 +2,9 @@
 
 **Status: PREPARED — NOT APPROVED.** No process may be replaced and no acceptance
 login may be attempted until the operator returns the exact approval sentence in
-section 8.
+section 8. The approval sentence may be returned only after the integration owner
+records the final product pin in section 1; until that pin exists, no approval is
+valid.
 
 **Risk:** HIGH — shared-runtime deployment/cutover (ATLAS server 5001 and client
 5174), plus one separately authorized acceptance login if no reusable session
@@ -12,16 +14,22 @@ exists.
 
 ## 1. Target identity
 
-- **Product target SHA:** `2e871007806179ac2fa3b0b5e47f158c862330c9`
-  (`origin/main` after the RR-TERM-CACHE-C01R integration, verified remote at
-  preparation time).
-  - Integration merge: `a1256506` (candidate `86376ba7` onto base `904818d4`).
-  - Accepted candidate: `86376ba7a63cffa2b19ee8f1e97bbe953dbdd9f1`
-    (`fix(rollover): close term-authority scope and active-year gaps`).
-  - Fresh independent QA: `ACCEPT_READY` — mandatory 17/17, blocked 0,
-    unperformed 0.
-  - Any packet commit above `2e871007` is docs-only and shares this exact
-    product tree; deployment identity is `2e871007`.
+- **Product target SHA:** «recorded at integration» — the integration owner
+  records the final integrated product SHA (the `origin/main` commit that
+  integrates the reviewed `work/rr-term-cache-c01r2` candidate) in a docs-only
+  finalization commit. Until that pin is recorded the status stays
+  PREPARED — NOT APPROVED and no approval sentence may be returned. Any commit
+  above the recorded pin is docs-only and shares this exact product tree;
+  deployment identity is the recorded pin.
+  - **Reviewed candidate (not yet integrated):** branch
+    `work/rr-term-cache-c01r2`, base
+    `781a457fa1c6c9c2515787b6cab302f9f1558bb6`. The candidate corrects the
+    session-bound actor-school authority and this deployment packet. Its SHA is
+    recorded in the executor handoff; it becomes deployable only after
+    independent QA and planner integration fix the final pin above.
+  - **Superseded prior pin:** `2e871007806179ac2fa3b0b5e47f158c862330c9`
+    (the RR-TERM-CACHE-C01R integration). It is no longer the deployment target
+    because the reviewed C01R2 correction must be integrated first.
 - **Expected current live SHA:** `fdd0c8c7d9f417bdddbe4a3dc2ec9e1f627e2b22`
   (W1-RUNTIME-DEPLOY). Last recorded processes: server PID 11564 + client
   PID 6756 from `D:/ATLAS-worktrees/w1-runtime-deploy`. Re-verify the live
@@ -44,29 +52,47 @@ Rollover automation must remain disabled: `ROLLOVER_AUTO_SYNC_ENABLED=false`.
 
 ## 3. Deployment steps (for the eventual HIGH executor)
 
+This is a **stop-then-start swap**: each listener is stopped before its
+replacement is started, so each port has a short planned interruption. It is
+**not zero-downtime**. Zero-downtime may be claimed only with a separately
+proven proxy or alternate-port handoff, which this packet does not have. Do not
+attempt to start a new listener on a port that the incumbent still holds; that
+ordering cannot succeed.
+
 1. **Preflight (read-only):** record the current live SHA/processes, Tailnet
    health 200, the sanitized database target, `schools` count,
    `_prisma_migrations` count, and every signature in section 6 (BEFORE).
-2. Create a fresh clean worktree from `origin/main` at the packet commit (e.g.
-   `D:/ATLAS-worktrees/rr-term-cache-live-deploy-20260912`); verify
-   `git rev-parse HEAD` matches the reviewed commit and the tree is clean.
-3. Provision: `npm ci` at root, `npm ci --prefix atlas-server`,
-   `npm ci --prefix atlas-client`; from `atlas-server` run
-   `npx prisma generate --schema ..\prisma\schema.prisma`; copy the deployment
-   environment from the recorded live worktree (never commit it); build server
-   (`npm run build`) and client (`npm run build`).
-4. Start the new server on 5001 and new client on 5174 with
-   `ROLLOVER_AUTO_SYNC_ENABLED=false`; confirm the
+2. **Build and stage without touching any live listener.** Create a fresh clean
+   worktree from the recorded product pin (e.g.
+   `D:/ATLAS-worktrees/rr-term-cache-live-deploy-<date>`); verify
+   `git rev-parse HEAD` matches the recorded pin and the tree is clean. Provision
+   `npm ci` at root, `npm ci --prefix atlas-server`, `npm ci --prefix atlas-client`;
+   from `atlas-server` run `npx prisma generate --schema ..\prisma\schema.prisma`;
+   copy the deployment environment from the recorded live worktree (never
+   commit it); build server (`npm run build`) and client (`npm run build`). No
+   listener has been stopped or replaced at this point.
+3. **Record the incumbent launch identity (read-only).** Before any change,
+   record for BOTH incumbents: PID, exact command line, worktree path and
+   checked-out SHA, environment source, and the exact restart procedure. Verify
+   incumbent Tailnet health 200. Re-read the PIDs; do not assume them.
+4. **Stop only the incumbent server on 5001** and confirm the port is free.
+5. **Start the new server on 5001** with `ROLLOVER_AUTO_SYNC_ENABLED=false`,
+   using the recorded launch procedure and environment. Require local health
+   200 and the
    `[rollover-automation] Disabled via ROLLOVER_AUTO_SYNC_ENABLED=false` log
-   line and local health 200.
-5. Swap processes: stop the previous server/client only after the new listeners
-   are healthy (or a brief sequential swap with a health check between steps).
-6. Post-swap: Tailnet health 200; confirm the served product identity; confirm
-   rollover automation remains disabled.
-7. Record restartability: the exact launch procedure and environment source. If
-   the runtime depends on a transient env file or an unmanaged process, label
-   the deployment `EPHEMERAL_DEPLOYMENT` and give the exact recovery
-   requirement instead of claiming restart readiness.
+   line. **If startup or health fails, immediately restore the incumbent server
+   from the recorded command line and environment source, confirm health 200,
+   and stop the swap** (leave the incumbent client untouched).
+6. **Stop only the incumbent client on 5174.**
+7. **Start the new client on 5174** and verify Tailnet rendering. **If
+   acceptance fails, restore the incumbent client.** Restore the incumbent
+   server only if the failure is attributable to the server swap.
+8. **Post-swap:** Tailnet health 200; confirm the served product identity;
+   confirm rollover automation remains disabled.
+9. **Record restartability:** the exact launch procedure and environment source.
+   If the runtime depends on a transient env file or an unmanaged process, label
+   the deployment `EPHEMERAL_DEPLOYMENT` and give the exact recovery requirement
+   instead of claiming restart readiness.
 
 ## 4. Acceptance (Stage C — authenticated, live Tailnet)
 
@@ -102,13 +128,22 @@ exact URL and the assertion. Localhost is invalid evidence.
 - **C7 Unauthenticated responsive spot-check:** login page and public schedule
   surfaces at both viewports.
 
-**Rollback triggers:** Tailnet health not 200, process crash, or an
-authenticated surface failure attributable to the swap.
+**Rollback triggers:** server startup failure or local health not 200 (section 3
+step 5), Tailnet health not 200, process crash, or an authenticated surface
+failure attributable to a stage of the swap.
 
-**Rollback procedure:** stop only the two new processes; restart the previous
-accepted artifact `fdd0c8c7` from the recorded deployment worktree and launch
-procedure; verify health 200; record that any login audit delta persists and
-that no other mutation occurred.
+**Rollback procedure (per stage, aligned with section 3):**
+
+- **Server-stage failure:** stop only the new server on 5001; restore the
+  incumbent server from its recorded command line and environment source; verify
+  local and Tailnet health 200. The incumbent client is untouched.
+- **Client-stage failure:** stop only the new client on 5174; restore the
+  incumbent client and confirm Tailnet rendering. Restore the incumbent server
+  only if the failure is attributable to the server swap.
+- **Full rollback:** stop only the two new processes; restore the previous
+  accepted artifact from its recorded worktree, SHA, and launch procedure; verify
+  health 200; record that any login audit delta persists and that no other
+  mutation occurred.
 
 ## 5. Mutation exclusions (hard stop)
 
@@ -149,11 +184,12 @@ publication rows.
 
 ## 8. Proposed operator approval sentence
 
-> I approve HIGH action RR-TERM-CACHE-LIVE-DEPLOY-2026-09-12: deploy product
-> `2e871007806179ac2fa3b0b5e47f158c862330c9` to ATLAS server/client processes
-> 5001 and 5174 only; keep rollover automation disabled; run the bounded
-> authenticated Tailnet Stage C acceptance at 1366×768 and 390×844, including at
-> most one recorded acceptance login by the Manual QA Login Protocol admin
-> credential if no reusable session exists; keep the database read-only apart
-> from that login's disclosed audit delta; and stop before term-cache apply,
-> generation, or publication.
+> I approve HIGH action RR-TERM-CACHE-LIVE-DEPLOY-2026-09-12: deploy the product
+> tree at the integration-recorded pin «recorded at integration» to ATLAS
+> server/client processes 5001 and 5174 only, as a stop-then-start swap with a
+> short planned listener interruption (not zero-downtime); keep rollover
+> automation disabled; run the bounded authenticated Tailnet Stage C acceptance
+> at 1366×768 and 390×844, including at most one recorded acceptance login by
+> the Manual QA Login Protocol admin credential if no reusable session exists;
+> keep the database read-only apart from that login's disclosed audit delta; and
+> stop before term-cache apply, generation, or publication.
