@@ -41,6 +41,7 @@ import type { CanonicalTemplateCoverage } from './class-program-slot.service.js'
 import { normalizeInternalGradeId } from './class-program-slot.service.js';
 import type { DerivedDemandBlocker } from './derived-demand.service.js';
 import type { DraftConsumeRejection } from './pre-generation-draft.service.js';
+import { resolvePerTermScheduleEntries, resolvePerTermUnassignedItems, type OrderedTermRef } from './per-term-schedule-resolution.service.js';
 import { normalizeProgramType } from './generation-shape-assembly.service.js';
 import { buildTimetableOutputProjections, validateTermTeacherResolution, validateTimetableShapePolicy } from './timetable-shape-policy.service.js';
 
@@ -185,6 +186,34 @@ async function buildGenerationReadinessWithContext(
 			selectedProfileId: result.selectedProfileId,
 			runtimeMs: Date.now() - schedulerStartedAt,
 		};
+		// TT-OUTPUT-C03R3: the constructor produces COMPACT base entries. A
+		// year-long subject session carries no term identity, and a rotating family
+		// is one lane whose `metadata.modularAssignments[]` names the term-specific
+		// member/teacher. Every check below must consume the EXPLICIT resolved
+		// per-term entries, exactly as `generation.service.ts` does before
+		// validation/persistence. Feeding the raw compact entries false-blocks an
+		// otherwise clean schedule with ROTATION_TERM_INVALID,
+		// TERM_TEACHER_UNRESOLVED, and OUTPUT_SHAPE_MISMATCH.
+		const derivedAuthority = assembly.derived;
+		const termRefs: OrderedTermRef[] = derivedAuthority.termStructure.terms.map((term) => ({
+			identity: term.identity,
+			order: term.order,
+			displayLabel: term.displayLabel,
+		}));
+		const subjectIdByCode = new Map<string, number>();
+		for (const subject of assembly.schedulableSubjects as Array<{ id: number; code?: unknown }>) {
+			if (typeof subject.code === 'string' && subject.code.length > 0) subjectIdByCode.set(subject.code, subject.id);
+		}
+		const resolvedEntries = termRefs.length > 0
+			? (resolvePerTermScheduleEntries(result.entries, termRefs, { subjectIdByCode }) as unknown as ScheduledEntry[])
+			: (result.entries as ScheduledEntry[]);
+		const resolvedUnassignedItems = termRefs.length > 0
+			? resolvePerTermUnassignedItems(result.unassignedItems, termRefs)
+			: result.unassignedItems;
+
+		// The empty-output check reads the raw scheduler length: resolution of an
+		// empty set stays empty, so raw emptiness is equivalent and preserves the
+		// existing diagnostic.
 		if (assembly.derived.totalLines === 0 || assembly.derived.totalPairs === 0 || result.entries.length === 0) {
 			blockers.push({
 				code: 'EMPTY_SCHEDULE_OUTPUT',
@@ -200,60 +229,81 @@ async function buildGenerationReadinessWithContext(
 			});
 		}
 
-		const validatorCtx = buildPreflightValidatorContext(assembly, result.entries as ScheduledEntry[], 0);
-		const validation = validateHardConstraints(validatorCtx);
-		const hard = validation.violations.filter((v) => v.severity === 'HARD');
-		const soft = validation.violations.filter((v) => v.severity === 'SOFT');
-		violations = { hardCount: hard.length, softCount: soft.length, hardCodes: countByCode(hard.map((v) => v.code)), softCodes: countByCode(soft.map((v) => v.code)) };
-
-		// GEN-C02R Correction 8: shape validation independent of the generic
-		// validator. An out-of-shape entry is a HARD blocker.
-		const shapeViolations = validateCanonicalEntryShapes(result.entries as ScheduledEntry[], assembly.timetableShapeContracts, buildSectionScopeMap(assembly.sectionsByGrade));
-		for (const shapeViolation of shapeViolations) blockers.push(shapeViolation);
-		const outputShapePolicy = validateTimetableShapePolicy({
-			termAuthority: { format: assembly.derived.termStructure.format, terms: assembly.derived.termStructure.terms.map((term) => ({ identity: term.identity, order: term.order })), cachedAt: 'derived-demand-authority' },
-			validateShiftWindows: false,
-			shiftWindows: [],
-			sections: assembly.sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
-			shapes: assembly.timetableShapeContracts,
-			rooms: assembly.rooms,
-			subjects: assembly.subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
-			entries: (result.entries as ScheduledEntry[]).map((entry) => ({ entryId: entry.entryId, sectionId: entry.sectionId, facultyId: entry.facultyId, roomId: entry.roomId, subjectId: entry.subjectId, termIndex: entry.termIndex ?? 0, startTime: entry.startTime, endTime: entry.endTime })),
-			outputProjections: buildTimetableOutputProjections(result.entries as ScheduledEntry[]),
-		});
-		for (const shapeBlocker of outputShapePolicy.filter((entry) => entry.code === 'OUTPUT_SHAPE_MISMATCH' || entry.code === 'ROTATION_TERM_INVALID')) {
-			blockers.push(classifyShapePolicyBlocker(shapeBlocker));
-		}
-		for (const teacherBlocker of validateTermTeacherResolution((result.entries as ScheduledEntry[]).map((entry) => ({ subjectId: entry.subjectId, sectionId: entry.sectionId, termIndex: entry.termIndex ?? 0, facultyId: entry.facultyId })))) {
-			blockers.push(classifyShapePolicyBlocker(teacherBlocker));
-		}
-		if (shapeViolations.length > 0) {
-			violations = {
-				...violations,
-				hardCount: violations.hardCount + shapeViolations.length,
-				hardCodes: countByCode([...hard.map((v) => v.code), ...shapeViolations.map((v) => v.code)]),
-			};
-		}
-
-		const subjectCodeById = new Map<number, string | null>(assembly.schedulableSubjects.map((s: any) => [s.id, (typeof s.code === 'string' ? s.code : null)]));
-		const termIdentityByIndex = new Map(assembly.derived.termStructure.terms.map((t) => [t.order, t.identity]));
-		for (const item of result.unassignedItems) {
-			const termIdentity = typeof item.termIndex === 'number' ? termIdentityByIndex.get(item.termIndex) ?? null : null;
-			blockers.push(classifyUnassignedBlocker(item as any, termIdentity, subjectCodeById.get(item.subjectId) ?? null));
-		}
-		for (const violation of hard) {
+		if (termRefs.length === 0) {
+			// Defensive fail-closed guard. `assembly.derived` is non-null here and
+			// `DerivedDemandSuccess.termStructure.terms` is required, so
+			// `deriveCanonicalDemand` already returns a TERM_STRUCTURE_UNAVAILABLE
+			// failure (and `schedulerCanRun` false) when no ordered terms exist. If
+			// that invariant is ever violated, validating raw entries would silently
+			// misclassify term identity, so report the typed blocker instead.
 			blockers.push({
-				code: violation.code,
-				category: violation.code.includes('ROOM') ? 'RESOURCE_INFEASIBLE' : 'ALGORITHM_LIMIT',
+				code: 'TERM_STRUCTURE_UNAVAILABLE',
+				category: 'DEMAND_AUTHORITY',
 				termIdentity: null,
-				sectionId: violation.entities?.sectionId ?? null,
-				subjectId: violation.entities?.subjectId ?? null,
+				sectionId: null,
+				subjectId: null,
 				subjectCode: null,
-				entity: `Run validation · ${violation.code}`,
-				reason: violation.message,
-				owningSurface: 'Generation assembly',
-				nextAction: 'Resolve the reported hard conflict, then re-run readiness.',
+				entity: 'Active school year / term structure',
+				reason: 'The readiness scheduler ran without a verified ordered term structure, so per-term schedule resolution is unavailable.',
+				owningSurface: 'Subject scheduling authority / EnrollPro term contract',
+				nextAction: 'Resolve the ordered EnrollPro term contract, then re-run readiness.',
 			});
+		} else {
+			const validatorCtx = buildPreflightValidatorContext(assembly, resolvedEntries, 0);
+			const validation = validateHardConstraints(validatorCtx);
+			const hard = validation.violations.filter((v) => v.severity === 'HARD');
+			const soft = validation.violations.filter((v) => v.severity === 'SOFT');
+			violations = { hardCount: hard.length, softCount: soft.length, hardCodes: countByCode(hard.map((v) => v.code)), softCodes: countByCode(soft.map((v) => v.code)) };
+
+			// GEN-C02R Correction 8: shape validation independent of the generic
+			// validator. An out-of-shape entry is a HARD blocker.
+			const shapeViolations = validateCanonicalEntryShapes(resolvedEntries, assembly.timetableShapeContracts, buildSectionScopeMap(assembly.sectionsByGrade));
+			for (const shapeViolation of shapeViolations) blockers.push(shapeViolation);
+			const outputShapePolicy = validateTimetableShapePolicy({
+				termAuthority: { format: derivedAuthority.termStructure.format, terms: derivedAuthority.termStructure.terms.map((term) => ({ identity: term.identity, order: term.order })), cachedAt: 'derived-demand-authority' },
+				validateShiftWindows: false,
+				shiftWindows: [],
+				sections: assembly.sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
+				shapes: assembly.timetableShapeContracts,
+				rooms: assembly.rooms,
+				subjects: assembly.subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
+				entries: (resolvedEntries as ScheduledEntry[]).map((entry) => ({ entryId: entry.entryId, sectionId: entry.sectionId, facultyId: entry.facultyId, roomId: entry.roomId, subjectId: entry.subjectId, termIndex: entry.termIndex ?? 0, startTime: entry.startTime, endTime: entry.endTime })),
+				outputProjections: buildTimetableOutputProjections(resolvedEntries as ScheduledEntry[]),
+			});
+			for (const shapeBlocker of outputShapePolicy.filter((entry) => entry.code === 'OUTPUT_SHAPE_MISMATCH' || entry.code === 'ROTATION_TERM_INVALID')) {
+				blockers.push(classifyShapePolicyBlocker(shapeBlocker));
+			}
+			for (const teacherBlocker of validateTermTeacherResolution((resolvedEntries as ScheduledEntry[]).map((entry) => ({ subjectId: entry.subjectId, sectionId: entry.sectionId, termIndex: entry.termIndex ?? 0, facultyId: entry.facultyId })))) {
+				blockers.push(classifyShapePolicyBlocker(teacherBlocker));
+			}
+			if (shapeViolations.length > 0) {
+				violations = {
+					...violations,
+					hardCount: violations.hardCount + shapeViolations.length,
+					hardCodes: countByCode([...hard.map((v) => v.code), ...shapeViolations.map((v) => v.code)]),
+				};
+			}
+
+			const subjectCodeById = new Map<number, string | null>(assembly.schedulableSubjects.map((s: any) => [s.id, (typeof s.code === 'string' ? s.code : null)]));
+			const termIdentityByIndex = new Map(termRefs.map((term) => [term.order, term.identity]));
+			for (const item of resolvedUnassignedItems) {
+				const termIdentity = typeof item.termIndex === 'number' ? termIdentityByIndex.get(item.termIndex) ?? null : null;
+				blockers.push(classifyUnassignedBlocker(item as any, termIdentity, subjectCodeById.get(item.subjectId) ?? null));
+			}
+			for (const violation of hard) {
+				blockers.push({
+					code: violation.code,
+					category: violation.code.includes('ROOM') ? 'RESOURCE_INFEASIBLE' : 'ALGORITHM_LIMIT',
+					termIdentity: null,
+					sectionId: violation.entities?.sectionId ?? null,
+					subjectId: violation.entities?.subjectId ?? null,
+					subjectCode: null,
+					entity: `Run validation · ${violation.code}`,
+					reason: violation.message,
+					owningSurface: 'Generation assembly',
+					nextAction: 'Resolve the reported hard conflict, then re-run readiness.',
+				});
+			}
 		}
 	}
 
