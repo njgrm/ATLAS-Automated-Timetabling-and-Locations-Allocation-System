@@ -141,4 +141,3 @@ for a live-supervisor installation approval.
 The live supervisor installation/cutover remains a separate `HIGH` packet.
 Term-cache catch-up apply, rollover sync, Teaching Load mutation, generation,
 and publication remain independently previewed, reviewed, and approved actions.
-
