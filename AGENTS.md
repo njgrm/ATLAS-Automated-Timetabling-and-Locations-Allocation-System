@@ -763,6 +763,14 @@ The planner must independently validate both layers:
    patches: perform a root-cause audit, supersede the prompt with one coherent
    closure packet, and reconsider model/ownership/scope. Never continue an
    unbounded review-fix loop by inertia.
+10. **Retain custody of delegated lanes.** While a planner-owned executor, QA,
+    or auditor is still running, the planner shall keep the orchestration turn
+    open and use bounded waits or state checks until that role returns, needs
+    operator input, or is explicitly stopped. Do not send a terminal planner
+    response merely because an intermediate lane is quiet. If the harness or
+    usage limit ends a delegated turn, inspect its worktree immediately and
+    return a resume handoff that preserves committed and uncommitted work; do
+    not describe the lane as running or silently leave it idle.
 
 #### Acceptance, integration, and stopping conditions
 
