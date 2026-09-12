@@ -1528,6 +1528,8 @@ export interface PeriodSlot {
 	endTime: string;
 	isSpecialEvent?: boolean;
 	eventName?: string;
+	/** When present, a special event applies only to this weekday. */
+	dayOfWeek?: string;
 }
 
 export interface DraftBoardState {
