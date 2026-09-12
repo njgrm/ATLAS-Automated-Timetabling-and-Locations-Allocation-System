@@ -19,29 +19,31 @@ questions.md
 
 # Local documentation, reference material, and external tool checkouts
 api/
-# Keep the historical documentation tree local by default, but preserve the
-# evidence needed for executor -> reviewer -> planner handoffs. Progress files
-# use a suffix so unrelated local checklists are not exposed accidentally.
+# Keep miscellaneous historical documentation local by default, but track the
+# durable planner -> executor -> QA control plane without force-add ceremony.
+# Progress files use a suffix so unrelated local checklists are not exposed.
 docs/*
+!docs/analysis/
+!docs/analysis/**
+!docs/handoffs/
+!docs/handoffs/**
+!docs/plans/
+!docs/plans/**
 !docs/progress/
 docs/progress/*
 !docs/progress/*-progress.md
+!docs/reference/
+!docs/reference/**
 !docs/reviews/
 !docs/reviews/**
 !docs/prompts/
-docs/prompts/*
-!docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md
-!docs/prompts/subjects-curriculum-authority-03e-r-authority-closure-2026-09-08.md.sha256
-!docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md
-!docs/prompts/subjects-curriculum-authority-03e-r2-semantic-revision-closure-2026-09-08.md.sha256
+!docs/prompts/**
 !docs/verification/
 docs/verification/*
 !docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json
 !docs/verification/sca-03e-r-authority-closure-planner-manifest-2026-09-08.json.sha256
 !docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json
 !docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json.sha256
-!docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md
-!docs/prompts/atlas-core-integration-rc01-seal-2026-09-09.md.sha256
 !docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json
 !docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json.sha256
 mcp-servers/

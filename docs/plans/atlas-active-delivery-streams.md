@@ -67,7 +67,8 @@ hard blockers before separately approving publication.
   `docs/prompts/actor-scope-deploy-restore-2026-09-12.md`; the old stop-then-start
   swap packet is superseded by the confirmed outage. Deployment was separately
   gated and not executed by that cycle.
-- Cycle recovery: `actor-scope-deploy-restore-20260912` (`RUNNING`) started
+- Cycle recovery: `actor-scope-deploy-restore-20260912`
+  (`DEPLOYED_ACCEPTANCE_INCOMPLETE`) started
   2026-09-12 (Asia/Manila) under the operator's explicit HIGH approval of
   ACTOR-SCOPE-DEPLOY-RESTORE-2026-09-12. Planner session
   `ses_f6bc8cee4ffe4v813ndCWIvFh1`. Deployment identity is the product pin
@@ -173,6 +174,7 @@ hard blockers before separately approving publication.
 | RR-TERM-CACHE-C01R2 | Bind the client actor-school resolver cache to the authenticated token epoch and make the deploy packet's listener sequence executable (stop-then-start with per-stage rollback) | `INTEGRATED` | MEDIUM source + docs; deployment stays HIGH | `work/rr-term-cache-c01r2`; `781a457f...4489bbbd`; merge `a633db50` | Live deployment remains separately gated | Fresh QA `ACCEPT_READY` (mandatory 10/10, blocked 0, unperformed 0): real-path session-epoch transition (no-token fail-closed, logout/expiry, A→B re-login with zero school-1 dispatch, late obsolete-response discard in both orderings, bridge replacement, invalid-id rejection, zero scoped dispatch unresolved); independent mutant control 6/9 failing; client tsc/build; server status 11/11 + mounted disposable-PostgreSQL 1/1 preserved; packet re-read confirms stop-then-start and no zero-downtime claim | Closed in source; deploy only after the operator returns the corrected packet's approval sentence (pin recorded at merge `a633db50`) |
 | ACTOR-SCOPE-C01 | Close actor-school/year scope end to end: remove school-1 defaults from actor-sensitive helpers, bind client consumers to the authenticated token epoch, and gate the runtime read routes on explicit actor school | `INTEGRATED` | MEDIUM source; deployment stays HIGH | `work/actor-scope-c01`; `a4dcd061...98ab5e04`; merge `d44f29e0` | Live deployment and the remaining defaulting `parseSchoolId` sites on non-listed runtime mutation routes are separate successor actions | Fresh QA `ACCEPT_READY` (mandatory 18/18, blocked 0, unperformed 0): real-path epoch suites, 55/55 focused client tests, two independent mutant controls, mounted disposable-PostgreSQL runtime-route matrix with zero DB/upstream dispatch on every rejection, both builds; integration reproduced product-tree identity, client 55/55, and server 3/3 on the merged tree | Closed in source; execute only via the prepared deploy-as-restore packet and its own explicit HIGH approval |
 | ACTOR-SCOPE-DEPLOY-RESTORE | Restore the shared runtime from the confirmed outage by deploying product pin `d44f29e0` on 5001/5174 with rollover automation disabled, then run the bounded authenticated Tailnet Stage C acceptance | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deploy-as-restore | `work/actor-scope-deploy-restore-20260912`; `d44f29e0...7d874c7c` + additive correction `534832bc` | QA blocked on the missing reusable session; a second recorded login is outside the approved sentence — operator decision required (one additional login or explicit waiver). Runtime is `EPHEMERAL_DEPLOYMENT` | Fresh QA `ses_f6bb46404ffeB8erOdXSiL9uST`: `PLANNER_DECISION_REQUIRED` 27/21/6/0 — identity/range (product tree == pin), listeners/PIDs/logs/`EPHEMERAL`, Tailnet 200/origin, unauth 401 controls, DB signatures (single login footprint, zero residue), evidence quality all PASS; C2/C3/C4-positive/C5/C6/C8 blocked (no session; planner re-confirmed 401) | After the decision: if a login is authorized, fresh QA re-verifies C2–C6/C8 on the corrected range, then integrate evidence + wave audit; if waived, integrate with the limitation recorded and close `DEPLOYED_ACCEPTANCE_INCOMPLETE` |
+| RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `READY_FOR_EXECUTION` | MEDIUM source/test; HIGH future live install | Prompt `docs/prompts/runtime-stability-wave-2026-09-12.md`; fresh worktree `D:/ATLAS-worktrees/runtime-supervision-c01` from refreshed `origin/main` | Source and isolated-port proof have no blocker; live installation remains separately gated | Current runtime uses a transient copied `.env`, unmanaged PIDs, Vite dev/HMR, liveness-only health, and no restart-on-exit owner; stale `ATLAS-DevServer-Temp2` has no trigger/restart policy and last result 1 | Execute Lane B source/test only on isolated ports; fresh QA; integrate if accepted; then prepare a separate HIGH live-install packet |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
@@ -215,15 +217,17 @@ hard blockers before separately approving publication.
    alignment and persisted term authority stay separate states, and the narrow
    preview/apply repair contract now has JWT-only actor-school authority, no
    client school-1 default, and a complete in-transaction active-year election.
-5. ACTOR-SCOPE-C01 (`a4dcd061...98ab5e04`, merge `d44f29e0`) is integrated.
-   The deploy-as-restore packet
-   (`docs/prompts/actor-scope-deploy-restore-2026-09-12.md`), pinned to
-   `d44f29e0`, received the operator's NEW explicit HIGH approval sentence on
-   2026-09-12 and is executing as `actor-scope-deploy-restore-20260912`; the
-   old stop-then-start swap packet is superseded and must not be executed.
-   After a successful restore, prepare and independently review the term-cache
-   catch-up preview and stop for its separate HIGH approval. After an approved
-   catch-up, run the canonical readiness diagnostic for the live school/year.
+5. ACTOR-SCOPE-C01 (`a4dcd061...98ab5e04`, merge `d44f29e0`) is integrated and
+   the approved deploy-as-restore has restored the shared runtime. Acceptance
+   remains incomplete until fresh QA receives authority for one additional
+   login and passes C2/C3/C4-positive/C5/C6/C8, or the operator explicitly
+   accepts the incomplete boundary. In parallel, execute the source/test-only
+   RUNTIME-SUPERVISION-C01 lane from
+   `docs/prompts/runtime-stability-wave-2026-09-12.md`; do not install it live.
+   After acceptance closes and the supervisor source is independently accepted,
+   prepare the separate live-supervisor installation packet and the reviewed
+   term-cache catch-up preview. After an approved catch-up, run the canonical
+   readiness diagnostic for the live school/year.
    Only if it proves zero hard blockers and exact source freshness, prepare the
    fingerprinted generation approval package; otherwise return the typed
    blocker list and corrective handoff.
@@ -244,6 +248,10 @@ hard blockers before separately approving publication.
   PublicPublishedSchedule, coverage.ts, CreatePlaceholderDialog) are
   non-blocking observation backlog pending a separate bounded authorization
   lane.
+- `RUNTIME-SUPERVISION-C01` source/test is safe in parallel in its own clean
+  worktree using fake children and isolated ports only. It may not stop, restart,
+  probe through browser automation, or otherwise alter the live 5001/5174
+  runtime; it may not install/modify a Windows task or service.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
   integration owner; executor documentation overlap is resolved at integration.
 - A bounded runtime deployment is safe only when no executor is using the
@@ -273,6 +281,9 @@ restart the shared runtime while live browser QA is active.
   fresh QA re-verification of C2/C3/C4-positive/C5/C6/C8, or explicitly waive
   independent re-verification. The old stop-then-start swap packet is
   superseded and requires no decision.
+- RUNTIME-SUPERVISION-C01 has no executor return yet. Its source/test lane is
+  ready at `docs/prompts/runtime-stability-wave-2026-09-12.md`; live installation
+  is not authorized.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
