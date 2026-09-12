@@ -8,7 +8,6 @@ import {
 	ChevronDown,
 	ChevronRight,
 	ClipboardCheck,
-	Download,
 	HelpCircle,
 	History,
 	Info,
@@ -27,7 +26,6 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
-import { getPreferredAccessToken } from '@/lib/auth';
 import { deriveSimpleLifecycleAction } from '@/lib/simple-timetable-state';
 import { deriveTimetableCapabilities, describeSetupState, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
@@ -57,6 +55,8 @@ import {
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
+import { SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
+import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 
 type TimetableSimpleHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -92,7 +92,7 @@ function TimetableSimpleHeaderImpl({
 	const [statusKeyOpen, setStatusKeyOpen] = useState(false);
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
-	const [teacherProgramExporting, setTeacherProgramExporting] = useState(false);
+	const [exportingKind, setExportingKind] = useState<SimpleExportKind | null>(null);
 	const [teacherProgramExportError, setTeacherProgramExportError] = useState<string | null>(null);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
@@ -216,63 +216,47 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	};
 
-	const handleExportWorkbook = async () => {
-		const runId = context.draft?.runId ?? context.activeGeneratedRunId;
-		if (!runId || !context.schoolYearId) return;
-		try {
-			const token = getPreferredAccessToken();
-			const response = await fetch(
-				`/api/v1/generation/${context.schoolId}/${context.schoolYearId}/runs/${runId}/export/summary-teacher-schedule.xlsx`,
-				{
-					headers: {
-						Authorization: `Bearer ${token ?? ''}`,
-					},
-				},
-			);
-			if (!response.ok) throw new Error('Export failed');
-			const blob = await response.blob();
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `summary-teacher-schedule-run-${runId}.xlsx`;
-			a.click();
-			URL.revokeObjectURL(url);
-		} catch {
-			// Export failed silently - user can retry
-		}
-	};
+	// Official beneficiary downloads are bound to exactly one selected ordered
+	// term. "All terms" resolves to no request so nothing mixed-term is exported.
+	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
+	const exportFacultyId = context.viewMode === 'faculty' && context.entityFilter ? Number(context.entityFilter) : null;
+	const summaryExport = resolveSimpleExportRequest('summary-teacher-schedule', {
+		schoolId: context.schoolId,
+		schoolYearId: context.schoolYearId,
+		runId: exportRunId,
+		termFilter: context.termFilter,
+	});
+	const classProgramExport = resolveSimpleExportRequest('class-program', {
+		schoolId: context.schoolId,
+		schoolYearId: context.schoolYearId,
+		runId: exportRunId,
+		termFilter: context.termFilter,
+	});
+	const teacherProgramExport = resolveSimpleExportRequest('teacher-program', {
+		schoolId: context.schoolId,
+		schoolYearId: context.schoolYearId,
+		runId: exportRunId,
+		termFilter: context.termFilter,
+		facultyId: exportFacultyId,
+	});
 
-	const handleExportTeacherProgram = async () => {
-		const runId = context.draft?.runId ?? context.activeGeneratedRunId;
-		const facultyId = context.viewMode === 'faculty' ? context.entityFilter : null;
-		if (!runId || !context.schoolYearId || !facultyId || !context.schoolId) return;
-		setTeacherProgramExportError(null);
+	const handleSimpleExport = async (kind: SimpleExportKind) => {
+		const descriptor = kind === 'summary-teacher-schedule'
+			? summaryExport
+			: kind === 'class-program'
+				? classProgramExport
+				: teacherProgramExport;
+		if (!descriptor) return;
+		if (kind === 'teacher-program') setTeacherProgramExportError(null);
+		setExportingKind(kind);
 		try {
-			setTeacherProgramExporting(true);
-			const token = getPreferredAccessToken();
-			const response = await fetch(
-				`/api/v1/generation/${context.schoolId}/${context.schoolYearId}/runs/${runId}/export/teacher-program.docx?facultyId=${encodeURIComponent(facultyId)}`,
-				{
-					headers: {
-						Authorization: `Bearer ${token ?? ''}`,
-					},
-				},
-			);
-			if (!response.ok) {
-				const err = await response.json().catch(() => ({ message: 'Export failed' }));
-				throw new Error(err.message ?? 'Export failed');
-			}
-			const blob = await response.blob();
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `teacher-program-${facultyId}.docx`;
-			a.click();
-			URL.revokeObjectURL(url);
+			await dispatchSimpleExport(descriptor);
 		} catch (err) {
-			setTeacherProgramExportError(err instanceof Error ? err.message : 'Export failed');
+			if (kind === 'teacher-program') {
+				setTeacherProgramExportError(err instanceof Error ? err.message : 'Export failed');
+			}
 		} finally {
-			setTeacherProgramExporting(false);
+			setExportingKind(null);
 		}
 	};
 
@@ -416,6 +400,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				</div>
 
 				<div className="order-last flex w-full min-w-0 shrink-0 items-center justify-start gap-1.5 overflow-x-auto lg:order-none lg:ml-auto lg:w-auto lg:max-w-[48vw] lg:justify-end">
+					<SimpleTermSwitcher context={context} />
 					<SimpleScheduleSheet
 						context={context}
 						lastEntityByMode={lastEntityByMode}
@@ -423,6 +408,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						onEntityChange={handleEntityChange}
 					/>
 					<SimpleTutorialControl open={tutorialOpen} onOpenChange={setTutorialOpen} lifecycle={capabilities.lifecycle} />
+					{hasGeneratedRun ? (
+						<SimpleExportMenu
+							summary={summaryExport}
+							classProgram={classProgramExport}
+							teacherProgram={teacherProgramExport}
+							showTeacherProgram={context.viewMode === 'faculty' && Boolean(context.entityFilter)}
+							needsTerm={context.termFilter === 'all'}
+							exportingKind={exportingKind}
+							onExport={(kind) => { void handleSimpleExport(kind); }}
+						/>
+					) : null}
 
 					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 						<DropdownMenuTrigger asChild>
@@ -561,39 +557,6 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 											<RefreshCw className="size-3.5" aria-hidden="true" />
 											Refresh names
 										</Button>
-										{hasGeneratedRun && (
-											<DropdownMenuItem
-												className="h-9 gap-2 text-xs"
-												data-testid="timetable-simple-export-workbook"
-												onSelect={(event) => {
-													event.preventDefault();
-													setMoreOpen(false);
-													void handleExportWorkbook();
-												}}
-											>
-												<Download className="size-3.5" aria-hidden="true" />
-												Export workbook
-											</DropdownMenuItem>
-										)}
-										{hasGeneratedRun && context.viewMode === 'faculty' && context.entityFilter && (
-											<DropdownMenuItem
-												className="h-9 gap-2 text-xs"
-												data-testid="timetable-simple-export-teacher-program"
-												disabled={teacherProgramExporting}
-												onSelect={(event) => {
-													event.preventDefault();
-													setMoreOpen(false);
-													void handleExportTeacherProgram();
-												}}
-											>
-												{teacherProgramExporting ? (
-													<Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-												) : (
-													<Download className="size-3.5" aria-hidden="true" />
-												)}
-												Export teacher program
-											</DropdownMenuItem>
-										)}
 									</div>
 								</div>
 							</div>

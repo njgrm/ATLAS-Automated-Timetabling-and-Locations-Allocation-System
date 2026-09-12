@@ -11,6 +11,7 @@ import {
 	minutesBetween,
 } from '@/lib/timetable-utils';
 import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
+import { matchesTermScope } from '@/lib/timetable-term-scope';
 import { deriveGenerationReadinessState, type TimetableCurriculumReadinessState } from '@/lib/timetable-generation-readiness';
 import { buildTimetableGenerationPath } from '@/components/timetable/timetableSchoolScope';
 import type {
@@ -996,12 +997,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
 			if (!matchesProgramFilter(programType, programFilter)) return false;
 			if (!matchesEntryKindFilter(entry.entryKind, entryKindFilter)) return false;
-			if (termFilter !== 'all') {
-				const entryTermIndex = entry.termIndex ?? null;
-				// Entries without termIndex are visible in all-term review only
-				if (entryTermIndex === null) return false;
-				if (entryTermIndex !== termFilter) return false;
-			}
+			// Term is the authoritative schedule scope: an entry belongs to exactly
+			// one numeric term; entries without a termIndex stay all-term-only.
+			if (!matchesTermScope(entry, termFilter)) return false;
 			return true;
 		});
 	}, [activeGridEntriesBase, entryKindFilter, programFilter, termFilter, sectionMap]);
