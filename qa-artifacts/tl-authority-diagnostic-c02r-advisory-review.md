@@ -15,6 +15,7 @@ Correction scope: read-only system-token access for the mounted Teaching Load au
 
 - Hermetic reconciliation suite: 83 passed / 0 failed (database-backed section skipped because the direct command did not inject `DATABASE_URL`).
 - Mounted disposable route test: the new system-token success, missing/invalid-schoolId rejection, unscoped-JWT rejection, cross-school-JWT rejection, and zero-write assertions all passed. The suite then reproduced the existing R5 fixture failure on the first apply (`replayed=true`, `inserted=0`, no `FacultySubject` row, followed by the fixture's null-row read).
+- A direct mounted-router probe against the uncorrected candidate returned HTTP 403 with `Reconciliation preview requires an authenticated actor school.` for a valid explicit `schoolId` and the real system token. The corrected route-level probe returned typed HTTP 400 `INVALID_PARAM` for both missing and zero `schoolId` before any database read.
 - The same R5 failure was reproduced on base `8f48a2fe6ea883189221e196c7a3d28ddcb629b8` in a disposable base worktree after adding the candidate's term-contract fixture normalization; the unnormalized base fixture fails earlier with `DERIVED_DEMAND_BLOCKED`.
 - Server `npx tsc --noEmit`: passed.
 - Server production build: passed.
