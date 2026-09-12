@@ -144,7 +144,7 @@ test.before(async () => {
 
 test.after(async () => {
 	if (!harnessReady) return;
-	await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+	await new Promise<void>((resolve, reject) => server.close((error: Error | null) => error ? reject(error) : resolve()));
 	for (const model of Object.keys(fakeModels)) {
 		delete prismaRef[model];
 	}

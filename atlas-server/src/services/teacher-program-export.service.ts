@@ -138,7 +138,7 @@ export async function buildTeacherProgramExportShape(params: {
 	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{ entries?: unknown[] }>;
 }): Promise<TeacherProgramExportShape> {
 	const { schoolId, schoolYearId, runId, facultyId, termIndex, client, publishedScheduleResolver } = params;
-	const db = client ?? prisma;
+	const db = (client ?? prisma) as typeof prisma;
 
 	// 1. Load faculty mirror
 	const faculty = await db.facultyMirror.findFirst({

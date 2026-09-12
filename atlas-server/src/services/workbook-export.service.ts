@@ -158,7 +158,9 @@ function isSpecializationSubject(subject: { name?: string | null; code?: string 
 
 export async function loadExportContext(options: ExportOptions): Promise<ExportContext> {
 	const { schoolId, schoolYearId, runId } = options;
-	const db = options.client ?? prisma;
+	// The injected test client is a partial read-only stub; keep the production
+	// Prisma delegate typing for callbacks and query results.
+	const db = (options.client ?? prisma) as typeof prisma;
 
 	const [run, school, schoolYearMirror] = await Promise.all([
 		db.generationRun.findFirst({
@@ -386,7 +388,9 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 	const periodSlots = allSlots.filter((s) => !s.isSpecialEvent);
 	const breakSlots = allSlots.filter((s) => s.isSpecialEvent);
 
-	const db = options.client ?? prisma;
+	// The injected test client is a partial read-only stub; keep the production
+	// Prisma delegate typing for callbacks and query results.
+	const db = (options.client ?? prisma) as typeof prisma;
 	const sections = await db.sectionMirror.findMany({
 		where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
 		select: { id: true, externalId: true, name: true, gradeLevelId: true },
@@ -476,7 +480,9 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 export async function exportClassProgramWorkbook(options: ExportOptions): Promise<Buffer> {
 	const ctx = await loadExportContext(options);
 	const visibility = options.specializationVisibility ?? 'hidden';
-	const db = options.client ?? prisma;
+	// The injected test client is a partial read-only stub; keep the production
+	// Prisma delegate typing for callbacks and query results.
+	const db = (options.client ?? prisma) as typeof prisma;
 
 	const sections = await db.sectionMirror.findMany({
 		where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },

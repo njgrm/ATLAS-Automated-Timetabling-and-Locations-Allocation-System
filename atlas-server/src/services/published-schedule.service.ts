@@ -541,7 +541,9 @@ export async function getPublishedSchedulePayload(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
-		dayOfWeek: se.dayOfWeek ?? (se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : null),
+		// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
+		// derived from the canonical event identity (Flag/HGP is Monday-only).
+		dayOfWeek: se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : null,
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));

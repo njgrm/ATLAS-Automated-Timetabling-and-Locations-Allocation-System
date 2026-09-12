@@ -107,7 +107,9 @@ export async function getRoomScheduleView(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
-		dayOfWeek: se.dayOfWeek ?? (se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined),
+		// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
+		// derived from the canonical event identity (Flag/HGP is Monday-only).
+		dayOfWeek: se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined,
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));

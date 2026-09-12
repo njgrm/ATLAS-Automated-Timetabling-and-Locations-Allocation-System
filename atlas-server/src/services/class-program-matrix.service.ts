@@ -99,7 +99,7 @@ async function resolveSourceRun(
 	params: ClassProgramMatrixParams,
 ): Promise<{ runId: number; entries: RawEntry[]; summary: Record<string, unknown> | null } | null> {
 	const { schoolId, schoolYearId, runId } = params;
-	const database = params.client ?? db();
+	const database = (params.client ?? db()) as ReturnType<typeof db>;
 
 	const loadRun = async (id: number) => database.generationRun.findFirst({
 		where: { id, schoolId, schoolYearId },
@@ -120,6 +120,7 @@ async function resolveSourceRun(
 		if (!candidate) return null;
 		selectedId = candidate.id;
 	}
+	if (selectedId === null) return null;
 
 	const run = await loadRun(selectedId);
 	if (!run) {
@@ -166,7 +167,7 @@ export async function generateClassProgramMatrix(
 	const { schoolId, schoolYearId, gradeLevel, visibility = 'hidden', termIndex } = params;
 	const actualGrade = normalizeGradeLevelSync(gradeLevel);
 	const warnings: string[] = [];
-	const database = params.client ?? db();
+	const database = (params.client ?? db()) as ReturnType<typeof db>;
 
 	// 1. Load all active sections for this grade
 	const sections = await database.sectionMirror.findMany({
