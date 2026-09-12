@@ -12,6 +12,17 @@
 
 export type EffectiveTermIndex = number;
 
+/**
+ * The term scope of an entry for conflict purposes: an explicit ordered term
+ * index, or 0 meaning "unscoped / year-round" (overlaps every term). A missing
+ * term identity is NEVER coerced to Term 1.
+ */
+export function entryTermScope(entry: { termIndex?: number | null }): EffectiveTermIndex {
+	const term = entry.termIndex;
+	if (typeof term === 'number' && Number.isInteger(term) && term >= 1) return term;
+	return 0;
+}
+
 export type EffectiveResourceReservation = {
 	/** Stable identity: `${entryId}:term:${termIndex}:faculty:${facultyId}` */
 	reservationId: string;

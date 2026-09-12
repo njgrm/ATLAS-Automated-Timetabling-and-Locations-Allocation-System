@@ -4,7 +4,7 @@
  * binds every official download to that selected term.
  */
 
-import { Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, Download, Loader2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/ui/dropdown-menu';
@@ -77,6 +77,7 @@ export function SimpleExportMenu({
 	exportingKind,
 	onExport,
 }: SimpleExportMenuProps) {
+	const exporting = exportingKind !== null;
 	return (
 		<>
 			<DropdownMenu>
@@ -89,6 +90,7 @@ export function SimpleExportMenu({
 						aria-label="Download beneficiary outputs"
 						data-testid="timetable-simple-export-trigger"
 						data-export-needs-term={needsTerm ? 'true' : 'false'}
+						data-export-busy={exporting ? 'true' : 'false'}
 						data-export-summary-url={summary?.url ?? ''}
 						data-export-summary-filename={summary?.filename ?? ''}
 						data-export-class-program-url={classProgram?.url ?? ''}
@@ -112,7 +114,7 @@ export function SimpleExportMenu({
 					) : null}
 					<DropdownMenuItem
 						className="h-9 gap-2 text-xs"
-						disabled={!summary}
+						disabled={!summary || exporting}
 						data-testid="timetable-simple-export-workbook"
 						onSelect={(event) => { event.preventDefault(); onExport('summary-teacher-schedule'); }}
 					>
@@ -121,7 +123,7 @@ export function SimpleExportMenu({
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						className="h-9 gap-2 text-xs"
-						disabled={!classProgram}
+						disabled={!classProgram || exporting}
 						data-testid="timetable-simple-export-class-program"
 						onSelect={(event) => { event.preventDefault(); onExport('class-program'); }}
 					>
@@ -131,7 +133,7 @@ export function SimpleExportMenu({
 					{showTeacherProgram ? (
 						<DropdownMenuItem
 							className="h-9 gap-2 text-xs"
-							disabled={!teacherProgram || exportingKind === 'teacher-program'}
+							disabled={!teacherProgram || exporting}
 							data-testid="timetable-simple-export-teacher-program"
 							onSelect={(event) => { event.preventDefault(); onExport('teacher-program'); }}
 						>
@@ -150,5 +152,49 @@ export function SimpleExportMenu({
 				</span>
 			) : null}
 		</>
+	);
+}
+
+type SimpleExportErrorBannerProps = {
+	error: { kind: SimpleExportKind; message: string } | null;
+	onRetry: (kind: SimpleExportKind) => void;
+	onDismiss: () => void;
+};
+
+/**
+ * TT-OUTPUT-C03R3 — one visible, retryable failure surface for EVERY official
+ * beneficiary download (summary workbook, class program, teacher program), not
+ * only the teacher program. The retry re-dispatches the exact failed kind.
+ */
+export function SimpleExportErrorBanner({ error, onRetry, onDismiss }: SimpleExportErrorBannerProps) {
+	if (!error) return null;
+	return (
+		<div
+			className="flex items-center gap-1.5 px-3 py-1 bg-red-50 border-t border-red-200"
+			data-testid="timetable-simple-export-error"
+			data-export-error-kind={error.kind}
+		>
+			<AlertTriangle className="size-3.5 text-red-600 shrink-0" aria-hidden="true" />
+			<span className="text-xs text-red-700">{error.message}</span>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				className="h-5 px-1 text-xs text-red-600 hover:text-red-800"
+				data-testid="timetable-simple-export-retry"
+				onClick={() => onRetry(error.kind)}
+			>
+				Retry
+			</Button>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				className="h-5 px-1 text-xs text-red-600 hover:text-red-800"
+				onClick={onDismiss}
+			>
+				Dismiss
+			</Button>
+		</div>
 	);
 }

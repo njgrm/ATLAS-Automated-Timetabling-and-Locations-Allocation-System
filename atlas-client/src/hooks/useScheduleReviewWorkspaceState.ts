@@ -582,9 +582,17 @@ export function useScheduleReviewWorkspaceState() {
 		setTermFilter((current) => repairTermFilter(current, schoolYearContext?.activeTerm?.orderedTerms ?? null));
 	}, [schoolYearId, schoolYearContext?.activeTerm?.orderedTerms]);
 
+	const resetTermScopedUiRef = useRef<() => void>(() => {});
 	const handleTermFilterChange = useCallback((value: 'all' | number) => {
 		setUserOverrodeTermFilter(true);
 		setTermFilter(value);
+		// TT-OUTPUT-C03R3: selecting another ordered term invalidates every
+		// term-scoped actionable object from the previous term. Preserve the
+		// generated run and the chosen layout (viewMode/presentationMode/entity
+		// filter); clear selection, previews, assignment dialogs, swap state,
+		// repair drawers, pending confirmations, inline action status, and the
+		// term-scoped Undo affordance so a stale object can never dispatch.
+		resetTermScopedUiRef.current();
 	}, []);
 
 	const focusSection = useCallback((sectionId: number) => {
@@ -901,6 +909,10 @@ export function useScheduleReviewWorkspaceState() {
 		setEditHistory([]);
 		setShowEditHistory(false);
 	}, []);
+
+	// Bind the term-change reset to the run-scoped reset without creating a
+	// use-before-declaration cycle; the callback only runs on user interaction.
+	resetTermScopedUiRef.current = resetRunScopedUi;
 
 	const prevScopeRef = useRef<{ schoolId: number | null; schoolYearId: number | null }>({ schoolId: null, schoolYearId: null });
 

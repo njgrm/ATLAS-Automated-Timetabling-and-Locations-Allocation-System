@@ -55,7 +55,7 @@ import {
 	useSimpleTasks,
 } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
-import { SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
+import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 
 type TimetableSimpleHeaderProps = {
@@ -93,7 +93,7 @@ function TimetableSimpleHeaderImpl({
 	const [tutorialOpen, setTutorialOpen] = useState(false);
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const [exportingKind, setExportingKind] = useState<SimpleExportKind | null>(null);
-	const [teacherProgramExportError, setTeacherProgramExportError] = useState<string | null>(null);
+	const [exportError, setExportError] = useState<{ kind: SimpleExportKind; message: string } | null>(null);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
@@ -241,20 +241,21 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	});
 
 	const handleSimpleExport = async (kind: SimpleExportKind) => {
+		// Prevent duplicate concurrent downloads: one official export at a time.
+		if (exportingKind !== null) return;
 		const descriptor = kind === 'summary-teacher-schedule'
 			? summaryExport
 			: kind === 'class-program'
 				? classProgramExport
 				: teacherProgramExport;
 		if (!descriptor) return;
-		if (kind === 'teacher-program') setTeacherProgramExportError(null);
+		setExportError(null);
 		setExportingKind(kind);
 		try {
 			await dispatchSimpleExport(descriptor);
 		} catch (err) {
-			if (kind === 'teacher-program') {
-				setTeacherProgramExportError(err instanceof Error ? err.message : 'Export failed');
-			}
+			// Every beneficiary download surfaces its own visible, retryable error.
+			setExportError({ kind, message: err instanceof Error && err.message ? err.message : 'Export failed' });
 		} finally {
 			setExportingKind(null);
 		}
@@ -565,21 +566,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				</div>
 			</div>
 
-			{teacherProgramExportError && (
-				<div className="flex items-center gap-1.5 px-3 py-1 bg-red-50 border-t border-red-200" data-testid="timetable-teacher-program-export-error">
-					<AlertTriangle className="size-3.5 text-red-600 shrink-0" aria-hidden="true" />
-					<span className="text-xs text-red-700">{teacherProgramExportError}</span>
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className="h-5 px-1 text-xs text-red-600 hover:text-red-800"
-						onClick={() => setTeacherProgramExportError(null)}
-					>
-						Dismiss
-					</Button>
-				</div>
-			)}
+			<SimpleExportErrorBanner
+				error={exportError}
+				onRetry={(kind) => { void handleSimpleExport(kind); }}
+				onDismiss={() => setExportError(null)}
+			/>
 
 			{/* Secondary row: hidden-row status controls (only when applicable) */}
 			{(context.policyAlignmentWarning || context.hiddenRowCount > 0) && (

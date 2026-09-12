@@ -9,6 +9,7 @@ import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
 import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots } from './schedule-constructor.js';
+import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 import * as policyService from './scheduling-policy.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 
@@ -41,7 +42,7 @@ export interface RoomScheduleEntry {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
-	termIndex: 1 | 2 | 3 | 4;
+	termIndex: number;
 }
 
 export interface RoomScheduleCell {
@@ -272,10 +273,27 @@ export async function getRoomScheduleView(
 				startTime: e.startTime,
 				endTime: e.endTime,
 				durationMinutes: e.durationMinutes,
-				termIndex: (e.termIndex ?? 1) as 1 | 2 | 3 | 4,
+				// TT-OUTPUT-C03R3: a missing term is NOT coerced to Term 1. Resolved
+				// runs always carry an explicit numeric term; 0 means unscoped/legacy.
+				termIndex: typeof e.termIndex === 'number' ? e.termIndex : 0,
 			}));
 
-			const hasConflict = mapped.length > 1;
+			// Term-aware conflict identity: the same physical slot across different
+			// ordered terms is intentional repetition, not a double-booking. Two
+			// distinct source slots overlapping in the SAME term are a conflict.
+			const sourceKeyOf = (e: ScheduledEntry): string =>
+				(e as ScheduledEntry & { sourceEntryId?: string }).sourceEntryId ?? e.entryId;
+			let hasConflict = false;
+			for (let left = 0; left < overlapping.length && !hasConflict; left += 1) {
+				for (let right = left + 1; right < overlapping.length; right += 1) {
+					const a = overlapping[left];
+					const b = overlapping[right];
+					if (sourceKeyOf(a) === sourceKeyOf(b)) continue;
+					if (!effectiveTermsOverlap(entryTermScope(a), entryTermScope(b))) continue;
+					hasConflict = true;
+					break;
+				}
+			}
 			if (hasConflict) conflictCount++;
 
 			return {

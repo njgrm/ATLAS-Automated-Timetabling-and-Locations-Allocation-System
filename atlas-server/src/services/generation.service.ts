@@ -36,6 +36,11 @@ import { resolveRequestedTermIndex } from './academic-term.service.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import {
+	resolvePerTermScheduleEntries,
+	resolvePerTermUnassignedItems,
+	type OrderedTermRef,
+} from './per-term-schedule-resolution.service.js';
 import { publishNotificationEvent } from './notification-events.service.js';
 import { publishSchedule } from './publication-contract.service.js';
 import {
@@ -413,6 +418,14 @@ function buildZoneDistributionByTerm(
 	});
 }
 
+/**
+ * TT-OUTPUT-C03R3: a missing term identity is NEVER coerced to Term 1.
+ *
+ * `normalizeTermIndex` remains a display/diagnostic bucket for entries that are
+ * already resolved; the read helpers below use `explicitTermIndex` so an
+ * unresolved entry contributes to no selected term instead of silently joining
+ * the first one.
+ */
 function normalizeTermIndex(value: unknown): 1 | 2 | 3 | 4 {
 	const parsed = Number(value);
 	if (parsed === 2) return 2;
@@ -421,19 +434,27 @@ function normalizeTermIndex(value: unknown): 1 | 2 | 3 | 4 {
 	return 1;
 }
 
-function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 | 4 {
-	const firstTermIndex = entry.metadata?.modularAssignments?.[0]?.termIndex;
-	if (firstTermIndex === 2 || firstTermIndex === 3 || firstTermIndex === 4) return firstTermIndex;
-	return 1;
+function explicitTermIndex(value: unknown): 1 | 2 | 3 | 4 | null {
+	const parsed = Number(value);
+	if (parsed === 1 || parsed === 2 || parsed === 3 || parsed === 4) return parsed;
+	return null;
 }
 
-function resolveEntryTermIndex(entry: ScheduledEntry): 1 | 2 | 3 | 4 {
-	return normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex ?? deriveTermIndexFromMetadata(entry));
+function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 | 4 | null {
+	return explicitTermIndex(entry.metadata?.modularAssignments?.[0]?.termIndex);
+}
+
+function resolveEntryTermIndex(entry: ScheduledEntry): number {
+	return explicitTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex)
+		?? deriveTermIndexFromMetadata(entry)
+		?? 0;
 }
 
 function ensureEntriesHaveTermIndex(entries: ScheduledEntry[]): ScheduledEntry[] {
 	for (const entry of entries) {
-		entry.termIndex = resolveEntryTermIndex(entry);
+		const resolved = explicitTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex)
+			?? deriveTermIndexFromMetadata(entry);
+		if (resolved != null) entry.termIndex = resolved;
 	}
 	return entries;
 }
@@ -661,7 +682,23 @@ export async function triggerGenerationRun(
 			lockedEntries: preGenerationDrafts.lockedEntries,
 		});
 		const result = runHybridScheduler(constructorInput);
-		const entriesWithTerms = ensureEntriesHaveTermIndex(result.entries);
+
+		// ── TT-OUTPUT-C03R3: resolve EXPLICIT per-term entries BEFORE validation
+		// and persistence. The former `ensureEntriesHaveTermIndex` collapsed every
+		// year-long entry into Term 1 and left rotating lanes split across terms.
+		// The resolver replaces both with one entry per applicable ordered term.
+		const termRefs: OrderedTermRef[] = (assembly.termStructure?.terms ?? []).map((term) => ({
+			identity: term.identity,
+			order: term.order,
+			displayLabel: term.displayLabel,
+		}));
+		const subjectIdByCode = new Map(subjects.map((subject) => [subject.code, subject.id]));
+		const entriesWithTerms: ScheduledEntry[] = termRefs.length > 0
+			? (resolvePerTermScheduleEntries(result.entries, termRefs, { subjectIdByCode }) as unknown as ScheduledEntry[])
+			: (result.entries as ScheduledEntry[]);
+		const resolvedUnassignedItems: UnassignedItem[] = termRefs.length > 0
+			? (resolvePerTermUnassignedItems(result.unassignedItems, termRefs) as unknown as UnassignedItem[])
+			: result.unassignedItems;
 
 		// ── G.17: Diagnostic output for constructor result ──
 		console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}, hybrid=${result.hybridEnabled}, selectedProfile=${result.selectedProfileId}`);
@@ -694,14 +731,14 @@ export async function triggerGenerationRun(
 			},
 			meta: warning.meta,
 		}));
-		const unassignedViolations: Violation[] = result.unassignedItems.map((item) => {
+		const unassignedViolations: Violation[] = resolvedUnassignedItems.map((item) => {
 			const isSpecializedUnavailable = item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE';
 			return {
 				code: isSpecializedUnavailable ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION',
 				severity: isSpecializedUnavailable ? 'SOFT' : 'HARD',
 				message: isSpecializedUnavailable
-					? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in session ${item.session}.`
-					: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in session ${item.session}.`,
+					? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in term ${item.termIndex} session ${item.session}.`
+					: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in term ${item.termIndex} session ${item.session}.`,
 				schoolId,
 				schoolYearId,
 				runId: run.id,
@@ -715,6 +752,7 @@ export async function triggerGenerationRun(
 					homeRoomFallbackCause: item.homeRoomFallbackCause,
 					session: item.session,
 					gradeLevel: item.gradeLevel,
+					termIndex: item.termIndex,
 				},
 			};
 		});
@@ -822,7 +860,7 @@ export async function triggerGenerationRun(
 				summary: summary as object,
 				violations: mergedValidationResult.violations as unknown as object[],
 				draftEntries: entriesWithTerms as unknown as object[],
-				unassignedItems: result.unassignedItems as unknown as object[],
+				unassignedItems: resolvedUnassignedItems as unknown as object[],
 			},
 		});
 

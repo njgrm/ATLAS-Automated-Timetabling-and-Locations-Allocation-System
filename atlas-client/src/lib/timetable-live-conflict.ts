@@ -9,7 +9,26 @@ export type TimetableConflictContext = {
 	allFacultyOptions?: number[];
 	roomId?: number;
 	sourceEntryId?: string;
+	/**
+	 * TT-OUTPUT-C03R3 — the ordered term being edited. Conflict identity is
+	 * term-aware: an identical section/room/teacher/day/interval in another term
+	 * is intentional longitudinal repetition, not a collision. `0`/absent means
+	 * unscoped and overlaps every term.
+	 */
+	termIndex?: number | null;
 };
+
+/** Two entries conflict only when their term scopes overlap (0 = all terms). */
+export function conflictTermsOverlap(a: number, b: number): boolean {
+	if (a === 0 || b === 0) return true;
+	return a === b;
+}
+
+function normalizeConflictTerm(value: unknown): number {
+	const parsed = Number(value);
+	if (Number.isInteger(parsed) && parsed >= 1) return parsed;
+	return 0;
+}
 
 export type TimetableConflictSlot = {
 	startTime: string;
@@ -206,6 +225,11 @@ export function createLiveConflictInspector(
 	const { slotByKey, slotMinutesByKey, entryMinutesById, sectionEntriesByDay, roomEntriesByDay, facultyEntriesByDay, facultyDailyMinutes } = preparedIndex
 		?? buildLiveConflictIndex(entries, timeSlots);
 
+	// Term-aware conflict identity: only same-term (or unscoped) entries conflict.
+	const contextTerm = normalizeConflictTerm(context.termIndex ?? sourceEntry?.termIndex);
+	const termCompatible = (entry: ScheduledEntry): boolean =>
+		conflictTermsOverlap(normalizeConflictTerm(entry.termIndex), contextTerm);
+
 	const overlapsTarget = (entry: ScheduledEntry, targetStart: number, targetEnd: number) => {
 		const minutes = entryMinutesById.get(entry.entryId);
 		if (minutes) return intervalsOverlapMinutes(minutes.start, minutes.end, targetStart, targetEnd);
@@ -258,7 +282,7 @@ export function createLiveConflictInspector(
 
 		const sectionEntries = sectionEntriesByDay.get(dayEntityKey(day, context.sectionId)) ?? [];
 		for (const entry of sectionEntries) {
-			if (entry.entryId !== context.sourceEntryId && overlapsTarget(entry, targetStart, targetEnd)) {
+			if (entry.entryId !== context.sourceEntryId && termCompatible(entry) && overlapsTarget(entry, targetStart, targetEnd)) {
 				noteHard('SECTION_OVERLAP', entry.entryId);
 			}
 		}
@@ -266,7 +290,7 @@ export function createLiveConflictInspector(
 		if (context.roomId) {
 			const roomEntries = roomEntriesByDay.get(dayEntityKey(day, context.roomId)) ?? [];
 			for (const entry of roomEntries) {
-				if (entry.entryId !== context.sourceEntryId && overlapsTarget(entry, targetStart, targetEnd)) {
+				if (entry.entryId !== context.sourceEntryId && termCompatible(entry) && overlapsTarget(entry, targetStart, targetEnd)) {
 					noteHard('ROOM_OVERLAP', entry.entryId);
 				}
 			}
@@ -281,6 +305,7 @@ export function createLiveConflictInspector(
 				const facultyEntries = facultyEntriesByDay.get(dayEntityKey(day, facultyId)) ?? [];
 				const conflictEntry = facultyEntries.find((entry) => (
 					entry.entryId !== context.sourceEntryId
+					&& termCompatible(entry)
 					&& overlapsTarget(entry, targetStart, targetEnd)
 				));
 				if (conflictEntry) {
@@ -296,6 +321,7 @@ export function createLiveConflictInspector(
 			const facultyEntries = facultyEntriesByDay.get(dayEntityKey(day, context.facultyId)) ?? [];
 			const conflictEntry = facultyEntries.find((entry) => (
 				entry.entryId !== context.sourceEntryId
+				&& termCompatible(entry)
 				&& overlapsTarget(entry, targetStart, targetEnd)
 			));
 			if (conflictEntry) noteHard('FACULTY_OVERLAP', conflictEntry.entryId);
@@ -360,6 +386,7 @@ export function createLiveConflictInspector(
 		const sectionEntries = sectionEntriesByDay.get(dayEntityKey(day, context.sectionId)) ?? [];
 		for (const entry of sectionEntries) {
 			if (entry.entryId === context.sourceEntryId) continue;
+			if (!termCompatible(entry)) continue;
 			if (overlapsTarget(entry, targetStart, targetEnd)) {
 				codes.push('SECTION_OVERLAP');
 				if (detailed) {
@@ -397,6 +424,7 @@ export function createLiveConflictInspector(
 				const facultyEntries = facultyEntriesByDay.get(dayEntityKey(day, facultyId)) ?? [];
 				return facultyEntries.some((entry) => (
 					entry.entryId !== context.sourceEntryId
+					&& termCompatible(entry)
 					&& overlapsTarget(entry, targetStart, targetEnd)
 				));
 			});
@@ -428,6 +456,7 @@ export function createLiveConflictInspector(
 			const facultyEntries = facultyEntriesByDay.get(dayEntityKey(day, context.facultyId)) ?? [];
 			const conflictEntry = facultyEntries.find((entry) => (
 				entry.entryId !== context.sourceEntryId
+				&& termCompatible(entry)
 				&& overlapsTarget(entry, targetStart, targetEnd)
 			));
 			if (conflictEntry) {
