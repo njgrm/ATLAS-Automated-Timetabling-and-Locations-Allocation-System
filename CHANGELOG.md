@@ -4707,3 +4707,17 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - Operator must separately approve and execute the retry from an elevated Administrator process.
+
+## [2026-09-12] — Runtime supervisor correction retry
+
+### Added
+- Activated the approved elevated retry of the supervisor installation packet.
+
+### Changed
+- The register now tracks the correction lane as `EXECUTING`; the d44 fallback remains the protected rollback target.
+
+### Decisions Made
+- Fresh executor and QA evidence are required before any integration; term-cache, Teaching Load, generation, and publication remain locked.
+
+### Open Questions
+- None while the approved retry is executing; a failed task registration returns the cycle to planner correction.
