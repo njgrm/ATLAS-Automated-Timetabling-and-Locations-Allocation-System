@@ -214,12 +214,14 @@ export interface PolicyInput {
 		label: string;
 		startTime: string;
 		endTime: string;
+		dayOfWeek?: string | null;
+		enabled?: boolean;
 		gradeGroup?: string | null;
 		programType?: string | null;
 	}>;
 }
 
-type PeriodSlot = { startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string };
+type PeriodSlot = { startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string };
 
 /**
  * Build schedulable class period slots from policy bounds and lunch window.
@@ -319,9 +321,10 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 		for (const evt of policy.specialEvents!) {
 			events.push({
 				startTime: evt.startTime,
-				endTime: evt.endTime,
-				isSpecialEvent: true,
-				eventName: evt.label,
+		endTime: evt.endTime,
+		isSpecialEvent: true,
+		eventName: evt.label,
+				dayOfWeek: evt.dayOfWeek ?? undefined,
 			});
 		}
 	} else {
@@ -332,6 +335,7 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 				endTime: policy.flagCeremonyEndTime ?? '07:30',
 				isSpecialEvent: true,
 				eventName: 'FLAG CEREMONY',
+				dayOfWeek: 'MONDAY',
 			});
 		}
 		if (policy.enableRecess ?? true) {
@@ -439,8 +443,7 @@ export function buildTimetableShapeContract(input: {
 	const periodSlots = hasCanonicalRows
 		? canonicalClassRows.map((row) => ({ startTime: row.startTime, endTime: row.endTime }))
 		: buildPeriodSlots(policyForShape);
-	const specialEventSlots = hasCanonicalRows
-		? canonicalRows
+	const canonicalSpecialEventSlots = canonicalRows
 			.filter((row) => row.rowKind === 'BREAK' || row.rowKind === 'SPECIAL_EVENT')
 			.map((row) => ({
 				startTime: row.startTime,
@@ -448,6 +451,17 @@ export function buildTimetableShapeContract(input: {
 				isSpecialEvent: true,
 				eventName: row.subjectLabel ?? undefined,
 			}))
+	const policyFlagSlots = effectiveSpecialEvents
+		.filter((event) => event.eventType === 'FLAG_OR_HGP' || /FLAG CEREMONY/i.test(event.label))
+		.map((event) => ({
+			startTime: event.startTime,
+			endTime: event.endTime,
+			isSpecialEvent: true,
+			eventName: event.label,
+			dayOfWeek: event.dayOfWeek ?? 'MONDAY',
+		}));
+	const specialEventSlots = hasCanonicalRows
+		? mergeDisplaySlots(canonicalSpecialEventSlots, policyFlagSlots)
 		: buildSpecialEventSlots(policyForShape);
 	const displaySlots = (policyForShape.showSpecialEventsInGrid ?? true)
 		? mergeDisplaySlots(periodSlots, specialEventSlots)
@@ -573,6 +587,7 @@ export function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | und
 				endTime: slot.endTime,
 				isSpecialEvent: slot.isSpecialEvent,
 				eventName: slot.eventName,
+				dayOfWeek: slot.dayOfWeek,
 			});
 		}
 	}

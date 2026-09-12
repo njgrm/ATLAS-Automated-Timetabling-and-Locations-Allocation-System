@@ -56,6 +56,11 @@ import {
 import { buildRunTimetableShapeContracts, normalizeProgramType } from './generation-shape-assembly.service.js';
 import { consumeDraftPlacementsForRun, type DraftConsumeRejection } from './pre-generation-draft.service.js';
 import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
+import {
+	validateTermTeacherResolution,
+	validateTimetableShapePolicy,
+	type TimetableShapePolicyBlocker,
+} from './timetable-shape-policy.service.js';
 
 const db = () => getDataContext();
 
@@ -200,6 +205,23 @@ function preflightError(statusCode: number, code: string, message: string): Erro
 	error.statusCode = statusCode;
 	error.code = code;
 	return error;
+}
+
+export function classifyShapePolicyBlocker(blocker: TimetableShapePolicyBlocker): GenerationPreflightBlocker {
+	const resource = blocker.code === 'ROOMS_MISSING';
+	const authority = blocker.code === 'TERM_CACHE_MISSING' || blocker.code === 'TERM_AUTHORITY_STALE' || blocker.code === 'ROTATION_TERM_INVALID';
+	return {
+		code: blocker.code,
+		category: resource ? 'RESOURCE_INFEASIBLE' : authority ? 'DEMAND_AUTHORITY' : 'POLICY_BLOCKER',
+		termIdentity: blocker.termIdentity,
+		sectionId: blocker.sectionId,
+		subjectId: blocker.subjectId,
+		subjectCode: null,
+		entity: blocker.entity,
+		reason: blocker.message,
+		owningSurface: blocker.owningSurface,
+		nextAction: 'Resolve the named timetable authority, shape, policy, or resource prerequisite, then re-run readiness.',
+	};
 }
 
 export function buildSectionScopeMap(sectionsByGrade: ConstructorInput['sectionsByGrade']): Map<number, { gradeLevel: number; programType: string }> {
@@ -606,6 +628,27 @@ async function buildGenerationPreflightWithContext(
 		}
 	}
 	for (const blocker of derivedDemandBlockers) blockers.push(classifyDemandBlocker(blocker));
+	if (derived && !dependencies.termContract && typeof client.enrollProSchoolYearMirror?.findUnique === 'function') {
+		const authorityMirror = await client.enrollProSchoolYearMirror.findUnique({
+			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
+			select: { termContractCache: true, termContractCachedAt: true },
+		});
+		const persistedRevision = (authorityMirror?.termContractCache as { semanticRevision?: unknown } | null)?.semanticRevision;
+		if (typeof persistedRevision === 'string' && persistedRevision !== derived.termStructure.semanticRevision) {
+			blockers.push({
+				code: 'TERM_AUTHORITY_STALE',
+				category: 'DEMAND_AUTHORITY',
+				termIdentity: null,
+				sectionId: null,
+				subjectId: null,
+				subjectCode: null,
+				entity: `Ordered term authority · school ${schoolId} · year ${schoolYearId}`,
+				reason: 'The persisted term authority revision does not match the canonical ordered-term revision.',
+				owningSurface: 'EnrollPro term authority cache',
+				nextAction: 'Refresh and verify the ordered term authority, then re-run readiness.',
+			});
+		}
+	}
 
 	const sectionMirrorCount = await client.sectionMirror.count({ where: { schoolId, schoolYearId, isStale: false } });
 	if (sectionMirrorCount === 0) {
@@ -676,6 +719,20 @@ async function buildGenerationPreflightWithContext(
 		? await loadReadOnlySectionsByGrade(schoolId, schoolYearId, client)
 		: []) as ConstructorInput['sectionsByGrade'];
 	const roomsWithGradeScope = rooms.map((r: any) => ({ ...r, buildingGradeScope: r.building?.gradeScope ?? [] })) as RoomInput[];
+	if (rooms.length === 0) {
+		blockers.push({
+			code: 'ROOMS_MISSING',
+			category: 'RESOURCE_INFEASIBLE',
+			termIdentity: null,
+			sectionId: null,
+			subjectId: null,
+			subjectCode: null,
+			entity: `Teaching rooms · school ${schoolId} · year ${schoolYearId}`,
+			reason: 'No teaching rooms are available for timetable placement.',
+			owningSurface: 'Campus map / rooms',
+			nextAction: 'Add or activate at least one teaching room, then re-run readiness.',
+		});
+	}
 
 	const rosterIndex = buildSectionRosterIndex(sectionsByGrade);
 	const activeFacultyIdSet = new Set(faculty.map((member: any) => member.id));
@@ -686,7 +743,7 @@ async function buildGenerationPreflightWithContext(
 			return { facultyId: assignment.facultyId, subjectId: assignment.subjectId, gradeLevels: normalized.gradeLevels, sectionIds: normalized.sectionIds };
 		});
 
-	const schedulableSubjects = subjects.filter((subject: any) => subject.code !== 'HG') as SubjectInput[];
+	const schedulableSubjects = subjects.filter((subject: any) => !/^(HG|ARAL)$/i.test(String(subject.code ?? ''))) as SubjectInput[];
 
 	const facultyById = new Map<number, { isActiveForScheduling: boolean; isStale: boolean }>();
 	for (const member of faculty) facultyById.set(member.id, { isActiveForScheduling: member.isActiveForScheduling, isStale: member.isStale });
@@ -831,6 +888,46 @@ async function buildGenerationPreflightWithContext(
 		})
 		: [];
 
+	// TT-SHAPE-DIAGNOSTIC-C02: bind the policy contract to the same derived
+	// demand, ordered terms, canonical rows, sections, and rooms consumed by the
+	// constructor. This is read-only and fails closed on shape drift.
+	if (derived) {
+		if (derived.totalLines === 0 || derived.totalPairs === 0) {
+			blockers.push({
+				code: 'EMPTY_DERIVED_DEMAND',
+				category: 'DATA_GAP',
+				termIdentity: null,
+				sectionId: null,
+				subjectId: null,
+				subjectCode: null,
+				entity: `Derived demand · school ${schoolId} · year ${schoolYearId}`,
+				reason: 'The canonical derived demand contains no timetable lines or teaching-load pairs; an empty schedule is never ready.',
+				owningSurface: 'Derived demand / Subject authority',
+				nextAction: 'Resolve active subject scope and Teaching Load demand, then re-run readiness.',
+			});
+		}
+		const configuredFlagEvent = (specialEvents as any[]).find((event) => event.eventType === 'FLAG_OR_HGP' || /FLAG CEREMONY/i.test(String(event.label ?? '')));
+		const configuredFlagDay = configuredFlagEvent
+			? configuredFlagEvent.dayOfWeek ?? (configuredFlagEvent.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : null)
+			: 'MONDAY';
+		const shapePolicyBlockers = validateTimetableShapePolicy({
+			termAuthority: {
+				format: derived.termStructure.format,
+				terms: derived.termStructure.terms.map((term) => ({ identity: term.identity, order: term.order })),
+				cachedAt: 'derived-demand-authority',
+			},
+			validateShiftWindows: enforceShiftWindows,
+			shiftWindows: (gradeWindows as any[]).map((window) => ({ gradeLevel: window.gradeLevel, programType: normalizeProgramType(window.programType), startTime: window.startTime, endTime: window.endTime })),
+			sections: sectionsByGrade.flatMap((grade) => grade.sections.map((section) => ({ id: section.id, gradeLevel: normalizeInternalGradeId(grade.gradeLevelId), programType: normalizeProgramType(section.programType) }))),
+			shapes: timetableShapeContracts,
+			rooms,
+			subjects: subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
+			demandLines: derived.timetableLines.map((line) => ({ sectionExternalId: line.sectionExternalId, subjectId: line.subjectId, subjectCode: line.subjectCode, termIdentity: line.termIdentity, termIndex: line.termIndex, rotationFamily: line.rotationFamily })),
+			flagCeremony: policyRow?.enableFlagCeremony ? { enabled: true, dayOfWeek: configuredFlagDay, startTime: configuredFlagEvent?.startTime ?? policyRow.flagCeremonyStartTime, endTime: configuredFlagEvent?.endTime ?? policyRow.flagCeremonyEndTime } : null,
+		});
+		for (const shapeBlocker of shapePolicyBlockers) blockers.push(classifyShapePolicyBlocker(shapeBlocker));
+	}
+
 	// ── Retained pre-generation drafts (real consumer, read-only) ───────────
 	let retained = emptyRetained();
 	if (derived && policy.present && sectionMirrorCount > 0 && dependencies.includeRetainedDrafts !== false) {
@@ -883,7 +980,7 @@ async function buildGenerationPreflightWithContext(
 	}
 
 	// ── Scheduler projection + exact per-term demand ────────────────────────
-	let schedulerCanRun = Boolean(derived) && sectionsByGrade.length > 0 && missingSlotScopes.length === 0 && policy.present;
+	let schedulerCanRun = Boolean(derived) && (derived?.totalLines ?? 0) > 0 && (derived?.totalPairs ?? 0) > 0 && sectionsByGrade.length > 0 && missingSlotScopes.length === 0 && policy.present;
 	let demand: DemandItem[] = [];
 	let perTermDemandLines: DerivedPerTermDemandLine[] = [];
 	if (derived) {
