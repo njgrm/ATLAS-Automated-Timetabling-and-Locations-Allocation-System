@@ -107,7 +107,7 @@ export async function getRoomScheduleView(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
-		dayOfWeek: se.dayOfWeek,
+		dayOfWeek: se.dayOfWeek ?? (se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined),
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));

@@ -324,7 +324,7 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 		endTime: evt.endTime,
 		isSpecialEvent: true,
 		eventName: evt.label,
-				dayOfWeek: evt.dayOfWeek ?? undefined,
+				dayOfWeek: evt.dayOfWeek ?? (evt.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined),
 			});
 		}
 	} else {

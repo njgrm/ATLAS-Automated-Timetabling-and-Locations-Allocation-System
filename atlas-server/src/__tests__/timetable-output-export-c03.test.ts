@@ -2,6 +2,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildTeacherProgramExportShape, sortTeacherProgramWorkloadRows } from '../services/teacher-program-export.service.js';
+import { buildSpecialEventSlots } from '../services/schedule-constructor.js';
+
+test('canonical special-event builder defaults schema-shaped FLAG_OR_HGP to Monday and preserves explicit scope', () => {
+	const base = {
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480,
+		earliestStartTime: '06:00',
+		latestEndTime: '18:30',
+		specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '07:00', endTime: '07:30', enabled: true }],
+	};
+	assert.equal(buildSpecialEventSlots(base).find((slot) => slot.eventName === 'Flag Ceremony')?.dayOfWeek, 'MONDAY');
+	assert.equal(buildSpecialEventSlots({ ...base, specialEvents: [{ ...base.specialEvents[0], dayOfWeek: 'TUESDAY' }] }).find((slot) => slot.eventName === 'Flag Ceremony')?.dayOfWeek, 'TUESDAY');
+});
 
 test('teacher-program production builder keeps Monday-only breaks, numeric print order, and reference-only exclusion', async () => {
 	const client = {

@@ -541,7 +541,7 @@ export async function getPublishedSchedulePayload(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
-		dayOfWeek: se.dayOfWeek,
+		dayOfWeek: se.dayOfWeek ?? (se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : null),
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));
