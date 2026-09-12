@@ -1,6 +1,6 @@
 # TT/TL Runtime Acceptance — 2026-09-12
 
-Status: PREPARED — NOT EXECUTED — FINAL PRE-ACTION AUDIT REQUIRED.
+Status: PREPARED — FINAL AUDIT CLEAR — AWAITING OPERATOR APPROVAL.
 
 **Amendment R1 (2026-09-12):** The pre-action wave audit returned
 `CORRECTION_REQUIRED` on the original packet (B1: no durable release switch was
@@ -38,9 +38,11 @@ resident supervisor relaunches children killed by an out-of-process `cli.mjs
 stop`, so the stop/rollback sequence was not mechanically durable). Its bounded
 remedy is applied here: quiesce the resident supervisor process tree plus
 `cli.mjs stop` with a released-port settle window of at least 10 seconds
-(deployment step 2 and the rollback path), reflected once in section 8. One
-fresh re-audit of this corrected packet is required before the approval
-sentence may be presented.
+(deployment step 2 and the rollback path), reflected once in section 8. The
+fresh re-audit (`ses_f6a02e067ffecMsB3E1Wrzr1hV`) reviewed this corrected packet
+at `9221864b2c8484d307a1ff915b49ada95eb5f241` and returned `AUDIT_CLEAR` 10/10
+(0 blocked, 0 unperformed); the section 8 approval sentence awaits the
+operator's return.
 
 ## Objective
 
