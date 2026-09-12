@@ -311,6 +311,63 @@ export type ReconciliationPlan = {
 	fingerprint: string;
 };
 
+export type TeachingLoadAuthorityDiagnostic = {
+	code: string;
+	scope: 'PAIR' | 'FACULTY' | 'POLICY' | 'AUTHORITY';
+	pairKey?: string;
+	facultyId?: number;
+	message: string;
+};
+
+export type TeachingLoadAuthorityDiagnostics = {
+	demandedSubjectSectionPairs: DemandPair[];
+	ownedSubjectSectionPairs: Array<{
+		ownershipId: number;
+		pairKey: string;
+		subjectId: number;
+		subjectCode: string;
+		sectionId: number;
+		facultyId: number;
+	}>;
+	unownedActiveFaculty: Array<{
+		facultyId: number;
+		name: string;
+		department: string | null;
+		specialization: string | null;
+	}>;
+	validAdviserMappings: Array<{
+		facultyId: number;
+		name: string;
+		sectionId: number;
+	}>;
+	legacyHgOwnershipRows: ReconciliationPlan['hgRowsFound'];
+	advisoryCreditEligibility: Array<{
+		facultyId: number;
+		name: string;
+		sectionId: number | null;
+		eligible: boolean;
+		creditMinutes: number;
+		reason: string;
+	}>;
+	overloadCapacityTotals: {
+		policyStatus: WorkloadPolicySnapshot['status'];
+		teachingStandardMinutes: number | null;
+		hardCapMinutes: number | null;
+		beforeTeachingMinutes: number;
+		afterTeachingMinutes: number;
+		beforeOverStandardCount: number;
+		afterOverStandardCount: number;
+		beforeOverHardCapCount: number;
+		afterOverHardCapCount: number;
+	};
+	candidateCountsByDepartment: Array<{
+		department: string;
+		candidateCount: number;
+		demandedPairCount: number;
+	}>;
+	unresolvedReasons: TeachingLoadAuthorityDiagnostic[];
+};
+
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
 export function normalizeSectionProgramType(programType: string | null | undefined): string {
@@ -1180,6 +1237,150 @@ export async function buildReconciliationPlan(
 	};
 }
 
+/**
+ * Build the read-only authority/diagnostic view consumed by the reconciliation
+ * preview. This deliberately reports persisted legacy rows instead of deleting
+ * them, and derives candidate counts from the same qualification and policy
+ * authorities used by the plan builder.
+ */
+export async function buildTeachingLoadAuthorityDiagnostics(
+	snapshot: ReconciliationSourceSnapshot,
+	plan: ReconciliationPlan,
+	resolveQualification: QualificationResolver,
+): Promise<TeachingLoadAuthorityDiagnostics> {
+	const subjectById = new Map(snapshot.subjects.map((subject) => [subject.id, subject]));
+	const demandKeys = new Set(plan.demand.map((pair) => pair.key));
+	const activeSectionIds = new Set(snapshot.sections.map((section) => section.externalId));
+	const activeFaculty = snapshot.faculty.filter((member) => member.isActiveForScheduling && !member.isStale && !member.isPlaceholder);
+	const nameOf = (member: FacultySnapshot) => `${member.lastName}, ${member.firstName}`;
+
+	const ownedSubjectSectionPairs = snapshot.ownership
+		.filter((row) => demandKeys.has(pairKeyOf(row.subjectId, row.sectionId)))
+		.filter((row) => subjectById.get(row.subjectId)?.code.toUpperCase() !== HG_SUBJECT_CODE)
+		.sort((a, b) => a.sectionId - b.sectionId || a.subjectId - b.subjectId || a.id - b.id)
+		.map((row) => ({
+			ownershipId: row.id,
+			pairKey: pairKeyOf(row.subjectId, row.sectionId),
+			subjectId: row.subjectId,
+			subjectCode: subjectById.get(row.subjectId)?.code ?? `SUBJECT_${row.subjectId}`,
+			sectionId: row.sectionId,
+			facultyId: row.facultyId,
+		}));
+	const ownedFacultyIds = new Set(ownedSubjectSectionPairs.map((row) => row.facultyId));
+
+	const unownedActiveFaculty = activeFaculty
+		.filter((member) => !ownedFacultyIds.has(member.id))
+		.sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.id - b.id)
+		.map((member) => ({ facultyId: member.id, name: nameOf(member), department: member.department, specialization: member.specialization }));
+
+	const validAdviserMappings = activeFaculty
+		.filter((member) => member.isClassAdviser && member.advisedSectionId != null && activeSectionIds.has(member.advisedSectionId))
+		.sort((a, b) => a.id - b.id)
+		.map((member) => ({ facultyId: member.id, name: nameOf(member), sectionId: member.advisedSectionId! }));
+	const validAdviserFacultyIds = new Set(validAdviserMappings.map((row) => row.facultyId));
+
+	const configuredAdvisoryMinutes = snapshot.workloadPolicy.status === 'CONFIGURED'
+		? snapshot.workloadPolicy.advisoryCreditMinutes
+		: 0;
+	const advisoryCreditEligibility = activeFaculty.map((member) => {
+		const sectionId = member.advisedSectionId ?? null;
+		const eligible = validAdviserFacultyIds.has(member.id);
+		let reason = 'NOT_CLASS_ADVISER';
+		if (member.isClassAdviser && sectionId == null) reason = 'ADVISER_MAPPING_MISSING';
+		else if (member.isClassAdviser && !activeSectionIds.has(sectionId!)) reason = 'ADVISER_MAPPING_STALE_OR_OUT_OF_SCOPE';
+		else if (eligible && snapshot.workloadPolicy.status !== 'CONFIGURED') reason = 'WORKLOAD_POLICY_UNCONFIGURED';
+		else if (eligible) reason = 'ELIGIBLE';
+		return {
+			facultyId: member.id,
+			name: nameOf(member),
+			sectionId: eligible ? sectionId : null,
+			eligible: eligible && snapshot.workloadPolicy.status === 'CONFIGURED',
+			creditMinutes: eligible ? configuredAdvisoryMinutes : 0,
+			reason,
+		};
+	});
+
+	const beforeTeachingMinutes = plan.facultyWorkloads.reduce((sum, row) => sum + row.beforeMinutes, 0);
+	const afterTeachingMinutes = plan.facultyWorkloads.reduce((sum, row) => sum + row.afterMinutes, 0);
+	const standard = snapshot.workloadPolicy.status === 'CONFIGURED' ? snapshot.workloadPolicy.teachingStandardMinutes : null;
+	const hardCap = snapshot.workloadPolicy.status === 'CONFIGURED' ? snapshot.workloadPolicy.hardCapMinutes : null;
+	const countAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) => threshold == null ? 0 : rows.filter((row) => row.beforeMinutes > threshold).length;
+	const countAfterAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) => threshold == null ? 0 : rows.filter((row) => row.afterMinutes > threshold).length;
+
+	const beforeMinutesByFaculty = new Map(plan.facultyWorkloads.map((row) => [row.facultyId, row.beforeMinutes]));
+	const candidateCounts = new Map<string, { candidateCount: number; pairKeys: Set<string> }>();
+	for (const member of activeFaculty) {
+		const department = member.department?.trim() || 'UNMAPPED';
+		if (!candidateCounts.has(department)) candidateCounts.set(department, { candidateCount: 0, pairKeys: new Set<string>() });
+	}
+	for (const pair of plan.demand) {
+		const section = snapshot.sections.find((row) => row.externalId === pair.sectionId);
+		const sectionProgramType = normalizeSectionProgramType(section?.programType);
+		for (const member of activeFaculty) {
+			const qualification = await resolveQualification(member.id, pair.subjectId, sectionProgramType);
+			if (!qualification.eligible) continue;
+			const minutes = beforeMinutesByFaculty.get(member.id) ?? 0;
+			if (hardCap != null && minutes + Math.max(0, subjectById.get(pair.subjectId)?.minMinutesPerWeek ?? pair.weeklyMinutes) > hardCap) continue;
+			const department = member.department?.trim() || 'UNMAPPED';
+			const entry = candidateCounts.get(department) ?? { candidateCount: 0, pairKeys: new Set<string>() };
+			entry.candidateCount += 1;
+			entry.pairKeys.add(pair.key);
+			candidateCounts.set(department, entry);
+		}
+	}
+
+	const unresolvedReasons: TeachingLoadAuthorityDiagnostic[] = [];
+	const seenReasons = new Set<string>();
+	const addReason = (entry: TeachingLoadAuthorityDiagnostic) => {
+		const key = `${entry.code}|${entry.scope}|${entry.pairKey ?? ''}|${entry.facultyId ?? ''}`;
+		if (seenReasons.has(key)) return;
+		seenReasons.add(key);
+		unresolvedReasons.push(entry);
+	};
+	for (const row of advisoryCreditEligibility) {
+		if (row.reason === 'ADVISER_MAPPING_MISSING' || row.reason === 'ADVISER_MAPPING_STALE_OR_OUT_OF_SCOPE') {
+			addReason({ code: row.reason, scope: 'FACULTY', facultyId: row.facultyId, message: `${row.name} has no valid current-year EnrollPro adviser mapping.` });
+		}
+	}
+	if (snapshot.workloadPolicy.status !== 'CONFIGURED') {
+		addReason({ code: 'WORKLOAD_POLICY_UNCONFIGURED', scope: 'POLICY', message: 'Persisted workload policy is unavailable; no advisory credit or cap is inferred.' });
+	}
+	for (const action of plan.actions) {
+		if (action.action === 'UNRESOLVED' && action.unresolvedReason) {
+			addReason({ code: action.unresolvedReason, scope: 'PAIR', pairKey: pairKeyOf(action.subjectId, action.sectionId), message: action.reason });
+		}
+		for (const diagnostic of action.diagnostics) {
+			if (diagnostic === 'OWNER_INACTIVE_OR_STALE' || diagnostic === 'UNQUALIFIED_OWNER' || diagnostic === 'WRONG_SCOPE') {
+				addReason({ code: diagnostic, scope: 'PAIR', pairKey: pairKeyOf(action.subjectId, action.sectionId), message: action.reason });
+			}
+		}
+	}
+
+	return {
+		demandedSubjectSectionPairs: plan.demand,
+		ownedSubjectSectionPairs,
+		unownedActiveFaculty,
+		validAdviserMappings,
+		legacyHgOwnershipRows: plan.hgRowsFound,
+		advisoryCreditEligibility,
+		overloadCapacityTotals: {
+			policyStatus: snapshot.workloadPolicy.status,
+			teachingStandardMinutes: standard,
+			hardCapMinutes: hardCap,
+			beforeTeachingMinutes,
+			afterTeachingMinutes,
+			beforeOverStandardCount: countAbove(plan.facultyWorkloads, standard),
+			afterOverStandardCount: countAfterAbove(plan.facultyWorkloads, standard),
+			beforeOverHardCapCount: countAbove(plan.facultyWorkloads, hardCap),
+			afterOverHardCapCount: countAfterAbove(plan.facultyWorkloads, hardCap),
+		},
+		candidateCountsByDepartment: [...candidateCounts.entries()]
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([department, value]) => ({ department, candidateCount: value.candidateCount, demandedPairCount: value.pairKeys.size })),
+		unresolvedReasons,
+	};
+}
+
 // ─── Source revision + fingerprint ───────────────────────────────────────────
 
 /** Sorted unique set for integer-valued arrays (set semantics, not order). */
@@ -1532,6 +1733,7 @@ export interface TeachingLoadReconciliationPreview {
 		distribution: { zeroLoad: number; adviserOnly: number; belowStandard: number; atStandard: number; excess: number; overCap: number };
 	};
 	adviserPreference: AdviserPreferenceOutcome[];
+	authorityDiagnostics: TeachingLoadAuthorityDiagnostics;
 	hgRows: { found: number; removed: number; removedRows: Array<{ ownershipId: number; subjectId: number; sectionId: number; facultyId: number }> };
 	departmentAuthority: { status: string; aliasRows: number; labelRows: number; revisionHash: string };
 	workloadPolicy: WorkloadPolicySnapshot;
@@ -1546,6 +1748,7 @@ export async function previewTeachingLoadReconciliation(
 	schoolId: number,
 	schoolYearId: number,
 	actorSchoolId: number | null | undefined,
+	options: { allowUnscopedRead?: boolean } = {},
 ): Promise<TeachingLoadReconciliationPreview> {
 	if (!Number.isInteger(schoolId) || schoolId <= 0) {
 		throw err(400, 'INVALID_PARAM', 'schoolId must be a positive integer.');
@@ -1553,10 +1756,10 @@ export async function previewTeachingLoadReconciliation(
 	if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
 		throw err(400, 'INVALID_PARAM', 'schoolYearId must be a positive integer.');
 	}
-	if (actorSchoolId == null) {
+	if (actorSchoolId == null && !options.allowUnscopedRead) {
 		throw err(403, 'ACTOR_SCHOOL_REQUIRED', 'Reconciliation preview requires an authenticated actor school.');
 	}
-	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0 || actorSchoolId !== schoolId) {
+	if (actorSchoolId != null && (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0 || actorSchoolId !== schoolId)) {
 		throw err(403, 'SCHOOL_MISMATCH', 'Request school does not match the authenticated actor school.');
 	}
 
@@ -1575,6 +1778,7 @@ export async function previewTeachingLoadReconciliation(
 	const afterMinutes = new Map(plan.facultyWorkloads.map((row) => [row.facultyId, row.afterMinutes]));
 	const before = computeWorkloadDistribution(activeFaculty, beforeMinutes, snapshot.workloadPolicy, activeSectionIds);
 	const after = computeWorkloadDistribution(activeFaculty, afterMinutes, snapshot.workloadPolicy, activeSectionIds);
+	const authorityDiagnostics = await buildTeachingLoadAuthorityDiagnostics(snapshot, plan, qualificationResolver);
 
 	return {
 		schemaVersion: SCHEMA_VERSION,
@@ -1601,6 +1805,7 @@ export async function previewTeachingLoadReconciliation(
 		perFaculty: plan.facultyWorkloads,
 		after: { distribution: after },
 		adviserPreference: plan.adviserPreference,
+		authorityDiagnostics,
 		hgRows: {
 			found: plan.hgRowsFound.length,
 			removed: plan.hgRowsFound.length,

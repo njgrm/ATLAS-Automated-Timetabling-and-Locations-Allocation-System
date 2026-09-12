@@ -348,6 +348,38 @@ async function runHermeticTests(svc: typeof import('../services/teaching-load-re
     const minutes = svc.computeFacultyTeachingMinutes(pairs, subjectById);
     // MATH 240 always-on + max(SCI_BIO 180, SCI_CHEM 180) = 240 + 180 = 420
     assertEqual(minutes.get(1), 420, 'rotation members peak, not sum');
+
+    const withHg = new Map(pairs);
+    withHg.set(1, [...(pairs.get(1) ?? []), { subject: subjectById.get(99)!, sectionId: 101 }]);
+    const minutesWithHg = svc.computeFacultyTeachingMinutes(withHg, subjectById);
+    assertEqual(minutesWithHg.get(1), 420, 'persisted HG ownership never contributes to workload minutes');
+  }
+
+  section('A5b. authority diagnostics expose blockers and zero-load candidates');
+  {
+    const snapshot = focusedSnapshot({
+      subjects: [focusedSubject(11, 'MATH', 'MATH'), { ...focusedSubject(12, 'ESP', 'ESP'), minMinutesPerWeek: 300 }, { id: 99, code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 300, programScopes: ['REGULAR'], gradeLevels: [7], allowedSpecializations: [], ownerDepartment: 'ESP', rotationFamily: null, modularGroupId: null, modularOrder: null, termGroupId: null, termCount: 3, isActive: true }],
+      offerings: [regularOffering(1001, 11), regularOffering(1002, 12)],
+      faculty: [
+        { id: 1, firstName: 'Mapped', lastName: 'Adviser', department: 'ESP', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: true, advisedSectionId: 101, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 2, firstName: 'Missing', lastName: 'Adviser', department: 'ESP', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: true, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+        { id: 3, firstName: 'Zero', lastName: 'Filipino', department: 'FIL', specialization: null, canTeachOutsideDepartment: false, isClassAdviser: false, advisedSectionId: null, isActiveForScheduling: true, isPlaceholder: false, isStale: false, version: 1 },
+      ],
+      ownership: [{ id: 91, subjectId: 99, sectionId: 101, facultyId: 1, facultySubjectId: 991, specializationCode: null, specializationLabel: null }],
+    });
+    const resolver = stubResolver([
+      { facultyId: 1, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 2 },
+      { facultyId: 1, subjectId: 12, programType: 'REGULAR', eligible: true, tier: 2 },
+      { facultyId: 3, subjectId: 11, programType: 'REGULAR', eligible: true, tier: 1 },
+    ]);
+    const plan = await svc.buildReconciliationPlan(snapshot, resolver);
+    const diagnostics = await svc.buildTeachingLoadAuthorityDiagnostics(snapshot, plan, resolver);
+    assertEqual(diagnostics.demandedSubjectSectionPairs.some((pair) => pair.subjectCode === 'HG'), false, 'diagnostic demand excludes HG');
+    assertEqual(diagnostics.legacyHgOwnershipRows.length, 1, 'diagnostic reports legacy HG ownership');
+    assert(diagnostics.unownedActiveFaculty.some((member) => member.facultyId === 3 && member.department === 'FIL'), 'zero-load Filipino faculty remains discoverable');
+    assertEqual(diagnostics.validAdviserMappings.length, 1, 'only valid current-year adviser mappings receive eligibility');
+    assert(diagnostics.advisoryCreditEligibility.some((row) => row.facultyId === 2 && row.eligible === false && row.reason === 'ADVISER_MAPPING_MISSING'), 'missing adviser mapping is a typed blocker with zero credit');
+    assert(diagnostics.unresolvedReasons.some((entry) => entry.code === 'ADVISER_MAPPING_MISSING'), 'typed adviser blocker is surfaced');
   }
 
   section('A6. adviser preference + sequential simulated load + zero-load inclusion');

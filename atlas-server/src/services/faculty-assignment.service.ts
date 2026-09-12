@@ -696,6 +696,12 @@ function computeTeachingLoadMinuteComputation(
   const rotationFamilyStats = new Map<string, RotationFamilyAccumulator>();
 
   for (const assignment of assignments) {
+    // Homeroom Guidance is a persisted legacy/advisory row only. It must
+    // never contribute to physical Teaching Load minutes, regardless of
+    // which read-model calls this shared primitive.
+    if ((assignment.subject.code ?? '').trim().toUpperCase() === HG_SUBJECT_CODE) {
+      continue;
+    }
     const units = uniquePositiveUnits(formula === 'section' ? assignment.sectionIds : assignment.gradeLevels);
     if (units.length === 0) continue;
 

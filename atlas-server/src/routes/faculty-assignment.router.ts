@@ -346,6 +346,52 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 	}
 });
 
+// Auth: GET /faculty-assignments/authority-diagnostics?schoolId=X&schoolYearId=Y
+// Read-only Teaching Load authority report. It intentionally reuses the
+// production reconciliation preview so demand, qualification, policy, and
+// adviser diagnostics cannot drift from the actual read-model plan.
+router.get('/authority-diagnostics', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		if (!Number.isInteger(schoolId) || schoolId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		let schoolYearId: number;
+		if (req.query.schoolYearId !== undefined) {
+			schoolYearId = Number(req.query.schoolYearId);
+			if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer when provided.' });
+				return;
+			}
+		} else {
+			const activeYear = await fetchEnrollProActiveSchoolYear(getUpstreamAuthToken(req));
+			if (!activeYear?.id) {
+				res.status(400).json({ code: 'ACTIVE_SCHOOL_YEAR_UNAVAILABLE', message: 'Unable to resolve active school year from EnrollPro.' });
+				return;
+			}
+			schoolYearId = activeYear.id;
+		}
+		const preview = await previewTeachingLoadReconciliation(schoolId, schoolYearId, actorSchoolIdOf(req), {
+			// This endpoint is intentionally read-only and is also consumed by
+			// trusted integration callers. Only the actual system-token identity
+			// may read across schools; JWT callers remain actor-school scoped.
+			allowUnscopedRead: req.user?.authSource === 'system',
+		});
+		res.json({
+			schoolId,
+			schoolYearId,
+			sourceRevision: preview.sourceRevision,
+			fingerprint: preview.fingerprint,
+			generatedAt: preview.generatedAt,
+			...preview.authorityDiagnostics,
+			zeroWriteProof: preview.zeroWriteProof,
+		});
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty-assignments/coverage/summary?schoolId=X&schoolYearId=Y
 router.get('/coverage/summary', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
