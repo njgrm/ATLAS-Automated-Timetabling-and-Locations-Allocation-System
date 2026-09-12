@@ -66,9 +66,21 @@ export interface ShapeScheduleEntry {
 }
 
 export interface ShapeOutputProjection {
-	section: Array<{ key: string }>;
-	teacher: Array<{ key: string }>;
-	room: Array<{ key: string }>;
+	section: ShapeOutputProjectionRow[];
+	teacher: ShapeOutputProjectionRow[];
+	room: ShapeOutputProjectionRow[];
+}
+
+/**
+ * One canonical output identity projected by a distinct consumer view.
+ * `key` is the shared entry identity used for parity; `entityId` binds the
+ * projection to its own section, teacher, or room domain. Keeping these
+ * domains explicit prevents parity from degenerating into three identical
+ * maps over the scheduler result.
+ */
+export interface ShapeOutputProjectionRow {
+	key: string;
+	entityId: number | null;
 }
 
 export interface TimetableShapePolicyInput {
@@ -90,6 +102,41 @@ export interface TimetableShapePolicyInput {
 	entries?: ShapeScheduleEntry[];
 	outputProjections?: ShapeOutputProjection;
 	flagCeremony?: { enabled: boolean; dayOfWeek?: string | null; startTime: string; endTime: string } | null;
+}
+
+function outputEntryIdentity(entry: Pick<ShapeScheduleEntry, 'entryId' | 'sectionId' | 'subjectId' | 'startTime' | 'endTime'> & { termIndex?: number }): string {
+	return entry.entryId ?? `${entry.sectionId}:${entry.subjectId}:${entry.termIndex ?? 0}:${entry.startTime}-${entry.endTime}`;
+}
+
+/**
+ * Build the three canonical schedule output projections used by readiness.
+ * Each projection is intentionally built by its own domain filter/map and
+ * carries a domain-specific entity id; parity then detects a missing teacher
+ * or room row instead of comparing three aliases of `result.entries`.
+ */
+export function buildTimetableOutputProjections(
+	entries: Array<Pick<ShapeScheduleEntry, 'entryId' | 'sectionId' | 'subjectId' | 'facultyId' | 'roomId' | 'startTime' | 'endTime'> & { termIndex?: number }>,
+): ShapeOutputProjection {
+	const section: ShapeOutputProjectionRow[] = [];
+	for (const entry of entries) {
+		section.push({ key: outputEntryIdentity(entry), entityId: entry.sectionId });
+	}
+
+	const teacher: ShapeOutputProjectionRow[] = [];
+	for (const entry of entries) {
+		if (Number.isInteger(entry.facultyId) && (entry.facultyId ?? 0) > 0) {
+			teacher.push({ key: outputEntryIdentity(entry), entityId: entry.facultyId ?? null });
+		}
+	}
+
+	const room: ShapeOutputProjectionRow[] = [];
+	for (const entry of entries) {
+		if (Number.isInteger(entry.roomId) && entry.roomId > 0) {
+			room.push({ key: outputEntryIdentity(entry), entityId: entry.roomId });
+		}
+	}
+
+	return { section, teacher, room };
 }
 
 function blocker(
@@ -207,6 +254,23 @@ export function validateTimetableShapePolicy(input: TimetableShapePolicyInput): 
 		const [first, ...rest] = sets;
 		if (rest.some((set) => set.size !== first.size || [...first].some((key) => !set.has(key)))) {
 			blockers.push(blocker('OUTPUT_SHAPE_MISMATCH', 'Section, teacher, and room projections do not contain the same entry identities.', 'Schedule output projections'));
+		}
+		if (input.entries && input.entries.length > 0) {
+			const entriesByKey = new Map(input.entries.map((entry) => [outputEntryIdentity(entry), entry]));
+			const domains: Array<[keyof ShapeOutputProjection, 'sectionId' | 'facultyId' | 'roomId']> = [
+				['section', 'sectionId'],
+				['teacher', 'facultyId'],
+				['room', 'roomId'],
+			];
+			for (const [projectionName, field] of domains) {
+				for (const row of input.outputProjections[projectionName]) {
+					const entry = entriesByKey.get(row.key);
+					const expectedEntityId = entry?.[field] ?? null;
+					if (!entry || row.entityId !== expectedEntityId) {
+						blockers.push(blocker('OUTPUT_SHAPE_MISMATCH', `${projectionName} projection row ${row.key} is not bound to its canonical ${field} identity.`, 'Schedule output projections'));
+					}
+				}
+			}
 		}
 	}
 

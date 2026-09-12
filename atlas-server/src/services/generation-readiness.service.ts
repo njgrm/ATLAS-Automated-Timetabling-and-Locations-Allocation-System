@@ -42,7 +42,7 @@ import { normalizeInternalGradeId } from './class-program-slot.service.js';
 import type { DerivedDemandBlocker } from './derived-demand.service.js';
 import type { DraftConsumeRejection } from './pre-generation-draft.service.js';
 import { normalizeProgramType } from './generation-shape-assembly.service.js';
-import { validateTermTeacherResolution, validateTimetableShapePolicy } from './timetable-shape-policy.service.js';
+import { buildTimetableOutputProjections, validateTermTeacherResolution, validateTimetableShapePolicy } from './timetable-shape-policy.service.js';
 
 const db = () => getDataContext();
 
@@ -218,12 +218,8 @@ async function buildGenerationReadinessWithContext(
 			shapes: assembly.timetableShapeContracts,
 			rooms: assembly.rooms,
 			subjects: assembly.subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
-			entries: (result.entries as ScheduledEntry[]).map((entry) => ({ sectionId: entry.sectionId, facultyId: entry.facultyId, roomId: entry.roomId, subjectId: entry.subjectId, termIndex: entry.termIndex ?? 0, startTime: entry.startTime, endTime: entry.endTime })),
-			outputProjections: {
-				section: (result.entries as ScheduledEntry[]).map((entry) => ({ key: `${entry.entryId}:section` })),
-				teacher: (result.entries as ScheduledEntry[]).map((entry) => ({ key: `${entry.entryId}:section` })),
-				room: (result.entries as ScheduledEntry[]).map((entry) => ({ key: `${entry.entryId}:section` })),
-			},
+			entries: (result.entries as ScheduledEntry[]).map((entry) => ({ entryId: entry.entryId, sectionId: entry.sectionId, facultyId: entry.facultyId, roomId: entry.roomId, subjectId: entry.subjectId, termIndex: entry.termIndex ?? 0, startTime: entry.startTime, endTime: entry.endTime })),
+			outputProjections: buildTimetableOutputProjections(result.entries as ScheduledEntry[]),
 		});
 		for (const shapeBlocker of outputShapePolicy.filter((entry) => entry.code === 'OUTPUT_SHAPE_MISMATCH' || entry.code === 'ROTATION_TERM_INVALID')) {
 			blockers.push(classifyShapePolicyBlocker(shapeBlocker));
