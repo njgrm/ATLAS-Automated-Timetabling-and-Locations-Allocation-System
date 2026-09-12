@@ -2,9 +2,8 @@
 
 **Status: PREPARED — NOT APPROVED.** No process may be replaced and no acceptance
 login may be attempted until the operator returns the exact approval sentence in
-section 8. The approval sentence may be returned only after the integration owner
-records the final product pin in section 1; until that pin exists, no approval is
-valid.
+section 8, and only against the recorded product pin in section 1 (recorded by
+the integration owner in the docs-only finalization commit).
 
 **Risk:** HIGH — shared-runtime deployment/cutover (ATLAS server 5001 and client
 5174), plus one separately authorized acceptance login if no reusable session
@@ -14,22 +13,20 @@ exists.
 
 ## 1. Target identity
 
-- **Product target SHA:** «recorded at integration» — the integration owner
-  records the final integrated product SHA (the `origin/main` commit that
-  integrates the reviewed `work/rr-term-cache-c01r2` candidate) in a docs-only
-  finalization commit. Until that pin is recorded the status stays
-  PREPARED — NOT APPROVED and no approval sentence may be returned. Any commit
-  above the recorded pin is docs-only and shares this exact product tree;
-  deployment identity is the recorded pin.
-  - **Reviewed candidate (not yet integrated):** branch
-    `work/rr-term-cache-c01r2`, base
-    `781a457fa1c6c9c2515787b6cab302f9f1558bb6`. The candidate corrects the
-    session-bound actor-school authority and this deployment packet. Its SHA is
-    recorded in the executor handoff; it becomes deployable only after
-    independent QA and planner integration fix the final pin above.
+- **Product target SHA:** `a633db500b136545cff38c4b080131322258abee`
+  (the `origin/main` integration merge of the reviewed `work/rr-term-cache-c01r2`
+  candidate onto `7ae47a6e`, recorded by the integration owner on 2026-09-12 in
+  the docs-only finalization commit). Any commit above the recorded pin is
+  docs-only and shares this exact product tree; deployment identity is the
+  recorded pin.
+  - **Reviewed candidate:** branch `work/rr-term-cache-c01r2`, base
+    `781a457fa1c6c9c2515787b6cab302f9f1558bb6`, candidate tip
+    `4489bbbd54dbf8acaf8223dbfe8f3b01b53e8c3f` (`fix(rollover): bind
+    actor-school authority to the session token epoch`). Fresh independent QA:
+    `ACCEPT_READY` — mandatory 10/10, blocked 0, unperformed 0.
   - **Superseded prior pin:** `2e871007806179ac2fa3b0b5e47f158c862330c9`
-    (the RR-TERM-CACHE-C01R integration). It is no longer the deployment target
-    because the reviewed C01R2 correction must be integrated first.
+    (the RR-TERM-CACHE-C01R integration), superseded by the reviewed C01R2
+    correction integrated above.
 - **Expected current live SHA:** `fdd0c8c7d9f417bdddbe4a3dc2ec9e1f627e2b22`
   (W1-RUNTIME-DEPLOY). Last recorded processes: server PID 11564 + client
   PID 6756 from `D:/ATLAS-worktrees/w1-runtime-deploy`. Re-verify the live
@@ -185,11 +182,12 @@ publication rows.
 ## 8. Proposed operator approval sentence
 
 > I approve HIGH action RR-TERM-CACHE-LIVE-DEPLOY-2026-09-12: deploy the product
-> tree at the integration-recorded pin «recorded at integration» to ATLAS
-> server/client processes 5001 and 5174 only, as a stop-then-start swap with a
-> short planned listener interruption (not zero-downtime); keep rollover
-> automation disabled; run the bounded authenticated Tailnet Stage C acceptance
-> at 1366×768 and 390×844, including at most one recorded acceptance login by
-> the Manual QA Login Protocol admin credential if no reusable session exists;
-> keep the database read-only apart from that login's disclosed audit delta; and
-> stop before term-cache apply, generation, or publication.
+> tree at `a633db500b136545cff38c4b080131322258abee` (the recorded pin in
+> section 1) to ATLAS server/client processes 5001 and 5174 only, as a
+> stop-then-start swap with a short planned listener interruption (not
+> zero-downtime); keep rollover automation disabled; run the bounded
+> authenticated Tailnet Stage C acceptance at 1366×768 and 390×844, including at
+> most one recorded acceptance login by the Manual QA Login Protocol admin
+> credential if no reusable session exists; keep the database read-only apart
+> from that login's disclosed audit delta; and stop before term-cache apply,
+> generation, or publication.

@@ -1,5 +1,40 @@
 # Changelog
 
+## [2026-09-12] — RR-TERM-CACHE-C01R2 Actor-School Session Authority + Deploy Packet Ordering
+
+### Fixed
+- `resolveActorSchoolId()` now binds the cached actor school to the exact
+  authenticated token epoch (`getPreferredAccessToken()`): logout, session
+  expiry, same-tab re-login, bridge-token replacement, and actor-school
+  switching invalidate or revalidate the cached school before any scoped
+  request; a late `/auth/me` response from an obsolete session can neither
+  return, seed, nor overwrite the current scope; with no token the resolver
+  returns null and dispatches nothing (no school-1 fallback, no caching of
+  invalid/absent school ids).
+- `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md` now specifies an
+  executable stop-then-start listener swap (build/stage → record incumbents →
+  stop server 5001 → start server + health 200 → restore incumbent server on
+  failure → stop client 5174 → start client + Tailnet verification → restore
+  incumbent client on failure) with per-stage rollback. It no longer claims or
+  implies zero-downtime, and its product pin is finalized to the integration
+  merge `a633db50`.
+
+### Added
+- Real-path client suite `actor-school-session-epoch` executing the production
+  auth-token functions, the actor-school resolver, and the scoped fetchers:
+  no-token fail-closed, bounded per-token cache, logout/expiry, same-tab A→B
+  re-login with zero school-1 dispatch, late obsolete-response discard (both
+  orderings), bridge-token replacement, invalid-id rejection, and zero scoped
+  dispatch under unresolved authority. Failing-first against the pre-fix
+  resolver: 8/9 failing.
+
+### Decisions Made
+- Fresh independent QA `ACCEPT_READY` (mandatory 10/10, blocked 0, unperformed
+  0), including an independent mutant control; integrated at merge `a633db50`.
+  No deployment, login, live cache write, generation, or publication occurred;
+  RR-TERM-CACHE-LIVE-DEPLOY remains a separately approved HIGH action, awaiting
+  the operator's explicit approval sentence against the recorded pin.
+
 ## [2026-09-12] — RR-TERM-CACHE-C01R Term-Authority Scope/Authority Correction
 
 ### Fixed
