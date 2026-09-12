@@ -32,6 +32,16 @@ final R3 packet. During execution, the primary planner shall start the fresh
 independent QA/session custodian before the executor, and the exact retained
 browser context shall own all authenticated acceptance rows.
 
+**R3 final-audit outcome (2026-09-12):** The fresh final audit
+(`ses_f6a0e829bffeYKI1HEUwT13EjU`) returned `CORRECTION_REQUIRED` (F1: the
+resident supervisor relaunches children killed by an out-of-process `cli.mjs
+stop`, so the stop/rollback sequence was not mechanically durable). Its bounded
+remedy is applied here: quiesce the resident supervisor process tree plus
+`cli.mjs stop` with a released-port settle window of at least 10 seconds
+(deployment step 2 and the rollback path), reflected once in section 8. One
+fresh re-audit of this corrected packet is required before the approval
+sentence may be presented.
+
 ## Objective
 
 Deploy the integrated ATLAS source at `3d916b261d6a2db71b153558ac8c2d151e2fccd0`
@@ -114,10 +124,21 @@ supervised rollback artifact.
    client per `ops/runtime/README.md` / `install-preview` guidance. Verify
    `atlas-server/dist`, `atlas-client/dist`, `ops/runtime/**`, and the
    supervisor contract offline (`install-preview` / `status`, no binding).
-2. **Stop the incumbent** using the current release directory/environment
-   (`node ops/runtime/cli.mjs stop` from `D:\ATLAS-runtime-supervised-20260912`),
-   stopping only supervisor-owned children. Verify 5001/5174 are released and
-   that no unrelated process was touched.
+2. **Quiesce the incumbent (resident supervisor + its children).** The live
+   runtime is a *resident* supervisor process
+   (`node <releaseDir>\ops\runtime\cli.mjs start`) that relaunches its children
+   after bounded backoff when they exit unexpectedly, so `cli.mjs stop` alone
+   cannot durably release the ports.
+   (a) Identify the resident supervisor: the `cli.mjs start` process that is
+   the parent of the recorded `ownedPids` on 5001/5174; record its exact PID
+   and release directory.
+   (b) Terminate that exact supervisor process tree **and** run
+   `node ops/runtime/cli.mjs stop` from the current release
+   directory/environment for its recorded children, so nothing can relaunch
+   them.
+   (c) Prove 5001/5174 remain released for a settle window of at least
+   10 seconds (strictly greater than the supervisor's 2-second restart
+   backoff) before any durable re-point. Never touch an unexpected listener.
 3. **Switch durable references (authorized).** Set machine-scope
    `ATLAS_RUNTIME_SOURCE_DIR=D:\ATLAS-runtime-supervised-3d916b26-20260912` and
    `ATLAS_RUNTIME_RELEASE_SHA=3d916b261d6a2db71b153558ac8c2d151e2fccd0`
@@ -151,7 +172,10 @@ supervised rollback artifact.
 ## Rollback
 
 - **Supervised reset (preferred).** If target startup fails health or
-  readiness: stop only newly owned children; re-point machine env
+  readiness: quiesce the target's resident supervisor and children with the
+  same procedure as deployment step 2 (terminate the exact supervisor process
+  tree, run `cli.mjs stop`, hold a released-port settle window of at least
+  10 seconds); re-point machine env
   (`ATLAS_RUNTIME_SOURCE_DIR=D:\ATLAS-runtime-supervised-20260912`,
   `ATLAS_RUNTIME_RELEASE_SHA=9d2938791460c1d19059e5eddd30d7bba623fdad`) and the
   boot task back to the incumbent release; start it from a fresh process (or
@@ -216,6 +240,12 @@ Post-start evidence semantics (no overclaiming):
 - exact installed `releaseSha` = the supervisor status output **and**
   `git -C <new release directory> rev-parse HEAD`, both equal to `3d916b26…`.
   The health payloads do not contain `releaseSha`; do not claim they do.
+- quiesce evidence = the resident supervisor's exact PID + release directory,
+  its recorded children, and a released-port settle window of at least
+  10 seconds before any durable re-point;
+- custody evidence = the dedicated release directory's filesystem owner is
+  reported, and any Git `safe.directory` override is per-command and limited to
+  that exact verified path.
 
 Commit one docs-only evidence artifact under `docs/verification/` or
 `docs/reviews/`; do not modify product source during acceptance.
@@ -241,8 +271,10 @@ docs(runtime): record TT and Teaching Load live acceptance
 > elevated Administrator executor build the integrated source at
 > `3d916b261d6a2db71b153558ac8c2d151e2fccd0` in the new
 > durable release directory `D:\ATLAS-runtime-supervised-3d916b26-20260912`;
-> stop only the supervisor-owned 5001/5174 processes using the current release
-> environment; set machine-scope
+> quiesce the resident supervisor and its owned 5001/5174 processes (terminate
+> the exact `cli.mjs start` supervisor process tree and run `cli.mjs stop` from
+> the current release environment, then hold a released-port settle window of at
+> least 10 seconds); set machine-scope
 > `ATLAS_RUNTIME_SOURCE_DIR=D:\ATLAS-runtime-supervised-3d916b26-20260912` and
 > `ATLAS_RUNTIME_RELEASE_SHA=3d916b261d6a2db71b153558ac8c2d151e2fccd0`, and
 > re-point the `ATLAS-Runtime-Supervisor` boot task action and working directory
@@ -258,13 +290,16 @@ docs(runtime): record TT and Teaching Load live acceptance
 > Tailnet-only read-only Teaching Load and Timetable acceptance with the
 > existing session only (no fresh login) and stop before any Save, Apply,
 > Generate, Publish, rollover, term-cache, Teaching Load carry-forward/
-> suggestion apply, generation, publication, migration, or companion-repository
-> action; on failure, reset to the incumbent supervised release `9d293879` by
+> suggestion apply, generation, publication, migration, schema, or
+> companion-repository action; on failure, reset to the incumbent supervised
+> release `9d293879` by
 > re-pointing machine env and the boot task back and starting it with health and
 > readiness 200, retaining `d44f29e0` at
 > `D:\ATLAS-runtime-fallback-d44-20260912` only as a documented non-supervised
 > manual last resort; never stop or modify the port-5175 Vite process or the
 > unrelated `tsx` processes; never display or commit environment contents; let
 > the same retained QA context perform all authenticated Tailnet acceptance
-> after target health; and commit exactly one docs-only evidence artifact,
+> after target health; report the dedicated release directory's filesystem
+> owner (any Git `safe.directory` override is per-command and limited to that
+> exact verified path); and commit exactly one docs-only evidence artifact,
 > returning its commit SHA.
