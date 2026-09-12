@@ -596,6 +596,7 @@ router.get(
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
 			const termIndexRaw = req.query.termIndex;
 			let requestedTerm: number | 'active' | undefined;

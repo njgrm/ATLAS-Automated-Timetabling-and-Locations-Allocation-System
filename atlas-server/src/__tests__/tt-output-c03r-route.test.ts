@@ -181,7 +181,7 @@ test('mounted class-program-matrix route fails closed on an unknown run and inva
 	assert.equal((await invalidTerm.json() as any).code, 'INVALID_TERM_INDEX');
 });
 
-test('both output routes reject a cross-school actor before any read or write', { skip: harnessSkip }, async () => {
+test('all output routes reject a cross-school actor before any read or write', { skip: harnessSkip }, async () => {
 	calls.length = 0;
 	const headers = { Authorization: `Bearer ${authToken(999)}` };
 	const matrix = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7`, { headers });
@@ -191,7 +191,22 @@ test('both output routes reject a cross-school actor before any read or write', 
 	const workbook = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx`, { headers });
 	assert.equal(workbook.status, 403);
 	assert.equal((await workbook.json() as any).code, 'CROSS_SCHOOL_DENIED');
+
+	const summary = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx`, { headers });
+	assert.equal(summary.status, 403);
+	assert.equal((await summary.json() as any).code, 'CROSS_SCHOOL_DENIED');
 	assert.equal(calls.length, 0, 'rejected cross-school requests must dispatch zero downstream reads/writes');
+});
+
+test('summary-teacher-schedule route admits a same-school actor and completes with zero writes', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx`, {
+		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+	});
+	assert.equal(response.status, 200, 'same-school scope must not be rejected by the guard');
+	assert.match(String(response.headers.get('content-type')), /spreadsheetml/);
+	assert.ok(Buffer.from(await response.arrayBuffer()).length > 0, 'summary workbook is non-empty');
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
 });
 
 test('mounted class-program.xlsx route returns a real weekday workbook', {
