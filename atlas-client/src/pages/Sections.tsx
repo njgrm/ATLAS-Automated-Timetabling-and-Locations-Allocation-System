@@ -938,7 +938,7 @@ export default function Sections() {
 				sectionId={0} 
 				currentRoomId={null} 
 				onSelect={() => {}} 
-				schoolId={actorSchoolId ?? 0} 
+				schoolId={actorSchoolId ?? 0}
 				roomOccupancy={roomOccupancyMap}
 				roomSectionData={roomSectionDataMap}
 				buildingOccupancy={buildingOccupancy}

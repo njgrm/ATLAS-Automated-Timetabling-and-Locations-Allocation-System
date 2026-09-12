@@ -35,13 +35,70 @@ function isPrivilegedRole(role: unknown): boolean {
 	return typeof role === 'string' && PRIVILEGED_ROLES.has(role);
 }
 
+/**
+ * ACTOR-SCOPE-C01 — strict positive-integer parse for the actor-scoped runtime
+ * read parameters. Unlike the shared `parseSchoolId`, a missing/malformed value
+ * must NEVER default to school 1; the helper returns null so the caller emits a
+ * typed 400 before any service, upstream, or database dispatch.
+ */
+function parseStrictSchoolId(raw: unknown): number | null {
+	if (raw === undefined || raw === null || raw === '') return null;
+	const value = typeof raw === 'number' ? raw : Number(raw);
+	return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+type RuntimeReadCaller = { schoolId: number; authSource: 'jwt' | 'system' };
+
+/**
+ * Actor/tenant authorization gate for the three runtime READ routes
+ * (`/context`, `/rollover-status`, `/rollover-recovery/classify`).
+ *
+ * - malformed/absent/zero/negative/fractional schoolId -> 400 INVALID_PARAM;
+ * - system/integration token -> allowed for any explicit positive schoolId;
+ * - JWT actor school is read from the VERIFIED token; absent/non-positive
+ *   -> 403 SCHOOL_SCOPE_REQUIRED; requested !== actor -> 403 CROSS_SCHOOL_DENIED;
+ * - operator-only routes require a privileged role for JWT callers -> 403 FORBIDDEN.
+ *
+ * Every rejection returns null before any downstream dispatch.
+ */
+function authorizeRuntimeRead(
+	req: Request,
+	res: Response,
+	options: { requirePrivileged: boolean },
+): RuntimeReadCaller | null {
+	const requestedSchoolId = parseStrictSchoolId(req.query.schoolId);
+	if (requestedSchoolId == null) {
+		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a present positive integer.' });
+		return null;
+	}
+
+	const isSystemCaller = req.user?.authSource === 'system';
+	if (!isSystemCaller && options.requirePrivileged && !isPrivilegedRole(req.user?.role)) {
+		res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can read this runtime data for a school.' });
+		return null;
+	}
+
+	if (isSystemCaller) {
+		return { schoolId: requestedSchoolId, authSource: 'system' };
+	}
+
+	const actorSchool = Number(req.user?.schoolId);
+	if (!Number.isInteger(actorSchool) || actorSchool <= 0) {
+		res.status(403).json({ code: 'SCHOOL_SCOPE_REQUIRED', message: 'Reading runtime data requires an authenticated actor school.' });
+		return null;
+	}
+	if (actorSchool !== requestedSchoolId) {
+		res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: 'Cannot read runtime data for another school.' });
+		return null;
+	}
+	return { schoolId: requestedSchoolId, authSource: 'jwt' };
+}
+
 router.get('/context', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = parseSchoolId(req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeRead(req, res, { requirePrivileged: false });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 
 		const verifyUpstream = req.query.verifyUpstream === 'true' || req.query.verifyUpstream === '1';
 		const upstreamAuthToken = getUpstreamAuthToken(req, verifyUpstream);
@@ -64,11 +121,9 @@ router.get('/context', authenticateWithSystemToken, async (req: Request, res: Re
 
 router.get('/rollover-status', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = parseSchoolId(req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeRead(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const includeCounts = req.query.includeCounts === 'true' || req.query.includeCounts === '1';
 		const status = await getRolloverStatus(schoolId, getUpstreamAuthToken(req), { includeCounts });
 		const automation = getAutomationStatus();
@@ -89,11 +144,9 @@ router.get('/rollover-status', authenticateWithSystemToken, async (req: Request,
 
 router.get('/rollover-recovery/classify', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const schoolId = parseSchoolId(req.query.schoolId);
-		if (typeof schoolId === 'string') {
-			res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
-			return;
-		}
+		const caller = authorizeRuntimeRead(req, res, { requirePrivileged: true });
+		if (!caller) return;
+		const schoolId = caller.schoolId;
 		const status = await getRolloverStatus(schoolId, getUpstreamAuthToken(req), { includeCounts: true });
 		const classification = await classifyRecoveryState(schoolId, status);
 		res.json(classification);
