@@ -52,13 +52,18 @@ hard blockers before separately approving publication.
 - Cycle recovery: `actor-scope-20260912` (COMPLETE) closed 2026-09-12
   (Asia/Manila). ACTOR-SCOPE-C01 candidate `98ab5e04` (base `a4dcd061`,
   executor task `ses_f6c291590ffeVM4r1kXaujnDIH`) passed fresh independent QA
-  `ACCEPT_READY` (mandatory 18/18, blocked 0, unperformed 0; two independent
-  mutant controls; product tree byte-identical to the reviewed candidate) after
-  one bounded correction round (round-1 QA `CORRECTION_REQUIRED` 16/14/0/0 on
-  tip `42faf6a7`: Sections `?? 0` child dispatch with unresolved actor school,
-  and MyDashboard/MySchedule late session-A response overwrite). Integrated at
-  merge `d44f29e0` and pushed to `origin/main`. The replacement deploy-as-restore
-  packet is prepared at
+  task `ses_f6beb313cffeMLFmlIWVzPRpcz` with `ACCEPT_READY` (mandatory 18/18,
+  blocked 0, unperformed 0; two independent mutant controls; product tree
+  byte-identical to the reviewed candidate) after one bounded correction round
+  (round-1 QA task `ses_f6bfb613dffe9yGI2YbSk3OxHL`,
+  `CORRECTION_REQUIRED` 16/14/0/0 on tip `42faf6a7`: Sections `?? 0` child
+  dispatch with unresolved actor school, and MyDashboard/MySchedule late
+  session-A response overwrite). Integrated at merge `d44f29e0` and pushed to
+  `origin/main`. Fresh wave-auditor task `ses_f6bdf461dffeyGdMmtYelWWo9x`
+  returned `AUDIT_CLEAR` 6/6; its compact capsule is committed at
+  `docs/reviews/actor-scope-20260912/wave-completion-audit.md`, and its one
+  planner-owned non-blocking runtime-map correction is `0b7fa651`. The
+  replacement deploy-as-restore packet is prepared at
   `docs/prompts/actor-scope-deploy-restore-2026-09-12.md`; the old stop-then-start
   swap packet is superseded by the confirmed outage. Deployment remains
   separately gated and was not executed.
