@@ -1,5 +1,56 @@
 # Changelog
 
+## [2026-09-12] — ACTOR-SCOPE-C01 Actor-School/Year Scope Closure + Deploy-as-Restore Packet
+
+### Fixed
+- Removed every `schoolId = 1` default from the actor/tenant-sensitive client
+  helpers (`resolveActiveSchoolYearContext`, `promoteActiveSchoolYearContext`,
+  `fetchAtlasRuntimeContext`, `fetchRolloverStatus`, `previewRolloverSync`,
+  `applyRolloverSync`, `resetDummyRolloverYear`, `fetchRecoveryClassification`,
+  `previewTestYearRecovery`, `applyTestYearRecovery`, `previewArchiveAndSync`,
+  `applyArchiveAndSync`); `schoolId` is now a required positive argument, so
+  `tsc` exposes every omitted caller.
+- Bound the actor school to the authenticated token epoch through one shared
+  mechanism (`atlas-client/src/lib/actor-scope-session.ts` +
+  `atlas-client/src/lib/auth.ts` subscription). Mounted consumers (AppShell,
+  Dashboard, Subjects, Timetable, rollover components, and the corrected pages)
+  drop the previous school to `null` immediately on any token mutation, clear
+  school/year-dependent state, dispatch zero scoped requests until the new
+  actor school resolves, and discard late session-A responses in both orderings.
+- Closed the remaining pilot-school constants in the in-scope pages (Faculty,
+  Sections, FacultyRoomPreferences, OfficerPreferences, OfficerRoomPreferences,
+  RoomSchedules) and made the Sections room-map/auto-assign dialogs fail closed
+  on an unresolved actor school (no `?? 0` dispatch).
+- Hardened the server runtime read boundary (`GET /runtime/context`,
+  `GET /runtime/rollover-status`, `GET /runtime/rollover-recovery/classify`):
+  explicit positive schoolId required (typed 400 otherwise), JWT callers may
+  read only their authenticated school (typed 403 cross-school with zero
+  service/DB/upstream dispatch), system tokens retain documented access with an
+  explicit school, and operator-only status/recovery routes require a privileged
+  role while same-school faculty keep `/context`.
+
+### Added
+- Real-path client suites `actor-scope-session`, `section-scope-dispatch`, and
+  `session-scope-late-discard`, plus a mounted disposable-PostgreSQL server
+  matrix `runtime-router-actor-scope` with zero-dispatch instrumentation.
+- Deploy-as-restore packet
+  `docs/prompts/actor-scope-deploy-restore-2026-09-12.md` (prepared, not
+  approved; supersedes the stop-then-start swap packet).
+
+### Changed
+- `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md` is marked
+  SUPERSEDED; the live runtime was observed down (Tailnet 502, no listeners on
+  5001/5174) and its incumbent-based preflight/rollback no longer holds.
+
+### Decisions Made
+- The deploy-as-restore packet must re-verify that 5001/5174 are still empty
+  immediately before execution and stop for replanning if an unknown listener
+  appears; it makes no swap claim and uses `fdd0c8c7` only as a startable
+  fallback.
+- Remaining `parseSchoolId` defaults on non-listed runtime mutation routes and
+  the `DEFAULT_SCHOOL_ID` backlog pages were recorded as a non-blocking
+  observation backlog for a separate bounded authorization lane.
+
 ## [2026-09-12] — RR-TERM-CACHE-C01R2 Actor-School Session Authority + Deploy Packet Ordering
 
 ### Fixed

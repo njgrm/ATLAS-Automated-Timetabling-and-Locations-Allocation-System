@@ -1,6 +1,13 @@
 # RR-TERM-CACHE-LIVE-DEPLOY-2026-09-12 — HIGH Deployment and Acceptance Packet
 
-**Status: PREPARED — NOT APPROVED.** No process may be replaced and no acceptance
+> **SUPERSEDED 2026-09-12 by the confirmed outage.** The live runtime was
+> observed down (Tailnet 502, no listeners on 5001/5174, recorded PIDs absent).
+> This packet's incumbent-health preflight and rollback-to-the-incumbent
+> assumptions no longer hold; it is **not executable** under the current
+> precondition and its approval sentence must not be reused. The replacement is
+> `docs/prompts/actor-scope-deploy-restore-2026-09-12.md` (deploy-as-restore).
+
+**Status: PREPARED — NOT APPROVED (SUPERSEDED — DO NOT EXECUTE).** No process may be replaced and no acceptance
 login may be attempted until the operator returns the exact approval sentence in
 section 8, and only against the recorded product pin in section 1 (recorded by
 the integration owner in the docs-only finalization commit).
