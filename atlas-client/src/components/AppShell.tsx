@@ -555,6 +555,7 @@ export function AppShell() {
 						items={mobileNavItems}
 						currentPathname={location.pathname}
 						onLogout={handleLogout}
+						privilegedStaff={isAdmin}
 					/>
 				)}
 

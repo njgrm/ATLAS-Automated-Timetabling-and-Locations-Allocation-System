@@ -25,6 +25,8 @@ const HowItWorks = lazy(() => import('./pages/HowItWorks'));
 const Audit = lazy(() => import('./pages/Audit'));
 const AdminYearSetup = lazy(() => import('./pages/AdminYearSetup'));
 const PublicPublishedSchedule = lazy(() => import('./pages/PublicPublishedSchedule'));
+const SsoCallback = lazy(() => import('./pages/SsoCallback'));
+const EnrollProAuthorize = lazy(() => import('./pages/EnrollProAuthorize'));
 
 function LegacyRouteRedirect({ to }: { to: string }) {
 	const location = useLocation();
@@ -55,6 +57,14 @@ const router = createBrowserRouter([
 	{
 		path: '/login',
 		element: <Login />,
+	},
+	{
+		path: '/auth/sso/callback',
+		element: <SsoCallback />,
+	},
+	{
+		path: '/auth/enrollpro/authorize',
+		element: <EnrollProAuthorize />,
 	},
 	{
 		path: '/public/schedules',

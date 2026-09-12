@@ -43,6 +43,7 @@ import {
 	timetableNav,
 	type NavItemDef,
 } from './navigation';
+import { IntegratedSystems } from './IntegratedSystems';
 
 function enrollProAsset(path: string | null): string {
 	if (!path) return '';
@@ -214,6 +215,13 @@ export function AppSidebar({
 										{facultyNav.map((item) => (
 											<NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} pathname={pathname} />
 										))}
+									</>
+								)}
+
+								{!isFaculty && (
+									<>
+										<NavDivider label='Integrated Systems' />
+										<IntegratedSystems privilegedStaff={isAdmin} className='px-1' />
 									</>
 								)}
 

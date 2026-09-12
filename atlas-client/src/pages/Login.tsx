@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import {
 	AlertCircle,
@@ -22,6 +22,7 @@ import {
 import atlasApi from '@/lib/api';
 import { captureBridgeToken } from '@/lib/bridge';
 import { clearAtlasAuthStorage, hasAnyAuthToken, setLocalToken } from '@/lib/auth';
+import { resolveSafeReturnUrl } from '@/lib/companion-sso-client';
 import { verifySessionToken } from '@/lib/settings';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -67,6 +68,8 @@ type LoginResponse = {
 
 export default function Login() {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const requestedReturnUrl = resolveSafeReturnUrl(searchParams.get('returnUrl'));
 	const [showPassword, setShowPassword] = useState(false);
 	const [rememberMe, setRememberMe] = useState(false);
 	const [identifier, setIdentifier] = useState('');
@@ -126,7 +129,7 @@ export default function Login() {
 			.then((user) => {
 				if (user) {
 					localStorage.setItem('userRole', user.role);
-					navigate(user.role === 'faculty' ? '/my' : '/', { replace: true });
+					navigate(requestedReturnUrl ?? (user.role === 'faculty' ? '/my' : '/'), { replace: true });
 					return;
 				}
 				clearAtlasAuthStorage();
@@ -138,7 +141,7 @@ export default function Login() {
 				window.clearTimeout(redirectTimeoutRef.current);
 			}
 		};
-	}, [navigate]);
+	}, [navigate, requestedReturnUrl]);
 
 	const handleSubmit = async (event: React.FormEvent) => {
 		event.preventDefault();
@@ -155,7 +158,7 @@ export default function Login() {
 			localStorage.setItem('userRole', response.data.user.role);
 			setSuccess('Login successful! Redirecting...');
 			redirectTimeoutRef.current = window.setTimeout(() => {
-				navigate(response.data.user.role === 'faculty' ? '/my' : '/', { replace: true });
+				navigate(requestedReturnUrl ?? (response.data.user.role === 'faculty' ? '/my' : '/'), { replace: true });
 			}, 800);
 		} catch (err: unknown) {
 			if (isAxiosError(err)) {

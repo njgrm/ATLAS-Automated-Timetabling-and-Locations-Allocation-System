@@ -323,10 +323,35 @@ model AtlasAuthAccount {
   updatedAt          DateTime       @updatedAt @map("updated_at")
   school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   faculty            FacultyMirror? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  companionSsoCodes  CompanionSsoCode[]
 
   @@index([schoolId, role])
   @@index([facultyId])
   @@map("atlas_auth_accounts")
+}
+
+/// COMPANION-SSO-C01: one-time companion SSO authorization codes. Only the
+/// SHA-256 hex hash of the plaintext code is ever persisted; the plaintext code
+/// lives only in the authenticated authorize response and the browser redirect
+/// to EnrollPro. The row is consumed atomically (single UPDATE ... WHERE
+/// consumed_at IS NULL) so exactly one exchange can ever succeed per code.
+model CompanionSsoCode {
+  id          Int          @id @default(autoincrement())
+  codeHash    String       @unique @map("code_hash") @db.VarChar(64)
+  userId      Int?         @map("user_id")
+  schoolId    Int?         @map("school_id")
+  schoolYearId Int?        @map("school_year_id")
+  audience    String       @default("enrollpro") @db.VarChar(32)
+  redirectUri String       @map("redirect_uri") @db.VarChar(512)
+  expiresAt   DateTime     @map("expires_at")
+  consumedAt  DateTime?    @map("consumed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  user AtlasAuthAccount? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([codeHash, consumedAt])
+  @@index([expiresAt])
+  @@map("companion_sso_codes")
 }
 
 model FacultySubject {

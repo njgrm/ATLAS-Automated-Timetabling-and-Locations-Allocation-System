@@ -6,6 +6,7 @@ import { getBackHref } from '@/lib/bridge';
 import { Button } from '@/ui/button';
 import { Separator } from '@/ui/separator';
 
+import { IntegratedSystems } from './IntegratedSystems';
 import type { NavItemDef } from './navigation';
 
 export type MobileNavigationDrawerProps = {
@@ -14,6 +15,7 @@ export type MobileNavigationDrawerProps = {
 	items: NavItemDef[];
 	currentPathname: string;
 	onLogout: () => void;
+	privilegedStaff?: boolean;
 };
 
 export function MobileNavigationDrawer({
@@ -22,6 +24,7 @@ export function MobileNavigationDrawer({
 	items,
 	currentPathname,
 	onLogout,
+	privilegedStaff = false,
 }: MobileNavigationDrawerProps) {
 	const navigate = useNavigate();
 
@@ -61,6 +64,15 @@ export function MobileNavigationDrawer({
 									{item.label}
 								</Button>
 							))}
+							<Separator className='my-2' />
+							<div className='px-1 pb-1'>
+								<span className='px-2 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground opacity-80'>
+									Integrated Systems
+								</span>
+								<div className='mt-1'>
+									<IntegratedSystems privilegedStaff={privilegedStaff} />
+								</div>
+							</div>
 							<Separator className='my-2' />
 							<Button asChild variant='ghost' className='h-11 w-full justify-start text-sm text-muted-foreground'>
 								<a href={getBackHref()}>
