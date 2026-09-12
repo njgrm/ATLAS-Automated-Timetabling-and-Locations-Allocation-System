@@ -112,6 +112,48 @@ function cellText(sheet: any, row: number, col: number): string {
 	return typeof value === 'string' ? value : (value == null ? '' : String(value));
 }
 
+/**
+ * Minimal in-memory ExcelJS-shaped workbook. It implements the exact surface
+ * `exportClassProgramWorkbook` touches (addWorksheet/getRow/getCell/columns/
+ * xlsx.writeBuffer) so the real production layout loop executes without the
+ * unavailable `exceljs`/`jszip` dependency tree.
+ */
+function makeFakeWorkbook() {
+	const sheets = new Map<string, any>();
+	const workbook: any = {
+		creator: '',
+		worksheets: [] as any[],
+		addWorksheet: (name: string) => {
+			const rows = new Map<number, any>();
+			const sheet: any = {
+				name,
+				columns: [] as any[],
+				getRow: (index: number) => {
+					let row = rows.get(index);
+					if (!row) {
+						const cells = new Map<number, any>();
+						row = {
+							font: undefined,
+							getCell: (col: number) => {
+								let cell = cells.get(col);
+								if (!cell) { cell = { value: undefined, font: undefined }; cells.set(col, cell); }
+								return cell;
+							},
+						};
+						rows.set(index, row);
+					}
+					return row;
+				},
+			};
+			sheets.set(name, sheet);
+			workbook.worksheets.push(sheet);
+			return sheet;
+		},
+		xlsx: { writeBuffer: async () => Buffer.from('fake-xlsx') },
+	};
+	return { workbook, sheets };
+}
+
 // ─── 1. buildEntryGrid keeps weekday in the key ───
 
 test('buildEntryGrid separates same-interval Monday and Tuesday sessions and retires the day-agnostic key', () => {
@@ -129,7 +171,72 @@ test('buildEntryGrid separates same-interval Monday and Tuesday sessions and ret
 	assert.equal(grid.has('701-06:00-06:45'), false, 'day-agnostic key must no longer exist');
 });
 
-// ─── 2. Class program workbook is a per-section five-weekday beneficiary view ───
+// ─── 2. Class program layout executes through the real production loop ───
+
+async function renderClassProgram(entries: Entry[], opts: { termIndex?: number; summary?: Record<string, unknown> } = {}) {
+	const client = makeClient(entries, opts);
+	const { workbook, sheets } = makeFakeWorkbook();
+	await withDataContext(client, () => exportClassProgramWorkbook({
+		schoolId: SCHOOL_ID,
+		schoolYearId: SCHOOL_YEAR_ID,
+		runId: RUN_ID,
+		termIndex: opts.termIndex,
+		client,
+		workbookFactory: () => workbook,
+	}));
+	return sheets.get('Grade 7');
+}
+
+test('class-program layout emits per-section weekday columns with exact per-day subject and teacher cells', async () => {
+	const sheet = await renderClassProgram([
+		{ entryId: 'mon-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+		{ entryId: 'tue-sci', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+		{ entryId: 'wed-ap', sectionId: 701, subjectId: 13, facultyId: 501, roomId: 601, day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+	]);
+	assert.deepEqual(
+		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, 5, col)),
+		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+	);
+	assert.equal(cellText(sheet, 6, 1), '6:00 AM-6:45 AM');
+	assert.equal(sheet.getRow(6).getCell(2).value, 45);
+	assert.match(cellText(sheet, 6, 3), /^Mathematics\nDela Cruz, Juan$/);
+	assert.match(cellText(sheet, 6, 4), /^Science\nSantos, Maria$/);
+	assert.match(cellText(sheet, 6, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
+	assert.equal(cellText(sheet, 6, 6), '');
+	assert.equal(cellText(sheet, 6, 7), '');
+});
+
+test('class-program layout is Monday-scoped for flag events and term-scoped for rotation', async () => {
+	const flagSheet = await renderClassProgram(
+		[{ entryId: 'tue-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 }],
+		{ summary: { timetableDisplaySlots: [
+			{ startTime: '06:00', endTime: '06:45', isSpecialEvent: true, eventName: 'FLAG CEREMONY', dayOfWeek: 'MONDAY' },
+			{ startTime: '06:00', endTime: '06:45' },
+		] } },
+	);
+	assert.equal(cellText(flagSheet, 6, 3), 'FLAG CEREMONY', 'Monday shows the flag event');
+	assert.match(cellText(flagSheet, 6, 4), /^Mathematics\n/, 'Tuesday first period stays teachable');
+
+	const termSheet = await renderClassProgram([
+		{ entryId: 't1-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
+		{ entryId: 't2-sci', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'MONDAY', startTime: '06:45', endTime: '07:30', durationMinutes: 45, termIndex: 2 },
+	], { termIndex: 2 });
+	assert.equal(cellText(termSheet, 6, 3), '', 'term 1 class is absent from a term 2 layout');
+	assert.match(cellText(termSheet, 7, 3), /^Science\nSantos, Maria$/);
+});
+
+test('class-program layout excludes HG/ARAL cells while keeping AP', async () => {
+	const sheet = await renderClassProgram([
+		{ entryId: 'hg', sectionId: 701, subjectId: 99, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+		{ entryId: 'aral', sectionId: 701, subjectId: 98, facultyId: 501, roomId: 601, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+		{ entryId: 'ap', sectionId: 701, subjectId: 13, facultyId: 501, roomId: 601, day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+	]);
+	assert.equal(cellText(sheet, 6, 3), '', 'HG never becomes a cell');
+	assert.equal(cellText(sheet, 6, 4), '', 'ARAL never becomes a cell');
+	assert.match(cellText(sheet, 6, 5), /^Araling Panlipunan\n/, 'AP remains an ordinary subject');
+});
+
+// ─── 2b. Serialized XLSX round-trip (requires a complete exceljs tree) ───
 
 test('class-program workbook emits per-section weekday columns with exact per-day subject and teacher cells', { skip: exceljsSkip }, async () => {
 	const entries: Entry[] = [

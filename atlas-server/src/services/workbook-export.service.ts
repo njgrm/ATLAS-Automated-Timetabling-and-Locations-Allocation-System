@@ -14,6 +14,8 @@ export type ExportOptions = {
 	client?: any;
 	/** Disposable published-run resolver for source-level export contract tests. */
 	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ source: { runId: number }; entries: ScheduledEntry[]; summary: Record<string, unknown> | null }>;
+	/** Disposable workbook factory for layout contract tests (no XLSX dependency). */
+	workbookFactory?: () => ExcelJS.Workbook | Promise<ExcelJS.Workbook>;
 };
 
 type TimeSlot = {
@@ -108,7 +110,8 @@ type ExportContext = {
 	entries: ScheduledEntry[];
 };
 
-async function createWorkbook(): Promise<ExcelJS.Workbook> {
+async function createWorkbook(options?: ExportOptions): Promise<ExcelJS.Workbook> {
+	if (options?.workbookFactory) return options.workbookFactory();
 	const { default: ExcelJSRuntime } = await import('exceljs');
 	return new ExcelJSRuntime.Workbook();
 }
@@ -396,7 +399,7 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
 
-	const workbook = await createWorkbook();
+	const workbook = await createWorkbook(options);
 	workbook.creator = 'ATLAS';
 
 	const MAX_SECTIONS = 12;
@@ -522,7 +525,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		gradeGroups.set(actualGrade, arr);
 	}
 
-	const workbook = await createWorkbook();
+	const workbook = await createWorkbook(options);
 	workbook.creator = 'ATLAS';
 
 	// Per-section beneficiary layout: one five-weekday block per section. The
