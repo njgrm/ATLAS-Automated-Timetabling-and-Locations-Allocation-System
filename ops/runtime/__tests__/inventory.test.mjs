@@ -13,6 +13,7 @@ const SCHTASKS_OUTPUT = [
 	'Next Run Time:                        N/A',
 	'Status:                               Disabled',
 	'Task To Run:                          cmd /c start-atlas-dev.cmd',
+	'Start In:                             C:\\ATLAS-worktrees\\w1-runtime-deploy',
 	'Run As User:                          DOMAIN\\someuser',
 	'Last Run Time:                        9/12/2026 3:11:00 PM',
 	'Last Result:                          1',
@@ -28,13 +29,19 @@ test('the only scheduled-task command ever built is a read-only query', () => {
 	}
 });
 
-test('schtasks LIST parsing and identity redaction', () => {
+test('schtasks LIST parsing and identity/machine-path redaction', () => {
 	const fields = parseSchtasksList(SCHTASKS_OUTPUT);
 	assert.equal(fields.Status, 'Disabled');
 	assert.equal(fields['Last Result'], '1');
 	const sanitized = sanitizeTaskFields(fields);
 	assert.equal(sanitized['Run As User'], '<redacted>');
-	assert.ok(!JSON.stringify(sanitized).includes('someuser'));
+	assert.equal(sanitized.HostName, '<redacted>');
+	assert.equal(sanitized['Task To Run'], '<redacted>');
+	assert.equal(sanitized['Start In'], '<redacted>');
+	const serialized = JSON.stringify(sanitized);
+	assert.ok(!serialized.includes('someuser'));
+	assert.ok(!serialized.includes('start-atlas-dev.cmd'));
+	assert.ok(!serialized.includes('ATLAS-worktrees'));
 });
 
 test('legacy task inventory is read-only and declares explicit supersession', () => {
@@ -50,12 +57,16 @@ test('legacy task inventory is read-only and declares explicit supersession', ()
 	assert.equal(inventory.readOnly, true);
 	assert.equal(inventory.status, 'Disabled');
 	assert.equal(inventory.lastResult, '1');
+	assert.equal(inventory.taskToRun, '<redacted>');
 	assert.equal(inventory.supersession.taskName, 'ATLAS-DevServer-Temp2');
 	assert.equal(inventory.supersession.supersededBy, 'RUNTIME-SUPERVISION-C01');
 	assert.equal(inventory.supersession.sourceMayModify, false);
 	assert.equal(calls.length, 1);
 	assert.deepEqual(calls[0].args[0], '/query');
-	assert.ok(!JSON.stringify(inventory).includes('someuser'), 'inventory never surfaces a machine username');
+	const serialized = JSON.stringify(inventory);
+	assert.ok(!serialized.includes('someuser'), 'inventory never surfaces a machine username');
+	assert.ok(!serialized.includes('start-atlas-dev.cmd'), 'inventory never surfaces a machine path');
+	assert.ok(!serialized.includes('ATLAS-worktrees'), 'inventory never surfaces a machine path');
 });
 
 test('a missing legacy task is reported as absent without mutation', () => {

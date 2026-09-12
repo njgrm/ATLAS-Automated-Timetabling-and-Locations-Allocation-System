@@ -102,6 +102,7 @@ function makeHarness(options = {}) {
 	const deps = {
 		contract,
 		sourceDir: options.sourceDir ?? 'C:/deploy/atlas',
+		releaseSha: options.releaseSha ?? null,
 		logger: null,
 		statePath,
 		spawnChild,
@@ -217,6 +218,19 @@ test('unexpected child exit terminates only owned PIDs and restarts exactly once
 		assert.equal(harness.spawned.length, 4, 'exactly one coordinated restart cycle relaunches both targets');
 		assert.ok(harness.terminated.includes(firstServerPid), 'the crashed owned PID was terminated');
 		assert.ok(harness.sleeps.includes(100), 'bounded backoff was applied');
+	} finally {
+		harness.cleanup();
+	}
+});
+
+test('status surfaces the exact installed releaseSha distinctly from the reviewed productPin', async () => {
+	const harness = makeHarness({ releaseSha: OTHER_SHA });
+	try {
+		const status = await harness.supervisor.start();
+		assert.equal(status.releaseSha, OTHER_SHA);
+		assert.equal(status.productPin, CONTRACT.productPin);
+		assert.notEqual(status.releaseSha, status.productPin);
+		assert.match(formatStatus(status), /"releaseSha": "0123/);
 	} finally {
 		harness.cleanup();
 	}

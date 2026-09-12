@@ -30,12 +30,12 @@ export function parseSchtasksList(output) {
 	return fields;
 }
 
-/** Omit identity-bearing fields so no machine username is ever surfaced. */
+/** Omit identity- and machine-path-bearing fields so no host/user/path leaks. */
 export function sanitizeTaskFields(fields) {
-	const omitted = new Set(['Run As User', 'Author', 'Run As User ']);
+	const redactedKeys = new Set(['Run As User', 'Run As User ', 'Author', 'Task To Run', 'HostName', 'Start In']);
 	const out = {};
 	for (const [key, value] of Object.entries(fields)) {
-		if (omitted.has(key)) {
+		if (redactedKeys.has(key)) {
 			out[key] = '<redacted>';
 			continue;
 		}

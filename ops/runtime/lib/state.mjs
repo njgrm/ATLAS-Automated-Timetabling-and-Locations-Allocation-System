@@ -50,13 +50,14 @@ export function isPidAlive(pid, kill = process.kill) {
 
 /** Build a fresh state record with explicit previous-run preservation. */
 export function newState(options) {
-	const { contract, ownedPids, prior, state, now, sourceDir } = options;
+	const { contract, ownedPids, prior, state, now, sourceDir, releaseSha } = options;
 	const timestamp = now ?? new Date().toISOString();
 	return {
 		contractVersion: contract.contractVersion,
 		stream: contract.stream,
 		releaseLabel: contract.releaseLabel,
 		productPin: contract.productPin,
+		releaseSha: releaseSha ?? prior?.releaseSha ?? null,
 		sourceDir: sourceDir ?? prior?.sourceDir ?? null,
 		state,
 		startedAt: prior?.startedAt ?? timestamp,
@@ -66,6 +67,7 @@ export function newState(options) {
 			? {
 					state: prior.state,
 					productPin: prior.productPin,
+					releaseSha: prior.releaseSha ?? null,
 					releaseLabel: prior.releaseLabel,
 					sourceDir: prior.sourceDir ?? null,
 					ownedPids: prior.ownedPids ?? {},

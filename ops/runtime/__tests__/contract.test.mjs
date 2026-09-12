@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import {
 	loadContract,
@@ -10,6 +14,7 @@ import {
 	validateContract,
 	verifyProductPin,
 } from '../lib/contract.mjs';
+import { defaultIsAncestor, defaultResolveHead } from '../lib/git.mjs';
 
 const CONTRACT = loadContract();
 const SHA = CONTRACT.productPin;
@@ -119,27 +124,88 @@ test('resolved environment reference exposes key names but never values', () => 
 	assert.ok(!summary.includes('postgresql://'));
 });
 
-test('product pin verification rejects a stale or mismatched deployed source', () => {
+test('missing deployed HEAD fails closed before release/pin checks', () => {
 	assert.throws(
-		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: {}, resolveSha: () => OTHER_SHA }),
-		(error) => error.code === 'PIN_MISMATCH',
-	);
-	assert.throws(
-		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: {}, resolveSha: () => 'not-a-sha' }),
+		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: {}, resolveHead: () => { throw new Error('no git'); }, isAncestor: () => true }),
 		(error) => error.code === 'PIN_UNRESOLVED',
 	);
 	assert.throws(
-		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: {}, resolveSha: () => { throw new Error('no git'); } }),
+		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: {}, resolveHead: () => 'not-a-sha', isAncestor: () => true }),
 		(error) => error.code === 'PIN_UNRESOLVED',
 	);
 });
 
-test('product pin verification rejects a declared/actual mismatch and accepts an exact match', () => {
+test('absent, invalid, or mismatched ATLAS_RUNTIME_RELEASE_SHA fails closed', () => {
+	const base = { contract: CONTRACT, sourceDir: 'C:/deploy/atlas', resolveHead: () => OTHER_SHA, isAncestor: () => true };
 	assert.throws(
-		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: { ATLAS_RUNTIME_PRODUCT_SHA: OTHER_SHA }, resolveSha: () => SHA }),
+		() => verifyProductPin({ ...base, env: {} }),
+		(error) => error.code === 'RELEASE_SHA_MISSING',
+	);
+	assert.throws(
+		() => verifyProductPin({ ...base, env: { ATLAS_RUNTIME_RELEASE_SHA: 'not-a-sha' } }),
+		(error) => error.code === 'RELEASE_SHA_INVALID',
+	);
+	assert.throws(
+		() => verifyProductPin({ ...base, env: { ATLAS_RUNTIME_RELEASE_SHA: SHA } }),
+		(error) => error.code === 'RELEASE_SHA_MISMATCH',
+	);
+});
+
+test('a deployed HEAD not descended from the reviewed ancestor pin fails PIN_MISMATCH', () => {
+	assert.throws(
+		() => verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: { ATLAS_RUNTIME_RELEASE_SHA: OTHER_SHA }, resolveHead: () => OTHER_SHA, isAncestor: () => false }),
 		(error) => error.code === 'PIN_MISMATCH',
 	);
-	const result = verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: { ATLAS_RUNTIME_PRODUCT_SHA: SHA }, resolveSha: () => SHA });
-	assert.equal(result.actualSha, SHA);
+});
+
+test('an ancestor-descended release verifies and reports releaseSha distinctly from productPin', () => {
+	const result = verifyProductPin({ contract: CONTRACT, sourceDir: 'C:/deploy/atlas', env: { ATLAS_RUNTIME_RELEASE_SHA: OTHER_SHA }, resolveHead: () => OTHER_SHA, isAncestor: (pin, head) => pin === SHA && head === OTHER_SHA });
+	assert.equal(result.releaseSha, OTHER_SHA);
+	assert.equal(result.productPin, SHA);
+	assert.notEqual(result.releaseSha, result.productPin);
 	assert.equal(result.releaseLabel, CONTRACT.releaseLabel);
+});
+
+test('a REAL checked-out tree descending from the reviewed pin verifies (ancestor semantics)', () => {
+	// This is the control class that was missing: a real git history containing
+	// ops/runtime, where the reviewed pin is an ancestor of the installed HEAD.
+	// The old equality model is unsatisfiable for such a tree.
+	const repo = mkdtempSync(join(tmpdir(), 'atlas-pin-repo-'));
+	const git = (args) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', windowsHide: true }).trim();
+	try {
+		git(['init', '-q']);
+		mkdirSync(join(repo, 'ops', 'runtime'), { recursive: true });
+		writeFileSync(join(repo, 'ops', 'runtime', 'host.mjs'), '// reviewed milestone\n');
+		git(['add', '-A']);
+		git(['-c', 'user.email=t@example.invalid', '-c', 'user.name=Test', 'commit', '-q', '-m', 'reviewed pin milestone']);
+		const pin = git(['rev-parse', 'HEAD']);
+
+		writeFileSync(join(repo, 'ops', 'runtime', 'README.md'), 'supervisor release\n');
+		git(['add', '-A']);
+		git(['-c', 'user.email=t@example.invalid', '-c', 'user.name=Test', 'commit', '-q', '-m', 'installed supervisor release']);
+		const head = git(['rev-parse', 'HEAD']);
+		assert.notEqual(head, pin);
+
+		const contract = clone();
+		contract.productPin = pin;
+		const result = verifyProductPin({
+			contract,
+			sourceDir: repo,
+			env: { ATLAS_RUNTIME_RELEASE_SHA: head },
+			resolveHead: defaultResolveHead,
+			isAncestor: defaultIsAncestor,
+		});
+		assert.equal(result.releaseSha, head);
+		assert.equal(result.productPin, pin);
+
+		// A HEAD that does not descend from an unrelated pin fails PIN_MISMATCH.
+		const unrelated = clone();
+		unrelated.productPin = SHA;
+		assert.throws(
+			() => verifyProductPin({ contract: unrelated, sourceDir: repo, env: { ATLAS_RUNTIME_RELEASE_SHA: head }, resolveHead: defaultResolveHead, isAncestor: defaultIsAncestor }),
+			(error) => error.code === 'PIN_MISMATCH',
+		);
+	} finally {
+		rmSync(repo, { recursive: true, force: true });
+	}
 });

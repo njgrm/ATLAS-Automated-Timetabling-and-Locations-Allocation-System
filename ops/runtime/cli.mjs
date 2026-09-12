@@ -1,8 +1,8 @@
-import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadContract, loadEnvironmentReference, resolveLogDirectory, summarizeEnvironmentReference, verifyProductPin } from './lib/contract.mjs';
+import { defaultIsAncestor, defaultResolveHead } from './lib/git.mjs';
 import { BoundedLogger } from './lib/logs.mjs';
 import { Supervisor, buildTargets } from './lib/supervisor.mjs';
 import { buildInstallPreview, buildUninstallPreview, formatStatus } from './lib/status.mjs';
@@ -11,10 +11,6 @@ import { RuntimeError, fail } from './lib/errors.mjs';
 import { readState } from './lib/state.mjs';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
-
-function defaultResolveSha(sourceDir) {
-	return execFileSync('git', ['-C', sourceDir, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim();
-}
 
 function resolveSourceDirForPreview(env) {
 	const value = env.ATLAS_RUNTIME_SOURCE_DIR;
@@ -29,7 +25,7 @@ async function runStart(deps) {
 	const contract = deps.contract;
 	const env = deps.env;
 	const reference = loadEnvironmentReference({ contract, env });
-	verifyProductPin({ contract, sourceDir: reference.sourceDir, resolveSha: deps.resolveSha });
+	const pin = verifyProductPin({ contract, sourceDir: reference.sourceDir, env, resolveHead: deps.resolveHead, isAncestor: deps.isAncestor });
 	const logDirectory = resolveLogDirectory({ contract, sourceDir: reference.sourceDir, env });
 	const logger = new BoundedLogger({
 		directory: logDirectory,
@@ -38,12 +34,13 @@ async function runStart(deps) {
 		maxFiles: contract.logs.maxFiles,
 		secretValues: [...reference.values.values()],
 	});
-	logger.info(`Starting ${contract.stream} release=${contract.releaseLabel} pin=${contract.productPin}`);
+	logger.info(`Starting ${contract.stream} release=${contract.releaseLabel} releaseSha=${pin.releaseSha} productPin=${pin.productPin}`);
 	logger.info(`Environment reference: ${JSON.stringify(summarizeEnvironmentReference(reference))}`);
 	const envValues = Object.fromEntries(reference.values);
 	const supervisor = new Supervisor({
 		contract,
 		sourceDir: reference.sourceDir,
+		releaseSha: pin.releaseSha,
 		logger,
 		envValues,
 		targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }),
@@ -78,10 +75,10 @@ async function runStatus(deps) {
 async function runRollback(deps) {
 	const contract = deps.contract;
 	const reference = loadEnvironmentReference({ contract, env: deps.env });
-	verifyProductPin({ contract, sourceDir: reference.sourceDir, resolveSha: deps.resolveSha });
+	const pin = verifyProductPin({ contract, sourceDir: reference.sourceDir, env: deps.env, resolveHead: deps.resolveHead, isAncestor: deps.isAncestor });
 	const logger = new BoundedLogger({ directory: resolveLogDirectory({ contract, sourceDir: reference.sourceDir, env: deps.env }), fileBaseName: contract.logs.fileBaseName, maxBytes: contract.logs.maxBytes, maxFiles: contract.logs.maxFiles, secretValues: [...reference.values.values()] });
 	const envValues = Object.fromEntries(reference.values);
-	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger, envValues, targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }), statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
+	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, releaseSha: pin.releaseSha, logger, envValues, targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }), statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
 	const status = await supervisor.rollback();
 	return { exitCode: 0, output: formatStatus(status) };
 }
@@ -104,7 +101,8 @@ export async function runCli(argv, overrides = {}) {
 	const deps = {
 		contract: overrides.contract ?? loadContract(overrides.contractOptions),
 		env: overrides.env ?? process.env,
-		resolveSha: overrides.resolveSha ?? defaultResolveSha,
+		resolveHead: overrides.resolveHead ?? defaultResolveHead,
+		isAncestor: overrides.isAncestor ?? defaultIsAncestor,
 		inspectListeners: overrides.inspectListeners,
 		taskRunner: overrides.taskRunner,
 	};
