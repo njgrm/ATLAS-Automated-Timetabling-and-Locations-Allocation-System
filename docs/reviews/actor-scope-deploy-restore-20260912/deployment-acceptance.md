@@ -9,7 +9,7 @@
 - Product target SHA (pin): `d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`
 - Worktree: `D:\ATLAS-worktrees\actor-scope-deploy-restore-20260912`
 - Branch: `work/actor-scope-deploy-restore-20260912`
-- Candidate SHA: `<filled at commit>` (see final handoff)
+- Candidate: the branch tip commit(s) of `work/actor-scope-deploy-restore-20260912` above base `d44f29e0`; this evidence file is the only changed path (docs-only).
 - Fallback artifact: `fdd0c8c7d9f417bdddbe4a3dc2ec9e1f627e2b22` (NOT used — new target healthy)
 - Main checkout `D:\ATLAS` was never modified (status entry count unchanged at 178).
 
@@ -59,7 +59,7 @@ mobile 390×844.
 
 | Row | State | Evidence |
 |---|---|---|
-| C1 Login | PASS | No reusable session (`/auth/me` → 401 `NO_TOKEN` pre-login). Exactly **one** login performed 2026-09-12T06:18:26Z with the Manual QA admin credential (password never written to any artifact). |
+| C1 Login | PASS | No reusable session (`/auth/me` → 401 `NO_TOKEN` pre-login). Exactly **one** login performed 2026-09-12 06:18:26 Asia/Manila (account 46 `last_login_at`); the corresponding `audit_logs` row id 761 was created at 2026-09-11T22:18:27.208Z UTC = 2026-09-12 06:18:27.208 Asia/Manila (password never written to any artifact). |
 | C2 `/auth/me` | PASS | 200: `userId=46, role=officer, authSource=local, schoolId=1`. Every later request used school 1 (the actor's authoritative school). |
 | C3 `/runtime/rollover-status?schoolId=1` | PASS | 200. `drift.status="aligned"`, `recommendedAction="NONE"`; `termAuthority.state="MISSING"`, `code="TERM_AUTHORITY_MISSING"`, `persisted=false`, `needsRepair=true`, `repairAction="PREVIEW_TERM_CACHE_SYNC"`. Alignment must not be read as global no-action readiness. |
 | C4 `POST /runtime/term-authority/preview {schoolId:1}` | PASS | 200: `mirrorId=223`, `yearLabel="2030-2031"`, format TRIMESTER, 3 ordered terms (T1 2030-06-08→09-15, T2 09-16→12-18, T3 12-19→2031-04-08), `fingerprint=d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81`, `zeroWrite=true`. Negative control (no auth / `credentials:'omit'`) → **401 `NO_TOKEN`**. Zero writes confirmed by section-6 signatures. |
@@ -84,7 +84,7 @@ boundary and was correctly not touched). Pages rendered truthfully in all cases.
 | `audit_logs` action `TERM_CACHE_SYNC_APPLIED` | 0 | 0 | 0 |
 | `atlas_auth_accounts` | 44 | 44 | 0 |
 | `audit_logs` total | 233 | 234 | **+1** (`LOCAL_LOGIN_SUCCESS`, id 761, actor 46) |
-| account 46 `last_login_at` | 2026-09-11 16:32:32.926 | 2026-09-12 06:18:26.65 | login footprint |
+| account 46 `last_login_at` (Asia/Manila) | 2026-09-11 16:32:32.926 | 2026-09-12 06:18:26.65 | login footprint |
 | `faculty_subjects` | 183 | 183 | 0 |
 | `generation_runs` | 1 | 1 | 0 |
 | `published_schedule_revisions` | 0 | 0 | 0 |
@@ -116,6 +116,7 @@ Not invoked. The new `d44f29e0` target started cleanly and passed local + Tailne
 - Actor school is 1, the only school in this database; scope correctness here cannot be
   discriminated by output value alone and relies on session-resolution ordering and the
   ACTOR-SCOPE-C01 code path.
+- Deployment-identity caveat: Windows WMI exposes no process working directory, so the server working directory is inferred from the recorded launch command and deploy logs; the client tree identity was content-verified against the originally served module.
 
 ## Mutation boundary honored
 
