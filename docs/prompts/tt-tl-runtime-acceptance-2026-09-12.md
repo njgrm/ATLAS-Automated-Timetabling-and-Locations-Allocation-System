@@ -88,7 +88,9 @@ supervised rollback artifact.
    verify via `schtasks /query /xml`. Leave
    `ATLAS_RUNTIME_ENV_FILE=D:\ATLAS-runtime-config\atlas-server.env` unchanged.
 4. **Start** from the new release with the new values:
-   `node ops/runtime/cli.mjs start`. Require exactly one supervisor-owned PID
+   `node ops/runtime/cli.mjs start`, invoked from a fresh process (or with the
+   two variables explicitly set in the invoking process) so the re-pointed
+   machine env is actually observed. Require exactly one supervisor-owned PID
    per port, local `GET /api/v1/health` 200, local `GET /api/v1/health/ready`
    200, and Tailnet `GET /api/v1/health` 200; record `releaseSha == 3d916b26…`.
 5. Record secret-free status, bounded logs, and the exact installed HEAD.
@@ -112,9 +114,10 @@ supervised rollback artifact.
   readiness: stop only newly owned children; re-point machine env
   (`ATLAS_RUNTIME_SOURCE_DIR=D:\ATLAS-runtime-supervised-20260912`,
   `ATLAS_RUNTIME_RELEASE_SHA=9d2938791460c1d19059e5eddd30d7bba623fdad`) and the
-  boot task back to the incumbent release; start it; require local health and
-  readiness 200; record the restored identity. The incumbent directory is kept
-  intact for this purpose.
+  boot task back to the incumbent release; start it from a fresh process (or
+  with the two variables explicitly set in the invoking process); require local
+  health and readiness 200; record the restored identity. The incumbent
+  directory is kept intact for this purpose.
 - **Manual last resort (`d44f29e0`, operator-named).**
   `D:\ATLAS-runtime-fallback-d44-20260912` has **no `/api/v1/health/ready`**
   and is **not** supervisor-startable. If it must be used, start it manually as
