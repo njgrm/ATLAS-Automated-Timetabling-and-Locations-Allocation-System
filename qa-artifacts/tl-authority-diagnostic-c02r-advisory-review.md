@@ -25,4 +25,3 @@ Correction scope: read-only system-token access for the mounted Teaching Load au
 ## Decision
 
 `REVIEW_REQUIRED` — the system-token authority-diagnostic correction is bounded and verified, but the candidate remains blocked from integration by the pre-existing reconciliation-route fixture/apply failure. Do not run Teaching Load apply, carry-forward apply, generation, publication, migration, deployment, or restart from this candidate.
-
