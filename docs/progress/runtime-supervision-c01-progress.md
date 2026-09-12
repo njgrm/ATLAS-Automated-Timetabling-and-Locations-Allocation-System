@@ -33,11 +33,17 @@
 
 ## Decisive evidence
 
-- `node --test "ops/runtime/__tests__/*.test.mjs"` → 51/51 PASS, 0 skipped.
+- `node --test "ops/runtime/__tests__/*.test.mjs"` → 52/52 PASS, 0 skipped, 0 failed.
 - `npm --prefix atlas-server run build` → exit 0; client `tsc --noEmit` → exit 0; `npm --prefix atlas-client run build` → exit 0.
-- Isolated built-server start (`PORT=15998`, `ROLLOVER_AUTO_SYNC_ENABLED=false`, `ATLAS_SUPERVISED=true`, no DB): `/api/v1/health` 200 `{"status":"ok"}`; `/api/v1/health/ready` 503 `{"status":"degraded","checks":{"database":"error"}}`; process alive; port released after stop. Ports 5001/5174 never probed or touched.
+- Isolated built-server start (`PORT=15998`, `ROLLOVER_AUTO_SYNC_ENABLED=false`, `ATLAS_SUPERVISED=true`, no DB): `/api/v1/health` 200 `{"status":"ok"}`; `/api/v1/health/ready` 503 `{"status":"degraded","checks":{"database":"error"}}`; process alive; port released after stop. Ports 5001/5174 never bound by any test.
 - Crash policy: supervised child exits 1 with `[FATAL] [uncaughtException]`; unsupervised child stays alive (log-and-continue preserved).
 - Isolated live lifecycle (non-live ports, disposable children): exactly one owner per port, deep-link SPA 200, readiness proxied through host returns pinned `rolloverAutoSyncEnabled:"false"` and `supervised:"true"`, both ports/processes released after stop.
+
+## Correction round 1 (fresh QA `CORRECTION_REQUIRED` 13/15)
+
+- **F1 (BLOCKING) fixed:** `Supervisor.rollback()` now rebuilds targets through a `targetFactory` from the restored `previous.sourceDir` before relaunch, and reports the release actually running. `cli.mjs` passes a source-dir-scoped `targetFactory` for start/stop/status/rollback.
+- **F2 (NON_BLOCKING) fixed:** intentional sibling termination during a coordinated restart is marked in `intentionalExitPids` before killing and no longer enters crash accounting; `launchAndAwaitHealthy` sets `managing` so startup/coordinated exits do not recursively restart. One real crash = one restart cycle.
+- Fails-first proof: temporarily reverting the F1 target rebuild → new control fails (`atlas-current/...` vs `atlas-old/...`); temporarily removing the F2 marking → failure count `2 !== 1`. Both restored; 52/52 pass.
 
 ## Remaining risks
 

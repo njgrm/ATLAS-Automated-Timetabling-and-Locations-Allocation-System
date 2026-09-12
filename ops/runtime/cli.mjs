@@ -40,8 +40,15 @@ async function runStart(deps) {
 	});
 	logger.info(`Starting ${contract.stream} release=${contract.releaseLabel} pin=${contract.productPin}`);
 	logger.info(`Environment reference: ${JSON.stringify(summarizeEnvironmentReference(reference))}`);
-	const targets = buildTargets({ contract, sourceDir: reference.sourceDir, envValues: Object.fromEntries(reference.values) });
-	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger, targets, statePath: statePathFor(reference.sourceDir, contract) });
+	const envValues = Object.fromEntries(reference.values);
+	const supervisor = new Supervisor({
+		contract,
+		sourceDir: reference.sourceDir,
+		logger,
+		envValues,
+		targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }),
+		statePath: statePathFor(reference.sourceDir, contract),
+	});
 	const status = await supervisor.start();
 	return { exitCode: 0, output: formatStatus(status) };
 }
@@ -50,8 +57,8 @@ async function runStop(deps) {
 	const contract = deps.contract;
 	const reference = loadEnvironmentReference({ contract, env: deps.env });
 	const logger = new BoundedLogger({ directory: resolveLogDirectory({ contract, sourceDir: reference.sourceDir, env: deps.env }), fileBaseName: contract.logs.fileBaseName, maxBytes: contract.logs.maxBytes, maxFiles: contract.logs.maxFiles, secretValues: [...reference.values.values()] });
-	const targets = buildTargets({ contract, sourceDir: reference.sourceDir, envValues: Object.fromEntries(reference.values) });
-	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger, targets, statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
+	const envValues = Object.fromEntries(reference.values);
+	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger, envValues, targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }), statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
 	const status = await supervisor.stop();
 	return { exitCode: 0, output: formatStatus(status) };
 }
@@ -60,8 +67,8 @@ async function runStatus(deps) {
 	const contract = deps.contract;
 	const reference = loadEnvironmentReference({ contract, env: deps.env });
 	const prior = readState(statePathFor(reference.sourceDir, contract));
-	const targets = buildTargets({ contract, sourceDir: reference.sourceDir, envValues: Object.fromEntries(reference.values) });
-	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger: null, targets, statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
+	const envValues = Object.fromEntries(reference.values);
+	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger: null, envValues, targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }), statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
 	supervisor.ownedPids = prior?.ownedPids ?? {};
 	supervisor.state = prior?.state ?? 'stopped';
 	const status = supervisor.getStatus();
@@ -73,8 +80,8 @@ async function runRollback(deps) {
 	const reference = loadEnvironmentReference({ contract, env: deps.env });
 	verifyProductPin({ contract, sourceDir: reference.sourceDir, resolveSha: deps.resolveSha });
 	const logger = new BoundedLogger({ directory: resolveLogDirectory({ contract, sourceDir: reference.sourceDir, env: deps.env }), fileBaseName: contract.logs.fileBaseName, maxBytes: contract.logs.maxBytes, maxFiles: contract.logs.maxFiles, secretValues: [...reference.values.values()] });
-	const targets = buildTargets({ contract, sourceDir: reference.sourceDir, envValues: Object.fromEntries(reference.values) });
-	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger, targets, statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
+	const envValues = Object.fromEntries(reference.values);
+	const supervisor = new Supervisor({ contract, sourceDir: reference.sourceDir, logger, envValues, targetFactory: (dir) => buildTargets({ contract, sourceDir: dir, envValues }), statePath: statePathFor(reference.sourceDir, contract), inspectListeners: deps.inspectListeners });
 	const status = await supervisor.rollback();
 	return { exitCode: 0, output: formatStatus(status) };
 }

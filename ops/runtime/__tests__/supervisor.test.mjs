@@ -26,11 +26,41 @@ function testContract() {
 	return contract;
 }
 
+/** A target map whose paths derive from the source directory, as production does. */
+function sourceScopedTargets(dir) {
+	return [
+		{
+			name: 'server',
+			label: 'ATLAS server',
+			entry: `${dir}/atlas-server/dist/server.js`,
+			args: [],
+			cwd: dir,
+			port: PORTS.server,
+			env: { ATLAS_HOST_STATIC_ROOT: `${dir}/atlas-client/dist` },
+			livenessPath: '/api/v1/health',
+			readinessPath: '/api/v1/health/ready',
+		},
+		{
+			name: 'client',
+			label: 'ATLAS production host',
+			entry: `${dir}/ops/runtime/host.mjs`,
+			args: [],
+			cwd: dir,
+			port: PORTS.client,
+			env: { ATLAS_HOST_STATIC_ROOT: `${dir}/atlas-client/dist` },
+			livenessPath: '/__host/live',
+			readinessPath: '/__host/ready',
+		},
+	];
+}
+
 function makeHarness(options = {}) {
 	const clock = { now: options.now0 ?? 0 };
 	const sleeps = [];
 	const spawned = [];
 	const terminated = [];
+	const exitPromises = [];
+	const handleByPid = new Map();
 	const alivePids = options.alivePids ?? new Set();
 	let nextPid = 900001;
 	const healthyFn = options.healthy ?? (() => true);
@@ -46,16 +76,26 @@ function makeHarness(options = {}) {
 			kill() {
 				this.exited = true;
 			},
-			emitExit(code = 1) {
+			emitExit(code = 1, signal = null) {
 				this.exited = true;
-				return this.onExitCb?.(code, null);
+				return this.onExitCb?.(code, signal);
 			},
 		};
 		spawned.push(handle);
+		handleByPid.set(handle.pid, handle);
 		return handle;
 	};
+	// Realistic termination: the OS exit event for an intentionally killed child
+	// is emitted asynchronously, exactly like a real taskkill.
+	const terminateTree = (pid) => {
+		terminated.push(pid);
+		const handle = handleByPid.get(pid);
+		if (handle && !handle.exited) {
+			exitPromises.push(Promise.resolve(handle.emitExit(0, 'SIGTERM')));
+		}
+	};
 	const probeHttp = async ({ port, path }) => (healthyFn({ port, path }) ? { ok: true, status: 200 } : { ok: false, status: 503 });
-	const inspectListeners = (port) => (options.listeners?.get(port) ?? []);
+	const inspectListeners = (port) => options.listeners?.get(port) ?? [];
 	const contract = testContract();
 	const stateDir = mkdtempSync(join(tmpdir(), 'atlas-supervisor-'));
 	const statePath = join(stateDir, 'state.json');
@@ -63,15 +103,11 @@ function makeHarness(options = {}) {
 		contract,
 		sourceDir: options.sourceDir ?? 'C:/deploy/atlas',
 		logger: null,
-		targets: [
-			{ name: 'server', label: 'ATLAS server', entry: 'C:/deploy/atlas/atlas-server/dist/server.js', args: [], cwd: 'C:/deploy/atlas', port: PORTS.server, env: {}, livenessPath: '/api/v1/health', readinessPath: '/api/v1/health/ready' },
-			{ name: 'client', label: 'ATLAS production host', entry: 'C:/deploy/atlas/ops/runtime/host.mjs', args: [], cwd: 'C:/deploy/atlas', port: PORTS.client, env: {}, livenessPath: '/__host/live', readinessPath: '/__host/ready' },
-		],
 		statePath,
 		spawnChild,
 		probeHttp,
 		inspectListeners,
-		terminateTree: (pid) => terminated.push(pid),
+		terminateTree,
 		sleepFn: async (ms) => {
 			sleeps.push(ms);
 			clock.now += ms;
@@ -80,6 +116,18 @@ function makeHarness(options = {}) {
 		isPidAlive: (pid) => alivePids.has(pid),
 		pollIntervalMs: 10,
 	};
+	if (options.targetFactory) {
+		deps.targetFactory = options.targetFactory;
+	} else {
+		deps.targets = sourceScopedTargets(deps.sourceDir);
+	}
+	const settle = async () => {
+		for (let i = 0; i < 10; i += 1) {
+			await Promise.resolve();
+			await new Promise((resolvePromise) => setImmediate(resolvePromise));
+		}
+		await Promise.allSettled(exitPromises);
+	};
 	return {
 		supervisor: new Supervisor(deps),
 		spawned,
@@ -87,6 +135,7 @@ function makeHarness(options = {}) {
 		terminated,
 		statePath,
 		stateDir,
+		settle,
 		cleanup: () => rmSync(stateDir, { recursive: true, force: true }),
 	};
 }
@@ -153,15 +202,20 @@ test('failed dependency readiness retries with bounded backoff then gives up', a
 	}
 });
 
-test('unexpected child exit terminates only owned PIDs and restarts to a healthy running state', async () => {
+test('unexpected child exit terminates only owned PIDs and restarts exactly once per real crash', async () => {
+	// The injected terminate emits realistic sibling exit events (the crash
+	// event itself is the only unexpected exit). Under the old accounting those
+	// sibling exits counted as crashes and doubled the spawn/restart budget.
 	const harness = makeHarness();
 	try {
 		await harness.supervisor.start();
 		const firstServerPid = harness.spawned[0].pid;
 		await harness.spawned[0].emitExit(1);
+		await harness.settle();
 		assert.equal(harness.supervisor.state, 'running');
+		assert.equal(harness.supervisor.guard.consecutiveFailures, 1, 'one real crash consumes exactly one restart');
+		assert.equal(harness.spawned.length, 4, 'exactly one coordinated restart cycle relaunches both targets');
 		assert.ok(harness.terminated.includes(firstServerPid), 'the crashed owned PID was terminated');
-		assert.equal(harness.spawned.length, 4, 'both targets were relaunched');
 		assert.ok(harness.sleeps.includes(100), 'bounded backoff was applied');
 	} finally {
 		harness.cleanup();
@@ -177,7 +231,7 @@ test('rollback is unavailable without a recorded previous release', async () => 
 	}
 });
 
-test('rollback stops the current release and restores the recorded previous release', async () => {
+test('rollback stops the current release and reports the restored previous release', async () => {
 	const harness = makeHarness({ sourceDir: 'C:/deploy/atlas-new' });
 	try {
 		writeState(harness.statePath, {
@@ -192,6 +246,37 @@ test('rollback stops the current release and restores the recorded previous rele
 		assert.equal(status.state, 'running');
 		assert.equal(status.releaseLabel, 'atlas-old');
 		assert.equal(status.productPin, OTHER_SHA);
+		assert.equal(status.sourceDir, 'C:/deploy/atlas-old');
+	} finally {
+		harness.cleanup();
+	}
+});
+
+test('rollback relaunches the previous release paths, not the stale current-release targets', async () => {
+	// Failing-first control for F1: `getStatus()` field assertions alone passed
+	// while the process actually spawned was still the current release. This
+	// asserts the spawned entry/cwd/env derive from previous.sourceDir.
+	const factory = (dir) => sourceScopedTargets(dir);
+	const harness = makeHarness({ sourceDir: 'C:/deploy/atlas-current', targetFactory: factory });
+	try {
+		writeState(harness.statePath, {
+			state: 'stopped',
+			ownedPids: {},
+			productPin: CONTRACT.productPin,
+			releaseLabel: 'atlas-current',
+			sourceDir: 'C:/deploy/atlas-current',
+			previous: { state: 'stopped', productPin: OTHER_SHA, releaseLabel: 'atlas-old', sourceDir: 'C:/deploy/atlas-old', ownedPids: {}, updatedAt: '2026-09-11T00:00:00.000Z' },
+		});
+		const status = await harness.supervisor.rollback();
+		const relaunched = harness.spawned.slice(-2);
+		assert.equal(relaunched.length, 2, 'both targets are relaunched');
+		assert.equal(relaunched[0].spec.entry, 'C:/deploy/atlas-old/atlas-server/dist/server.js');
+		assert.equal(relaunched[0].spec.cwd, 'C:/deploy/atlas-old');
+		assert.equal(relaunched[0].spec.env.ATLAS_HOST_STATIC_ROOT, 'C:/deploy/atlas-old/atlas-client/dist');
+		assert.equal(relaunched[1].spec.entry, 'C:/deploy/atlas-old/ops/runtime/host.mjs');
+		assert.equal(relaunched[1].spec.cwd, 'C:/deploy/atlas-old');
+		assert.equal(relaunched[1].spec.env.ATLAS_HOST_STATIC_ROOT, 'C:/deploy/atlas-old/atlas-client/dist');
+		assert.equal(status.releaseLabel, 'atlas-old');
 		assert.equal(status.sourceDir, 'C:/deploy/atlas-old');
 	} finally {
 		harness.cleanup();
