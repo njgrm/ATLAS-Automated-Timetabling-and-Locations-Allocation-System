@@ -48,6 +48,7 @@ import notificationRouter from './routes/notification.router.js';
 import teachingLoadHistoryRouter from './routes/teaching-load-history.router.js';
 import teachingLoadCarryForwardRouter from './routes/teaching-load-carry-forward.router.js';
 import { initializeNotificationEventBridges } from './services/notification-events.service.js';
+import { getDependencyReadiness } from './services/health.service.js';
 
 const app = express();
 initializeNotificationEventBridges();
@@ -88,6 +89,15 @@ app.use('/uploads', express.static(path.resolve(import.meta.dirname, '../uploads
 
 app.get('/api/v1/health', (_req, res) => {
 	res.json({ status: 'ok', service: 'atlas' });
+});
+
+// Dependency readiness is intentionally distinct from liveness: the constant
+// `/api/v1/health` response alone cannot prove the database is reachable. The
+// supervised runtime uses this endpoint to require a real dependency check
+// before declaring the process healthy.
+app.get('/api/v1/health/ready', async (_req, res) => {
+	const readiness = await getDependencyReadiness();
+	res.status(readiness.ready ? 200 : 503).json({ status: readiness.ready ? 'ready' : 'degraded', service: 'atlas', checks: readiness.checks });
 });
 
 app.use('/api/v1/auth', authRouter);

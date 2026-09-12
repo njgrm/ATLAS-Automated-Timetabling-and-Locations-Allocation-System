@@ -16,12 +16,17 @@ import { publishNotificationEvent } from './notification-events.service.js';
  *
  * Known risk accepted: after an uncaught exception the process may be in a
  * partially corrupted state. The alternative (silent death with no stack, as
- * in the 2026-09-01 incident) is strictly worse for this deployment. If ATLAS
- * later gains a process manager (systemd, PM2, containers), flip
- * EXIT_ON_UNCAUGHT to true so the manager restores a clean state.
+ * in the 2026-09-01 incident) is strictly worse for this deployment.
+ *
+ * Supervised opt-in (RUNTIME-SUPERVISION-C01): when the runtime-supervision
+ * contract manages this process it sets `ATLAS_SUPERVISED=true`. Under
+ * supervision an uncaught exception must fail the process so the supervisor
+ * can replace a potentially corrupted child with a bounded clean restart
+ * instead of serving from unstable state. Without supervision the legacy
+ * log-and-continue behavior is preserved.
  */
 
-const EXIT_ON_UNCAUGHT = false;
+const EXIT_ON_UNCAUGHT = process.env.ATLAS_SUPERVISED === 'true' || process.env.ATLAS_EXIT_ON_UNCAUGHT === 'true';
 
 /** Rate-limit for fatal notifications so a crash loop cannot spam the buffer. */
 const FATAL_NOTIFICATION_MIN_INTERVAL_MS = 30_000;

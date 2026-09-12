@@ -1,0 +1,56 @@
+{
+  "$comment": "Immutable, reviewed runtime-supervision contract for ATLAS on a Windows host. Contains no secrets, no machine usernames, no database URLs, and no worktree-only transient paths. Operators supply durable environment paths through process environment variables referenced below; the supervisor never copies or prints secret values.",
+  "contractVersion": 1,
+  "stream": "RUNTIME-SUPERVISION-C01",
+  "productPin": "d44f29e04d359ad9b18e4443b0fd4fed1daeaecd",
+  "releaseLabel": "atlas-d44f29e0",
+  "serverEntry": "atlas-server/dist/server.js",
+  "clientDist": "atlas-client/dist",
+  "ports": {
+    "server": 5001,
+    "client": 5174
+  },
+  "invariants": {
+    "ROLLOVER_AUTO_SYNC_ENABLED": "false",
+    "ATLAS_SUPERVISED": "true"
+  },
+  "environmentReference": {
+    "variable": "ATLAS_RUNTIME_ENV_FILE",
+    "sourceDirVariable": "ATLAS_RUNTIME_SOURCE_DIR",
+    "productShaVariable": "ATLAS_RUNTIME_PRODUCT_SHA",
+    "requiredKeys": ["DATABASE_URL", "JWT_SECRET"],
+    "description": "ATLAS_RUNTIME_ENV_FILE is the operator-owned absolute path to the durable ATLAS env file (dotenv format) outside any git worktree. ATLAS_RUNTIME_SOURCE_DIR is the operator-owned durable deployed source directory used to verify the product pin. Secrets are loaded into the child process environment by name and are never copied to the repository, logged, or printed."
+  },
+  "logs": {
+    "directoryIsRepoRelativeToSourceDir": true,
+    "directoryVariable": "ATLAS_RUNTIME_LOG_DIR",
+    "defaultDirectory": "ops/runtime/logs",
+    "fileBaseName": "atlas-supervisor",
+    "maxBytes": 5242880,
+    "maxFiles": 5
+  },
+  "upstream": {
+    "enrollProOriginVariable": "ENROLLPRO_PROXY_ORIGIN",
+    "defaultEnrollProOrigin": "http://127.0.0.1:5000"
+  },
+  "supervision": {
+    "maxRestarts": 5,
+    "backoffBaseMs": 2000,
+    "backoffMaxMs": 60000,
+    "survivalWindowMs": 30000,
+    "readinessTimeoutMs": 45000,
+    "livenessTimeoutMs": 5000,
+    "shutdownGraceMs": 10000,
+    "healthLivenessPath": "/api/v1/health",
+    "healthReadinessPath": "/api/v1/health/ready"
+  },
+  "state": {
+    "fileBaseName": "supervisor-state.json"
+  },
+  "legacyScheduledTask": {
+    "name": "ATLAS-DevServer-Temp2",
+    "supersededBy": "RUNTIME-SUPERVISION-C01",
+    "disposition": "OBSOLETE_SUPERSEDED",
+    "note": "Read-only inventory only. Source work MUST NOT create, modify, disable, or delete this scheduled task. Disabling/removing it is reserved for the separately approved live-install packet."
+  }
+}
