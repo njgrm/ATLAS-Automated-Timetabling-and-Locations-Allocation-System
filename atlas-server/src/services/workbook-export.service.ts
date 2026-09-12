@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
 import { resolvePublishedRun } from './published-schedule.service.js';
@@ -13,7 +13,7 @@ export type ExportOptions = {
 	/** Disposable read-only client for source-level export contract tests. */
 	client?: any;
 	/** Disposable published-run resolver for source-level export contract tests. */
-	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ entries: ScheduledEntry[]; summary: Record<string, unknown> | null }>;
+	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ source: { runId: number }; entries: ScheduledEntry[]; summary: Record<string, unknown> | null }>;
 };
 
 type TimeSlot = {
@@ -57,6 +57,11 @@ type ExportContext = {
 	displaySlots: TimeSlot[];
 	entries: ScheduledEntry[];
 };
+
+async function createWorkbook(): Promise<ExcelJS.Workbook> {
+	const { default: ExcelJSRuntime } = await import('exceljs');
+	return new ExcelJSRuntime.Workbook();
+}
 
 function formatTime12h(time24: string): string {
 	const [h, m] = time24.split(':').map(Number);
@@ -132,6 +137,11 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 	if (summary?.isPublished === true) {
 		const resolvePublished = options.publishedRunResolver ?? resolvePublishedRun;
 		const published = await resolvePublished(schoolId, schoolYearId);
+		if (published.source.runId !== runId) {
+			// The export URL is run-scoped; never silently substitute the latest
+			// published run when a caller asks for a different published identity.
+			throw new Error('RUN_NOT_FOUND');
+		}
 		entries = published.entries as ScheduledEntry[];
 		summary = published.summary;
 	}
@@ -303,7 +313,7 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 
 	const entryGrid = buildEntryGrid(ctx.entries, ctx.subjectMap, ctx.facultyMap, ctx.roomMap);
 
-	const workbook = new ExcelJS.Workbook();
+	const workbook = await createWorkbook();
 	workbook.creator = 'ATLAS';
 
 	const MAX_SECTIONS = 12;
@@ -428,7 +438,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		gradeGroups.set(actualGrade, arr);
 	}
 
-	const workbook = new ExcelJS.Workbook();
+	const workbook = await createWorkbook();
 	workbook.creator = 'ATLAS';
 
 	const MAX_SECTIONS = 7;

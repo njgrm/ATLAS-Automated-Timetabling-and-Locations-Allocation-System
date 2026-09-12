@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import { buildTeacherProgramExportShape, sortTeacherProgramWorkloadRows } from '../services/teacher-program-export.service.js';
 import { buildPeriodSlots, buildSpecialEventSlots } from '../services/schedule-constructor.js';
+import { loadExportContext } from '../services/workbook-export.service.js';
 
 test('canonical special-event builder defaults schema-shaped FLAG_OR_HGP to Monday and preserves explicit scope', () => {
 	const base = {
@@ -145,9 +146,32 @@ test('DOCX production path consumes the numeric workload sorter instead of lexic
 });
 
 test('XLSX production context resolves revision-effective published entries and fails closed on missing term identity', async () => {
-	const source = await readFile(new URL('../services/workbook-export.service.ts', import.meta.url), 'utf8');
-	assert.match(source, /export async function loadExportContext/);
-	assert.match(source, /const resolvePublished = options\.publishedRunResolver \?\? resolvePublishedRun/);
-	assert.match(source, /entries\.some\(\(entry\) => \(entry as ScheduledEntry & \{ termIndex\?: number \}\)\.termIndex == null\)/);
-	assert.match(source, /throw new Error\('TERM_FILTER_NOT_READY'\)/);
+	const client = {
+		generationRun: { findFirst: async () => ({
+			id: 42, status: 'COMPLETED', summary: { isPublished: true, timetableDisplaySlots: [] },
+			draftEntries: [{ entryId: 'stale-draft', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45, termIndex: 1 }],
+		}) },
+		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
+		enrollProSchoolYearMirror: { findFirst: async () => ({ yearLabel: '2026-2027' }) },
+		sectionMirror: { findMany: async () => [] },
+		facultyMirror: { findMany: async () => [] },
+		subject: { findMany: async () => [] },
+		room: { findMany: async () => [] },
+	};
+	const revisionEffectiveEntry = { entryId: 'revision-effective', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'TUESDAY', startTime: '13:00', endTime: '13:45', durationMinutes: 45, termIndex: 2 };
+	const publishedRunResolver = async () => ({ source: { runId: 42 }, entries: [revisionEffectiveEntry], summary: { isPublished: true, timetableDisplaySlots: [] } });
+	const context = await loadExportContext({ schoolId: 71, schoolYearId: 11, runId: 42, client, publishedRunResolver });
+	assert.deepEqual(context.entries, [revisionEffectiveEntry]);
+
+	await assert.rejects(
+		() => loadExportContext({
+			schoolId: 71, schoolYearId: 11, runId: 42, termIndex: 2, client,
+			publishedRunResolver: async () => ({ source: { runId: 42 }, entries: [{ ...revisionEffectiveEntry, termIndex: undefined }], summary: { isPublished: true, timetableDisplaySlots: [] } }),
+		}),
+		(error: unknown) => error instanceof Error && error.message === 'TERM_FILTER_NOT_READY',
+	);
+	await assert.rejects(
+		() => loadExportContext({ schoolId: 71, schoolYearId: 11, runId: 42, client, publishedRunResolver: async () => ({ source: { runId: 43 }, entries: [revisionEffectiveEntry], summary: { isPublished: true, timetableDisplaySlots: [] } }) }),
+		(error: unknown) => error instanceof Error && error.message === 'RUN_NOT_FOUND',
+	);
 });
