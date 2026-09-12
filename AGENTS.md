@@ -659,6 +659,36 @@ For every new stream or correction, the planner shall:
     inferred from general permission to execute the packet. The coordination
     footer must list only genuinely missing authority.
 
+13. **Separate term authority from cell rendering.** An academic term is the
+    authoritative scope/version of a schedule, not an extra visual cell. Day,
+    time, section, teacher, and room are rendering dimensions within that term.
+    A term switcher shall select one verified ordered term; it must not encode
+    rotation as a badge, merge different terms into one weekly cell, or let an
+    all-term export masquerade as a beneficiary-facing program. Every export,
+    room view, teacher view, section view, public read, and published revision
+    must preserve `(termIndex, day, interval, section, subject, faculty, room)`
+    and prove parity from one source run.
+
+14. **Use the beneficiary output contract as a generation gate.** When
+    stakeholder class/teacher/room programs are supplied, inspect the actual
+    artifacts and record their canonical shape before dispatch. Preserve
+    beneficiary-visible layouts while correcting contradictory source-document
+    intervals into one non-overlapping contract. ARAL Program is excluded when
+    the product decision says so; AP/Araling Panlipunan remains a normal
+    subject. Homeroom/advisory credit is not a standalone demand row. A
+    Monday-only Flag/HGP display must be day-scoped, share the underlying
+    period, and never become a five-day event or extra load. No generation or
+    publication readiness claim may omit these output-parity controls.
+
+15. **Revalidate shared-runtime identity at the boundary.** A prior deployment
+    report, PID list, health result, or `EPHEMERAL_DEPLOYMENT` label is not
+    current runtime truth. Before a supervisor install, restore, rollback, or
+    successor acceptance, re-check listener ownership, process command lines,
+    deployed release identity, automation flags, and the Tailnet origin. If the
+    incumbent is gone, replace the approval packet with an explicit
+    deploy-as-restore boundary; never describe a restore as a swap against a
+    stale incumbent.
+
 #### Executor handoff standard
 
 Every executor packet must name the objective, clean worktree and branch,
@@ -904,6 +934,23 @@ applies only to the named objective and expires when that objective reaches a
 terminal state. `CYCLE OFF` immediately returns control to the user after the
 planner safely reconciles any already-running task; it does not cancel or
 destroy work unless the user separately requests that action.
+
+#### Cross-planner cycle transfer
+
+An external planner (including an OpenCode planner) may execute an activated
+cycle, but its terminal report is still untrusted evidence to the next primary
+planner. The report must include a machine-checkable cycle capsule: objective,
+final `origin/main` SHA, integrated product and docs SHAs, exact cycle state,
+candidate/QA/auditor task IDs, mandatory-gate tally, live-precondition snapshot,
+remaining HIGH approvals, safe parallel work, locked successors, and one exact
+next action. A planner may not declare `COMPLETE` merely because source work was
+integrated or a deployment succeeded; incomplete authenticated acceptance,
+missing runtime truth, or an unverified downstream consumer keeps the cycle
+open. The receiving primary planner must refresh Git and the register, recheck
+the capsule's decisive claims, and may override stale planner coordination
+without preserving its proposed successor. No report is a valid handoff if it
+ends at a verdict without stating what is still expected and where control
+returns.
 
 While `CYCLE_ACTIVE`, the planner owns the relay loop:
 
