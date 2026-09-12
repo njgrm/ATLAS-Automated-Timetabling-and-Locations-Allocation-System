@@ -242,6 +242,12 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 		if (hasShiftEvents) {
 			// Use shift-specific events for blocked windows
 			for (const evt of policy.specialEvents!) {
+				// A day-scoped event is rendered on that day while the same
+				// time boundary remains a valid class slot for the other
+				// weekdays. FLAG_OR_HGP rows historically omitted dayOfWeek in
+				// persisted schema-shaped input, but their contract is Monday.
+				const eventDay = evt.dayOfWeek ?? (evt.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined);
+				if (eventDay) continue;
 				blockedWindows.push({
 					start: timeToMinutes(evt.startTime),
 					end: timeToMinutes(evt.endTime),
@@ -249,12 +255,10 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 			}
 		} else {
 			// Fall back to global policy fields
-			if (policy.enableFlagCeremony ?? true) {
-				blockedWindows.push({
-					start: timeToMinutes(policy.flagCeremonyStartTime ?? '07:00'),
-					end: timeToMinutes(policy.flagCeremonyEndTime ?? '07:30'),
-				});
-			}
+			// Flag ceremony is Monday-only by contract. Because these fallback
+			// period slots are day-agnostic, retain the boundary here and let
+			// buildSpecialEventSlots() render the Monday-only event alongside
+			// the shared weekly time grid.
 
 			if (policy.enableRecess ?? true) {
 				blockedWindows.push({

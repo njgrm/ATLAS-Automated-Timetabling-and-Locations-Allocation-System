@@ -21,7 +21,11 @@ import {
 	VerticalAlign,
 	ShadingType,
 } from 'docx';
-import type { TeacherProgramExportShape, TeacherProgramWorkloadRow } from './teacher-program-export.service.js';
+import {
+	sortTeacherProgramWorkloadRows,
+	type TeacherProgramExportShape,
+	type TeacherProgramWorkloadRow,
+} from './teacher-program-export.service.js';
 
 // ─── Constants ───
 
@@ -187,11 +191,10 @@ export async function generateTeacherProgramDocx(
 	});
 
 	// Merge compacted teaching + breaks, sorted by original day order
-	const compactedAll = [...compactedTeaching, ...breakRows].sort((a, b) => {
-		const dayDiff = WEEKDAY_ORDER.indexOf(a.day) - WEEKDAY_ORDER.indexOf(b.day);
-		if (dayDiff !== 0) return dayDiff;
-		return a.timeSlot.localeCompare(b.timeSlot);
-	});
+	// Reuse the production workload ordering so the printable artifact keeps
+	// numeric chronological order for formatted 12-hour labels (e.g. 7:30 AM
+	// before 1:00 PM). A lexical timeSlot sort would invert those rows.
+	const compactedAll = sortTeacherProgramWorkloadRows([...compactedTeaching, ...breakRows]);
 
 	const scheduleDataRows = compactedAll.map((row) => {
 		const isBreak = row.kind === 'BREAK';

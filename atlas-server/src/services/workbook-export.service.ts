@@ -1,14 +1,19 @@
 import ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolvePublishedRun } from './published-schedule.service.js';
 
-type ExportOptions = {
+export type ExportOptions = {
 	schoolId: number;
 	schoolYearId: number;
 	runId: number;
 	/** Resolved numeric term index from the verified ordered-term authority (1..termCount). */
 	termIndex?: number;
 	specializationVisibility?: 'hidden' | 'visible';
+	/** Disposable read-only client for source-level export contract tests. */
+	client?: any;
+	/** Disposable published-run resolver for source-level export contract tests. */
+	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ entries: ScheduledEntry[]; summary: Record<string, unknown> | null }>;
 };
 
 type TimeSlot = {
@@ -93,19 +98,20 @@ function isSpecializationSubject(subject: { name?: string | null; code?: string 
 		|| name.startsWith('SPECIAL PROGRAM ');
 }
 
-async function loadExportContext(options: ExportOptions): Promise<ExportContext> {
+export async function loadExportContext(options: ExportOptions): Promise<ExportContext> {
 	const { schoolId, schoolYearId, runId } = options;
+	const db = options.client ?? prisma;
 
 	const [run, school, schoolYearMirror] = await Promise.all([
-		prisma.generationRun.findFirst({
+		db.generationRun.findFirst({
 			where: { id: runId, schoolId, schoolYearId },
 			select: { id: true, status: true, summary: true, draftEntries: true },
 		}),
-		prisma.school.findUnique({
+		db.school.findUnique({
 			where: { id: schoolId },
 			select: { name: true },
 		}),
-		prisma.enrollProSchoolYearMirror.findFirst({
+		db.enrollProSchoolYearMirror.findFirst({
 			where: { schoolId, enrollProSchoolYearId: schoolYearId },
 			select: { yearLabel: true },
 		}),
@@ -116,15 +122,29 @@ async function loadExportContext(options: ExportOptions): Promise<ExportContext>
 		throw new Error('RUN_NOT_COMPLETED');
 	}
 
-	const summary = run.summary as Record<string, unknown> | null;
-	const displaySlots = (summary?.timetableDisplaySlots as TimeSlot[] | undefined) ?? [];
+	let summary = run.summary as Record<string, unknown> | null;
 	let entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
+
+	// A published export must use the revision-effective published source, not
+	// the pre-revision draft JSON stored on the generation run. The public
+	// resolver also enforces the immutable publication binding and applies all
+	// effective revisions before we shape workbook cells.
+	if (summary?.isPublished === true) {
+		const resolvePublished = options.publishedRunResolver ?? resolvePublishedRun;
+		const published = await resolvePublished(schoolId, schoolYearId);
+		entries = published.entries as ScheduledEntry[];
+		summary = published.summary;
+	}
+	const displaySlots = (summary?.timetableDisplaySlots as TimeSlot[] | undefined) ?? [];
 
 	// Term filtering for export. The caller resolves `active` through the
 	// persisted verified EnrollPro term authority before reaching this service,
 	// so only an explicit contract-validated numeric index arrives here.
 	if (options.termIndex !== undefined) {
 		const resolvedTermIndex = options.termIndex;
+		if (entries.some((entry) => (entry as ScheduledEntry & { termIndex?: number }).termIndex == null)) {
+			throw new Error('TERM_FILTER_NOT_READY');
+		}
 		entries = entries.filter((entry) => {
 			const entryTermIndex = (entry as any).termIndex;
 			return entryTermIndex != null && entryTermIndex === resolvedTermIndex;
@@ -136,20 +156,20 @@ async function loadExportContext(options: ExportOptions): Promise<ExportContext>
 
 	// Load all reference data in parallel
 	const [sections, faculty, subjects, rooms] = await Promise.all([
-		prisma.sectionMirror.findMany({
+		db.sectionMirror.findMany({
 			where: { schoolId, schoolYearId },
 			select: { id: true, externalId: true, name: true, gradeLevelId: true },
 		}),
-		prisma.facultyMirror.findMany({
+		db.facultyMirror.findMany({
 			where: { schoolId },
 			select: { id: true, lastName: true, firstName: true, advisedSectionId: true },
 		}),
-		prisma.subject.findMany({
+		db.subject.findMany({
 			where: { schoolId },
 			select: { id: true, name: true, code: true },
 		}),
 		roomIds.length > 0
-			? prisma.room.findMany({
+			? db.room.findMany({
 				where: { id: { in: roomIds } },
 				select: {
 					id: true,

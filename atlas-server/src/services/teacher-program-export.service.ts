@@ -132,8 +132,10 @@ export async function buildTeacherProgramExportShape(params: {
 	facultyId: number;
 	/** Disposable read-only client for source-level export contract tests. */
 	client?: any;
+	/** Disposable published-schedule resolver for source-level export contract tests. */
+	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{ entries?: unknown[] }>;
 }): Promise<TeacherProgramExportShape> {
-	const { schoolId, schoolYearId, runId, facultyId, client } = params;
+	const { schoolId, schoolYearId, runId, facultyId, client, publishedScheduleResolver } = params;
 	const db = client ?? prisma;
 
 	// 1. Load faculty mirror
@@ -220,9 +222,40 @@ export async function buildTeacherProgramExportShape(params: {
 	// Do NOT fall back to draftEntries — published schedule resolution failures must be explicit.
 	let facultyEntries: RunEntry[];
 	if (isPublished) {
-		const { getPublishedFacultySchedule } = await import('./published-schedule.service.js');
-		const published = await getPublishedFacultySchedule(schoolId, facultyId, schoolYearId);
-		facultyEntries = (published.entries ?? []) as unknown as RunEntry[];
+		const resolvePublished = publishedScheduleResolver ?? (async (resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId) => {
+			const { getPublishedFacultySchedule } = await import('./published-schedule.service.js');
+			return getPublishedFacultySchedule(resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId);
+		});
+		const published = await resolvePublished(schoolId, facultyId, schoolYearId);
+		// The revision-effective published service returns presentation entries
+		// with nested subject/section/faculty/room references. Normalize that
+		// production shape before applying the same printable identity and
+		// reference-only filters used for draft runs; casting it to RunEntry
+		// silently produced Unknown Subject/null section/null room output.
+		facultyEntries = (published.entries ?? []).map((entry) => {
+			const value = entry as {
+				entryId?: string;
+				day?: string;
+				startTime?: string;
+				endTime?: string;
+				durationMinutes?: number;
+				subject?: { id?: number | null };
+				section?: { externalId?: number | null; id?: number | null };
+				faculty?: { id?: number | null };
+				room?: { id?: number | null };
+			};
+			return {
+				entryId: value.entryId ?? `published-${facultyId}-${value.day ?? 'UNKNOWN'}-${value.startTime ?? 'UNKNOWN'}`,
+				facultyId: value.faculty?.id ?? facultyId,
+				roomId: value.room?.id ?? null,
+				subjectId: value.subject?.id ?? null,
+				sectionId: value.section?.externalId ?? value.section?.id ?? null,
+				day: value.day ?? 'UNKNOWN',
+				startTime: value.startTime ?? '',
+				endTime: value.endTime ?? '',
+				durationMinutes: value.durationMinutes ?? minutesBetween(value.startTime ?? '', value.endTime ?? ''),
+			};
+		});
 	} else {
 		const allEntries = (run.draftEntries ?? []) as unknown as RunEntry[];
 		facultyEntries = allEntries.filter(e => e.facultyId === facultyId);
