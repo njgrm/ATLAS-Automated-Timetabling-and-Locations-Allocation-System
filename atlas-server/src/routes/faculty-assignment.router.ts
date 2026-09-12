@@ -372,7 +372,12 @@ router.get('/authority-diagnostics', authenticateWithSystemToken, requirePrivile
 			}
 			schoolYearId = activeYear.id;
 		}
-		const preview = await previewTeachingLoadReconciliation(schoolId, schoolYearId, actorSchoolIdOf(req));
+		const preview = await previewTeachingLoadReconciliation(schoolId, schoolYearId, actorSchoolIdOf(req), {
+			// This endpoint is intentionally read-only and is also consumed by
+			// trusted integration callers. Only the actual system-token identity
+			// may read across schools; JWT callers remain actor-school scoped.
+			allowUnscopedRead: req.user?.authSource === 'system',
+		});
 		res.json({
 			schoolId,
 			schoolYearId,

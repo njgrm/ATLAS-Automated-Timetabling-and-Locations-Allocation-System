@@ -220,6 +220,10 @@ async function main() {
     assert(Array.isArray(diagnostics.candidateCountsByDepartment), 'diagnostics report candidate counts by department');
     assert(Array.isArray(diagnostics.unresolvedReasons), 'diagnostics report typed unresolved reasons');
     assert(diagnostics.zeroWriteProof?.preview === true && diagnostics.zeroWriteProof?.writes === 0, 'diagnostics route is zero-write');
+    await callRoute('R4 unscoped JWT diagnostics rejected', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(null), undefined, 403, 'ACTOR_SCHOOL_REQUIRED');
+    await callRoute('R4 cross-school JWT diagnostics rejected', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, officerJwt(999997), undefined, 403, 'SCHOOL_MISMATCH');
+    const systemDiagnostics: any = await callRoute('R4 system-token diagnostics succeeds', 'GET', `${diagnosticsPath}?schoolId=${fixtureSchoolId}&schoolYearId=${fixtureYearId}`, systemToken, undefined, 200);
+    assert(systemDiagnostics.zeroWriteProof?.preview === true && systemDiagnostics.zeroWriteProof?.writes === 0, 'system-token diagnostics remain zero-write');
 
     section('R5. exact-fingerprint apply succeeds once; replay is zero-write');
     const before = await base.subjectSectionOwnership.count({ where: { schoolId: fixtureSchoolId, schoolYearId: fixtureYearId } });

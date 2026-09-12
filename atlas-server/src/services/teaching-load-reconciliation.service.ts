@@ -1748,6 +1748,7 @@ export async function previewTeachingLoadReconciliation(
 	schoolId: number,
 	schoolYearId: number,
 	actorSchoolId: number | null | undefined,
+	options: { allowUnscopedRead?: boolean } = {},
 ): Promise<TeachingLoadReconciliationPreview> {
 	if (!Number.isInteger(schoolId) || schoolId <= 0) {
 		throw err(400, 'INVALID_PARAM', 'schoolId must be a positive integer.');
@@ -1755,10 +1756,10 @@ export async function previewTeachingLoadReconciliation(
 	if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
 		throw err(400, 'INVALID_PARAM', 'schoolYearId must be a positive integer.');
 	}
-	if (actorSchoolId == null) {
+	if (actorSchoolId == null && !options.allowUnscopedRead) {
 		throw err(403, 'ACTOR_SCHOOL_REQUIRED', 'Reconciliation preview requires an authenticated actor school.');
 	}
-	if (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0 || actorSchoolId !== schoolId) {
+	if (actorSchoolId != null && (!Number.isInteger(actorSchoolId) || actorSchoolId <= 0 || actorSchoolId !== schoolId)) {
 		throw err(403, 'SCHOOL_MISMATCH', 'Request school does not match the authenticated actor school.');
 	}
 
