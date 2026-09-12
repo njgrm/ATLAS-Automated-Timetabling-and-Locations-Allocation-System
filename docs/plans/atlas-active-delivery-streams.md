@@ -49,6 +49,17 @@ hard blockers before separately approving publication.
   unperformed 0, with an independent mutant control) and is integrated at merge
   `a633db50`; the deployment packet is repinned in the integration finalization
   commit. No return remains; deployment stays separately gated.
+- Planner validation and live-state correction (2026-09-12, Asia/Manila):
+  `rrtc01r2-20260912` source claims were independently reproduced by the primary
+  planner (candidate worktree at `4489bbbd` clean; actor-school session-epoch
+  suite 9/9; an independent partial mutation of the epoch binding produced 6/9
+  failing and was byte-restored before any commit; merged product tree
+  `a633db50` is identical to the reviewed candidate and `327537ad` is docs-only).
+  The same probe found the W1 runtime DOWN: Tailnet
+  `https://njgrm.buru-degree.ts.net` returns 502, nothing listens on 5001/5174,
+  and recorded PIDs 11564/6756 are absent; machine boot 2026-09-11 20:58
+  predates the W1 deploy, so this is a post-deploy stop/crash, not a reboot.
+  Earlier "live" wording in this register is superseded.
 - Cycle recovery: `w1-runtime-deploy-20260911`
   (`DEPLOYED_ACCEPTANCE_INCOMPLETE`) updated 2026-09-11
   22:52 Asia/Manila. The approved HIGH `W1-RUNTIME-DEPLOY` packet was executed:
@@ -108,7 +119,7 @@ hard blockers before separately approving publication.
 | TERM-CONSUME-C02 | Accept EnrollPro ordered term structure independently from nullable current-term state and cache it through explicit rollover sync | `INTEGRATED` | MEDIUM cross-layer authority | `work/term-consume-c02`; `e7121e75...a55abf7e`; integration `5fa9b227`; main `bb5cd487` | Deployment remains separate | Primary planner reproduced 8/8 C02 unit, 13/13 authority unit, 32/32 PostgreSQL cache/zero-write, mounted HTTP 1/1, both type-checks, and both production builds | Closed and pushed to `origin/main`; deploy only after TL-UX-C01R2 and Dashboard resilience close |
 | TERM-LIVE-APPLY | Apply the accepted Subject/term schema migration to the verified ATLAS database | `CLOSED` | HIGH | `work/term-live-migration-preview`; `36c5d3d1...1520d1fc` | None | Exact operator approval received; guarded wrapper revalidated the approved backup; `0001` applied; enum/columns exact; 21 scheduled + one canonical-HG reference-only; protected domains unchanged; receipt at `docs/verification/term-subject-live-migration-apply-2026-09-11.md` | Closed at evidence commit `1520d1fc`; rollback remains available but was not executed |
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
-| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7` live; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Four mandatory authenticated/diagnostic rows remain blocked; active year 9 is aligned but its required persisted term snapshot is missing | Deployment identity, rollover-disabled log, localhost/Tailnet health, unauthenticated responsive pages, and zero unauthorized DB writes are independently verified. QA's global `ACCEPT_READY` is rejected because mandatory Stage C/D checks were not run | `RR-TERM-CACHE-C01R2` is integrated at merge `a633db50` and the corrected packet is repinned; awaiting the operator's explicit HIGH approval sentence, then execute it (stop-then-start swap of server+client 5001/5174), then the separately approved catch-up and authenticated Stage C/diagnostic |
+| W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `DEPLOYED_ACCEPTANCE_INCOMPLETE` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7` live; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Four mandatory authenticated/diagnostic rows remain blocked; active year 9 is aligned but its required persisted term snapshot is missing | Deployment identity, rollover-disabled log, localhost/Tailnet health, unauthenticated responsive pages, and zero unauthorized DB writes are independently verified. QA's global `ACCEPT_READY` is rejected because mandatory Stage C/D checks were not run | `RR-TERM-CACHE-C01R2` is integrated at merge `a633db50` and the corrected packet is repinned; awaiting the operator's explicit HIGH approval sentence, then execute it (stop-then-start swap of server+client 5001/5174), then the separately approved catch-up and authenticated Stage C/diagnostic. Runtime observed down 2026-09-12 10:15: the packet's incumbent-health preflight and rollback-to-incumbent assumption do not currently hold; operator must decide deploy-as-restore (with a revised approval sentence) or restart the incumbent first |
 | RR-TERM-CACHE-C01 | Separate year alignment from persisted ordered-term readiness and provide one narrow, previewed term-cache catch-up path | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01`; `77894b7a...45f08955`; merge `8c0a1207` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0); planner pre-QA reproduced status 11/11 and client 6/6; integration-tier reruns C02 8/8, cache-instrumentation 32/32 zero-residue, lifecycle 208/0, rr-ux01 pass; both builds/startup previously verified; rollover-automation suite not independently rerun (seeded-disposable only; all changed-field assertions expect false and the change is strictly more conservative) | Closed in source; its deployment is superseded by the RR-TERM-CACHE-C01R correction (merge `a1256506`), which must be deployed before the reviewed term-cache catch-up preview |
 | RR-TERM-CACHE-C01R | Close term-authority JWT/actor-school authority, client school-1 defaults, and in-transaction complete active-year election | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01r`; `904818d4...86376ba7`; merge `a1256506` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0): mounted JWT/system-token matrix with zero dispatch, no school-1 defaults, fail-closed actor-scoped wrapper, scope-transition clearing, in-transaction complete-set re-election (`ACTIVE_YEAR_AMBIGUOUS`, zero writes), replay/audit invariants, both tsc/builds, isolated built-server 401s; integration gates rerun on the merged tree | Closed in source; execute the prepared bounded deployment packet, then prepare the reviewed term-cache catch-up preview and stop for its separate HIGH approval |
 | RR-TERM-CACHE-C01R2 | Bind the client actor-school resolver cache to the authenticated token epoch and make the deploy packet's listener sequence executable (stop-then-start with per-stage rollback) | `INTEGRATED` | MEDIUM source + docs; deployment stays HIGH | `work/rr-term-cache-c01r2`; `781a457f...4489bbbd`; merge `a633db50` | Live deployment remains separately gated | Fresh QA `ACCEPT_READY` (mandatory 10/10, blocked 0, unperformed 0): real-path session-epoch transition (no-token fail-closed, logout/expiry, A→B re-login with zero school-1 dispatch, late obsolete-response discard in both orderings, bridge replacement, invalid-id rejection, zero scoped dispatch unresolved); independent mutant control 6/9 failing; client tsc/build; server status 11/11 + mounted disposable-PostgreSQL 1/1 preserved; packet re-read confirms stop-then-start and no zero-downtime claim | Closed in source; deploy only after the operator returns the corrected packet's approval sentence (pin recorded at merge `a633db50`) |
@@ -143,16 +154,20 @@ hard blockers before separately approving publication.
    TT-UX01 integration step remains.
 3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
    integrated; no wave follow-up remains before the runtime deployment.
-4. W1 deployment evidence is integrated at `ed44d62f` and the runtime is live,
-   but acceptance is incomplete. Authenticated Stage C/D awaits an operator
+4. W1 deployment evidence is integrated at `ed44d62f`, but the runtime was
+   observed down on 2026-09-12 10:15 and its acceptance is incomplete.
+   Authenticated Stage C/D awaits an operator
    session decision. RR-TERM-CACHE-C01R is integrated at merge `a1256506`: year
    alignment and persisted term authority stay separate states, and the narrow
    preview/apply repair contract now has JWT-only actor-school authority, no
    client school-1 default, and a complete in-transaction active-year election.
 5. `RR-TERM-CACHE-C01R2` is integrated at `a633db50` and the corrected packet
    (`docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`) is repinned;
-   after the operator returns the explicit HIGH approval sentence, execute it in
-   the next bounded runtime window as a stop-then-start swap, then prepare and
+   because the incumbent is not running, the operator must first return either a
+   deploy-as-restore decision (the packet's start steps become the service
+   restore and there is no incumbent to roll back to) or an instruction to
+   restart the incumbent first; after that explicit approval, execute in the
+   next bounded runtime window, then prepare and
    independently review the term-cache catch-up preview and stop for its
    separate HIGH approval. After an approved catch-up, run the canonical
    readiness diagnostic for the live school/year. Only if it proves zero hard
@@ -167,7 +182,8 @@ hard blockers before separately approving publication.
 - No new executor stream is authorized. `RR-TERM-CACHE-C01R2` is integrated at
   merge `a633db50`; its deployment packet is repinned and awaiting the explicit
   HIGH approval sentence. No shared-runtime action was taken by this cycle. The
-  W1 deployment is live and its accepted evidence is integrated at `ed44d62f`;
+  W1 deployment evidence is integrated at `ed44d62f`, but its runtime was
+  observed down on 2026-09-12 10:15;
   authenticated acceptance and the canonical generation diagnostic remain
   blocked on an operator session decision. Carry-forward apply, suggestion
   apply, generation, and publication remain separately gated.
@@ -191,23 +207,36 @@ restart the shared runtime while live browser QA is active.
 - TERM-CONSUME-C02, DASH-RESILIENCE-C01, TL-UX-C01R2, and MIG-GUARD-R1 are
   accepted and integrated; no executor return remains for those streams.
 - No migration approval is awaited; `0001_term_subject_authority` is applied and
-  verified. The W1 runtime deployment is integrated and live.
+  verified. The W1 runtime deployment is integrated, but its runtime was
+  observed down on 2026-09-12 10:15.
 - No RR-TERM-CACHE-C01R2 executor or QA return remains; the candidate is
   integrated at `a633db50` and the corrected packet is repinned. The awaited
-  operator decisions are the explicit HIGH approval for the corrected deployment
-  packet and the Stage C/D session decision for the live runtime.
+  operator decisions are the down-incumbent handling for the corrected
+  deployment (deploy-as-restore with a revised sentence, or restart the
+  incumbent first), the explicit HIGH approval, and the Stage C/D session
+  decision for the live runtime.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
-- The shared runtime serves `fdd0c8c7` with rollover automation disabled and
-  deployment evidence integrated at `ed44d62f`. Its acceptance remains
-  incomplete. Next operator decision: a reusable or authorized officer session
-  for authenticated Stage C/D (a fresh login write is outside current
-  authority). RR-TERM-CACHE-C01R is integrated at `a1256506`; its deployment
-  packet is prepared at
-  `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`, and executing
-  it plus preparing the separately approved term-cache catch-up preview remain
-  the next bounded runtime steps.
+- The shared runtime was last deployed as `fdd0c8c7` with rollover automation
+  disabled and deployment evidence integrated at `ed44d62f`, but it was observed
+  down on 2026-09-12 10:15; acceptance remains incomplete. Next operator
+  decision: the down-incumbent handling above, then a reusable or authorized
+  officer session for authenticated Stage C/D (a fresh login write is outside
+  current authority). RR-TERM-CACHE-C01R is integrated at `a1256506`; its
+  deployment packet is prepared at
+  `docs/prompts/rr-term-cache-live-deploy-preview-2026-09-12.md`, with the
+  corrected RR-TERM-CACHE-C01R2 repin at merge `a633db50`; executing it plus
+  preparing the separately approved term-cache catch-up preview remain the next
+  bounded runtime steps.
+- Observation backlog (non-blocking, no new executor stream authorized):
+  `atlas-client/src/pages/Subjects.tsx:192` calls
+  `resolveActiveSchoolYearContext` without an explicit school, inheriting the
+  `?? 1` default at `atlas-client/src/lib/enrollpro-public-settings.ts:167`.
+  Verified contained for catalog reads (the server scopes subjects and term
+  resolution to the actor school, `atlas-server/src/routes/subject.router.ts:54`)
+  but it remains a fail-open-shaped client read that deserves a small follow-up;
+  the corrected deploy packet's Stage C does not exercise the Subjects page.
 
 ## Update protocol
 
