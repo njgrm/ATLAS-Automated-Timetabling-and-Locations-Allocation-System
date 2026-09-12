@@ -27,8 +27,11 @@ hard blockers before separately approving publication.
   (B1: no durable release switch named; B2: `d44f29e0` is not
   supervisor-startable). Packet amended R1 (`b40a22a4`); fresh re-audit
   `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2 resolved and its one
-  register-consistency finding is fixed; awaiting the operator's revised exact
-  approval, then executor dispatch. No login, no
+  register-consistency finding is fixed. Primary-planner validation found the
+  remaining session-satisfiability gap: the reusable JWT session must be proven
+  before listener interruption, not allowed to fail after deployment. Apply
+  `docs/prompts/tt-tl-runtime-acceptance-r2-session-preflight-2026-09-12.md`
+  before presenting the revised approval, then dispatch. No login, no
   apply/sync/generation/publication.
 - Shared runtime RESTORED (2026-09-12, Asia/Manila) under the operator's exact
   HIGH approval: supervised release `9d293879` (pin `d44f29e0`) serves server
@@ -240,8 +243,10 @@ hard blockers before separately approving publication.
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
+| TL-SUGGESTION-C03R | Unify suggestion and over-cap qualification with persisted policy, include qualified zero-load faculty, expose typed rejection reasons, and scope every preview/report | `READY_FOR_EXTERNAL_EXECUTOR` | MEDIUM cross-layer source; HIGH future apply | `work/tl-suggestion-c03`; base `4e5ef1f6`; diagnostic `2292b25d`; preserved dirty diff `c52898a3`; prompt `docs/prompts/teaching-load-suggestion-authority-c03r-resume-2026-09-12.md` | No live/shared DB, suggestion apply, carry-forward, generation, publication, deployment, or migration | Codex diagnostic + QA confirmed legacy suggestion qualification divergence and preview actor/year gaps; interrupted correction left exactly three modified server paths to preserve | Resume the existing dirty worktree under the prompt, commit an additive candidate, then return for fresh independent QA |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
 | TT-SHAPE-DIAGNOSTIC-C02 | Bind timetable readiness to the 2026-2027 stakeholder shape policy and canonical section/teacher/room output projections | `INTEGRATED` | MEDIUM source; HIGH generation | `work/tt-shape-diagnostic-c02`; `8f48a2fe...ddbdaced`; integration `e83d25d5` | Live generation remains separately gated | Exact-range advisory coverage is carried by the committed 13-test C02 suite (the older committed advisory text is stale, per the wave audit); C02 13/13, stakeholder matrix 12/12, canonical readiness 14/14, real preflight/readiness zero-write mutants, server tsc/build and diff-check passed | Closed in source; use the diagnostic in the fingerprinted generation preview; do not generate or publish from this lane |
+| TT-OUTPUT-C03R | Preserve weekday and term identity through the scheduler, main grid, section/teacher/room projections, and beneficiary class-program exports | `READY_FOR_EXTERNAL_EXECUTOR` | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; base `4e5ef1f6`; candidate `378a1f71`; prompt `docs/prompts/timetable-beneficiary-output-c03r-2026-09-12.md` | No live generation/publication, runtime, DB/schema/migration, or companion changes | Existing candidate fixes published/export truth but fresh QA found Monday special-event leakage in the real constructor/main grid and weekday collapse in workbook/matrix; official DNO Monday-Friday output is in scope | Additive correction on the existing clean branch, then fresh exact-range QA |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `INTEGRATED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...c9263b5f`; integration `b96caf40` | Live deployment and explicit rollover term-cache sync remain separate | Primary planner reproduced C01/C01R/C01R2 authority, timetable, publication, term, TypeScript, and production-build gates; doc-only merge conflicts were reconciled | Closed in source; verify derived year-9 demand during bounded runtime deployment/sync |
 | UX-C01R | Gate every Timetable generation action on the canonical generation diagnostic; stop Dashboard overclaiming final readiness | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/ux-c01-derived-setup`; `89440321...9e280369`; merge `fc8796c6` | Combined positive readiness browser matrix belongs to the bounded runtime deployment | Fresh independent QA ACCEPT_READY: 36/36 UX-C01R + 58/58 operator UX + 21/21 guardrails client; 6/6 + 11/11 + 9/9 + 5/5 server incl. disposable-PostgreSQL zero-write; both tsc/build; field-for-field contract parity; integration gates and isolated mount probe reproduced on the merged tree; runtime-map attribution corrected at integration | Closed in source; verify the positive readiness UX during the bounded runtime deployment |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01`; `89440321...23eae7de`; integration merge `618589dc` | Live preview requires deployed demand authority and synced year-9 terms; apply remains separately gated | Independent QA ACCEPT_READY: reproduced 8/8 authority+mutant, 11/11 client helpers, 60/60 disposable-PostgreSQL mounted-route, server/client type-checks+builds, health 200 on a live built process; the pre-existing `teaching-load-reconciliation-route.test.ts` failure reproduced identically on base and candidate; only `CHANGELOG.md` conflicted (docs-only union) | Closed in source at `origin/main` `618589dc`; do not invoke carry-forward apply without a separate reviewed preview and explicit HIGH approval |
@@ -319,6 +324,11 @@ hard blockers before separately approving publication.
   MapView, SpecializationMapping, PublicPublishedSchedule, coverage.ts,
   CreatePlaceholderDialog) are non-blocking observation backlog pending a
   separate bounded authorization lane.
+- `TL-SUGGESTION-C03R` and `TT-OUTPUT-C03R` are safe parallel source/test lanes.
+  They own separate worktrees and must not touch the shared runtime, live/shared
+  database, task/environment configuration, generation, publication, or the
+  living register. Their candidates are not part of target `3d916b26` and must
+  not be folded into the active runtime cutover.
 - `RUNTIME-SUPERVISION-C01` is integrated in source at merge `0ec3b8f7`; its
   original install packet is `SUPERSEDED` and the deploy-as-restore execution is
   complete (runtime restored; post-action wave audit `AUDIT_CLEAR` 14/14). No other stream may
@@ -376,10 +386,14 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   `CORRECTION_REQUIRED` (release-switch + rollback defects); the packet was
   amended R1 at `b40a22a4` and the fresh re-audit
   `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2 resolved (its one register
-  finding is fixed in this transition). Awaited: the operator's revised exact
-  approval sentence, then the elevated executor return (docs-only evidence
-  commit SHA plus the live deploy/acceptance result). No other executor return
-  remains.
+  finding is fixed in this transition). Primary-planner validation found the
+  remaining pre-cutover session gate and issued the R2 handoff. Awaited: the
+  OpenCode planner's R2 packet/register correction and amended approval
+  sentence; only after approval is the elevated executor return awaited.
+- `TL-SUGGESTION-C03R`: awaited external executor candidate from the preserved
+  dirty worktree, then fresh QA.
+- `TT-OUTPUT-C03R`: awaited external executor correction above `378a1f71`, then
+  fresh QA.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
