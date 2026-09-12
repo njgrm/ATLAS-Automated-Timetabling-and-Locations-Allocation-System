@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpen, Clock3, MapPin, Printer, RefreshCcw, Users } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { getAtlasTokenEpochVersion, getPreferredAccessToken } from '@/lib/auth';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { runActorScoped, useActorSchoolScope } from '@/lib/actor-scope-session';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { getActionableApiError } from '@/lib/actionable-api-error';
@@ -97,6 +98,32 @@ function formatRevisionReference(source: PublishedFacultySchedulePayload['source
 	return `Includes approved changes effective ${formatTimestamp(source.activeRevisionEffectiveDate ?? null)}`;
 }
 
+/**
+ * ACTOR-SCOPE-C01 — scope-gated published-schedule fetch.
+ *
+ * Routes the scoped read through the shared `runActorScoped` mechanism: the
+ * payload is returned only while the token epoch and actor school that started
+ * the request are still authoritative. A late response from an obsolete session
+ * (A after B, or A while B is unresolved) yields `null` and is never applied.
+ */
+export async function loadMyScheduleScoped(
+	schoolId: number,
+	schoolYearId: number,
+	facultyId: number,
+	requestDate: string,
+): Promise<PublishedFacultySchedulePayload | null> {
+	const result = await runActorScoped(async (resolvedSchoolId) => {
+		if (resolvedSchoolId !== schoolId) return null;
+		const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(
+			`/schools/${schoolId}/school-years/${schoolYearId}/schedules/published/faculty/${facultyId}`,
+			{ params: { date: requestDate } },
+		);
+		return data;
+	});
+	if (result.status !== 'ok') return null;
+	return result.value;
+}
+
 export default function MySchedule() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -107,8 +134,11 @@ export default function MySchedule() {
 	const [cachedScheduleAt, setCachedScheduleAt] = useState<string | null>(null);
 	const [checkingForUpdates, setCheckingForUpdates] = useState(false);
 	const { actorSchoolId } = useActorSchoolScope();
+	const loadSeqRef = useRef(0);
 
 	const loadSchedule = useCallback(async () => {
+		const seq = ++loadSeqRef.current;
+		const stale = () => seq !== loadSeqRef.current;
 		if (actorSchoolId == null) {
 			setSchedule(null);
 			setLoading(false);
@@ -116,16 +146,23 @@ export default function MySchedule() {
 			return;
 		}
 		const scopedSchoolId = actorSchoolId;
+		// ACTOR-SCOPE-C01: capture the exact token/epoch before any await and
+		// discard every state application once either changes.
+		const capturedToken = getPreferredAccessToken();
+		const capturedEpoch = getAtlasTokenEpochVersion();
+		const isCurrent = () => getPreferredAccessToken() === capturedToken && getAtlasTokenEpochVersion() === capturedEpoch;
 		setLoading(true);
 		setCheckingForUpdates(true);
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, forceRefresh: true, verifyUpstream: true, allowStaleOnError: true, allowEnrollProFallback: false });
+			if (stale() || !isCurrent()) return;
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			let resolvedFacultyId: number;
 			try {
 				const { data } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', { params: { schoolId: scopedSchoolId } });
+				if (stale() || !isCurrent()) return;
 				if (!data?.faculty?.id) {
 					setError('Your account is not linked to a teacher record in this school.');
 					setSchedule(null);
@@ -134,6 +171,7 @@ export default function MySchedule() {
 				resolvedFacultyId = data.faculty.id;
 				cacheFacultyIdentity(scopedSchoolId, resolvedFacultyId);
 			} catch (facultyError) {
+				if (stale() || !isCurrent()) return;
 				const cachedIdentity = readCachedFacultyIdentity(scopedSchoolId);
 				if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 					resolvedFacultyId = cachedIdentity.facultyId;
@@ -151,9 +189,10 @@ export default function MySchedule() {
 			});
 
 			try {
-				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${scopedSchoolId}/school-years/${schoolYearId}/schedules/published/faculty/${resolvedFacultyId}`, {
-					params: { date: requestDate },
-				});
+				const data = await loadMyScheduleScoped(scopedSchoolId, schoolYearId, resolvedFacultyId, requestDate);
+				if (stale() || !isCurrent()) return;
+				// A discarded (superseded/unresolved) response must never overwrite state.
+				if (data == null) return;
 				setSchedule(data);
 				setError(null);
 				setUsingCachedSchedule(false);
@@ -161,6 +200,7 @@ export default function MySchedule() {
 				removeFacultySnapshotsByPrefix(cachePrefix);
 				writeFacultySnapshot(`${cachePrefix}:${buildPublishedScheduleCacheMarker(data.source)}`, { facultyId: resolvedFacultyId, payload: data });
 			} catch (requestError) {
+				if (stale() || !isCurrent()) return;
 				if (cachedSnapshot && isLikelyOfflineError(requestError)) {
 					setSchedule(cachedSnapshot.data.payload);
 					setError(null);
@@ -192,18 +232,25 @@ export default function MySchedule() {
 				setError(getActionableApiError(requestError, 'Unable to load your published schedule. Please tap Retry.'));
 			}
 		} catch {
+			if (stale() || !isCurrent()) return;
 			setSchedule(null);
 			setUsingCachedSchedule(false);
 			setCachedScheduleAt(null);
 			setError("We couldn't load your schedule context from ATLAS. Please try again.");
 		} finally {
-			setLoading(false);
-			setCheckingForUpdates(false);
+			if (!stale() && isCurrent()) {
+				setLoading(false);
+				setCheckingForUpdates(false);
+			}
 		}
 	}, [actorSchoolId]);
 
 	useEffect(() => {
 		void loadSchedule();
+		return () => {
+			// Effect-local cancellation on actor-school change / unmount.
+			loadSeqRef.current += 1;
+		};
 	}, [loadSchedule]);
 
 	useEffect(() => {

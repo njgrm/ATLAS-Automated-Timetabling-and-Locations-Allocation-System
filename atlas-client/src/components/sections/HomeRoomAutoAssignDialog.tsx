@@ -68,6 +68,36 @@ const REASON_LABELS: Record<string, string> = {
 	NO_GRADE_MATCHING_ROOM: 'No grade-matching room',
 };
 
+export type HomeRoomAutoAssignRequest = {
+	schoolId: number;
+	schoolYearId: number;
+	mode: 'preview' | 'apply';
+	overwriteExisting: boolean;
+	allowCrossGradeFallback: boolean;
+};
+
+/**
+ * ACTOR-SCOPE-C01 — fail-closed home-room auto-assign dispatcher.
+ *
+ * A missing/invalid actor school or school year dispatches NOTHING and returns
+ * `null`. Both the preview and the apply paths go through this single function,
+ * so an unresolved scope can never POST to the auto-assign route.
+ */
+export async function requestHomeRoomAutoAssign(input: HomeRoomAutoAssignRequest): Promise<AutoAssignResult | null> {
+	if (!Number.isInteger(input.schoolId) || input.schoolId <= 0) return null;
+	if (!Number.isInteger(input.schoolYearId) || input.schoolYearId <= 0) return null;
+	const { data } = await atlasApi.post<AutoAssignResult>(
+		`/sections/home-rooms/${input.schoolYearId}/auto-assign`,
+		{
+			schoolId: input.schoolId,
+			mode: input.mode,
+			overwriteExisting: input.overwriteExisting,
+			allowCrossGradeFallback: input.allowCrossGradeFallback,
+		},
+	);
+	return data;
+}
+
 export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolYearId, onApplied }: Props) {
 	const [loading, setLoading] = useState(false);
 	const [applying, setApplying] = useState(false);
@@ -78,15 +108,19 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 	const [appliedCount, setAppliedCount] = useState<number | null>(null);
 
 	const fetchPreview = useCallback(async () => {
+		// ACTOR-SCOPE-C01: never dispatch while the actor school is unresolved.
+		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+			setLoading(false);
+			setResult(null);
+			setError(null);
+			return;
+		}
 		setLoading(true);
 		setError(null);
 		setResult(null);
 		setAppliedCount(null);
 		try {
-			const { data } = await atlasApi.post<AutoAssignResult>(
-				`/sections/home-rooms/${schoolYearId}/auto-assign`,
-				{ schoolId, mode: 'preview', overwriteExisting, allowCrossGradeFallback },
-			);
+			const data = await requestHomeRoomAutoAssign({ schoolId, schoolYearId, mode: 'preview', overwriteExisting, allowCrossGradeFallback });
 			setResult(data);
 		} catch (err: any) {
 			setError(err?.response?.data?.message || 'Failed to load preview.');
@@ -103,13 +137,13 @@ export function HomeRoomAutoAssignDialog({ open, onOpenChange, schoolId, schoolY
 
 	const handleApply = useCallback(async () => {
 		if (!result) return;
+		// ACTOR-SCOPE-C01: never dispatch while the actor school is unresolved.
+		if (!Number.isInteger(schoolId) || schoolId <= 0 || !Number.isInteger(schoolYearId) || schoolYearId <= 0) return;
 		setApplying(true);
 		setError(null);
 		try {
-			const { data } = await atlasApi.post<AutoAssignResult>(
-				`/sections/home-rooms/${schoolYearId}/auto-assign`,
-				{ schoolId, mode: 'apply', overwriteExisting, allowCrossGradeFallback },
-			);
+			const data = await requestHomeRoomAutoAssign({ schoolId, schoolYearId, mode: 'apply', overwriteExisting, allowCrossGradeFallback });
+			if (data == null) return;
 			setAppliedCount(data.counts.applied);
 			setResult(data);
 			onApplied();

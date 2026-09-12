@@ -23,6 +23,7 @@ import {
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { isResolvedActorSchoolId } from '@/lib/term-authority-repair-scope';
 import {
 	getCachedSectionHomeRooms,
 	getCachedSectionSummary,
@@ -175,6 +176,19 @@ export default function Sections() {
 	// Drilldown
 	const [detailTarget, setDetailTarget] = useState<SectionDetail | null>(null);
 	const { actorSchoolId } = useActorSchoolScope();
+	// ACTOR-SCOPE-C01: only a strict positive actor school may reach a scoped
+	// child. `null` means unresolved — children are not mounted at all.
+	const scopedSchoolId = isResolvedActorSchoolId(actorSchoolId) ? actorSchoolId : null;
+
+	useEffect(() => {
+		// An actor-school change (including unresolved) is authoritative: clear
+		// the year/drilldown state and close the map/auto-assign surfaces so no
+		// child survives across the change with the previous scope's school.
+		setActiveSchoolYearId(null);
+		setDetailTarget(null);
+		setGlobalBrowseModalOpen(false);
+		setAutoAssignOpen(false);
+	}, [actorSchoolId]);
 
 	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		if (actorSchoolId == null) {
@@ -883,8 +897,8 @@ export default function Sections() {
 										description={state.status === 'ok' ? 'Clear a filter or search another section name to continue.' : 'Reconnect or sync sections before assigning home rooms.'}
 									/>
 								</div>
-							) : (
-								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={actorSchoolId ?? 0} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} />)
+							) : scopedSchoolId == null ? null : (
+								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} />)
 							)}
 						</div>
 						<table className="hidden w-full text-sm md:table">
@@ -912,9 +926,11 @@ export default function Sections() {
 									))
 								) : paged.length === 0 ? (
 									<tr><td colSpan={7} className="px-4 py-20 text-center"><AdminStatePanel icon={<Users className="size-8" />} title = {state.status === 'ok' ? 'No sections match your filters.' : 'Sections data unavailable.'} description={state.status === 'ok' ? 'Clear a filter or search another section name to continue.' : 'Reconnect or sync sections before assigning home rooms.'} /></td></tr>
+								) : scopedSchoolId == null ? (
+									<tr><td colSpan={7} className="px-4 py-20 text-center text-sm text-muted-foreground">Waiting for your school scope…</td></tr>
 								) : (
 									paged.map((s) => (
-										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={actorSchoolId ?? 0} roomOccupancy={roomOccupancyMap} />
+										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} />
 									))
 								)}
 							</tbody>
@@ -931,18 +947,20 @@ export default function Sections() {
 				onOpenChange={(open) => !open && setDetailTarget(null)}
 			/>
 
-			<SectionRoomMapModal 
-				open={globalBrowseModalOpen} 
-				onOpenChange={setGlobalBrowseModalOpen} 
-				sectionName="Global Browse" 
-				sectionId={0} 
-				currentRoomId={null} 
-				onSelect={() => {}} 
-				schoolId={actorSchoolId ?? 0}
-				roomOccupancy={roomOccupancyMap}
-				roomSectionData={roomSectionDataMap}
-				buildingOccupancy={buildingOccupancy}
-			/>
+			{scopedSchoolId != null && (
+				<SectionRoomMapModal 
+					open={globalBrowseModalOpen} 
+					onOpenChange={setGlobalBrowseModalOpen} 
+					sectionName="Global Browse" 
+					sectionId={0} 
+					currentRoomId={null} 
+					onSelect={() => {}} 
+					schoolId={scopedSchoolId}
+					roomOccupancy={roomOccupancyMap}
+					roomSectionData={roomSectionDataMap}
+					buildingOccupancy={buildingOccupancy}
+				/>
+			)}
 
 			{pendingAssignment && (
 				<>
@@ -951,11 +969,11 @@ export default function Sections() {
 				</>
 			)}
 
-			{activeSchoolYearId && (
+			{scopedSchoolId != null && activeSchoolYearId && (
 				<HomeRoomAutoAssignDialog
 					open={autoAssignOpen}
 					onOpenChange={setAutoAssignOpen}
-					schoolId={actorSchoolId ?? 0}
+					schoolId={scopedSchoolId}
 					schoolYearId={activeSchoolYearId}
 					onApplied={() => void fetchSections({ forceRefresh: true })}
 				/>

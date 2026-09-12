@@ -41,6 +41,20 @@ interface SectionRoomMapModalProps {
 	buildingOccupancy?: Map<number, number>;
 }
 
+/**
+ * ACTOR-SCOPE-C01 — fail-closed loader for the section room map.
+ *
+ * A missing/invalid actor school (`0`, negative, fractional, NaN) dispatches
+ * NOTHING and returns `null`. This is the single production loader the modal
+ * uses, so a `schoolId` that is not a strict positive integer can never reach
+ * the map-buildings request.
+ */
+export async function fetchSectionRoomMapBuildings(schoolId: number): Promise<Building[] | null> {
+	if (!Number.isInteger(schoolId) || schoolId <= 0) return null;
+	const { data } = await atlasApi.get<{ buildings: Building[] }>(`/map/schools/${schoolId}/buildings`);
+	return data.buildings ?? [];
+}
+
 export function SectionRoomMapModal({
 	open,
 	onOpenChange,
@@ -65,8 +79,14 @@ export function SectionRoomMapModal({
 	const loadMapData = React.useCallback(async () => {
 		setLoading(true);
 		try {
-			const { data } = await atlasApi.get<{ buildings: Building[] }>(`/map/schools/${schoolId}/buildings`);
-			const sortedBuildings = [...data.buildings].sort((a, b) => {
+			const loadedBuildings = await fetchSectionRoomMapBuildings(schoolId);
+			if (loadedBuildings == null) {
+				// Unresolved/invalid actor school — never dispatch or render stale
+				// buildings from a previous scope.
+				setBuildings([]);
+				return;
+			}
+			const sortedBuildings = [...loadedBuildings].sort((a, b) => {
 				const aNum = parseInt(a.name.match(/\d+/)?.[0] || '0', 10);
 				const bNum = parseInt(b.name.match(/\d+/)?.[0] || '0', 10);
 				if (aNum !== bNum) return aNum - bNum;
@@ -92,11 +112,11 @@ export function SectionRoomMapModal({
 	}, [schoolId, currentRoomId]);
 
 	React.useEffect(() => {
-		if (open) {
+		if (open && Number.isInteger(schoolId) && schoolId > 0) {
 			loadMapData();
 			setSelectedRoomId(currentRoomId);
 		}
-	}, [open, loadMapData, currentRoomId]);
+	}, [open, loadMapData, currentRoomId, schoolId]);
 
 	// Auto-scroll to selected room when building opens or selectedRoomId changes
 	React.useEffect(() => {
