@@ -66,8 +66,10 @@ re-verify read-only immediately before the bounded session (§3).
    mirror row `(id, enrollProSchoolYearId, yearLabel, isActive, isArchived,
    termContractCachedAt)`; `auditLog` count where
    `action='TERM_CACHE_SYNC_APPLIED'` (expect 0); actor's `last_login_at`;
-   `auditLog` max id; `facultySubject`/`generationRun`/`publishedScheduleRevision`
-   counts. These are the before-signatures.
+   custodian actor row's `failed_login_count` / `locked_until` / `faculty_id`
+   (expected no-ops on the login path); `auditLog` max id;
+   `facultySubject`/`generationRun`/`publishedScheduleRevision` counts. These
+   are the before-signatures.
 
 ## 4. Exact authorization sentence (copy-ready)
 
@@ -92,7 +94,10 @@ generation; publication; any companion change. Those remain separately gated.
   artifacts). One login only. The executor does not log in.
 - **Expected audit delta:** exactly one `LOCAL_LOGIN_SUCCESS` row with a higher
   id than the max id recorded in §3, plus that actor's `last_login_at`
-  transition. Any other delta is an incident stop.
+  transition. The login update also re-asserts `failedLoginCount=0`,
+  `lockedUntil=null`, and `facultyId` on the same actor row; for the intended
+  custodian these are verified no-ops, and they are covered by the extended §3
+  signature set. Any other delta is an incident stop.
 - **Session use:** at the Tailnet origin, call the preview with the
   authenticated browser session (`schoolId: 1`). Record the full JSON response
   (no tokens): `terms[]` (identity, displayLabel, order, startDate, endDate),

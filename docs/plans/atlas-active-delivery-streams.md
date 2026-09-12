@@ -70,25 +70,21 @@ hard blockers before separately approving publication.
   apply/sync/generation/publication. The reviewed term-cache catch-up preview
   packet is prepared at `docs/prompts/term-cache-catchup-preview-2026-09-13.md`;
   its one-bounded-login authorization is awaited before the preview can run.
-- Cycle recovery: `companion-sso-and-term-cache-prep-20260913` activated
-  2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`): Phase 1 = post-action
-  audit reconciliation (committed at `8bcf6ecd`); Phase 2 = COMPANION-SSO-C01
-  executed from `work/companion-sso-c01` (base `a284d775`): product `3e0103a3`
-  + correction `fbb9dc63`, executor task `ses_f69734e0dffem8zaeflO4T4WK6`;
-  QA round 1 `ses_f695230a5ffeGQ2waSBqD7Nlxb` returned `CORRECTION_REQUIRED`
-  (21/19/1/1 — upstream EnrollPro allowed-role set not enforced; strip-order
-  row unperformed); the bounded correction (role intersection + helper-based
-  ordering evidence + three hardenings) passed fresh QA
-  `ses_f694593f8ffe2VZhrp3QQSUkBV` `ACCEPT_READY` 24/24/0/0 and is integrated
-  at merge `c989f03d`; Phase 3 = reviewed term-cache catch-up preview packet
-  prepared at `docs/prompts/term-cache-catchup-preview-2026-09-13.md`
-  (preparation only; `AUTH_SESSION_REQUIRED` — the exact one-bounded-login
-  sentence is in its §4 and in the stream row below); the final Wave
-  Completion Auditor runs next. Hard boundaries:
-  TT-OUTPUT-C03R3 is actively modifying `D:/ATLAS-worktrees/tt-output-c03` and
-  that worktree is untouchable; no shared-runtime, Windows-task, durable-env,
-  or 5001/5174 changes; no live login, term-cache apply, migration, Teaching
-  Load apply, generation, publication, or companion mutation.
+- Cycle recovery: `companion-sso-and-term-cache-prep-20260913` (COMPLETE)
+  closed 2026-09-13 (Asia/Manila). Phase 1 post-action reconciliation
+  `8bcf6ecd`; Phase 2 COMPANION-SSO-C01 base `a284d775` → product `3e0103a3` →
+  correction `fbb9dc63` → merge `c989f03d` (executor
+  `ses_f69734e0dffem8zaeflO4T4WK6`; round-1 QA
+  `ses_f695230a5ffeGQ2waSBqD7Nlxb` `CORRECTION_REQUIRED` 21/19/1/1; fresh QA
+  `ses_f694593f8ffe2VZhrp3QQSUkBV` `ACCEPT_READY` 24/24/0/0); Phase 3
+  term-cache catch-up preview packet prepared
+  (`docs/prompts/term-cache-catchup-preview-2026-09-13.md`,
+  `AUTH_SESSION_REQUIRED`); final wave audit
+  `ses_f693a866bffeaOWmjfKrP3P45W` `AUDIT_CLEAR` 8/8/0/0 (capsule at
+  `docs/reviews/companion-sso-and-term-cache-prep-20260913/wave-completion-audit.md`).
+  No product or live mutation beyond the accepted source integration. Hard
+  boundaries preserved: `tt-output-c03` untouched; no runtime/task/env/live-data
+  action.
 - Shared runtime (2026-09-12, Asia/Manila): restored under the operator's exact
   HIGH approval (`runtime-supervisor-live-install-restore-20260912`, COMPLETE),
   then deployed to the integrated TT/TL release `3d916b26` under the operator's
@@ -299,8 +295,8 @@ hard blockers before separately approving publication.
 | TT-SHAPE-DIAGNOSTIC-C02 | Bind timetable readiness to the 2026-2027 stakeholder shape policy and canonical section/teacher/room output projections | `INTEGRATED` | MEDIUM source; HIGH generation | `work/tt-shape-diagnostic-c02`; `8f48a2fe...ddbdaced`; integration `e83d25d5` | Live generation remains separately gated | Exact-range advisory coverage is carried by the committed 13-test C02 suite (the older committed advisory text is stale, per the wave audit); C02 13/13, stakeholder matrix 12/12, canonical readiness 14/14, real preflight/readiness zero-write mutants, server tsc/build and diff-check passed | Closed in source; use the diagnostic in the fingerprinted generation preview; do not generate or publish from this lane |
 | TT-OUTPUT-C03R | Preserve weekday and term identity through the scheduler, main grid, section/teacher/room projections, and beneficiary class-program exports | `ACCEPT_READY` (reviewed candidate `4f596af0`; superseded as a branch tip by TT-OUTPUT-C03R3) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; base `4e5ef1f6`; reviewed candidate `4f596af0`; capsule `docs/handoffs/tt-output-c03r-planner-result.md` | Hard boundary: TT-OUTPUT-C03R3 is actively modifying this worktree — no other role may inspect, edit, test, stage, or commit in it; do not integrate the recorded candidate while R3 runs | Fresh QA round 2 `ses_f69d7bda1ffeaHjNVOffKHo48U` `ACCEPT_READY` 14/14/0/0 on `4e5ef1f6..4f596af0`; two post-capsule commits `19d6ee1c`+`f00daa69` are NOT covered by that QA and no longer define an accepted tip | Do not integrate; await the TT-OUTPUT-C03R3 `REVIEW_REQUIRED` return above `f00daa69`, validate the frozen tip, then commission fresh exact-range QA |
 | TT-OUTPUT-C03R3 | Complete the beneficiary-output correction on the live branch above `f00daa69` and produce a frozen tip with fresh coverage for the two post-capsule commits | `RUNNING` | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03` above `f00daa69` (executor-owned; untouchable by planner/QA until it returns) | Hard concurrency boundary: no other stream may inspect, edit, test, stage, commit, reset, rebase, or merge in `D:/ATLAS-worktrees/tt-output-c03` | Cycle directive 2026-09-13: executor running above `f00daa69`; prior QA covers only `4f596af0` | Await `REVIEW_REQUIRED` with the frozen candidate SHA; then fresh exact-range QA over `4e5ef1f6...<tip>` before any integration |
-| COMPANION-SSO-C01 | Implement the complete ATLAS side of EnrollPro↔ATLAS SSO: Flow A callback/exchange/local session, Flow B reverse authorize/exchange with hash-only one-time codes, strict validation, and the Integrated Systems AppShell area | `INTEGRATED` (wave audit pending) | MEDIUM source (security-sensitive); live activation HIGH | `work/companion-sso-c01`; base `a284d775`; product `3e0103a3`; correction `fbb9dc63`; merge `c989f03d` | Live activation, env configuration, and companion-repo changes remain separately gated HIGH actions | Fresh QA `ses_f694593f8ffe2VZhrp3QQSUkBV` `ACCEPT_READY` 24/24/0/0 (server 18/18 mounted, client 14/14, role-intersection negative controls, atomic consume/concurrency, zero plaintext/leak, builds + isolated startup); round-1 QA found and the correction fixed the upstream allowed-role gap | Closed in source; run the final Wave Completion Auditor; do not deploy, configure env, or mutate companions from this lane |
-| TERM-CACHE-CATCHUP-PREVIEW | Capture the live zero-write term-authority preview fingerprint/confirmation as the reviewed basis for the later term-cache catch-up apply | `HIGH_APPROVAL_REQUIRED` (blocked: `AUTH_SESSION_REQUIRED`) | LOW authorized (one login audit delta + zero-write preview); follow-on apply HIGH | Packet `docs/prompts/term-cache-catchup-preview-2026-09-13.md`; preparation only, no worktree | Exactly one bounded privileged login is not yet authorized; the apply remains a separate later HIGH action | Post-action audit (2026-09-13) confirms release `3d916b26` live; mirror 223 = EnrollPro year 9 / `2030-2031` with NULL cache; a reachable `ACTIVE_TERM_UNRESOLVED` remains a valid ordered-contract state | Operator returns the packet §4 authorization sentence; then one custodian login runs the zero-write preview and records fingerprint/confirmation plus before/after signatures |
+| COMPANION-SSO-C01 | Implement the complete ATLAS side of EnrollPro↔ATLAS SSO: Flow A callback/exchange/local session, Flow B reverse authorize/exchange with hash-only one-time codes, strict validation, and the Integrated Systems AppShell area | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 8/8 | MEDIUM source (security-sensitive); live activation HIGH | `work/companion-sso-c01`; base `a284d775`; product `3e0103a3`; correction `fbb9dc63`; merge `c989f03d` | Live activation, env configuration, and companion-repo changes remain separately gated HIGH actions | Fresh QA `ses_f694593f8ffe2VZhrp3QQSUkBV` `ACCEPT_READY` 24/24/0/0 (server 18/18 mounted, client 14/14, role-intersection negative controls, atomic consume/concurrency, zero plaintext/leak, builds + isolated startup); round-1 QA found and the correction fixed the upstream allowed-role gap; wave audit `ses_f693a866bffeaOWmjfKrP3P45W` `AUDIT_CLEAR` 8/8 | Closed in source and wave-audited; do not deploy, configure env, or mutate companions from this lane (live activation is a separate HIGH action) |
+| TERM-CACHE-CATCHUP-PREVIEW | Capture the live zero-write term-authority preview fingerprint/confirmation as the reviewed basis for the later term-cache catch-up apply | `HIGH_APPROVAL_REQUIRED` (blocked: `AUTH_SESSION_REQUIRED`) | LOW authorized (one login audit delta + zero-write preview); follow-on apply HIGH | Packet `docs/prompts/term-cache-catchup-preview-2026-09-13.md`; preparation only, no worktree | Exactly one bounded privileged login is not yet authorized; the apply remains a separate later HIGH action | Post-action audit (2026-09-13) confirms release `3d916b26` live; mirror 223 = EnrollPro year 9 / `2030-2031` with NULL cache; a reachable `ACTIVE_TERM_UNRESOLVED` remains a valid ordered-contract state; wave audit re-verified the packet against source (`AUDIT_CLEAR` 8/8) | Operator returns the packet §4 authorization sentence; then one custodian login runs the zero-write preview and records fingerprint/confirmation plus before/after signatures |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `INTEGRATED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...c9263b5f`; integration `b96caf40` | Live deployment and explicit rollover term-cache sync remain separate | Primary planner reproduced C01/C01R/C01R2 authority, timetable, publication, term, TypeScript, and production-build gates; doc-only merge conflicts were reconciled | Closed in source; verify derived year-9 demand during bounded runtime deployment/sync |
 | UX-C01R | Gate every Timetable generation action on the canonical generation diagnostic; stop Dashboard overclaiming final readiness | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/ux-c01-derived-setup`; `89440321...9e280369`; merge `fc8796c6` | Combined positive readiness browser matrix belongs to the bounded runtime deployment | Fresh independent QA ACCEPT_READY: 36/36 UX-C01R + 58/58 operator UX + 21/21 guardrails client; 6/6 + 11/11 + 9/9 + 5/5 server incl. disposable-PostgreSQL zero-write; both tsc/build; field-for-field contract parity; integration gates and isolated mount probe reproduced on the merged tree; runtime-map attribution corrected at integration | Closed in source; verify the positive readiness UX during the bounded runtime deployment |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01`; `89440321...23eae7de`; integration merge `618589dc` | Live preview requires deployed demand authority and synced year-9 terms; apply remains separately gated | Independent QA ACCEPT_READY: reproduced 8/8 authority+mutant, 11/11 client helpers, 60/60 disposable-PostgreSQL mounted-route, server/client type-checks+builds, health 200 on a live built process; the pre-existing `teaching-load-reconciliation-route.test.ts` failure reproduced identically on base and candidate; only `CHANGELOG.md` conflicted (docs-only union) | Closed in source at `origin/main` `618589dc`; do not invoke carry-forward apply without a separate reviewed preview and explicit HIGH approval |
@@ -325,12 +321,13 @@ hard blockers before separately approving publication.
 
 ## Dependency-ordered queue
 
-1. TL-UX-C01R2, DASH-RESILIENCE-C01, and MIG-GUARD-R1 are integrated; coordinate
-   one bounded runtime deployment without interrupting live QA.
+1. TL-UX-C01R2, DASH-RESILIENCE-C01, and MIG-GUARD-R1 are integrated and
+   deployed in the live `3d916b26` release; no further deployment step remains.
 2. TT-UX01R2 Simple-operator closure is independently ratified at `a0ca05e5`; no further
    TT-UX01 integration step remains.
 3. GEN-C02R1 (`c3744dc6`), UX-C01R (`fc8796c6`), and TL-RR01R (`8f210d7c`) are
-   integrated; no wave follow-up remains before the runtime deployment.
+   integrated and deployed in the live `3d916b26` release; no wave follow-up
+   remains.
 4. `actor-scope-deploy-restore-20260912` closed its acceptance: fresh QA
    `ACCEPT_READY` 13/13 (blocked 0, unperformed 0) on the live `d44f29e0`
    runtime with the exact approved login delta (audit id 762); evidence
