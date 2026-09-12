@@ -25,6 +25,7 @@ import {
 	clearUserRoleCache,
 	hasAnyAuthToken,
 	isFacultyPortalRoute,
+	subscribeAtlasTokenEpoch,
 } from '@/lib/auth';
 import type { BridgeUser } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -338,7 +339,7 @@ export function AppShell() {
 			});
 	}, []);
 
-	useEffect(() => {
+	const verifyActorSession = useCallback(() => {
 		if (!hasAnyAuthToken()) {
 			setBridgeUser(null);
 			setAuthSource(null);
@@ -370,6 +371,28 @@ export function AppShell() {
 			}
 		});
 	}, [navigate]);
+
+	useEffect(() => {
+		verifyActorSession();
+	}, [verifyActorSession]);
+
+	// ACTOR-SCOPE-C01: a token mutation (login, logout, same-tab re-login,
+	// bridge-token replacement, expiry) must drop the previous actor's shell state
+	// and re-verify the new session in place — no page reload. The notification
+	// stream and year verification stay disabled until the new actor school
+	// resolves, so no scoped request is dispatched from stale scope.
+	useEffect(() => {
+		return subscribeAtlasTokenEpoch(() => {
+			setBridgeUser(null);
+			setAuthSource(null);
+			runtimeYearRef.current = { id: null, label: null };
+			setSelectedYearId(null);
+			setActiveYearLabel(null);
+			setActiveTermLabel(null);
+			setRolloverNotice(null);
+			verifyActorSession();
+		});
+	}, [verifyActorSession]);
 
 	useEffect(() => {
 		if (bridgeUser?.role !== 'faculty') return;

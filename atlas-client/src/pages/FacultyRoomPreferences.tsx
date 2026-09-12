@@ -63,7 +63,6 @@ import {
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { useMobileConflictPreview } from '@/hooks/useMobileConflictPreview';
 
-const DEFAULT_SCHOOL_ID = 1;
 const ROOM_BOOTSTRAP_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 type SlotTarget = {
@@ -199,7 +198,7 @@ export default function FacultyRoomPreferences() {
 			let resolvedFacultyId: number;
 			try {
 				const { data: facultyMe } = await atlasApi.get<{ faculty: FacultyMirror }>(`/faculty/me`, {
-					params: { schoolId: DEFAULT_SCHOOL_ID },
+					params: { schoolId: scopedSchoolId },
 				});
 				const facultyMatch = facultyMe.faculty;
 				if (!facultyMatch?.id) {
@@ -207,9 +206,9 @@ export default function FacultyRoomPreferences() {
 					return;
 				}
 				resolvedFacultyId = facultyMatch.id;
-				cacheFacultyIdentity(DEFAULT_SCHOOL_ID, facultyMatch.id);
+				cacheFacultyIdentity(scopedSchoolId, facultyMatch.id);
 			} catch (facultyError) {
-				const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
+				const cachedIdentity = readCachedFacultyIdentity(scopedSchoolId);
 				if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 					resolvedFacultyId = cachedIdentity.facultyId;
 					setSchoolYearNotice((current) => current ?? 'Working from your saved account while offline.');
@@ -219,7 +218,7 @@ export default function FacultyRoomPreferences() {
 			}
 
 			setFacultyId(resolvedFacultyId);
-			const cachePrefix = buildFacultyCacheKey('room-preferences-bootstrap', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId);
+			const cachePrefix = buildFacultyCacheKey('room-preferences-bootstrap', scopedSchoolId, schoolYearId, resolvedFacultyId);
 			const cachedSnapshot = readLatestFacultySnapshotByPrefix<FacultyRoomBootstrapSnapshot>(cachePrefix, {
 				maxAgeMs: ROOM_BOOTSTRAP_CACHE_MAX_AGE_MS,
 				validate: (value): value is FacultyRoomBootstrapSnapshot => {
@@ -236,9 +235,9 @@ export default function FacultyRoomPreferences() {
 
 			try {
 				const [roomState, buildingsResponse, campusImageResponse] = await Promise.all([
-					atlasApi.get<FacultyRoomPreferenceState & { facultyId?: number }>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/me`),
-					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-					atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
+					atlasApi.get<FacultyRoomPreferenceState & { facultyId?: number }>(`/room-preferences/${scopedSchoolId}/${schoolYearId}/latest/me`),
+					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${scopedSchoolId}/buildings`),
+					atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${scopedSchoolId}/campus-image`),
 				]);
 
 				const nextRooms: RoomOption[] = [];
@@ -283,7 +282,7 @@ export default function FacultyRoomPreferences() {
 				let objectiveMessage: string | null = null;
 				if (responseData?.code === 'NO_ACTIVE_DRAFT') {
 					try {
-						const { data: objectiveLookup } = await atlasApi.get<FacultyPortalObjectiveLookup>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
+						const { data: objectiveLookup } = await atlasApi.get<FacultyPortalObjectiveLookup>(`/faculty-portal/${scopedSchoolId}/${schoolYearId}/dashboard`);
 						setTeachingAssignments(objectiveLookup.teachingAssignments ?? []);
 						objectiveMessage = (objectiveLookup.teachingAssignments?.length ?? 0) > 0
 							? 'Your teaching load is linked, but no review draft has been generated for room requests yet.'
@@ -322,7 +321,7 @@ export default function FacultyRoomPreferences() {
 	}, []);
 
 	const flushOutbox = useCallback(async () => {
-		if (!online || !runId || !activeSchoolYearId || !facultyId) return;
+		if (!online || !runId || !activeSchoolYearId || !facultyId || actorSchoolId == null) return;
 		const queued = listOutboxActions(facultyId, runId);
 		setOutboxActions(queued);
 		if (queued.length === 0) {
@@ -344,7 +343,7 @@ export default function FacultyRoomPreferences() {
 				results: Array<{ actionId: string; ok: boolean; error?: { message: string } }>;
 				state: FacultyRoomPreferenceState;
 			}>(
-				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/sync`,
+				`/room-preferences/${actorSchoolId}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/sync`,
 				{ actions: syncingActions.map(({ queuedAt, ...action }) => action) },
 			);
 
@@ -446,7 +445,7 @@ export default function FacultyRoomPreferences() {
 	}, [facultyId, runId]);
 
 	useEffect(() => {
-		if (!activeSchoolYearId || !runId || !online) return;
+		if (!activeSchoolYearId || !runId || !online || actorSchoolId == null) return;
 		if (import.meta.env.VITE_ROOM_PREF_COLLAB !== 'true') return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
@@ -463,7 +462,7 @@ export default function FacultyRoomPreferences() {
 					setCollaborationConnected(true);
 					setCollaborationLastError(null);
 					socket.join({
-						schoolId: DEFAULT_SCHOOL_ID,
+						schoolId: actorSchoolId,
 						schoolYearId: activeSchoolYearId ?? 0,
 						runId,
 						viewMode: 'FACULTY_ACTIVE_DRAFT',
@@ -529,14 +528,14 @@ export default function FacultyRoomPreferences() {
 			setPresence([]);
 			setRemoteSelections({});
 		};
-	}, [activeSchoolYearId, loadBootstrap, online, runId]);
+	}, [activeSchoolYearId, actorSchoolId, loadBootstrap, online, runId]);
 
 	useEffect(() => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
 
-		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${actorSchoolId}/${activeSchoolYearId}/events`;
 		const source = new EventSource(streamUrl, { withCredentials: true });
 
 		source.onmessage = () => {
@@ -575,7 +574,7 @@ export default function FacultyRoomPreferences() {
 		return () => {
 			source.close();
 		};
-	}, [activeSchoolYearId, facultyId, loadBootstrap]);
+	}, [activeSchoolYearId, actorSchoolId, facultyId, loadBootstrap]);
 
 	const initialMap = useMemo(() => new Map(initialEntries.map((entry) => [entry.entryId, entry])), [initialEntries]);
 	const selectedEntry = entries.find((entry) => entry.entryId === selectedSourceEntryId) ?? null;
@@ -723,7 +722,7 @@ export default function FacultyRoomPreferences() {
 	}, [selectedEntry]);
 
 	useEffect(() => {
-		if (!requestSheetOpen || !selectedEntry || !targetSlot || !runId || !activeSchoolYearId || !facultyId) return;
+		if (!requestSheetOpen || !selectedEntry || !targetSlot || !runId || !activeSchoolYearId || !facultyId || actorSchoolId == null) return;
 		const roomId = requestedRoomId ? Number(requestedRoomId) : undefined;
 		if ((actionType === 'ROOM_CHANGE' || actionType === 'TIME_AND_ROOM_CHANGE') && !roomId) return;
 
@@ -731,7 +730,7 @@ export default function FacultyRoomPreferences() {
 			setPreviewLoading(true);
 			try {
 				const { data } = await atlasApi.post<{ preview: PreviewResult }>(
-					`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/entries/${selectedEntry.entryId}/preview`,
+					`/room-preferences/${actorSchoolId}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/entries/${selectedEntry.entryId}/preview`,
 					{
 						actionType,
 						requestedRoomId: roomId,
@@ -758,7 +757,7 @@ export default function FacultyRoomPreferences() {
 	}, [requestSheetOpen, selectedEntry, targetSlot, runId, activeSchoolYearId, facultyId, actionType, requestedRoomId, runVersion]);
 
 	const submitCurrentRequest = async () => {
-		if (!selectedEntry || !targetSlot || !runId || !activeSchoolYearId || !facultyId) return;
+		if (!selectedEntry || !targetSlot || !runId || !activeSchoolYearId || !facultyId || actorSchoolId == null) return;
 		const roomId = requestedRoomId ? Number(requestedRoomId) : undefined;
 		if ((actionType === 'ROOM_CHANGE' || actionType === 'TIME_AND_ROOM_CHANGE') && !roomId) {
 			toast.error('Select a room for this request type.');
@@ -798,7 +797,7 @@ export default function FacultyRoomPreferences() {
 		setSubmitting(true);
 		try {
 			const { data } = await atlasApi.post<FacultyRoomPreferenceState>(
-				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/entries/${selectedEntry.entryId}/submit`,
+				`/room-preferences/${actorSchoolId}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/entries/${selectedEntry.entryId}/submit`,
 				payload,
 			);
 			applyServerState(data);
@@ -896,7 +895,7 @@ export default function FacultyRoomPreferences() {
 						mobilePreview.clearPreview();
 						setMobileStep(2);
 						collaborationRef.current?.sendSelection({
-							schoolId: DEFAULT_SCHOOL_ID,
+							schoolId: actorSchoolId ?? 0,
 							schoolYearId: activeSchoolYearId ?? 0,
 							runId: runId ?? 0,
 							entryId,
@@ -905,7 +904,7 @@ export default function FacultyRoomPreferences() {
 					}}
 					onSelectTargetSlot={(target) => {
 						collaborationRef.current?.sendSelection({
-							schoolId: DEFAULT_SCHOOL_ID,
+							schoolId: actorSchoolId ?? 0,
 							schoolYearId: activeSchoolYearId ?? 0,
 							runId: runId ?? 0,
 							day: target.day,
@@ -954,7 +953,7 @@ export default function FacultyRoomPreferences() {
 					}}
 					onSelectTargetFromGrid={(payload) => {
 						collaborationRef.current?.sendSelection({
-							schoolId: DEFAULT_SCHOOL_ID,
+							schoolId: actorSchoolId ?? 0,
 							schoolYearId: activeSchoolYearId ?? 0,
 							runId: runId ?? 0,
 							day: payload.day,

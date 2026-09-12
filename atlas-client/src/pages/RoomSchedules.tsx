@@ -14,8 +14,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { useActorSchoolScope } from '@/lib/actor-scope-session';
-import { pivotDraftToView } from '@/lib/schedule-pivot';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -30,8 +29,6 @@ import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
 import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 const MODE_COPY: Record<ViewMode, { label: string; description: string; emptyTitle: string; emptyBody: string; icon: typeof DoorOpen }> = {
 	rooms: {
