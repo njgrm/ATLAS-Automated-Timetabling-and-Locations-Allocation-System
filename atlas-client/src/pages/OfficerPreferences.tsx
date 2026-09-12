@@ -21,6 +21,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import type {
 	OfficerSummaryCounts,
 	OfficerSummaryFacultyWithReview,
@@ -41,7 +42,6 @@ import { Textarea } from '@/ui/textarea';
 
 /* ─── Constants ─── */
 
-const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
 
 type StatusFilter = 'ALL' | 'SUBMITTED' | 'DRAFT' | 'MISSING';
@@ -114,29 +114,41 @@ export default function OfficerPreferences() {
 	// SSE: live new-submission counter
 	const [newSubmissions, setNewSubmissions] = useState(0);
 	const sseRef = useRef<EventSource | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	/* ── Resolve school year ── */
 	useEffect(() => {
-		resolveActiveSchoolYearContext({ allowStaleOnError: true })
+		if (actorSchoolId == null) {
+			setActiveSchoolYearId(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
+		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true })
 			.then((context) => {
+				if (cancelled) return;
 				setActiveSchoolYearId(context.activeSchoolYearId);
 			})
 			.catch(() => {
+				if (cancelled) return;
 				setError('Failed to resolve active school year context.');
 				setLoading(false);
 			});
-	}, []);
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId]);
 
 	/* ── Load summary ── */
 	const loadSummary = useCallback(async () => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		setLoading(true);
 		try {
 			const params: Record<string, string> = {};
 			if (statusFilter !== 'ALL') params.status = statusFilter;
 
 			const { data } = await atlasApi.get<OfficerSummaryWithReviewsResponse>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/summary`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/summary`,
 				{ params },
 			);
 			setCounts(data.counts);
@@ -147,7 +159,7 @@ export default function OfficerPreferences() {
 		} finally {
 			setLoading(false);
 		}
-	}, [activeSchoolYearId, statusFilter]);
+	}, [actorSchoolId, activeSchoolYearId, statusFilter]);
 
 	useEffect(() => {
 		if (activeSchoolYearId) loadSummary();
@@ -155,10 +167,10 @@ export default function OfficerPreferences() {
 
 	/* ── SSE: live preference submissions ── */
 	useEffect(() => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
-		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const url = `/api/v1/preferences/${actorSchoolId}/${activeSchoolYearId}/events`;
 		const es = new EventSource(url, { withCredentials: true });
 		sseRef.current = es;
 		es.addEventListener('preference', (ev) => {
@@ -174,7 +186,7 @@ export default function OfficerPreferences() {
 		});
 		es.onerror = () => { /* auto-reconnects */ };
 		return () => { es.close(); sseRef.current = null; };
-	}, [activeSchoolYearId, loadSummary]);
+	}, [actorSchoolId, activeSchoolYearId, loadSummary]);
 
 	/* Reset page on filter/search change */
 	useEffect(() => { setPage(1); }, [statusFilter, searchQuery]);
@@ -219,11 +231,11 @@ export default function OfficerPreferences() {
 
 	/* ── Send reminder ── */
 	const sendReminder = async () => {
-		if (selectedIds.size === 0) return;
+		if (selectedIds.size === 0 || actorSchoolId == null) return;
 		setReminding(true);
 		try {
 			const { data } = await atlasApi.post<ReminderResponse>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/remind`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/remind`,
 				{ facultyIds: [...selectedIds] },
 			);
 			toast.success(
@@ -240,7 +252,7 @@ export default function OfficerPreferences() {
 
 	/* ── Open review sheet ── */
 	const openReview = async (facultyId: number) => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		setReviewFacultyId(facultyId);
 		setReviewOpen(true);
 		setReviewLoading(true);
@@ -249,7 +261,7 @@ export default function OfficerPreferences() {
 		setReviewerNotes('');
 		try {
 			const { data } = await atlasApi.get<{ preference: PreferenceDetail }>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/faculty/${facultyId}/detail`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/faculty/${facultyId}/detail`,
 			);
 			setReviewDetail(data.preference);
 			if (data.preference.review) {
@@ -266,11 +278,11 @@ export default function OfficerPreferences() {
 
 	/* ── Save review ── */
 	const saveReview = async (autoNext = false) => {
-		if (!reviewDetail || !reviewAction || !activeSchoolYearId) return;
+		if (!reviewDetail || !reviewAction || !activeSchoolYearId || actorSchoolId == null) return;
 		setReviewSaving(true);
 		try {
 			await atlasApi.patch(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/review/${reviewDetail.id}`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/review/${reviewDetail.id}`,
 				{ reviewStatus: reviewAction, reviewerNotes: reviewerNotes || null },
 			);
 			toast.success(`Marked as ${reviewAction === 'REVIEWED' ? 'Reviewed' : 'Needs Follow-up'}.`);
@@ -289,11 +301,11 @@ export default function OfficerPreferences() {
 
 	/* ── Dev: bulk-submit seeded ── */
 	const devBulkSubmit = async () => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		setDevSubmitting(true);
 		try {
 			const { data } = await atlasApi.post<DevBulkSubmitResponse>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/dev/submit-seeded`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/dev/submit-seeded`,
 			);
 			if (data.converted > 0) {
 				toast.success(`Dev: Converted ${data.converted} draft(s) to SUBMITTED. Audit ID: ${data.auditId}`);

@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -25,8 +26,6 @@ import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 const AUDIT_DOMAINS = [
 	'Teacher assignments',
@@ -97,8 +96,17 @@ export default function Audit() {
 	const [dataSource, setDataSource] = useState<DataSource>('none');
 	const [degradedReasons, setDegradedReasons] = useState<string[]>([]);
 
+	const { actorSchoolId } = useActorSchoolScope();
+
 	useEffect(() => {
-		resolveActiveSchoolYearContext({ allowStaleOnError: true }).then((context) => {
+		if (actorSchoolId == null) {
+			setActiveSchoolYearId(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
+		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true }).then((context) => {
+			if (cancelled) return;
 			if (context.activeSchoolYearId) {
 				setActiveSchoolYearId(context.activeSchoolYearId);
 				setActiveYearSource(context.source);
@@ -107,10 +115,14 @@ export default function Audit() {
 				toast.error('No active school year found');
 			}
 		}).catch(() => {
+			if (cancelled) return;
 			setLoading(false);
 			toast.error('No active school year found');
 		});
-	}, []);
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId]);
 
 	useEffect(() => {
 		if (activeSchoolYearId) {
@@ -119,17 +131,18 @@ export default function Audit() {
 	}, [activeSchoolYearId]);
 
 	const loadData = async () => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
+		const scopedSchoolId = actorSchoolId;
 		setLoading(true);
 		try {
 			const [facRes, subRes, aliasRes, prefRes, secRes, templateRes, roomRes] = await Promise.allSettled([
-				atlasApi.get('/faculty-assignments/summary', { params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId } }),
-				atlasApi.get('/subjects', { params: { schoolId: DEFAULT_SCHOOL_ID } }),
-				atlasApi.get(`/specialization-aliases?schoolId=${DEFAULT_SCHOOL_ID}`),
-				atlasApi.get(`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/audit`),
-				atlasApi.get(`/sections/summary/${activeSchoolYearId}`, { params: { schoolId: DEFAULT_SCHOOL_ID } }),
-				atlasApi.get(`/class-templates?schoolId=${DEFAULT_SCHOOL_ID}`),
-				atlasApi.get(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+				atlasApi.get('/faculty-assignments/summary', { params: { schoolId: scopedSchoolId, schoolYearId: activeSchoolYearId } }),
+				atlasApi.get('/subjects', { params: { schoolId: scopedSchoolId } }),
+				atlasApi.get(`/specialization-aliases?schoolId=${scopedSchoolId}`),
+				atlasApi.get(`/preferences/${scopedSchoolId}/${activeSchoolYearId}/audit`),
+				atlasApi.get(`/sections/summary/${activeSchoolYearId}`, { params: { schoolId: scopedSchoolId } }),
+				atlasApi.get(`/class-templates?schoolId=${scopedSchoolId}`),
+				atlasApi.get(`/map/schools/${scopedSchoolId}/buildings`),
 			]);
 
 			const reasons: string[] = [];

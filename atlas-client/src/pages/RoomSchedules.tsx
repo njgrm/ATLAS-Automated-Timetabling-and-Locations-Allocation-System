@@ -14,7 +14,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { pivotDraftToView } from '@/lib/schedule-pivot';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -29,8 +29,6 @@ import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
 import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 const MODE_COPY: Record<ViewMode, { label: string; description: string; emptyTitle: string; emptyBody: string; icon: typeof DoorOpen }> = {
 	rooms: {
@@ -113,23 +111,32 @@ export default function RoomSchedules() {
 			: viewMode === 'teachers' ? setSelectedTeacherId
 				: setSelectedSectionId;
 
+	const { actorSchoolId } = useActorSchoolScope();
+
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			setSchoolYearId(null);
+			setLookupError(false);
+			setRoomsLoading(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		(async () => {
 			try {
 				setLookupError(false);
-				const yearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const yearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true });
 				const activeSchoolYearId = yearContext.activeSchoolYearId;
 
 				const [buildingsRes, subjectsRes, facultyRes] = await Promise.all([
-					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-					atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] as Subject[] } })),
-					atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { faculty: [] as FacultyMirror[] } })),
+					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${scopedSchoolId}/buildings`),
+					atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${scopedSchoolId}`).catch(() => ({ data: { subjects: [] as Subject[] } })),
+					atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${scopedSchoolId}`).catch(() => ({ data: { faculty: [] as FacultyMirror[] } })),
 				]);
 
 				setSchoolYearId(activeSchoolYearId);
 
 				if (activeSchoolYearId) {
-					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
+					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${scopedSchoolId}`)
 						.then((r) => {
 							const secMap = new Map<number, SectionInfo>();
 							const list: { id: number; name: string; gradeLevelName: string }[] = [];
@@ -177,7 +184,7 @@ export default function RoomSchedules() {
 				setRoomsLoading(false);
 			}
 		})();
-	}, []);
+	}, [actorSchoolId]);
 
 	const [debouncedRunId, setDebouncedRunId] = useState('');
 	const debounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -194,6 +201,11 @@ export default function RoomSchedules() {
 
 	const fetchSchedule = useCallback(async () => {
 		if (!selectedEntityId || !schoolYearId) return;
+		if (actorSchoolId == null) {
+			setState({ status: 'empty', message: 'Your school scope could not be verified. Sign in again, then retry.' });
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 
 		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
 			setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
@@ -207,13 +219,13 @@ export default function RoomSchedules() {
 				if (sourceMode === 'run') params.set('runId', debouncedRunId);
 
 				const { data } = await atlasApi.get<RoomScheduleView>(
-					`/room-schedules/${DEFAULT_SCHOOL_ID}/${schoolYearId}/rooms/${selectedEntityId}?${params}`,
+					`/room-schedules/${scopedSchoolId}/${schoolYearId}/rooms/${selectedEntityId}?${params}`,
 				);
 				setState({ status: 'ok', data });
 			} else {
 				const url = sourceMode === 'latest'
-					? `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/latest/timetable`
-					: `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${debouncedRunId}/timetable`;
+					? `/generation/${scopedSchoolId}/${schoolYearId}/runs/latest/timetable`
+					: `/generation/${scopedSchoolId}/${schoolYearId}/runs/${debouncedRunId}/timetable`;
 
 				const { data: report } = await atlasApi.get<DraftReport>(url);
 
@@ -248,7 +260,7 @@ export default function RoomSchedules() {
 				setState({ status: 'error', message: msg });
 			}
 		}
-	}, [viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap]);
+	}, [actorSchoolId, viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap]);
 
 	useEffect(() => {
 		if (!selectedEntityId || !schoolYearId) return;

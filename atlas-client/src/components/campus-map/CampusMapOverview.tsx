@@ -21,6 +21,7 @@ import { RoomReadinessList } from '@/components/campus-map/RoomReadinessList';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 import type { Building, DraftReport, GenerationRun, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
@@ -49,7 +50,6 @@ type LatestRunMetadataResponse = {
 	run: Pick<GenerationRun, 'id' | 'status' | 'schoolYearId'> | null;
 };
 
-const DEFAULT_SCHOOL_ID = 1;
 const DAY_RANK: Record<string, number> = {
 	MONDAY: 1,
 	TUESDAY: 2,
@@ -159,12 +159,19 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		[sectionMap],
 	);
 
+	const { actorSchoolId } = useActorSchoolScope();
+
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			setScheduleLoading(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		let cancelled = false;
 		setScheduleLoading(true);
 
 		(async () => {
-			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, preferCache: true, backgroundRefresh: true });
+			const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, preferCache: true, backgroundRefresh: true });
 			const activeSchoolYearId = context.activeSchoolYearId;
 			if (!cancelled) setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
 			if (!activeSchoolYearId) {
@@ -174,7 +181,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 
 			const reportRequest = async (): Promise<{ data: DraftReport | null }> => {
 				const latestRunRes = await withFallback<LatestRunMetadataResponse>(
-					() => atlasApi.get<LatestRunMetadataResponse>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest`),
+					() => atlasApi.get<LatestRunMetadataResponse>(`/generation/${scopedSchoolId}/${activeSchoolYearId}/runs/latest`),
 					{ run: null },
 					3000,
 				);
@@ -184,16 +191,16 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 				}
 
 				return withFallback(
-					() => atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest/timetable`),
+					() => atlasApi.get<DraftReport>(`/generation/${scopedSchoolId}/${activeSchoolYearId}/runs/latest/timetable`),
 					null as DraftReport | null,
 					6000,
 				);
 			};
 
 			const [subjectsRes, facultyRes, sectionsRes, reportRes] = await Promise.all([
-				withFallback(() => atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`), { subjects: [] as Subject[] }),
-				withFallback(() => atlasApi.get<{ faculty: Array<{ id: number; firstName: string; lastName: string }> }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`), { faculty: [] }),
-				withFallback(() => fetchVersionedApi<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`), { sections: [] } as unknown as SectionSummaryResponse),
+				withFallback(() => atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${scopedSchoolId}`), { subjects: [] as Subject[] }),
+				withFallback(() => atlasApi.get<{ faculty: Array<{ id: number; firstName: string; lastName: string }> }>(`/faculty?schoolId=${scopedSchoolId}`), { faculty: [] }),
+				withFallback(() => fetchVersionedApi<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${scopedSchoolId}`), { sections: [] } as unknown as SectionSummaryResponse),
 				reportRequest(),
 			]);
 
@@ -240,7 +247,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [actorSchoolId]);
 
 	const roomUtilization = useMemo(() => {
 		const utilization = new Map<number, number>();

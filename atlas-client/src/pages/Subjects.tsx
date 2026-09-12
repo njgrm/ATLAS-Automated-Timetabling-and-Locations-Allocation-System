@@ -50,6 +50,7 @@ import type { SortField, SortDir } from '@/components/subjects/SortableHeader';
 import { resolveSubjectSourceCopy } from '@/components/subjects/subject-source-utils';
 import { SubjectMobileList } from '@/components/subjects/SubjectMobileList';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
@@ -74,7 +75,6 @@ import {
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
-import { resolveActorSchoolId } from '@/lib/settings';
 import { resolveSubjectsReadScope } from '@/lib/subject-school-scope';
 import { buildOperatorSubjectCreatePayload } from '@/lib/subject-create-payload';
 
@@ -154,42 +154,32 @@ export default function Subjects() {
 	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
 	const [attentionFilter, setAttentionFilter] = useState<'all' | 'missing-coverage' | 'room-constrained'>('all');
 
-	// SCA-01.1: actor school scope — resolved from /auth/me, and the ONLY
-	// source of the catalog read scope. There is no school-1 fallback: while
-	// the scope is unresolved the page renders a bounded loading state and
-	// issues no catalog request.
-	const [actorSchoolId, setActorSchoolId] = useState<number | null>(null);
-	const [actorScopeResolved, setActorScopeResolved] = useState(false);
+	// SCA-01.1 / ACTOR-SCOPE-C01: actor school scope — resolved from /auth/me and
+	// bound to the authenticated token epoch, and the ONLY source of the catalog
+	// read scope. There is no school-1 fallback: while the scope is unresolved
+	// the page renders a bounded state and issues no catalog request. A session
+	// mutation synchronously drops the previous school to null and clears state.
+	const { actorSchoolId, resolved: actorScopeResolved, retry: retryActorScope } = useActorSchoolScope();
 
 	useEffect(() => {
-		let cancelled = false;
-		resolveActorSchoolId().then((id) => {
-			if (cancelled) return;
-			if (id != null) setActorSchoolId(id);
-			setActorScopeResolved(true);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	const retryActorScope = useCallback(() => {
-		setActorScopeResolved(false);
-		resolveActorSchoolId().then((id) => {
-			if (id != null) setActorSchoolId(id);
-			setActorScopeResolved(true);
-		});
-	}, []);
+		if (actorSchoolId == null) {
+			setActiveSchoolYearId(null);
+			setSubjects([]);
+			setError(null);
+		}
+	}, [actorSchoolId]);
 
 	const readScope = resolveSubjectsReadScope(actorSchoolId);
 
 	const fetchSubjects = useCallback(async () => {
 		// SCA-01.1: never issue a catalog request without a resolved actor
 		// school. The loading skeleton stays up until the scope resolves.
-		if (!readScope.ready) return;
+		if (!readScope.ready || readScope.schoolId == null) return;
+		const scopedSchoolId = readScope.schoolId;
 		setLoading(true);
 		try {
 			const context = await resolveActiveSchoolYearContext({
+				schoolId: scopedSchoolId,
 				allowStaleOnError: true,
 				allowEnrollProFallback: false,
 			});
@@ -222,7 +212,11 @@ export default function Subjects() {
 		if (activeSchoolYearId) {
 			return activeSchoolYearId;
 		}
+		if (actorSchoolId == null) {
+			throw new Error('An authenticated actor school is required to resolve the active school year.');
+		}
 		const context = await resolveActiveSchoolYearContext({
+			schoolId: actorSchoolId,
 			allowStaleOnError: true,
 			allowEnrollProFallback: false,
 		});
@@ -231,7 +225,7 @@ export default function Subjects() {
 		}
 		setActiveSchoolYearId(context.activeSchoolYearId);
 		return context.activeSchoolYearId;
-	}, [activeSchoolYearId]);
+	}, [activeSchoolYearId, actorSchoolId]);
 
 	useEffect(() => {
 		fetchSubjects();

@@ -4,12 +4,11 @@ import { Maximize2 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import type { RoomScheduleView } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Skeleton } from '@/ui/skeleton';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 const DAY_SHORT: Record<string, string> = {
 	MONDAY: 'M',
@@ -30,18 +29,25 @@ export function RoomSchedulePreview({
 }) {
 	const [state, setState] = useState<'idle' | 'loading' | 'ok' | 'empty' | 'error'>('idle');
 	const [schedule, setSchedule] = useState<RoomScheduleView | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	useEffect(() => {
 		if (!isTeachingSpace) return;
+		if (actorSchoolId == null) {
+			setSchedule(null);
+			setState('idle');
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		let cancelled = false;
 		setState('loading');
 
 		(async () => {
 			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+				const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
 				if (!context.activeSchoolYearId || cancelled) return;
 				const { data } = await atlasApi.get<RoomScheduleView>(
-					`/room-schedules/${DEFAULT_SCHOOL_ID}/${context.activeSchoolYearId}/rooms/${roomId}?source=latest`,
+					`/room-schedules/${scopedSchoolId}/${context.activeSchoolYearId}/rooms/${roomId}?source=latest`,
 				);
 				if (cancelled) return;
 				setSchedule(data);
@@ -54,7 +60,7 @@ export function RoomSchedulePreview({
 		return () => {
 			cancelled = true;
 		};
-	}, [roomId, isTeachingSpace]);
+	}, [roomId, isTeachingSpace, actorSchoolId]);
 
 	if (!isTeachingSpace) {
 		return (

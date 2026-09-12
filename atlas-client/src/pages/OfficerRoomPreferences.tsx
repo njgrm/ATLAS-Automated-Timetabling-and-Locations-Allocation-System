@@ -14,6 +14,7 @@ import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -33,8 +34,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 function decisionBadge(status: RoomPreferenceDecisionStatus) {
 	if (status === 'APPROVED') return <Badge variant='success'>Approved</Badge>;
@@ -62,14 +61,16 @@ export default function OfficerRoomPreferences() {
 	const refreshTimeoutRef = useRef<number | null>(null);
 	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const loadSummary = useCallback(async (schoolYearId: number, nextStatus: 'ALL' | RoomPreferenceStatus, nextDecision: 'ALL' | RoomPreferenceDecisionStatus) => {
+		if (actorSchoolId == null) return;
 		setLoading(true);
 		try {
 			const params: Record<string, string> = {};
 			if (nextStatus !== 'ALL') params.status = nextStatus;
 			if (nextDecision !== 'ALL') params.decisionStatus = nextDecision;
-			const { data } = await atlasApi.get<RoomPreferenceSummaryResponse>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/summary`, { params });
+			const { data } = await atlasApi.get<RoomPreferenceSummaryResponse>(`/room-preferences/${actorSchoolId}/${schoolYearId}/latest/summary`, { params });
 			setSummary(data);
 			setError(null);
 		} catch (err) {
@@ -81,27 +82,38 @@ export default function OfficerRoomPreferences() {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [actorSchoolId]);
 
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			setActiveSchoolYearId(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
 		(async () => {
 			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const context = await resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true });
+				if (cancelled) return;
 				setActiveSchoolYearId(context.activeSchoolYearId);
 				await loadSummary(context.activeSchoolYearId, statusFilter, decisionFilter);
 			} catch {
+				if (cancelled) return;
 				setError('Failed to resolve active school year context.');
 				setLoading(false);
 			}
 		})();
-	}, [decisionFilter, loadSummary, statusFilter]);
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId, decisionFilter, loadSummary, statusFilter]);
 
 	useEffect(() => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
 
-		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${actorSchoolId}/${activeSchoolYearId}/events`;
 		const source = new EventSource(streamUrl, { withCredentials: true });
 
 		const queueRefresh = (event?: MessageEvent<string>) => {
@@ -132,10 +144,10 @@ export default function OfficerRoomPreferences() {
 			}
 			source.close();
 		};
-	}, [activeSchoolYearId, decisionFilter, loadSummary, statusFilter]);
+	}, [actorSchoolId, activeSchoolYearId, decisionFilter, loadSummary, statusFilter]);
 
 	useEffect(() => {
-		if (!activeSchoolYearId || !summary?.runId) return;
+		if (!activeSchoolYearId || actorSchoolId == null || !summary?.runId) return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
 
@@ -151,7 +163,7 @@ export default function OfficerRoomPreferences() {
 					setCollaborationConnected(true);
 					setCollaborationLastError(null);
 					socket.join({
-						schoolId: DEFAULT_SCHOOL_ID,
+						schoolId: actorSchoolId,
 						schoolYearId: activeSchoolYearId,
 						runId: summary.runId,
 						viewMode: 'SCHEDULER_QUEUE',
@@ -215,7 +227,7 @@ export default function OfficerRoomPreferences() {
 			setPresence([]);
 			setRemoteSelections({});
 		};
-	}, [activeSchoolYearId, decisionFilter, loadSummary, statusFilter, summary?.runId]);
+	}, [actorSchoolId, activeSchoolYearId, decisionFilter, loadSummary, statusFilter, summary?.runId]);
 
 	const filteredRequests = useMemo(() => {
 		const requests = summary?.requests ?? [];
@@ -274,9 +286,9 @@ export default function OfficerRoomPreferences() {
 	}, [previewState]);
 
 	const openPreview = useCallback(async (request: RoomPreferenceSummaryItem) => {
-		if (!activeSchoolYearId) return;
+		if (!activeSchoolYearId || actorSchoolId == null) return;
 		collaborationRef.current?.sendSelection({
-			schoolId: DEFAULT_SCHOOL_ID,
+			schoolId: actorSchoolId,
 			schoolYearId: activeSchoolYearId,
 			runId: request.runId,
 			day: request.day,
@@ -289,7 +301,7 @@ export default function OfficerRoomPreferences() {
 		setPreviewLoading(true);
 		try {
 			const { data } = await atlasApi.post<RoomPreferencePreviewResponse>(
-				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${request.runId}/requests/${request.id}/preview`,
+				`/room-preferences/${actorSchoolId}/${activeSchoolYearId}/runs/${request.runId}/requests/${request.id}/preview`,
 			);
 			setPreviewState(data);
 			setReviewerNotes(data.request.reviewerNotes ?? '');
@@ -301,14 +313,14 @@ export default function OfficerRoomPreferences() {
 		} finally {
 			setPreviewLoading(false);
 		}
-	}, [activeSchoolYearId]);
+	}, [actorSchoolId, activeSchoolYearId]);
 
 	const reviewRequest = async (decisionStatus: 'APPROVED' | 'REJECTED' | 'NEEDS_FOLLOW_UP') => {
-		if (!activeSchoolYearId || !scopedPreviewState || !summary) return;
+		if (!activeSchoolYearId || actorSchoolId == null || !scopedPreviewState || !summary) return;
 		setSavingDecision(true);
 		try {
 			await atlasApi.patch(
-				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${scopedPreviewState.request.runId}/requests/${scopedPreviewState.request.id}/review`,
+				`/room-preferences/${actorSchoolId}/${activeSchoolYearId}/runs/${scopedPreviewState.request.runId}/requests/${scopedPreviewState.request.id}/review`,
 				{
 					decisionStatus,
 					reviewerNotes: reviewerNotes || null,

@@ -19,6 +19,49 @@ export function expireAtlasSession(): void {
 	}
 }
 
+/**
+ * ACTOR-SCOPE-C01 — authenticated-token epoch signal.
+ *
+ * The token epoch is the exact `getPreferredAccessToken()` string. Any session
+ * mutation (login, logout, same-tab re-login, bridge-token replacement, session
+ * expiry, full auth storage clear) advances a monotonic version and synchronously
+ * notifies every mounted subscriber. Subscribers MUST treat a notification as
+ * authoritative: immediately drop any previously bound actor school/year before
+ * the new session resolves, then re-resolve and rebind in-place without a reload.
+ *
+ * The version counter is monotonic so a consumer can cheaply detect that its
+ * in-flight work belongs to an obsolete epoch and must be discarded, even when
+ * the effective token string happens to return to a previously seen value.
+ */
+export type AtlasTokenEpochListener = () => void;
+
+let atlasTokenEpochVersion = 0;
+const atlasTokenEpochListeners = new Set<AtlasTokenEpochListener>();
+
+function notifyAtlasTokenEpochChange(): void {
+	atlasTokenEpochVersion += 1;
+	for (const listener of Array.from(atlasTokenEpochListeners)) {
+		try {
+			listener();
+		} catch {
+			// A subscriber must never break an auth-storage mutation.
+		}
+	}
+}
+
+/** Current monotonic token-epoch version. Advances on EVERY session mutation. */
+export function getAtlasTokenEpochVersion(): number {
+	return atlasTokenEpochVersion;
+}
+
+/** Subscribe to token-epoch changes. Returns an unsubscribe function. */
+export function subscribeAtlasTokenEpoch(listener: AtlasTokenEpochListener): () => void {
+	atlasTokenEpochListeners.add(listener);
+	return () => {
+		atlasTokenEpochListeners.delete(listener);
+	};
+}
+
 const ATLAS_AUTH_COOKIE_NAME = 'atlasAuthToken';
 const ATLAS_AUTH_COOKIE_PATH = '/api/v1';
 
@@ -140,22 +183,26 @@ export function setLocalToken(token: string, remember = false): void {
 	} else {
 		removeLocalStorage(ATLAS_LOCAL_TOKEN_KEY);
 	}
+	notifyAtlasTokenEpochChange();
 }
 
 export function setBridgeToken(token: string): void {
 	writeSessionStorage(ATLAS_BRIDGE_TOKEN_KEY, token);
 	writeAtlasAuthCookie(token, false);
+	notifyAtlasTokenEpochChange();
 }
 
 export function clearLocalToken(): void {
 	removeSessionStorage(ATLAS_LOCAL_TOKEN_KEY);
 	removeLocalStorage(ATLAS_LOCAL_TOKEN_KEY);
 	clearAtlasAuthCookie();
+	notifyAtlasTokenEpochChange();
 }
 
 export function clearBridgeToken(): void {
 	removeSessionStorage(ATLAS_BRIDGE_TOKEN_KEY);
 	clearAtlasAuthCookie();
+	notifyAtlasTokenEpochChange();
 }
 
 export function clearUserRoleCache(): void {

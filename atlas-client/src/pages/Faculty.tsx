@@ -46,6 +46,7 @@ import {
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
 	getFacultyLoadSortRank,
 	type SubjectSectionOwnershipIndexEntry,
@@ -57,7 +58,6 @@ import {
 	setCachedFacultyAssignmentsSummary,
 } from '@/lib/faculty-teaching-load-cache';
 
-const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 
 type SortField = 'name' | 'subjects' | 'weeklyLoad' | 'status';
@@ -157,11 +157,11 @@ export default function Faculty() {
 	const [deleting, setDeleting] = useState(false);
 
 	const handleDeletePlaceholder = async () => {
-		if (!confirmDeleteTarget) return;
+		if (!confirmDeleteTarget || actorSchoolId == null) return;
 		setDeleting(true);
 		try {
 			await atlasApi.delete(`/faculty/${confirmDeleteTarget.id}`, {
-				params: { schoolId: DEFAULT_SCHOOL_ID }
+				params: { schoolId: actorSchoolId }
 			});
 			toast.success('Temporary teacher deleted successfully.');
 			setConfirmDeleteTarget(null);
@@ -190,8 +190,19 @@ export default function Faculty() {
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [attentionFilter, setAttentionFilter] = useState<TeacherAttentionFilter>('all');
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const fetchFaculty = useCallback(async (options?: { forceRefresh?: boolean }) => {
+		if (actorSchoolId == null) {
+			setFaculty([]);
+			setDataSource('none');
+			setSyncError(false);
+			setError(null);
+			setLoading(false);
+			setRefreshing(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		const forceRefresh = options?.forceRefresh === true;
 		setLoading(true);
 		setRefreshing(true);
@@ -201,6 +212,7 @@ export default function Faculty() {
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({
+				schoolId: scopedSchoolId,
 				// SWR: always return cached school-year immediately if available;
 				// background re-verification happens automatically when stale.
 				preferCache: !forceRefresh,
@@ -211,7 +223,7 @@ export default function Faculty() {
 			yearContextSource = yearContext.source;
 
 			if (!forceRefresh) {
-				const cachedPreview = getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+				const cachedPreview = getCachedFacultyAssignmentsSummary(scopedSchoolId, schoolYearId, {
 					maxAgeMs: 3 * 60 * 1000,
 				});
 				if (cachedPreview) {
@@ -234,7 +246,7 @@ export default function Faculty() {
 				() =>
 					atlasApi.get<TeacherSummaryResponse>('/faculty-assignments/summary', {
 						params: {
-							schoolId: DEFAULT_SCHOOL_ID,
+							schoolId: scopedSchoolId,
 							schoolYearId,
 							page,
 							pageSize,
@@ -269,7 +281,7 @@ export default function Faculty() {
 			setServerDepartments(data.departments ?? []);
 			setRosterStats(data.rosterStats ?? null);
 			if (!data.items) {
-				setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+				setCachedFacultyAssignmentsSummary(scopedSchoolId, schoolYearId, {
 					faculty: data.faculty,
 					ownershipIndex: data.ownershipIndex ?? [],
 					fetchedAt: data.fetchedAt,
@@ -286,7 +298,7 @@ export default function Faculty() {
 			} else {
 				setDataSource('refreshing');
 				setCacheNotice('Checking EnrollPro before finalizing teacher roster status.');
-				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
+				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true })
 					.then((promotedContext) => {
 						if (isUpstreamBackedSchoolYearSource(promotedContext.source)) {
 							setDataSource('live');
@@ -305,7 +317,7 @@ export default function Faculty() {
 			setError(null);
 		} catch {
 			const cachedFallback = schoolYearId
-				? getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId)
+				? getCachedFacultyAssignmentsSummary(scopedSchoolId, schoolYearId)
 				: null;
 
 			if (cachedFallback) {
@@ -328,7 +340,7 @@ export default function Faculty() {
 			setRefreshing(false);
 			setLoading(false);
 		}
-	}, [assignmentFilter, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
+	}, [actorSchoolId, assignmentFilter, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
 
 	useEffect(() => {
 		void fetchFaculty({});
@@ -355,11 +367,15 @@ export default function Faculty() {
 			toast.error('You are offline. Reconnect before refreshing the teacher roster.');
 			return;
 		}
+		if (actorSchoolId == null) {
+			toast.error('Your school scope could not be verified. Sign in again, then retry.');
+			return;
+		}
 		setSyncing(true);
 		setSyncError(false);
 		try {
 			const { data } = await atlasApi.post<{ synced: boolean; activeCount: number }>('/faculty/sync', {
-				schoolId: DEFAULT_SCHOOL_ID,
+				schoolId: actorSchoolId,
 			});
 			if (data.synced) {
 				toast.success(`Teacher roster refreshed (${data.activeCount} active teachers).`);

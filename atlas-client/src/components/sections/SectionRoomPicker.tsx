@@ -285,18 +285,20 @@ export function SectionRoomPicker({
 				</PopoverContent>
 			</Popover>
 
-			<SectionRoomMapModal
-				open={mapModalOpen}
-				onOpenChange={setMapModalOpen}
-				sectionName={sectionName}
-				sectionId={sectionId}
-				currentRoomId={value}
-				onSelect={(roomId) => {
-					onSelect(roomId);
-				}}
-				schoolId={schoolId}
-				roomOccupancy={roomOccupancy}
-			/>
+			{Number.isInteger(schoolId) && schoolId > 0 ? (
+				<SectionRoomMapModal
+					open={mapModalOpen}
+					onOpenChange={setMapModalOpen}
+					sectionName={sectionName}
+					sectionId={sectionId}
+					currentRoomId={value}
+					onSelect={(roomId) => {
+						onSelect(roomId);
+					}}
+					schoolId={schoolId}
+					roomOccupancy={roomOccupancy}
+				/>
+			) : null}
 		</>
 	);
 }

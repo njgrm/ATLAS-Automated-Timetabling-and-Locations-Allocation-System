@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { getAtlasTokenEpochVersion, getPreferredAccessToken } from '@/lib/auth';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { runActorScoped, useActorSchoolScope } from '@/lib/actor-scope-session';
 import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { getActionableApiError } from '@/lib/actionable-api-error';
 import type { FacultyRoomPreferenceEntry } from '@/types';
@@ -16,7 +18,6 @@ import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader
 import MobileDashboardLayout from '@/components/faculty-dashboard/MobileDashboardLayout';
 import DesktopDashboardLayout from '@/components/faculty-dashboard/DesktopDashboardLayout';
 
-const DEFAULT_SCHOOL_ID = 1;
 const DASHBOARD_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function dashboardCachePart(value: string | number | null | undefined): string {
@@ -89,6 +90,32 @@ function entryOutcomeBadge(entry: FacultyRoomPreferenceEntry) {
 	return <Badge variant='outline' className='text-xs h-5 px-1.5 text-muted-foreground/60 gap-1'><Eye className="size-3" /> Live</Badge>;
 }
 
+export type ScopedDashboardFetch =
+	| { status: 'ok'; data: MyDashboardResponse; schoolId: number }
+	| { status: 'discarded' }
+	| { status: 'unresolved' };
+
+/**
+ * ACTOR-SCOPE-C01 — scope-gated dashboard fetch.
+ *
+ * Routes the scoped network read through the shared `runActorScoped` mechanism,
+ * so the response is returned only while the token epoch and actor school that
+ * started the request are still authoritative. A late response from an obsolete
+ * session (A lands after B is authoritative, or A lands while B is unresolved)
+ * resolves to `discarded` and is never applied. The resolved school must still
+ * match the caller's bound school.
+ */
+export async function loadMyDashboardScoped(schoolId: number, schoolYearId: number): Promise<ScopedDashboardFetch> {
+	const result = await runActorScoped(async (resolvedSchoolId) => {
+		if (resolvedSchoolId !== schoolId) return null;
+		const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${schoolId}/${schoolYearId}/dashboard`);
+		return data;
+	});
+	if (result.status === 'unresolved') return { status: 'unresolved' };
+	if (result.status === 'superseded' || result.value == null) return { status: 'discarded' };
+	return { status: 'ok', data: result.value, schoolId };
+}
+
 export default function MyDashboard() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -98,13 +125,29 @@ export default function MyDashboard() {
 	const [cachedDashboardAt, setCachedDashboardAt] = useState<string | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+	const { actorSchoolId } = useActorSchoolScope();
+	const loadSeqRef = useRef(0);
 
 	const loadDashboard = async () => {
+		const seq = ++loadSeqRef.current;
+		const stale = () => seq !== loadSeqRef.current;
+		if (actorSchoolId == null) {
+			setDashboard(null);
+			setLoading(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
+		// ACTOR-SCOPE-C01: capture the exact token/epoch before any await and
+		// discard every state application once either changes.
+		const capturedToken = getPreferredAccessToken();
+		const capturedEpoch = getAtlasTokenEpochVersion();
+		const isCurrent = () => getPreferredAccessToken() === capturedToken && getAtlasTokenEpochVersion() === capturedEpoch;
 		setLoading(true);
 		try {
-			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
+			if (stale() || !isCurrent()) return;
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
-			const cachePrefix = buildFacultyCacheKey('dashboard', DEFAULT_SCHOOL_ID, schoolYearId);
+			const cachePrefix = buildFacultyCacheKey('dashboard', scopedSchoolId, schoolYearId);
 			const cachedSnapshot = readLatestFacultySnapshotByPrefix<MyDashboardResponse>(cachePrefix, {
 				maxAgeMs: DASHBOARD_CACHE_MAX_AGE_MS,
 				validate: (value): value is MyDashboardResponse => {
@@ -116,14 +159,22 @@ export default function MyDashboard() {
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			try {
-				const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
-				setDashboard(data);
+				const scoped = await loadMyDashboardScoped(scopedSchoolId, schoolYearId);
+				if (stale() || !isCurrent()) return;
+				if (scoped.status === 'unresolved') {
+					setDashboard(null);
+					return;
+				}
+				// A discarded (superseded) response must never overwrite state.
+				if (scoped.status !== 'ok') return;
+				setDashboard(scoped.data);
 				setUsingCachedDashboard(false);
 				setCachedDashboardAt(null);
 				removeFacultySnapshotsByPrefix(cachePrefix);
-				writeFacultySnapshot(`${cachePrefix}:${buildDashboardCacheMarker(data)}`, data);
+				writeFacultySnapshot(`${cachePrefix}:${buildDashboardCacheMarker(scoped.data)}`, scoped.data);
 				setError(null);
 			} catch (err) {
+				if (stale() || !isCurrent()) return;
 				if (cachedSnapshot && isLikelyOfflineError(err)) {
 					setDashboard(cachedSnapshot.data);
 					setUsingCachedDashboard(true);
@@ -135,15 +186,26 @@ export default function MyDashboard() {
 				setError(getActionableApiError(err, 'Unable to load your teacher dashboard. Please tap Retry.'));
 			}
 		} catch (err) {
+			if (stale() || !isCurrent()) return;
 			setError(getActionableApiError(err, "We couldn't load your school-year context from ATLAS. Please tap Retry."));
 		} finally {
-			setLoading(false);
+			if (!stale() && isCurrent()) setLoading(false);
 		}
 	};
 
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			loadSeqRef.current += 1;
+			setDashboard(null);
+			setLoading(false);
+			return;
+		}
 		void loadDashboard();
-	}, []);
+		return () => {
+			// Effect-local cancellation on actor-school change / unmount.
+			loadSeqRef.current += 1;
+		};
+	}, [actorSchoolId]);
 
 	useEffect(() => {
 		const updateOnline = () => setOnline(navigator.onLine);

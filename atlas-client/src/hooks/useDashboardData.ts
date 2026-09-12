@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import atlasApi from '@/lib/api';
-import { expireAtlasSession } from '@/lib/auth';
+import { expireAtlasSession, getAtlasTokenEpochVersion, getPreferredAccessToken, subscribeAtlasTokenEpoch } from '@/lib/auth';
 import { countSubjectsWithMissingCoverage } from '@/lib/coverage';
 import { resolveActorSchoolId } from '@/lib/settings';
 import type { Building, SubjectCoverageSummary } from '@/types';
@@ -387,25 +387,60 @@ export function useDashboardData(): DashboardData {
 	}, []);
 
 	const retryActorScope = useCallback(() => {
+		// ACTOR-SCOPE-C01: drop any previously bound school and its data BEFORE
+		// re-resolving so a retry can never keep rendering a stale scope.
+		boundActorRef.current = null;
+		lastSuccessSchoolIdRef.current = null;
+		setActorSchoolId(null);
 		setActorScopeResolved(false);
 		setActorScopeBlocked(null);
+		resetDomainState();
 		resolveActorSchoolId().then((id) => {
 			if (id != null) setActorSchoolId(id);
 			setActorScopeResolved(true);
 		});
-	}, []);
+	}, [resetDomainState]);
 
 	useEffect(() => {
-		let cancelled = false;
-		resolveActorSchoolId().then((id) => {
-			if (cancelled) return;
-			if (id != null) setActorSchoolId(id);
+		let disposed = false;
+		let sequence = 0;
+
+		const resolveNow = async () => {
+			const requestSequence = ++sequence;
+			const token = getPreferredAccessToken();
+			const epoch = getAtlasTokenEpochVersion();
+			if (!token) {
+				if (disposed || requestSequence !== sequence) return;
+				setActorSchoolId(null);
+				setActorScopeResolved(true);
+				return;
+			}
+			const id = await resolveActorSchoolId();
+			if (disposed || requestSequence !== sequence) return;
+			// Discard a late resolution whose token/epoch is no longer current.
+			if (getPreferredAccessToken() !== token || getAtlasTokenEpochVersion() !== epoch) return;
+			setActorSchoolId(id != null ? id : null);
 			setActorScopeResolved(true);
-		});
-		return () => {
-			cancelled = true;
 		};
-	}, []);
+
+		// ACTOR-SCOPE-C01: on EVERY token mutation, synchronously clear the bound
+		// school and all domain state, then re-resolve and rebind in place.
+		const unsubscribe = subscribeAtlasTokenEpoch(() => {
+			sequence += 1;
+			setActorSchoolId(null);
+			setActorScopeResolved(false);
+			boundActorRef.current = null;
+			lastSuccessSchoolIdRef.current = null;
+			resetDomainState();
+			void resolveNow();
+		});
+
+		void resolveNow();
+		return () => {
+			disposed = true;
+			unsubscribe();
+		};
+	}, [resetDomainState]);
 
 	useEffect(() => {
 		let cancelled = false;

@@ -3,6 +3,7 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { resolveActorSchoolId } from '@/lib/settings';
 import { findGradeWindow, getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter, resolveSectionGradeNumber } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
@@ -1119,14 +1120,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [entityFilter, pivotEntityIds, sectionFocusId, setEntityFilter, viewMode]);
 
 	const fetchSchoolYear = useCallback(async () => {
-		let actorSchoolId: number | null = null;
-		try {
-			const { data } = await atlasApi.get<{ user?: { schoolId?: number | null } }>('/auth/me');
-			const candidate = data.user?.schoolId;
-			actorSchoolId = typeof candidate === 'number' && Number.isInteger(candidate) && candidate > 0 ? candidate : null;
-		} catch {
-			actorSchoolId = null;
-		}
+		// ACTOR-SCOPE-C01: canonical actor-school resolution (token-epoch bound,
+		// fail-closed, late-response discard) — never a direct `/auth/me` read.
+		const actorSchoolId = await resolveActorSchoolId();
 		if (!actorSchoolId) {
 			resolvedSchoolIdRef.current = null;
 			setSchoolId(null);
@@ -1137,6 +1133,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 		resolvedSchoolIdRef.current = actorSchoolId;
 		const context = await resolveActiveSchoolYearContext({
+			schoolId: actorSchoolId,
 			// Prefer cached school-year immediately so timetable bootstrap doesn't
 			// block waiting on a forced upstream verification on every navigation.
 			preferCache: true,
@@ -1144,15 +1141,20 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			allowStaleOnError: true,
 			allowEnrollProFallback: false,
 		});
+		// Discard a late response whose actor school changed while it was in flight.
+		if (resolvedSchoolIdRef.current !== actorSchoolId) return null;
 		setSchoolId(actorSchoolId);
 		setSchoolYearContext({ ...context, schoolId: actorSchoolId });
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
 		if (context.source === 'cache' || context.stale) {
 			void resolveActiveSchoolYearContext({
+				schoolId: actorSchoolId,
 				forceRefresh: true,
 				allowStaleOnError: true,
 				allowEnrollProFallback: false,
 			}).then((freshContext) => {
+				// A fresh response for an obsolete actor school must never bind.
+				if (resolvedSchoolIdRef.current !== actorSchoolId) return;
 				setSchoolYearContext({ ...freshContext, schoolId: actorSchoolId });
 				if (freshContext.activeSchoolYearId) setSchoolYearId(freshContext.activeSchoolYearId);
 			}).catch(() => {

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Archive, CheckCircle2, Loader2, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { subscribeAtlasTokenEpoch } from '@/lib/auth';
+
 import {
 	applyArchiveAndSync,
 	applyRolloverSync,
@@ -79,12 +81,28 @@ export function ActorScopedRolloverGuidanceCard(props: ActorScopedRolloverGuidan
 
 	useEffect(() => {
 		let cancelled = false;
-		void resolveActorSchoolId().then((id) => {
-			if (cancelled) return;
+		let sequence = 0;
+
+		const resolveNow = async () => {
+			const requestSequence = ++sequence;
+			const id = await resolveActorSchoolId();
+			if (cancelled || requestSequence !== sequence) return;
 			setActorSchoolId(isResolvedActorSchoolId(id) ? id : null);
+		};
+
+		// ACTOR-SCOPE-C01: a token mutation synchronously drops the previous
+		// actor school (unmounting the scoped card and cancelling its in-flight
+		// rollover/term/archive reads) before the new session re-resolves.
+		const unsubscribe = subscribeAtlasTokenEpoch(() => {
+			sequence += 1;
+			setActorSchoolId(null);
+			void resolveNow();
 		});
+
+		void resolveNow();
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
 	}, []);
 
@@ -209,11 +227,17 @@ export function RolloverGuidanceCard({
 	};
 
 	useEffect(() => {
-		// RR-TERM-CACHE-C01R: an actor-school change is authoritative. Close the
-		// repair dialog and discard any prior preview, confirmation text, error,
-		// or pending apply before the new school's status loads. No request is
-		// issued from stale scope.
+		// RR-TERM-CACHE-C01R / ACTOR-SCOPE-C01: an actor-school change is
+		// authoritative. Discard every terminal read bound to the previous school
+		// (status, recovery classification, archive preview, pending apply, repair
+		// dialog) before the new school's status loads. No request is issued from
+		// stale scope.
 		setTermRepair((current) => resetTermRepairForScope(current, schoolId));
+		setStatus(null);
+		setRecoveryClassification(null);
+		setArchivePreview(null);
+		setPendingReconfiguredIds(null);
+		setLoading(true);
 		setError(null);
 	}, [schoolId]);
 

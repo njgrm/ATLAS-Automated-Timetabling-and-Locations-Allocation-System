@@ -48,12 +48,39 @@ export type ActiveSchoolYearContext = {
 	} | null;
 };
 
+export type ResolveActiveSchoolYearContextOptions = {
+	/**
+	 * The authenticated actor school. REQUIRED — there is deliberately no
+	 * school-1 default. Actor/tenant-sensitive callers must obtain this from
+	 * `resolveActorSchoolId()`, never a client constant or a downstream response.
+	 */
+	schoolId: number;
+	forceRefresh?: boolean;
+	/** Return cached data immediately without waiting for upstream, even if stale. */
+	preferCache?: boolean;
+	/** Fire background re-verification and update the cache without blocking the caller. */
+	backgroundRefresh?: boolean;
+	/** Force ATLAS runtime context to verify live EnrollPro upstream before resolving. */
+	verifyUpstream?: boolean;
+	allowStaleOnError?: boolean;
+	maxAgeMs?: number;
+	allowEnrollProFallback?: boolean;
+};
+
 type PromotionOptions = {
-	schoolId?: number;
+	schoolId: number;
 	allowStaleOnError?: boolean;
 	allowEnrollProFallback?: boolean;
 	verifyUpstream?: boolean;
 };
+
+/** Actor/tenant scope must be a strict positive integer; never defaulted. */
+function assertExplicitSchoolId(schoolId: unknown): number {
+	if (typeof schoolId !== 'number' || !Number.isInteger(schoolId) || schoolId <= 0) {
+		throw new Error('An explicit authenticated actor school (positive integer) is required.');
+	}
+	return schoolId;
+}
 
 export function isUpstreamBackedSchoolYearSource(source: ActiveSchoolYearContextSource): boolean {
 	return source === 'enrollpro' || source === 'enrollpro-verified';
@@ -151,21 +178,9 @@ function isFresh(cachedAtIso: string, maxAgeMs: number): boolean {
 // parallel requests for the same school.
 const inflightBySchool = new Map<number, Promise<ActiveSchoolYearContext>>();
 
-export async function resolveActiveSchoolYearContext(options?: {
-	schoolId?: number;
-	forceRefresh?: boolean;
-	/** Return cached data immediately without waiting for upstream, even if stale. */
-	preferCache?: boolean;
-	/** Fire background re-verification and update the cache without blocking the caller. */
-	backgroundRefresh?: boolean;
-	/** Force ATLAS runtime context to verify live EnrollPro upstream before resolving. */
-	verifyUpstream?: boolean;
-	allowStaleOnError?: boolean;
-	maxAgeMs?: number;
-	allowEnrollProFallback?: boolean;
-}): Promise<ActiveSchoolYearContext> {
-	const schoolId = options?.schoolId ?? 1;
-	const forceRefresh = options?.forceRefresh === true;
+export async function resolveActiveSchoolYearContext(options: ResolveActiveSchoolYearContextOptions): Promise<ActiveSchoolYearContext> {
+	const schoolId = assertExplicitSchoolId(options.schoolId);
+	const forceRefresh = options.forceRefresh === true;
 	const preferCache = options?.preferCache === true;
 	const backgroundRefresh = options?.backgroundRefresh === true;
 	const verifyUpstream = options?.verifyUpstream === true;
@@ -313,8 +328,8 @@ async function _fetchRuntimeContext(
 	}
 }
 
-export function promoteActiveSchoolYearContext(options?: PromotionOptions): Promise<ActiveSchoolYearContext> {
-	const schoolId = options?.schoolId ?? 1;
+export function promoteActiveSchoolYearContext(options: PromotionOptions): Promise<ActiveSchoolYearContext> {
+	const schoolId = assertExplicitSchoolId(options.schoolId);
 	const allowStaleOnError = options?.allowStaleOnError !== false;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 	const verifyUpstream = options?.verifyUpstream === true;

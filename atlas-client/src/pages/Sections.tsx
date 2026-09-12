@@ -22,6 +22,8 @@ import {
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { isResolvedActorSchoolId } from '@/lib/term-authority-repair-scope';
 import {
 	getCachedSectionHomeRooms,
 	getCachedSectionSummary,
@@ -56,7 +58,6 @@ import type { Building, SectionSummaryResponse } from '@/types';
 import { ActorScopedRolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
 
 /* ─── Constants ─── */
-const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
 const HOME_ROOM_QUEUE_CACHE_PREFIX = 'atlas:sections-home-room-queue:v1';
 
@@ -174,8 +175,29 @@ export default function Sections() {
 
 	// Drilldown
 	const [detailTarget, setDetailTarget] = useState<SectionDetail | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
+	// ACTOR-SCOPE-C01: only a strict positive actor school may reach a scoped
+	// child. `null` means unresolved — children are not mounted at all.
+	const scopedSchoolId = isResolvedActorSchoolId(actorSchoolId) ? actorSchoolId : null;
+
+	useEffect(() => {
+		// An actor-school change (including unresolved) is authoritative: clear
+		// the year/drilldown state and close the map/auto-assign surfaces so no
+		// child survives across the change with the previous scope's school.
+		setActiveSchoolYearId(null);
+		setDetailTarget(null);
+		setGlobalBrowseModalOpen(false);
+		setAutoAssignOpen(false);
+	}, [actorSchoolId]);
 
 	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
+		if (actorSchoolId == null) {
+			setState({ status: 'loading' });
+			setSyncError(false);
+			setDataSource('none');
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		const forceRefresh = options?.forceRefresh === true;
 		setState({ status: 'loading' });
 		setSyncError(false);
@@ -184,6 +206,7 @@ export default function Sections() {
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({
+				schoolId: scopedSchoolId,
 				// SWR: return cached school-year immediately; background re-verify when stale.
 				preferCache: !forceRefresh,
 				backgroundRefresh: !forceRefresh,
@@ -193,14 +216,14 @@ export default function Sections() {
 			schoolYearId = schoolYearContext.activeSchoolYearId;
 			yearContextSource = schoolYearContext.source;
 			setActiveSchoolYearId(schoolYearId);
-			const queuedEditsForYear = readQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, schoolYearId);
+			const queuedEditsForYear = readQueuedHomeRoomEdits(scopedSchoolId, schoolYearId);
 			setQueuedHomeRoomEdits(queuedEditsForYear);
 
 			if (!forceRefresh) {
-				const cachedSummary = getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+				const cachedSummary = getCachedSectionSummary(scopedSchoolId, schoolYearId, {
 					maxAgeMs: 3 * 60 * 1000,
 				});
-				const cachedHomeRooms = getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId, {
+				const cachedHomeRooms = getCachedSectionHomeRooms<HomeRoomOption>(scopedSchoolId, schoolYearId, {
 					maxAgeMs: 3 * 60 * 1000,
 				});
 
@@ -234,19 +257,19 @@ export default function Sections() {
 
 			const [summaryRes, homeRoomRes, bRes] = await Promise.all([
 				requestWithRetry(
-					() => atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${schoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+					() => atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${schoolYearId}?schoolId=${scopedSchoolId}`),
 					{ attempts: 2, delayMs: 400 },
 				),
 				requestWithRetry(
-					() => atlasApi.get<{ rooms: HomeRoomOption[] }>(`/sections/home-rooms/${schoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+					() => atlasApi.get<{ rooms: HomeRoomOption[] }>(`/sections/home-rooms/${schoolYearId}?schoolId=${scopedSchoolId}`),
 					{ attempts: 2, delayMs: 350 },
 				),
-				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${scopedSchoolId}/buildings`),
 			]);
 			
 			setBuildings(bRes.data.buildings);
 			setHomeRoomOptions(homeRoomRes.data.rooms ?? []);
-			setCachedSectionHomeRooms(DEFAULT_SCHOOL_ID, schoolYearId, homeRoomRes.data.rooms ?? []);
+			setCachedSectionHomeRooms(scopedSchoolId, schoolYearId, homeRoomRes.data.rooms ?? []);
 			if (summaryRes.data.code === 'UPSTREAM_UNAVAILABLE' && summaryRes.data.totalSections === 0) {
 				setState({
 					status: 'unavailable',
@@ -263,7 +286,7 @@ export default function Sections() {
 			};
 
 			setState({ status: 'ok', data: summaryWithQueuedEdits });
-			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, summaryWithQueuedEdits);
+			setCachedSectionSummary(scopedSchoolId, schoolYearId, summaryWithQueuedEdits);
 			setLastSyncedAt(summaryRes.data.fetchedAt ? String(summaryRes.data.fetchedAt) : null);
 			
 			const summaryIsLive = summaryRes.data.source === 'enrollpro';
@@ -295,7 +318,7 @@ export default function Sections() {
 			);
 
 			if (nextSource === 'refreshing') {
-				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
+				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true })
 					.then((promotedContext) => {
 						if (isUpstreamBackedSchoolYearSource(promotedContext.source) && summaryIsLive) {
 							setDataSource('live');
@@ -323,9 +346,9 @@ export default function Sections() {
 					});
 			}
 		} catch {
-			const cachedSummary = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
-			const cachedHomeRooms = schoolYearId ? getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId) : null;
-			const queuedEditsForYear = schoolYearId ? readQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, schoolYearId) : [];
+			const cachedSummary = schoolYearId ? getCachedSectionSummary(scopedSchoolId, schoolYearId) : null;
+			const cachedHomeRooms = schoolYearId ? getCachedSectionHomeRooms<HomeRoomOption>(scopedSchoolId, schoolYearId) : null;
+			const queuedEditsForYear = schoolYearId ? readQueuedHomeRoomEdits(scopedSchoolId, schoolYearId) : [];
 			setQueuedHomeRoomEdits(queuedEditsForYear);
 
 			if (cachedSummary && cachedHomeRooms) {
@@ -358,10 +381,10 @@ export default function Sections() {
 				setSyncError(true);
 			}
 		}
-	}, [isOnline]);
+	}, [actorSchoolId, isOnline]);
 
 	const performHomeRoomUpdate = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null, swapTarget?: { sectionId: number, homeRoomId: number | null }) => {
-		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'refreshing') return;
+		if (!section.id || !activeSchoolYearId || actorSchoolId == null || state.status !== 'ok' || dataSource === 'refreshing') return;
 		setSavingMirrorId(section.id);
 
 		const applyOptimisticHomeRoom = () => {
@@ -375,7 +398,7 @@ export default function Sections() {
 						return item;
 					}),
 				};
-				setCachedSectionSummary(DEFAULT_SCHOOL_ID, activeSchoolYearId, nextData);
+				setCachedSectionSummary(actorSchoolId, activeSchoolYearId, nextData);
 				return { status: 'ok', data: nextData };
 			});
 		};
@@ -385,7 +408,7 @@ export default function Sections() {
 			setQueuedHomeRoomEdits((current) => {
 				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
 				if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
-				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
+				writeQueuedHomeRoomEdits(actorSchoolId, activeSchoolYearId, next);
 				return next;
 			});
 			setCacheNotice('Home-room change saved locally and queued for sync when your connection is restored.');
@@ -398,7 +421,7 @@ export default function Sections() {
 			if (swapTarget) assignments.push({ sectionId: swapTarget.sectionId, homeRoomId: swapTarget.homeRoomId });
 
 			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
-				schoolId: DEFAULT_SCHOOL_ID,
+				schoolId: actorSchoolId,
 				assignments,
 			});
 			applyOptimisticHomeRoom();
@@ -408,7 +431,7 @@ export default function Sections() {
 			setQueuedHomeRoomEdits((current) => {
 				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
 				if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
-				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
+				writeQueuedHomeRoomEdits(actorSchoolId, activeSchoolYearId, next);
 				return next;
 			});
 			setCacheNotice('Home-room change saved locally. It will sync after the section service is reachable.');
@@ -480,7 +503,7 @@ export default function Sections() {
 		setSyncing(true);
 		setSyncError(false);
 		try {
-			const { data } = await atlasApi.post('/sections/sync', { schoolId: DEFAULT_SCHOOL_ID });
+			const { data } = await atlasApi.post('/sections/sync', { schoolId: actorSchoolId });
 			if (data.synced) await fetchSections({ forceRefresh: true });
 			else setSyncError(true);
 		} catch {
@@ -516,7 +539,7 @@ export default function Sections() {
 	}, [fetchSections]);
 
 	const flushQueuedHomeRoomEdits = useCallback(async () => {
-		if (!activeSchoolYearId || !isOnline || syncingQueuedEdits || queuedHomeRoomEdits.length === 0) return;
+		if (!activeSchoolYearId || actorSchoolId == null || !isOnline || syncingQueuedEdits || queuedHomeRoomEdits.length === 0) return;
 
 		const dedupedAssignments = Array.from(
 			queuedHomeRoomEdits.reduce((map, item) => {
@@ -528,10 +551,10 @@ export default function Sections() {
 		setSyncingQueuedEdits(true);
 		try {
 			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
-				schoolId: DEFAULT_SCHOOL_ID,
+				schoolId: actorSchoolId,
 				assignments: dedupedAssignments,
 			});
-			writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, []);
+			writeQueuedHomeRoomEdits(actorSchoolId, activeSchoolYearId, []);
 			setQueuedHomeRoomEdits([]);
 			setSyncError(false);
 			await fetchSections({ forceRefresh: true });
@@ -874,8 +897,8 @@ export default function Sections() {
 										description={state.status === 'ok' ? 'Clear a filter or search another section name to continue.' : 'Reconnect or sync sections before assigning home rooms.'}
 									/>
 								</div>
-							) : (
-								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={DEFAULT_SCHOOL_ID} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} />)
+							) : scopedSchoolId == null ? null : (
+								paged.map((section) => <SectionMobileCard key={section.id} section={section} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === section.id} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(s) => setDetailTarget(s)} />)
 							)}
 						</div>
 						<table className="hidden w-full text-sm md:table">
@@ -903,9 +926,11 @@ export default function Sections() {
 									))
 								) : paged.length === 0 ? (
 									<tr><td colSpan={7} className="px-4 py-20 text-center"><AdminStatePanel icon={<Users className="size-8" />} title = {state.status === 'ok' ? 'No sections match your filters.' : 'Sections data unavailable.'} description={state.status === 'ok' ? 'Clear a filter or search another section name to continue.' : 'Reconnect or sync sections before assigning home rooms.'} /></td></tr>
+								) : scopedSchoolId == null ? (
+									<tr><td colSpan={7} className="px-4 py-20 text-center text-sm text-muted-foreground">Waiting for your school scope…</td></tr>
 								) : (
 									paged.map((s) => (
-										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={DEFAULT_SCHOOL_ID} roomOccupancy={roomOccupancyMap} />
+										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={scopedSchoolId} roomOccupancy={roomOccupancyMap} />
 									))
 								)}
 							</tbody>
@@ -922,18 +947,20 @@ export default function Sections() {
 				onOpenChange={(open) => !open && setDetailTarget(null)}
 			/>
 
-			<SectionRoomMapModal 
-				open={globalBrowseModalOpen} 
-				onOpenChange={setGlobalBrowseModalOpen} 
-				sectionName="Global Browse" 
-				sectionId={0} 
-				currentRoomId={null} 
-				onSelect={() => {}} 
-				schoolId={DEFAULT_SCHOOL_ID} 
-				roomOccupancy={roomOccupancyMap}
-				roomSectionData={roomSectionDataMap}
-				buildingOccupancy={buildingOccupancy}
-			/>
+			{scopedSchoolId != null && (
+				<SectionRoomMapModal
+					open={globalBrowseModalOpen}
+					onOpenChange={setGlobalBrowseModalOpen}
+					sectionName="Global Browse"
+					sectionId={0}
+					currentRoomId={null}
+					onSelect={() => {}}
+					schoolId={scopedSchoolId}
+					roomOccupancy={roomOccupancyMap}
+					roomSectionData={roomSectionDataMap}
+					buildingOccupancy={buildingOccupancy}
+				/>
+			)}
 
 			{pendingAssignment && (
 				<>
@@ -942,11 +969,11 @@ export default function Sections() {
 				</>
 			)}
 
-			{activeSchoolYearId && (
+			{scopedSchoolId != null && activeSchoolYearId && (
 				<HomeRoomAutoAssignDialog
 					open={autoAssignOpen}
 					onOpenChange={setAutoAssignOpen}
-					schoolId={DEFAULT_SCHOOL_ID}
+					schoolId={scopedSchoolId}
 					schoolYearId={activeSchoolYearId}
 					onApplied={() => void fetchSections({ forceRefresh: true })}
 				/>
