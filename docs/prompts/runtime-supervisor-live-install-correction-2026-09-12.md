@@ -101,4 +101,3 @@ manual fallback.
 > failure; allow fresh QA to perform the previously authorized single login if
 > needed; and stop before term-cache apply/sync, Teaching Load mutation,
 > generation, publication, migration, schema, or companion-repository changes.
-
