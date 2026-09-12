@@ -10,7 +10,20 @@ supervisor-startable). This revision names the durable release switch (new
 release directory + machine env + boot-task continuity) and corrects the
 rollback definition. No stop, start, environment change, or task change may
 occur until the operator returns the revised exact approval sentence in
-section 8 and one fresh pre-action wave audit clears this revision.
+section 8 and the pre-action audit trail clears this revision (see the R2 note
+below).
+
+**Amendment R2 (2026-09-12):** Primary-planner validation found that R1
+permitted the cutover before proving the reusable authenticated session, which
+could downgrade a mandatory acceptance row only after deployment — prohibited
+by project rule. R2 requires the authenticated-session preflight (Required
+preflight step 5) to pass **before any listener stop, machine-environment
+change, or task change**; if it cannot pass, this packet stops with no
+deployment. R2 also clarifies that health payloads do not expose `releaseSha`.
+Round-2 pre-action re-audit `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified the R1
+packet mechanics (B1/B2 resolved); it returned only a register-consistency
+finding, remedied by the planner, and per the R2 session-preflight correction
+no third audit loop is required.
 
 ## Objective
 
@@ -55,6 +68,17 @@ term-cache apply, migration, schema changes, or companion-repository changes.
    interruption.
 4. Record secret-free before signatures. Do not print or commit environment
    contents.
+5. **Authenticated-session preflight (mandatory, before any mutation).** Open
+   the configured persistent Playwright profile and prove that an existing
+   authenticated officer/admin session can access the required school/year
+   read-only routes at the exact origin `https://njgrm.buru-degree.ts.net`.
+   This preflight issues no fresh login and no mutation request.
+   - If the reusable session is valid, proceed with the reviewed R1 cutover and
+     acceptance.
+   - If it is absent, expired, wrong-school, or otherwise unusable, return
+     `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` with **no deployment and no
+     runtime/task/environment mutation**. The operator may then authorize one
+     bounded login or split deployment from authenticated acceptance.
 
 ## Deployment strategy (durable release switch)
 
@@ -147,9 +171,10 @@ After target health and readiness are 200:
 - Call the read-only generation readiness/diagnostic route with shift-window
   enforcement; verify three-term authority, stakeholder shape blockers, empty
   demand/output fail-closed behavior, and no generation claim. This route
-  requires an operator JWT with privileged role and actor-school scope
-  (existing session only; otherwise report
-  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` for that row).
+  requires an operator JWT with privileged role and actor-school scope and is
+  gated by the mandatory authenticated-session preflight: the JWT-only row is
+  never downgraded to `EXTERNALLY_BLOCKED` after a deployment, because an
+  unusable session stops this packet before any mutation.
 - Stop before any Save, Apply, Generate, Publish, rollover, or term-cache
   action.
 - If the target's new diagnostics cannot be reached on the deployed release,
@@ -159,8 +184,18 @@ After target health and readiness are 200:
 
 Return `REVIEW_REQUIRED` unless all target health, release identity, browser
 origin, read-only diagnostics, and zero-write checks pass. Report any
-`EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` honestly. Do not substitute
-localhost for Tailnet browser evidence.
+`EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` honestly (it is a pre-mutation
+stop, never a post-deployment downgrade). Do not substitute localhost for
+Tailnet browser evidence.
+
+Post-start evidence semantics (no overclaiming):
+- local liveness = HTTP 200 on `GET /api/v1/health`;
+- local dependency readiness = HTTP 200 on `GET /api/v1/health/ready`;
+- Tailnet liveness = HTTP 200 on
+  `https://njgrm.buru-degree.ts.net/api/v1/health`;
+- exact installed `releaseSha` = the supervisor status output **and**
+  `git -C <new release directory> rev-parse HEAD`, both equal to `3d916b26…`.
+  The health payloads do not contain `releaseSha`; do not claim they do.
 
 Commit one docs-only evidence artifact under `docs/verification/` or
 `docs/reviews/`; do not modify product source during acceptance.
@@ -173,29 +208,39 @@ docs(runtime): record TT and Teaching Load live acceptance
 
 ## 8. Revised copy-ready approval sentence
 
-> I approve HIGH action TT-TL-RUNTIME-ACCEPTANCE-2026-09-12 (amended R1): from
-> the elevated Administrator executor, build the integrated source at
-> `3d916b261d6a2db71b153558ac8c2d151e2fccd0` in the new durable release
-> directory `D:\ATLAS-runtime-supervised-3d916b26-20260912`; stop only the
-> supervisor-owned 5001/5174 processes using the current release environment;
-> set machine-scope
+> I approve HIGH action TT-TL-RUNTIME-ACCEPTANCE-2026-09-12 (amended R2): from
+> the elevated Administrator executor, first — without any mutation — open the
+> configured persistent Playwright profile and prove at the exact origin
+> `https://njgrm.buru-degree.ts.net` that an existing authenticated
+> officer/admin session can reach the required school/year read-only routes,
+> with no fresh login and no mutation request; if that session is absent,
+> expired, wrong-school, or otherwise unusable, stop before any listener,
+> environment, or task change and return
+> `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` with no deployment; then build the
+> integrated source at `3d916b261d6a2db71b153558ac8c2d151e2fccd0` in the new
+> durable release directory `D:\ATLAS-runtime-supervised-3d916b26-20260912`;
+> stop only the supervisor-owned 5001/5174 processes using the current release
+> environment; set machine-scope
 > `ATLAS_RUNTIME_SOURCE_DIR=D:\ATLAS-runtime-supervised-3d916b26-20260912` and
 > `ATLAS_RUNTIME_RELEASE_SHA=3d916b261d6a2db71b153558ac8c2d151e2fccd0`, and
 > re-point the `ATLAS-Runtime-Supervisor` boot task action and working directory
 > to the new release's `ops/runtime/cli.mjs` while preserving ONSTART, PT0S,
 > SYSTEM, and IgnoreNew and verifying via `schtasks /query /xml`, leaving the
 > durable env file `D:\ATLAS-runtime-config\atlas-server.env` unchanged; start
-> the new release and require exactly one supervisor-owned PID per port, local
-> `/api/v1/health` 200, local `/api/v1/health/ready` 200, and Tailnet health 200
-> with `releaseSha=3d916b26…`; keep `ROLLOVER_AUTO_SYNC_ENABLED=false`; run the
-> Tailnet-only read-only Teaching Load and Timetable acceptance with an existing
-> session only (no fresh login) and stop before any Save, Apply, Generate,
-> Publish, rollover, term-cache, Teaching Load carry-forward/suggestion apply,
-> generation, publication, migration, or companion-repository action; on
-> failure, reset to the incumbent supervised release `9d293879` by re-pointing
-> machine env and the boot task back and starting it with health and readiness
-> 200, retaining `d44f29e0` at `D:\ATLAS-runtime-fallback-d44-20260912` only as
-> a documented non-supervised manual last resort; never stop or modify the
-> port-5175 Vite process or the unrelated `tsx` processes; never display or
-> commit environment contents; and commit exactly one docs-only evidence
-> artifact, returning its commit SHA.
+> the new release (from a fresh process or with those variables set in the
+> invoking process) and require exactly one supervisor-owned PID per port,
+> local `/api/v1/health` 200, local `/api/v1/health/ready` 200, and Tailnet
+> health 200, with the exact installed `releaseSha` confirmed as `3d916b26…`
+> from the supervisor status and `git -C <new release directory> rev-parse HEAD`
+> (not from health payloads); keep `ROLLOVER_AUTO_SYNC_ENABLED=false`; run the
+> Tailnet-only read-only Teaching Load and Timetable acceptance with the
+> existing session only (no fresh login) and stop before any Save, Apply,
+> Generate, Publish, rollover, term-cache, Teaching Load carry-forward/
+> suggestion apply, generation, publication, migration, or companion-repository
+> action; on failure, reset to the incumbent supervised release `9d293879` by
+> re-pointing machine env and the boot task back and starting it with health and
+> readiness 200, retaining `d44f29e0` at
+> `D:\ATLAS-runtime-fallback-d44-20260912` only as a documented non-supervised
+> manual last resort; never stop or modify the port-5175 Vite process or the
+> unrelated `tsx` processes; never display or commit environment contents; and
+> commit exactly one docs-only evidence artifact, returning its commit SHA.

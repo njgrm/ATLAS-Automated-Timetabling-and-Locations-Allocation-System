@@ -27,12 +27,13 @@ hard blockers before separately approving publication.
   (B1: no durable release switch named; B2: `d44f29e0` is not
   supervisor-startable). Packet amended R1 (`b40a22a4`); fresh re-audit
   `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2 resolved and its one
-  register-consistency finding is fixed. Primary-planner validation found the
-  remaining session-satisfiability gap: the reusable JWT session must be proven
-  before listener interruption, not allowed to fail after deployment. Apply
-  `docs/prompts/tt-tl-runtime-acceptance-r2-session-preflight-2026-09-12.md`
-  before presenting the revised approval, then dispatch. No login, no
-  apply/sync/generation/publication.
+   register-consistency finding is fixed. Primary-planner validation found the
+   remaining session-satisfiability gap: the reusable JWT session must be proven
+   before listener interruption, not allowed to fail after deployment. The R2
+   session-preflight correction is applied: the packet stops with no deployment
+   if the existing session is unusable, and the R2 corrected exact approval
+   sentence is presented for the operator's return. No login, no
+   apply/sync/generation/publication.
 - Shared runtime RESTORED (2026-09-12, Asia/Manila) under the operator's exact
   HIGH approval: supervised release `9d293879` (pin `d44f29e0`) serves server
   5001 (PID 15388) and production host 5174 (PID 22272); local
@@ -239,7 +240,7 @@ hard blockers before separately approving publication.
 | RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `INTEGRATED` | MEDIUM source/test; HIGH future live install | `work/runtime-supervision-c01`; `cf9b7e6e...05143d65`; merge `0ec3b8f7` | Install remains separately gated by the prepared HIGH packet | Round-2 pin correction `05143d65` passed fresh QA `ses_f6b56dd43ffeG3CSnFNNJBficZ` `ACCEPT_READY` 8/8 (blocked 0, unperformed 0): real-tree pin positive (previously unsatisfiable), equality-mutant failing-first, `PIN_MISMATCH`/`RELEASE_SHA_*` fail-closed, distinct status, inventory redaction, 56/56 ops, ports untouched. Pre-install audit `ses_f6b5175c6ffejlywhgblmX7c5k` `AUDIT_CLEAR` 14/14 | Closed in source; original install packet SUPERSEDED; the deploy-as-restore packet (R1) was approved and executed — runtime restored (see RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE row) |
 | RUNTIME-SUPERVISION-LIVE-INSTALL | Replace the ephemeral runtime by installing the reviewed supervisor on 5001/5174 with boot recovery and rollback | `SUPERSEDED` | HIGH shared-runtime cutover + boot-task registration | Correction packet `docs/prompts/runtime-supervisor-live-install-correction-2026-09-12.md`; frozen release `9d293879`; no candidate created | Replaced by the deploy-as-restore boundary after the runtime outage was reconfirmed (`d44f29e0` no longer running; Tailnet 502; no 5001/5174 listener) | Prior attempt `2794c40f` was independently rejected for Access Denied task registration; the elevated retry never ran because the runtime was found down before execution | Historical record; do not execute with swap wording |
 | RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE | Restore the down shared runtime by starting the reviewed supervisor (`9d293879`, pin `d44f29e0`) on empty 5001/5174, registering boot recovery, then disabling the legacy task after health | `INTEGRATED` — COMPLETE (post-action audit cleared) | HIGH shared-runtime deploy-as-restore + boot-task registration | approval received 2026-09-12 (DB `atlas_recovery_clean_rebuild_20260905` confirmed); executor task `ses_f6aa9bd82ffeZuVkjof36wri6Z`; evidence `f52e4b1e...5c699f36`; merge `1792cca9`; pre-action audit `ses_f6abf6c5effeY3MI5UGXRdUkeQ`; post-action audit `ses_f6a97cff2ffe6GdgWaJ4O2A0c4` | Closed; residuals recorded (reboot-start unexercised; running supervisor is a detached manual process; ONSTART task is the restart mechanism) | Live: 5001→15388 / 5174→22272, health/ready/Tailnet 200, boot task ONSTART/`PT0S`, legacy Disabled; fresh QA `ACCEPT_READY` 9/9; post-action audit `AUDIT_CLEAR` 14/14; capsules under `docs/reviews/runtime-supervisor-live-install-restore-20260912/` | Closed; runtime map reconciled; next HIGH-prep is the term-cache catch-up preview (apply stays separately gated) |
-| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `RUNNING` (R1 re-audited; B1/B2 resolved; awaiting revised exact approval) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; target `3d916b26`; current supervised release `9d293879` (pin `d44f29e0`); rollback: supervised reset to `9d293879` + `d44f29e0` manual fallback; integration boundary `integration/tt-tl-runtime-acceptance-20260912` | No apply/generation/publication; existing-session-only browser rows (no fresh login authorized); revised exact approval required before dispatch | Pre-action audit `ses_f6a6a5982ffeHfh3VnGllXY9EW` `CORRECTION_REQUIRED` (release switch + rollback defects); packet amended R1 (`b40a22a4`); fresh re-audit `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2 resolved (8/7/1 — its sole register-consistency finding is fixed); incumbent verified 2026-09-12 | Present the revised exact approval sentence; on return, dispatch the elevated executor for the bounded deploy + Tailnet read-only acceptance |
+| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `RUNNING` (R2 applied; session preflight gates any mutation; awaiting revised exact approval) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; target `3d916b26`; current supervised release `9d293879` (pin `d44f29e0`); rollback: supervised reset to `9d293879` + `d44f29e0` manual fallback; integration boundary `integration/tt-tl-runtime-acceptance-20260912` | No apply/generation/publication; no fresh login; an unusable reusable session stops the packet before any mutation (`EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`) | R1 re-audit `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2; R2 session-preflight correction applied (pre-mutation session proof; release identity from supervisor status + git HEAD, not health payloads); incumbent verified 2026-09-12 | Present the R2 corrected exact approval sentence; on return, dispatch the elevated executor for the bounded deploy + Tailnet read-only acceptance |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
@@ -298,16 +299,17 @@ hard blockers before separately approving publication.
    Then obtain explicit HIGH approval, generate once, verify the completed run,
    then prepare the separate publication preview and approval.
 7. `TT-TL-RUNTIME-ACCEPTANCE` is operator-activated (2026-09-12); its packet
-   is amended R1 (`b40a22a4`) with the durable release switch, and the fresh
-   pre-action re-audit (`ses_f6a60dc69ffeLSEf0CUPZUTEwv`) verified B1/B2
-   resolved while flagging one register inconsistency now fixed. Next: the
+   is amended R1 (`b40a22a4`) with the durable release switch and R2 (session
+   preflight before any mutation), and the fresh pre-action re-audit
+   (`ses_f6a60dc69ffeLSEf0CUPZUTEwv`) verified B1/B2 resolved. Next: the
    operator returns the revised exact approval sentence, then the elevated
-   executor deploys target `3d916b26` on 5001/5174 (machine env + boot task
-   re-pointed; rollback = supervised reset to `9d293879`; `d44f29e0` retained
-   only as a manual non-supervised last resort; rollover automation disabled),
-   runs the Tailnet-only read-only TT/TL acceptance, commits one docs-only
-   evidence artifact, and stops before any apply, sync, generation, or
-   publication.
+   executor proves the reusable session (no fresh login), deploys target
+   `3d916b26` on 5001/5174 (machine env + boot task re-pointed; rollback =
+   supervised reset to `9d293879`; `d44f29e0` retained only as a manual
+   non-supervised last resort; rollover automation disabled), runs the
+   Tailnet-only read-only TT/TL acceptance, commits one docs-only evidence
+   artifact, and stops before any apply, sync, generation, or publication;
+   an unusable session stops the packet before any mutation.
 
 ## Safe parallel work now
 
@@ -316,8 +318,10 @@ hard blockers before separately approving publication.
   rollback = supervised reset to `9d293879`; `d44f29e0` is a manual
   non-supervised last resort only); the incumbent supervised release `9d293879`
   keeps serving until the bounded stop/start, and read-only monitoring is
-  permitted. The term-cache catch-up preview preparation remains the only other
-  safe HIGH-prep lane, with its apply separately gated.
+  permitted. The packet requires the reusable authenticated session to be
+  proven before any listener interruption; an unusable session stops it before
+  any mutation. The term-cache catch-up preview preparation remains the only
+  other safe HIGH-prep lane, with its apply separately gated.
   Carry-forward apply, suggestion apply, generation, and publication remain
   separately gated. The remaining defaulting `parseSchoolId` sites on non-listed
   runtime mutation routes and the `DEFAULT_SCHOOL_ID` backlog pages (MapEditor,
@@ -385,11 +389,12 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   pre-action wave audit `ses_f6a6a5982ffeHfh3VnGllXY9EW` returned
   `CORRECTION_REQUIRED` (release-switch + rollback defects); the packet was
   amended R1 at `b40a22a4` and the fresh re-audit
-  `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2 resolved (its one register
-  finding is fixed in this transition). Primary-planner validation found the
-  remaining pre-cutover session gate and issued the R2 handoff. Awaited: the
-  OpenCode planner's R2 packet/register correction and amended approval
-  sentence; only after approval is the elevated executor return awaited.
+  `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified B1/B2 resolved. Primary-planner
+  validation found the pre-cutover session gate and the R2 correction is now
+  applied (pre-mutation session preflight; no post-deployment downgrade;
+  release identity from supervisor status + git HEAD). Awaited: the operator's
+  return of the R2 corrected exact approval sentence; only after approval is
+  the elevated executor return awaited.
 - `TL-SUGGESTION-C03R`: awaited external executor candidate from the preserved
   dirty worktree, then fresh QA.
 - `TT-OUTPUT-C03R`: awaited external executor correction above `378a1f71`, then
