@@ -1,5 +1,5 @@
 {
-  "$comment": "Immutable, reviewed runtime-supervision contract for ATLAS on a Windows host. Contains no secrets, no machine usernames, no database URLs, and no worktree-only transient paths. Operators supply durable environment paths through process environment variables referenced below; the supervisor never copies or prints secret values.",
+  "$comment": "Immutable, reviewed runtime-supervision contract for ATLAS on a Windows host. Contains no secrets, no machine usernames, no database URLs, and no worktree-only transient paths. `productPin` is the reviewed ANCESTOR milestone that the deployed HEAD must descend from; the operator-declared exact installed HEAD is supplied through ATLAS_RUNTIME_RELEASE_SHA. Operators supply durable environment paths through process environment variables referenced below; the supervisor never copies or prints secret values.",
   "contractVersion": 1,
   "stream": "RUNTIME-SUPERVISION-C01",
   "productPin": "d44f29e04d359ad9b18e4443b0fd4fed1daeaecd",
@@ -17,9 +17,9 @@
   "environmentReference": {
     "variable": "ATLAS_RUNTIME_ENV_FILE",
     "sourceDirVariable": "ATLAS_RUNTIME_SOURCE_DIR",
-    "productShaVariable": "ATLAS_RUNTIME_PRODUCT_SHA",
+    "releaseShaVariable": "ATLAS_RUNTIME_RELEASE_SHA",
     "requiredKeys": ["DATABASE_URL", "JWT_SECRET"],
-    "description": "ATLAS_RUNTIME_ENV_FILE is the operator-owned absolute path to the durable ATLAS env file (dotenv format) outside any git worktree. ATLAS_RUNTIME_SOURCE_DIR is the operator-owned durable deployed source directory used to verify the product pin. Secrets are loaded into the child process environment by name and are never copied to the repository, logged, or printed."
+    "description": "ATLAS_RUNTIME_ENV_FILE is the operator-owned absolute path to the durable ATLAS env file (dotenv format) outside any git worktree. ATLAS_RUNTIME_SOURCE_DIR is the operator-owned durable deployed source directory. ATLAS_RUNTIME_RELEASE_SHA is the operator-declared exact installed HEAD, which must equal `git -C <sourceDir> rev-parse HEAD` and must descend from the reviewed `productPin` (ancestry, not equality, because a commit cannot contain its own SHA). Secrets are loaded into the child process environment by name and are never copied to the repository, logged, or printed."
   },
   "logs": {
     "directoryIsRepoRelativeToSourceDir": true,

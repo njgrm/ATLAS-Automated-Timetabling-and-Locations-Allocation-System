@@ -26,10 +26,17 @@ the repository, never printed):
 | Variable | Meaning |
 |----------|---------|
 | `ATLAS_RUNTIME_ENV_FILE` | Absolute path to the operator-owned dotenv file, outside any git worktree. |
-| `ATLAS_RUNTIME_SOURCE_DIR` | Absolute durable deployed source directory used to verify the product pin. |
-| `ATLAS_RUNTIME_PRODUCT_SHA` | Optional declared SHA; must match the source HEAD and the reviewed pin. |
+| `ATLAS_RUNTIME_SOURCE_DIR` | Absolute durable deployed source directory. |
+| `ATLAS_RUNTIME_RELEASE_SHA` | Exact installed HEAD; must equal `git -C <sourceDir> rev-parse HEAD` and must descend from the reviewed `productPin`. |
 | `ATLAS_RUNTIME_LOG_DIR` | Optional absolute log directory; defaults to `<source>/ops/runtime/logs`. |
 | `ENROLLPRO_PROXY_ORIGIN` | Optional EnrollPro origin for `/enrollpro-api` and `/enrollpro-uploads`; defaults to `http://127.0.0.1:5000`. |
+
+The reviewed `productPin` is an **ancestor milestone**, not an equality target.
+A commit cannot contain its own SHA, so the pin cannot be the same commit that
+introduces `ops/runtime/**`; the supervisor verifies ancestry
+(`git merge-base --is-ancestor <productPin> HEAD`) and separately requires the
+operator to declare the exact installed release SHA. Status surfaces both
+distinctly.
 
 Secret values from `ATLAS_RUNTIME_ENV_FILE` are loaded into the child process
 environment by name only. They are never written to the repository, logs, or
@@ -51,8 +58,10 @@ Equivalent npm scripts exist under `runtime:*`.
 
 ## Guarantees
 
-- **Fail-closed pin.** Startup refuses a missing/mismatched `ATLAS_RUNTIME_*`
-  reference or a source HEAD that differs from the reviewed `productPin`.
+- **Fail-closed pin (ancestor + exact release).** Startup refuses a missing
+  `ATLAS_RUNTIME_*` reference; a `ATLAS_RUNTIME_RELEASE_SHA` that is absent,
+  malformed, or differs from the deployed HEAD; and a deployed HEAD that does not
+  descend from the reviewed `productPin` (typed `PIN_MISMATCH`).
 - **Unknown-listener rejection.** A port owned by an unrecorded process aborts
   startup; the supervisor never adopts or broad-kills it.
 - **No broad process killing.** Only recorded owned child PIDs are terminated,

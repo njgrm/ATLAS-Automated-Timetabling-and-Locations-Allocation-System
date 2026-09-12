@@ -95,6 +95,7 @@ export class Supervisor {
 	constructor(deps) {
 		this.contract = deps.contract;
 		this.sourceDir = deps.sourceDir;
+		this.releaseSha = deps.releaseSha ?? null;
 		this.logger = deps.logger;
 		this.targetFactory = deps.targetFactory ?? null;
 		this.targets = deps.targets ?? (this.targetFactory ? this.targetFactory(this.sourceDir) : []);
@@ -144,6 +145,7 @@ export class Supervisor {
 		const record = newState({
 			contract: this.contract,
 			sourceDir: this.sourceDir,
+			releaseSha: this.releaseSha,
 			ownedPids: this.ownedPids,
 			prior,
 			state,
@@ -354,14 +356,15 @@ export class Supervisor {
 		// subsequent unexpected child exits are handled normally.
 		this.shuttingDown = false;
 		this.sourceDir = previous.sourceDir ?? this.sourceDir;
+		this.releaseSha = previous.releaseSha ?? this.releaseSha;
 		// Rebuild targets from the restored source directory so the release
 		// actually spawned (entry, cwd, env, static root) is the previous
 		// release — never the stale current-release target map.
 		this.targets = this.resolveTargets(this.sourceDir);
-		this.logger?.info(`Rolling back to release=${previous.releaseLabel} pin=${previous.productPin} sourceDir=${this.sourceDir}`);
-		this.persist('degraded', { rollbackTo: previous.releaseLabel, rollbackPin: previous.productPin });
+		this.logger?.info(`Rolling back to release=${previous.releaseLabel} releaseSha=${this.releaseSha} pin=${previous.productPin} sourceDir=${this.sourceDir}`);
+		this.persist('degraded', { rollbackTo: previous.releaseLabel, rollbackPin: previous.productPin, rollbackReleaseSha: this.releaseSha });
 		await this.launchAndAwaitHealthy();
-		this.persist('running', { releaseLabel: previous.releaseLabel, productPin: previous.productPin, sourceDir: this.sourceDir });
+		this.persist('running', { releaseLabel: previous.releaseLabel, productPin: previous.productPin, sourceDir: this.sourceDir, releaseSha: this.releaseSha });
 		return this.getStatus();
 	}
 
@@ -377,6 +380,7 @@ export class Supervisor {
 			state: this.state,
 			releaseLabel: prior?.releaseLabel ?? this.contract.releaseLabel,
 			productPin: prior?.productPin ?? this.contract.productPin,
+			releaseSha: prior?.releaseSha ?? this.releaseSha,
 			sourceDir: prior?.sourceDir ?? this.sourceDir,
 			startedAt,
 			updatedAt: prior?.updatedAt ?? null,

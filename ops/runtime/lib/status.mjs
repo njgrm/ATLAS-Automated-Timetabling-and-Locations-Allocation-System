@@ -10,6 +10,7 @@ export function formatStatus(status) {
 		state: status.state,
 		releaseLabel: status.releaseLabel,
 		productPin: status.productPin,
+		releaseSha: status.releaseSha,
 		sourceDir: status.sourceDir,
 		startedAt: status.startedAt,
 		updatedAt: status.updatedAt,
@@ -46,9 +47,15 @@ export function buildInstallPreview(options) {
 		steps: [
 			{
 				id: 'pin-source',
-				description: 'Point ATLAS_RUNTIME_SOURCE_DIR at the durable deployed checkout and verify it resolves to the reviewed product pin.',
-				command: `git -C "<ATLAS_RUNTIME_SOURCE_DIR>" rev-parse HEAD  # must equal ${contract.productPin}`,
+				description: 'Point ATLAS_RUNTIME_SOURCE_DIR at the durable deployed checkout and confirm its HEAD descends from the reviewed product pin (ancestor milestone).',
+				command: `git -C "<ATLAS_RUNTIME_SOURCE_DIR>" merge-base --is-ancestor ${contract.productPin} HEAD`,
 				mutates: false,
+			},
+			{
+				id: 'release-sha',
+				description: 'Declare the exact installed release SHA; it must equal the deployed HEAD and descend from the reviewed pin.',
+				command: `setx ${contract.environmentReference.releaseShaVariable} "<git -C %ATLAS_RUNTIME_SOURCE_DIR% rev-parse HEAD>"`,
+				mutates: true,
 			},
 			{
 				id: 'env-reference',

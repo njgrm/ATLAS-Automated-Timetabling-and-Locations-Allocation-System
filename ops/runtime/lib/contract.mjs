@@ -59,7 +59,7 @@ export function validateContract(contract) {
 	}
 
 	const envRef = assertObject(contract.environmentReference, 'RUNTIME_CONTRACT_INVALID', 'environmentReference');
-	for (const key of ['variable', 'sourceDirVariable', 'productShaVariable']) {
+	for (const key of ['variable', 'sourceDirVariable', 'releaseShaVariable']) {
 		if (typeof envRef[key] !== 'string' || envRef[key].trim() === '') {
 			throw fail('RUNTIME_CONTRACT_INVALID', `environmentReference.${key} must be a non-empty variable name.`);
 		}
@@ -233,34 +233,69 @@ export function summarizeEnvironmentReference(reference) {
 }
 
 /**
- * Verify the deployed source directory resolves to the reviewed product pin.
- * `resolveSha` is injectable so tests can simulate stale/missing/mismatched
- * source identity without touching a real worktree.
+ * Verify the deployed release against the reviewed pin contract.
+ *
+ * Model (satisfiable for an installable tree):
+ * - `productPin` is the reviewed ANCESTOR milestone that must be reachable
+ *   from the deployed HEAD (`git merge-base --is-ancestor`). A commit cannot
+ *   contain its own SHA, so equality with the pin is intentionally NOT required.
+ * - `ATLAS_RUNTIME_RELEASE_SHA` is the operator-declared exact installed HEAD.
+ *   It must be present and must equal the resolved HEAD (declared-vs-actual).
+ *
+ * All resolution is injected so tests can model git semantics without a
+ * precomputed result; the real-path control runs against a temporary git repo.
  */
 export function verifyProductPin(options) {
 	const { contract, sourceDir } = options;
-	const resolveSha = options.resolveSha;
-	if (typeof resolveSha !== 'function') {
-		throw fail('PIN_RESOLVER_MISSING', 'verifyProductPin requires a resolveSha function.');
+	const resolveHead = options.resolveHead;
+	const isAncestor = options.isAncestor;
+	if (typeof resolveHead !== 'function') {
+		throw fail('PIN_RESOLVER_MISSING', 'verifyProductPin requires a resolveHead function.');
+	}
+	if (typeof isAncestor !== 'function') {
+		throw fail('PIN_RESOLVER_MISSING', 'verifyProductPin requires an isAncestor function.');
 	}
 	const env = options.env ?? process.env;
-	const declaredSha = env[contract.environmentReference.productShaVariable];
-	let actualSha;
+
+	let head;
 	try {
-		actualSha = resolveSha(sourceDir);
+		head = resolveHead(sourceDir);
 	} catch (error) {
-		throw fail('PIN_UNRESOLVED', `Cannot resolve the product pin from the deployed source directory: ${error instanceof Error ? error.message : String(error)}`);
+		throw fail('PIN_UNRESOLVED', `Cannot resolve the deployed HEAD from the source directory: ${error instanceof Error ? error.message : String(error)}`);
 	}
-	if (typeof actualSha !== 'string' || !HEX40.test(actualSha)) {
-		throw fail('PIN_UNRESOLVED', 'Resolved product pin is not a 40-character lowercase hex commit SHA.');
+	if (typeof head !== 'string' || !HEX40.test(head)) {
+		throw fail('PIN_UNRESOLVED', 'Resolved deployed HEAD is not a 40-character lowercase hex commit SHA.');
 	}
-	if (declaredSha !== undefined && declaredSha !== '' && declaredSha !== actualSha) {
-		throw fail('PIN_MISMATCH', 'Declared product SHA does not match the deployed source directory HEAD.');
+
+	const releaseShaVariable = contract.environmentReference.releaseShaVariable;
+	const declaredReleaseSha = env[releaseShaVariable];
+	if (declaredReleaseSha === undefined || declaredReleaseSha === null || String(declaredReleaseSha).trim() === '') {
+		throw fail('RELEASE_SHA_MISSING', `Required exact release SHA ${releaseShaVariable} is not set.`);
 	}
-	if (actualSha !== contract.productPin) {
-		throw fail('PIN_MISMATCH', `Deployed source HEAD ${actualSha} does not match the reviewed product pin ${contract.productPin}.`);
+	if (typeof declaredReleaseSha !== 'string' || !HEX40.test(declaredReleaseSha)) {
+		throw fail('RELEASE_SHA_INVALID', `${releaseShaVariable} must be a 40-character lowercase hex commit SHA.`);
 	}
-	return { actualSha, expectedSha: contract.productPin, releaseLabel: contract.releaseLabel };
+	if (declaredReleaseSha !== head) {
+		throw fail('RELEASE_SHA_MISMATCH', 'Declared release SHA does not match the deployed source directory HEAD.');
+	}
+
+	let descendant;
+	try {
+		descendant = isAncestor(contract.productPin, head, sourceDir);
+	} catch (error) {
+		throw fail('PIN_CHECK_FAILED', `Cannot verify the reviewed pin ancestry: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	if (descendant !== true) {
+		throw fail('PIN_MISMATCH', `Deployed HEAD ${head} does not descend from the reviewed product pin ${contract.productPin}.`);
+	}
+
+	return {
+		head,
+		releaseSha: head,
+		declaredReleaseSha,
+		productPin: contract.productPin,
+		releaseLabel: contract.releaseLabel,
+	};
 }
 
 /**
