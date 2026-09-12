@@ -2,8 +2,11 @@
 .agents/
 .codex/
 .cursor/
-# AGENTS.md remains local because it contains operator-only QA access details.
-AGENTS.md
+# AGENTS.md is the tracked, sanitized cross-agent workflow authority.
+# Machine-local overrides and credential stores must never enter Git.
+AGENTS.local.md
+*.credentials.local.*
+.atlas-local/
 GEMINI.md
 projectIntro.md
 # Local tooling configs
