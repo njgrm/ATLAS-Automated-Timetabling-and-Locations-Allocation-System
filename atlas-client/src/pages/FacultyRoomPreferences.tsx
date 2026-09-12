@@ -60,6 +60,7 @@ import {
 	statusBadge,
 	type RoomOption,
 } from '@/components/faculty-room-preferences/room-request-helpers';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { useMobileConflictPreview } from '@/hooks/useMobileConflictPreview';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -141,8 +142,12 @@ export default function FacultyRoomPreferences() {
 	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
 	const tutorial = useTutorial('atlas_faculty_room_preferences_tour_v1');
+	const { actorSchoolId } = useActorSchoolScope();
 	const mobilePreview = useMobileConflictPreview({
-		schoolId: DEFAULT_SCHOOL_ID,
+		// The preview dispatcher guards on faculty/run/year before using schoolId;
+		// bootstrap does not bind faculty/run until the actor school resolves, so
+		// this placeholder is never dispatched. The scoped value is authoritative.
+		schoolId: actorSchoolId ?? 0,
 		activeSchoolYearId,
 		runId,
 		facultyId,
@@ -175,9 +180,18 @@ export default function FacultyRoomPreferences() {
 	}, [searchParams, isMobileViewport]);
 
 	const loadBootstrap = useCallback(async () => {
+		if (actorSchoolId == null) {
+			setLoading(false);
+			setRooms([]);
+			setBuildings([]);
+			setEntries([]);
+			setGlobalEntries([]);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		setLoading(true);
 		try {
-			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setActiveSchoolYearId(schoolYearId);
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
@@ -293,7 +307,7 @@ export default function FacultyRoomPreferences() {
 		} finally {
 			setLoading(false);
 		}
-	}, [applyServerState]);
+	}, [actorSchoolId, applyServerState]);
 
 	useEffect(() => {
 		void loadBootstrap();

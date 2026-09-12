@@ -3,6 +3,7 @@ import { AlertCircle, BookOpen, Clock3, MapPin, Printer, RefreshCcw, Users } fro
 
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { getActionableApiError } from '@/lib/actionable-api-error';
@@ -15,7 +16,6 @@ import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
 
-const DEFAULT_SCHOOL_ID = 1;
 const SCHEDULE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DAY_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
@@ -106,27 +106,35 @@ export default function MySchedule() {
 	const [usingCachedSchedule, setUsingCachedSchedule] = useState(false);
 	const [cachedScheduleAt, setCachedScheduleAt] = useState<string | null>(null);
 	const [checkingForUpdates, setCheckingForUpdates] = useState(false);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const loadSchedule = useCallback(async () => {
+		if (actorSchoolId == null) {
+			setSchedule(null);
+			setLoading(false);
+			setCheckingForUpdates(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		setLoading(true);
 		setCheckingForUpdates(true);
 		try {
-			const schoolYearContext = await resolveActiveSchoolYearContext({ forceRefresh: true, verifyUpstream: true, allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, forceRefresh: true, verifyUpstream: true, allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			let resolvedFacultyId: number;
 			try {
-				const { data } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', { params: { schoolId: DEFAULT_SCHOOL_ID } });
+				const { data } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', { params: { schoolId: scopedSchoolId } });
 				if (!data?.faculty?.id) {
 					setError('Your account is not linked to a teacher record in this school.');
 					setSchedule(null);
 					return;
 				}
 				resolvedFacultyId = data.faculty.id;
-				cacheFacultyIdentity(DEFAULT_SCHOOL_ID, resolvedFacultyId);
+				cacheFacultyIdentity(scopedSchoolId, resolvedFacultyId);
 			} catch (facultyError) {
-				const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
+				const cachedIdentity = readCachedFacultyIdentity(scopedSchoolId);
 				if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 					resolvedFacultyId = cachedIdentity.facultyId;
 					setSchoolYearNotice((current) => current ?? 'Working from your saved account while offline.');
@@ -136,14 +144,14 @@ export default function MySchedule() {
 			}
 
 			const requestDate = resolvePublishedScheduleRequestDate();
-			const cachePrefix = buildFacultyCacheKey('published-schedule', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId, 'date', requestDate);
+			const cachePrefix = buildFacultyCacheKey('published-schedule', scopedSchoolId, schoolYearId, resolvedFacultyId, 'date', requestDate);
 			const cachedSnapshot = readLatestFacultySnapshotByPrefix<PublishedScheduleSnapshot>(cachePrefix, {
 				maxAgeMs: SCHEDULE_CACHE_MAX_AGE_MS,
 				validate: isPublishedScheduleSnapshot,
 			});
 
 			try {
-				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${DEFAULT_SCHOOL_ID}/school-years/${schoolYearId}/schedules/published/faculty/${resolvedFacultyId}`, {
+				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${scopedSchoolId}/school-years/${schoolYearId}/schedules/published/faculty/${resolvedFacultyId}`, {
 					params: { date: requestDate },
 				});
 				setSchedule(data);
@@ -192,7 +200,7 @@ export default function MySchedule() {
 			setLoading(false);
 			setCheckingForUpdates(false);
 		}
-	}, []);
+	}, [actorSchoolId]);
 
 	useEffect(() => {
 		void loadSchedule();

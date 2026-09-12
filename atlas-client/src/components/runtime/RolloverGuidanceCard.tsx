@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Archive, CheckCircle2, Loader2, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { subscribeAtlasTokenEpoch } from '@/lib/auth';
+
 import {
 	applyArchiveAndSync,
 	applyRolloverSync,
@@ -79,12 +81,28 @@ export function ActorScopedRolloverGuidanceCard(props: ActorScopedRolloverGuidan
 
 	useEffect(() => {
 		let cancelled = false;
-		void resolveActorSchoolId().then((id) => {
-			if (cancelled) return;
+		let sequence = 0;
+
+		const resolveNow = async () => {
+			const requestSequence = ++sequence;
+			const id = await resolveActorSchoolId();
+			if (cancelled || requestSequence !== sequence) return;
 			setActorSchoolId(isResolvedActorSchoolId(id) ? id : null);
+		};
+
+		// ACTOR-SCOPE-C01: a token mutation synchronously drops the previous
+		// actor school (unmounting the scoped card and cancelling its in-flight
+		// rollover/term/archive reads) before the new session re-resolves.
+		const unsubscribe = subscribeAtlasTokenEpoch(() => {
+			sequence += 1;
+			setActorSchoolId(null);
+			void resolveNow();
 		});
+
+		void resolveNow();
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
 	}, []);
 

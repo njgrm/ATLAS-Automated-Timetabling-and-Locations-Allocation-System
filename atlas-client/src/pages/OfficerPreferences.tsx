@@ -21,6 +21,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import type {
 	OfficerSummaryCounts,
 	OfficerSummaryFacultyWithReview,
@@ -114,18 +115,30 @@ export default function OfficerPreferences() {
 	// SSE: live new-submission counter
 	const [newSubmissions, setNewSubmissions] = useState(0);
 	const sseRef = useRef<EventSource | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	/* ── Resolve school year ── */
 	useEffect(() => {
-		resolveActiveSchoolYearContext({ allowStaleOnError: true })
+		if (actorSchoolId == null) {
+			setActiveSchoolYearId(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
+		resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true })
 			.then((context) => {
+				if (cancelled) return;
 				setActiveSchoolYearId(context.activeSchoolYearId);
 			})
 			.catch(() => {
+				if (cancelled) return;
 				setError('Failed to resolve active school year context.');
 				setLoading(false);
 			});
-	}, []);
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId]);
 
 	/* ── Load summary ── */
 	const loadSummary = useCallback(async () => {

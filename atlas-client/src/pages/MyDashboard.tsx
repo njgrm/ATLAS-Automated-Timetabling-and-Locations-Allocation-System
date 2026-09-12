@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { getActionableApiError } from '@/lib/actionable-api-error';
 import type { FacultyRoomPreferenceEntry } from '@/types';
@@ -16,7 +17,6 @@ import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader
 import MobileDashboardLayout from '@/components/faculty-dashboard/MobileDashboardLayout';
 import DesktopDashboardLayout from '@/components/faculty-dashboard/DesktopDashboardLayout';
 
-const DEFAULT_SCHOOL_ID = 1;
 const DASHBOARD_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function dashboardCachePart(value: string | number | null | undefined): string {
@@ -98,13 +98,20 @@ export default function MyDashboard() {
 	const [cachedDashboardAt, setCachedDashboardAt] = useState<string | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const loadDashboard = async () => {
+		if (actorSchoolId == null) {
+			setDashboard(null);
+			setLoading(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		setLoading(true);
 		try {
-			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearContext = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
-			const cachePrefix = buildFacultyCacheKey('dashboard', DEFAULT_SCHOOL_ID, schoolYearId);
+			const cachePrefix = buildFacultyCacheKey('dashboard', scopedSchoolId, schoolYearId);
 			const cachedSnapshot = readLatestFacultySnapshotByPrefix<MyDashboardResponse>(cachePrefix, {
 				maxAgeMs: DASHBOARD_CACHE_MAX_AGE_MS,
 				validate: (value): value is MyDashboardResponse => {
@@ -116,7 +123,7 @@ export default function MyDashboard() {
 			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			try {
-				const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
+				const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${scopedSchoolId}/${schoolYearId}/dashboard`);
 				setDashboard(data);
 				setUsingCachedDashboard(false);
 				setCachedDashboardAt(null);
@@ -142,8 +149,13 @@ export default function MyDashboard() {
 	};
 
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			setDashboard(null);
+			setLoading(false);
+			return;
+		}
 		void loadDashboard();
-	}, []);
+	}, [actorSchoolId]);
 
 	useEffect(() => {
 		const updateOnline = () => setOnline(navigator.onLine);

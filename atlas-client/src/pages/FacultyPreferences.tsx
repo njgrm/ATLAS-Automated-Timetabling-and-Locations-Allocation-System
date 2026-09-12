@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { getActionableApiError } from '@/lib/actionable-api-error';
@@ -27,7 +28,6 @@ import DesktopPreferencesLayout from '@/components/faculty-preferences/DesktopPr
 
 /* ─── Constants ─── */
 
-const DEFAULT_SCHOOL_ID = 1;
 const PREFERENCE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /* ─── Well-being ─── */
@@ -81,6 +81,7 @@ export default function FacultyPreferences() {
 	const [notes, setNotes] = useState('');
 	const [version, setVersion] = useState(1);
 	const [wellbeing, setWellbeing] = useState<WellbeingState>(DEFAULT_WELLBEING);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const applyPreferenceSnapshot = useCallback((snapshot: FacultyPreferenceSnapshot) => {
 		setPreference(snapshot.preference);
@@ -93,15 +94,23 @@ export default function FacultyPreferences() {
 
 	/* ── Resolve session context ── */
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			setPreference(null);
+			setFacultyId(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
 		(async () => {
 			try {
-				const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+				const schoolYearContext = await resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true, allowEnrollProFallback: false });
+				if (cancelled) return;
 				setActiveSchoolYearId(schoolYearContext.activeSchoolYearId);
 				setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 				try {
 					const { data: facultyMe } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {
-						params: { schoolId: DEFAULT_SCHOOL_ID },
+						params: { schoolId: actorSchoolId },
 					});
 					if (!facultyMe?.faculty?.id) {
 						setError('Your account is not linked to a teacher record in this school. Contact your scheduling officer.');
@@ -109,9 +118,9 @@ export default function FacultyPreferences() {
 						return;
 					}
 					setFacultyId(facultyMe.faculty.id);
-					cacheFacultyIdentity(DEFAULT_SCHOOL_ID, facultyMe.faculty.id);
+					cacheFacultyIdentity(actorSchoolId, facultyMe.faculty.id);
 				} catch (facultyError) {
-					const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
+					const cachedIdentity = readCachedFacultyIdentity(actorSchoolId);
 					if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 						setFacultyId(cachedIdentity.facultyId);
 						setSchoolYearNotice((current) => current ?? 'Working from your saved account while offline.');
@@ -121,17 +130,22 @@ export default function FacultyPreferences() {
 					throw facultyError;
 				}
 			} catch {
+				if (cancelled) return;
 				setError("We couldn't load your account details. Please tap Retry.");
 				setLoading(false);
 			}
 		})();
-	}, []);
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId]);
 
 	/* ── Load existing preference ── */
 	const loadPreference = useCallback(async () => {
-		if (!activeSchoolYearId || !facultyId) return;
+		if (!activeSchoolYearId || !facultyId || actorSchoolId == null) return;
+		const scopedSchoolId = actorSchoolId;
 		setLoading(true);
-		const cacheKey = buildFacultyCacheKey('preferences', DEFAULT_SCHOOL_ID, activeSchoolYearId, facultyId);
+		const cacheKey = buildFacultyCacheKey('preferences', scopedSchoolId, activeSchoolYearId, facultyId);
 		const cachedSnapshot = readFacultySnapshot<FacultyPreferenceSnapshot>(cacheKey, {
 			maxAgeMs: PREFERENCE_CACHE_MAX_AGE_MS,
 			validate: (value): value is FacultyPreferenceSnapshot => {
@@ -142,7 +156,7 @@ export default function FacultyPreferences() {
 		});
 		try {
 			const { data } = await atlasApi.get<{ preference: FacultyPreference | null }>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/faculty/${facultyId}`,
+				`/preferences/${scopedSchoolId}/${activeSchoolYearId}/faculty/${facultyId}`,
 			);
 			if (data.preference) {
 				const pref = data.preference;
@@ -189,7 +203,7 @@ export default function FacultyPreferences() {
 		} finally {
 			setLoading(false);
 		}
-	}, [activeSchoolYearId, applyPreferenceSnapshot, facultyId]);
+	}, [activeSchoolYearId, applyPreferenceSnapshot, facultyId, actorSchoolId]);
 
 	useEffect(() => {
 		if (activeSchoolYearId && facultyId) loadPreference();
@@ -213,10 +227,10 @@ export default function FacultyPreferences() {
 	}, []);
 
 	useEffect(() => {
-		if (!activeSchoolYearId || !facultyId) return;
+		if (!activeSchoolYearId || !facultyId || actorSchoolId == null) return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
-		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events`;
+		const url = `/api/v1/preferences/${actorSchoolId}/${activeSchoolYearId}/events`;
 		const es = new EventSource(url, { withCredentials: true });
 		sseRef.current = es;
 		es.onopen = () => {
@@ -246,7 +260,7 @@ export default function FacultyPreferences() {
 			es.close();
 			sseRef.current = null;
 		};
-	}, [activeSchoolYearId, facultyId, loadPreference]);
+	}, [activeSchoolYearId, facultyId, loadPreference, actorSchoolId]);
 
 	/* ── Build payload ── */
 	function buildPayload() {
@@ -279,11 +293,11 @@ export default function FacultyPreferences() {
 
 	/* ── Save draft ── */
 	const saveDraft = async () => {
-		if (!activeSchoolYearId || !facultyId) return;
+		if (!activeSchoolYearId || !facultyId || actorSchoolId == null) return;
 		setSaving(true);
 		try {
 			const { data } = await atlasApi.put<{ preference: FacultyPreference }>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/faculty/${facultyId}/draft`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/faculty/${facultyId}/draft`,
 				buildPayload(),
 			);
 			setPreference(data.preference);
@@ -298,11 +312,11 @@ export default function FacultyPreferences() {
 
 	/* ── Submit ── */
 	const submitPreference = async () => {
-		if (!activeSchoolYearId || !facultyId) return;
+		if (!activeSchoolYearId || !facultyId || actorSchoolId == null) return;
 		setSubmitting(true);
 		try {
 			const { data } = await atlasApi.post<{ preference: FacultyPreference }>(
-				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/faculty/${facultyId}/submit`,
+				`/preferences/${actorSchoolId}/${activeSchoolYearId}/faculty/${facultyId}/submit`,
 				buildPayload(),
 			);
 			setPreference(data.preference);

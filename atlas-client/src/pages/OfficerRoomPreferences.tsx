@@ -14,6 +14,7 @@ import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -62,6 +63,7 @@ export default function OfficerRoomPreferences() {
 	const refreshTimeoutRef = useRef<number | null>(null);
 	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const loadSummary = useCallback(async (schoolYearId: number, nextStatus: 'ALL' | RoomPreferenceStatus, nextDecision: 'ALL' | RoomPreferenceDecisionStatus) => {
 		setLoading(true);
@@ -84,17 +86,28 @@ export default function OfficerRoomPreferences() {
 	}, []);
 
 	useEffect(() => {
+		if (actorSchoolId == null) {
+			setActiveSchoolYearId(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
 		(async () => {
 			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const context = await resolveActiveSchoolYearContext({ schoolId: actorSchoolId, allowStaleOnError: true });
+				if (cancelled) return;
 				setActiveSchoolYearId(context.activeSchoolYearId);
 				await loadSummary(context.activeSchoolYearId, statusFilter, decisionFilter);
 			} catch {
+				if (cancelled) return;
 				setError('Failed to resolve active school year context.');
 				setLoading(false);
 			}
 		})();
-	}, [decisionFilter, loadSummary, statusFilter]);
+		return () => {
+			cancelled = true;
+		};
+	}, [actorSchoolId, decisionFilter, loadSummary, statusFilter]);
 
 	useEffect(() => {
 		if (!activeSchoolYearId) return;

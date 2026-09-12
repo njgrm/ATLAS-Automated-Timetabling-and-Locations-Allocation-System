@@ -22,6 +22,7 @@ import {
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
 	getCachedSectionHomeRooms,
 	getCachedSectionSummary,
@@ -174,8 +175,16 @@ export default function Sections() {
 
 	// Drilldown
 	const [detailTarget, setDetailTarget] = useState<SectionDetail | null>(null);
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
+		if (actorSchoolId == null) {
+			setState({ status: 'loading' });
+			setSyncError(false);
+			setDataSource('none');
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		const forceRefresh = options?.forceRefresh === true;
 		setState({ status: 'loading' });
 		setSyncError(false);
@@ -184,6 +193,7 @@ export default function Sections() {
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({
+				schoolId: scopedSchoolId,
 				// SWR: return cached school-year immediately; background re-verify when stale.
 				preferCache: !forceRefresh,
 				backgroundRefresh: !forceRefresh,
@@ -295,7 +305,7 @@ export default function Sections() {
 			);
 
 			if (nextSource === 'refreshing') {
-				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
+				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true })
 					.then((promotedContext) => {
 						if (isUpstreamBackedSchoolYearSource(promotedContext.source) && summaryIsLive) {
 							setDataSource('live');
@@ -358,7 +368,7 @@ export default function Sections() {
 				setSyncError(true);
 			}
 		}
-	}, [isOnline]);
+	}, [actorSchoolId, isOnline]);
 
 	const performHomeRoomUpdate = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null, swapTarget?: { sectionId: number, homeRoomId: number | null }) => {
 		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'refreshing') return;

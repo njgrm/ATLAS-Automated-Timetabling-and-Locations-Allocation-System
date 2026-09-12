@@ -46,6 +46,7 @@ import {
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import {
 	getFacultyLoadSortRank,
 	type SubjectSectionOwnershipIndexEntry,
@@ -190,8 +191,19 @@ export default function Faculty() {
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [attentionFilter, setAttentionFilter] = useState<TeacherAttentionFilter>('all');
+	const { actorSchoolId } = useActorSchoolScope();
 
 	const fetchFaculty = useCallback(async (options?: { forceRefresh?: boolean }) => {
+		if (actorSchoolId == null) {
+			setFaculty([]);
+			setDataSource('none');
+			setSyncError(false);
+			setError(null);
+			setLoading(false);
+			setRefreshing(false);
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		const forceRefresh = options?.forceRefresh === true;
 		setLoading(true);
 		setRefreshing(true);
@@ -201,6 +213,7 @@ export default function Faculty() {
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({
+				schoolId: scopedSchoolId,
 				// SWR: always return cached school-year immediately if available;
 				// background re-verification happens automatically when stale.
 				preferCache: !forceRefresh,
@@ -286,7 +299,7 @@ export default function Faculty() {
 			} else {
 				setDataSource('refreshing');
 				setCacheNotice('Checking EnrollPro before finalizing teacher roster status.');
-				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
+				void promoteActiveSchoolYearContext({ schoolId: scopedSchoolId, allowEnrollProFallback: false, allowStaleOnError: true })
 					.then((promotedContext) => {
 						if (isUpstreamBackedSchoolYearSource(promotedContext.source)) {
 							setDataSource('live');
@@ -328,7 +341,7 @@ export default function Faculty() {
 			setRefreshing(false);
 			setLoading(false);
 		}
-	}, [assignmentFilter, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
+	}, [actorSchoolId, assignmentFilter, departmentFilter, gradeLevelFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
 
 	useEffect(() => {
 		void fetchFaculty({});

@@ -504,39 +504,57 @@ export async function resolveActorSchoolId(): Promise<number | null> {
 	return null;
 }
 
-export async function fetchAtlasRuntimeContext(schoolId = 1, verifyUpstream = false): Promise<AtlasRuntimeContext> {
+/**
+ * ACTOR-SCOPE-C01 — actor/tenant-sensitive runtime helpers must never default to
+ * school 1. Every scoped fetcher requires an explicit strict positive actor
+ * school; an omitted/malformed value fails loudly instead of silently reading or
+ * mutating the pilot school's data.
+ */
+function requirePositiveSchoolId(schoolId: unknown, operation: string): number {
+	if (typeof schoolId !== 'number' || !Number.isInteger(schoolId) || schoolId <= 0) {
+		throw new Error(`An authenticated actor school is required to ${operation}.`);
+	}
+	return schoolId;
+}
+
+export async function fetchAtlasRuntimeContext(schoolId: number, verifyUpstream = false): Promise<AtlasRuntimeContext> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'read the runtime context');
 	const { data } = await atlasApi.get<AtlasRuntimeContext>('/runtime/context', {
-		params: { schoolId, verifyUpstream: verifyUpstream ? 'true' : undefined },
+		params: { schoolId: scopedSchoolId, verifyUpstream: verifyUpstream ? 'true' : undefined },
 	});
 	return data;
 }
 
-export async function fetchRolloverStatus(schoolId = 1, includeCounts = false): Promise<RolloverStatus> {
+export async function fetchRolloverStatus(schoolId: number, includeCounts = false): Promise<RolloverStatus> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'read the rollover status');
 	const { data } = await atlasApi.get<RolloverStatus>('/runtime/rollover-status', {
-		params: { schoolId, includeCounts },
+		params: { schoolId: scopedSchoolId, includeCounts },
 	});
 	return data;
 }
 
-export async function previewRolloverSync(schoolId = 1): Promise<RolloverStatus> {
-	const { data } = await atlasApi.post<RolloverStatus>('/runtime/rollover-sync/preview', { schoolId });
+export async function previewRolloverSync(schoolId: number): Promise<RolloverStatus> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'preview the rollover sync');
+	const { data } = await atlasApi.post<RolloverStatus>('/runtime/rollover-sync/preview', { schoolId: scopedSchoolId });
 	return data;
 }
 
-export async function applyRolloverSync(schoolId = 1, options?: { acknowledgeReconfiguredSectionIds?: number[] }): Promise<RolloverApplyResult> {
+export async function applyRolloverSync(schoolId: number, options?: { acknowledgeReconfiguredSectionIds?: number[] }): Promise<RolloverApplyResult> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'apply the rollover sync');
 	const { data } = await atlasApi.post<RolloverApplyResult>('/runtime/rollover-sync/apply', {
-		schoolId,
+		schoolId: scopedSchoolId,
 		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
 	});
 	return data;
 }
 
 export async function resetDummyRolloverYear(
-	schoolId = 1,
+	schoolId: number,
 	input?: { confirmReset?: boolean; confirmationText?: string },
 ): Promise<RolloverDummyYearResetResult> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'reset dummy school-year data');
 	const { data } = await atlasApi.post<RolloverDummyYearResetResult>('/runtime/rollover-sync/reset-dummy-year', {
-		schoolId,
+		schoolId: scopedSchoolId,
 		confirmReset: input?.confirmReset ?? false,
 		confirmationText: input?.confirmationText,
 	});
@@ -567,27 +585,30 @@ export interface RecoveryClassifierResult {
 	testDataMarked: boolean;
 }
 
-export async function fetchRecoveryClassification(schoolId = 1): Promise<RecoveryClassifierResult> {
+export async function fetchRecoveryClassification(schoolId: number): Promise<RecoveryClassifierResult> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'read the recovery classification');
 	const { data } = await atlasApi.get<RecoveryClassifierResult>('/runtime/rollover-recovery/classify', {
-		params: { schoolId },
+		params: { schoolId: scopedSchoolId },
 	});
 	return data;
 }
 
-export async function previewTestYearRecovery(schoolId = 1): Promise<RecoveryClassifierResult> {
+export async function previewTestYearRecovery(schoolId: number): Promise<RecoveryClassifierResult> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'preview test-year recovery');
 	const { data } = await atlasApi.get<RecoveryClassifierResult>('/runtime/rollover-recovery/preview', {
-		params: { schoolId },
+		params: { schoolId: scopedSchoolId },
 	});
 	return data;
 }
 
-export async function applyTestYearRecovery(schoolId = 1, input?: {
+export async function applyTestYearRecovery(schoolId: number, input?: {
 	confirmClear?: boolean;
 	confirmationText?: string;
 	acknowledgePublished?: boolean;
 }): Promise<{ preview: RecoveryClassifierResult; cleared: boolean; sync: unknown }> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'apply test-year recovery');
 	const { data } = await atlasApi.post('/runtime/rollover-recovery/apply', {
-		schoolId,
+		schoolId: scopedSchoolId,
 		confirmClear: input?.confirmClear ?? false,
 		confirmationText: input?.confirmationText,
 		acknowledgePublished: input?.acknowledgePublished ?? false,
@@ -640,19 +661,21 @@ export interface ArchiveAndSyncApplyResult {
 	sync: RolloverApplyResult;
 }
 
-export async function previewArchiveAndSync(schoolId = 1): Promise<ArchiveAndSyncPreviewResult> {
+export async function previewArchiveAndSync(schoolId: number): Promise<ArchiveAndSyncPreviewResult> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'preview the archive-and-sync');
 	const { data } = await atlasApi.post<ArchiveAndSyncPreviewResult>('/runtime/rollover-archive/preview', {
-		schoolId,
+		schoolId: scopedSchoolId,
 	});
 	return data;
 }
 
 export async function applyArchiveAndSync(
-	schoolId = 1,
+	schoolId: number,
 	options?: { reason?: string; acknowledgeReconfiguredSectionIds?: number[] },
 ): Promise<ArchiveAndSyncApplyResult> {
+	const scopedSchoolId = requirePositiveSchoolId(schoolId, 'apply the archive-and-sync');
 	const { data } = await atlasApi.post<ArchiveAndSyncApplyResult>('/runtime/rollover-archive/apply', {
-		schoolId,
+		schoolId: scopedSchoolId,
 		reason: options?.reason,
 		acknowledgeReconfiguredSectionIds: options?.acknowledgeReconfiguredSectionIds,
 	});

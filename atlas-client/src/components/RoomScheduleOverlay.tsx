@@ -19,6 +19,7 @@ import type { RoomScheduleView, RoomScheduleEntry } from '@/types';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { useActorSchoolScope } from '@/lib/actor-scope-session';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
@@ -32,8 +33,6 @@ const DAY_SHORT: Record<string, string> = {
 	THURSDAY: 'Thu',
 	FRIDAY: 'Fri',
 };
-
-const DEFAULT_SCHOOL_ID = 1;
 
 function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -101,6 +100,7 @@ export function RoomScheduleOverlay({
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, { name: string; gradeLevel: number | null }>>(new Map());
+	const { actorSchoolId } = useActorSchoolScope();
 
 	// Escape key handler
 	const handleKeyDown = useCallback(
@@ -119,23 +119,30 @@ export function RoomScheduleOverlay({
 
 	useEffect(() => {
 		if (!open || !schedule) return;
+		if (actorSchoolId == null) {
+			setSubjectMap(new Map());
+			setFacultyMap(new Map());
+			setSectionMap(new Map());
+			return;
+		}
+		const scopedSchoolId = actorSchoolId;
 		let cancelled = false;
 
 		(async () => {
-			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, preferCache: true, backgroundRefresh: true }).catch(() => ({ activeSchoolYearId: null }));
+			const context = await resolveActiveSchoolYearContext({ schoolId: scopedSchoolId, allowStaleOnError: true, preferCache: true, backgroundRefresh: true }).catch(() => ({ activeSchoolYearId: null }));
 			const activeSchoolYearId = context.activeSchoolYearId;
 
 			const [subjectsRes, facultyRes, sectionsRes] = await Promise.all([
 				loadWithFallback(() => atlasApi.get<{ subjects: Array<{ id: number; code?: string | null; displayCode?: string | null; name: string }> }>(
-					`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`,
+					`/subjects?schoolId=${scopedSchoolId}`,
 				), { subjects: [] }),
 				loadWithFallback(() => atlasApi.get<{
 					faculty: Array<{ id: number; firstName: string; lastName: string }>;
-				}>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`), { faculty: [] }),
+				}>(`/faculty?schoolId=${scopedSchoolId}`), { faculty: [] }),
 				activeSchoolYearId
 					? loadWithFallback(() => fetchVersionedApi<{
 							sections: Array<{ id: number; name: string; gradeLevelName?: string | null }>;
-					  }>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`), { sections: [] })
+					  }>(`/sections/summary/${activeSchoolYearId}?schoolId=${scopedSchoolId}`), { sections: [] })
 					: Promise.resolve({ data: { sections: [] } }),
 			]);
 
@@ -168,7 +175,7 @@ export function RoomScheduleOverlay({
 		return () => {
 			cancelled = true;
 		};
-	}, [open, schedule]);
+	}, [open, schedule, actorSchoolId]);
 
 	const displayMaps = useMemo(
 		() => ({
