@@ -175,8 +175,10 @@ hard blockers before separately approving publication.
    integrated; no wave follow-up remains before the runtime deployment.
 4. W1 deployment evidence is integrated at `ed44d62f`, but the runtime was
    observed down on 2026-09-12 10:15 and its acceptance is incomplete.
-   Authenticated Stage C/D awaits an operator
-   session decision. RR-TERM-CACHE-C01R is integrated at merge `a1256506`: year
+   Authenticated Stage C/D is included in the prepared deploy-as-restore
+   approval boundary, which explicitly authorizes at most one disclosed
+   acceptance login if no reusable session exists. RR-TERM-CACHE-C01R is
+   integrated at merge `a1256506`: year
    alignment and persisted term authority stay separate states, and the narrow
    preview/apply repair contract now has JWT-only actor-school authority, no
    client school-1 default, and a complete in-transaction active-year election.
@@ -202,8 +204,10 @@ hard blockers before separately approving publication.
   action was taken by this cycle (no listeners on 5001/5174). The W1 deployment
   evidence is integrated at `ed44d62f`, but acceptance remains incomplete;
   authenticated acceptance and the canonical generation diagnostic remain
-  blocked on an operator session decision. Carry-forward apply, suggestion
-  apply, generation, and publication remain separately gated. The remaining
+  blocked on the single explicit deploy-as-restore approval, whose exact
+  sentence includes at most one disclosed acceptance login. Carry-forward
+  apply, suggestion apply, generation, and publication remain separately
+  gated. The remaining
   defaulting `parseSchoolId` sites on non-listed runtime mutation routes and the
   `DEFAULT_SCHOOL_ID` backlog pages (MapEditor, MapView, SpecializationMapping,
   PublicPublishedSchedule, coverage.ts, CreatePlaceholderDialog) are
@@ -232,11 +236,11 @@ restart the shared runtime while live browser QA is active.
   verified. The W1 runtime deployment is integrated, but its runtime was
   observed down on 2026-09-12 10:15.
 - No ACTOR-SCOPE-C01 executor or QA return remains; the candidate is integrated
-  at merge `d44f29e0` and its deploy-as-restore packet is prepared. The awaited
-  operator decisions are the NEW explicit HIGH approval sentence for the
-  deploy-as-restore packet and the Stage C/D session decision for the restored
-  live runtime. The old stop-then-start swap packet is superseded and requires
-  no decision.
+  at merge `d44f29e0` and its deploy-as-restore packet is prepared. The only
+  awaited operator decision is the NEW explicit HIGH approval sentence for the
+  deploy-as-restore packet; that same sentence already authorizes at most one
+  disclosed Stage C/D acceptance login if no reusable session exists. The old
+  stop-then-start swap packet is superseded and requires no decision.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
@@ -245,8 +249,8 @@ restart the shared runtime while live browser QA is active.
   down on 2026-09-12 (Tailnet 502; no listeners on 5001/5174); acceptance remains
   incomplete. Next operator decision: the NEW explicit HIGH approval sentence for
   `docs/prompts/actor-scope-deploy-restore-2026-09-12.md` (pinned to
-  `d44f29e0`), then a reusable or authorized officer session for authenticated
-  Stage C/D (a fresh login write is outside current authority). After a
+  `d44f29e0`); the exact sentence includes a reusable session or at most one
+  disclosed officer acceptance login for authenticated Stage C/D. After a
   successful restore, the next bounded runtime step is the separately approved
   term-cache catch-up preview.
 - Observation backlog (non-blocking, no new executor stream authorized): the
