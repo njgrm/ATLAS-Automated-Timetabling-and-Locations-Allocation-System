@@ -628,6 +628,13 @@ For every new stream or correction, the planner shall:
    enable a persistent "Remember me" token, or hand credentials between agents
    merely to avoid the declared login budget unless the packet explicitly
    authorizes that custody mechanism and cleanup.
+   An existing-session-only HIGH packet must also prove that the exact session
+   can survive the whole bounded action. Name the maximum action duration and a
+   safety margin, verify the authenticated actor/school and token expiry before
+   any mutation, and recheck immediately before the irreversible boundary. If
+   expiry is unavailable or the remaining lifetime is shorter than the declared
+   window, stop before mutation or obtain a separately authorized login/split
+   acceptance. A successful request at preflight time alone is not sufficient.
 9. **Size one-shots by cohesion, not duration.** A one-shot may be large when
    all requirements converge on one shared production contract. Split it when
    independent UI, server authority, migration, runtime, or HIGH-action paths
@@ -762,7 +769,12 @@ The planner must independently validate both layers:
    mandatory production wiring or proof is still absent, stop issuing small
    patches: perform a root-cause audit, supersede the prompt with one coherent
    closure packet, and reconsider model/ownership/scope. Never continue an
-   unbounded review-fix loop by inertia.
+   unbounded review-fix loop by inertia. This budget limits remediation churn;
+   it never waives the final independent review required by the risk tier. If
+   the budget is exhausted after a material candidate or HIGH-packet change,
+   return `AUDIT_REQUIRED` or `PLANNER_DECISION_REQUIRED` and do not present an
+   approval sentence until a fresh reviewer validates the final immutable
+   boundary.
 10. **Retain custody of delegated lanes.** While a planner-owned executor, QA,
     or auditor is still running, the planner shall keep the orchestration turn
     open and use bounded waits or state checks until that role returns, needs
@@ -805,6 +817,13 @@ The planner must independently validate both layers:
   operational restart readiness.
   A planner may prepare their reviewed preview or handoff, but cannot execute
   them under ordinary integration authority.
+- Elevation belongs only to the exact machine-level HIGH action that requires
+  it. Ordinary source executors, planners, and QA shall run non-elevated so
+  their worktrees remain accessible to later roles. An elevated executor must
+  use a dedicated HIGH-action worktree and report its filesystem owner. Later
+  roles may use a per-command Git `safe.directory` override for that exact
+  verified path; they must not globally allowlist broad paths or change ACLs,
+  ownership, or repository trust settings unless separately authorized.
 - An `EPHEMERAL_DEPLOYMENT` is a temporary recovery state, not an acceptable
   operational endpoint. After an unexplained runtime loss or any restore that
   launches unmanaged PIDs, the planner must schedule a bounded
@@ -1473,6 +1492,15 @@ documentation reconciliation, the planner may apply that docs-only delta,
 verify its exact diff, and record the final commit without commissioning another
 audit. Any product/test change or material packet-boundary change reopens the
 correction + fresh-QA + fresh-auditor loop.
+
+Independent review is bound to the exact immutable bytes and semantics it saw.
+A planner-authored change to a HIGH target, precondition, authority/session
+budget, rollback, acceptance matrix, stop condition, or approval sentence
+invalidates the prior pre-action verdict even when the edit is documentation
+only or deterministic. The correction-round budget cannot convert that stale
+verdict into approval readiness. After the budget is reached, stop with
+`AUDIT_REQUIRED` and commission one fresh reviewer of the final packet; do not
+create a recursive review of the reviewer.
 
 There is no recursive meta-review. `AUDIT_CLEAR` closes the cycle as `COMPLETE`.
 After `CORRECTION_REQUIRED`, use the same bounded executor correction plus fresh

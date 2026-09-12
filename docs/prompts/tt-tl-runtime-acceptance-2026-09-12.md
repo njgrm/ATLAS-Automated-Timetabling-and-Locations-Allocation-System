@@ -1,6 +1,6 @@
 # TT/TL Runtime Acceptance — 2026-09-12
 
-Status: PREPARED — NOT EXECUTED.
+Status: PREPARED — NOT EXECUTED — FINAL PRE-ACTION AUDIT REQUIRED.
 
 **Amendment R1 (2026-09-12):** The pre-action wave audit returned
 `CORRECTION_REQUIRED` on the original packet (B1: no durable release switch was
@@ -21,9 +21,16 @@ preflight step 5) to pass **before any listener stop, machine-environment
 change, or task change**; if it cannot pass, this packet stops with no
 deployment. R2 also clarifies that health payloads do not expose `releaseSha`.
 Round-2 pre-action re-audit `ses_f6a60dc69ffeLSEf0CUPZUTEwv` verified the R1
-packet mechanics (B1/B2 resolved); it returned only a register-consistency
-finding, remedied by the planner, and per the R2 session-preflight correction
-no third audit loop is required.
+packet mechanics (B1/B2 resolved); it did not review the later R2 boundary.
+
+**Amendment R3 (2026-09-12):** Head-planner validation rejected the R2 claim
+that the audit budget could waive final independent review. It also found that
+R2 proved only point-in-time executor authentication and did not assign the
+same session to the fresh QA role or prove sufficient token lifetime. Before
+HIGH approval may be requested, one fresh pre-action auditor must validate the
+final R3 packet. During execution, the primary planner shall start the fresh
+independent QA/session custodian before the executor, and the exact retained
+browser context shall own all authenticated acceptance rows.
 
 ## Objective
 
@@ -68,13 +75,22 @@ term-cache apply, migration, schema changes, or companion-repository changes.
    interruption.
 4. Record secret-free before signatures. Do not print or commit environment
    contents.
-5. **Authenticated-session preflight (mandatory, before any mutation).** Open
-   the configured persistent Playwright profile and prove that an existing
-   authenticated officer/admin session can access the required school/year
-   read-only routes at the exact origin `https://njgrm.buru-degree.ts.net`.
-   This preflight issues no fresh login and no mutation request.
-   - If the reusable session is valid, proceed with the reviewed R1 cutover and
-     acceptance.
+5. **Authenticated-session custody preflight (mandatory, before any
+   mutation).** The primary planner shall start one fresh independent QA as the
+   session custodian before dispatching the elevated executor. In the configured
+   persistent Playwright profile, QA shall retain the exact tab/context and
+   prove that an existing authenticated officer/admin session can access the
+   required school/year read-only routes at the exact origin
+   `https://njgrm.buru-degree.ts.net`. Decode the JWT expiry without printing or
+   persisting the token and require at least 105 minutes remaining: the action
+   budget is 90 minutes plus a 15-minute safety margin. Recheck actor, school,
+   route access, and remaining lifetime immediately before the planner releases
+   the executor to stop the incumbent. This preflight issues no fresh login and
+   no mutation request.
+   - If the reusable session passes both checks, QA keeps custody of the exact
+     context while the executor performs only the deployment boundary. After
+     target health, the same QA context performs every authenticated acceptance
+     row and then closes the context according to the QA protocol.
    - If it is absent, expired, wrong-school, or otherwise unusable, return
      `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` with **no deployment and no
      runtime/task/environment mutation**. The operator may then authorize one
@@ -155,7 +171,8 @@ supervised rollback artifact.
 
 ## Read-only acceptance
 
-After target health and readiness are 200:
+After target health and readiness are 200, the designated fresh QA/session
+custodian—not the elevated executor—shall perform the authenticated acceptance:
 
 - Assert browser origin is exactly `https://njgrm.buru-degree.ts.net`.
 - Use an existing authenticated session only. Do not perform a fresh login
@@ -182,8 +199,11 @@ After target health and readiness are 200:
 
 ## Evidence and stop conditions
 
-Return `REVIEW_REQUIRED` unless all target health, release identity, browser
-origin, read-only diagnostics, and zero-write checks pass. Report any
+The elevated executor returns `REVIEW_REQUIRED` after deployment evidence. QA
+then returns the mandatory tally and `ACCEPT_READY`, `CORRECTION_REQUIRED`, or
+`EXTERNALLY_BLOCKED`. The cycle cannot close unless all target health, release
+identity, browser origin, read-only diagnostics, and zero-write checks pass.
+Report any
 `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` honestly (it is a pre-mutation
 stop, never a post-deployment downgrade). Do not substitute localhost for
 Tailnet browser evidence.
@@ -208,16 +228,18 @@ docs(runtime): record TT and Teaching Load live acceptance
 
 ## 8. Revised copy-ready approval sentence
 
-> I approve HIGH action TT-TL-RUNTIME-ACCEPTANCE-2026-09-12 (amended R2): from
-> the elevated Administrator executor, first — without any mutation — open the
-> configured persistent Playwright profile and prove at the exact origin
-> `https://njgrm.buru-degree.ts.net` that an existing authenticated
-> officer/admin session can reach the required school/year read-only routes,
-> with no fresh login and no mutation request; if that session is absent,
-> expired, wrong-school, or otherwise unusable, stop before any listener,
-> environment, or task change and return
-> `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` with no deployment; then build the
-> integrated source at `3d916b261d6a2db71b153558ac8c2d151e2fccd0` in the new
+> I approve HIGH action TT-TL-RUNTIME-ACCEPTANCE-2026-09-12 (amended R3): first,
+> without mutation or a fresh login, let the fresh independent QA/session
+> custodian retain the exact persistent Playwright tab/context at
+> `https://njgrm.buru-degree.ts.net`, prove the existing officer/admin actor and
+> school/year access, and verify at least 105 minutes of JWT lifetime remaining
+> both at initial preflight and immediately before listener interruption; if
+> that session is absent, expired, wrong-school, has insufficient or unreadable
+> lifetime, or is otherwise unusable, stop before any listener, environment, or
+> task change and return
+> `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` with no deployment; then let the
+> elevated Administrator executor build the integrated source at
+> `3d916b261d6a2db71b153558ac8c2d151e2fccd0` in the new
 > durable release directory `D:\ATLAS-runtime-supervised-3d916b26-20260912`;
 > stop only the supervisor-owned 5001/5174 processes using the current release
 > environment; set machine-scope
@@ -242,5 +264,7 @@ docs(runtime): record TT and Teaching Load live acceptance
 > readiness 200, retaining `d44f29e0` at
 > `D:\ATLAS-runtime-fallback-d44-20260912` only as a documented non-supervised
 > manual last resort; never stop or modify the port-5175 Vite process or the
-> unrelated `tsx` processes; never display or commit environment contents; and
-> commit exactly one docs-only evidence artifact, returning its commit SHA.
+> unrelated `tsx` processes; never display or commit environment contents; let
+> the same retained QA context perform all authenticated Tailnet acceptance
+> after target health; and commit exactly one docs-only evidence artifact,
+> returning its commit SHA.

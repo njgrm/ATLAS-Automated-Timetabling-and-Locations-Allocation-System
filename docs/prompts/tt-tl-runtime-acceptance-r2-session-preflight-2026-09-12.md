@@ -1,5 +1,10 @@
 # TT/TL runtime acceptance R2 — Session preflight correction
 
+Status: `SUPERSEDED` by
+`docs/prompts/tt-tl-runtime-acceptance-r3-final-audit-2026-09-12.md` and the R3
+amendment in the active packet. Do not use this file to waive final independent
+review or to request HIGH approval.
+
 Role: `PRIMARY_PLANNER`
 
 Apply this correction to the active packet
@@ -52,12 +57,11 @@ Clarify the post-start evidence language:
 
 Do not claim the Tailnet health payload itself contains `releaseSha`.
 
-Update every active occurrence in the register consistently. Run `git
-diff --check`, commit the docs-only correction, and return the amended exact
-approval sentence. Because this is the primary planner's deterministic
-correction after the two-round escalation, no third auditor loop is required;
-the primary planner must independently verify the final packet and register
-before presenting the approval.
+Update every active occurrence in the register consistently and run `git
+diff --check`. A material HIGH-packet change invalidates the preceding audit;
+the correction-round budget never waives final independent review. The final
+packet must receive one fresh pre-action audit before the primary planner may
+present an approval sentence.
 
 Suggested commit:
 
