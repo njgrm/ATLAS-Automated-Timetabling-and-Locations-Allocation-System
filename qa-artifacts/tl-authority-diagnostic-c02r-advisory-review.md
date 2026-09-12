@@ -6,15 +6,15 @@ Correction scope: read-only system-token access for the mounted Teaching Load au
 
 ## Findings
 
-- `GET /api/v1/faculty-assignments/authority-diagnostics` still requires an explicit positive `schoolId` query value and an explicit positive `schoolYearId` when supplied; no school fallback was added.
-- The route permits an unscoped read only when `authenticateWithSystemToken` set `req.user.authSource` to `system`. JWT callers remain actor-school scoped: a JWT without `schoolId` returns `ACTOR_SCHOOL_REQUIRED`, and a cross-school JWT returns `SCHOOL_MISMATCH`.
+- `GET /api/v1/faculty-assignments/authority-diagnostics` still requires an explicit positive `schoolId` query value and an explicit positive `schoolYearId` when supplied; no school fallback was added. Missing and zero `schoolId` both return typed `400 INVALID_PARAM` under the system token.
+- The route permits a trusted system-token cross-school read only when `authenticateWithSystemToken` set `req.user.authSource` to `system`; that global token has no actor-school claim, so the explicit `schoolId` is the request scope. JWT callers remain actor-school scoped: a JWT without `schoolId` returns `ACTOR_SCHOOL_REQUIRED`, and a cross-school JWT returns `SCHOOL_MISMATCH`.
 - The service option is read-only and is not passed by the operator preview or apply routes. `zeroWriteProof` remains `{ preview: true, writes: 0 }` for the system-token diagnostics request.
 - HG exclusion and zero-load faculty diagnostics remain unchanged.
 
 ## Verification
 
 - Hermetic reconciliation suite: 83 passed / 0 failed (database-backed section skipped because the direct command did not inject `DATABASE_URL`).
-- Mounted disposable route test: the new system-token success, unscoped-JWT rejection, cross-school-JWT rejection, and zero-write assertions all passed. The suite then reproduced the existing R5 fixture failure on the first apply (`replayed=true`, `inserted=0`, no `FacultySubject` row, followed by the fixture's null-row read).
+- Mounted disposable route test: the new system-token success, missing/invalid-schoolId rejection, unscoped-JWT rejection, cross-school-JWT rejection, and zero-write assertions all passed. The suite then reproduced the existing R5 fixture failure on the first apply (`replayed=true`, `inserted=0`, no `FacultySubject` row, followed by the fixture's null-row read).
 - The same R5 failure was reproduced on base `8f48a2fe6ea883189221e196c7a3d28ddcb629b8` in a disposable base worktree after adding the candidate's term-contract fixture normalization; the unnormalized base fixture fails earlier with `DERIVED_DEMAND_BLOCKED`.
 - Server `npx tsc --noEmit`: passed.
 - Server production build: passed.
