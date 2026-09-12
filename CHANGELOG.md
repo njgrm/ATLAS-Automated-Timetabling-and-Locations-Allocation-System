@@ -4721,3 +4721,17 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - None while the approved retry is executing; a failed task registration returns the cycle to planner correction.
+
+## [2026-09-12] — Runtime supervisor elevation gate
+
+### Added
+- Recorded the executor's fail-closed elevation check for the approved retry.
+
+### Changed
+- Paused the cycle as `PLANNER_DECISION_REQUIRED`; no candidate, QA pass, or runtime mutation exists for this attempt.
+
+### Decisions Made
+- The retry must run from an elevated Administrator OpenCode/PowerShell process; no security-policy or credential workaround is authorized.
+
+### Open Questions
+- Operator must relaunch the executor environment elevated before the approved packet can be attempted again.
