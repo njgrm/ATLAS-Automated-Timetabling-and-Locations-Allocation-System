@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 import { setLocalToken } from '@/lib/auth';
-import { readFragmentValue, resolveCompanionSsoCallback } from '@/lib/companion-sso-client';
+import {
+	applyCompanionSsoOutcome,
+	readFragmentValue,
+	resolveCompanionSsoCallback,
+} from '@/lib/companion-sso-client';
 import { decodeJwtPayload } from '@/lib/jwt-payload';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -38,24 +42,28 @@ export default function SsoCallback() {
 
 		const outcome = resolveCompanionSsoCallback(window.location.hash, window.location.search);
 
-		// Strip the token fragment (and any error query) from the address bar and
-		// browser history BEFORE any storage, request, or navigation happens.
-		stripUrlSecrets(window.location.pathname);
-
-		if (outcome.kind === 'token') {
-			setLocalToken(outcome.token, false);
-			let role: string | null = null;
-			try {
-				role = decodeJwtPayload(outcome.token)?.role ?? null;
-			} catch {
-				role = null;
-			}
-			if (role) window.localStorage.setItem('userRole', role);
-			navigate(role === 'faculty' ? '/my' : '/', { replace: true });
-			return;
-		}
-
-		setError(outcome.message);
+		// STRIP → SET TOKEN → NAVIGATE, enforced inside the shared helper so the
+		// fragment token is removed from the URL and history before it is stored
+		// or any navigation happens.
+		applyCompanionSsoOutcome(
+			outcome,
+			{
+				strip: () => stripUrlSecrets(window.location.pathname),
+				setToken: (token, remember) => setLocalToken(token, remember),
+				navigate: (to, options) => navigate(to, options),
+				onError: (message) => setError(message),
+			},
+			(token) => {
+				let role: string | null = null;
+				try {
+					role = decodeJwtPayload(token)?.role ?? null;
+				} catch {
+					role = null;
+				}
+				if (role) window.localStorage.setItem('userRole', role);
+				return role;
+			},
+		);
 	}, [navigate]);
 
 	return (

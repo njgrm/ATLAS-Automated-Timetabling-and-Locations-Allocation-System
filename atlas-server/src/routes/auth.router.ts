@@ -115,9 +115,20 @@ router.post('/sso/authorize', authenticate, async (req: Request, res: Response, 
 			state: req.body?.state,
 			role: req.user?.role,
 		});
+		// A privileged token must carry a real local account and school. Never
+		// fall back to `userId`/`0`, which would bind the code to a non-account.
+		const accountId = req.user?.accountId;
+		const schoolId = req.user?.schoolId;
+		if (!Number.isInteger(accountId) || (accountId as number) <= 0 || !Number.isInteger(schoolId) || (schoolId as number) <= 0) {
+			res.status(403).json({
+				code: 'COMPANION_SSO_IDENTITY_INCOMPLETE',
+				message: 'The authenticated session is missing a usable account or school.',
+			});
+			return;
+		}
 		const issued = await issueCompanionSsoCode({
-			userId: req.user!.accountId ?? req.user!.userId,
-			schoolId: req.user!.schoolId ?? 0,
+			userId: accountId as number,
+			schoolId: schoolId as number,
 			redirectUri: validated.redirectUri,
 			state: validated.state,
 		});

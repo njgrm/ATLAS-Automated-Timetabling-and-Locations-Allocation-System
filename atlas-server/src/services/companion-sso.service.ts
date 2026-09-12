@@ -185,7 +185,6 @@ export function buildCompanionSsoCallbackUrl(base: string, code: string, state: 
 /* ─── Flow A — outbound exchange payload validation ────────────────────────── */
 
 type CompanionSsoUpstreamIdentity = {
-	subject?: unknown;
 	userId?: unknown;
 	accountName?: unknown;
 	employeeId?: unknown;
@@ -195,6 +194,13 @@ type CompanionSsoUpstreamIdentity = {
 	lastName?: unknown;
 	roles?: unknown;
 };
+
+/**
+ * The EnrollPro roles that may open an ATLAS companion SSO session. Anything
+ * outside this set (MRF, LEARNER, GUEST, UNKNOWN, …) is denied before any
+ * account lookup or write.
+ */
+const UPSTREAM_ALLOWED_ROLES = new Set(['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'CLASS_ADVISER', 'TEACHER']);
 
 type CompanionSsoUpstreamResponse = {
 	success?: unknown;
@@ -253,13 +259,15 @@ export function validateCompanionSsoIdentity(payload: CompanionSsoUpstreamRespon
 		throw new CompanionSsoError('COMPANION_SSO_IDENTITY_INCOMPLETE');
 	}
 	const employeeId = normalizeEmployeeId(identity.employeeId);
-	// EnrollPro may expose the local account name either explicitly or as its own
-	// `subject`. Never fabricate one: absent stays absent.
-	const upstreamAccountName = normalizeAccountName(identity.accountName) ?? normalizeAccountName(identity.subject as string | undefined);
-	const roles = normalizeAllowedRoles(identity.roles);
+	// The local account name comes ONLY from the explicit `identity.accountName`
+	// field. The EnrollPro `subject` is never used as a mapping key (it is
+	// EnrollPro's own identifier, not an ATLAS account name).
+	const upstreamAccountName = normalizeAccountName(identity.accountName);
 	if (!employeeId && !upstreamAccountName) {
 		throw new CompanionSsoError('COMPANION_SSO_IDENTITY_INCOMPLETE');
 	}
+	// Enforce the allowed EnrollPro role set BEFORE any account lookup or write.
+	const roles = normalizeAllowedRoles(identity.roles).filter((role) => UPSTREAM_ALLOWED_ROLES.has(role));
 	if (roles.length === 0) {
 		throw new CompanionSsoError('COMPANION_SSO_ROLE_DENIED');
 	}
@@ -583,6 +591,13 @@ export async function issueCompanionSsoCode(params: {
 	const code = generateCompanionSsoCode();
 	const codeHash = hashCompanionSsoCode(code);
 
+	// Build and validate the callback URL BEFORE persisting anything, so a
+	// misconfigured/invalid callback can never leave an orphan code row.
+	const callbackUrl = buildCompanionSsoCallbackUrl(params.redirectUri, code, params.state);
+	if (!callbackUrl) {
+		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The EnrollPro reverse callback is not a valid absolute URL.');
+	}
+
 	await prisma.companionSsoCode.create({
 		data: {
 			codeHash,
@@ -594,10 +609,6 @@ export async function issueCompanionSsoCode(params: {
 		},
 	});
 
-	const callbackUrl = buildCompanionSsoCallbackUrl(params.redirectUri, code, params.state);
-	if (!callbackUrl) {
-		throw new CompanionSsoError('COMPANION_SSO_NOT_CONFIGURED', 'The EnrollPro reverse callback is not a valid absolute URL.');
-	}
 	return { code, callbackUrl, expiresAt };
 }
 

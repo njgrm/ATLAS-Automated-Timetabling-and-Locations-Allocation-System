@@ -104,11 +104,39 @@ Deferred:
 ## Known risks
 
 - NON_BLOCKING — The genuine ambiguous *multi-match* account case cannot be materialized because `atlas_auth_accounts` enforces `UNIQUE(employee_id)` and `UNIQUE(account_name)`. The deterministic single-match guard (`candidates.size !== 1`) rejects both zero and multiple matches and is exercised through the zero-match path; multi-row ambiguity is additionally constrained at the DB layer.
-- NON_BLOCKING — Client page navigation effects are covered through the pure decision helpers plus rendered initial-state output; there is no DOM/jsdom harness in the repo and no live browser evidence was produced (live/browser execution is out of scope for this packet).
+- NON_BLOCKING — Client page behavior is covered by the pure decision helpers, the executable `applyCompanionSsoOutcome` ordering harness (correction F2), and rendered initial-state output. There is still no DOM/jsdom harness in the repo and no live browser evidence was produced (live/browser execution is out of scope for this packet).
 - NON_BLOCKING — Flow A/B runtime environment variables (`ENROLLPRO_BASE_URL`, secrets, `ENROLLPRO_SSO_CALLBACK_URL`, `VITE_ENROLLPRO_SSO_START_URL`) are documented but not configured here; live activation is a separate HIGH action.
 - NON_BLOCKING — Isolated startup used `ROLLOVER_AUTO_SYNC_ENABLED=false`; the production default remains unchanged.
 - BLOCKING — none.
 
+## Correction round 1 (QA `CORRECTION_REQUIRED`, mandatory 21/19/1/1)
+
+Additive commits only; base unchanged. QA finding → fix → verification:
+
+| QA finding | Fix (production path) | Verification | Status |
+|---|---|---|---|
+| F1 (BLOCKING) — upstream EnrollPro allowed-role set not enforced; validated roles unused | `validateCompanionSsoIdentity` now intersects normalized roles with `{SYSTEM_ADMIN, HEAD_REGISTRAR, CLASS_ADVISER, TEACHER}` and throws `COMPANION_SSO_ROLE_DENIED` before any account lookup/write; only allowed roles flow onward | Server suite proofs 12 (denied: MRF/LEARNER/GUEST/UNKNOWN + empty → `ROLE_DENIED`, zero session audit, no `lastLoginAt`, valid local account) and 13 (each allowed role alone accepted, 4 sessions) | PASS |
+| F2 — callback strip-before-navigation had no executable harness | Extracted `applyCompanionSsoOutcome(outcome, effects, resolveRole)` executing STRIP → SET TOKEN → NAVIGATE; `SsoCallback.tsx` calls it with real `history.replaceState` strip, `setLocalToken`, `navigate` | Client suite: token-outcome call order asserted `['strip','setToken:…:false','resolveRole','navigate:/my:true']`; error-outcome asserts strip first, `onError` only, no `setToken`/`navigate` | PASS |
+| F3.1 — `identity.subject` used as an accountName fallback | Mapping key is now explicit `identity.accountName` only; `subject` removed from the upstream identity type | Server proof 3 zero-match case converted to `accountName`; suite still 18/18 | PASS |
+| F3.2 — code row inserted before callback URL validation | `issueCompanionSsoCode` builds/validates `callbackUrl` before `companionSsoCode.create` | Server proof 14: invalid configured callback → 503 `COMPANION_SSO_NOT_CONFIGURED`, zero code rows | PASS |
+| F3.3 — authorize defaulted `accountId ?? userId` / `schoolId ?? 0` | Authorize handler rejects a privileged JWT without a positive integer `accountId`/`schoolId` with typed 403 before issuing a code | Server proof 15: missing accountId / missing schoolId / schoolId=0 → 403 zero rows; valid local JWT → 200, one row | PASS |
+
+Correction reruns (all green):
+- Server mounted suite `npx tsx --test src/__tests__/companion-sso-http.test.ts` → **18 tests, 18 pass, 0 fail** (14 + 4 new).
+- Client suite `npx tsx --test src/lib/__tests__/companion-sso-client.test.ts` → **14 tests, 14 pass, 0 fail** (12 + 2 new).
+- Server `tsc --noEmit` exit 0; client `tsc --noEmit` exit 0; server `npm run build` exit 0; client `npm run build` exit 0.
+- Isolated built-server startup `PORT=5312`, `ROLLOVER_AUTO_SYNC_ENABLED=false`, recreated disposable DB → `GET /health` **200**; process stopped; port 5312 released. 5001/5174 untouched.
+- `git diff --check` → exit 0.
+- Disposable DB `atlas_companion_sso_c01_20260913` recreated (3 migrations) for the reruns; post-run fixture residue verified 0 and the DB **dropped** again (zero residue).
+
+Correction delta paths (modified, no new files):
+- `atlas-server/src/services/companion-sso.service.ts`
+- `atlas-server/src/routes/auth.router.ts`
+- `atlas-server/src/__tests__/companion-sso-http.test.ts`
+- `atlas-client/src/lib/companion-sso-client.ts`
+- `atlas-client/src/pages/SsoCallback.tsx`
+- `atlas-client/src/lib/__tests__/companion-sso-client.test.ts`
+
 ## Return
 
-`REVIEW_REQUIRED` — frozen range `a284d775...3e0103a3` (product) plus this handoff commit. Do not merge/rebase/push/self-accept.
+`REVIEW_REQUIRED` — product commit `3e0103a3` plus the correction commits and this handoff commit; base `a284d775` unchanged. Do not merge/rebase/push/self-accept.

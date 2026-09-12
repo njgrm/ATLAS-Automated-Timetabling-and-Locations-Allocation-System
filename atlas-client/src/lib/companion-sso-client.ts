@@ -45,6 +45,53 @@ export function resolveCompanionSsoCallback(hash: string, search: string): Compa
 	};
 }
 
+/**
+ * The effects the callback page must apply, injected so the ordering is
+ * executable and testable without a DOM.
+ */
+export type CompanionSsoEffects = {
+	/** Remove the token fragment / error query from the URL and history. */
+	strip: () => void;
+	/** Persist the ATLAS session token. */
+	setToken: (token: string, remember: boolean) => void;
+	/** Navigate to the role-based landing route. */
+	navigate: (to: string, options: { replace: boolean }) => void;
+	/** Surface a plain, recoverable error message. */
+	onError: (message: string) => void;
+};
+
+/**
+ * Apply a callback outcome with a HARD ordering guarantee:
+ *   STRIP → SET TOKEN → NAVIGATE
+ * The URL is always stripped first so the fragment token is removed from the
+ * address bar and history BEFORE it is persisted or any navigation happens. For
+ * an error outcome the URL is still stripped first, then the error is surfaced
+ * and no token is set and no navigation occurs.
+ *
+ * `resolveRole` is invoked after the token is set and before navigation so the
+ * role-based landing decision sees the just-stored token.
+ */
+export function applyCompanionSsoOutcome(
+	outcome: CompanionSsoCallbackOutcome,
+	effects: CompanionSsoEffects,
+	resolveRole: (token: string) => string | null = () => null,
+): void {
+	// 1. STRIP first, unconditionally.
+	effects.strip();
+
+	if (outcome.kind === 'error') {
+		effects.onError(outcome.message);
+		return;
+	}
+
+	// 2. SET TOKEN.
+	effects.setToken(outcome.token, false);
+
+	// 3. NAVIGATE by role.
+	const role = resolveRole(outcome.token);
+	effects.navigate(role === 'faculty' ? '/my' : '/', { replace: true });
+}
+
 /* ─── /auth/enrollpro/authorize resume + request shaping ───────────────────── */
 
 /** Build the login URL that resumes the full authorize request after sign-in. */

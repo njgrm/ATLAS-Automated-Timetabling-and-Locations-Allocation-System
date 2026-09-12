@@ -310,7 +310,7 @@ test('COMPANION-SSO proof 3: unknown, ambiguous, inactive, disallowed-role, and 
 	// guard (`candidates.size !== 1`) rejects both zero and multiple matches and
 	// is exercised here through the zero-match path.
 	await createOfficerAccount({ employeeId: null, accountName: `present.${Math.random().toString(36).slice(2, 8)}` });
-	await withUpstream(() => ({ status: 200, payload: successPayload({ identity: { employeeId: undefined, roles: ['SYSTEM_ADMIN'], subject: 'no.such.account.name' } }) }), async () => {
+	await withUpstream(() => ({ status: 200, payload: successPayload({ identity: { employeeId: undefined, accountName: 'no.such.account.name', roles: ['SYSTEM_ADMIN'] } }) }), async () => {
 		const response = await fetch(`${baseOrigin}/api/v1/auth/enrollpro/callback?code=${'F'.repeat(43)}`, { redirect: 'manual' });
 		assert.match(response.headers.get('location') ?? '', /ssoError=COMPANION_SSO_IDENTITY_INCOMPLETE/);
 	});
@@ -700,4 +700,99 @@ test('COMPANION-SSO proof 11: existing POST /auth/login and GET /auth/me behavio
 	assert.equal(meBody.user.role, 'SYSTEM_ADMIN');
 	assert.equal(meBody.user.accountId, account.id);
 	assert.equal(meBody.user.userId, account.id);
+});
+
+/* ─── Correction F1: upstream EnrollPro role set enforced ──────────────────── */
+
+test('COMPANION-SSO proof 12: upstream disallowed roles are denied with zero writes even for a valid local account', async () => {
+	await resetSchoolState();
+	await createActiveMirror();
+	const employeeId = uniqueEmployeeId();
+	const account = await createOfficerAccount({ employeeId });
+
+	const deniedRoleSets: string[][] = [['MRF'], ['LEARNER'], ['GUEST'], ['UNKNOWN'], ['MRF', 'LEARNER', 'GUEST'], []];
+	const codeLetters = ['O', 'P', 'Q', 'R', 'S', 'T'];
+	for (let index = 0; index < deniedRoleSets.length; index += 1) {
+		const roles = deniedRoleSets[index];
+		await withUpstream(() => ({ status: 200, payload: successPayload({ identity: { employeeId, roles } }) }), async () => {
+			const response = await fetch(`${baseOrigin}/api/v1/auth/enrollpro/callback?code=${codeLetters[index].repeat(43)}`, { redirect: 'manual' });
+			assert.match(response.headers.get('location') ?? '', /ssoError=COMPANION_SSO_ROLE_DENIED/, `roles ${JSON.stringify(roles)} must be denied`);
+		});
+	}
+
+	assert.equal(await sessionAuditCount(), 0, 'no denied upstream role may create a session audit');
+	const refreshed = await prisma.atlasAuthAccount.findUnique({ where: { id: account.id }, select: { lastLoginAt: true } });
+	assert.equal(refreshed?.lastLoginAt, null, 'no denied upstream role may update lastLoginAt');
+});
+
+test('COMPANION-SSO proof 13: each allowed upstream role alone is accepted for a valid local account', async () => {
+	await resetSchoolState();
+	await createActiveMirror();
+	const allowedRoles = ['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'CLASS_ADVISER', 'TEACHER'];
+	const codeLetters = ['U', 'V', 'W', 'X'];
+	for (let index = 0; index < allowedRoles.length; index += 1) {
+		const employeeId = uniqueEmployeeId();
+		await createOfficerAccount({ employeeId });
+		await withUpstream(() => ({ status: 200, payload: successPayload({ identity: { employeeId, roles: [allowedRoles[index]] } }) }), async () => {
+			const response = await fetch(`${baseOrigin}/api/v1/auth/enrollpro/callback?code=${codeLetters[index].repeat(43)}`, { redirect: 'manual' });
+			assert.match(response.headers.get('location') ?? '', /^\/auth\/sso\/callback#atlasToken=/, `role ${allowedRoles[index]} must be accepted`);
+		});
+	}
+	assert.equal(await sessionAuditCount(), allowedRoles.length);
+});
+
+/* ─── Correction F3.2: callback validated before code insert ────────────────── */
+
+test('COMPANION-SSO proof 14: an invalid configured reverse callback leaves zero code rows', async () => {
+	await resetSchoolState();
+	const account = await createOfficerAccount();
+	const previous = process.env.ENROLLPRO_SSO_CALLBACK_URL;
+	process.env.ENROLLPRO_SSO_CALLBACK_URL = 'not-an-absolute-url';
+	try {
+		const response = await fetch(`${baseOrigin}/api/v1/auth/sso/authorize`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${privilegedToken(account.id)}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ response_type: 'code', client_id: 'enrollpro', redirect_uri: 'not-an-absolute-url', state: 'opaque' }),
+		});
+		assert.equal(response.status, 503);
+		assert.equal((await response.json() as { code: string }).code, 'COMPANION_SSO_NOT_CONFIGURED');
+		assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 0, 'no orphan code row');
+	} finally {
+		if (previous === undefined) delete process.env.ENROLLPRO_SSO_CALLBACK_URL;
+		else process.env.ENROLLPRO_SSO_CALLBACK_URL = previous;
+	}
+});
+
+/* ─── Correction F3.3: authorize rejects incomplete privileged sessions ────── */
+
+test('COMPANION-SSO proof 15: authorize rejects a privileged JWT without a usable account/school instead of defaulting', async () => {
+	await resetSchoolState();
+	const account = await createOfficerAccount();
+	const validBody = { response_type: 'code', client_id: 'enrollpro', redirect_uri: REDIRECT_URI, state: 'opaque' };
+	const post = (token: string) => fetch(`${baseOrigin}/api/v1/auth/sso/authorize`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify(validBody),
+	});
+
+	const missingAccount = jwt.sign({ userId: 5, role: 'SYSTEM_ADMIN', authSource: 'local', schoolId: SCHOOL_ID }, process.env.JWT_SECRET!, { expiresIn: '5m' });
+	let response = await post(missingAccount);
+	assert.equal(response.status, 403);
+	assert.equal((await response.json() as { code: string }).code, 'COMPANION_SSO_IDENTITY_INCOMPLETE');
+	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 0);
+
+	const missingSchool = jwt.sign({ userId: 6, accountId: 6, role: 'SYSTEM_ADMIN', authSource: 'local' }, process.env.JWT_SECRET!, { expiresIn: '5m' });
+	response = await post(missingSchool);
+	assert.equal(response.status, 403);
+	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 0);
+
+	const zeroSchool = jwt.sign({ userId: 7, accountId: 7, role: 'SYSTEM_ADMIN', authSource: 'local', schoolId: 0 }, process.env.JWT_SECRET!, { expiresIn: '5m' });
+	response = await post(zeroSchool);
+	assert.equal(response.status, 403);
+	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 0);
+
+	// A fully-formed local JWT still issues exactly one row.
+	response = await post(privilegedToken(account.id));
+	assert.equal(response.status, 200);
+	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 1);
 });

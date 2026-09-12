@@ -21,6 +21,7 @@ import {
 	resolveEnrollProReverseStartUrl,
 } from '@/lib/integrated-systems';
 import {
+	applyCompanionSsoOutcome,
 	buildAuthorizeRequestBody,
 	buildEnrollProAuthorizeLoginUrl,
 	readFragmentValue,
@@ -185,4 +186,41 @@ test('resolveSafeReturnUrl rejects protocol-relative, absolute, scheme, backslas
 	]) {
 		assert.equal(resolveSafeReturnUrl(unsafe), null, `${String(unsafe)} must be rejected`);
 	}
+});
+
+/* ─── §5.12 strip-before-navigation executable ordering (correction F2) ────── */
+
+test('applyCompanionSsoOutcome executes STRIP then SET TOKEN then NAVIGATE for a token outcome', () => {
+	const calls: string[] = [];
+	applyCompanionSsoOutcome(
+		{ kind: 'token', token: 'jwt.token.value' },
+		{
+			strip: () => calls.push('strip'),
+			setToken: (token, remember) => calls.push(`setToken:${token}:${remember}`),
+			navigate: (to, options) => calls.push(`navigate:${to}:${options.replace}`),
+			onError: (message) => calls.push(`onError:${message}`),
+		},
+		() => {
+			calls.push('resolveRole');
+			return 'faculty';
+		},
+	);
+	assert.deepEqual(calls, ['strip', 'setToken:jwt.token.value:false', 'resolveRole', 'navigate:/my:true']);
+});
+
+test('applyCompanionSsoOutcome strips first and never sets a token or navigates on an error outcome', () => {
+	const calls: string[] = [];
+	applyCompanionSsoOutcome(
+		{ kind: 'error', message: 'This sign-in link expired or was already used. Start again from EnrollPro.' },
+		{
+			strip: () => calls.push('strip'),
+			setToken: (token) => calls.push(`setToken:${token}`),
+			navigate: (to) => calls.push(`navigate:${to}`),
+			onError: (message) => calls.push(`onError:${message}`),
+		},
+	);
+	assert.equal(calls[0], 'strip', 'the URL must be stripped before anything else');
+	assert.deepEqual(calls, ['strip', 'onError:This sign-in link expired or was already used. Start again from EnrollPro.']);
+	assert.ok(!calls.some((call) => call.startsWith('setToken')), 'no token may be set on an error outcome');
+	assert.ok(!calls.some((call) => call.startsWith('navigate')), 'no navigation may occur on an error outcome');
 });
