@@ -64,12 +64,13 @@ export function pivotDraftToView(
 	});
 
 	// Pull display slots from summary; fall back to derived slots if missing
-	const displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }> = report.summary?.timetableDisplaySlots && report.summary.timetableDisplaySlots.length > 0
+	const displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }> = report.summary?.timetableDisplaySlots && report.summary.timetableDisplaySlots.length > 0
 		? report.summary.timetableDisplaySlots.map((s) => ({
 			startTime: s.startTime,
 			endTime: s.endTime,
 			isSpecialEvent: s.isSpecialEvent,
 			eventName: s.eventName,
+			dayOfWeek: s.dayOfWeek,
 		}))
 		: (() => {
 			const seen = new Map<string, { startTime: string; endTime: string }>();
@@ -110,6 +111,7 @@ export function pivotDraftToView(
 				endTime: slot.endTime,
 				eventLabel,
 				isSpecialEvent: slot.isSpecialEvent,
+				dayOfWeek: slot.dayOfWeek,
 			},
 			cells,
 		};
@@ -147,6 +149,7 @@ export function pivotDraftToView(
 			endTime: s.endTime,
 			eventLabel: s.eventName ?? null,
 			isSpecialEvent: s.isSpecialEvent,
+			dayOfWeek: s.dayOfWeek,
 		})),
 		days: [...DAYS],
 		grid,

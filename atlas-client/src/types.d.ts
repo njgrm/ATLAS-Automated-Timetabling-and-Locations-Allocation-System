@@ -299,6 +299,7 @@ export type RoomScheduleView = {
         endTime: string;
         eventLabel?: string | null;
         isSpecialEvent?: boolean;
+        dayOfWeek?: string;
     }>;
     days: string[];
     grid: Array<{

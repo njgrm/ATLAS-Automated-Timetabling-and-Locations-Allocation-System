@@ -45,9 +45,11 @@ function buildRows(view: RoomScheduleView, rowCount: number) {
 		});
 
 		return {
-			rowLabel: `Block ${rowIndex + 1}`,
+			rowLabel: sourceRow?.timeSlot.eventLabel ?? `Block ${rowIndex + 1}`,
 			startTime: sourceRow?.timeSlot.startTime ?? null,
 			endTime: sourceRow?.timeSlot.endTime ?? null,
+			eventDayOfWeek: sourceRow?.timeSlot.dayOfWeek ?? null,
+			isSpecialEvent: sourceRow?.timeSlot.isSpecialEvent ?? false,
 			cells,
 		};
 	});
@@ -123,10 +125,12 @@ export function OccupancyTemplatePreview({
 														{row.startTime && row.endTime ? `${formatTime(row.startTime)} - ${formatTime(row.endTime)}` : 'Open block'}
 													</div>
 												</th>
-												{row.cells.map((cell) => (
-													<td key={`${row.rowLabel}-${cell.day}`} className={cn('border-b border-border px-1.5 py-1 align-top', cell.conflict ? 'bg-red-50/60' : cell.occupied ? 'bg-primary/5' : 'bg-background')}>
-														{cell.entries.length === 0 ? (
-															<div className="rounded border border-dashed border-border/70 px-2 py-3 text-center text-muted-foreground">Empty</div>
+								{row.cells.map((cell) => (
+									<td key={`${row.rowLabel}-${cell.day}`} className={cn('border-b border-border px-1.5 py-1 align-top', cell.conflict ? 'bg-red-50/60' : cell.occupied ? 'bg-primary/5' : 'bg-background')}>
+										{cell.entries.length === 0 ? (
+											row.isSpecialEvent && (!row.eventDayOfWeek || row.eventDayOfWeek === cell.day)
+												? <div className="rounded border border-dashed border-border/70 px-2 py-3 text-center font-semibold text-muted-foreground">{row.rowLabel}</div>
+												: <div className="rounded border border-dashed border-border/70 px-2 py-3 text-center text-muted-foreground">Empty</div>
 														) : (
 															<div className="space-y-1">
 																{cell.entries.map((entry) => {

@@ -740,10 +740,10 @@ export type RoomScheduleView = {
 		status: string;
 		generatedAt?: string;
 	};
-	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean }>;
+	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string }>;
 	days: string[];
 	grid: Array<{
-		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean };
+		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string };
 		cells: RoomScheduleCell[];
 	}>;
 	summary: {
@@ -1124,9 +1124,9 @@ export interface RunSummary {
 		periodLengthMinutes: number;
 		periodsPerDay: number;
 		periodSlots: Array<{ startTime: string; endTime: string }>;
-		displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+		displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 	}>;
-	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 }
 
 export interface ScheduledEntry {

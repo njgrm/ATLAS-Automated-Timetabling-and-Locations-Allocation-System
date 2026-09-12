@@ -74,12 +74,12 @@ export function deriveTimeSlots(entries: ScheduledEntry[]): Array<{ startTime: s
 export function deriveTimeSlotsFromSummary(
 	entries: ScheduledEntry[],
 	options?: {
-		timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+		timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 		timetableShapeContracts?: Array<{
 			periodSlots: Array<{ startTime: string; endTime: string }>;
 		}>;
 	},
-): Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }> {
+): Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }> {
 	if (options?.timetableDisplaySlots && options.timetableDisplaySlots.length > 0) {
 		return options.timetableDisplaySlots
 			.map((slot) => ({
@@ -87,6 +87,7 @@ export function deriveTimeSlotsFromSummary(
 				endTime: slot.endTime,
 				isSpecialEvent: slot.isSpecialEvent,
 				eventName: slot.eventName,
+				dayOfWeek: slot.dayOfWeek,
 			}))
 			.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 	}

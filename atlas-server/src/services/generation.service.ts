@@ -253,7 +253,7 @@ export interface RunSummary {
 	};
 	timetableShapeContracts?: TimetableShapeContract[];
 	canonicalTemplateVersion?: string;
-	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>;
+	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean; dayOfWeek?: string }>;
 	inputSnapshot?: GenerationInputSnapshot;
 	/** DEMAND-C01: canonical derived-demand semantic revision the run was built from. */
 	derivedDemandRevision?: string;

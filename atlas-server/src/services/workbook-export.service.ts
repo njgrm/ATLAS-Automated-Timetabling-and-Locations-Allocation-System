@@ -16,6 +16,7 @@ type TimeSlot = {
 	endTime: string;
 	isSpecialEvent?: boolean;
 	eventName?: string;
+	dayOfWeek?: string;
 	isSpecialization?: boolean;
 };
 
@@ -59,13 +60,17 @@ function formatTime12h(time24: string): string {
 	return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-function getBreakLabel(eventName: string | undefined): string {
+function getBreakLabel(eventName: string | undefined, dayOfWeek?: string): string {
 	if (!eventName) return '';
 	const upper = eventName.toUpperCase();
-	if (upper.includes('RECESS') || upper.includes('BREAK')) return eventName.toUpperCase();
-	if (upper.includes('LUNCH')) return 'LUNCH BREAK';
-	if (upper.includes('FLAG')) return 'FLAG CEREMONY';
-	return eventName;
+	const label = upper.includes('RECESS') || upper.includes('BREAK')
+		? eventName.toUpperCase()
+		: upper.includes('LUNCH')
+			? 'LUNCH BREAK'
+			: upper.includes('FLAG')
+				? 'FLAG CEREMONY'
+				: eventName;
+	return dayOfWeek ? `${dayOfWeek} - ${label}` : label;
 }
 
 function formatRoomLabel(room: RoomInfo | undefined): string {
@@ -201,6 +206,8 @@ function buildEntryGrid(
 		const key = `${entry.sectionId}-${entry.startTime}-${entry.endTime}`;
 		if (grid.has(key)) continue;
 		const subj = subjectMap.get(entry.subjectId);
+		const subjectCode = subj?.code?.trim().toUpperCase();
+		if (subjectCode === 'HG' || subjectCode === 'ARAL') continue;
 		const fac = entry.facultyId ? facultyMap.get(entry.facultyId) : null;
 		const room = entry.roomId ? roomMap.get(entry.roomId) : undefined;
 		grid.set(key, {
@@ -260,7 +267,7 @@ function addReportHeader(
 export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buffer> {
 	const ctx = await loadExportContext(options);
 
-	const allSlots = [...ctx.displaySlots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+	const allSlots = [...ctx.displaySlots].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 	const periodSlots = allSlots.filter((s) => !s.isSpecialEvent);
 	const breakSlots = allSlots.filter((s) => s.isSpecialEvent);
 
@@ -316,7 +323,7 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 		let row = startRow + 2;
 		for (const item of orderedSlots) {
 			if (item.type === 'break') {
-				const label = getBreakLabel(item.slot.eventName);
+				const label = getBreakLabel(item.slot.eventName, item.slot.dayOfWeek);
 				const r = sheet.getRow(row);
 				r.getCell(1).value = label;
 				r.getCell(1).font = { bold: true };
@@ -432,7 +439,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 				isSpecialEvent: false,
 				isSpecialization: visibility === 'visible' && s.subjectLabel === 'Specialization',
 			})),
-			breakSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, isSpecialEvent: true, eventName: s.subjectLabel ?? undefined })),
+			breakSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime, isSpecialEvent: true, eventName: s.subjectLabel ?? undefined, dayOfWeek: s.dayOfWeek ?? undefined })),
 		);
 
 		// Band sections
@@ -478,7 +485,7 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 			let row = startRow + 3;
 			for (const item of orderedSlots) {
 				if (item.type === 'break') {
-					const label = getBreakLabel(item.slot.eventName);
+					const label = getBreakLabel(item.slot.eventName, item.slot.dayOfWeek);
 					const r = sheet.getRow(row);
 					r.getCell(1).value = label;
 					r.getCell(1).font = { bold: true };

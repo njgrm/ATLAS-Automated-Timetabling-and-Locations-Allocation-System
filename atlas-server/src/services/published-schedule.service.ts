@@ -480,7 +480,7 @@ async function loadReferenceMaps(
 
 function buildSpecialEventsPayload(
 	policy: NonNullable<Parameters<typeof buildSpecialEventSlots>[0]>,
-	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; gradeGroup?: string | null; programType?: string | null }>,
+	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; dayOfWeek?: string | null; gradeGroup?: string | null; programType?: string | null }>,
 ) {
 	const specialEventSlots = buildSpecialEventSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -505,7 +505,8 @@ function buildSpecialEventsPayload(
 		eventName: event.eventName,
 		startTime: event.startTime,
 		endTime: event.endTime,
-		days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+		dayOfWeek: event.dayOfWeek ?? null,
+		days: event.dayOfWeek ? [event.dayOfWeek] : ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
 	}));
 }
 
@@ -540,6 +541,7 @@ export async function getPublishedSchedulePayload(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
+		dayOfWeek: se.dayOfWeek,
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));
@@ -663,7 +665,7 @@ export async function getPublishedSchedulePayload(
 	});
 
 	const summaryDisplaySlots = Array.isArray(resolved.summary?.timetableDisplaySlots)
-		? (resolved.summary?.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>)
+		? (resolved.summary?.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean; dayOfWeek?: string }>)
 		: [];
 	const timeSlots = summaryDisplaySlots.length > 0
 		? summaryDisplaySlots

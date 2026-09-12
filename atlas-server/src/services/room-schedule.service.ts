@@ -66,10 +66,10 @@ export interface RoomScheduleView {
 		status: string;
 		generatedAt?: string;
 	};
-	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null }>;
+	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string }>;
 	days: typeof DAYS;
 	grid: Array<{
-		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null };
+		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean; dayOfWeek?: string };
 		cells: RoomScheduleCell[];
 	}>;
 	summary: {
@@ -107,6 +107,7 @@ export async function getRoomScheduleView(
 		label: se.label,
 		startTime: se.startTime,
 		endTime: se.endTime,
+		dayOfWeek: se.dayOfWeek,
 		gradeGroup: se.gradeGroup,
 		programType: se.programType,
 	}));
@@ -208,6 +209,7 @@ export async function getRoomScheduleView(
 				endTime: slot.endTime,
 				isSpecialEvent: slot.isSpecialEvent,
 				eventName: slot.eventName,
+				dayOfWeek: slot.dayOfWeek,
 			}));
 		}
 
@@ -280,7 +282,7 @@ export async function getRoomScheduleView(
 			};
 		});
 
-		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime, eventLabel }, cells };
+		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime, eventLabel, isSpecialEvent: slot.isSpecialEvent, dayOfWeek: slot.dayOfWeek }, cells };
 	});
 
 	// 6) Summary — unique-entry aggregation to avoid per-cell inflation
@@ -312,7 +314,7 @@ export async function getRoomScheduleView(
 			status: sourceStatus,
 			generatedAt: sourceGeneratedAt,
 		},
-		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime, eventLabel: s.eventName ?? null })),
+		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime, eventLabel: s.eventName ?? null, isSpecialEvent: s.isSpecialEvent, dayOfWeek: s.dayOfWeek })),
 		days: DAYS,
 		grid,
 		summary: {

@@ -304,8 +304,8 @@ export type TimetableDataState = {
 	preGenEntries: ScheduledEntry[];
 	isPreGenerationWorkspace: boolean;
 	activeGridEntriesBase: ScheduledEntry[];
-	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
-	displayTimeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
+	displayTimeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 	hiddenRowCount: number;
 	getCellConflict: ((cellId: string) => import('@/types').CellConflictInfo | null) | null;
 	getLiveCellConflict: (source: any, cellId: string) => import('@/types').CellConflictInfo | null;
