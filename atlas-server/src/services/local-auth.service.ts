@@ -117,6 +117,32 @@ async function writeAuditLog(params: {
 	});
 }
 
+// ─── Companion SSO additive session/audit surface (COMPANION-SSO-C01) ─────────
+//
+// Minimal additive exports so the companion SSO path creates a local session
+// with EXACTLY the same JWT mechanics and audit contract as a local login.
+// Existing login functions above/below are untouched.
+
+/** Issue a local ATLAS JWT for a companion SSO session using the same signer. */
+export function issueCompanionSsoToken(user: LocalAuthUser): string | null {
+	return createToken(user);
+}
+
+/**
+ * Write one companion SSO audit row. Mirrors the private local-login audit
+ * writer. Callers must pass metadata containing no code, secret, or identity
+ * payload.
+ */
+export async function writeCompanionSsoAudit(params: {
+	schoolId: number;
+	actorId: number;
+	action: string;
+	targetIds: number[];
+	metadata?: Prisma.InputJsonObject;
+}): Promise<void> {
+	await writeAuditLog(params);
+}
+
 // ─── EnrollPro credential delegation ──────────────────────────────────────────
 
 type EnrollProRole = 'SYSTEM_ADMIN' | 'HEAD_REGISTRAR' | 'GRADE_LEVEL_COORDINATOR' | 'CLASS_ADVISER' | 'TEACHER' | string;
