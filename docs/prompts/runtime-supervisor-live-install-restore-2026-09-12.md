@@ -63,6 +63,12 @@ delivery, and scheduled-task read proof to the future HIGH boundary.
   committed): `D:\ATLAS-runtime-config\atlas-server.env`. It does not exist yet
   (verified `D:\ATLAS-runtime-config` and the file are absent) and is created
   only during the future HIGH action.
+- Pre-existing durable state (record as a BEFORE signature in step 1):
+  `D:\ATLAS-runtime-supervised-20260912\ops\runtime\logs\supervisor-state.json`
+  already exists from an earlier exercise (`state:"stopped"`, `ownedPids:{}`,
+  `previous.state:"running"` with PIDs 35744/30456, same release dir). This
+  directory is runtime-mutable; never `git clean` it or copy it into a release
+  artifact.
 - Sanitized database target (verified from the single active `DATABASE_URL` line
   of the staging source; credentials never printed):
   `localhost:5432/atlas_recovery_clean_rebuild_20260905`.
@@ -161,7 +167,10 @@ companion-repository edits.
 5. **Register the task** `ATLAS-Runtime-Supervisor` at `ONSTART` with
    `ExecutionTimeLimit=PT0S`, proven environment delivery, and a reviewed
    action/environment; review the generated `schtasks` command without printing
-   credentials.
+   credentials. Prove the registered task read-only via
+   `node ops/runtime/cli.mjs inventory` (or
+   `schtasks /query /tn ATLAS-Runtime-Supervisor /v /fo LIST`) without printing
+   raw machine-sensitive output.
 6. **Disable `ATLAS-DevServer-Temp2` only after steps 4–5 pass**, and record its
    final disposition.
 7. Record secret-free status, bounded logs, and the exact installed HEAD.
@@ -175,6 +184,10 @@ companion-repository edits.
   immediately for replanning**; do not kill or adopt it.
 - Never stop or alter the port-5175 Vite process or the unrelated `tsx` process.
 - Do not claim zero downtime; an outage window is already in effect.
+- Do **not** use `node ops/runtime/cli.mjs rollback` for this restore: its
+  recorded `previous` points at the same release directory, so it would restart
+  the current release, not the `d44f29e0` fallback. The recovery path is the
+  explicit fallback start above.
 
 ## 5. Acceptance matrix
 
