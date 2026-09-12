@@ -102,6 +102,14 @@ export function SimpleExportMenu({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-72">
 					<DropdownMenuLabel className="text-xs">Beneficiary downloads</DropdownMenuLabel>
+					{needsTerm ? (
+						<p
+							className="px-2 pb-1 text-xs font-medium text-amber-700"
+							data-testid="timetable-simple-export-needs-term-menu"
+						>
+							Choose a term to export.
+						</p>
+					) : null}
 					<DropdownMenuItem
 						className="h-9 gap-2 text-xs"
 						disabled={!summary}
