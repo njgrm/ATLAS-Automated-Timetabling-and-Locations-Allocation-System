@@ -82,6 +82,12 @@ export type PlacedSessionResult = {
 	roomName: string;
 	facultyId: number;
 	facultyName: string;
+	/**
+	 * TT-OUTPUT-C03R3 — the ordered term of the unassigned item that was placed.
+	 * Required so the commit proposal can never bind a later term to the first
+	 * physical match.
+	 */
+	termIndex?: 1 | 2 | 3 | 4;
 };
 
 export type UnplacedSessionResult = {
@@ -357,6 +363,8 @@ export async function solveQuickPlace(
 				roomName: bestSlot.roomName,
 				facultyId,
 				facultyName,
+				// TT-OUTPUT-C03R3: carry the placed item's ordered term.
+				termIndex: item.termIndex,
 			});
 		} else {
 			unplaced.push({
@@ -383,6 +391,45 @@ export async function solveQuickPlace(
 		newUnassigned: remainingUnassigned,
 		violations: finalValidation.violations,
 	};
+}
+
+/**
+ * TT-OUTPUT-C03R3 — pure mapping from solver placements to commit proposals.
+ *
+ * The commit term is taken from the placed item itself (`p.termIndex`). The
+ * `newEntries` lookup is only a fallback for legacy callers that omit the term;
+ * it is term-aware so a year-long subject that repeats the same physical slot
+ * in every term cannot bind a later-term placement to the first term's entry.
+ */
+export function buildQuickPlaceCommitProposals(
+	placed: readonly PlacedSessionResult[],
+	newEntries: readonly ScheduledEntry[],
+): ManualEditProposal[] {
+	return placed.map((p) => {
+		const matchedEntry = newEntries.find(
+			(e) =>
+				e.sectionId === p.sectionId &&
+				e.subjectId === p.subjectId &&
+				e.day === p.day &&
+				e.startTime === p.startTime &&
+				e.roomId === p.roomId &&
+				(p.termIndex == null || e.termIndex == null || e.termIndex === p.termIndex),
+		);
+		return {
+			editType: 'PLACE_UNASSIGNED',
+			sectionId: p.sectionId,
+			subjectId: p.subjectId,
+			session: p.session,
+			// ALWAYS bind the commit to the exact ordered term that was placed.
+			termIndex: p.termIndex ?? matchedEntry?.termIndex,
+			targetDay: p.day,
+			targetStartTime: p.startTime,
+			targetEndTime: p.endTime,
+			targetRoomId: p.roomId,
+			targetFacultyId: p.facultyId,
+			metadata: matchedEntry?.metadata ? { ...matchedEntry.metadata } : undefined,
+		};
+	});
 }
 
 export async function applyQuickPlace(
@@ -426,32 +473,13 @@ export async function applyQuickPlace(
 		};
 	}
 
-	// 3. Map placements to ManualEditProposals, carrying solver-computed metadata
-	const proposals: ManualEditProposal[] = solution.placed.map((p) => {
-		const matchedEntry = solution.newEntries.find(
-			(e) =>
-				e.sectionId === p.sectionId &&
-				e.subjectId === p.subjectId &&
-				e.day === p.day &&
-				e.startTime === p.startTime &&
-				e.roomId === p.roomId
-		);
-		return {
-			editType: 'PLACE_UNASSIGNED',
-			sectionId: p.sectionId,
-			subjectId: p.subjectId,
-			session: p.session,
-			// TT-OUTPUT-C03R3: bind the commit to the solver's resolved term so the
-			// persisted placement matches the exact per-term unassigned item.
-			termIndex: matchedEntry?.termIndex,
-			targetDay: p.day,
-			targetStartTime: p.startTime,
-			targetEndTime: p.endTime,
-			targetRoomId: p.roomId,
-			targetFacultyId: p.facultyId,
-			metadata: matchedEntry?.metadata ? { ...matchedEntry.metadata } : undefined,
-		};
-	});
+	// 3. Map placements to ManualEditProposals, carrying solver-computed metadata.
+	// TT-OUTPUT-C03R3: use the placed item's own ordered term, never a coordinate
+	// lookup that could bind a later term to the first physical match.
+	const proposals: ManualEditProposal[] = buildQuickPlaceCommitProposals(
+		solution.placed,
+		solution.newEntries as unknown as ScheduledEntry[],
+	);
 
 	// 4. Recalculate diagnostics using solver's solution.newEntries & solution.newUnassigned
 	const finalEntries = solution.newEntries;

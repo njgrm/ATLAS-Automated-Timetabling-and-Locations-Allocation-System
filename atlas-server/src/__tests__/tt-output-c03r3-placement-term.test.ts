@@ -18,7 +18,8 @@ import {
 	previewManualEdit,
 	type ManualEditProposal,
 } from '../services/manual-edit.service.js';
-import { solveQuickPlace } from '../services/timetable-quick-place.service.js';
+import { solveQuickPlace, buildQuickPlaceCommitProposals } from '../services/timetable-quick-place.service.js';
+import { resolveRequestTargets } from '../services/room-preference.service.js';
 import type { ScheduledEntry } from '../services/constraint-validator.js';
 import type { UnassignedItem } from '../services/schedule-constructor.js';
 
@@ -184,4 +185,85 @@ test('C03R3 placement mutant: dropping the item term reproduces the unscoped def
 	const created = (result.newEntries as ScheduledEntry[]).find((entry) => entry.entryId.startsWith('entry-qp-'));
 	assert.ok(created, 'a quick-place entry is created');
 	assert.notEqual(created.termIndex, 2, 'the mutant produces an unscoped entry, proving the term is load-bearing');
+});
+
+// ─── Commit proposal mapping (three per-term items, one physical slot) ───────
+
+test('C03R3 placement: quick-place commit proposals carry each placed term, not the first physical match', async () => {
+	const refData = productionRefData({
+		entries: [],
+		unassignedItems: [baseUnassigned(1), baseUnassigned(2), baseUnassigned(3)],
+	});
+	const { result } = await runQuickPlace(refData);
+	assert.equal(result.placed.length, 3, 'all three per-term items are placed');
+
+	// Every placement carries its own ordered term.
+	assert.deepEqual([...new Set(result.placed.map((p) => p.termIndex))].sort(), [1, 2, 3]);
+
+	// Year-long subjects share one physical slot across terms, so a coordinate-only
+	// lookup would collapse every proposal onto the first term's entry.
+	const proposals = buildQuickPlaceCommitProposals(result.placed, result.newEntries as ScheduledEntry[]);
+	assert.equal(proposals.length, 3);
+	assert.deepEqual([...new Set(proposals.map((p) => p.termIndex))].sort(), [1, 2, 3], 'each proposal keeps its placed term');
+
+	// The real batch commit accepts all three instead of failing on TERM_MISMATCH.
+	const batch = applyProposalBatch([], refData.unassignedItems as UnassignedItem[], proposals);
+	assert.equal(batch.applied.length, 3, 'all three placements commit');
+	assert.equal(batch.items.filter((item) => item.status === 'FAILED').length, 0, 'no proposal may fail the batch');
+});
+
+test('C03R3 placement mutant: dropping the placed term reproduces the coordinate-bound [1,1,1] batch failure', async () => {
+	const refData = productionRefData({
+		entries: [],
+		unassignedItems: [baseUnassigned(1), baseUnassigned(2), baseUnassigned(3)],
+	});
+	const { result } = await runQuickPlace(refData);
+
+	// Simulate the former PlacedSessionResult that carried no ordered term.
+	const legacyPlaced = result.placed.map((p) => ({ ...p, termIndex: undefined }));
+	const mutantProposals = buildQuickPlaceCommitProposals(legacyPlaced, result.newEntries as ScheduledEntry[]);
+	assert.deepEqual(
+		mutantProposals.map((p) => p.termIndex),
+		[1, 1, 1],
+		'the mutant binds every later term to the first physical match',
+	);
+
+	const mutantBatch = applyProposalBatch([], refData.unassignedItems as UnassignedItem[], mutantProposals);
+	assert.equal(mutantBatch.applied.length, 1, 'the mutant commits only the first term');
+	assert.ok(
+		mutantBatch.items.some((item) => item.errorCode === 'TERM_MISMATCH'),
+		'the mutant reproduces the production batch failure on ordinary multi-term data',
+	);
+});
+
+// ─── Room-preference coordinate binding ──────────────────────────────────────
+
+test('C03R3 placement: room-preference occupancy is term-aware, not first-physical-match', () => {
+	const movingTerm2 = baseEntry({ entryId: 'rp-moving', termIndex: 2 });
+	const input = {
+		schoolId: 1,
+		schoolYearId: 2,
+		runId: 3,
+		facultyId: FACULTY_ID,
+		entryId: 'rp-moving',
+		actionType: 'SWAP_WITH_OCCUPIED' as const,
+		targetDay: SLOT.day,
+		targetStartTime: SLOT.startTime,
+		targetEndTime: SLOT.endTime,
+	};
+
+	// Term 1 is listed first; a coordinate-only lookup would bind it.
+	const withBothTerms = [baseEntry({ entryId: 'rp-t1', termIndex: 1 }), baseEntry({ entryId: 'rp-t2', termIndex: 2 })];
+	assert.equal(
+		resolveRequestTargets(input, movingTerm2, withBothTerms).targetEntryId,
+		'rp-t2',
+		'a term-2 request must bind the term-2 occupant, not the first term-1 occupant',
+	);
+
+	// Another term's occupant is not a valid swap target at all.
+	assert.equal(
+		resolveRequestTargets(input, movingTerm2, [baseEntry({ entryId: 'rp-t1', termIndex: 1 })]).targetEntryId,
+		null,
+		'a term-1 occupant is not a swap target for a term-2 request',
+	);
 });

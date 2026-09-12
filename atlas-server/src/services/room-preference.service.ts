@@ -12,6 +12,7 @@ import { publishRoomPreferenceEvent } from './room-preference-events.service.js'
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 import { getFacultyAssignmentIdentitySummary } from './faculty-assignment.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
+import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const error = new Error(message) as Error & { statusCode: number; code: string };
@@ -375,7 +376,7 @@ async function buildLookupMaps(schoolId: number, entryIds: string[], entries: Dr
 	return { subjectMap, sectionMap, roomMap, roomTypeMap, facultyMap };
 }
 
-function resolveRequestTargets(input: SaveRoomPreferenceDraftInput, entry: DraftEntry, draftEntries: DraftEntry[]) {
+export function resolveRequestTargets(input: SaveRoomPreferenceDraftInput, entry: DraftEntry, draftEntries: DraftEntry[]) {
 	const actionType: RoomPreferenceActionType = input.actionType ?? 'ROOM_CHANGE';
 	const targetDay = input.targetDay ?? entry.day;
 	const targetStartTime = input.targetStartTime ?? entry.startTime;
@@ -387,7 +388,10 @@ function resolveRequestTargets(input: SaveRoomPreferenceDraftInput, entry: Draft
 			candidate.entryId !== entry.entryId
 			&& candidate.day === targetDay
 			&& candidate.startTime === targetStartTime
-			&& candidate.endTime === targetEndTime,
+			&& candidate.endTime === targetEndTime
+			// TT-OUTPUT-C03R3: another ordered term occupying the same slot is not
+			// the swap target for this term's request.
+			&& effectiveTermsOverlap(entryTermScope(candidate), entryTermScope(entry)),
 		);
 		resolvedTargetEntryId = occupied?.entryId ?? null;
 	}
@@ -618,7 +622,9 @@ async function upsertRoomPreference(
 			candidate.entryId !== entry.entryId
 			&& candidate.day === target.targetDay
 			&& candidate.startTime === target.targetStartTime
-			&& candidate.endTime === target.targetEndTime,
+			&& candidate.endTime === target.targetEndTime
+			// TT-OUTPUT-C03R3: only same-term (or unscoped) occupancy blocks the move.
+			&& effectiveTermsOverlap(entryTermScope(candidate), entryTermScope(entry)),
 		);
 		if (occupied) {
 			throw err(422, 'TARGET_SLOT_OCCUPIED', 'Selected target slot is occupied. Use swap request instead.');
