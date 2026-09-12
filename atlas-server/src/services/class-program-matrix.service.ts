@@ -1,17 +1,24 @@
 /**
  * Class Program Matrix Export Service
  *
- * Generates grade-level class-program matrix output where every section
- * in the grade appears as a column, with canonical time rows.
+ * Generates grade-level class-program output where every section in the grade
+ * appears as a column with canonical time rows. Each row preserves the full
+ * weekday identity: a Monday entry never populates Tuesday-Friday and
+ * same-interval entries on different weekdays coexist.
  *
- * Supports specialization visibility toggle for non-regular sections.
- * Uses effective schedule truth (latest valid completed run with stale-faculty check).
+ * The source is bound to one effective run (requested or latest completed) and
+ * one selected ordered term, matching the reviewed workbook export route. There
+ * is no stale-faculty fallback: when no run/term can be bound the service fails
+ * closed with a typed empty result rather than silently showing a stale run.
  */
 
 import { getDataContext } from '../lib/data-context.js';
 import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolvePublishedRun } from './published-schedule.service.js';
 
 const db = () => getDataContext();
+
+const WEEKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
 // ─── Types ───
 
@@ -22,24 +29,42 @@ export interface ClassProgramMatrixParams {
 	schoolYearId: number;
 	gradeLevel: number;
 	visibility?: SpecializationVisibility;
+	/** Explicit source run. When omitted the latest completed run is bound. */
+	runId?: number;
+	/** Resolved numeric ordered-term index from the verified term authority. */
+	termIndex?: number;
+	/** Disposable read-only client for source-level output contract tests. */
+	client?: any;
+	/** Disposable published-run resolver for source-level output contract tests. */
+	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{
+		source: { runId: number };
+		entries: RawEntry[];
+		summary: Record<string, unknown> | null;
+	}>;
+}
+
+export interface MatrixCell {
+	day: string;
+	timeSlot: string;
+	subject: string | null;
+	teacher: string | null;
+	room: string | null;
+	isSpecialization: boolean;
 }
 
 export interface MatrixColumn {
 	sectionId: number;
 	sectionName: string;
 	programType: string | null;
-	entries: Array<{
-		timeSlot: string;
-		subject: string | null;
-		teacher: string | null;
-		room: string | null;
-		isSpecialization: boolean;
-	}>;
+	/** One cell per visible class time row per weekday (row-major). */
+	entries: MatrixCell[];
 }
 
 export interface ClassProgramMatrixOutput {
 	gradeLevel: number;
 	schoolYear: string;
+	sourceRunId: number | null;
+	termIndex: number | null;
 	timeRows: Array<{
 		startTime: string;
 		endTime: string;
@@ -50,8 +75,6 @@ export interface ClassProgramMatrixOutput {
 	warnings: string[];
 }
 
-// ─── Run Resolution ───
-
 type RawEntry = {
 	sectionId: number;
 	subjectId: number | null;
@@ -60,6 +83,7 @@ type RawEntry = {
 	day: string;
 	startTime: string;
 	endTime: string;
+	termIndex?: number | null;
 };
 
 function isSpecializationSubject(subject: { name?: string | null; code?: string | null } | undefined): boolean {
@@ -71,66 +95,81 @@ function isSpecializationSubject(subject: { name?: string | null; code?: string 
 		|| name.startsWith('SPECIAL PROGRAM ');
 }
 
-/**
- * Resolve the latest valid completed run for a school/year.
- * Selects lightweight candidate metadata first, then loads only the
- * selected run's draftEntries to verify no stale faculty references.
- */
-async function resolveLatestValidEntries(
-	schoolId: number,
-	schoolYearId: number,
-): Promise<RawEntry[]> {
-	const candidates = await db().generationRun.findMany({
-		where: { schoolId, schoolYearId, status: 'COMPLETED' },
-		orderBy: { createdAt: 'desc' },
-		select: { id: true },
-		take: 20,
+async function resolveSourceRun(
+	params: ClassProgramMatrixParams,
+): Promise<{ runId: number; entries: RawEntry[]; summary: Record<string, unknown> | null } | null> {
+	const { schoolId, schoolYearId, runId } = params;
+	const database = params.client ?? db();
+
+	const loadRun = async (id: number) => database.generationRun.findFirst({
+		where: { id, schoolId, schoolYearId },
+		select: { id: true, status: true, summary: true, draftEntries: true },
 	});
 
-	if (candidates.length === 0) return [];
-
-	// Load active faculty IDs for stale check
-	const activeFaculty = await db().facultyMirror.findMany({
-		where: { schoolId, isStale: false },
-		select: { id: true },
-	});
-	const activeFacultyIds = new Set(activeFaculty.map(f => f.id));
-
-	for (const candidate of candidates) {
-		const run = await db().generationRun.findUnique({
-			where: { id: candidate.id },
-			select: { draftEntries: true },
+	let selectedId: number | null = null;
+	if (runId != null) {
+		selectedId = runId;
+	} else {
+		// Lightweight candidate selection: metadata only, then one heavy read for
+		// the selected run. Never scan every completed run's JSON payload.
+		const candidate = await database.generationRun.findFirst({
+			where: { schoolId, schoolYearId, status: 'COMPLETED' },
+			orderBy: { createdAt: 'desc' },
+			select: { id: true },
 		});
-		if (!run?.draftEntries) continue;
-		const entries = run.draftEntries as unknown as RawEntry[];
-		const hasStaleFaculty = entries.some(e => e.facultyId != null && !activeFacultyIds.has(e.facultyId));
-		if (!hasStaleFaculty) return entries;
+		if (!candidate) return null;
+		selectedId = candidate.id;
 	}
 
-	// Fallback: return newest run's entries even if stale (better than empty)
-	const fallback = await db().generationRun.findUnique({
-		where: { id: candidates[0].id },
-		select: { draftEntries: true },
-	});
-	return (fallback?.draftEntries as unknown as RawEntry[]) ?? [];
+	const run = await loadRun(selectedId);
+	if (!run) {
+		if (runId != null) throw new Error('RUN_NOT_FOUND');
+		return null;
+	}
+	const summary = run.summary as Record<string, unknown> | null;
+	if (run.status !== 'COMPLETED' && summary?.isPublished !== true) {
+		throw new Error('RUN_NOT_COMPLETED');
+	}
+
+	if (summary?.isPublished === true) {
+		// A published source must use the revision-effective authority, exactly
+		// like the reviewed workbook route; never the pre-revision draft JSON.
+		const resolvePublished = params.publishedRunResolver ?? resolvePublishedRun;
+		const published = await resolvePublished(schoolId, schoolYearId);
+		if (published.source.runId !== run.id) {
+			if (runId != null) throw new Error('RUN_NOT_FOUND');
+			return null;
+		}
+		return {
+			runId: run.id,
+			entries: published.entries as unknown as RawEntry[],
+			summary: published.summary,
+		};
+	}
+
+	return { runId: run.id, entries: (run.draftEntries ?? []) as unknown as RawEntry[], summary };
+}
+
+function applyTermFilter(entries: RawEntry[], termIndex: number | undefined): RawEntry[] {
+	if (termIndex === undefined) return entries;
+	if (entries.some((entry) => entry.termIndex == null)) {
+		throw new Error('TERM_FILTER_NOT_READY');
+	}
+	return entries.filter((entry) => entry.termIndex === termIndex);
 }
 
 // ─── Export Function ───
 
-/**
- * Generate a grade-level class-program matrix.
- * Every active section in the grade appears as a column.
- * Canonical time rows are used for row ordering.
- */
 export async function generateClassProgramMatrix(
 	params: ClassProgramMatrixParams,
 ): Promise<ClassProgramMatrixOutput> {
-	const { schoolId, schoolYearId, gradeLevel, visibility = 'hidden' } = params;
+	const { schoolId, schoolYearId, gradeLevel, visibility = 'hidden', termIndex } = params;
 	const actualGrade = normalizeGradeLevelSync(gradeLevel);
 	const warnings: string[] = [];
+	const database = params.client ?? db();
 
 	// 1. Load all active sections for this grade
-	const sections = await db().sectionMirror.findMany({
+	const sections = await database.sectionMirror.findMany({
 		where: {
 			schoolId,
 			schoolYearId,
@@ -167,31 +206,47 @@ export async function generateClassProgramMatrix(
 		label: slot.subjectLabel ?? slot.rowKind,
 	}));
 
-	// 4. Load effective schedule entries (latest valid completed run)
+	// 4. Bind one effective run + selected ordered term.
+	const source = await resolveSourceRun(params);
+	if (!source) {
+		warnings.push('NO_SOURCE_RUN');
+		const mirror = await database.enrollProSchoolYearMirror.findFirst({
+			where: { schoolId, enrollProSchoolYearId: schoolYearId },
+			select: { yearLabel: true },
+		});
+		return {
+			gradeLevel: actualGrade,
+			schoolYear: mirror?.yearLabel ?? String(schoolYearId),
+			sourceRunId: null,
+			termIndex: termIndex ?? null,
+			timeRows,
+			columns: [],
+			warnings,
+		};
+	}
+
 	const sectionExternalIds = sections.map(s => s.externalId);
-	const allEntries = sectionExternalIds.length > 0
-		? await resolveLatestValidEntries(schoolId, schoolYearId)
-		: [];
-	const entries = allEntries.filter(e => sectionExternalIds.includes(e.sectionId));
+	const allEntries = applyTermFilter(source.entries, termIndex)
+		.filter(e => sectionExternalIds.includes(e.sectionId));
 
 	// 5. Collect unique room and faculty IDs from entries for label maps
-	const roomIds = [...new Set(entries.map(e => e.roomId).filter((id): id is number => id != null && id > 0))];
-	const facultyIds = [...new Set(entries.map(e => e.facultyId).filter((id): id is number => id != null && id > 0))];
+	const roomIds = [...new Set(allEntries.map(e => e.roomId).filter((id): id is number => id != null && id > 0))];
+	const facultyIds = [...new Set(allEntries.map(e => e.facultyId).filter((id): id is number => id != null && id > 0))];
 
 	// 6. Load subject, faculty, and room maps for labels
 	const [subjects, faculty, rooms] = await Promise.all([
-		db().subject.findMany({
+		database.subject.findMany({
 			where: { schoolId, isActive: true },
 			select: { id: true, name: true, code: true },
 		}),
 		facultyIds.length > 0
-			? db().facultyMirror.findMany({
+			? database.facultyMirror.findMany({
 				where: { id: { in: facultyIds }, schoolId, isStale: false },
 				select: { id: true, firstName: true, lastName: true },
 			})
 			: Promise.resolve([]),
 		roomIds.length > 0
-			? db().room.findMany({
+			? database.room.findMany({
 				where: { id: { in: roomIds } },
 				select: { id: true, name: true, building: { select: { name: true } } },
 			})
@@ -208,39 +263,50 @@ export async function generateClassProgramMatrix(
 		? timeRows.filter(row => row.label !== 'Specialization')
 		: timeRows;
 
-	// 8. Build columns with entries mapped to visible time rows
+	// 8. Build weekday-preserving columns. Each cell keeps (day, interval,
+	// section, subject, faculty, room); no first-entry-by-interval selection.
 	const columns: MatrixColumn[] = sections.map(section => {
-		const sectionEntries = entries.filter(e => e.sectionId === section.externalId);
-		const isSpecialProgram = section.programType && section.programType !== 'REGULAR';
+		const sectionEntries = allEntries.filter(e => e.sectionId === section.externalId);
+		const isSpecialProgram = !!(section.programType && section.programType !== 'REGULAR');
+		const cells: MatrixCell[] = [];
 
-		const entriesForSection = visibleTimeRows.map(row => {
-			const matchingEntry = sectionEntries.find(e =>
-				e.startTime === row.startTime && e.endTime === row.endTime
-			);
-			const matchingSubject = matchingEntry?.subjectId ? subjectMap.get(matchingEntry.subjectId) : undefined;
-			const hideSpecializationCell = visibility === 'hidden' && isSpecializationSubject(matchingSubject);
+		for (const row of visibleTimeRows) {
+			if (row.rowKind !== 'CLASS') continue;
+			for (const day of WEEKDAYS) {
+				const matchingEntry = sectionEntries.find(e =>
+					e.day === day && e.startTime === row.startTime && e.endTime === row.endTime
+				);
+				const matchingSubject = matchingEntry?.subjectId ? subjectMap.get(matchingEntry.subjectId) : undefined;
+				const subjectCode = (matchingSubject?.code ?? '').trim().toUpperCase();
+				// HG/ARAL are reference-only: never ordinary timetable cells.
+				const referenceOnly = subjectCode === 'HG' || subjectCode === 'ARAL';
+				const hideSpecializationCell = visibility === 'hidden' && isSpecializationSubject(matchingSubject);
 
-			const isSpecialization = !!(isSpecialProgram && row.label === 'Specialization');
-
-			return {
-				timeSlot: `${row.startTime}-${row.endTime}`,
-				subject: !hideSpecializationCell && matchingSubject ? matchingSubject.name : null,
-				teacher: !hideSpecializationCell && matchingEntry?.facultyId ? facultyMap.get(matchingEntry.facultyId) ?? null : null,
-				room: !hideSpecializationCell && matchingEntry?.roomId ? roomMap.get(matchingEntry.roomId) ?? null : null,
-				isSpecialization,
-			};
-		});
+				cells.push({
+					day,
+					timeSlot: `${row.startTime}-${row.endTime}`,
+					subject: !referenceOnly && !hideSpecializationCell && matchingSubject ? matchingSubject.name : null,
+					teacher: !referenceOnly && !hideSpecializationCell && matchingEntry?.facultyId
+						? facultyMap.get(matchingEntry.facultyId) ?? null
+						: null,
+					room: !referenceOnly && !hideSpecializationCell && matchingEntry?.roomId
+						? roomMap.get(matchingEntry.roomId) ?? null
+						: null,
+					isSpecialization: isSpecialProgram && row.label === 'Specialization',
+				});
+			}
+		}
 
 		return {
 			sectionId: section.id,
 			sectionName: section.name,
 			programType: section.programType,
-			entries: entriesForSection,
+			entries: cells,
 		};
 	});
 
 	// 9. Load school year label
-	const mirror = await db().enrollProSchoolYearMirror.findFirst({
+	const mirror = await database.enrollProSchoolYearMirror.findFirst({
 		where: { schoolId, enrollProSchoolYearId: schoolYearId },
 		select: { yearLabel: true },
 	});
@@ -248,6 +314,8 @@ export async function generateClassProgramMatrix(
 	return {
 		gradeLevel: actualGrade,
 		schoolYear: mirror?.yearLabel ?? String(schoolYearId),
+		sourceRunId: source.runId,
+		termIndex: termIndex ?? null,
 		timeRows: visibleTimeRows,
 		columns,
 		warnings,

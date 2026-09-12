@@ -248,7 +248,9 @@ export async function getRoomScheduleView(
 	const grid = PERIOD_SLOTS.map((slot) => {
 		const eventLabel = slot.eventName ?? null;
 		const cells: RoomScheduleCell[] = DAYS.map((day) => {
-			if (slot.isSpecialEvent) {
+			// Day-scoped events (Monday Flag/HGP) block only their own weekday; the
+			// same interval stays an ordinary room slot on other weekdays.
+			if (slot.isSpecialEvent && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
 				return {
 					day,
 					occupied: false,

@@ -95,7 +95,9 @@ export function pivotDraftToView(
 	const grid = displaySlots.map((slot) => {
 		const eventLabel = slot.eventName ?? null;
 		const cells = DAYS.map((day) => {
-			if (slot.isSpecialEvent) {
+			// Day-scoped events (Monday Flag/HGP) empty only their own weekday; the
+			// same interval remains an ordinary class cell on other weekdays.
+			if (slot.isSpecialEvent && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
 				return { day, occupied: false, entries: [], conflict: false };
 			}
 			const dayEntries = entriesByDay.get(day) ?? [];

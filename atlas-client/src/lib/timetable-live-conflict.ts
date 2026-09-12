@@ -16,6 +16,8 @@ export type TimetableConflictSlot = {
 	endTime: string;
 	isSpecialEvent?: boolean;
 	eventName?: string;
+	/** When present, the event blocks only this weekday; the interval stays schedulable elsewhere. */
+	dayOfWeek?: string;
 };
 
 type ConflictLookupMaps = {
@@ -131,7 +133,14 @@ export function buildLiveConflictIndex(
 		const minutes = { start: minutesFromMidnight(slot.startTime), end: minutesFromMidnight(slot.endTime) };
 		for (const day of DAYS) {
 			const key = `${day}-${slot.startTime}-${slot.endTime}`;
-			slotByKey.set(key, slot);
+			// A day-scoped event (Monday Flag/HGP) blocks only its own weekday. On
+			// every other weekday the same interval is an ordinary schedulable slot.
+			const appliesToDay = !slot.isSpecialEvent || !slot.dayOfWeek || slot.dayOfWeek === day;
+			if (appliesToDay) {
+				slotByKey.set(key, slot);
+			} else if (!slotByKey.has(key)) {
+				slotByKey.set(key, { ...slot, isSpecialEvent: false, eventName: undefined });
+			}
 			slotMinutesByKey.set(key, minutes);
 		}
 	}

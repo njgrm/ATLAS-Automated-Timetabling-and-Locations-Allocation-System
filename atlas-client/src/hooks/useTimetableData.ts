@@ -812,7 +812,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		for (const slot of timeSlots) {
 			for (const day of DAYS) {
 				const key = `${day}-${slot.startTime}-${slot.endTime}`;
-				if (slot.isSpecialEvent) {
+				// Day-scoped events block only their own weekday; the interval stays
+				// schedulable on the other instructional weekdays.
+				if (slot.isSpecialEvent && (!slot.dayOfWeek || slot.dayOfWeek === day)) {
 					map.set(key, {
 						kind: 'hard',
 						reasons: [`${slot.eventName ?? 'Special event'} slot is non-schedulable`],

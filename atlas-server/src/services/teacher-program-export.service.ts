@@ -130,12 +130,14 @@ export async function buildTeacherProgramExportShape(params: {
 	schoolYearId: number;
 	runId: number;
 	facultyId: number;
+	/** Resolved numeric ordered-term index from the verified term authority. */
+	termIndex?: number;
 	/** Disposable read-only client for source-level export contract tests. */
 	client?: any;
 	/** Disposable published-schedule resolver for source-level export contract tests. */
 	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{ entries?: unknown[] }>;
 }): Promise<TeacherProgramExportShape> {
-	const { schoolId, schoolYearId, runId, facultyId, client, publishedScheduleResolver } = params;
+	const { schoolId, schoolYearId, runId, facultyId, termIndex, client, publishedScheduleResolver } = params;
 	const db = client ?? prisma;
 
 	// 1. Load faculty mirror
@@ -216,6 +218,7 @@ export async function buildTeacherProgramExportShape(params: {
 		startTime: string;
 		endTime: string;
 		durationMinutes: number;
+		termIndex?: number | null;
 	};
 
 	// For published runs, resolve revision-effective entries via the published schedule service.
@@ -243,6 +246,7 @@ export async function buildTeacherProgramExportShape(params: {
 				section?: { externalId?: number | null; id?: number | null };
 				faculty?: { id?: number | null };
 				room?: { id?: number | null };
+				termIndex?: number | null;
 			};
 			return {
 				entryId: value.entryId ?? `published-${facultyId}-${value.day ?? 'UNKNOWN'}-${value.startTime ?? 'UNKNOWN'}`,
@@ -254,11 +258,23 @@ export async function buildTeacherProgramExportShape(params: {
 				startTime: value.startTime ?? '',
 				endTime: value.endTime ?? '',
 				durationMinutes: value.durationMinutes ?? minutesBetween(value.startTime ?? '', value.endTime ?? ''),
+				termIndex: value.termIndex ?? null,
 			};
 		});
 	} else {
 		const allEntries = (run.draftEntries ?? []) as unknown as RunEntry[];
 		facultyEntries = allEntries.filter(e => e.facultyId === facultyId);
+	}
+
+	// Selected ordered-term export: one committed term never mixes another term's
+	// rotating subject/teacher/room. Missing term identity fails closed.
+	if (termIndex !== undefined) {
+		if (facultyEntries.some((entry) => entry.termIndex == null)) {
+			const error = new Error('TERM_FILTER_NOT_READY');
+			(error as Error & { code?: string }).code = 'TERM_FILTER_NOT_READY';
+			throw error;
+		}
+		facultyEntries = facultyEntries.filter((entry) => entry.termIndex === termIndex);
 	}
 
 	// Reference-only rows are never printable teaching output. Generation

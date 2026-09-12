@@ -107,6 +107,8 @@ interface GridCellProps {
 	cellEntries: ScheduledEntry[];
 	isSpecialEvent: boolean;
 	eventName?: string;
+	/** When present, the event blocks only this weekday. */
+	eventDayOfWeek?: string;
 	hasKbSource: boolean;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
@@ -192,6 +194,7 @@ const GridCell = memo(function GridCell({
 	cellEntries,
 	isSpecialEvent,
 	eventName,
+	eventDayOfWeek,
 	hasKbSource,
 	violationIndex,
 	highlightedEntryIds,
@@ -245,7 +248,11 @@ const GridCell = memo(function GridCell({
 		}
 	}, [hasKbSource, isKbHovered, kbConflictInfo]);
 
-	if (isSpecialEvent) {
+	// A day-scoped event (Monday Flag/HGP) is only non-schedulable on its own
+	// weekday; the identical interval remains an ordinary class cell elsewhere.
+	const eventAppliesToDay = isSpecialEvent && (!eventDayOfWeek || eventDayOfWeek === day);
+
+	if (eventAppliesToDay) {
 		if (hasKbSource) {
 			return (
 				<td
@@ -582,7 +589,7 @@ const GridCell = memo(function GridCell({
 
 interface TimetableGridProps {
 	entries: ScheduledEntry[];
-	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
 	swapClassAEntryId?: string | null;
@@ -879,7 +886,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 												cellEntries={cellEntries}
 												isSpecialEvent={!!slot.isSpecialEvent}
 												eventName={slot.eventName}
-											hasKbSource={hasKbSource}
+												eventDayOfWeek={slot.dayOfWeek}
+												hasKbSource={hasKbSource}
 												violationIndex={violationIndex}
 												highlightedEntryIds={highlightedEntryIds}
 												teacherDepartureEntryIds={teacherDepartureEntryIds}
