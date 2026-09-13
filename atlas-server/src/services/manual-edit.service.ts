@@ -15,7 +15,7 @@ import {
 	type Violation,
 } from './constraint-validator.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
+import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
@@ -211,7 +211,7 @@ export async function loadRunContext(
 	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
 		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
-			select: { id: true, maxHoursPerWeek: true },
+			select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true },
 		}),
 		client.facultySubject.findMany({
 			where: { schoolId, schoolYearId },
@@ -225,13 +225,15 @@ export async function loadRunContext(
 				isTeachingSpace: true,
 				isSharedFacility: true,
 				capacity: true,
+				features: true,
+				floor: true,
 				buildingId: true,
 				building: { select: { gradeScope: true } },
 			},
 		}),
 		client.subject.findMany({
 			where: { schoolId, isActive: true },
-			select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
+			select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, requiredFeatures: true, gradeLevels: true },
 		}),
 		getOrCreatePolicy(schoolId, schoolYearId),
 		client.building.findMany({
@@ -397,15 +399,20 @@ function appendManualCandidateViolations(
 	return { violations, counts: { total: violations.length, byCode } };
 }
 
+/**
+ * R9 / B-11 server half — the canonical strict publication predicate.
+ *
+ * A run is published only when `summary.isPublished === true`. Loose
+ * `publishedAt`/`publishedBy` markers retained on a superseded run are
+ * informational only: they must not present the run as published and must not
+ * throw `RUN_ALREADY_PUBLISHED` for a genuinely unpublished run.
+ */
 export function isPublishedSummary(summary: unknown): boolean {
 	if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return false;
-	const candidate = summary as Record<string, unknown>;
-	if (candidate.isPublished === true) return true;
-	if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0) return true;
-	return typeof candidate.publishedBy === 'number';
+	return (summary as Record<string, unknown>).isPublished === true;
 }
 
-function assertRunIsEditable(summary: unknown): void {
+export function assertRunIsEditable(summary: unknown): void {
 	if (!isPublishedSummary(summary)) return;
 	throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Published repairs require the Prompt 6 revision workflow before changes can take effect.');
 }
@@ -418,15 +425,29 @@ export function buildValidatorCtx(
 	refData: Awaited<ReturnType<typeof loadRunContext>>,
 ): ValidatorContext {
 	const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings, sectionEnrollment } = refData;
+	const families = resolveWarningFamilyPolicy(policyRecord);
 	return {
 		schoolId,
 		schoolYearId,
 		runId,
 		entries,
-		faculty,
+		faculty: faculty.map((member) => ({
+			id: member.id,
+			maxHoursPerWeek: Math.floor(computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60),
+		})),
 		facultySubjects,
-		rooms,
-		subjects,
+		rooms: rooms.map((room) => ({
+			id: room.id,
+			type: room.type,
+			capacity: room.capacity,
+			features: room.features ?? undefined,
+			floor: room.floor ?? null,
+		})),
+		subjects: subjects.map((subject) => ({
+			id: subject.id,
+			preferredRoomType: subject.preferredRoomType,
+			requiredFeatures: subject.requiredFeatures ?? undefined,
+		})),
 		sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -437,13 +458,19 @@ export function buildValidatorCtx(
 			enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
 		},
 		travelPolicy: {
-			enableTravelWellbeingChecks: policyRecord.enableTravelWellbeingChecks,
-			maxWalkingDistanceMetersPerTransition: policyRecord.maxWalkingDistanceMetersPerTransition,
 			maxBuildingTransitionsPerDay: policyRecord.maxBuildingTransitionsPerDay,
 			maxBackToBackTransitionsWithoutBuffer: policyRecord.maxBackToBackTransitionsWithoutBuffer,
 			maxIdleGapMinutesPerDay: policyRecord.maxIdleGapMinutesPerDay,
 			avoidEarlyFirstPeriod: policyRecord.avoidEarlyFirstPeriod,
 			avoidLateLastPeriod: policyRecord.avoidLateLastPeriod,
+			enableBuildingTransitionChecks: families.buildingTransitions,
+			enableFloorTransitionChecks: families.floorTransitions,
+			enableIdleGapChecks: families.idleGap,
+			enableEarlyStartChecks: families.earlyStart,
+			enableLateEndChecks: families.lateEnd,
+			buildingTransitionBufferMinutes: families.buildingTransitionBufferMinutes,
+			floorTransitionThreshold: families.floorTransitionThreshold,
+			floorTransitionBufferMinutes: families.floorTransitionBufferMinutes,
 		},
 		vacantPolicy: {
 			enableVacantAwareConstraints: policyRecord.enableVacantAwareConstraints,

@@ -132,10 +132,45 @@ export interface ConstraintOverride {
 	treatAsHard: boolean;
 }
 
+/**
+ * Trust boundary for `treatAsHard` (warning-authority contract §6.4 / R4).
+ *
+ * Only structural, deterministically-computed checks may ever become a hard
+ * publication blocker. Unreliable wellbeing/travel/preference metrics are never
+ * promotable: a persisted `treatAsHard:true` for them is rejected on write with
+ * a typed 400 and coerced to informational (non-hard) on read.
+ *
+ * `FACULTY_DAILY_MAX_EXCEEDED` is allowlisted only because its producer is
+ * term-aware after R5 (its minutes are computed per ordered term, never summed
+ * across terms).
+ */
+export const PROMOTABLE_CONSTRAINT_CODES: ReadonlySet<string> = new Set([
+	'FACULTY_TIME_CONFLICT',
+	'ROOM_TIME_CONFLICT',
+	'SECTION_TIME_CONFLICT',
+	'FACULTY_OVERLOAD',
+	'FACULTY_SUBJECT_NOT_QUALIFIED',
+	'UNASSIGNED_SECTION',
+	'LACKING_FACULTY',
+	'INCOMPLETE_MODULAR_GROUP',
+	'ROOM_TYPE_MISMATCH',
+	'ROOM_FEATURE_MISMATCH',
+	'FACULTY_DAILY_MAX_EXCEEDED',
+]);
+
+export function isPromotableConstraintCode(code: string): boolean {
+	return PROMOTABLE_CONSTRAINT_CODES.has(code);
+}
+
+export const CONSTRAINT_NOT_PROMOTABLE = 'CONSTRAINT_NOT_PROMOTABLE';
+
 export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: true, weight: 4, treatAsHard: false },
+	// Retired metric travel warning: kept only so legacy persisted runs render.
+	// It has no producer and is never promotable to a hard publication blocker.
+	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: false, weight: 4, treatAsHard: false },
+	FACULTY_FLOOR_TRANSITION: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { enabled: true, weight: 4, treatAsHard: false },
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
@@ -143,9 +178,86 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
-	SESSION_PATTERN_VIOLATED: { enabled: true, weight: 3, treatAsHard: false },
 	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 };
+
+// ─── Warning-family decoupling (R3 / contract §6.3) ───
+
+/**
+ * Explicit warning families. Each family is gated only by its own flag plus the
+ * per-code `constraintConfig[code].enabled` override. The deprecated
+ * `enableTravelWellbeingChecks` master switch is a legacy default source only;
+ * it must never gate an unrelated family (early/late/vacant/compression).
+ *
+ * Legacy mapping (absent new flag derives from the old value):
+ *   enableBuildingTransitionChecks  <- enableTravelWellbeingChecks
+ *   enableFloorTransitionChecks     <- enableTravelWellbeingChecks
+ *   enableIdleGapChecks             <- enableTravelWellbeingChecks
+ *   enableEarlyStartChecks          <- avoidEarlyFirstPeriod
+ *   enableLateEndChecks             <- avoidLateLastPeriod
+ *   enableVacantChecks              <- enableVacantAwareConstraints
+ *   enableCompressionChecks         <- enableVacantAwareConstraints
+ */
+export interface WarningFamilyPolicy {
+	buildingTransitions: boolean;
+	floorTransitions: boolean;
+	idleGap: boolean;
+	earlyStart: boolean;
+	lateEnd: boolean;
+	vacant: boolean;
+	compression: boolean;
+	buildingTransitionBufferMinutes: number;
+	floorTransitionThreshold: number;
+	floorTransitionBufferMinutes: number;
+}
+
+export const WARNING_FAMILY_DEFAULTS = {
+	buildingTransitionBufferMinutes: 5,
+	floorTransitionThreshold: 3,
+	floorTransitionBufferMinutes: 5,
+} as const;
+
+type WarningFamilySource = {
+	enableTravelWellbeingChecks?: unknown;
+	enableBuildingTransitionChecks?: unknown;
+	enableFloorTransitionChecks?: unknown;
+	enableIdleGapChecks?: unknown;
+	avoidEarlyFirstPeriod?: unknown;
+	avoidLateLastPeriod?: unknown;
+	enableVacantAwareConstraints?: unknown;
+	buildingTransitionBufferMinutes?: unknown;
+	floorTransitionThreshold?: unknown;
+	floorTransitionBufferMinutes?: unknown;
+} | null | undefined;
+
+function boolOr(value: unknown, fallback: boolean): boolean {
+	return typeof value === 'boolean' ? value : fallback;
+}
+
+function positiveIntOr(value: unknown, fallback: number): number {
+	const n = Number(value);
+	return Number.isInteger(n) && n >= 0 ? n : fallback;
+}
+
+/**
+ * One normalization resolver for every read path that feeds a warning gate.
+ * A raw persisted row can therefore never diverge from the resolved contract.
+ */
+export function resolveWarningFamilyPolicy(row: WarningFamilySource): WarningFamilyPolicy {
+	const legacyMaster = boolOr(row?.enableTravelWellbeingChecks, true);
+	return {
+		buildingTransitions: boolOr(row?.enableBuildingTransitionChecks, legacyMaster),
+		floorTransitions: boolOr(row?.enableFloorTransitionChecks, legacyMaster),
+		idleGap: boolOr(row?.enableIdleGapChecks, legacyMaster),
+		earlyStart: boolOr(row?.avoidEarlyFirstPeriod, false),
+		lateEnd: boolOr(row?.avoidLateLastPeriod, false),
+		vacant: boolOr(row?.enableVacantAwareConstraints, false),
+		compression: boolOr(row?.enableVacantAwareConstraints, false),
+		buildingTransitionBufferMinutes: positiveIntOr(row?.buildingTransitionBufferMinutes, WARNING_FAMILY_DEFAULTS.buildingTransitionBufferMinutes),
+		floorTransitionThreshold: positiveIntOr(row?.floorTransitionThreshold, WARNING_FAMILY_DEFAULTS.floorTransitionThreshold),
+		floorTransitionBufferMinutes: positiveIntOr(row?.floorTransitionBufferMinutes, WARNING_FAMILY_DEFAULTS.floorTransitionBufferMinutes),
+	};
+}
 
 // ─── Exported policy shape (for cross-service use) ───
 
@@ -597,6 +709,13 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 				const enabled = typeof v.enabled === 'boolean' ? v.enabled : true;
 				const weight = typeof v.weight === 'number' && v.weight >= 1 && v.weight <= 10 ? v.weight : 5;
 				const treatAsHard = typeof v.treatAsHard === 'boolean' ? v.treatAsHard : false;
+				if (treatAsHard && !isPromotableConstraintCode(key)) {
+					// Typed rejection marker; `upsertPolicy` translates this to a 400
+					// CONSTRAINT_NOT_PROMOTABLE rather than a generic INVALID_POLICY.
+					errors.push(`${CONSTRAINT_NOT_PROMOTABLE}:${key}`);
+					constraintConfig[key] = { enabled, weight, treatAsHard: false };
+					continue;
+				}
 				constraintConfig[key] = { enabled, weight, treatAsHard };
 			}
 		}
@@ -712,30 +831,34 @@ function buildSyntheticPolicy(schoolId: number, schoolYearId: number) {
 	};
 }
 
-function normalizeRoomCapacityConstraintConfig(config: Prisma.JsonValue | null | undefined): Prisma.JsonValue | null | undefined {
+/**
+ * Coerce every non-allowlisted `treatAsHard:true` back to informational on read
+ * (R4 legacy-row coercion). This covers the historical room-capacity promotion
+ * (C-05) and any retired/unreliable family persisted by an older client.
+ */
+export function normalizeConstraintConfigPromotion(config: Prisma.JsonValue | null | undefined): Prisma.JsonValue | null | undefined {
 	if (!config || typeof config !== 'object' || Array.isArray(config)) {
 		return config;
 	}
 
 	const root = config as Record<string, unknown>;
-	const roomCapacityOverride = root.ROOM_CAPACITY_EXCEEDED;
-	if (!roomCapacityOverride || typeof roomCapacityOverride !== 'object' || Array.isArray(roomCapacityOverride)) {
-		return config;
-	}
+	let changed = false;
+	const normalized: Record<string, unknown> = { ...root };
 
-	const normalizedOverride = roomCapacityOverride as Record<string, unknown>;
-	if (normalizedOverride.treatAsHard === false) {
-		return config;
-	}
-
-	return {
-		...root,
-		ROOM_CAPACITY_EXCEEDED: {
-			enabled: typeof normalizedOverride.enabled === 'boolean' ? normalizedOverride.enabled : true,
-			weight: typeof normalizedOverride.weight === 'number' ? normalizedOverride.weight : 5,
+	for (const [code, rawOverride] of Object.entries(root)) {
+		if (!rawOverride || typeof rawOverride !== 'object' || Array.isArray(rawOverride)) continue;
+		const override = rawOverride as Record<string, unknown>;
+		if (override.treatAsHard !== true) continue;
+		if (isPromotableConstraintCode(code)) continue;
+		normalized[code] = {
+			enabled: typeof override.enabled === 'boolean' ? override.enabled : true,
+			weight: typeof override.weight === 'number' ? override.weight : 5,
 			treatAsHard: false,
-		},
-	};
+		};
+		changed = true;
+	}
+
+	return changed ? (normalized as Prisma.JsonValue) : config;
 }
 
 /**
@@ -844,7 +967,7 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		});
 		if (existing) {
-			const normalizedConstraintConfig = normalizeRoomCapacityConstraintConfig(existing.constraintConfig as Prisma.JsonValue | null);
+			const normalizedConstraintConfig = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
 			if (normalizedConstraintConfig !== existing.constraintConfig && normalizedConstraintConfig != null) {
 				return await db().schedulingPolicy.update({
 					where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
@@ -977,6 +1100,15 @@ export async function getEffectiveWorkloadPolicy(
 
 export async function upsertPolicy(schoolId: number, schoolYearId: number, input: PolicyInput) {
 	const { data, errors } = validatePolicyInput(input);
+	const notPromotable = errors.filter((message) => message.startsWith(`${CONSTRAINT_NOT_PROMOTABLE}:`));
+	if (notPromotable.length > 0) {
+		const codes = notPromotable.map((message) => message.slice(CONSTRAINT_NOT_PROMOTABLE.length + 1));
+		throw err(
+			400,
+			CONSTRAINT_NOT_PROMOTABLE,
+			`These constraints cannot be promoted to hard publication blockers: ${codes.join(', ')}.`,
+		);
+	}
 	if (errors.length > 0) {
 		throw err(400, 'INVALID_POLICY', errors.join(' '));
 	}

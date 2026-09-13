@@ -45,7 +45,7 @@ import {
 } from './derived-demand.service.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
+import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
@@ -685,7 +685,7 @@ async function buildGenerationPreflightWithContext(
 		client.facultySubject.findMany({ where: { schoolId, schoolYearId } }),
 		client.room.findMany({
 			where: { isTeachingSpace: true, building: { schoolId, isTeachingBuilding: true } },
-			select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, features: true, buildingId: true, buildingZoneId: true, building: { select: { gradeScope: true } } },
+			select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, features: true, floor: true, buildingId: true, buildingZoneId: true, building: { select: { gradeScope: true } } },
 		}),
 		client.subject.findMany({
 			where: { schoolId, isActive: true },
@@ -1158,6 +1158,7 @@ export function buildPreflightValidatorContext(
 	runId: number,
 ): ValidatorContext {
 	const policyRow = (assembly.policyRow ?? {}) as any;
+	const families = resolveWarningFamilyPolicy(policyRow);
 	return {
 		schoolId: assembly.scope.schoolId,
 		schoolYearId: assembly.scope.schoolYearId,
@@ -1180,13 +1181,19 @@ export function buildPreflightValidatorContext(
 			enforceConsecutiveBreakAsHard: policyRow.enforceConsecutiveBreakAsHard,
 		},
 		travelPolicy: {
-			enableTravelWellbeingChecks: policyRow.enableTravelWellbeingChecks,
-			maxWalkingDistanceMetersPerTransition: policyRow.maxWalkingDistanceMetersPerTransition,
 			maxBuildingTransitionsPerDay: policyRow.maxBuildingTransitionsPerDay,
 			maxBackToBackTransitionsWithoutBuffer: policyRow.maxBackToBackTransitionsWithoutBuffer,
 			maxIdleGapMinutesPerDay: policyRow.maxIdleGapMinutesPerDay,
 			avoidEarlyFirstPeriod: policyRow.avoidEarlyFirstPeriod,
 			avoidLateLastPeriod: policyRow.avoidLateLastPeriod,
+			enableBuildingTransitionChecks: families.buildingTransitions,
+			enableFloorTransitionChecks: families.floorTransitions,
+			enableIdleGapChecks: families.idleGap,
+			enableEarlyStartChecks: families.earlyStart,
+			enableLateEndChecks: families.lateEnd,
+			buildingTransitionBufferMinutes: families.buildingTransitionBufferMinutes,
+			floorTransitionThreshold: families.floorTransitionThreshold,
+			floorTransitionBufferMinutes: families.floorTransitionBufferMinutes,
 		},
 		vacantPolicy: {
 			enableVacantAwareConstraints: policyRow.enableVacantAwareConstraints,

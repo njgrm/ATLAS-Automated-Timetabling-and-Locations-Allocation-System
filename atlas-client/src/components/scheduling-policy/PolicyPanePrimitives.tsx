@@ -11,7 +11,7 @@ import type { ConstraintOverride, ViolationCode } from '@/types';
 export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: true, weight: 4, treatAsHard: false },
+	FACULTY_FLOOR_TRANSITION: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { enabled: true, weight: 4, treatAsHard: false },
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
@@ -19,7 +19,7 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
-	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
+	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 };
 
 export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
@@ -31,9 +31,9 @@ export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation
 		label: 'Break Requirement',
 		explanation: 'Penalizes insufficient break time between consecutive teaching blocks.',
 	},
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: {
-		label: 'Excessive Travel Distance',
-		explanation: 'Penalizes transitions between buildings that exceed the max walking distance threshold.',
+	FACULTY_FLOOR_TRANSITION: {
+		label: 'Cross-Floor Transition',
+		explanation: 'Penalizes a move of several floors inside one building with too little time between classes.',
 	},
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
 		label: 'Building Transitions/Day',
@@ -218,8 +218,80 @@ export function ConstraintRow({
 	);
 }
 
-export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * Warning-family fields. Each family is independent: no master travel switch
+ * gates unrelated idle/early/late checks (R3).
+ */
+export function WarningFamilyFields({
+	maxBuildingTransitionsPerDay,
+	maxBackToBackTransitionsWithoutBuffer,
+	maxIdleGapMinutesPerDay,
+	avoidEarlyFirstPeriod,
+	avoidLateLastPeriod,
+	onMaxBuildingTransitionsChange,
+	onMaxBackToBackChange,
+	onMaxIdleGapChange,
+	onAvoidEarlyChange,
+	onAvoidLateChange,
+}: {
+	maxBuildingTransitionsPerDay: number;
+	maxBackToBackTransitionsWithoutBuffer: number;
+	maxIdleGapMinutesPerDay: number;
+	avoidEarlyFirstPeriod: boolean;
+	avoidLateLastPeriod: boolean;
+	onMaxBuildingTransitionsChange: (value: number) => void;
+	onMaxBackToBackChange: (value: number) => void;
+	onMaxIdleGapChange: (value: number) => void;
+	onAvoidEarlyChange: (value: boolean) => void;
+	onAvoidLateChange: (value: boolean) => void;
+}) {
 	return (
+		<motion.div
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			className="space-y-3 pl-2 border-l-2 border-primary/20"
+		>
+			<PolicyNumberField
+				label="Max Building Transitions/Day"
+				explanation="Maximum number of cross-building moves per teacher per day."
+				value={maxBuildingTransitionsPerDay}
+				onChange={onMaxBuildingTransitionsChange}
+				min={1}
+				max={20}
+			/>
+			<PolicyNumberField
+				label="Max Back-to-Back Without Buffer"
+				explanation="Maximum consecutive cross-building transitions with a gap at or below the transition buffer."
+				value={maxBackToBackTransitionsWithoutBuffer}
+				onChange={onMaxBackToBackChange}
+				min={1}
+				max={10}
+			/>
+			<PolicyNumberField
+				label="Max Idle Gap/Day (min)"
+				explanation="Maximum total idle minutes between a faculty member's first and last class in a single day."
+				value={maxIdleGapMinutesPerDay}
+				onChange={onMaxIdleGapChange}
+				min={10}
+				max={300}
+			/>
+			<PolicySwitch
+				label="Avoid Early First Period"
+				explanation="Generates a soft violation when teachers are scheduled in the first period (within 15 min of earliest start)."
+				checked={avoidEarlyFirstPeriod}
+				onCheckedChange={onAvoidEarlyChange}
+			/>
+			<PolicySwitch
+				label="Avoid Late Last Period"
+				explanation="Generates a soft violation when teachers are scheduled in the last period (within 15 min of latest end)."
+				checked={avoidLateLastPeriod}
+				onCheckedChange={onAvoidLateChange}
+			/>
+		</motion.div>
+	);
+}
+
+export function SectionCard({ title, children }: { title: string; children: ReactNode }) {	return (
 		<div className="flex flex-col min-h-0 h-full rounded-lg border border-border bg-card overflow-hidden">
 			<div className="shrink-0 px-4 pt-3 pb-2 border-b border-border/60 bg-card">
 				<h3 className="text-[0.6875rem] font-semibold text-foreground uppercase tracking-wider">

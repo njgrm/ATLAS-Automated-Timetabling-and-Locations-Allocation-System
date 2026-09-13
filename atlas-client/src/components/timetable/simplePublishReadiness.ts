@@ -83,12 +83,14 @@ const VIOLATION_SOFT_LABELS: Record<string, string> = {
 	SECTION_TIME_CONFLICT: 'Section time conflict',
 	FACULTY_OVERLOAD: 'Teacher overload warning',
 	ROOM_TYPE_MISMATCH: 'Room type mismatch',
+	ROOM_FEATURE_MISMATCH: 'Room missing required feature',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teacher not qualified for subject',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Too many consecutive periods',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break requirement violated',
 	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily standard hours exceeded',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily max hours exceeded',
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Long travel distance between classes',
+	FACULTY_FLOOR_TRANSITION: 'Long cross-floor transition within a building',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Too many building transitions',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient transition time between periods',
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Long teacher idle gap',
@@ -104,6 +106,33 @@ const VIOLATION_SOFT_LABELS: Record<string, string> = {
 
 function gradeLabel(gradeLevel: number): string {
 	return `GR${gradeLevel}`;
+}
+
+/**
+ * Mirror of the server-owned promotable allowlist (R4/F2). Only these HARD codes
+ * may block publication; any other HARD severity (e.g. the retired travel
+ * metric persisted on a legacy run) is informational.
+ */
+const PUBLICATION_BLOCKING_CODES: ReadonlySet<string> = new Set([
+	'FACULTY_TIME_CONFLICT',
+	'ROOM_TIME_CONFLICT',
+	'SECTION_TIME_CONFLICT',
+	'FACULTY_OVERLOAD',
+	'FACULTY_SUBJECT_NOT_QUALIFIED',
+	'UNASSIGNED_SECTION',
+	'LACKING_FACULTY',
+	'INCOMPLETE_MODULAR_GROUP',
+	'ROOM_TYPE_MISMATCH',
+	'ROOM_FEATURE_MISMATCH',
+	'FACULTY_DAILY_MAX_EXCEEDED',
+]);
+
+export function isBlockingHardViolation(violation: Violation): boolean {
+	return violation.severity === 'HARD' && PUBLICATION_BLOCKING_CODES.has(violation.code);
+}
+
+export function isInformationalHardViolation(violation: Violation): boolean {
+	return violation.severity === 'HARD' && !PUBLICATION_BLOCKING_CODES.has(violation.code);
 }
 
 function resolveReason(item: UnassignedItem): BlockerReason {
@@ -182,7 +211,7 @@ function buildItemsFromViolations(
 	facultyLabel: (id: number) => string,
 ): Map<BlockerReason, BlockerItem[]> {
 	const groups = new Map<BlockerReason, BlockerItem[]>();
-	const hardViolations = violations.filter((v) => v.severity === 'HARD');
+	const hardViolations = violations.filter(isBlockingHardViolation);
 
 	for (const v of hardViolations) {
 		let reason: BlockerReason = 'UNKNOWN';
@@ -211,10 +240,12 @@ function buildItemsFromViolations(
 }
 
 function buildWarningGroups(violations: Violation[]): WarningGroup[] {
-	const softViolations = violations.filter((v) => v.severity === 'SOFT');
+	// Soft warnings plus informational (non-allowlisted) HARD severities: both are
+	// reviewable but neither blocks publication.
+	const warningViolations = violations.filter((v) => v.severity === 'SOFT' || isInformationalHardViolation(v));
 	const counts = new Map<string, number>();
 
-	for (const v of softViolations) {
+	for (const v of warningViolations) {
 		counts.set(v.code, (counts.get(v.code) ?? 0) + 1);
 	}
 

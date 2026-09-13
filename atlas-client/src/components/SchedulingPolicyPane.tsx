@@ -49,6 +49,7 @@ import {
 	PolicySwitch,
 	SectionCard,
 	SOFT_CONSTRAINT_LABELS,
+	WarningFamilyFields,
 } from '@/components/scheduling-policy/PolicyPanePrimitives';
 import { Badge } from '@/ui/badge';
 
@@ -934,69 +935,20 @@ export default function SchedulingPolicyPane({
 							)}
 						</div>
 
-						<PolicySwitch
-							label="Travel & Wellbeing Checks"
-							explanation="Master toggle for all travel distance, building transition, idle gap, and preference soft constraints."
-							checked={local.enableTravelWellbeingChecks}
-							onCheckedChange={(v) => update('enableTravelWellbeingChecks', v)}
+						{/* Warning families are independent: no master travel switch
+						    gates unrelated idle/early/late checks (R3). */}
+						<WarningFamilyFields
+							maxBuildingTransitionsPerDay={local.maxBuildingTransitionsPerDay}
+							maxBackToBackTransitionsWithoutBuffer={local.maxBackToBackTransitionsWithoutBuffer}
+							maxIdleGapMinutesPerDay={local.maxIdleGapMinutesPerDay}
+							avoidEarlyFirstPeriod={local.avoidEarlyFirstPeriod}
+							avoidLateLastPeriod={local.avoidLateLastPeriod}
+							onMaxBuildingTransitionsChange={(v) => update('maxBuildingTransitionsPerDay', v)}
+							onMaxBackToBackChange={(v) => update('maxBackToBackTransitionsWithoutBuffer', v)}
+							onMaxIdleGapChange={(v) => update('maxIdleGapMinutesPerDay', v)}
+							onAvoidEarlyChange={(v) => update('avoidEarlyFirstPeriod', v)}
+							onAvoidLateChange={(v) => update('avoidLateLastPeriod', v)}
 						/>
-
-						{local.enableTravelWellbeingChecks ? (
-							<motion.div
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								className="space-y-3 pl-2 border-l-2 border-primary/20"
-							>
-								<PolicyNumberField
-									label="Max Walking Distance/Transition (m)"
-									explanation="Maximum Euclidean distance (meters) between buildings per single transition before a soft violation fires."
-									value={local.maxWalkingDistanceMetersPerTransition}
-									onChange={(v) => update('maxWalkingDistanceMetersPerTransition', v)}
-									min={10}
-									max={1000}
-								/>
-								<PolicyNumberField
-									label="Max Building Transitions/Day"
-									explanation="Maximum number of cross-building moves per teacher per day."
-									value={local.maxBuildingTransitionsPerDay}
-									onChange={(v) => update('maxBuildingTransitionsPerDay', v)}
-									min={1}
-									max={20}
-								/>
-								<PolicyNumberField
-									label="Max Back-to-Back Without Buffer"
-									explanation="Maximum consecutive cross-building transitions with G��5 min gap between classes."
-									value={local.maxBackToBackTransitionsWithoutBuffer}
-									onChange={(v) => update('maxBackToBackTransitionsWithoutBuffer', v)}
-									min={1}
-									max={10}
-								/>
-								<PolicyNumberField
-									label="Max Idle Gap/Day (min)"
-									explanation="Maximum total idle minutes between a faculty member's first and last class in a single day."
-									value={local.maxIdleGapMinutesPerDay}
-									onChange={(v) => update('maxIdleGapMinutesPerDay', v)}
-									min={10}
-									max={300}
-								/>
-								<PolicySwitch
-									label="Avoid Early First Period"
-									explanation="Generates a soft violation when teachers are scheduled in the first period (within 15 min of earliest start)."
-									checked={local.avoidEarlyFirstPeriod}
-									onCheckedChange={(v) => update('avoidEarlyFirstPeriod', v)}
-								/>
-								<PolicySwitch
-									label="Avoid Late Last Period"
-									explanation="Generates a soft violation when teachers are scheduled in the last period (within 15 min of latest end)."
-									checked={local.avoidLateLastPeriod}
-									onCheckedChange={(v) => update('avoidLateLastPeriod', v)}
-								/>
-							</motion.div>
-						) : (
-							<p className="text-[0.6875rem] text-muted-foreground/60 italic">
-								Enable travel checks to configure thresholds.
-							</p>
-						)}
 					</SectionCard>
 
 					{/* COL 2: Per-Constraint Weights */}

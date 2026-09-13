@@ -331,9 +331,19 @@ async function main() {
 	// derived-authority run: the request proceeds to the run lookup.
 	await expectCode('RUN_NOT_FOUND', { schoolId: 52, termIdentities: ['T1', 'T1', ''] });
 	await expectCode('PUBLICATION_INPUTS_STALE', {}, validInput, 'changed');
-	await expectCode('PUBLISH_BLOCKED_HARD_VIOLATIONS', { violations: [{ severity: 'HARD' }] });
+	await expectCode('PUBLISH_BLOCKED_HARD_VIOLATIONS', { violations: [{ code: 'FACULTY_TIME_CONFLICT', severity: 'HARD' }] });
 	await expectCode('PUBLISH_BLOCKED_UNASSIGNED_REQUIRED', { unassignedItems: [{ reason: 'NO_ROOM' }] });
 	await expectCode('PUBLICATION_RUN_MALFORMED', { violations: null });
+
+	// R4: a persisted HARD severity for a non-allowlisted (retired/unreliable) code
+	// is informational and must not block publication. Removing the allowlist would
+	// make this fixture reject with PUBLISH_BLOCKED_HARD_VIOLATIONS.
+	const nonBlockingFixture = fakeClient({ violations: [{ code: 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE', severity: 'HARD' }] });
+	await withDataContext(nonBlockingFixture.client, () => publishSchedule(validInput, {
+		now: () => FIXED_NOW,
+		computeInputSnapshot: async () => snapshot(),
+	}));
+	assert.equal(nonBlockingFixture.state.revisions.length, 1, 'a non-allowlisted HARD code does not block publication');
 
 	const fixture = fakeClient();
 	const events: unknown[] = [];

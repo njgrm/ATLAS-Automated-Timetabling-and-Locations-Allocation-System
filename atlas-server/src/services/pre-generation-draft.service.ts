@@ -22,7 +22,7 @@ import {
 import { buildDerivedDemand, toPerPairDemandItems } from './derived-demand.service.js';
 import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
+import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
 
@@ -52,6 +52,8 @@ export interface DraftPlacementInput {
 	cohortCode?: string | null;
 	notes?: string | null;
 	expectedVersion?: number;
+	/** Ordered term identity of the placement (C-11); never silently defaulted. */
+	termIndex?: number | null;
 }
 
 export interface DraftPlacementRow {
@@ -74,6 +76,8 @@ export interface DraftPlacementRow {
 	createdBy: number;
 	createdAt: string;
 	updatedAt: string;
+	/** Persisted LockedSession term identity, preserved through every preview. */
+	termIndex: number | null;
 }
 
 export interface FacultyOptionEnriched {
@@ -320,6 +324,7 @@ function toDraftRow(placement: LockedSession): DraftPlacementRow {
 		createdBy: placement.createdBy,
 		createdAt: placement.createdAt.toISOString(),
 		updatedAt: placement.updatedAt.toISOString(),
+		termIndex: placement.termIndex ?? null,
 	};
 }
 
@@ -350,6 +355,9 @@ function asScheduledEntry(input: DraftPlacementInput, entryId: string, demandIte
 		cohortExpectedEnrollment: demandItem.entryKind === 'COHORT' ? demandItem.enrolledCount : null,
 		adviserId: demandItem.adviserId ?? null,
 		adviserName: demandItem.adviserName ?? null,
+		termIndex: typeof input.termIndex === 'number' && input.termIndex >= 1 && input.termIndex <= 4
+			? input.termIndex as 1 | 2 | 3 | 4
+			: undefined,
 	};
 }
 
@@ -367,6 +375,7 @@ function placementToScheduledEntry(placement: LockedSession, demandItem: DemandI
 			endTime: placement.endTime,
 			cohortCode: placement.cohortCode,
 			notes: placement.notes,
+			termIndex: placement.termIndex,
 		},
 		`draft-${placement.id}`,
 		demandItem,
@@ -390,6 +399,7 @@ function placementToInput(placement: LockedSession): DraftPlacementInput {
 		cohortCode: placement.cohortCode,
 		notes: placement.notes,
 		expectedVersion: placement.version,
+		termIndex: placement.termIndex,
 	};
 }
 
@@ -593,7 +603,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		}),
 		db().facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, maxHoursPerWeek: true },
+			select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true },
 		}),
 		db().facultySubject.findMany({
 			where: { schoolId, schoolYearId },
@@ -607,6 +617,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				name: true,
 				minMinutesPerWeek: true,
 				preferredRoomType: true,
+				requiredFeatures: true,
 				gradeLevels: true,
 				interSectionEnabled: true,
 				interSectionGradeLevels: true,
@@ -621,6 +632,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				capacity: true,
 				isTeachingSpace: true,
 				isSharedFacility: true,
+				features: true,
 				floor: true,
 				buildingId: true,
 				building: { select: { id: true, name: true, shortCode: true, x: true, y: true } },
@@ -808,16 +820,65 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 	};
 }
 
-function buildValidatorCtx(schoolId: number, schoolYearId: number, entries: ScheduledEntry[], ctx: DraftContext): ValidatorContext {
+/**
+ * Structural source for the pre-generation validator context. Exported so the
+ * cross-surface parity control (R6/CP-6) can exercise the real pre-gen builder
+ * alongside the generation and manual builders.
+ */
+export interface PreGenerationValidatorContextSource {
+	facultyRefs: Array<{ id: number; maxHoursPerWeek: number; ancillaryMinutesPerWeek?: number | null }>;
+	facultySubjects: ValidatorContext['facultySubjects'];
+	rooms: Array<{ id: number; type: RoomType; capacity: number | null; features?: string[] | null; floor?: number | null; buildingId: number }>;
+	subjects: Array<{ id: number; preferredRoomType: RoomType; requiredFeatures?: string[] | null }>;
+	sectionEnrollment: Map<number, number>;
+	policyRecord: {
+		maxConsecutiveTeachingMinutesBeforeBreak: number;
+		minBreakMinutesAfterConsecutiveBlock: number;
+		maxTeachingMinutesPerDay: number;
+		earliestStartTime: string;
+		latestEndTime: string;
+		enforceConsecutiveBreakAsHard: boolean;
+		maxBuildingTransitionsPerDay: number;
+		maxBackToBackTransitionsWithoutBuffer: number;
+		maxIdleGapMinutesPerDay: number;
+		avoidEarlyFirstPeriod: boolean;
+		avoidLateLastPeriod: boolean;
+		enableVacantAwareConstraints: boolean;
+		targetFacultyDailyVacantMinutes: number;
+		targetSectionDailyVacantPeriods: number;
+		maxCompressedTeachingMinutesPerDay: number;
+		enableTravelWellbeingChecks?: boolean;
+		enableBuildingTransitionChecks?: boolean;
+		enableFloorTransitionChecks?: boolean;
+		enableIdleGapChecks?: boolean;
+		constraintConfig: unknown;
+	};
+	buildings: Array<{ id: number }>;
+}
+
+/**
+ * Build the pre-generation validator context. Exported as the pre-gen leg of the
+ * single warning-context contract (R6).
+ */
+export function buildPreGenerationValidatorContext(
+	schoolId: number,
+	schoolYearId: number,
+	entries: ScheduledEntry[],
+	ctx: PreGenerationValidatorContextSource,
+): ValidatorContext {
+	const families = resolveWarningFamilyPolicy(ctx.policyRecord);
 	return {
 		schoolId,
 		schoolYearId,
 		runId: 0,
 		entries,
-		faculty: ctx.facultyRefs,
+		faculty: ctx.facultyRefs.map((member) => ({
+			id: member.id,
+			maxHoursPerWeek: Math.floor(computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60),
+		})),
 		facultySubjects: ctx.facultySubjects,
-		rooms: ctx.rooms.map((room) => ({ id: room.id, type: room.type, capacity: room.capacity })),
-		subjects: ctx.subjects.map((subject) => ({ id: subject.id, preferredRoomType: subject.preferredRoomType })),
+		rooms: ctx.rooms.map((room) => ({ id: room.id, type: room.type, capacity: room.capacity, features: room.features ?? undefined, floor: room.floor ?? null })),
+		subjects: ctx.subjects.map((subject) => ({ id: subject.id, preferredRoomType: subject.preferredRoomType, requiredFeatures: subject.requiredFeatures ?? undefined })),
 		sectionEnrollment: ctx.sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: ctx.policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -828,13 +889,19 @@ function buildValidatorCtx(schoolId: number, schoolYearId: number, entries: Sche
 			enforceConsecutiveBreakAsHard: ctx.policyRecord.enforceConsecutiveBreakAsHard,
 		},
 		travelPolicy: {
-			enableTravelWellbeingChecks: ctx.policyRecord.enableTravelWellbeingChecks,
-			maxWalkingDistanceMetersPerTransition: ctx.policyRecord.maxWalkingDistanceMetersPerTransition,
 			maxBuildingTransitionsPerDay: ctx.policyRecord.maxBuildingTransitionsPerDay,
 			maxBackToBackTransitionsWithoutBuffer: ctx.policyRecord.maxBackToBackTransitionsWithoutBuffer,
 			maxIdleGapMinutesPerDay: ctx.policyRecord.maxIdleGapMinutesPerDay,
 			avoidEarlyFirstPeriod: ctx.policyRecord.avoidEarlyFirstPeriod,
 			avoidLateLastPeriod: ctx.policyRecord.avoidLateLastPeriod,
+			enableBuildingTransitionChecks: families.buildingTransitions,
+			enableFloorTransitionChecks: families.floorTransitions,
+			enableIdleGapChecks: families.idleGap,
+			enableEarlyStartChecks: families.earlyStart,
+			enableLateEndChecks: families.lateEnd,
+			buildingTransitionBufferMinutes: families.buildingTransitionBufferMinutes,
+			floorTransitionThreshold: families.floorTransitionThreshold,
+			floorTransitionBufferMinutes: families.floorTransitionBufferMinutes,
 		},
 		vacantPolicy: {
 			enableVacantAwareConstraints: ctx.policyRecord.enableVacantAwareConstraints,
@@ -922,14 +989,14 @@ export async function previewPlacement(schoolId: number, schoolYearId: number, i
 		...(input.placementId != null ? [input.placementId] : []),
 	]));
 	const currentEntries = buildExistingEntries(ctx, excludedPlacementIds.length > 0 ? excludedPlacementIds : undefined);
-	const currentValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, currentEntries, ctx));
+	const currentValidation = validateHardConstraints(buildPreGenerationValidatorContext(schoolId, schoolYearId, currentEntries, ctx));
 	const candidateEntry = asScheduledEntry({
 		...input,
 		entryKind: input.entryKind ?? existingPlacement?.entryKind ?? 'SECTION',
 		cohortCode: input.cohortCode ?? existingPlacement?.cohortCode ?? null,
 	}, `draft-preview-${input.placementId ?? 'new'}`, demandItem);
 	const nextEntries = [...currentEntries, candidateEntry];
-	const nextValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, nextEntries, ctx));
+	const nextValidation = validateHardConstraints(buildPreGenerationValidatorContext(schoolId, schoolYearId, nextEntries, ctx));
 	const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
 	const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
 
@@ -1213,7 +1280,7 @@ function getDraftPlacementOrThrow(ctx: DraftContext, placementId: number, expect
 
 function buildSwapPreview(ctx: DraftContext, sourcePlacement: LockedSession, targetPlacement: LockedSession): DraftPlacementSwapPreview {
 	const currentEntries = buildExistingEntries(ctx);
-	const currentValidation = validateHardConstraints(buildValidatorCtx(sourcePlacement.schoolId, sourcePlacement.schoolYearId, currentEntries, ctx));
+	const currentValidation = validateHardConstraints(buildPreGenerationValidatorContext(sourcePlacement.schoolId, sourcePlacement.schoolYearId, currentEntries, ctx));
 	const sourceOriginal = placementToInput(sourcePlacement);
 	const targetOriginal = placementToInput(targetPlacement);
 	const sourceInput: DraftPlacementInput = {
@@ -1235,7 +1302,7 @@ function buildSwapPreview(ctx: DraftContext, sourcePlacement: LockedSession, tar
 		asScheduledEntry(sourceInput, `draft-swap-${sourcePlacement.id}`, sourceDemand),
 		asScheduledEntry(targetInput, `draft-swap-${targetPlacement.id}`, targetDemand),
 	];
-	const nextValidation = validateHardConstraints(buildValidatorCtx(sourcePlacement.schoolId, sourcePlacement.schoolYearId, nextEntries, ctx));
+	const nextValidation = validateHardConstraints(buildPreGenerationValidatorContext(sourcePlacement.schoolId, sourcePlacement.schoolYearId, nextEntries, ctx));
 	const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
 	const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
 	const sourceDailyMinutesAfter = computeFacultyDailyMinutes(sourceInput.facultyId, sourceInput.day, nextEntries);
@@ -1739,7 +1806,7 @@ export async function consumeDraftPlacementsForRun(runId: number, schoolId: numb
 			return item && row.facultyId != null && row.roomId != null ? placementToScheduledEntry(row, item) : null;
 		}).filter((entry): entry is ScheduledEntry => entry != null);
 		const candidateEntry = asScheduledEntry(input, `draft-${placement.id}`, demandItem);
-		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, [...acceptedContextEntries, candidateEntry], ctx));
+		const validation = validateHardConstraints(buildPreGenerationValidatorContext(schoolId, schoolYearId, [...acceptedContextEntries, candidateEntry], ctx));
 		const hardViolations = validation.violations.filter((violation) => violation.severity === 'HARD');
 		if (hardViolations.length > 0) {
 			reject(placement, 'HARD_CONFLICT', hardViolations.map((violation) => violation.code).join(', '));
