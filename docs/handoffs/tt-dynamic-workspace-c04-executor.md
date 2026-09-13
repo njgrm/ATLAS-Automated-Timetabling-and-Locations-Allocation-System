@@ -94,8 +94,8 @@ warning/policy/TL/sync server file. No S1 server file was added, so the
 | `npm run test:timetable-sync-setup` | 6 / 6 pass, 0 fail |
 | `npx tsx --test timetable-ordered-term-conflict-c03r3 + timetable-day-scope-c03r` | 9 / 9 pass, 0 fail |
 | `npx tsx --test src/hooks/__tests__/useTeachingLoadRouteIntent.test.ts` | 21 / 21 pass, 0 fail |
-| New `timetable-dynamic-workspace-*` tests | 45 / 45 pass, 0 fail (before adding R7 parity/policy/pre-gen rows; final inventory covers all) |
-| Full tracked client inventory (`tsx --test` on all 48 tracked `src/**/*.test.ts`) | **375 / 375 pass, 0 fail, 0 cancelled, 0 skipped** |
+| New `timetable-dynamic-workspace-*` tests | 48 / 48 pass, 0 fail |
+| Full tracked client inventory (`tsx --test` on all 48 tracked `src/**/*.test.ts`) | **376 / 376 pass, 0 fail, 0 cancelled, 0 skipped** |
 | `git diff --check` | clean (exit 0) |
 | Staged-path audit | only owned paths staged in every commit |
 | `npm run test:timetable-conflict` | **BLOCKED(BASE_TEST_UNTRACKED_4794bd9e)** — `timetable-live-conflict.test.ts`, `tactical-sandbox-dock-helpers.test.ts` untracked at base |
