@@ -343,6 +343,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		setMoreOpen(false);
 	};
 
+	// R7 — room-request review is reachable from Simple when requests are
+	// pending. It reuses the canonical requests rail; no second authority.
+	const openRequestsTask = () => {
+		context.leftPanelRef.current?.expand();
+		context.setLeftTab('requests');
+		context.setPresentationMode('workflow');
+	};
+
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
 			{/* R6 — run input freshness, ordered-term authority, and rollover drift are
@@ -483,6 +491,15 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 										<UserRoundX className="size-3.5" aria-hidden="true" />
 										Teacher leaving / Reassign load
 										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										disabled={context.requestPendingCount === 0}
+										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); openRequestsTask(); }}
+										data-testid="timetable-more-review-requests"
+									>
+										<ClipboardCheck className="size-3.5" aria-hidden="true" />
+										Review room requests{context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}
 									</DropdownMenuItem>
 								</div>
 								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">

@@ -23,6 +23,8 @@ import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard'
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
+import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { ScheduleReviewInputStateBanner } from '@/components/timetable/ScheduleReviewInputStateBanner';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
@@ -229,7 +231,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	// separate readiness boolean may gate a generation trigger.
 	const scopeResolved = Number.isInteger(schoolId) && schoolId > 0
 		&& Number.isInteger(schoolYearId) && (schoolYearId ?? 0) > 0;
-	const isRunPublished = Boolean((draft?.summary as unknown as Record<string, unknown> | null)?.isPublished);
+	const isRunPublished = isDraftPublishedStrict(draft);
 	const latestRunFailed = !draft && runOptions[0]?.status === 'FAILED';
 	const capabilities = deriveTimetableCapabilities({
 		scopeResolved,
@@ -438,22 +440,25 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="outline"
 								size="sm"
 								className="h-8 shrink-0 gap-1.5"
-								disabled={!draft || hardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
+								disabled={!draft || isRunPublished || hardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
 								onClick={() => {
 									setPublishAcknowledged(false);
 									setShowPublishDialog(true);
 								}}
+								data-testid="timetable-advanced-publish"
 							>
 								<Send className="size-3.5" />
 								Publish
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>
-							{hardCount > 0
-								? `Cannot publish: ${hardCount} hard violation(s) remaining`
-								: unassignedCount > 0
-									? `Cannot publish: ${unassignedCount} session(s) still need placing`
-									: 'Publish this schedule'}
+							{isRunPublished
+								? 'This run is already published. Create an effective-dated revision instead of re-publishing.'
+								: hardCount > 0
+									? `Cannot publish: ${hardCount} hard violation(s) remaining`
+									: unassignedCount > 0
+										? `Cannot publish: ${unassignedCount} session(s) still need placing`
+										: 'Publish this schedule'}
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
@@ -603,7 +608,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-								onClick={() => setLeftTab('requests')}
+								onClick={() => openLeftTask('requests')}
+								data-testid="timetable-advanced-requests"
 							>
 								<ClipboardList className="size-3.5" />
 								Requests
@@ -867,74 +873,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			</div>
 
 			{showInputStateBanner && (
-				<div className={cn(
-					'mx-2 mb-1 flex h-8 flex-nowrap items-center justify-between gap-2 overflow-hidden rounded-lg border px-2 py-0 text-xs shadow-sm sm:mx-4 [@media(max-height:500px)]:hidden',
-					inputState?.status === 'STALE'
-						? 'border-amber-200 bg-amber-50 text-amber-950'
-						: 'border-sky-200 bg-sky-50 text-sky-950',
-				)}>
-					<div className="flex min-w-0 items-center gap-2">
-						<div className={cn(
-							'flex size-6 shrink-0 items-center justify-center rounded-md',
-							inputState?.status === 'STALE' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700',
-						)}>
-							{inputState?.status === 'STALE' ? <AlertTriangle className="size-4" /> : <ShieldAlert className="size-4" />}
-						</div>
-						<div className="min-w-0">
-							<div className="flex min-w-0 items-center gap-2">
-								<p className="shrink-0 text-xs font-bold">{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</p>
-								{inputState?.status === 'STALE' && changedDomainLabels.slice(0, 3).map((label) => (
-									<Badge key={label} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-xs font-bold text-amber-800">
-										{label}
-									</Badge>
-								))}
-							</div>
-							<p className="hidden truncate text-xs font-medium leading-relaxed text-current/80 lg:block">
-								{inputState?.message ?? 'ATLAS could not check this run against the latest setup data.'}
-							</p>
-						</div>
-					</div>
-
-					<div className="flex shrink-0 items-center gap-1.5 lg:justify-end">
-						<Button variant="outline" size="sm" className="h-8 gap-1.5 bg-background/80" onClick={() => setShowImpactPreview(true)}>
-							<SearchCheck className="size-3.5" />
-							<span className="hidden sm:inline">Preview Impact</span>
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 gap-1.5 bg-background/80 font-semibold border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-950"
-							onClick={() => setShowSyncConfirm(true)}
-							disabled={loading || syncing}
-						>
-							{syncing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-							<span className="hidden sm:inline">Sync with Setup</span>
-						</Button>
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span>
-										<Button
-											variant="outline"
-											size="sm"
-											className="h-8 gap-1.5 bg-background/80"
-											disabled={!hasSelectedEntry}
-											onClick={() => context.enterManualEditView('CHANGE_FACULTY')}
-										>
-											<Wrench className="size-3.5" />
-											<span className="hidden sm:inline">Manually Repair</span>
-										</Button>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent>{hasSelectedEntry ? 'Repair the selected class without regenerating.' : 'Select a timetable class before using manual repair.'}</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-						<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={!generationGate.enabled || loading} onClick={handleGenerationTrigger}>
-							<RotateCw className="size-3.5" />
-							<span className="hidden sm:inline">Regenerate Draft</span>
-						</Button>
-					</div>
-				</div>
+				<ScheduleReviewInputStateBanner
+					inputState={inputState}
+					changedDomainLabels={changedDomainLabels}
+					loading={loading}
+					syncing={syncing}
+					hasSelectedEntry={hasSelectedEntry}
+					generationEnabled={generationGate.enabled}
+					onPreviewImpact={() => setShowImpactPreview(true)}
+					onSync={() => setShowSyncConfirm(true)}
+					onManualRepair={() => context.enterManualEditView('CHANGE_FACULTY')}
+					onRegenerate={handleGenerationTrigger}
+				/>
 			)}
 
 			<SyncTimetableConfirmDialog

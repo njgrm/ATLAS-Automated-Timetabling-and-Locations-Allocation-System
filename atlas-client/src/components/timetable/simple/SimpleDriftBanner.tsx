@@ -8,6 +8,7 @@ import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard'
 import { SetupImpactDialog, SyncTimetableConfirmDialog } from '@/components/timetable/ScheduleReviewWorkspaceDialogs';
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
+import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
 import type { RolloverStatus } from '@/lib/settings';
 import type { DraftReport } from '@/types';
 
@@ -89,7 +90,10 @@ export function SimpleDriftBanner({
 							{domain.label}
 						</Badge>
 					))}
-					<span className="min-w-0 flex-1 truncate text-amber-800">{drift.actionHint || drift.message}</span>
+					<span className="min-w-0 flex-1 truncate text-amber-800">
+						{drift.actionHint || drift.message}
+						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
+					</span>
 					<Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => setShowImpactPreview(true)} data-testid="timetable-simple-impact-preview">
 						<SearchCheck className="size-3" />
 						Preview impact

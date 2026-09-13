@@ -58,6 +58,25 @@ function numericField(summary: unknown, key: string): number | null {
 }
 
 /**
+ * B-10 — the run-data cache can hold an `inputState`/version for up to its TTL
+ * without any visible age. Surface the comparison's `checkedAt` as a bounded
+ * relative age so a stale read never looks current.
+ */
+export function formatCheckedAtAge(checkedAt: string | null | undefined, now: number = Date.now()): string | null {
+	if (!checkedAt) return null;
+	const parsed = Date.parse(checkedAt);
+	if (!Number.isFinite(parsed)) return null;
+	const seconds = Math.max(0, Math.round((now - parsed) / 1000));
+	if (seconds < 60) return `checked ${seconds}s ago`;
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 60) return `checked ${minutes}m ago`;
+	const hours = Math.round(minutes / 60);
+	if (hours < 24) return `checked ${hours}h ago`;
+	const days = Math.round(hours / 24);
+	return `checked ${days}d ago`;
+}
+
+/**
  * Derive the run-wide publication readiness from the canonical run summary
  * (`generation.service.ts:824,902-903` persists run-wide hard/soft counts).
  * The selected-term violation array is only a fallback for pre-generation

@@ -271,7 +271,7 @@ export default function ScheduleReviewWorkspace() {
 	const SelectedPrimaryIcon = selectedPrimaryAction.icon;
 
 	return (
-		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative">
+		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative" data-timetable-year-binding="runtime-active-only">
 			{state.loading && state.draft && (
 				<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[2px] transition-all duration-150">
 					<div className="flex flex-col items-center gap-3 rounded-lg border bg-card p-6 shadow-lg">
@@ -331,7 +331,10 @@ export default function ScheduleReviewWorkspace() {
 					</div>
 				</div>
 			) : null}
-			{state.selectedEntry ? (
+			{/* A-13 — Simple owns the single selected-class strip. Advanced keeps the
+			    RightPanel selected-class surface, so the duplicate strip is collapsed
+			    there instead of rendering two divergent flows. */}
+			{state.selectedEntry && layoutMode === 'simple' ? (
 				<div
 					role="status"
 					aria-live="polite"
