@@ -15,6 +15,7 @@ import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useRef, useS
 import { Link, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 
 const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/TeacherDepartureRecoverySheet').then((module) => ({
@@ -437,17 +438,32 @@ export default function ScheduleReviewWorkspace() {
 				) : (
 					<div className="relative shrink-0">
 						<ScheduleReviewWorkspaceHeader context={state.headerContext} />
-						<Button
-							type="button"
-							variant="secondary"
-							size="sm"
-							className="absolute right-3 top-3 z-20 h-11 border border-border bg-background/95 px-3 text-xs shadow-sm"
-							onClick={() => setLayoutMode('simple')}
-							data-testid="timetable-layout-toggle"
-							aria-label="Switch to simple timetable view"
-						>
-							Simple view
-						</Button>
+						{/* R4 — Advanced gets the same visible Undo / Redo / History control as Simple. */}
+						<div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5">
+							<Button
+								type="button"
+								variant="secondary"
+								size="sm"
+								className="h-11 border border-border bg-background/95 px-3 text-xs shadow-sm"
+								onClick={() => setLayoutMode('simple')}
+								data-testid="timetable-layout-toggle"
+								aria-label="Switch to simple timetable view"
+							>
+								Simple view
+							</Button>
+							<div className="rounded-lg border border-border bg-background/95 px-1.5 py-1 shadow-sm">
+								<TimetableUndoRedoControl
+									editHistoryCount={state.headerContext.editHistoryCount}
+									revertLoading={state.headerContext.revertLoading}
+									revertLastEdit={state.headerContext.revertLastEdit}
+									redoState={state.redoState ?? null}
+									redoVersionStale={state.redoVersionStale ?? false}
+									redoLastEdit={async () => { await state.redoLastEdit?.(); }}
+									clearRedo={() => state.clearRedo?.()}
+									setShowEditHistory={state.headerContext.setShowEditHistory}
+								/>
+							</div>
+						</div>
 					</div>
 				)}
 				<ScheduleReviewWorkspaceBody
