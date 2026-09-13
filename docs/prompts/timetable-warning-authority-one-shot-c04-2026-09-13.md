@@ -14,7 +14,8 @@ Date authored: 2026-09-13 (Asia/Manila), from cycle TT-DYNAMIC-AUDIT-C04.
   `29C1BD0600937B18C9B387B7F0A71A464E7EE8F7BC15D8A12B14AEE9CB41F81E`).
 - `docs/reference/timetable-dynamic-workspace-and-warning-contract.md` §6.
 - `docs/audits/timetable-dynamic-workspace-audit-2026-09-13.md` findings
-  C-01…C-16 and CP-5/CP-6.
+  C-01…C-16, CP-5/CP-6, and the server half of CP-2 (B-11 publication
+  predicate).
 
 ## 1. Objective
 
@@ -177,6 +178,19 @@ surfaces one authoritative context and one complete client contract.
   buffer, idle, early/late, vacant/compressed, daily standard/max, consecutive/
   break, promotion allowlist, term-aware grouping, and the publication effect
   for each. No test may rely on a policy-less validator context to pass.
+
+### R9 — Strict publication predicate on the manual-edit authority (B-11 server half)
+
+- `manual-edit.service.ts:400-411` (`isPublishedSummary` / `assertRunIsEditable`)
+  must align to the canonical strict predicate `summary.isPublished === true`.
+  Loose `publishedAt`/`publishedBy` markers on a superseded run are
+  informational only: they must not present the run as published and must not
+  throw `RUN_ALREADY_PUBLISHED` for a genuinely unpublished run. A genuine
+  published run still blocks direct edits and routes to revisions.
+- Control: superseded-run fixture (`isPublished:false` with retained markers) —
+  edit preview passes and labels the run as not published; a genuine published
+  run still refuses with zero writes. Old behavior: the loose OR check throws
+  on the superseded run.
 
 ## 4. Mandatory gates
 

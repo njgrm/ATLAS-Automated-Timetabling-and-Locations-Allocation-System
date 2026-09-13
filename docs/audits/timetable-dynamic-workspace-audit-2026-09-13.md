@@ -140,7 +140,7 @@ Owner streams: **S1** TT-DYNAMIC-WORKSPACE-C04, **S2** TT-WARNING-AUTHORITY-C04,
 | Cluster | IDs | Root cause | Single correct fix direction |
 |---|---|---|---|
 | CP-1 Count/parity | A-01, A-02, C-10, C-15 | Term-scoped display and run-wide gating are mixed without a documented contract | One run-wide gate source (`summary.hardViolationCount` + persisted violations) and explicit term-scoped display; server counts consistent with both |
-| CP-2 Publication predicate | A-04, B-11 (+ four server loose checks) | Legacy marker compatibility vs canonical strict truth | Strict `isPublished === true` everywhere; superseded runs are not published |
+| CP-2 Publication predicate | A-04, B-11 (+ four server loose checks) | Legacy marker compatibility vs canonical strict truth | Strict `isPublished === true` everywhere: S1 owns the client surfaces; S2 owns `manual-edit.service.ts`; S3 owns the TL repair service; S4 carries `timetable-quick-place.service.ts:447` and `timetable-sync-setup.service.ts:283,667` |
 | CP-3 Source-change invisibility | A-11, B-06, B-14, B-10 | Freshness authority exists server-side but has no Simple consumer and no binding for term/availability changes | Typed domain surfaces in the workspace + server binding for every consumed input |
 | CP-4 Scope survival | A-08 (+ ordered-term invariant 6) | Component-local state not keyed to school/year/run/term | Clear/revalidate all scope-bound state on scope change |
 | CP-5 Warning promotion | C-01, C-05, C-06, C-13 | No trust boundary between unreliable soft metrics and hard publication blockers | Server promotion allowlist; retire false metric; align client/server defaults |
@@ -198,7 +198,8 @@ Owner streams: **S1** TT-DYNAMIC-WORKSPACE-C04, **S2** TT-WARNING-AUTHORITY-C04,
   cycle is the operator's docs-only stream (two commits on `origin/main`).
 - This docs package adds new files (contract, audit, three prompts) and edits
   `CHANGELOG.md`, `docs/plans/atlas-active-delivery-streams.md`, and
-  `docs/prompts/...planner-cycle...1999...` is untouched. Forecasted conflicts:
+  `.gitignore` (the `docs/audits/` allowlist). The original planner-cycle
+  prompt file is untouched. Forecasted conflicts:
   `CHANGELOG.md` (append-only union, low risk) and the register (single-writer,
   low risk). No product file is touched, so no product conflict is possible.
 - Integration boundary must be re-verified against `origin/main` immediately

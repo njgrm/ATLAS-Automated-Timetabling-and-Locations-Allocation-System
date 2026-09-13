@@ -27,7 +27,8 @@ split must be a separate planner decision, not an executor improvisation.
   `29C1BD0600937B18C9B387B7F0A71A464E7EE8F7BC15D8A12B14AEE9CB41F81E`).
 - `docs/reference/timetable-dynamic-workspace-and-warning-contract.md` §5.
 - `docs/audits/timetable-dynamic-workspace-audit-2026-09-13.md` findings
-  B-01…B-08, B-15, C-10 (TL surfaces), CP-8.
+  B-01…B-08, B-15, C-10 (TL surfaces), CP-8, and the server half of CP-2
+  (B-11 publication predicate).
 
 ## 2. Objective
 
@@ -131,6 +132,17 @@ show timetable impact before commit:
    placement/repair authority and the persisted availability source.
 6. **Setup-drift** routing/copy: route the operator to the canonical sync with
    per-domain messaging; do not implement a parallel sync.
+
+### R7 — Strict publication predicate on the TL repair authority (B-11 server half)
+
+- `timetable-teaching-load-repair.service.ts:1024,1042` must use the canonical
+  strict predicate `summary.isPublished === true` instead of loose
+  `publishedAt`/`publishedBy` markers. Superseded runs are not published: the
+  repair path must follow the normal repair rules for their actual state, while
+  a genuine published run still routes to effective-dated revisions.
+- Control: superseded-run fixture — the preview labels the true publication
+  state and does not throw `RUN_ALREADY_PUBLISHED`; a genuine published run
+  still refuses with zero writes.
 
 A time-slot swap must never be labeled a teacher swap.
 
