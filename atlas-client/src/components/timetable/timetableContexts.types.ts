@@ -276,4 +276,9 @@ export type ScheduleReviewDialogsContext = {
 	showEditHistory: boolean;
 	setShowEditHistory: Dispatch<SetStateAction<boolean>>;
 	editHistory: ManualEditRecord[];
+	/** R4 — operation-bound undo used by the per-row history revert affordance. */
+	revertEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
+	revertLoading: boolean;
+	/** The current run version the CAS must match. */
+	currentRunVersion: number | null;
 };

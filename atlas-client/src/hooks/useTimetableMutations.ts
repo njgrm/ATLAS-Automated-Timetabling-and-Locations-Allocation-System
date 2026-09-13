@@ -6,6 +6,8 @@ import atlasApiClient from '@/lib/api';
 import { createTimetableScopedClient } from '@/components/timetable/timetableSchoolScope';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
+import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
+import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type {
@@ -274,6 +276,12 @@ export type TimetableMutationState = {
 	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	revertLastEdit: () => Promise<void>;
 	revertEditById: (operationId: number, expectedVersion: number) => Promise<boolean>;
+	/** R4 — bounded authoritative Redo target; null when no eligible redo exists. */
+	redoState: { operationId: number; expectedVersion: number; label: string } | null;
+	/** R4 — the last redo attempt hit a stale CAS; nothing was dispatched. */
+	redoVersionStale: boolean;
+	redoLastEdit: () => Promise<void>;
+	clearRedo: () => void;
 	choosePreGenFaculty: (item: DraftQueueItem) => number;
 	choosePreGenRoom: (item: DraftQueueItem) => number;
 	buildPreGenPendingPlacement: (
@@ -426,6 +434,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const latestRequestPreviewSeqRef = useRef(0);
 	const latestManualPreviewSeqRef = useRef(0);
 	const latestTeachingLoadPreviewSeqRef = useRef(0);
+	// R4 — bounded, authoritative Redo. After an Undo the server records the
+	// inverse edit; Redo re-dispatches the same `/manual-edits/revert` endpoint
+	// against that new head with a fresh CAS. It is never a client-only replay.
+	const [redoState, setRedoState] = useState<{ operationId: number; expectedVersion: number; label: string } | null>(null);
+	const [redoVersionStale, setRedoVersionStale] = useState(false);
 
 	useEffect(() => {
 		draftBoardSummaryRef.current = draftBoardSummary;
@@ -762,14 +775,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			return;
 		}
 
-		const softViolationCount = violations.filter((violation) => violation.severity === 'SOFT').length;
+		const softViolationCount = deriveRunWideReadiness(draft?.summary, violations).softCount;
 		if (softViolationCount > 0 && !publishAcknowledged) {
 			toast.error('Review and acknowledge soft warnings before publishing.');
 			return;
 		}
 
 		try {
-			const { data } = await atlasApi.post<{ run: import('@/types').GenerationRun }>(
+			const { data } = await atlasApi.post<{ run: import('@/types').GenerationRun; replayed?: boolean }>(
 				`/generation/${schoolId}/${schoolYearId}/runs/${draft.runId}/publish`,
 				{
 					acknowledgeSoftViolations: softViolationCount > 0 && publishAcknowledged,
@@ -777,7 +790,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			);
 			setPublishAcknowledged(false);
 			setShowPublishDialog(false);
-			toast.success(`Run #${data.run.id} published. Final schedule is now viewable.`);
+			// A-15: the server `replayed` flag means the run was already published
+			// and nothing changed. Never toast a false success.
+			if (data.replayed === true) {
+				toast.info(`Run #${data.run.id} is already published. No changes were made.`);
+			} else {
+				toast.success(`Run #${data.run.id} published. Final schedule is now viewable.`);
+			}
 			await loadAll(false);
 		} catch (e: unknown) {
 			const axiosErr = e as {
@@ -827,6 +846,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId || !runIdNumeric) return null;
 		return `/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/teaching-load-repairs`;
 	}, [schoolYearId, runIdNumeric]);
+
+	// R4 — a Redo target is bound to one run/school/year scope. Any scope change
+	// invalidates it before it can dispatch (ordered-term invariant 6).
+	useEffect(() => {
+		setRedoState(null);
+		setRedoVersionStale(false);
+	}, [apiBase]);
 
 	const fetchEditHistory = useCallback(async () => {
 		if (!apiBase) return;
@@ -917,11 +943,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		return result != null;
 	}, [commitEditWithMeta]);
 
-	// Operation-bound Undo: takes the exact operation ID and expected resulting version
-	// (not "latest edit"). Atomic compare-and-swap on the server. Rejects stale/intervening
-	// edits with UNDO_CONFLICT without mutation.
-	const revertEditById = useCallback(async (operationId: number, expectedVersion: number): Promise<boolean> => {
-		if (!apiBase) return false;
+	// Authoritative revert dispatch shared by Undo and Redo. The server records a
+	// new inverse edit and returns its id + resulting run version, which becomes
+	// the only valid Redo target (fresh CAS). A failed CAS is a typed
+	// `Version-stale` with zero further dispatch.
+	const runAuthoritativeRevert = useCallback(async (
+		operationId: number,
+		expectedVersion: number,
+		options: { successMessage: string; redoLabel: string },
+	): Promise<CommitResult | null> => {
+		if (!apiBase) return null;
 		setRevertLoading(true);
 		try {
 			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/revert`, {
@@ -934,16 +965,55 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
-			toast.success('Edit reverted.');
-			return true;
+			setRedoState(deriveRedoAfterRevert(data, options.redoLabel));
+			setRedoVersionStale(false);
+			toast.success(options.successMessage);
+			return data;
 		} catch (e: unknown) {
 			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
-			toast.error(payload?.code === 'UNDO_CONFLICT' ? 'Schedule changed—review latest' : (payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.')));
-			return false;
+			if (payload?.code === 'UNDO_CONFLICT') {
+				setRedoVersionStale(true);
+				toast.error('Version-stale — the schedule changed. Refresh and re-preview before retrying.');
+			} else {
+				toast.error(payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.'));
+			}
+			return null;
 		} finally {
 			setRevertLoading(false);
 		}
 	}, [apiBase, schoolYearId, runIdNumeric, setRevertLoading, setViolationReport, fetchEditHistory, setDraft]);
+
+	// Operation-bound Undo: takes the exact operation ID and expected resulting version
+	// (not "latest edit"). Atomic compare-and-swap on the server. Rejects stale/intervening
+	// edits with UNDO_CONFLICT without mutation.
+	const revertEditById = useCallback(async (operationId: number, expectedVersion: number): Promise<boolean> => {
+		const result = await runAuthoritativeRevert(operationId, expectedVersion, {
+			successMessage: 'Edit reverted.',
+			redoLabel: 'Reverted edit',
+		});
+		return result != null;
+	}, [runAuthoritativeRevert]);
+
+	// R4 — bounded, authoritative Redo. Consumes its single redo target before
+	// dispatch so a stale CAS can never replay. Never a client-only re-apply.
+	const redoLastEdit = useCallback(async (): Promise<void> => {
+		if (!redoState) return;
+		// Consume the target before dispatch. A target whose version is no longer
+		// current is dropped with zero dispatch and rendered as Version-stale.
+		const pending = redoState;
+		setRedoState(null);
+		const outcome = await dispatchRedo(pending, draft?.version ?? null, (operationId, expectedVersion) =>
+			runAuthoritativeRevert(operationId, expectedVersion, {
+				successMessage: 'Redo applied.',
+				redoLabel: 'Redone edit',
+			}));
+		if (outcome.stale) setRedoVersionStale(true);
+	}, [redoState, draft?.version, runAuthoritativeRevert]);
+
+	const clearRedo = useCallback(() => {
+		setRedoState(null);
+		setRedoVersionStale(false);
+	}, []);
 
 	const previewTeachingLoadRepair = useCallback(async (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal): Promise<TeachingLoadRepairPreviewResult | null> => {
 		if (!teachingLoadRepairBase || changes.length === 0) return null;
@@ -1036,27 +1106,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const revertLastEdit = useCallback(async () => {
 		if (!apiBase || !draft || editHistory.length === 0) return;
-		setRevertLoading(true);
-		try {
-			const operationId = editHistory[0].id;
-			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/revert`, {
-				operationId,
-				expectedVersion: draft.version,
-			});
-			setDraft(data.draft);
-			if (schoolYearId && runIdNumeric) {
-				const violRes = await atlasApi.get<ViolationReport>(`/generation/${schoolId}/${schoolYearId}/runs/${runIdNumeric}/violations`);
-				setViolationReport(violRes.data);
-			}
-			await fetchEditHistory();
-			toast.success('Last edit reverted.');
-		} catch (e: unknown) {
-			const payload = (e as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
-			toast.error(payload?.code === 'UNDO_CONFLICT' ? 'Schedule changed—review latest' : (payload?.message ?? (e instanceof Error ? e.message : 'Revert failed.')));
-		} finally {
-			setRevertLoading(false);
-		}
-	}, [apiBase, draft, editHistory, schoolYearId, runIdNumeric, setRevertLoading, setViolationReport, fetchEditHistory, setDraft]);
+		await runAuthoritativeRevert(editHistory[0].id, draft.version, {
+			successMessage: 'Last edit reverted.',
+			redoLabel: 'Last edit',
+		});
+	}, [apiBase, draft, editHistory, runAuthoritativeRevert]);
 
 	const choosePreGenFaculty = useCallback((item: DraftQueueItem) => {
 		const contextFacultyId = viewMode === 'faculty' ? Number(entityFilter) : 0;
@@ -1734,6 +1788,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		commitTeachingLoadRepair,
 		revertLastEdit,
 		revertEditById,
+		redoState,
+		redoVersionStale,
+		redoLastEdit,
+		clearRedo,
 		choosePreGenFaculty,
 		choosePreGenRoom,
 		buildPreGenPendingPlacement,

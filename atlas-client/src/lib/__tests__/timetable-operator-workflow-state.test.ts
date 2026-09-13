@@ -15,12 +15,16 @@ function source(path: string): string {
 }
 
 function headerContext(overrides: Record<string, unknown> = {}) {
+	// C04/F2: readiness copy reads the allowlist-filtered blocking count; default
+	// it to the total so existing fixtures keep their meaning unless overridden.
+	const hardCount = typeof overrides.hardCount === 'number' ? overrides.hardCount : 0;
 	return {
 		schoolYearContext: { activeSchoolYearLabel: 'SY 2029-2030' },
 		isPreGenerationWorkspace: false,
 		draft: null,
 		summary: null,
-		hardCount: 0,
+		hardCount,
+		blockingHardCount: hardCount,
 		softCount: 0,
 		...overrides,
 	} as unknown as Parameters<typeof readinessLabel>[0];
@@ -146,7 +150,9 @@ test('removed hidden generation bypasses are gone from the full header', () => {
 	// The only direct generation calls left are the visible lifecycle
 	// dispatcher and the explicitly gated More-menu item.
 	assert.match(header, /case 'retry-generate': context\.handleTriggerGenerate\(\); break;/);
-	assert.match(header, /disabled=\{!canPlanOrGenerate\}[\s\S]{0,200}context\.handleTriggerGenerate\(\)/);
+	// C04: the More menu was extracted; its gated generate item keeps its guard.
+	const moreMenu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(moreMenu, /disabled=\{!canPlanOrGenerate\}[\s\S]{0,200}context\.handleTriggerGenerate\(\)/);
 
 	// No-run branch: sole primary is the lifecycle dispatcher, secondary stays
 	// preview-only, and no control bypasses the dispatcher.
@@ -376,7 +382,8 @@ test('TTX-04 deciding readiness copy is visible on mobile and not hard-truncated
 });
 
 test('TTX-05 run-dependent More items are disabled with an accessible reason', () => {
-	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	// C04: the More menu was extracted into SimpleMoreMenuContent.
+	const header = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(header, /runToolsAvailable/);
 	assert.equal((header.match(/disabled=\{!runToolsAvailable\}/g) ?? []).length, 4);
 	assert.match(header, /timetable-more-place-unresolved/);

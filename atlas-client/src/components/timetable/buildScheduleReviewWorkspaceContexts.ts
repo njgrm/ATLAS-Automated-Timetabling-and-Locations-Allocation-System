@@ -47,7 +47,10 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
 	violations: Violation[];
+	/** Total run-wide HARD count (display). */
 	hardCount: number;
+	/** F2 — allowlist-filtered run-wide HARD count that actually blocks publication. */
+	blockingHardCount: number;
 	softCount: number;
 	selectedRunId: string;
 	handleRunChange: (value: string) => void;
@@ -156,6 +159,8 @@ export type ScheduleReviewWorkspaceOverlaysContext = {
 		active: boolean;
 		complete: () => void;
 	};
+	/** The authenticated token role, not the mutable localStorage string (A-09/A-19). */
+	userRole?: string | null;
 	blockerModalData: HumanConflict[] | null;
 	setBlockerModalData: Dispatch<SetStateAction<HumanConflict[] | null>>;
 	showExplainDrawer: boolean;

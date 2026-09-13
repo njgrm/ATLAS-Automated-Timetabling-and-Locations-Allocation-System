@@ -74,7 +74,7 @@ type DrawerCopy = {
 const copyByTask: Record<TimetableSimpleTask, DrawerCopy> = {
 	'place-unresolved': {
 		title: 'Place unresolved sessions',
-		description: 'Choose one session from the queue, then choose a green slot on the grid. ATLAS shows a review before saving.',
+		description: 'Choose one session from the queue, then choose a green slot on the grid. A clean slot saves immediately (Undo appears after); a slot with warnings shows a review before saving.',
 		stepOne: 'Choose a session',
 		stepTwo: 'Choose a green grid slot',
 		icon: ClipboardCheck,

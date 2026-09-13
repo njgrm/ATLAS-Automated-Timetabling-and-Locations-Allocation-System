@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, Profil
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, CalendarClock, ChevronLeft, Loader2, Lock, MapPin, Play } from 'lucide-react';
 import { onProfilerRender } from './ScheduleReviewWorkspace';
+import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
@@ -357,14 +358,7 @@ export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorksp
 		setSandboxFacultyByEntryId(new Map());
 	}, []);
 
-	const isDraftPublished = useMemo(() => {
-		const summary = draft?.summary;
-		if (!summary || typeof summary !== 'object') return false;
-		const candidate = summary as Record<string, unknown>;
-		if (candidate.isPublished === true) return true;
-		if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0) return true;
-		return typeof candidate.publishedBy === 'number';
-	}, [draft?.summary]);
+	const isDraftPublished = isDraftPublishedStrict(draft);
 
 	return (
 		<ResizablePanel

@@ -28,8 +28,8 @@ export const UNASSIGNED_GROUP_MAP: Record<string, { plainLabel: string; actionLa
 	FACULTY_OVERLOADED: { plainLabel: 'Teachers are overloaded', actionLabel: 'Review Teaching Load', actionHref: '/teaching-load', nextStep: 'Teacher workload is full. Move some classes or assign another teacher.' },
 	NO_QUALIFIED_FACULTY: { plainLabel: 'No qualified teacher is assigned', actionLabel: 'Assign a qualified teacher', actionHref: '/teaching-load', nextStep: 'No qualified teacher is assigned. Build or repair Teaching Load.' },
 	NO_AVAILABLE_SLOT: { plainLabel: 'No available time slot', actionLabel: 'Review timetable slots or policy', actionHref: '/timetable', nextStep: 'No allowed time slot was found. Try manual placement or review the scheduling policy.' },
-	NO_COMPATIBLE_ROOM: { plainLabel: 'No compatible room found', actionLabel: 'Review room setup', actionHref: '/campus-rooms', nextStep: 'No compatible room was found. Review room setup.' },
-	ROOM_CAPACITY_EXCEEDED: { plainLabel: 'Room capacity exceeded', actionLabel: 'Review room assignment', actionHref: '/campus-rooms', nextStep: 'The room is too small for this class. Choose a larger room.' },
+	NO_COMPATIBLE_ROOM: { plainLabel: 'No compatible room found', actionLabel: 'Review room setup', actionHref: '/map', nextStep: 'No compatible room was found. Review room setup.' },
+	ROOM_CAPACITY_EXCEEDED: { plainLabel: 'Room capacity exceeded', actionLabel: 'Review room assignment', actionHref: '/map', nextStep: 'The room is too small for this class. Choose a larger room.' },
 };
 
 export function buildBlockerGroups(
