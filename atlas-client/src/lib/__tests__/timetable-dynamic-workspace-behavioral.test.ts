@@ -74,13 +74,16 @@ const SCOPE = { schoolId: 1, schoolYearId: 9, runId: 42, termFilter: 'all' as co
 
 test('R5 a changed scope clears every bound local state before dispatch', () => {
 	const cleared: string[] = [];
-	let dispatchCount = 0;
+	let dispatched = 0;
+	// A scope-bound request captured before the change. Production drops it by
+	// clearing the state it reads before any dispatch can run.
+	let captured: (() => void) | null = () => { dispatched++; };
 	const previous = buildScopeKey(SCOPE);
 	const next = buildScopeKey({ ...SCOPE, termFilter: 1 });
 
 	if (shouldClearForScopeChange(previous, next)) {
 		clearScopeState([
-			() => cleared.push('task'),
+			() => { cleared.push('task'); captured = null; },
 			() => cleared.push('repair'),
 			() => cleared.push('readiness'),
 			() => cleared.push('departure'),
@@ -89,9 +92,26 @@ test('R5 a changed scope clears every bound local state before dispatch', () => 
 			() => cleared.push('undo'),
 		]);
 	}
+	captured?.();
 
-	assert.equal(dispatchCount, 0, 'no stale-scope request may dispatch before the clear');
+	assert.equal(dispatched, 0, 'the cleared scope must not dispatch the captured stale request');
 	assert.deepEqual(cleared, ['task', 'repair', 'readiness', 'departure', 'details', 'swap', 'undo']);
+});
+
+test('R5 an unchanged scope performs no clear, so the scoped request still dispatches', () => {
+	const cleared: string[] = [];
+	let dispatched = 0;
+	const captured = () => { dispatched++; };
+	const key = buildScopeKey(SCOPE);
+
+	if (shouldClearForScopeChange(key, key)) {
+		clearScopeState([() => cleared.push('task')]);
+	} else {
+		captured();
+	}
+
+	assert.equal(cleared.length, 0, 'an unchanged scope must not clear');
+	assert.equal(dispatched, 1, 'the scoped request is not cancelled when the scope is unchanged');
 });
 
 test('R5 an unchanged scope does not clear', () => {
