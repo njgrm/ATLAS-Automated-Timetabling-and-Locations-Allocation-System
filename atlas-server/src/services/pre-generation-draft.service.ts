@@ -22,7 +22,7 @@ import {
 import { buildDerivedDemand, toPerPairDemandItems } from './derived-demand.service.js';
 import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
+import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
 
@@ -52,6 +52,8 @@ export interface DraftPlacementInput {
 	cohortCode?: string | null;
 	notes?: string | null;
 	expectedVersion?: number;
+	/** Ordered term identity of the placement (C-11); never silently defaulted. */
+	termIndex?: number | null;
 }
 
 export interface DraftPlacementRow {
@@ -74,6 +76,8 @@ export interface DraftPlacementRow {
 	createdBy: number;
 	createdAt: string;
 	updatedAt: string;
+	/** Persisted LockedSession term identity, preserved through every preview. */
+	termIndex: number | null;
 }
 
 export interface FacultyOptionEnriched {
@@ -320,6 +324,7 @@ function toDraftRow(placement: LockedSession): DraftPlacementRow {
 		createdBy: placement.createdBy,
 		createdAt: placement.createdAt.toISOString(),
 		updatedAt: placement.updatedAt.toISOString(),
+		termIndex: placement.termIndex ?? null,
 	};
 }
 
@@ -350,6 +355,9 @@ function asScheduledEntry(input: DraftPlacementInput, entryId: string, demandIte
 		cohortExpectedEnrollment: demandItem.entryKind === 'COHORT' ? demandItem.enrolledCount : null,
 		adviserId: demandItem.adviserId ?? null,
 		adviserName: demandItem.adviserName ?? null,
+		termIndex: typeof input.termIndex === 'number' && input.termIndex >= 1 && input.termIndex <= 4
+			? input.termIndex as 1 | 2 | 3 | 4
+			: undefined,
 	};
 }
 
@@ -367,6 +375,7 @@ function placementToScheduledEntry(placement: LockedSession, demandItem: DemandI
 			endTime: placement.endTime,
 			cohortCode: placement.cohortCode,
 			notes: placement.notes,
+			termIndex: placement.termIndex,
 		},
 		`draft-${placement.id}`,
 		demandItem,
@@ -390,6 +399,7 @@ function placementToInput(placement: LockedSession): DraftPlacementInput {
 		cohortCode: placement.cohortCode,
 		notes: placement.notes,
 		expectedVersion: placement.version,
+		termIndex: placement.termIndex,
 	};
 }
 
@@ -593,7 +603,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		}),
 		db().facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, maxHoursPerWeek: true },
+			select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true },
 		}),
 		db().facultySubject.findMany({
 			where: { schoolId, schoolYearId },
@@ -607,6 +617,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				name: true,
 				minMinutesPerWeek: true,
 				preferredRoomType: true,
+				requiredFeatures: true,
 				gradeLevels: true,
 				interSectionEnabled: true,
 				interSectionGradeLevels: true,
@@ -621,6 +632,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				capacity: true,
 				isTeachingSpace: true,
 				isSharedFacility: true,
+				features: true,
 				floor: true,
 				buildingId: true,
 				building: { select: { id: true, name: true, shortCode: true, x: true, y: true } },
@@ -809,15 +821,19 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 }
 
 function buildValidatorCtx(schoolId: number, schoolYearId: number, entries: ScheduledEntry[], ctx: DraftContext): ValidatorContext {
+	const families = resolveWarningFamilyPolicy(ctx.policyRecord);
 	return {
 		schoolId,
 		schoolYearId,
 		runId: 0,
 		entries,
-		faculty: ctx.facultyRefs,
+		faculty: ctx.facultyRefs.map((member) => ({
+			id: member.id,
+			maxHoursPerWeek: Math.floor(computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60),
+		})),
 		facultySubjects: ctx.facultySubjects,
-		rooms: ctx.rooms.map((room) => ({ id: room.id, type: room.type, capacity: room.capacity })),
-		subjects: ctx.subjects.map((subject) => ({ id: subject.id, preferredRoomType: subject.preferredRoomType })),
+		rooms: ctx.rooms.map((room) => ({ id: room.id, type: room.type, capacity: room.capacity, features: room.features ?? undefined, floor: room.floor ?? null })),
+		subjects: ctx.subjects.map((subject) => ({ id: subject.id, preferredRoomType: subject.preferredRoomType, requiredFeatures: subject.requiredFeatures ?? undefined })),
 		sectionEnrollment: ctx.sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: ctx.policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
@@ -828,13 +844,19 @@ function buildValidatorCtx(schoolId: number, schoolYearId: number, entries: Sche
 			enforceConsecutiveBreakAsHard: ctx.policyRecord.enforceConsecutiveBreakAsHard,
 		},
 		travelPolicy: {
-			enableTravelWellbeingChecks: ctx.policyRecord.enableTravelWellbeingChecks,
-			maxWalkingDistanceMetersPerTransition: ctx.policyRecord.maxWalkingDistanceMetersPerTransition,
 			maxBuildingTransitionsPerDay: ctx.policyRecord.maxBuildingTransitionsPerDay,
 			maxBackToBackTransitionsWithoutBuffer: ctx.policyRecord.maxBackToBackTransitionsWithoutBuffer,
 			maxIdleGapMinutesPerDay: ctx.policyRecord.maxIdleGapMinutesPerDay,
 			avoidEarlyFirstPeriod: ctx.policyRecord.avoidEarlyFirstPeriod,
 			avoidLateLastPeriod: ctx.policyRecord.avoidLateLastPeriod,
+			enableBuildingTransitionChecks: families.buildingTransitions,
+			enableFloorTransitionChecks: families.floorTransitions,
+			enableIdleGapChecks: families.idleGap,
+			enableEarlyStartChecks: families.earlyStart,
+			enableLateEndChecks: families.lateEnd,
+			buildingTransitionBufferMinutes: families.buildingTransitionBufferMinutes,
+			floorTransitionThreshold: families.floorTransitionThreshold,
+			floorTransitionBufferMinutes: families.floorTransitionBufferMinutes,
 		},
 		vacantPolicy: {
 			enableVacantAwareConstraints: ctx.policyRecord.enableVacantAwareConstraints,

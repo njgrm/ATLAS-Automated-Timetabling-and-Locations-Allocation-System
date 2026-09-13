@@ -1363,6 +1363,60 @@ export interface ViolationReport {
 	counts: {
 		total: number;
 		byCode: Record<string, number>;
+		/**
+		 * Documented scope of the `violations` array and the `total`/`byCode`
+		 * fields above. When a term filter is requested the display scope is
+		 * `SELECTED_TERM`; otherwise it is `RUN_WIDE`.
+		 */
+		scope: 'RUN_WIDE' | 'SELECTED_TERM';
+		/**
+		 * Run-wide authoritative gate counts, independent of the selected-term
+		 * display filter. The client publish gate must consume `runWide.hard`;
+		 * the rail keeps rendering the term-scoped display list.
+		 */
+		runWide: {
+			total: number;
+			hard: number;
+			soft: number;
+			byCode: Record<string, number>;
+		};
+	};
+}
+
+function buildViolationReport(
+	run: { id: number; status: string; violations: unknown; summary: unknown; draftEntries: unknown },
+	resolvedTermIndex: number | undefined,
+): ViolationReport {
+	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
+	const allViolations = (run.violations ?? []) as unknown as Violation[];
+	const violations = filterViolationsByTerm(allViolations, entries, resolvedTermIndex);
+	const summary = (run.summary ?? {}) as Record<string, unknown>;
+	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
+	const runWideByCode: Record<string, number> = { ...violationCounts };
+	if (Object.keys(runWideByCode).length === 0) {
+		for (const violation of allViolations) {
+			runWideByCode[violation.code] = (runWideByCode[violation.code] ?? 0) + 1;
+		}
+	}
+	const displayByCode: Record<string, number> = {};
+	for (const violation of violations) {
+		displayByCode[violation.code] = (displayByCode[violation.code] ?? 0) + 1;
+	}
+	return {
+		runId: run.id,
+		status: run.status,
+		violations,
+		counts: {
+			total: violations.length,
+			byCode: displayByCode,
+			scope: resolvedTermIndex === undefined ? 'RUN_WIDE' : 'SELECTED_TERM',
+			runWide: {
+				total: allViolations.length,
+				hard: allViolations.filter((violation) => violation.severity === 'HARD').length,
+				soft: allViolations.filter((violation) => violation.severity === 'SOFT').length,
+				byCode: runWideByCode,
+			},
+		},
 	};
 }
 
@@ -1397,20 +1451,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, resolvedTermIndex);
-	const summary = (run.summary ?? {}) as Record<string, unknown>;
-	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
-
-	return {
-		runId: run.id,
-		status: run.status,
-		violations,
-		counts: {
-			total: violations.length,
-			byCode: violationCounts,
-		},
-	};
+	return buildViolationReport(run, resolvedTermIndex);
 }
 
 export async function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
@@ -1422,20 +1463,7 @@ export async function getLatestRunViolations(schoolId: number, schoolYearId: num
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
-	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, resolvedTermIndex);
-	const summary = (run.summary ?? {}) as Record<string, unknown>;
-	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
-
-	return {
-		runId: run.id,
-		status: run.status,
-		violations,
-		counts: {
-			total: violations.length,
-			byCode: violationCounts,
-		},
-	};
+	return buildViolationReport(run, resolvedTermIndex);
 }
 
 // ─── Draft queries ───

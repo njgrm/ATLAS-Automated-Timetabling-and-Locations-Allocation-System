@@ -987,13 +987,16 @@ export type ViolationCode =
 	| 'SECTION_TIME_CONFLICT'
 	| 'FACULTY_OVERLOAD'
 	| 'ROOM_TYPE_MISMATCH'
+	| 'ROOM_FEATURE_MISMATCH'
 	| 'ROOM_CAPACITY_EXCEEDED'
 	| 'FACULTY_SUBJECT_NOT_QUALIFIED'
 	| 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'
 	| 'FACULTY_BREAK_REQUIREMENT_VIOLATED'
 	| 'FACULTY_DAILY_STANDARD_EXCEEDED'
 	| 'FACULTY_DAILY_MAX_EXCEEDED'
+	/** @deprecated Legacy metric travel warning — no producer; renders old persisted runs only. */
 	| 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE'
+	| 'FACULTY_FLOOR_TRANSITION'
 	| 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS'
 	| 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER'
 	| 'FACULTY_EXCESSIVE_IDLE_GAP'
@@ -1187,6 +1190,15 @@ export interface ViolationReport {
 	counts: {
 		total: number;
 		byCode: Record<string, number>;
+		/** Scope of `violations`/`total`/`byCode`: selected-term display vs run-wide. */
+		scope?: 'RUN_WIDE' | 'SELECTED_TERM';
+		/** Run-wide authoritative gate counts, independent of the term display filter. */
+		runWide?: {
+			total: number;
+			hard: number;
+			soft: number;
+			byCode: Record<string, number>;
+		};
 	};
 }
 

@@ -11,7 +11,7 @@ import type { ConstraintOverride, ViolationCode } from '@/types';
 export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: true, weight: 4, treatAsHard: false },
+	FACULTY_FLOOR_TRANSITION: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { enabled: true, weight: 4, treatAsHard: false },
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
@@ -19,7 +19,7 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
-	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
+	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 };
 
 export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
@@ -31,9 +31,9 @@ export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation
 		label: 'Break Requirement',
 		explanation: 'Penalizes insufficient break time between consecutive teaching blocks.',
 	},
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: {
-		label: 'Excessive Travel Distance',
-		explanation: 'Penalizes transitions between buildings that exceed the max walking distance threshold.',
+	FACULTY_FLOOR_TRANSITION: {
+		label: 'Cross-Floor Transition',
+		explanation: 'Penalizes a move of several floors inside one building with too little time between classes.',
 	},
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
 		label: 'Building Transitions/Day',

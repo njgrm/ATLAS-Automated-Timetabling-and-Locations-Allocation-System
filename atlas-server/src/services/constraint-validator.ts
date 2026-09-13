@@ -15,7 +15,7 @@ import {
  */
 
 import type { RoomType } from '@prisma/client';
-import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
+import { isPromotableConstraintCode, resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
 import {
 	expandEffectiveScheduledResources,
 	findEffectiveFacultyOverlaps,
@@ -39,6 +39,7 @@ export const VIOLATION_CODES = [
 	'FACULTY_DAILY_STANDARD_EXCEEDED',
 	'FACULTY_DAILY_MAX_EXCEEDED',
 	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
+	'FACULTY_FLOOR_TRANSITION',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
 	'FACULTY_EXCESSIVE_IDLE_GAP',
@@ -126,6 +127,8 @@ export interface RoomRef {
 	type: RoomType;
 	capacity: number | null;
 	features?: string[];
+	/** Authoritative vertical position (Room.floor). `floorNumber` is never consulted. */
+	floor?: number | null;
 }
 
 export interface SubjectRef {
@@ -143,20 +146,35 @@ export interface PolicyRef {
 	enforceConsecutiveBreakAsHard: boolean;
 }
 
+/**
+ * Warning-family policy (R2/R3). The legacy
+ * `enableTravelWellbeingChecks`/`maxWalkingDistanceMetersPerTransition` fields
+ * remain only for backward compatibility with older callers; they never gate a
+ * family in this validator. Each family is gated by its own flag (resolved once
+ * through `resolveWarningFamilyPolicy`) and by its per-code `enabled` override.
+ */
 export interface TravelPolicyRef {
-	enableTravelWellbeingChecks: boolean;
-	maxWalkingDistanceMetersPerTransition: number;
+	/** @deprecated legacy master switch — never consulted for gating. */
+	enableTravelWellbeingChecks?: boolean;
+	/** @deprecated false-precision metric threshold — no producer remains. */
+	maxWalkingDistanceMetersPerTransition?: number;
 	maxBuildingTransitionsPerDay: number;
 	maxBackToBackTransitionsWithoutBuffer: number;
 	maxIdleGapMinutesPerDay: number;
 	avoidEarlyFirstPeriod: boolean;
 	avoidLateLastPeriod: boolean;
+	enableBuildingTransitionChecks?: boolean;
+	enableFloorTransitionChecks?: boolean;
+	enableIdleGapChecks?: boolean;
+	enableEarlyStartChecks?: boolean;
+	enableLateEndChecks?: boolean;
+	buildingTransitionBufferMinutes?: number;
+	floorTransitionThreshold?: number;
+	floorTransitionBufferMinutes?: number;
 }
 
 export interface BuildingRef {
 	id: number;
-	x: number;
-	y: number;
 }
 
 export interface RoomBuildingRef {
@@ -248,6 +266,61 @@ function getEffectiveSectionIds(entry: ScheduledEntry): number[] {
 
 function isSameCohortGroup(left: ScheduledEntry, right: ScheduledEntry): boolean {
 	return Boolean(left.cohortCode && right.cohortCode && left.cohortCode === right.cohortCode);
+}
+
+const TERM_KEY_SEP = '\u0001';
+
+/**
+ * R5 — term-aware grouping for every faculty/day and section/day calculation.
+ *
+ * A per-term-resolved entry contributes its minutes only inside each ordered
+ * term. An unscoped (year-round) entry contributes to every term observed in
+ * the schedule, so its repeating load is never summed across terms into a
+ * fabricated HARD daily-max violation.
+ *
+ * `buildKey(entry, term)` must produce a stable key including the term bucket.
+ */
+function groupEntriesByTerm<T extends { termIndex?: number }>(
+	entries: T[],
+	buildKey: (entry: T, term: number) => string,
+): Map<string, T[]> {
+	const observedTerms = new Set<number>();
+	for (const entry of entries) {
+		const scope = entryTermScope(entry);
+		if (scope > 0) observedTerms.add(scope);
+	}
+	const buckets = observedTerms.size > 0 ? [...observedTerms] : [0];
+
+	const grouped = new Map<string, T[]>();
+	for (const entry of entries) {
+		const scope = entryTermScope(entry);
+		const targets = scope > 0 ? [scope] : buckets;
+		for (const term of targets) {
+			const key = buildKey(entry, term);
+			const arr = grouped.get(key);
+			if (arr) arr.push(entry);
+			else grouped.set(key, [entry]);
+		}
+	}
+	return grouped;
+}
+
+function facultyDayTermKey(entry: ScheduledEntry, term: number): string {
+	return `${entry.facultyId}${TERM_KEY_SEP}${entry.day}${TERM_KEY_SEP}${term}`;
+}
+
+function sectionDayTermKey(sectionId: number, entry: ScheduledEntry, term: number): string {
+	return `${sectionId}${TERM_KEY_SEP}${entry.day}${TERM_KEY_SEP}${term}`;
+}
+
+function parseFacultyDayTermKey(key: string): { facultyId: number; day: string } {
+	const [facultyId, day] = key.split(TERM_KEY_SEP);
+	return { facultyId: Number(facultyId), day };
+}
+
+function parseSectionDayTermKey(key: string): { sectionId: number; day: string } {
+	const [sectionId, day] = key.split(TERM_KEY_SEP);
+	return { sectionId: Number(sectionId), day };
 }
 
 // ─── Validator ───
@@ -530,19 +603,16 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		const standardDailyLimitMinutes = 360;
 		const hardDailyLimitMinutes = placementSemantics.hardDailyLimitMinutes;
 
-		// Group entries by faculty+day, sorted by startTime
-		const facDayEntries = new Map<string, ScheduledEntry[]>();
-		for (const e of ctx.entries) {
-			if (e.facultyId == null) continue;
-			const key = `${e.facultyId}:${e.day}`;
-			const arr = facDayEntries.get(key) ?? [];
-			arr.push(e);
-			facDayEntries.set(key, arr);
-		}
+		// Group entries by faculty+day+term, sorted by startTime. Term identity is
+		// mandatory: a year-long entry repeating in every term must contribute its
+		// minutes once per term, never summed across terms.
+		const facDayEntries = groupEntriesByTerm(
+			ctx.entries.filter((e) => e.facultyId != null),
+			facultyDayTermKey,
+		);
 
 		for (const [key, dayEntries] of facDayEntries) {
-			const [facIdStr, day] = key.split(':');
-			const facultyId = Number(facIdStr);
+			const { facultyId, day } = parseFacultyDayTermKey(key);
 			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
 			// 6a) Daily teaching target — warn above 6h, hard-block above 8h
@@ -615,176 +685,206 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 	}
 
-	// ── 7) Travel / well-being soft constraints ──
-	if (ctx.travelPolicy?.enableTravelWellbeingChecks && ctx.buildings && ctx.roomBuildings) {
+	// ── 7) Transition soft constraints: building transitions + floor transitions ──
+	// R1/R2: the false-precision metric travel warning has no producer. Only
+	// identity-based building/floor movement is emitted, always term-aware.
+	if (ctx.travelPolicy && ctx.roomBuildings) {
 		const tp = ctx.travelPolicy;
-		const buildingMap = new Map(ctx.buildings.map((b) => [b.id, b]));
 		const roomToBld = new Map(ctx.roomBuildings.map((rb) => [rb.roomId, rb.buildingId]));
+		const bufferMinutes = tp.buildingTransitionBufferMinutes ?? 5;
+		const buildingChecksEnabled = tp.enableBuildingTransitionChecks !== false;
 
-		// Group entries by faculty+day, sorted by startTime
-		const byFacDay = new Map<string, ScheduledEntry[]>();
-		for (const e of ctx.entries) {
-			if (e.facultyId == null) continue;
-			const key = `${e.facultyId}:${e.day}`;
-			const arr = byFacDay.get(key) ?? [];
-			arr.push(e);
-			byFacDay.set(key, arr);
-		}
+		if (buildingChecksEnabled) {
+			const byFacDay = groupEntriesByTerm(
+				ctx.entries.filter((e) => e.facultyId != null),
+				facultyDayTermKey,
+			);
 
-		for (const [key, dayEntries] of byFacDay) {
-			const [facIdStr, day] = key.split(':');
-			const facultyId = Number(facIdStr);
-			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+			for (const [key, dayEntries] of byFacDay) {
+				const { facultyId, day } = parseFacultyDayTermKey(key);
+				const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-			let buildingTransitions = 0;
-			let backToBackCross = 0;
+				let buildingTransitions = 0;
+				let backToBackCross = 0;
 
-			for (let i = 1; i < sorted.length; i++) {
-				const prev = sorted[i - 1];
-				const curr = sorted[i];
-				const fromBldId = roomToBld.get(prev.roomId);
-				const toBldId = roomToBld.get(curr.roomId);
-				if (fromBldId == null || toBldId == null) continue;
+				for (let i = 1; i < sorted.length; i++) {
+					const prev = sorted[i - 1];
+					const curr = sorted[i];
+					const fromBldId = roomToBld.get(prev.roomId);
+					const toBldId = roomToBld.get(curr.roomId);
+					if (fromBldId == null || toBldId == null) continue;
 
-				const gapMinutes = timeToMinutes(curr.startTime) - timeToMinutes(prev.endTime);
-				const isCrossBuilding = fromBldId !== toBldId;
-
-				if (isCrossBuilding) {
-					buildingTransitions++;
-
-					// Estimate Euclidean distance between building centers
-					const fromBld = buildingMap.get(fromBldId);
-					const toBld = buildingMap.get(toBldId);
-					const estimatedDistance = (fromBld && toBld)
-						? Math.round(Math.sqrt((toBld.x - fromBld.x) ** 2 + (toBld.y - fromBld.y) ** 2))
-						: 0;
-
-					// 7a) Excessive travel distance per transition
-					if (estimatedDistance > tp.maxWalkingDistanceMetersPerTransition) {
-						violations.push({
-							...base, severity: 'SOFT',
-							code: 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
-							message: `Faculty ${facultyId} must travel ~${estimatedDistance}m between buildings on ${day} (${prev.endTime}→${curr.startTime}), exceeds ${tp.maxWalkingDistanceMetersPerTransition}m limit.`,
-							entities: { facultyId, day, entryIds: [prev.entryId, curr.entryId] },
-							meta: {
-								facultyId, day,
-								fromRoomId: prev.roomId, toRoomId: curr.roomId,
-								fromBuildingId: fromBldId, toBuildingId: toBldId,
-								gapMinutes, estimatedDistanceMeters: estimatedDistance,
-								configuredThresholds: { maxWalkingDistanceMetersPerTransition: tp.maxWalkingDistanceMetersPerTransition },
-							},
-						});
-					}
-
-					// 7c) Track back-to-back cross-building with short/no gap
-					if (gapMinutes <= 5) {
-						backToBackCross++;
+					const gapMinutes = timeToMinutes(curr.startTime) - timeToMinutes(prev.endTime);
+					if (fromBldId !== toBldId) {
+						buildingTransitions++;
+						// 7a) Track back-to-back cross-building with short/no gap.
+						if (gapMinutes <= bufferMinutes) backToBackCross++;
 					}
 				}
-			}
 
-			// 7b) Excessive building transitions per day
-			if (buildingTransitions > tp.maxBuildingTransitionsPerDay) {
-				violations.push({
-					...base, severity: 'SOFT',
-					code: 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
-					message: `Faculty ${facultyId} has ${buildingTransitions} building transitions on ${day}, exceeds limit of ${tp.maxBuildingTransitionsPerDay}.`,
-					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
-					meta: {
-						facultyId, day,
-						buildingTransitions,
-						configuredThresholds: { maxBuildingTransitionsPerDay: tp.maxBuildingTransitionsPerDay },
-					},
-				});
-			}
+				// 7b) Excessive building transitions per day
+				if (buildingTransitions > tp.maxBuildingTransitionsPerDay) {
+					violations.push({
+						...base, severity: 'SOFT',
+						code: 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
+						message: `Faculty ${facultyId} has ${buildingTransitions} building transitions on ${day}, exceeds limit of ${tp.maxBuildingTransitionsPerDay}.`,
+						entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+						meta: {
+							facultyId, day,
+							buildingTransitions,
+							configuredThresholds: { maxBuildingTransitionsPerDay: tp.maxBuildingTransitionsPerDay },
+						},
+					});
+				}
 
-			// 7c) Insufficient transition buffer (too many back-to-back cross-building)
-			if (backToBackCross > tp.maxBackToBackTransitionsWithoutBuffer) {
-				violations.push({
-					...base, severity: 'SOFT',
-					code: 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
-					message: `Faculty ${facultyId} has ${backToBackCross} back-to-back cross-building transitions without buffer on ${day}, exceeds limit of ${tp.maxBackToBackTransitionsWithoutBuffer}.`,
-					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
-					meta: {
-						facultyId, day,
-						backToBackTransitions: backToBackCross,
-						configuredThresholds: { maxBackToBackTransitionsWithoutBuffer: tp.maxBackToBackTransitionsWithoutBuffer },
-					},
-				});
+				// 7c) Insufficient transition buffer (too many back-to-back cross-building)
+				if (backToBackCross > tp.maxBackToBackTransitionsWithoutBuffer) {
+					violations.push({
+						...base, severity: 'SOFT',
+						code: 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
+						message: `Faculty ${facultyId} has ${backToBackCross} back-to-back cross-building transitions without buffer on ${day}, exceeds limit of ${tp.maxBackToBackTransitionsWithoutBuffer}.`,
+						entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+						meta: {
+							facultyId, day,
+							backToBackTransitions: backToBackCross,
+							configuredThresholds: {
+								maxBackToBackTransitionsWithoutBuffer: tp.maxBackToBackTransitionsWithoutBuffer,
+								buildingTransitionBufferMinutes: bufferMinutes,
+							},
+						},
+					});
+				}
+			}
+		}
+
+		// 7d) Cross-floor transitions inside one building. Authority is Room.floor
+		// only; `floorNumber` is never consulted. 1–2 floor moves never warn.
+		const floorChecksEnabled = tp.enableFloorTransitionChecks !== false;
+		if (floorChecksEnabled) {
+			const floorThreshold = tp.floorTransitionThreshold ?? 3;
+			const floorBuffer = tp.floorTransitionBufferMinutes ?? 5;
+			const floorByRoom = new Map(ctx.rooms.map((room) => [room.id, room.floor ?? null]));
+
+			const byFacDay = groupEntriesByTerm(
+				ctx.entries.filter((e) => e.facultyId != null),
+				facultyDayTermKey,
+			);
+
+			for (const [key, dayEntries] of byFacDay) {
+				const { facultyId, day } = parseFacultyDayTermKey(key);
+				const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+				for (let i = 1; i < sorted.length; i++) {
+					const prev = sorted[i - 1];
+					const curr = sorted[i];
+					const fromBldId = roomToBld.get(prev.roomId);
+					const toBldId = roomToBld.get(curr.roomId);
+					if (fromBldId == null || toBldId == null || fromBldId !== toBldId) continue;
+
+					const fromFloor = floorByRoom.get(prev.roomId) ?? null;
+					const toFloor = floorByRoom.get(curr.roomId) ?? null;
+					if (fromFloor == null || toFloor == null) continue;
+
+					const floorDelta = Math.abs(toFloor - fromFloor);
+					if (floorDelta < floorThreshold) continue;
+
+					const gapMinutes = timeToMinutes(curr.startTime) - timeToMinutes(prev.endTime);
+					if (gapMinutes >= floorBuffer) continue;
+
+					violations.push({
+						...base, severity: 'SOFT',
+						code: 'FACULTY_FLOOR_TRANSITION',
+						message: `Faculty ${facultyId} moves ${floorDelta} floors in one building on ${day} (${prev.endTime}→${curr.startTime}) with only ${gapMinutes} min gap.`,
+						entities: { facultyId, day, entryIds: [prev.entryId, curr.entryId] },
+						meta: {
+							facultyId, day,
+							fromRoomId: prev.roomId, toRoomId: curr.roomId,
+							fromBuildingId: fromBldId, toBuildingId: toBldId,
+							fromFloor, toFloor, floorDelta, gapMinutes,
+							configuredThresholds: {
+								floorTransitionThreshold: floorThreshold,
+								floorTransitionBufferMinutes: floorBuffer,
+							},
+						},
+					});
+				}
 			}
 		}
 	}
 
 	// ── 8) Well-being soft constraints: idle gap, early start, late end ──
-	if (ctx.travelPolicy?.enableTravelWellbeingChecks) {
+	// R3: each family is gated only by its own flag. The deprecated master
+	// `enableTravelWellbeingChecks` never gates idle/early/late here.
+	if (ctx.travelPolicy) {
 		const tp = ctx.travelPolicy;
+		const idleEnabled = tp.enableIdleGapChecks !== false;
+		const earlyEnabled = tp.enableEarlyStartChecks !== false;
+		const lateEnabled = tp.enableLateEndChecks !== false;
 
-		// Group entries by faculty+day, sorted by startTime
-		const byFacDayWB = new Map<string, ScheduledEntry[]>();
-		for (const e of ctx.entries) {
-			if (e.facultyId == null) continue;
-			const key = `${e.facultyId}:${e.day}`;
-			const arr = byFacDayWB.get(key) ?? [];
-			arr.push(e);
-			byFacDayWB.set(key, arr);
-		}
+		if (idleEnabled || earlyEnabled || lateEnabled) {
+			const byFacDayWB = groupEntriesByTerm(
+				ctx.entries.filter((e) => e.facultyId != null),
+				facultyDayTermKey,
+			);
 
-		for (const [key, dayEntries] of byFacDayWB) {
-			const [facIdStr, day] = key.split(':');
-			const facultyId = Number(facIdStr);
-			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+			for (const [key, dayEntries] of byFacDayWB) {
+				const { facultyId, day } = parseFacultyDayTermKey(key);
+				const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-			// 8a) Excessive idle gap: sum of gaps between consecutive classes
-			let totalIdleMinutes = 0;
-			for (let i = 1; i < sorted.length; i++) {
-				const gap = timeToMinutes(sorted[i].startTime) - timeToMinutes(sorted[i - 1].endTime);
-				if (gap > 0) totalIdleMinutes += gap;
-			}
-			if (totalIdleMinutes > tp.maxIdleGapMinutesPerDay) {
-				violations.push({
-					...base, severity: 'SOFT',
-					code: 'FACULTY_EXCESSIVE_IDLE_GAP',
-					message: `Faculty ${facultyId} has ${totalIdleMinutes} min idle gaps on ${day}, exceeds limit of ${tp.maxIdleGapMinutesPerDay} min.`,
-					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
-					meta: {
-						facultyId, day,
-						totalIdleMinutes,
-						configuredThresholds: { maxIdleGapMinutesPerDay: tp.maxIdleGapMinutesPerDay },
-					},
-				});
-			}
-
-			// 8b) Early start preference
-			if (tp.avoidEarlyFirstPeriod && sorted.length > 0) {
-				const firstStart = sorted[0].startTime;
-				const policyRef = ctx.policy;
-				const earliest = policyRef?.earliestStartTime ?? '07:00';
-				// "Early" = scheduled in first period slot (within 15 min of earliest)
-				if (timeToMinutes(firstStart) <= timeToMinutes(earliest) + 15) {
-					violations.push({
-						...base, severity: 'SOFT',
-						code: 'FACULTY_EARLY_START_PREFERENCE',
-						message: `Faculty ${facultyId} has a class starting at ${firstStart} on ${day} (early first period).`,
-						entities: { facultyId, day, entryIds: [sorted[0].entryId] },
-						meta: { facultyId, day, startTime: firstStart, earliestStartTime: earliest },
-					});
+				// 8a) Excessive idle gap: sum of gaps between consecutive classes
+				if (idleEnabled) {
+					let totalIdleMinutes = 0;
+					for (let i = 1; i < sorted.length; i++) {
+						const gap = timeToMinutes(sorted[i].startTime) - timeToMinutes(sorted[i - 1].endTime);
+						if (gap > 0) totalIdleMinutes += gap;
+					}
+					if (totalIdleMinutes > tp.maxIdleGapMinutesPerDay) {
+						violations.push({
+							...base, severity: 'SOFT',
+							code: 'FACULTY_EXCESSIVE_IDLE_GAP',
+							message: `Faculty ${facultyId} has ${totalIdleMinutes} min idle gaps on ${day}, exceeds limit of ${tp.maxIdleGapMinutesPerDay} min.`,
+							entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+							meta: {
+								facultyId, day,
+								totalIdleMinutes,
+								configuredThresholds: { maxIdleGapMinutesPerDay: tp.maxIdleGapMinutesPerDay },
+							},
+						});
+					}
 				}
-			}
 
-			// 8c) Late end preference
-			if (tp.avoidLateLastPeriod && sorted.length > 0) {
-				const lastEnd = sorted[sorted.length - 1].endTime;
-				const policyRef = ctx.policy;
-				const latest = policyRef?.latestEndTime ?? '17:00';
-				// "Late" = class ending within 15 min of latest end time
-				if (timeToMinutes(lastEnd) >= timeToMinutes(latest) - 15) {
-					violations.push({
-						...base, severity: 'SOFT',
-						code: 'FACULTY_LATE_END_PREFERENCE',
-						message: `Faculty ${facultyId} has a class ending at ${lastEnd} on ${day} (late last period).`,
-						entities: { facultyId, day, entryIds: [sorted[sorted.length - 1].entryId] },
-						meta: { facultyId, day, endTime: lastEnd, latestEndTime: latest },
-					});
+				// 8b) Early start preference
+				if (earlyEnabled && sorted.length > 0) {
+					const firstStart = sorted[0].startTime;
+					const policyRef = ctx.policy;
+					const earliest = policyRef?.earliestStartTime ?? '07:00';
+					// "Early" = scheduled in first period slot (within 15 min of earliest)
+					if (timeToMinutes(firstStart) <= timeToMinutes(earliest) + 15) {
+						violations.push({
+							...base, severity: 'SOFT',
+							code: 'FACULTY_EARLY_START_PREFERENCE',
+							message: `Faculty ${facultyId} has a class starting at ${firstStart} on ${day} (early first period).`,
+							entities: { facultyId, day, entryIds: [sorted[0].entryId] },
+							meta: { facultyId, day, startTime: firstStart, earliestStartTime: earliest },
+						});
+					}
+				}
+
+				// 8c) Late end preference
+				if (lateEnabled && sorted.length > 0) {
+					const lastEnd = sorted[sorted.length - 1].endTime;
+					const policyRef = ctx.policy;
+					const latest = policyRef?.latestEndTime ?? '17:00';
+					// "Late" = class ending within 15 min of latest end time
+					if (timeToMinutes(lastEnd) >= timeToMinutes(latest) - 15) {
+						violations.push({
+							...base, severity: 'SOFT',
+							code: 'FACULTY_LATE_END_PREFERENCE',
+							message: `Faculty ${facultyId} has a class ending at ${lastEnd} on ${day} (late last period).`,
+							entities: { facultyId, day, entryIds: [sorted[sorted.length - 1].entryId] },
+							meta: { facultyId, day, endTime: lastEnd, latestEndTime: latest },
+						});
+					}
 				}
 			}
 		}
@@ -795,19 +895,15 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		const vp = ctx.vacantPolicy;
 
 		// 9a) Faculty insufficient daily vacant time
-		// For each faculty per day, compute total time span minus teaching minutes = vacant minutes
-		const facDayForVacant = new Map<string, ScheduledEntry[]>();
-		for (const e of ctx.entries) {
-			if (e.facultyId == null) continue;
-			const key = `${e.facultyId}:${e.day}`;
-			const arr = facDayForVacant.get(key) ?? [];
-			arr.push(e);
-			facDayForVacant.set(key, arr);
-		}
+		// For each faculty per day+term, compute total time span minus teaching
+		// minutes = vacant minutes. Term identity prevents cross-term summation.
+		const facDayForVacant = groupEntriesByTerm(
+			ctx.entries.filter((e) => e.facultyId != null),
+			facultyDayTermKey,
+		);
 
 		for (const [key, dayEntries] of facDayForVacant) {
-			const [facIdStr, day] = key.split(':');
-			const facultyId = Number(facIdStr);
+			const { facultyId, day } = parseFacultyDayTermKey(key);
 			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
 			const firstStart = timeToMinutes(sorted[0].startTime);
@@ -832,20 +928,14 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			}
 		}
 
-		// 9b) Section overcompressed — section has too many teaching minutes in a single day
-		const secDayForVacant = new Map<string, ScheduledEntry[]>();
-		for (const e of ctx.entries) {
-			for (const sectionId of getEffectiveSectionIds(e)) {
-				const key = `${sectionId}:${e.day}`;
-				const arr = secDayForVacant.get(key) ?? [];
-				arr.push({ ...e, sectionId });
-				secDayForVacant.set(key, arr);
-			}
-		}
+		// 9b) Section overcompressed — section has too many teaching minutes in a single day+term
+		const secDayForVacant = groupEntriesByTerm(
+			ctx.entries.flatMap((entry) => getEffectiveSectionIds(entry).map((sectionId) => ({ ...entry, sectionId }))),
+			(entry, term) => sectionDayTermKey(entry.sectionId, entry, term),
+		);
 
 		for (const [key, dayEntries] of secDayForVacant) {
-			const [secIdStr, day] = key.split(':');
-			const sectionId = Number(secIdStr);
+			const { sectionId, day } = parseSectionDayTermKey(key);
 			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
 			// Check vacancy periods — count gaps >= minBreak that qualify as vacant periods
@@ -903,8 +993,12 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			}
 			// If override disables this constraint and the violation is SOFT, drop it
 			if (!override.enabled && v.severity === 'SOFT') continue;
-			// Promote to HARD if treatAsHard and currently SOFT
-			const severity = (override.treatAsHard && v.severity === 'SOFT') ? 'HARD' as const : v.severity;
+			// Promote to HARD only when the code is on the server-owned allowlist
+			// (R4). A non-allowlisted `treatAsHard` has no effect here even if a
+			// legacy persisted row still carries it.
+			const severity = (override.treatAsHard && v.severity === 'SOFT' && isPromotableConstraintCode(v.code))
+				? 'HARD' as const
+				: v.severity;
 			finalViolations.push({
 				...v,
 				severity,

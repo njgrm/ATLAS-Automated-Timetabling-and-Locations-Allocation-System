@@ -22,12 +22,14 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Teacher Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
+	ROOM_FEATURE_MISMATCH: 'Room Feature Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
 	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+	FACULTY_FLOOR_TRANSITION: 'Cross-Floor Transition',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
@@ -51,6 +53,7 @@ export const CONFLICT_CODES: Set<ViolationCode> = new Set([
 
 export const WELLBEING_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
+	'FACULTY_FLOOR_TRANSITION',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
 	'FACULTY_EXCESSIVE_IDLE_GAP',

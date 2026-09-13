@@ -56,6 +56,10 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 		why: 'Back-to-back classes are in buildings that are too far apart for a comfortable transition.',
 		fix: 'Schedule consecutive classes in the same building, or insert a buffer period between them.',
 	},
+	FACULTY_FLOOR_TRANSITION: {
+		why: 'A teacher moves between floors in the same building with too little time to make the transition.',
+		fix: 'Insert a buffer period between the classes, or move one class to the same floor.',
+	},
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
 		why: 'This teacher moves between too many different buildings in a single day.',
 		fix: 'Cluster classes in fewer buildings, or reassign some to teachers who are already in those buildings.',

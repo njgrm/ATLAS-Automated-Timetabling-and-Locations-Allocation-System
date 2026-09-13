@@ -46,12 +46,14 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Faculty Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
+	ROOM_FEATURE_MISMATCH: 'Room Feature Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
 	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+	FACULTY_FLOOR_TRANSITION: 'Cross-Floor Transition',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
@@ -116,6 +118,7 @@ function buildTimetableErrorMessage(error: unknown, fallbackMessage: string): st
 
 const WELLBEING_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
+	'FACULTY_FLOOR_TRANSITION',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
 	'FACULTY_EXCESSIVE_IDLE_GAP',
@@ -522,7 +525,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				(v) =>
 					v.message.toLowerCase().includes(q)
 					|| v.code.toLowerCase().includes(q)
-					|| VIOLATION_LABELS[v.code].toLowerCase().includes(q),
+					|| (VIOLATION_LABELS[v.code] ?? v.code.replace(/_/g, ' ').toLowerCase()).toLowerCase().includes(q),
 			);
 		}
 
@@ -539,7 +542,17 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		return groups;
 	}, [filteredViolations]);
 
-	const hardViolationCount = useMemo(() => violations.filter((v) => v.severity === 'HARD').length, [violations]);
+	// R7/A-01: the publish gate must consume run-wide truth while the rail keeps
+	// rendering the selected-term display list. Prefer the server's documented
+	// run-wide hard count; fall back to the term-scoped list only for older
+	// servers that do not yet return it.
+	const runWideHardCount = violationReport?.counts?.runWide?.hard;
+	const hardViolationCount = useMemo(
+		() => (typeof runWideHardCount === 'number'
+			? runWideHardCount
+			: violations.filter((v) => v.severity === 'HARD').length),
+		[runWideHardCount, violations],
+	);
 
 	const topBlockers = useMemo(() => {
 		const hardViolations = violations.filter((v) => v.severity === 'HARD');

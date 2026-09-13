@@ -253,9 +253,9 @@ test('real manual candidate validation blocks persisted room, HG, capacity, and 
 	const baseRef = {
 		rooms: [{
 			id: 33, type: 'CLASSROOM' as const, isTeachingSpace: true, isSharedFacility: false,
-			capacity: 35, buildingId: 1, buildingGradeScope: [7], building: { gradeScope: [7] },
+			capacity: 35, features: [] as string[], floor: 0, buildingId: 1, buildingGradeScope: [7], building: { gradeScope: [7] },
 		}],
-		subjects: [{ id: 44, code: 'MATH', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7] }],
+		subjects: [{ id: 44, code: 'MATH', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM' as const, requiredFeatures: [] as string[], gradeLevels: [7] }],
 		sectionEnrollment: new Map([[22, 35]]),
 		sectionGradeLevel: new Map([[22, 7]]),
 	};

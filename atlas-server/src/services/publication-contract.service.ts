@@ -10,6 +10,7 @@ import {
 	type GenerationInputSnapshot,
 } from './generation-input-snapshot.service.js';
 import { buildDerivedDemand } from './derived-demand.service.js';
+import { isPromotableConstraintCode } from './scheduling-policy.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -87,6 +88,24 @@ function countViolations(violations: unknown, severity: 'HARD' | 'SOFT'): number
 		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'The selected run contains a malformed violation record.');
 	}
 	return violations.filter((violation) => asRecord(violation)?.severity === severity).length;
+}
+
+/**
+ * R4 — publication derives hard-blocking only from the server-owned promotable
+ * allowlist. A persisted HARD severity for a non-allowlisted (unreliable or
+ * retired) code is informational and can never block publication.
+ */
+export function countBlockingHardViolations(violations: unknown): number {
+	if (!Array.isArray(violations)) {
+		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'The selected run has no valid violation snapshot.');
+	}
+	if (violations.some((violation) => !asRecord(violation) || !['HARD', 'SOFT'].includes(String(asRecord(violation)?.severity)))) {
+		throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'The selected run contains a malformed violation record.');
+	}
+	return violations.filter((violation) => {
+		const record = asRecord(violation);
+		return record?.severity === 'HARD' && isPromotableConstraintCode(String(record.code));
+	}).length;
 }
 
 function countRequiredUnassigned(unassignedItems: unknown): number {
@@ -246,7 +265,7 @@ export async function publishSchedule(
 			throw fail(422, 'PUBLICATION_RUN_MALFORMED', 'The selected run has no valid schedule snapshot.');
 		}
 		validateScheduleEntries(run.draftEntries, derivedAuthority.termStructure.terms.length);
-		const hardViolationCount = countViolations(run.violations, 'HARD');
+		const hardViolationCount = countBlockingHardViolations(run.violations);
 		if (hardViolationCount !== 0) {
 			throw fail(422, 'PUBLISH_BLOCKED_HARD_VIOLATIONS', 'Cannot publish while hard violations exist.', {
 				details: { runId: run.id, hardViolationCount },
