@@ -360,6 +360,41 @@ test('control B: wrong-term Science entries do not satisfy another rotation memb
 	assert.equal(countUnassigned(unassignedItems, subjectIdByCode.ES, 2), 0, 'ES never demands T2');
 });
 
+test('control B2: a compact rotating-family lane expands to its term-owned members', { skip }, async () => {
+	const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+	const lanes = days.map((day, index) => ({
+		entryId: `sci-lane-${index + 1}`,
+		facultyId,
+		roomId,
+		// The compact lane carries the family's primary subject id plus the
+		// term-specific member/teacher; the canonical resolver maps the member
+		// subject code to its real Subject id.
+		subjectId: subjectIdByCode.BIO,
+		sectionId: SECTION_EXTERNAL_ID,
+		day,
+		startTime: '07:00',
+		endTime: '07:45',
+		durationMinutes: PERIOD_LENGTH_MINUTES,
+		metadata: {
+			modularAssignments: [
+				{ termIndex: 1, facultyId, subjectCode: 'BIO' },
+				{ termIndex: 2, facultyId, subjectCode: 'CHEM' },
+				{ termIndex: 3, facultyId, subjectCode: 'ES' },
+			],
+		},
+	}));
+	const run = await createRun(lanes, 1);
+	await syncTimetableSetup(schoolId, SCHOOL_YEAR_ID, run.id, ACTOR_ID, 1);
+	const updated = await prisma.generationRun.findUnique({ where: { id: run.id } });
+	const entries = updated.draftEntries as any[];
+	const unassignedItems = updated.unassignedItems as any[];
+
+	assert.equal(countEntries(entries, subjectIdByCode.BIO, 1), SESSIONS_PER_WEEK, 'BIO owns T1');
+	assert.equal(countEntries(entries, subjectIdByCode.CHEM, 2), SESSIONS_PER_WEEK, 'CHEM owns T2');
+	assert.equal(countEntries(entries, subjectIdByCode.ES, 3), SESSIONS_PER_WEEK, 'ES owns T3');
+	assert.equal(unassignedItems.filter((item) => [subjectIdByCode.BIO, subjectIdByCode.CHEM, subjectIdByCode.ES].includes(item.subjectId)).length, 0, 'the rotation family is fully satisfied');
+});
+
 test('control C: a correctly resolved three-term run produces zero new unassigned items', { skip }, async () => {
 	const run = await createRun(canonicalDemandEntries(), 1);
 	const result = await syncTimetableSetup(schoolId, SCHOOL_YEAR_ID, run.id, ACTOR_ID, 1);
