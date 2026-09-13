@@ -47,7 +47,10 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
 	violations: Violation[];
+	/** Total run-wide HARD count (display). */
 	hardCount: number;
+	/** F2 — allowlist-filtered run-wide HARD count that actually blocks publication. */
+	blockingHardCount: number;
 	softCount: number;
 	selectedRunId: string;
 	handleRunChange: (value: string) => void;

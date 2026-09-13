@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { RefreshCw, SearchCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ExternalLink, RefreshCw, SearchCheck } from 'lucide-react';
 
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -9,6 +10,7 @@ import { SetupImpactDialog, SyncTimetableConfirmDialog } from '@/components/time
 import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
 import { describeRunInputDrift } from '@/components/timetable/timetableDriftRouting';
 import { formatCheckedAtAge } from '@/components/timetable/timetableWorkspaceTruth';
+import type { TimetableCapabilities } from '@/lib/timetable-capabilities';
 import type { RolloverStatus } from '@/lib/settings';
 import type { DraftReport } from '@/types';
 
@@ -17,6 +19,10 @@ import type { DraftReport } from '@/types';
  * rollover drift before publish or sync (findings A-11/B-06/B-14). This is the
  * same canonical information Advanced already renders, with the same sync
  * authority and zero duplication of the setup readers.
+ *
+ * The per-domain chips are informational; each changed domain also renders a
+ * real, mounted repair action (`primaryHref`/domain href) so the routing data is
+ * live, not dead.
  */
 type SimpleDriftBannerProps = {
 	schoolId: number;
@@ -27,6 +33,8 @@ type SimpleDriftBannerProps = {
 	loading: boolean;
 	onRefresh: () => void;
 	onRolloverStatus?: (status: RolloverStatus) => void;
+	/** The shared capability model; the setup-input gate guards the repair actions. */
+	capabilities: TimetableCapabilities;
 };
 
 export function SimpleDriftBanner({
@@ -38,6 +46,7 @@ export function SimpleDriftBanner({
 	loading,
 	onRefresh,
 	onRolloverStatus,
+	capabilities,
 }: SimpleDriftBannerProps) {
 	const inputState = draft?.inputState ?? null;
 	const drift = useMemo(() => describeRunInputDrift(inputState), [inputState]);
@@ -45,6 +54,12 @@ export function SimpleDriftBanner({
 	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const syncGuardRef = useRef(createSyncSetupInFlightGuard());
+
+	const repairGate = capabilities.gates.setupInputStatus;
+	const domainHrefs = new Set(drift.domains.map((domain) => domain.href));
+	// When the umbrella primary href has no per-domain control (unmapped/unknown
+	// domain), render one explicit primary action so `primaryHref` is never dead.
+	const needsPrimaryFallback = showPrimaryFallback(drift.primaryHref, domainHrefs);
 
 	const handleSyncSetup = async () => {
 		if (!schoolYearId || activeGeneratedRunId == null) return;
@@ -85,6 +100,7 @@ export function SimpleDriftBanner({
 					<span className="shrink-0 font-semibold">
 						{drift.status === 'STALE' ? 'Run inputs are stale' : 'Run inputs could not be compared'}
 					</span>
+					{/* Informational domain chips stay next to the actionable repair control. */}
 					{drift.domains.map((domain) => (
 						<Badge key={domain.domain} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-[0.65rem] font-bold text-amber-800">
 							{domain.label}
@@ -94,6 +110,53 @@ export function SimpleDriftBanner({
 						{drift.actionHint || drift.message}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
+					{/* Per-domain routed repairs. Disabled (never dead) when the shared
+					    setup-input capability gate denies the action. */}
+					{repairGate.enabled ? (
+						drift.domains.map((domain) => (
+							<Button
+								key={domain.domain}
+								asChild
+								variant="outline"
+								size="sm"
+								className="h-7 shrink-0 gap-1 border-amber-300 px-2 text-xs font-semibold text-amber-900"
+							>
+								<Link
+									to={domain.href}
+									data-testid={`timetable-simple-repair-${domain.domain}`}
+									data-primary-repair={domain.href === drift.primaryHref ? 'true' : undefined}
+								>
+									<ExternalLink className="size-3" aria-hidden="true" />
+									Fix {domain.label}
+								</Link>
+							</Button>
+						))
+					) : (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled
+							title={repairGate.reason ?? undefined}
+							className="h-7 shrink-0 gap-1 border-amber-300 px-2 text-xs font-semibold text-amber-900"
+							data-testid="timetable-simple-repair-disabled"
+						>
+							Repair setup
+						</Button>
+					)}
+					{repairGate.enabled && needsPrimaryFallback ? (
+						<Button
+							asChild
+							variant="outline"
+							size="sm"
+							className="h-7 shrink-0 gap-1 border-amber-300 px-2 text-xs font-semibold text-amber-900"
+						>
+							<Link to={drift.primaryHref} data-testid="timetable-simple-repair-primary" data-primary-repair="true">
+								<ExternalLink className="size-3" aria-hidden="true" />
+								Open Year Setup
+							</Link>
+						</Button>
+					) : null}
 					<Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => setShowImpactPreview(true)} data-testid="timetable-simple-impact-preview">
 						<SearchCheck className="size-3" />
 						Preview impact
@@ -127,4 +190,8 @@ export function SimpleDriftBanner({
 			/>
 		</>
 	);
+}
+
+function showPrimaryFallback(primaryHref: string, domainHrefs: Set<string>): boolean {
+	return !domainHrefs.has(primaryHref);
 }

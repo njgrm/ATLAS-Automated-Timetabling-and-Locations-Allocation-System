@@ -177,7 +177,7 @@ export function readinessLabel(context: ScheduleReviewWorkspaceHeaderContext) {
 		if (unassigned > 0) return `Published with ${unassigned} follow-up item${unassigned === 1 ? '' : 's'}`;
 		return 'Published';
 	}
-	if (context.hardCount > 0) return `${context.hardCount} blocker${context.hardCount === 1 ? '' : 's'}`;
+	if (context.blockingHardCount > 0) return `${context.blockingHardCount} blocker${context.blockingHardCount === 1 ? '' : 's'}`;
 	// Unresolved sessions block publish exactly like hard blockers: individual
 	// previewability is not joint feasibility, so never report ready while any
 	// session still needs fixing.

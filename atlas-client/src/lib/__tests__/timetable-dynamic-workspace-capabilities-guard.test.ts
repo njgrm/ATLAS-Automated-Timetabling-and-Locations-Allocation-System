@@ -29,9 +29,11 @@ test('R7 Simple publish action reads the publication gate, not a local count', (
 
 test('R7 room-request review is reachable from Simple without a second authority', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
 	assert.match(header, /openRequestsTask/);
 	assert.match(header, /context\.setLeftTab\('requests'\)/);
-	assert.match(header, /data-testid="timetable-more-review-requests"/);
+	assert.match(header, /SimpleMoreMenuContent/);
+	assert.match(menu, /data-testid="timetable-more-review-requests"/);
 });
 
 test('R7 setup-sync impact review is reachable from Simple', () => {
@@ -42,9 +44,11 @@ test('R7 setup-sync impact review is reachable from Simple', () => {
 
 test('R7 Simple links to policy editing without duplicating the Advanced editor', () => {
 	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
-	assert.match(header, /data-testid="timetable-more-policy"/);
-	assert.match(header, /context\.enterPolicyView/);
-	assert.match(header, /onLayoutModeChange\('advanced'\)/);
+	const menu = source('src/components/timetable/simple/SimpleMoreMenuContent.tsx');
+	assert.match(header, /SimpleMoreMenuContent/);
+	assert.match(menu, /data-testid="timetable-more-policy"/);
+	assert.match(menu, /context\.enterPolicyView/);
+	assert.match(menu, /onLayoutModeChange\('advanced'\)/);
 });
 
 // --- R9 A-12 Advanced Requests expands the collapsed rail ---

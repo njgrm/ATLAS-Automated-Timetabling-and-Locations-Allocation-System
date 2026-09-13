@@ -42,3 +42,27 @@ export function takeRedoForDispatch(
 	}
 	return { target: state, next: null };
 }
+
+export type RedoDispatchOutcome = {
+	/** True only when the authoritative revert route was actually called. */
+	dispatched: boolean;
+	/** True when a redo existed but its CAS version was no longer current. */
+	stale: boolean;
+};
+
+/**
+ * R4 — dispatch the real redo route with a fresh CAS. A stale target performs
+ * zero dispatch. The target is consumed (never retried) before the call.
+ */
+export async function dispatchRedo(
+	state: RedoState | null,
+	currentVersion: number | null,
+	revert: (operationId: number, expectedVersion: number) => Promise<unknown>,
+): Promise<RedoDispatchOutcome> {
+	const { target } = takeRedoForDispatch(state, currentVersion);
+	if (!target) {
+		return { dispatched: false, stale: state != null };
+	}
+	await revert(target.operationId, target.expectedVersion);
+	return { dispatched: true, stale: false };
+}

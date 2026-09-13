@@ -42,8 +42,15 @@ export function hasSupersededPublicationMarkers(summary: unknown): boolean {
 }
 
 export type RunWideReadiness = {
-	/** Run-wide HARD blocker count. Never the term-filtered display count. */
+	/** Total run-wide HARD count (may include legacy non-promotable codes). Display only. */
 	hardCount: number;
+	/**
+	 * F2 — run-wide HARD count filtered by the server publication allowlist
+	 * (`publication-contract.service.ts` `countBlockingHardViolations`). This is
+	 * the count the publish gate must use, because legacy non-promotable HARD
+	 * codes (e.g. retired travel) no longer block publication server-side.
+	 */
+	blockingHardCount: number;
 	/** Run-wide SOFT count the server requires acknowledgement for. */
 	softCount: number;
 	unassignedCount: number;
@@ -87,6 +94,7 @@ export function deriveRunWideReadiness(
 	displayViolations: readonly Violation[],
 ): RunWideReadiness {
 	const summaryHard = numericField(summary, 'hardViolationCount');
+	const summaryBlockingHard = numericField(summary, 'blockingHardViolationCount');
 	const summarySoft = numericField(summary, 'softViolationCount');
 	const summaryUnassigned = numericField(summary, 'unassignedCount');
 
@@ -96,8 +104,14 @@ export function deriveRunWideReadiness(
 	const displayHard = displayViolations.filter((v) => v.severity === 'HARD').length;
 	const displaySoft = displayViolations.filter((v) => v.severity === 'SOFT').length;
 
+	// F2 fail-closed: when the server allowlist count is absent (older run
+	// summary), fall back to the total HARD count so an unknown code can never
+	// silently become publishable.
+	const blockingHardCount = summaryBlockingHard ?? summaryHard ?? displayHard;
+
 	return {
 		hardCount: summaryHard ?? displayHard,
+		blockingHardCount,
 		softCount: summarySoft ?? displaySoft,
 		unassignedCount: summaryUnassigned ?? 0,
 		derivedFromDisplayFallback: !hasRunWideHard || !hasRunWideSoft,

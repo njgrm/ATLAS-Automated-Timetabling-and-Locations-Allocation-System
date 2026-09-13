@@ -16,6 +16,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
 import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { TimetableUndoRedoControl } from '@/components/timetable/TimetableUndoRedoControl';
+import { createSwapArmHandler } from '@/components/timetable/timetableSwapArming';
+import { buildScopeKey, clearScopeState, shouldClearForScopeChange } from '@/components/timetable/timetableScopeHygiene';
 import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 
 const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/TeacherDepartureRecoverySheet').then((module) => ({
@@ -99,31 +101,33 @@ export default function ScheduleReviewWorkspace() {
 	// task, selection, and swap state is scope-bound. When school, school year,
 	// run, or selected term changes, clear it before any dispatch can occur so a
 	// stale object from the previous scope is never actionable.
-	const scopeKey = [
-		state.headerContext?.schoolId ?? 'school:none',
-		state.centerWorkspaceContext?.schoolYearId ?? 'year:none',
-		state.draft?.runId ?? 'run:none',
-		state.headerContext?.termFilter ?? 'term:all',
-	].join('|');
+	const scopeKey = buildScopeKey({
+		schoolId: state.headerContext?.schoolId ?? null,
+		schoolYearId: state.centerWorkspaceContext?.schoolYearId ?? null,
+		runId: state.draft?.runId ?? null,
+		termFilter: state.headerContext?.termFilter ?? null,
+	});
 	const lastScopeKeyRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (lastScopeKeyRef.current === null) {
+		if (!shouldClearForScopeChange(lastScopeKeyRef.current, scopeKey)) {
 			lastScopeKeyRef.current = scopeKey;
 			return;
 		}
-		if (lastScopeKeyRef.current === scopeKey) return;
 		lastScopeKeyRef.current = scopeKey;
-		setActiveSimpleTask(null);
-		setRepairOrigin(null);
-		setReadinessSheetOpen(false);
-		setTeacherDepartureOpen(false);
-		setTeacherDepartureFacultyId(null);
-		setTeacherDepartureFocusedEntryIds(undefined);
-		setSimpleDetailsOpen(false);
-		state.setSwapClassTimesMode?.(null);
-		state.setSwapClassAEntryId?.(null);
-		state.setSwapClassBEntryId?.(null);
-		state.setLastAutoSaveUndo?.(null);
+		// No scoped request may dispatch before these clearers run.
+		clearScopeState([
+			() => setActiveSimpleTask(null),
+			() => setRepairOrigin(null),
+			() => setReadinessSheetOpen(false),
+			() => setTeacherDepartureOpen(false),
+			() => setTeacherDepartureFacultyId(null),
+			() => setTeacherDepartureFocusedEntryIds(undefined),
+			() => setSimpleDetailsOpen(false),
+			() => state.setSwapClassTimesMode?.(null),
+			() => state.setSwapClassAEntryId?.(null),
+			() => state.setSwapClassBEntryId?.(null),
+			() => state.setLastAutoSaveUndo?.(null),
+		]);
 	}, [
 		scopeKey,
 		state.setSwapClassTimesMode,
@@ -241,14 +245,13 @@ export default function ScheduleReviewWorkspace() {
 	// workflow the Simple task path arms. Setting `activeSimpleTask` alone was a
 	// state-only no-op (finding A-05).
 	const armSwapSessions = useCallback(() => {
-		setActiveSimpleTask('swap-sessions');
-		state.setSwapClassTimesMode?.('select-first');
-		state.setSwapClassAEntryId?.(null);
-		state.setSwapClassBEntryId?.(null);
-		state.setInlineActionStatus({
-			tone: 'loading',
-			message: 'Swap armed. Choose the first class on the grid, then the second.',
-		});
+		createSwapArmHandler({
+			setTask: setActiveSimpleTask,
+			setMode: (mode) => state.setSwapClassTimesMode?.(mode),
+			setEntryIdA: (id) => state.setSwapClassAEntryId?.(id),
+			setEntryIdB: (id) => state.setSwapClassBEntryId?.(id),
+			setStatus: (status) => state.setInlineActionStatus(status),
+		})();
 	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
 
 	const selectedPrimaryAction = activeSimpleTask === 'swap-sessions'

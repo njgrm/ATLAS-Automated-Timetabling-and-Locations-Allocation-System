@@ -49,7 +49,7 @@ test('R4 the hook re-dispatches the same revert endpoint with a fresh CAS', () =
 	const hook = source('src/hooks/useTimetableMutations.ts');
 	assert.match(hook, /runAuthoritativeRevert/);
 	assert.match(hook, /\$\{apiBase\}\/revert/);
-	assert.match(hook, /takeRedoForDispatch/);
+	assert.match(hook, /dispatchRedo/);
 	assert.match(hook, /deriveRedoAfterRevert/);
 	// A failed CAS is a typed Version-stale state, never a client-only replay.
 	assert.match(hook, /UNDO_CONFLICT/);

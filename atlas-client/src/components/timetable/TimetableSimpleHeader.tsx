@@ -1,4 +1,4 @@
-﻿import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
 	AlertTriangle,
 	ArrowRightLeft,
@@ -58,6 +58,7 @@ import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderH
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
+import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
 import type { RolloverStatus } from '@/lib/settings';
 
 type TimetableSimpleHeaderProps = {
@@ -131,7 +132,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		hasGeneratedRun,
 		isPublished: isRunPublished,
 		latestRunFailed,
-		hardCount: context.hardCount,
+		hardCount: context.blockingHardCount,
 		unassignedCount: context.summary?.unassignedCount ?? 0,
 		softCount: context.softCount,
 		hasSelectedEntry: context.hasSelectedEntry,
@@ -177,9 +178,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 	}, [activeTask, blockerReasonFilter, context]);
 
-	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
-	const publishBlockedReason = context.hardCount > 0
-		? `${context.hardCount} hard blocker${context.hardCount === 1 ? '' : 's'} must be fixed before publish.`
+	const publishBlocked = hasGeneratedRun && !isRunPublished && (context.blockingHardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0);
+	const publishBlockedReason = context.blockingHardCount > 0
+		? `${context.blockingHardCount} hard blocker${context.blockingHardCount === 1 ? '' : 's'} must be fixed before publish.`
 		: (context.summary?.unassignedCount ?? 0) > 0
 			? `${context.summary?.unassignedCount} session${(context.summary?.unassignedCount ?? 0) === 1 ? '' : 's'} still need fixing before publish.`
 			: '';
@@ -187,7 +188,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		hasGeneratedRun,
 		isPreGeneration: context.isPreGenerationWorkspace,
 		generating: context.generating,
-		hardCount: context.hardCount,
+		hardCount: context.blockingHardCount,
 		unassignedCount: context.summary?.unassignedCount ?? 0,
 		softCount: context.softCount,
 		isPublished: isRunPublished,
@@ -361,6 +362,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				loading={context.loading}
 				onRefresh={context.handleRefresh}
 				onRolloverStatus={setRolloverStatus}
+				capabilities={capabilities}
 			/>
 			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden px-3 py-1.5 lg:flex-nowrap [&>*]:min-w-0">
@@ -394,7 +396,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 					</Badge>
 				) : (
 					<Badge
-						variant={context.hardCount > 0 ? 'destructive' : 'secondary'}
+						variant={context.blockingHardCount > 0 ? 'destructive' : 'secondary'}
 						className="h-5 shrink min-w-0 gap-1 truncate px-1.5 text-[0.65rem] font-semibold sm:shrink-0 sm:gap-1.5 sm:px-2 sm:text-xs sm:h-6"
 						data-testid="timetable-simple-readiness-chip"
 					>
@@ -462,154 +464,19 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="max-h-[min(82svh,32rem)] w-80 overflow-y-auto p-2">
-							<div className="space-y-2">
-								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-daily-tasks">
-									<DropdownMenuLabel className="px-0 py-0 text-xs">Daily tasks</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-place-unresolved" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('place-unresolved'); }}>
-										<ClipboardCheck className="size-3.5" aria-hidden="true" />
-										Place unresolved sessions
-										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
-									</DropdownMenuItem>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-swap-sessions" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('swap-sessions'); }}>
-										<ArrowRightLeft className="size-3.5" aria-hidden="true" />
-										Swap sessions
-										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
-									</DropdownMenuItem>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!canPlanOrGenerate} onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('plan-draft'); }}>
-										<CalendarClock className="size-3.5" aria-hidden="true" />
-										Plan draft
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										disabled={!runToolsAvailable}
-										onSelect={(event) => { event.preventDefault(); openTeacherDeparture(); }}
-										data-testid="teacher-departure-trigger"
-									>
-										<UserRoundX className="size-3.5" aria-hidden="true" />
-										Teacher leaving / Reassign load
-										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										disabled={context.requestPendingCount === 0}
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); openRequestsTask(); }}
-										data-testid="timetable-more-review-requests"
-									>
-										<ClipboardCheck className="size-3.5" aria-hidden="true" />
-										Review room requests{context.requestPendingCount > 0 ? ` (${context.requestPendingCount})` : ''}
-									</DropdownMenuItem>
-								</div>
-								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
-									<DropdownMenuLabel className="px-0 py-0 text-xs">Help</DropdownMenuLabel>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setTutorialOpen(true); }}
-									>
-										<BookOpen className="size-3.5" aria-hidden="true" />
-										Tutorial
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setStatusKeyOpen(true); }}
-									>
-										<Info className="size-3.5" aria-hidden="true" />
-										Status key
-									</DropdownMenuItem>
-									<DropdownMenuItem asChild className="h-9 gap-2 text-xs">
-										<Link to="/timetabling/how-it-works">
-											<HelpCircle className="size-3.5" aria-hidden="true" />
-											How this works
-										</Link>
-									</DropdownMenuItem>
-								</div>
-								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-expert-tools">
-									<DropdownMenuLabel className="px-0 py-0 text-xs">Expert tools</DropdownMenuLabel>
-									<DropdownMenuItem className="h-9 gap-2 text-xs" disabled={!runToolsAvailable} data-testid="timetable-more-review-issues" onSelect={(event) => { event.preventDefault(); setMoreOpen(false); void startTask('review-issues'); }}>
-										<ListChecks className="size-3.5" aria-hidden="true" />
-										Review issues
-										{!runToolsAvailable && <span className="sr-only"> Unavailable: no generated run yet.</span>}
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										disabled={!canPlanOrGenerate}
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.handleTriggerGenerate(); }}
-									>
-										<Play className="size-3.5" aria-hidden="true" />
-										Generate schedule
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										disabled={context.editHistoryCount === 0}
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); context.setShowEditHistory(true); }}
-									>
-										<History className="size-3.5" aria-hidden="true" />
-										Edit history
-									</DropdownMenuItem>
-									{/* R7 — policy editing stays Advanced; Simple exposes the link. */}
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => {
-											event.preventDefault();
-											setMoreOpen(false);
-											onLayoutModeChange('advanced');
-											window.requestAnimationFrame(() => context.switchCenterViewWithGuard(context.enterPolicyView));
-										}}
-										data-testid="timetable-more-policy"
-									>
-										<Settings2 className="size-3.5" aria-hidden="true" />
-										Scheduling policy (Advanced)
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="h-9 gap-2 text-xs"
-										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); onLayoutModeChange('advanced'); }}
-										data-testid="timetable-layout-toggle"
-									>
-										<Settings2 className="size-3.5" aria-hidden="true" />
-										Advanced view
-									</DropdownMenuItem>
-								</div>
-								<div className="space-y-1 rounded-md border border-border bg-muted/20 p-2" data-testid="timetable-simple-more-schedule-data">
-									<DropdownMenuLabel className="px-0 py-0 text-xs">Schedule data</DropdownMenuLabel>
-									<Select value={context.selectedRunId} onValueChange={context.handleRunChange} disabled={context.runs.length === 0 || context.centerView === 'pre-generation'}>
-										<SelectTrigger className="h-9 text-xs">
-											<SelectValue placeholder={context.runs.length === 0 ? 'No generated run yet' : 'Run to review'} />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="latest" disabled={context.runs.length === 0}>Latest Run</SelectItem>
-											{context.runs.map((run) => (
-												<SelectItem key={run.id} value={String(run.id)}>
-													Run #{run.id} · {context.formatTimestamp(run.createdAt)}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<div className="grid gap-1.5">
-										<DropdownMenuItem
-											className="h-9 gap-2 text-xs"
-											data-testid="timetable-filters-trigger"
-											onSelect={(event) => { event.preventDefault(); setMoreOpen(false); setFiltersOpen(true); }}
-										>
-											<SlidersHorizontal className="size-3.5" aria-hidden="true" />
-											Filters
-										</DropdownMenuItem>
-										<Button type="button" variant="outline" size="sm" className="h-9 justify-start gap-1.5 text-xs" onClick={() => { setMoreOpen(false); context.handleRefresh(); }}>
-											<RefreshCw className="size-3.5" aria-hidden="true" />
-											Refresh timetable
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											className="h-9 justify-start gap-1.5 text-xs"
-											onClick={() => { setMoreOpen(false); context.refreshReferenceLabels(); }}
-											data-testid="timetable-refresh-setup-names"
-										>
-											<RefreshCw className="size-3.5" aria-hidden="true" />
-											Refresh names
-										</Button>
-									</div>
-								</div>
-							</div>
+							<SimpleMoreMenuContent
+								context={context}
+								runToolsAvailable={runToolsAvailable}
+								canPlanOrGenerate={canPlanOrGenerate}
+								onClose={() => setMoreOpen(false)}
+								onStartTask={startTask}
+								onOpenTeacherDeparture={openTeacherDeparture}
+								onOpenRequests={openRequestsTask}
+								onOpenTutorial={() => setTutorialOpen(true)}
+								onOpenStatusKey={() => setStatusKeyOpen(true)}
+								onOpenFilters={() => setFiltersOpen(true)}
+								onLayoutModeChange={onLayoutModeChange}
+							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>

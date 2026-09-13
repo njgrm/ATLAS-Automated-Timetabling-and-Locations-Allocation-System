@@ -100,6 +100,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		handleTriggerGenerate,
 		draft,
 		hardCount,
+		blockingHardCount,
 		setPublishAcknowledged,
 		setShowPublishDialog,
 		exitPolicyView,
@@ -241,7 +242,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		hasGeneratedRun: Boolean(draft),
 		isPublished: isRunPublished,
 		latestRunFailed,
-		hardCount,
+		// F2 — the publication gate uses the allowlist-filtered blocking count.
+		hardCount: blockingHardCount,
 		unassignedCount,
 		softCount,
 		hasSelectedEntry,
@@ -440,7 +442,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="outline"
 								size="sm"
 								className="h-8 shrink-0 gap-1.5"
-								disabled={!draft || isRunPublished || hardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
+								disabled={!draft || isRunPublished || blockingHardCount > 0 || unassignedCount > 0 || centerView === 'pre-generation'}
 								onClick={() => {
 									setPublishAcknowledged(false);
 									setShowPublishDialog(true);
@@ -454,8 +456,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						<TooltipContent>
 							{isRunPublished
 								? 'This run is already published. Create an effective-dated revision instead of re-publishing.'
-								: hardCount > 0
-									? `Cannot publish: ${hardCount} hard violation(s) remaining`
+								: blockingHardCount > 0
+									? `Cannot publish: ${blockingHardCount} hard violation(s) remaining`
 									: unassignedCount > 0
 										? `Cannot publish: ${unassignedCount} session(s) still need placing`
 										: 'Publish this schedule'}

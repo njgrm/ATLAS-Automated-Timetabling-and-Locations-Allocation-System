@@ -12,11 +12,14 @@ function source(path: string): string {
 
 test('R3 the selected-class Swap arms the same workflow as the task path', () => {
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /const armSwapSessions = useCallback/);
-	assert.match(workspace, /state\.setSwapClassTimesMode\?\.\('select-first'\)/);
+	const arming = source('src/components/timetable/timetableSwapArming.ts');
+	assert.match(workspace, /createSwapArmHandler/);
 	assert.match(workspace, /data-testid="timetable-simple-selected-swap-action"/);
 	assert.match(workspace, /armSwapSessions\(\)/);
 	assert.match(workspace, /data-testid="timetable-simple-details-swap"/);
+	// The arming transition is the real production module, not a state-only no-op.
+	assert.match(arming, /mode: 'select-first'/);
+	assert.match(arming, /deps\.setTask\('swap-sessions'\)/);
 });
 
 // --- R9 A-15 re-publish of an already-published run ---

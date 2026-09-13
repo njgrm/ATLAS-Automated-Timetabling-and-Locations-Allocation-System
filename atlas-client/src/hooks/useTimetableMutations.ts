@@ -7,7 +7,7 @@ import { createTimetableScopedClient } from '@/components/timetable/timetableSch
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
-import { deriveRedoAfterRevert, takeRedoForDispatch } from '@/components/timetable/timetableUndoRedoState';
+import { deriveRedoAfterRevert, dispatchRedo } from '@/components/timetable/timetableUndoRedoState';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type {
@@ -1000,16 +1000,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!redoState) return;
 		// Consume the target before dispatch. A target whose version is no longer
 		// current is dropped with zero dispatch and rendered as Version-stale.
-		const { target } = takeRedoForDispatch(redoState, draft?.version ?? null);
+		const pending = redoState;
 		setRedoState(null);
-		if (!target) {
-			setRedoVersionStale(true);
-			return;
-		}
-		await runAuthoritativeRevert(target.operationId, target.expectedVersion, {
-			successMessage: 'Redo applied.',
-			redoLabel: 'Redone edit',
-		});
+		const outcome = await dispatchRedo(pending, draft?.version ?? null, (operationId, expectedVersion) =>
+			runAuthoritativeRevert(operationId, expectedVersion, {
+				successMessage: 'Redo applied.',
+				redoLabel: 'Redone edit',
+			}));
+		if (outcome.stale) setRedoVersionStale(true);
 	}, [redoState, draft?.version, runAuthoritativeRevert]);
 
 	const clearRedo = useCallback(() => {

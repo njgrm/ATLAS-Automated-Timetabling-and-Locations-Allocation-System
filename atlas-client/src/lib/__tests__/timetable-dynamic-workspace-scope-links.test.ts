@@ -12,7 +12,9 @@ function source(path: string): string {
 
 test('R5 the workspace derives a scope key from school, year, run, and term', () => {
 	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
-	assert.match(workspace, /const scopeKey = \[/);
+	assert.match(workspace, /buildScopeKey\(/);
+	assert.match(workspace, /shouldClearForScopeChange/);
+	assert.match(workspace, /clearScopeState/);
 	assert.match(workspace, /schoolId/);
 	assert.match(workspace, /schoolYearId/);
 	assert.match(workspace, /runId/);
