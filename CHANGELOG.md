@@ -1,5 +1,25 @@
 # Changelog
 
+## [2026-09-13] — Timetable Dynamic Workspace Audit Planner Cycle
+
+### Added
+- Added a planner-led, read-only audit packet that runs three bounded auditors
+  in parallel across Simple/Advanced control parity, dynamic lifecycle and
+  Teaching Load authority, and warning provenance/accuracy.
+- Required durable product memory, a severity-ranked audit, two parallel
+  implementation packets, one dependency-aware Teaching Load-module packet,
+  living-register reconciliation, and a fresh completion audit.
+
+### Decisions Made
+- The target is one Simple-first Timetable workspace with Plan, Review,
+  Published, and Archived lifecycle modes while preserving distinct server
+  authorities for pre-generation drafts and generated-run revisions.
+- Canvas building coordinates are not physical meters. The active metric
+  distance warning and policy control are to be retired in favor of
+  authoritative cross-building and cross-floor transition semantics.
+- Authentication absence may block live browser rows but shall not stop the
+  source/docs audit cycle or its implementation-packet delivery.
+
 ## [2026-09-13] — TT-SYNC-TERM-C03R5 Source-Freshness Binding + TL-SUGGESTION-C03R Integration
 
 ### Fixed
