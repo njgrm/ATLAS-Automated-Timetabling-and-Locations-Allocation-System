@@ -32,24 +32,54 @@ router.post(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 
 			const actorId = req.user?.userId;
-			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			if (typeof actorId !== 'number' || !Number.isInteger(actorId) || actorId < 1) {
+				res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
+				return;
+			}
 
-			const result = await syncTimetableSetup(schoolId, schoolYearId, runId, actorId);
-			publishNotificationEvent({
-				type: 'TIMETABLE_SETUP_SYNC_COMPLETED',
-				domain: 'integration',
-				severity: 'success',
-				audience: 'PRIVILEGED',
-				schoolId,
-				schoolYearId,
-				facultyId: null,
-				message: 'Timetable setup was synced into the selected run.',
-				metadata: {
-					runId,
-					actorId,
-					result,
-				},
-			});
+			// Tenant isolation: an authenticated actor may only sync its own school.
+			const actorSchoolId = req.user?.schoolId;
+			if (typeof actorSchoolId !== 'number' || !Number.isInteger(actorSchoolId) || actorSchoolId < 1) {
+				res.status(403).json({ code: 'ACTOR_SCHOOL_UNRESOLVED', message: 'Setup sync requires an authenticated school scope.' });
+				return;
+			}
+			if (actorSchoolId !== schoolId) {
+				res.status(403).json({ code: 'CROSS_SCHOOL_DENIED', message: "The authenticated actor cannot sync another school's timetable setup." });
+				return;
+			}
+
+			// Anti-clobber: require the exact run version the client reviewed.
+			const expectedRunVersion = req.body?.expectedRunVersion;
+			if (typeof expectedRunVersion !== 'number' || !Number.isInteger(expectedRunVersion) || expectedRunVersion < 1) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'expectedRunVersion is required and must be a positive integer.' });
+				return;
+			}
+
+			const result = await syncTimetableSetup(schoolId, schoolYearId, runId, actorId, expectedRunVersion);
+
+			// A committed synchronization is complete even if the notification
+			// transport fails; a replayed (no-write) result must not re-notify.
+			if (!result.replayed) {
+				try {
+					publishNotificationEvent({
+						type: 'TIMETABLE_SETUP_SYNC_COMPLETED',
+						domain: 'integration',
+						severity: 'success',
+						audience: 'PRIVILEGED',
+						schoolId,
+						schoolYearId,
+						facultyId: null,
+						message: 'Timetable setup was synced into the selected run.',
+						metadata: {
+							runId,
+							actorId,
+							result,
+						},
+					});
+				} catch (notificationError) {
+					console.warn('[timetable-sync-setup] notification dispatch failed after committed sync', notificationError);
+				}
+			}
 			res.status(200).json(result);
 		} catch (e: any) {
 			if (e.statusCode) {

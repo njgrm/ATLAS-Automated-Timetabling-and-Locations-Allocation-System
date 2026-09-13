@@ -1,4 +1,4 @@
-import { memo, Profiler, useState, type ReactNode } from 'react';
+import { memo, Profiler, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowRightLeft, CalendarClock, Check, Clock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Info, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -26,6 +26,7 @@ import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { deriveTimetableCapabilities, YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 import { summarizeGenerationReadiness } from '@/lib/timetable-generation-readiness';
+import { createSyncSetupInFlightGuard, runSyncSetup } from '@/lib/timetable-sync-setup';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -72,6 +73,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const [showPostSyncOffer, setShowPostSyncOffer] = useState(false);
 	const [moreOpen, setMoreOpen] = useState(false);
 	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
+	const syncGuardRef = useRef(createSyncSetupInFlightGuard());
 
 	const {
 		isPreGenerationWorkspace,
@@ -148,22 +150,32 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		if (!schoolYearId || activeGeneratedRunId == null) return;
 		setSyncing(true);
 		try {
-			const { data } = await atlasApi.post(
-				`/generation/${schoolId}/${schoolYearId}/runs/${activeGeneratedRunId}/sync-setup`
-			);
-			setSyncResult(data);
-			if (data.displacedEntriesCount > 0 || data.addedUnassignedCount > 0) {
-				setShowPostSyncOffer(true);
-			} else {
-				toast.success(
-					`Timetable synced successfully: updated ${data.updatedFacultyCount} teacher assignments, ` +
-					`displaced ${data.displacedEntriesCount} entries, added ${data.addedUnassignedCount} unassigned sessions.`
-				);
+			const outcome = await runSyncSetup({
+				schoolId,
+				schoolYearId,
+				runId: activeGeneratedRunId,
+				draftVersion: draft?.version,
+				guard: syncGuardRef.current,
+			});
+			if (outcome.status === 'COMMITTED') {
+				const data = outcome.data;
+				setSyncResult(data);
+				if ((data.displacedEntriesCount ?? 0) > 0 || (data.addedUnassignedCount ?? 0) > 0) {
+					setShowPostSyncOffer(true);
+				} else {
+					toast.success(
+						`Timetable synced successfully: updated ${data.updatedFacultyCount ?? 0} teacher assignments, ` +
+						`displaced ${data.displacedEntriesCount ?? 0} entries, added ${data.addedUnassignedCount ?? 0} unassigned sessions.`
+					);
+				}
+				handleRefresh();
+			} else if (outcome.status === 'REPLAYED') {
+				toast.success('Timetable setup already matches the current run. Nothing to change.');
+				handleRefresh();
+			} else if (outcome.status === 'FAILED') {
+				toast.error(outcome.error.message);
 			}
-			handleRefresh();
-		} catch (err: any) {
-			const msg = err.response?.data?.message || err.message || 'Sync failed.';
-			toast.error(msg);
+			// SKIPPED_IN_FLIGHT: a sync is already running; do nothing.
 		} finally {
 			setSyncing(false);
 			setShowSyncConfirm(false);
