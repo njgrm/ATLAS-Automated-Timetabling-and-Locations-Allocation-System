@@ -70,6 +70,22 @@ hard blockers before separately approving publication.
   apply/sync/generation/publication. The reviewed term-cache catch-up preview
   packet is prepared at `docs/prompts/term-cache-catchup-preview-2026-09-13.md`;
   its one-bounded-login authorization is awaited before the preview can run.
+- Cycle recovery: `tt-sync-term-c03r4-20260913` (`INTEGRATED_AUDIT_PENDING`)
+  activated 2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`) for one
+  bounded source correction: worktree `D:\ATLAS-worktrees\tt-sync-term-c03r4`,
+  branch `work/tt-sync-term-c03r4`, base `def0dcc9`, frozen candidate `09027671`
+  (executor task `ses_f679c8bcfffejOJM5wsSLnzvs7`; additive commits `2c0f3378`,
+  `52cb9e35`, `09027671`); fresh QA task `ses_f67812ec1ffeuHBDkIaaZE7Dlg`
+  returned `ACCEPT_READY` 19/19/0/0 after independently reproducing controls
+  A-K, the mounted zero-dispatch authority matrix, CAS/concurrency/replay, and
+  the client contract, with adjudications X1 legacy HG/COHORT, X2
+  `SOURCE_AUTHORITY_STALE` interleave, X3 preflight snapshot window, X4
+  disposable isolation, and X5 writer inventory all classified NON_BLOCKING
+  with evidence. Integrated at merge `5328c9f6`; combined gates green on the
+  merged tree (server tsc/build + 11/11 sync suite; client tsc/build + 6/6
+  contract suite; `git diff --check`; integrated product tree byte-identical to
+  the reviewed candidate). No deployment, live DB, term-cache, Teaching Load,
+  generation, or publication action. Wave audit pending.
 - Cycle recovery: `companion-sso-and-term-cache-prep-20260913` (COMPLETE)
   closed 2026-09-13 (Asia/Manila). Phase 1 post-action reconciliation
   `8bcf6ecd`; Phase 2 COMPANION-SSO-C01 base `a284d775` → product `3e0103a3` →
@@ -314,6 +330,7 @@ hard blockers before separately approving publication.
 | TT-OUTPUT-C03R | Preserve weekday and term identity through the scheduler, main grid, section/teacher/room projections, and beneficiary class-program exports | `INTEGRATED` (candidate content carried onto `origin/main` by the TT-OUTPUT-C03R3 merge `3c2fc2bd`) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; base `4e5ef1f6`; candidate `4f596af0`; capsule `docs/handoffs/tt-output-c03r-planner-result.md` | None in source | Fresh QA round 2 `ses_f69d7bda1ffeaHjNVOffKHo48U` `ACCEPT_READY` 14/14/0/0 on `4e5ef1f6..4f596af0`; the two post-capsule commits are covered by the C03R3 exact-range QA (see the C03R3 row) | Closed in source; live per-term output verification belongs to the bounded runtime deployment and its separately approved term-cache catch-up |
 | TT-OUTPUT-C03R3 | Complete the beneficiary-output correction on the live branch above `f00daa69` and produce a frozen tip with fresh coverage for the two post-capsule commits | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 9/9 via the readiness correction) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; `4e5ef1f6...e7deeb91`; merge `3c2fc2bd` on `origin/main` | None in source | QA: round 1 `ses_f696b93baffe4dPW7LsrSYAW0M` `CORRECTION_REQUIRED` 38/36 (placement term loss); round 2 `ses_f695442d1ffe568Btme9JM4fN4` `CORRECTION_REQUIRED` 31/30 (quick-place commit binding); round 3 `ses_f69440b5cffekqzFdwbc0orOex` `ACCEPT_READY` 31/31/0/0; exact-range `ses_f693863c7ffe8xE4rlEp99yjDq` `ACCEPT_READY` 14/14/0/0 over `4e5ef1f6...e7deeb91`; integration gates: 43/43 candidate-path parity, server/client tsc+build, 14 decisive suites, `git diff --check`, all clean; wave audit `ses_f692956d5ffemfOtICwokWAPU3` F1 correction `TT-READINESS-TERM-C03R3` integrated and re-audited `AUDIT_CLEAR` 9/9 (`ses_f690e4b3fffeQ7Z62jwtkA6X3E`) | Closed in source; verify selected-term outputs only during the bounded runtime deployment after the approved term-cache catch-up; no generation/publication from this lane |
 | TT-READINESS-TERM-C03R3 | Migrate the canonical readiness diagnostic to the resolved per-term entries so it reports `READY` for ordinary year-long + rotation datasets | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 9/9) | MEDIUM server source; HIGH generation | `work/readiness-term-c03r3`; base `94b5c7bd`; candidate `5256dc5a`; merge `0abfe457` on `origin/main` | None in source; live generation remains separately gated | Wave audit `ses_f692956d5ffemfOtICwokWAPU3` F1 was the driver; fresh QA `ses_f6914cdc2ffe4ZbvcQq14Kxqw0` `ACCEPT_READY` 17/17/0/0 (positive control `READY`/`generateAllowed=true`, mutant reproduces the old false block); re-audit `ses_f690e4b3fffeQ7Z62jwtkA6X3E` `AUDIT_CLEAR` 9/9 with F1 closure and no missed consumer; integration gates: server tsc/build, readiness 16/16, tt-output-c03r3 12/12, placement-term 8/8, candidate parity and `git diff --check` clean | Closed; the term-cache catch-up apply remains the next operator decision |
+| TT-SYNC-TERM-C03R4 | Reconcile the mounted “Sync timetable setup” workflow against canonical per-term derived demand with actor-school authority, version CAS, and replay idempotence | `INTEGRATED` (wave audit pending) | MEDIUM source/test; no live mutation | `work/tt-sync-term-c03r4`; `def0dcc9...09027671`; merge `5328c9f6` | None in source; deployment remains separately gated HIGH | Fresh QA `ses_f67812ec1ffeuHBDkIaaZE7Dlg` `ACCEPT_READY` 19/19/0/0 (T1-only no longer falsely satisfies T2/T3; explicit termIndex on rebuilt unassigned items; mounted 403 matrix with zero dispatch; Serializable CAS `RUN_VERSION_STALE`; replay writes nothing); combined integration gates green; executor disclosed non-blocking residuals (X2 stale-authority hook, legacy HG/COHORT intent) | Closed in source after wave audit; do not deploy without its own reviewed HIGH action |
 | COMPANION-SSO-C01 | Implement the complete ATLAS side of EnrollPro↔ATLAS SSO: Flow A callback/exchange/local session, Flow B reverse authorize/exchange with hash-only one-time codes, strict validation, and the Integrated Systems AppShell area | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 8/8 | MEDIUM source (security-sensitive); live activation HIGH | `work/companion-sso-c01`; base `a284d775`; product `3e0103a3`; correction `fbb9dc63`; merge `c989f03d` | Live activation, env configuration, and companion-repo changes remain separately gated HIGH actions | Fresh QA `ses_f694593f8ffe2VZhrp3QQSUkBV` `ACCEPT_READY` 24/24/0/0 (server 18/18 mounted, client 14/14, role-intersection negative controls, atomic consume/concurrency, zero plaintext/leak, builds + isolated startup); round-1 QA found and the correction fixed the upstream allowed-role gap; wave audit `ses_f693a866bffeaOWmjfKrP3P45W` `AUDIT_CLEAR` 8/8 | Closed in source and wave-audited; do not deploy, configure env, or mutate companions from this lane (live activation is a separate HIGH action) |
 | TERM-CACHE-CATCHUP-PREVIEW | Capture the live zero-write term-authority preview fingerprint/confirmation as the reviewed basis for the later term-cache catch-up apply | `HIGH_APPROVAL_REQUIRED` (blocked: `AUTH_SESSION_REQUIRED`) | LOW authorized (one login audit delta + zero-write preview); follow-on apply HIGH | Packet `docs/prompts/term-cache-catchup-preview-2026-09-13.md`; preparation only, no worktree | Exactly one bounded privileged login is not yet authorized; the apply remains a separate later HIGH action | Post-action audit (2026-09-13) confirms release `3d916b26` live; mirror 223 = EnrollPro year 9 / `2030-2031` with NULL cache; a reachable `ACTIVE_TERM_UNRESOLVED` remains a valid ordered-contract state; wave audit re-verified the packet against source (`AUDIT_CLEAR` 8/8) | Operator returns the packet §4 authorization sentence; then one custodian login runs the zero-write preview and records fingerprint/confirmation plus before/after signatures |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `INTEGRATED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...c9263b5f`; integration `b96caf40` | Live deployment and explicit rollover term-cache sync remain separate | Primary planner reproduced C01/C01R/C01R2 authority, timetable, publication, term, TypeScript, and production-build gates; doc-only merge conflicts were reconciled | Closed in source; verify derived year-9 demand during bounded runtime deployment/sync |
@@ -386,10 +403,13 @@ hard blockers before separately approving publication.
    catch-up package; after its approved apply, re-run rows 4–5 and the
    readiness diagnostic before closing.
 8. `TT-READINESS-TERM-C03R3` is integrated at merge `0abfe457` (fresh QA
-   17/17). After its fresh wave audit, the term-cache catch-up apply remains
-   the next operator decision. Tracked separately (out of that increment):
-   `timetable-sync-setup.service.ts` rebuilds unassigned items without term
-   identity (audit F3).
+   17/17) and wave-audited `AUDIT_CLEAR` 9/9. The term-cache catch-up apply
+   remains the next operator decision. The separately tracked audit-F3 defect
+   (`timetable-sync-setup.service.ts` rebuilt unassigned items without term
+   identity) is fixed by `TT-SYNC-TERM-C03R4`.
+9. `TT-SYNC-TERM-C03R4` is integrated at merge `5328c9f6`; its wave audit is
+   the only open source item. No deployment or live action is unlocked by its
+   closure; runtime deployment remains a separate HIGH approval.
 
 ## Safe parallel work now
 
@@ -407,6 +427,12 @@ hard blockers before separately approving publication.
   MapView, SpecializationMapping, PublicPublishedSchedule, coverage.ts,
   CreatePlaceholderDialog) are non-blocking observation backlog pending a
   separate bounded authorization lane.
+- `TT-SYNC-TERM-C03R4` is integrated at merge `5328c9f6` (candidate
+  `09027671`) with its wave audit pending. It authorizes no deployment: the
+  corrected Sync setup route/client reach the shared runtime only through a
+  separate reviewed HIGH action. The source lane may not touch the shared
+  runtime, live/shared database, term-cache, Teaching Load, generation, or
+  publication.
 - `TL-SUGGESTION-C03R` is `ACCEPT_READY` (candidate `6eb3a3b0`, tip `256e2658`).
   The former integration deferral is cleared: `TT-OUTPUT-C03R3` is integrated
   at merge `3c2fc2bd`, so the shared `atlas-client/src/types.ts` overlap no
@@ -492,12 +518,19 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   `docs/reviews/tt-tl-runtime-acceptance-20260912/wave-completion-audit-postaction.md`).
   No TT-TL executor or QA return remains in flight.
 - `TL-SUGGESTION-C03R`: no executor return remains; the candidate `6eb3a3b0`
-  (tip `256e2658`) is `ACCEPT_READY` and waits only for the planner's
-  integration review after the TT `types.ts` overlap resolves.
+  (tip `256e2658`) is `ACCEPT_READY`. The former TT `types.ts` overlap is
+  cleared (`TT-OUTPUT-C03R3` integrated at merge `3c2fc2bd`), so the candidate
+  awaits only the head planner's integration review.
 - `TT-OUTPUT-C03R3`: no executor or QA return remains. The corrected chain
-  `4e5ef1f6...e7deeb91` is `ACCEPT_READY` (exact-range 14/14/0/0) and
-  integrated at merge `3c2fc2bd`; the wave-completion audit is the only
-  pending cycle item.
+  `4e5ef1f6...e7deeb91` (exact-range 14/14/0/0) is integrated at merge
+  `3c2fc2bd`; the wave audit returned `CORRECTION_REQUIRED` (F1), the bounded
+  `TT-READINESS-TERM-C03R3` correction was integrated at `0abfe457`, and the
+  fresh re-audit returned `AUDIT_CLEAR` 9/9. The cycle is `COMPLETE` (no pending
+  audit item).
+- `TT-SYNC-TERM-C03R4`: no executor or QA return remains; candidate
+  `09027671` passed fresh QA `ACCEPT_READY` 19/19/0/0 and is integrated at
+  merge `5328c9f6`. The wave-completion audit is the only pending cycle item;
+  no operator decision is required by this source cycle.
 - `COMPANION-SSO-C01`: no executor or QA return remains; the accepted
   candidate is integrated at merge `c989f03d`. Live activation/deployment/env
   configuration and any EnrollPro/SMART/AIMS change remain separate HIGH

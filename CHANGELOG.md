@@ -4735,3 +4735,58 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 
 ### Open Questions
 - Operator must relaunch the executor environment elevated before the approved packet can be attempted again.
+
+## [2026-09-13] — TT-SYNC-TERM-C03R4 per-term setup sync correction
+
+### Added
+- Added a bounded source correction that makes the mounted “Sync timetable
+  setup” workflow reconcile retained entries against exact canonical per-term
+  derived demand (subject + section/cohort + `termIndex` + weekly session
+  ordinal) instead of collapsed subject/section totals.
+- Added fail-closed typed rejections: `INVALID_TERM_IDENTITY` for a
+  present-but-out-of-contract term (never coerced to Term 1),
+  `COHORT_DEMAND_UNSUPPORTED` for active cohort placements without canonical
+  per-term demand, `RUN_VERSION_STALE` for version CAS, and
+  `SOURCE_AUTHORITY_STALE` for in-transaction demand/ownership drift.
+- Added an operator/client contract: `expectedRunVersion` from `draft.version`,
+  typed error classification, single-flight click guard, and refresh only
+  after a committed or replayed sync.
+- Added `timetable-sync-setup.test.ts` (controls A-K) and the client
+  `timetable-sync-setup-contract.test.ts` suite.
+
+### Changed
+- `timetable-sync-setup.service.ts` now persists canonical resolved per-term
+  entries (explicit positive `termIndex`, unique `entryId`, `sourceEntryId`
+  retained), rebuilds term-scoped unassigned items, asserts per-term
+  conservation (assigned + unassigned == canonical demand) before any write,
+  and returns an explicit `{ replayed, noChange }` result with zero writes for
+  an already-synchronized run.
+- The mounted route now requires a positive integer actor school equal to the
+  requested school and a positive integer `expectedRunVersion`, performs a
+  Serializable transaction with a version-aware CAS and exactly one audit row
+  per committed change, and publishes the completion notification only after a
+  committed non-replayed update.
+- A complete Term 1 schedule can no longer falsely satisfy Term 2/Term 3
+  demand; a second sync of an already-synchronized run writes nothing.
+
+### Decisions Made
+- The sync persists the same canonical resolved per-term representation
+  required by `publication-contract.service.ts::validateScheduleEntries`; a
+  missing `termIndex` expands only through `resolvePerTermScheduleEntries`,
+  while a present-but-invalid term fails closed.
+- Legacy HG/HOMEROOM advisory entries are displaced (counted) rather than
+  preserved: canonical derived demand is section/subject based and
+  `REFERENCE_ONLY` subjects never carry demand, and no current production
+  writer can create such entries (traced through the constructor, pre-generation
+  draft, insertion, and manual-commit paths). Product intent for legacy
+  advisory rows remains an observation item.
+- `SOURCE_AUTHORITY_STALE` lacks a deterministic failing-first interleave
+  control; its in-transaction revalidation is fail-closed by inspection and the
+  CAS/stale-version controls are tested. A bounded test hook is a recommended
+  follow-up, not a blocker.
+
+### Open Questions
+- Should legacy HG/HOMEROOM advisory entries in historical runs be preserved
+  explicitly, or is their displacement as non-demand records acceptable?
+- Deployment of the corrected sync remains a separate HIGH action with its own
+  reviewed preview and explicit approval.
