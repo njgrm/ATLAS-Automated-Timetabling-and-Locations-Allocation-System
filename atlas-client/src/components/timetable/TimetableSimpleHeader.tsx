@@ -198,7 +198,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
-		if (context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0) {
+		// R7 — the shared capability model is the production guard, not a local count.
+		if (!capabilities.gates.publication.enabled) {
 			setReadinessSheetOpen(true);
 			return;
 		}
@@ -301,12 +302,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			return;
 		}
 		if (task === 'review-issues') {
+			if (!capabilities.gates.issueReview.enabled) return;
 			context.setLeftTab('violations');
 			context.setPresentationMode('workflow');
 			onTaskChange(task);
 			return;
 		}
 		if (task === 'swap-sessions') {
+			if (!capabilities.gates.swap.enabled) return;
 			context.setPresentationMode('workflow');
 			onTaskChange(task);
 			onSwapClassTimesStart?.();
@@ -322,14 +325,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 			return;
 		}
 		if (task === 'publish') {
-			if (context.hardCount > 0) {
-				context.setLeftTab('violations');
-				onTaskChange('review-issues');
-				return;
-			}
-			// Unresolved sessions block publish exactly like hard blockers: route
-			// to the single readiness summary instead of opening publish.
-			if ((context.summary?.unassignedCount ?? 0) > 0) {
+			// R7 — one shared publication gate for the task action too.
+			if (!capabilities.gates.publication.enabled) {
 				setReadinessSheetOpen(true);
 				return;
 			}
@@ -891,7 +888,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						context.setPresentationMode('workflow');
 						onTaskChange('place-unresolved');
 					} else if (reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED') {
-						// R8/A-03: room configuration lives at /map; /campus-rooms is dead.
+						// R8/A-03: room configuration lives at /map; the legacy room path is unmounted.
 						navigate('/map');
 					}
 				}}

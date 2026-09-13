@@ -7,6 +7,7 @@ import { createTimetableScopedClient } from '@/components/timetable/timetableSch
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { isSameTimetableSlot, resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
+import { deriveRedoAfterRevert, takeRedoForDispatch } from '@/components/timetable/timetableUndoRedoState';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type {
@@ -964,7 +965,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
-			setRedoState({ operationId: data.editId, expectedVersion: data.newVersion, label: options.redoLabel });
+			setRedoState(deriveRedoAfterRevert(data, options.redoLabel));
 			setRedoVersionStale(false);
 			toast.success(options.successMessage);
 			return data;
@@ -997,13 +998,19 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	// dispatch so a stale CAS can never replay. Never a client-only re-apply.
 	const redoLastEdit = useCallback(async (): Promise<void> => {
 		if (!redoState) return;
-		const target = redoState;
+		// Consume the target before dispatch. A target whose version is no longer
+		// current is dropped with zero dispatch and rendered as Version-stale.
+		const { target } = takeRedoForDispatch(redoState, draft?.version ?? null);
 		setRedoState(null);
+		if (!target) {
+			setRedoVersionStale(true);
+			return;
+		}
 		await runAuthoritativeRevert(target.operationId, target.expectedVersion, {
 			successMessage: 'Redo applied.',
 			redoLabel: 'Redone edit',
 		});
-	}, [redoState, runAuthoritativeRevert]);
+	}, [redoState, draft?.version, runAuthoritativeRevert]);
 
 	const clearRedo = useCallback(() => {
 		setRedoState(null);
