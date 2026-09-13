@@ -89,6 +89,9 @@ import { useTimetableCollaboration } from '@/hooks/useTimetableCollaboration';
 import { useTimetableLookupHelpers } from '@/hooks/useTimetableLookupHelpers';
 import { useTimetableDragDrop } from '@/hooks/useTimetableDragDrop';
 import { useTimetableViewNavigation } from '@/hooks/useTimetableViewNavigation';
+import { deriveRunWideReadiness } from '@/components/timetable/timetableWorkspaceTruth';
+import { getPreferredAccessToken } from '@/lib/auth';
+import { decodeJwtPayload } from '@/lib/jwt-payload';
 
 function escapeCssAttributeValue(value: string): string {
 	return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -118,7 +121,9 @@ export function useScheduleReviewWorkspaceState() {
 	const [violationReport, setViolationReport] = useState<ViolationReport | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [policy, setPolicy] = useState<{ teacherMoveEnabled: boolean; earliestStartTime?: string; latestEndTime?: string } | null>({ teacherMoveEnabled: true });
+	// A-16: fail closed. A permissive `{teacherMoveEnabled:true}` default masked a
+	// failed policy read and suppressed the hidden-row warning.
+	const [policy, setPolicy] = useState<{ teacherMoveEnabled: boolean; earliestStartTime?: string; latestEndTime?: string } | null>(null);
 	const [gradeWindows, setGradeWindows] = useState<Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>>([]);
 	const [showFullDay, setShowFullDay] = useState(false);
 	/* -- Reference data lookups -- */
@@ -164,7 +169,7 @@ export function useScheduleReviewWorkspaceState() {
 	const [requestReviewSaving, setRequestReviewSaving] = useState(false);
 	const [requestReviewerNotes, setRequestReviewerNotes] = useState('');
 	const [newDraftLoading, setNewDraftLoading] = useState(false);
-	const userRole = localStorage.getItem('userRole'); // Get role from session/auth context
+	const userRole = decodeJwtPayload(getPreferredAccessToken() ?? '')?.role ?? null;
 	const isPrivilegedUser = userRole != null && ['admin', 'officer', 'SYSTEM_ADMIN'].includes(userRole);
 	const isDesktop = useIsDesktop();
 
@@ -525,7 +530,10 @@ export function useScheduleReviewWorkspaceState() {
 	// Policy and grade-window reads use the same authenticated school scope as
 	// the timetable data. Missing scope leaves the page in its bounded error state.
 	useEffect(() => {
-		if (!schoolId || !schoolYearId) return;
+		if (!schoolId || !schoolYearId) { setPolicy(null); return; }
+		// A-16: clear the previous scope's policy before refetch so a failed read
+		// can never leave stale or permissive policy across school/year changes.
+		setPolicy(null);
 		const fetchPolicyAndWindows = async () => {
 			try {
 				const [policyRes, windowsRes] = await Promise.all([
@@ -539,6 +547,8 @@ export function useScheduleReviewWorkspaceState() {
 				setPolicy(policyRes.data.policy);
 				setGradeWindows(windowsRes.data.windows);
 			} catch (err) {
+				setPolicy(null);
+				setGradeWindows([]);
 				console.error('Failed to fetch policy:', err);
 			}
 		};
@@ -638,6 +648,10 @@ export function useScheduleReviewWorkspaceState() {
 		commitTeachingLoadRepair,
 		revertLastEdit,
 		revertEditById,
+		redoState,
+		redoVersionStale,
+		redoLastEdit,
+		clearRedo,
 		choosePreGenFaculty,
 		choosePreGenRoom,
 		buildPreGenPendingPlacement,
@@ -1544,8 +1558,12 @@ export function useScheduleReviewWorkspaceState() {
 	});
 
 	/* -- Render contexts -- */
-	const hardCount = violations.filter((v) => v.severity === 'HARD').length;
-	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
+	// R1 (CP-1): the publish gate and soft-acknowledgement contract consume the
+	// run-wide summary truth. The interactive `violations` array stays
+	// selected-term scoped for display only (ordered-term invariant 5).
+	const runWideReadiness = deriveRunWideReadiness(summary, violations);
+	const hardCount = runWideReadiness.hardCount;
+	const softCount = runWideReadiness.softCount;
 	const selectedMapBuilding = buildings.find((b) => b.id === mapBuildingId) ?? null;
 	const selectedMapBuildingFloors = useMemo(() => {
 		return selectedMapBuilding ? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i) : [];
@@ -1562,25 +1580,25 @@ export function useScheduleReviewWorkspaceState() {
 	const policyAlignmentWarning = useMemo(() => {
 		if (showFullDay) return null;
 		if (hiddenRowCount <= 0) return null;
-		if (!policy?.earliestStartTime || gradeWindows.length === 0) return null;
 
 		const selectedId = Number(entityFilter);
 		if (!selectedId) return null;
+		// Teacher/Room view: no single window; skip.
+		if (viewMode !== 'section') return null;
 
-		// Determine the relevant window based on view mode
-		let windowLabel = '';
-		if (viewMode === 'section') {
-			const section = sectionMap.get(selectedId);
-			if (!section) return null;
-			const gradeNumber = resolveSectionGradeNumber(section);
-			if (gradeNumber == null) return null;
-			const matchingWindow = findGradeWindow(gradeNumber, section.programType, gradeWindows);
-			if (!matchingWindow) return null;
-			windowLabel = `this section's grade/program window (${matchingWindow.startTime})`;
-		} else {
-			// Teacher/Room view: no single window, describe based on occupied entries
-			return null;
+		const section = sectionMap.get(selectedId);
+		if (!section) return null;
+		const gradeNumber = resolveSectionGradeNumber(section);
+		if (gradeNumber == null) return null;
+
+		// A-16: a failed/unavailable policy read must not suppress the warning.
+		if (!policy?.earliestStartTime || gradeWindows.length === 0) {
+			return `${hiddenRowCount} earlier row${hiddenRowCount === 1 ? '' : 's'} hidden. The scheduling policy could not be loaded, so the school day window is unconfirmed. Review the scheduling policy, or use Show full day.`;
 		}
+
+		const matchingWindow = findGradeWindow(gradeNumber, section.programType, gradeWindows);
+		if (!matchingWindow) return null;
+		const windowLabel = `this section's grade/program window (${matchingWindow.startTime})`;
 
 		const fmtTime = (t: string) => {
 			const [h, m] = t.split(':').map(Number);
@@ -1605,8 +1623,8 @@ export function useScheduleReviewWorkspaceState() {
 			activeTermIndex: schoolYearContext?.activeTerm?.termIndex ?? null, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, policyAlignmentWarning, showFullDay, setShowFullDay, hiddenRowCount, collaborationConnected, presence, remoteSelections });
 		headerContext.curriculumReadiness = curriculumReadiness;
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, activeSchoolYearLabel: schoolYearContext?.activeSchoolYearLabel ?? null, schoolYearSource: schoolYearContext?.source ?? null, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, publishUnassignedCount: summary?.unassignedCount ?? 0, policy, handlePublishConfirm, captureReviewFocusReturn, restoreReviewFocus, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, assignPickerPreview, assignPickerPreviewLoading, assignPickerPreviewError, assignPickerSaving, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
-		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
-		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, revertEditById, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
+		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, userRole, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
+		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext, lastAutoSaveUndo, setLastAutoSaveUndo, revertEditById, redoState, redoVersionStale, redoLastEdit, clearRedo, swapClassTimesMode, setSwapClassTimesMode, swapClassAEntryId, swapClassBEntryId, setSwapClassAEntryId, setSwapClassBEntryId };
 	})();
 
 	const prevContextsRef = useRef<typeof rawWorkspaceContexts | null>(null);

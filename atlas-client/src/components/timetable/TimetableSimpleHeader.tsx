@@ -57,6 +57,8 @@ import {
 import type { SimpleViewMode } from '@/components/timetable/simple/SimpleHeaderHelpers';
 import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@/components/timetable/simple/SimpleBeneficiaryControls';
 import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
+import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
+import type { RolloverStatus } from '@/lib/settings';
 
 type TimetableSimpleHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -98,9 +100,10 @@ function TimetableSimpleHeaderImpl({
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
 const [insertionOpen, setInsertionOpen] = useState(false);
+	// R6/R7 — Simple consumes the same rollover/term-authority status Advanced
+	// does, and that drift blocks generation exactly as it does in Advanced.
+	const [rolloverStatus, setRolloverStatus] = useState<RolloverStatus | null>(null);
 	const [lastEntityByMode, setLastEntityByMode] = useState<Partial<Record<SimpleViewMode, string>>>({});
-	const tasks = useSimpleTasks(context);
-	const recommendedTask = chooseRecommendedTask(tasks, context);
 	const visibleRunId = context.draft?.runId ?? null;
 	const visibleYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? (context.schoolYearId ? `SY #${context.schoolYearId}` : null);
 	const source = sourceLabel(context);
@@ -135,11 +138,17 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		requestPendingCount: context.requestPendingCount,
 		generationDiagnostic: summarizeGenerationReadiness(context.curriculumReadiness),
 		readinessRepair: context.curriculumReadiness?.state === 'blocked' ? context.curriculumReadiness.repair : null,
+		driftBlocked: rolloverStatus?.drift.status === 'atlas-stale' || rolloverStatus?.drift.status === 'mapping-conflict',
+		driftMessage: rolloverStatus?.drift.message ?? null,
 	});
 	const generationGate = capabilities.generation;
 	const generationReady = generationGate.enabled;
 	const setupRepair = generationGate.repair.kind === 'navigate' ? generationGate.repair : setupState.repair;
 	const canPlanOrGenerate = scopeResolved && generationReady && !context.loading;
+	// R7 — the shared capability model is the production guard for every Simple
+	// task action (publish/swap/review), not just generation.
+	const tasks = useSimpleTasks(context, capabilities.gates);
+	const recommendedTask = chooseRecommendedTask(tasks, context);
 	const activeTaskDefinition = tasks.find((task) => task.id === activeTask) ?? recommendedTask;
 	const ActiveIcon = activeTaskDefinition.icon;
 	const currentEntityIsValid = hasPivotValue(context, context.entityFilter);
@@ -336,6 +345,18 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 
 	return (
 		<header className="shrink-0 border-b border-border bg-background" data-testid="timetable-simple-header">
+			{/* R6 — run input freshness, ordered-term authority, and rollover drift are
+			    visible in Simple before publish or sync, with routed repairs. */}
+			<SimpleDriftBanner
+				schoolId={context.schoolId}
+				schoolYearId={context.schoolYearId}
+				activeGeneratedRunId={context.draft?.runId ?? context.activeGeneratedRunId ?? null}
+				draft={context.draft ?? null}
+				isPreGenerationWorkspace={context.isPreGenerationWorkspace}
+				loading={context.loading}
+				onRefresh={context.handleRefresh}
+				onRolloverStatus={setRolloverStatus}
+			/>
 			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden px-3 py-1.5 lg:flex-nowrap [&>*]:min-w-0">
 				<Badge
@@ -828,7 +849,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				sectionLabel={context.sectionLabel}
 				subjectLabel={context.subjectLabel}
 				facultyLabel={context.facultyLabel}
-				onNavigateToRepair={(href, reason) => {
+				onNavigateToRepair={(href, reason, identity) => {
 					setReadinessSheetOpen(false);
 					const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
 						: reason === 'FACULTY_OVERLOADED' ? 'Teachers are overloaded'
@@ -838,7 +859,14 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						: 'Unknown issue';
 					onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: 0 });
 					if (reason === 'FACULTY_OVERLOADED' || reason === 'NO_QUALIFIED_FACULTY') {
-						navigate('/teaching-load');
+						// R9/A-18: preserve teacher/section/subject identity on the
+						// Teaching Load repair deep link.
+						const params = new URLSearchParams();
+						if (identity?.facultyId != null) params.set('facultyId', String(identity.facultyId));
+						if (identity?.sectionId != null) params.set('sectionId', String(identity.sectionId));
+						if (identity?.subjectId != null) params.set('subjectId', String(identity.subjectId));
+						params.set('task', 'missing-load');
+						navigate(`/teaching-load?${params.toString()}`);
 					} else if (reason === 'NO_AVAILABLE_SLOT') {
 						context.setUnassignedReasonFilter('NO_AVAILABLE_SLOT');
 						setBlockerReasonFilter('NO_AVAILABLE_SLOT');
@@ -846,7 +874,8 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						context.setPresentationMode('workflow');
 						onTaskChange('place-unresolved');
 					} else if (reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED') {
-						navigate('/campus-rooms');
+						// R8/A-03: room configuration lives at /map; /campus-rooms is dead.
+						navigate('/map');
 					}
 				}}
 			/>

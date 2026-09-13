@@ -10,6 +10,12 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { deriveSimplePublishReadiness, type SimplePublishReadiness, type BlockerGroup } from '@/components/timetable/simplePublishReadiness';
 import type { DraftReport, Violation } from '@/types';
 
+type RepairIdentity = {
+	sectionId: number | null;
+	subjectId: number | null;
+	facultyId: number | null;
+};
+
 type SimplePublishReadinessSheetProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -18,8 +24,50 @@ type SimplePublishReadinessSheetProps = {
 	sectionLabel: (id: number) => string;
 	subjectLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
-	onNavigateToRepair: (href: string, reason?: string) => void;
+	onNavigateToRepair: (href: string, reason?: string, identity?: RepairIdentity | null) => void;
 };
+
+const VIOLATION_TO_BLOCKER_REASON: Record<string, string> = {
+	UNASSIGNED_SECTION: 'UNASSIGNED_SECTION',
+	FACULTY_OVERLOAD: 'FACULTY_OVERLOADED',
+	SPECIALIZED_ROOM_UNAVAILABLE: 'NO_COMPATIBLE_ROOM',
+	FACULTY_SUBJECT_NOT_QUALIFIED: 'NO_QUALIFIED_FACULTY',
+	ROOM_CAPACITY_EXCEEDED: 'ROOM_CAPACITY_EXCEEDED',
+};
+
+/**
+ * R9/A-18 — resolve the exact section/subject/faculty identity behind a blocker
+ * group so the repair link can deep-link with context instead of dropping the
+ * operator into a generic page.
+ */
+function resolveRepairIdentity(
+	reason: string | undefined,
+	draft: DraftReport | null,
+	violations: Violation[],
+): RepairIdentity | null {
+	if (!reason) return null;
+	const unassigned = draft?.unassignedItems ?? [];
+	const item = unassigned.find((candidate) => candidate.reason === reason);
+	if (item) {
+		return {
+			sectionId: item.sectionId ?? null,
+			subjectId: item.subjectId ?? null,
+			facultyId: item.facultyId ?? null,
+		};
+	}
+	const violation = violations.find(
+		(candidate) => candidate.severity === 'HARD'
+			&& (VIOLATION_TO_BLOCKER_REASON[candidate.code] ?? candidate.code) === reason,
+	);
+	if (violation) {
+		return {
+			sectionId: violation.entities.sectionId ?? null,
+			subjectId: violation.entities.subjectId ?? null,
+			facultyId: violation.entities.facultyId ?? null,
+		};
+	}
+	return null;
+}
 
 function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigate: (href: string, reason?: string) => void }) {
 	const [expanded, setExpanded] = useState(false);
@@ -93,9 +141,9 @@ function SimplePublishReadinessSheetImpl({
 	const handleNavigate = useCallback(
 		(href: string, reason?: string) => {
 			onOpenChange(false);
-			onNavigateToRepair(href, reason);
+			onNavigateToRepair(href, reason, resolveRepairIdentity(reason, draft, violations));
 		},
-		[onOpenChange, onNavigateToRepair],
+		[onOpenChange, onNavigateToRepair, draft, violations],
 	);
 
 	const summaryPlain = useMemo(() => {

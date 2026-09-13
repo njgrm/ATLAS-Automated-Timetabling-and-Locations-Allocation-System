@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/ui/sheet';
 import { SearchableSelect } from '@/ui/searchable-select';
-import type { TimetableLifecycleState } from '@/lib/timetable-capabilities';
+import type { TimetableCapabilities, TimetableLifecycleState } from '@/lib/timetable-capabilities';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 
@@ -487,7 +487,10 @@ export function SimpleTutorialControl({ open, onOpenChange, lifecycle }: { open:
 	);
 }
 
-export function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): SimpleTaskDefinition[] {
+export function useSimpleTasks(
+	context: ScheduleReviewWorkspaceHeaderContext,
+	gates: TimetableCapabilities['gates'],
+): SimpleTaskDefinition[] {
 	return useMemo(() => {
 		const unassignedCount = context.summary?.unassignedCount ?? 0;
 		const noCurrentTimetable = !context.draft && !context.isPreGenerationWorkspace;
@@ -506,8 +509,11 @@ export function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): S
 				id: 'swap-sessions',
 				label: 'Swap class times',
 				primaryLabel: 'Start swapping',
-				helper: 'Choose one class on the grid, then choose another class to switch with it. Each teacher stays with their class.',
+				helper: gates.swap.enabled
+					? 'Choose one class on the grid, then choose another class to switch with it. Each teacher stays with their class.'
+					: (gates.swap.reason ?? 'Swapping is not available for this run yet.'),
 				icon: ArrowRightLeft,
+				disabled: !gates.swap.enabled,
 			},
 			{
 				id: 'review-issues',
@@ -516,7 +522,7 @@ export function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): S
 				helper: 'See the most important blockers and warnings without opening the full diagnostics wall.',
 				icon: ListChecks,
 				badge: taskCount(context.hardCount || context.softCount, context.hardCount > 0 ? 'blocked' : 'warnings'),
-				disabled: context.isPreGenerationWorkspace,
+				disabled: context.isPreGenerationWorkspace || !gates.issueReview.enabled,
 			},
 			{
 				id: 'plan-draft',
@@ -534,16 +540,29 @@ export function useSimpleTasks(context: ScheduleReviewWorkspaceHeaderContext): S
 				id: 'publish',
 				label: 'Publish',
 				primaryLabel: 'Publish schedule',
-				helper: context.hardCount > 0
-					? 'Publishing is blocked until hard issues are cleared.'
-					: (context.summary?.unassignedCount ?? 0) > 0
-						? 'Publishing is blocked until every session is placed.'
-						: 'Publish when the schedule is clean.',
+				helper: gates.publication.enabled
+					? 'Publish when the schedule is clean.'
+					: (gates.publication.reason ?? 'Publishing is not available for this run yet.'),
 				icon: Send,
-				disabled: !context.draft || context.hardCount > 0 || (context.summary?.unassignedCount ?? 0) > 0 || context.isPreGenerationWorkspace,
+				disabled: !gates.publication.enabled,
 			},
 		];
-	}, [context.draft, context.draftPlacementCount, context.hardCount, context.isPreGenerationWorkspace, context.newDraftLoading, context.schoolYearContext?.activeSchoolYearLabel, context.schoolYearId, context.softCount, context.summary?.unassignedCount]);
+	}, [
+		context.draft,
+		context.draftPlacementCount,
+		context.hardCount,
+		context.isPreGenerationWorkspace,
+		context.newDraftLoading,
+		context.schoolYearContext?.activeSchoolYearLabel,
+		context.schoolYearId,
+		context.softCount,
+		context.summary?.unassignedCount,
+		gates.swap.enabled,
+		gates.swap.reason,
+		gates.issueReview.enabled,
+		gates.publication.enabled,
+		gates.publication.reason,
+	]);
 }
 
 export function chooseRecommendedTask(tasks: SimpleTaskDefinition[], context: ScheduleReviewWorkspaceHeaderContext) {

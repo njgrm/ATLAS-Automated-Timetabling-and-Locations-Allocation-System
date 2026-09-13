@@ -156,6 +156,8 @@ export type ScheduleReviewWorkspaceOverlaysContext = {
 		active: boolean;
 		complete: () => void;
 	};
+	/** The authenticated token role, not the mutable localStorage string (A-09/A-19). */
+	userRole?: string | null;
 	blockerModalData: HumanConflict[] | null;
 	setBlockerModalData: Dispatch<SetStateAction<HumanConflict[] | null>>;
 	showExplainDrawer: boolean;

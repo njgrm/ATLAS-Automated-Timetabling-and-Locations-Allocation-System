@@ -10,10 +10,12 @@ import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { Button } from '@/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { AlertCircle, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
-import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowRight, ArrowRightLeft, BookOpen, Clock, DoorOpen, GraduationCap, MoreHorizontal, Move, Redo2, RefreshCw, Undo2, UserRoundX } from 'lucide-react';
+import { lazy, Profiler, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import type { ScheduledEntry } from '@/types';
+import { isDraftPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
+import { YEAR_SETUP_HREF } from '@/lib/timetable-capabilities';
 
 const TeacherDepartureRecoverySheet = lazy(() => import('@/components/timetable/TeacherDepartureRecoverySheet').then((module) => ({
 	default: module.TeacherDepartureRecoverySheet,
@@ -92,6 +94,43 @@ export default function ScheduleReviewWorkspace() {
 		if (!state.selectedEntry) setSimpleDetailsOpen(false);
 	}, [state.selectedEntry]);
 
+	// R5 (finding A-08; ordered-term invariant 6): every component-local sheet,
+	// task, selection, and swap state is scope-bound. When school, school year,
+	// run, or selected term changes, clear it before any dispatch can occur so a
+	// stale object from the previous scope is never actionable.
+	const scopeKey = [
+		state.headerContext?.schoolId ?? 'school:none',
+		state.centerWorkspaceContext?.schoolYearId ?? 'year:none',
+		state.draft?.runId ?? 'run:none',
+		state.headerContext?.termFilter ?? 'term:all',
+	].join('|');
+	const lastScopeKeyRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (lastScopeKeyRef.current === null) {
+			lastScopeKeyRef.current = scopeKey;
+			return;
+		}
+		if (lastScopeKeyRef.current === scopeKey) return;
+		lastScopeKeyRef.current = scopeKey;
+		setActiveSimpleTask(null);
+		setRepairOrigin(null);
+		setReadinessSheetOpen(false);
+		setTeacherDepartureOpen(false);
+		setTeacherDepartureFacultyId(null);
+		setTeacherDepartureFocusedEntryIds(undefined);
+		setSimpleDetailsOpen(false);
+		state.setSwapClassTimesMode?.(null);
+		state.setSwapClassAEntryId?.(null);
+		state.setSwapClassBEntryId?.(null);
+		state.setLastAutoSaveUndo?.(null);
+	}, [
+		scopeKey,
+		state.setSwapClassTimesMode,
+		state.setSwapClassAEntryId,
+		state.setSwapClassBEntryId,
+		state.setLastAutoSaveUndo,
+	]);
+
 	const openTeacherDepartureRecovery = (facultyId?: number | null) => {
 		setTeacherDepartureFacultyId(facultyId ?? state.selectedEntry?.facultyId ?? null);
 		setTeacherDepartureFocusedEntryIds(undefined);
@@ -127,14 +166,7 @@ export default function ScheduleReviewWorkspace() {
 		});
 	}, []);
 
-	const isDraftPublished = useMemo(() => {
-		const summary = state.draft?.summary;
-		if (!summary || typeof summary !== 'object') return false;
-		const candidate = summary as Record<string, unknown>;
-		if (candidate.isPublished === true) return true;
-		if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0) return true;
-		return typeof candidate.publishedBy === 'number';
-	}, [state.draft?.summary]);
+	const isDraftPublished = isDraftPublishedStrict(state.draft);
 
 	if (state.loading && !state.draft) {
 		return <TimetableSkeleton />;
@@ -147,10 +179,19 @@ export default function ScheduleReviewWorkspace() {
 					<AlertCircle className="size-5" />
 					<span className="text-sm font-medium">{state.error}</span>
 				</div>
-				<Button variant="outline" size="sm" onClick={() => state.loadAll()}>
-					<RefreshCw className="size-3.5 mr-1.5" />
-					Retry
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button variant="outline" size="sm" onClick={() => state.loadAll()}>
+						<RefreshCw className="size-3.5 mr-1.5" />
+						Retry
+					</Button>
+					{/* R9/A-10: a missing/invalid active year must offer the real Year Setup repair. */}
+					<Button asChild variant="outline" size="sm">
+						<Link to={YEAR_SETUP_HREF} data-testid="timetable-error-year-setup">
+							Open Year Setup
+							<ArrowRight className="size-3.5 ml-1.5" />
+						</Link>
+					</Button>
+				</div>
 			</div>
 		);
 	}
@@ -195,11 +236,25 @@ export default function ScheduleReviewWorkspace() {
 		navigate(`/teaching-load?${params.toString()}`);
 	};
 
+	// R3: the selected-class Swap affordances must arm the same two-class swap
+	// workflow the Simple task path arms. Setting `activeSimpleTask` alone was a
+	// state-only no-op (finding A-05).
+	const armSwapSessions = useCallback(() => {
+		setActiveSimpleTask('swap-sessions');
+		state.setSwapClassTimesMode?.('select-first');
+		state.setSwapClassAEntryId?.(null);
+		state.setSwapClassBEntryId?.(null);
+		state.setInlineActionStatus({
+			tone: 'loading',
+			message: 'Swap armed. Choose the first class on the grid, then the second.',
+		});
+	}, [state.setSwapClassTimesMode, state.setSwapClassAEntryId, state.setSwapClassBEntryId, state.setInlineActionStatus]);
+
 	const selectedPrimaryAction = activeSimpleTask === 'swap-sessions'
 		? {
 			label: 'Swap',
 			icon: ArrowRightLeft,
-			onClick: () => setActiveSimpleTask('swap-sessions'),
+			onClick: armSwapSessions,
 		}
 		: activeSimpleTask === 'place-unresolved'
 			? {
@@ -319,7 +374,7 @@ export default function ScheduleReviewWorkspace() {
 									<DoorOpen className="mr-2 size-3.5" aria-hidden="true" />
 									Change room
 								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); setActiveSimpleTask('swap-sessions'); }} data-testid="timetable-simple-selected-swap-action">
+								<DropdownMenuItem onSelect={(event) => { event.preventDefault(); armSwapSessions(); }} data-testid="timetable-simple-selected-swap-action">
 									<ArrowRightLeft className="mr-2 size-3.5" aria-hidden="true" />
 									Swap sessions
 								</DropdownMenuItem>
@@ -462,7 +517,47 @@ export default function ScheduleReviewWorkspace() {
 			) : null}
 			<Sheet open={simpleDetailsOpen && layoutMode === 'simple' && !!state.selectedEntry} onOpenChange={setSimpleDetailsOpen}>
 				<SheetContent side="bottom" className="max-h-[86svh] rounded-t-2xl p-4" data-testid="timetable-simple-details-sheet">
-					{state.selectedEntry ? (
+			{state.redoState || state.redoVersionStale ? (
+				<div
+					role="status"
+					aria-live="polite"
+					data-testid="timetable-redo-strip"
+					className={`border-b px-3 py-2 text-sm ${state.redoVersionStale ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-sky-400/40 bg-sky-50 text-sky-900'}`}
+				>
+					<div className="flex items-center justify-between gap-2">
+						{state.redoVersionStale ? (
+							<p className="truncate">Version-stale — the schedule changed. Refresh and re-preview before redoing. Nothing was changed.</p>
+						) : (
+							<p className="truncate">Undo applied. Redo re-applies the same server edit with a fresh version check.</p>
+						)}
+						{!state.redoVersionStale && state.redoState ? (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-11 shrink-0 gap-1.5 text-sm"
+								data-testid="timetable-redo"
+								disabled={state.revertLoading}
+								onClick={() => { void state.redoLastEdit?.(); }}
+							>
+								<Redo2 className="size-4" aria-hidden="true" />
+								Redo
+							</Button>
+						) : null}
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-11 shrink-0 text-sm"
+							data-testid="timetable-redo-dismiss"
+							onClick={() => state.clearRedo?.()}
+						>
+							Dismiss
+						</Button>
+					</div>
+				</div>
+			) : null}
+			{state.selectedEntry ? (
 						<div className="flex max-h-[78svh] flex-col gap-3">
 							<SheetHeader>
 								<SheetTitle className="text-base">
@@ -548,8 +643,9 @@ export default function ScheduleReviewWorkspace() {
 									variant="outline"
 									onClick={() => {
 										setSimpleDetailsOpen(false);
-										setActiveSimpleTask('swap-sessions');
+										armSwapSessions();
 									}}
+									data-testid="timetable-simple-details-swap"
 								>
 									<ArrowRightLeft className="mr-1.5 size-3.5" aria-hidden="true" />
 									Swap

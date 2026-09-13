@@ -13,6 +13,7 @@ function ScheduleReviewWorkspaceOverlaysImpl({ context }: ScheduleReviewWorkspac
 	const {
 		dialogContext,
 		tutorial,
+		userRole,
 		TUTORIAL_STEPS,
 		blockerModalData,
 		setBlockerModalData,
@@ -28,6 +29,7 @@ function ScheduleReviewWorkspaceOverlaysImpl({ context }: ScheduleReviewWorkspac
 			<ScheduleReviewDialogs context={dialogContext} />
 			<TutorialOverlay
 				steps={TUTORIAL_STEPS}
+				userRole={userRole ?? undefined}
 				active={tutorial.active}
 				onComplete={tutorial.complete}
 			/>
