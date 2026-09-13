@@ -39,11 +39,12 @@ export type ReconciliationClassificationInput = {
 
 const OUTCOME_RANK: Record<ReconciliationOutcome, number> = {
 	removed: 0,
-	displaced: 1,
-	warning: 2,
+	added: 0,
+	'returned-to-unassigned': 1,
+	'warning-only': 2,
 	'updated-in-place': 3,
 	kept: 4,
-} as unknown as Record<ReconciliationOutcome, number>;
+};
 
 export function classifyReconciliationEntries(input: ReconciliationClassificationInput): ReconciliationSummary {
 	const classifications: ReconciliationEntryClassification[] = [];

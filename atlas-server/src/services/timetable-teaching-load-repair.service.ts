@@ -6,7 +6,6 @@ import {
 	buildPolicyImpacts,
 	buildValidatorCtx,
 	computeSummary,
-	isPublishedSummary,
 	applyProposalBatch,
 	loadRunContext,
 	mergePreservedSummaryFields,
@@ -25,6 +24,8 @@ import { resolveAssignmentSpecializationIdentity } from './faculty-assignment.se
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { computeGenerationInputSnapshot } from './generation-input-snapshot.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { evaluateTeachingLoadReceiverQualification } from './teaching-load-automation.service.js';
+import { isStrictlyPublishedSummary } from './reconciliation.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -62,6 +63,16 @@ export type TeachingLoadRepairRequest = {
 	expectedRunVersion?: number;
 	expectedFacultyVersions?: Record<string, number>;
 	allowSoftOverride?: boolean;
+	/**
+	 * B-04 source binding. The preview response returns `sourceFingerprint`; a
+	 * client that echoes it here binds the apply to the exact covered-input
+	 * snapshot that produced the preview, so any room / qualification /
+	 * ownership / policy / section interleave between preview and apply fails
+	 * closed with `TEACHING_LOAD_REPAIR_STALE` and zero writes. When omitted
+	 * (legacy clients) the apply still binds to its own read snapshot so output
+	 * is never attached to a snapshot computed after the write.
+	 */
+	expectedSourceFingerprint?: string;
 };
 
 export type TeachingLoadOwnershipDelta = {
@@ -101,6 +112,8 @@ export type TeachingLoadRepairPreviewResult = ManualEditBatchPreviewResult & {
 	ownershipDeltas: TeachingLoadOwnershipDelta[];
 	affectedTeachers: TeachingLoadAffectedTeacher[];
 	unassignedReadiness: TeachingLoadUnassignedReadiness[];
+	/** B-04: the exact covered-input snapshot fingerprint this preview was computed against. */
+	sourceFingerprint: string;
 };
 
 export type TeachingLoadRepairApplyResult = {
@@ -133,6 +146,8 @@ type PreparedRepair = {
 	unassignedReadiness: TeachingLoadUnassignedReadiness[];
 	currentValidation: ReturnType<typeof validateHardConstraints>;
 	newValidation: ReturnType<typeof validateHardConstraints>;
+	/** B-04: complete covered-input snapshot fingerprint captured with the computed output. */
+	sourceFingerprint: string;
 };
 
 function introducedViolations(before: Violation[], after: Violation[]): Violation[] {
@@ -500,6 +515,83 @@ async function validateExpectedFacultyVersions(
 	return new Map(rows.map((row) => [row.id, row.version]));
 }
 
+/**
+ * B-07 canonical receiver authority. Before any `FacultySubject` or ownership
+ * row is created, every receiving teacher must resolve eligibility through the
+ * same persisted-only evaluator the Teaching Load suggestion/reconciliation
+ * apply paths use (`evaluateTeachingLoadReceiverQualification`). This resolves
+ * department and program authority from persisted subject/faculty/section
+ * semantics; the old path skipped it entirely and created rows for any target.
+ *
+ * Runs against the caller's client so the preview path (`prisma`) and the apply
+ * transaction (`tx`) share one authority contract.
+ */
+type QualificationLookupClient = {
+	subject: { findMany(args: unknown): Promise<Array<Record<string, any>>> };
+	facultyMirror: { findMany(args: unknown): Promise<Array<Record<string, any>>> };
+	sectionMirror: { findMany(args: unknown): Promise<Array<Record<string, any>>> };
+};
+
+async function assertReceiversQualified(
+	client: QualificationLookupClient | Prisma.TransactionClient,
+	schoolId: number,
+	schoolYearId: number,
+	changes: NormalizedTeachingLoadRepairChange[],
+): Promise<void> {
+	const subjectIds = [...new Set(changes.map((change) => change.subjectId))];
+	const facultyIds = [...new Set(changes.map((change) => change.toFacultyId))];
+	const sectionIds = [...new Set(changes.flatMap((change) => change.ownershipSectionIds))];
+	const lookup = client as unknown as QualificationLookupClient;
+	const [subjects, faculty, sections] = await Promise.all([
+		lookup.subject.findMany({
+			where: { schoolId, id: { in: subjectIds } },
+			select: { id: true, code: true, name: true, ownerDepartment: true, allowedSpecializations: true, requiredFeatures: true, programScopes: true },
+		}),
+		lookup.facultyMirror.findMany({
+			where: { schoolId, id: { in: facultyIds } },
+			select: { id: true, department: true, specialization: true, canTeachOutsideDepartment: true, isActiveForScheduling: true },
+		}),
+		lookup.sectionMirror.findMany({
+			where: { schoolId, schoolYearId, id: { in: sectionIds } },
+			select: { id: true, programType: true },
+		}),
+	]);
+	const subjectById = new Map<number, Record<string, any>>(subjects.map((row) => [Number(row.id), row]));
+	const facultyById = new Map<number, Record<string, any>>(faculty.map((row) => [Number(row.id), row]));
+	const programTypeBySection = new Map<number, string>(sections.map((row) => [
+		Number(row.id),
+		typeof row.programType === 'string' && row.programType.length > 0 ? row.programType : 'REGULAR',
+	]));
+
+	const qualificationCache = new Map<string, { tier: number | null; authority: string | null; reason: string }>();
+	for (const change of changes) {
+		const subject = subjectById.get(change.subjectId);
+		const receiver = facultyById.get(change.toFacultyId);
+		if (!subject || !receiver) {
+			throw err(
+				409,
+				'TEACHING_LOAD_QUALIFICATION_MISSING',
+				`Target faculty ${change.toFacultyId} or subject ${change.subjectId} is unavailable for qualification evaluation.`,
+			);
+		}
+		const programType = programTypeBySection.get(change.ownershipSectionIds[0] ?? change.sectionId) ?? 'REGULAR';
+		const cacheKey = `${change.toFacultyId}:${change.subjectId}:${programType}`;
+		let qualification = qualificationCache.get(cacheKey);
+		if (!qualification) {
+			qualification = await evaluateTeachingLoadReceiverQualification(lookup, schoolId, receiver as never, subject as never, programType);
+			qualificationCache.set(cacheKey, qualification);
+		}
+		if (qualification.tier == null || qualification.authority == null) {
+			throw err(
+				409,
+				'TEACHING_LOAD_QUALIFICATION_MISSING',
+				`Target faculty ${change.toFacultyId} is not qualified for subject ${change.subjectId} in this section program (${qualification.reason}).`,
+				{ details: { subjectId: change.subjectId, toFacultyId: change.toFacultyId, programType, reason: qualification.reason } },
+			);
+		}
+	}
+}
+
 function bindPlacementToUnassignedChange(
 	proposal: ManualEditProposal,
 	changes: NormalizedTeachingLoadRepairChange[],
@@ -543,6 +635,19 @@ async function prepareRepair(
 	request: TeachingLoadRepairRequest,
 ): Promise<PreparedRepair> {
 	const changes = normalizeChanges(request.changes);
+	// B-11 strict publication predicate: only `summary.isPublished === true`
+	// marks a run as published. Legacy `publishedAt`/`publishedBy` markers left
+	// on a superseded run must not redirect it into revision behavior. This
+	// preflight runs before the shared context loader so the decision uses the
+	// strict predicate even while the shared loader still carries the loose
+	// compatibility check (aligned separately by TT-WARNING-AUTHORITY-C04 R9).
+	const preflightRun = await prisma.generationRun.findFirst({
+		where: { id: runId, schoolId, schoolYearId },
+		select: { summary: true },
+	});
+	if (preflightRun && isStrictlyPublishedSummary(preflightRun.summary)) {
+		throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Create an effective-date revision for the timetable. Teaching Load will not be rewritten from this published repair.');
+	}
 	let refData: Awaited<ReturnType<typeof loadRunContext>>;
 	try {
 		refData = await loadRunContext(runId, schoolId, schoolYearId);
@@ -623,6 +728,11 @@ async function prepareRepair(
 		seenScopes.add(scopeKey);
 		normalizedChanges.push({ ...change, ownershipSectionIds, sourceUnassignedItem: item });
 	}
+
+	// B-07: reject unqualified / program-incompatible receivers here so the
+	// preview fails closed with zero writes, and revalidate again inside the
+	// apply transaction before any FacultySubject/ownership row is created.
+	await assertReceiversQualified(prisma, schoolId, schoolYearId, normalizedChanges);
 
 	const ownershipFilters = normalizedChanges.flatMap((change) =>
 		change.ownershipSectionIds.map((sectionId) => ({ subjectId: change.subjectId, sectionId })),
@@ -781,6 +891,11 @@ async function prepareRepair(
 			};
 		});
 
+	// B-04: capture the complete covered-input snapshot the output was computed
+	// against. The apply transaction recomputes this and refuses to write when
+	// any covered input changed.
+	const sourceSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+
 	return {
 		refData,
 		changes: normalizedChanges,
@@ -793,6 +908,7 @@ async function prepareRepair(
 		unassignedReadiness,
 		currentValidation,
 		newValidation,
+		sourceFingerprint: sourceSnapshot.fingerprint,
 	};
 }
 
@@ -833,6 +949,7 @@ function buildPreview(prepared: PreparedRepair): TeachingLoadRepairPreviewResult
 		ownershipDeltas,
 		affectedTeachers,
 		unassignedReadiness,
+		sourceFingerprint: prepared.sourceFingerprint,
 	};
 }
 
@@ -1021,13 +1138,21 @@ export async function applyTeachingLoadRepair(
 
 	const { refData, newEntries, newUnassignedItems } = prepared;
 	const { run } = refData;
-	if (isPublishedSummary(run.summary)) {
+	if (isStrictlyPublishedSummary(run.summary)) {
 		throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Create an effective-date revision for the timetable. Teaching Load will not be rewritten from this published repair.');
 	}
 	const expectedVersion = request.expectedRunVersion;
 	if (typeof expectedVersion !== 'number') {
 		throw err(400, 'INVALID_BODY', 'expectedRunVersion is required when applying a Teaching Load repair.');
 	}
+	// B-04: bind the write to the snapshot that produced the output. The
+	// preview-issued fingerprint is authoritative when supplied; otherwise the
+	// apply binds to its own read snapshot so output is never attached to a
+	// snapshot computed after the write.
+	const requestedSourceFingerprint = typeof request.expectedSourceFingerprint === 'string' && request.expectedSourceFingerprint.length > 0
+		? request.expectedSourceFingerprint
+		: null;
+	const bindingFingerprint = requestedSourceFingerprint ?? prepared.sourceFingerprint;
 	const newSummary = computeSummary(newEntries, newUnassignedItems, prepared.newValidation);
 	const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
 	const newVersion = run.version + 1;
@@ -1039,7 +1164,7 @@ export async function applyTeachingLoadRepair(
 		});
 		if (!currentRun) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 		if (currentRun.status !== 'COMPLETED') throw err(400, 'RUN_NOT_COMPLETED', 'Teaching Load repairs can only be applied to completed runs.');
-		if (isPublishedSummary(currentRun.summary)) {
+		if (isStrictlyPublishedSummary(currentRun.summary)) {
 			throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Create an effective-date revision for the timetable. Teaching Load will not be rewritten from this published repair.');
 		}
 		if (currentRun.version !== expectedVersion) {
@@ -1050,6 +1175,27 @@ export async function applyTeachingLoadRepair(
 			.filter((facultyId): facultyId is number => facultyId != null);
 		const targetFacultyIds = new Set(prepared.changes.map((change) => change.toFacultyId));
 		await validateExpectedFacultyVersions(schoolId, affectedFacultyIds, request.expectedFacultyVersions, { targetFacultyIds }, tx);
+
+		// B-07: revalidate receiver qualification through this transaction before
+		// any FacultySubject/ownership row is created.
+		await assertReceiversQualified(tx, schoolId, schoolYearId, prepared.changes);
+
+		// B-04: recompute the complete covered-input snapshot through the write
+		// transaction and fail closed before any ownership/run/audit write when a
+		// room, qualification, ownership, policy, section, or run-version input
+		// changed since the output was computed.
+		const txSourceSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
+		if (txSourceSnapshot.fingerprint !== bindingFingerprint) {
+			throw err(
+				409,
+				'TEACHING_LOAD_REPAIR_STALE',
+				'A covered input (room, qualification, ownership, policy, or section) changed since this Teaching Load repair was prepared. Refresh and preview the repair again.',
+				{
+					actionHint: 'Re-run the Teaching Load preview, then apply the fresh plan.',
+					details: { expectedFingerprint: bindingFingerprint, currentFingerprint: txSourceSnapshot.fingerprint },
+				},
+			);
+		}
 
 		await applyCanonicalOwnership(tx, schoolId, schoolYearId, actorId, prepared.changes);
 		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
@@ -1245,109 +1391,31 @@ export async function previewAnnualTeachingLoadChange(
 	};
 }
 
+export const ANNUAL_TEACHING_LOAD_APPLY_RETIRED_CODE = 'ANNUAL_TEACHING_LOAD_APPLY_RETIRED';
+
+/**
+ * B-08 / requirement 5 retirement. The annual Teaching Load change apply has no
+ * production client caller and previously wrote ownership/FacultySubject rows
+ * while ignoring its version parameter and skipping actor-school/active-year
+ * authority, preview fingerprint, run-version CAS, and timetable-impact
+ * revalidation. Rather than retain an ignored CAS parameter and unguarded
+ * mutation surface, it is retired with a typed 410 that performs zero service
+ * dispatch and zero writes. The canonical Teaching Load reconciliation
+ * preview/apply is the guarded replacement.
+ */
 export async function applyAnnualTeachingLoadChange(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
 	changes: AnnualTeachingLoadChange[],
-	// SubjectSectionOwnership currently has no version column. The argument is
-	// retained for API symmetry and future schema evolution; the optimistic
-	// guard is on FacultySubject.version below.
-	_expectedSubjectSectionOwnershipVersions: Record<string, number> = {},
 ): Promise<AnnualTeachingLoadApplyResult> {
-	if (!Array.isArray(changes) || changes.length === 0) {
-		throw err(400, 'INVALID_BODY', 'At least one change is required for an annual Teaching Load operation.');
-	}
-	const subjectIds = [...new Set(changes.map((c) => c.subjectId))];
-	const sectionIds = [...new Set(changes.map((c) => c.sectionId))];
-
-		const txResult = await prisma.$transaction(async (tx) => {
-			const updatedSubjectSectionOwnershipIds: number[] = [];
-			const updatedFacultySubjectIds: number[] = [];
-			const affectedFacultyIds = new Set<number>();
-
-			for (const change of changes) {
-				const facultySubject = await tx.facultySubject.findFirst({
-					where: { schoolId, schoolYearId, facultyId: change.toFacultyId, subjectId: change.subjectId },
-					select: { id: true },
-				});
-				if (!facultySubject) {
-					throw err(409, 'TEACHING_LOAD_QUALIFICATION_MISSING', `Target faculty ${change.toFacultyId} is not qualified for subject ${change.subjectId}.`);
-				}
-				const upserted = await tx.subjectSectionOwnership.upsert({
-					where: {
-						schoolId_schoolYearId_subjectId_sectionId: {
-							schoolId,
-							schoolYearId,
-							subjectId: change.subjectId,
-							sectionId: change.sectionId,
-						},
-					},
-					create: {
-						schoolId,
-						schoolYearId,
-						subjectId: change.subjectId,
-						sectionId: change.sectionId,
-						facultySubjectId: facultySubject.id,
-						facultyId: change.toFacultyId,
-						assignedAt: new Date(),
-					},
-					update: {
-						facultySubjectId: facultySubject.id,
-						facultyId: change.toFacultyId,
-						assignedAt: new Date(),
-					},
-				});
-				updatedSubjectSectionOwnershipIds.push(upserted.id);
-				if (change.fromFacultyId != null) affectedFacultyIds.add(change.fromFacultyId);
-				affectedFacultyIds.add(change.toFacultyId);
-			}
-
-			for (const facultyId of affectedFacultyIds) {
-				const sectionIdsForFaculty = changes
-					.filter((c) => c.toFacultyId === facultyId)
-					.map((c) => c.sectionId);
-				if (sectionIdsForFaculty.length === 0) continue;
-				const fs = await tx.facultySubject.findFirst({
-					where: { schoolId, schoolYearId, facultyId, subjectId: { in: subjectIds } },
-					orderBy: { id: 'asc' },
-				});
-				if (fs) {
-					const merged = Array.from(new Set([...fs.sectionIds, ...sectionIdsForFaculty])).sort((a, b) => a - b);
-					const updatedFs = await tx.facultySubject.update({
-						where: { id: fs.id },
-						data: { sectionIds: merged, version: { increment: 1 } },
-					});
-					updatedFacultySubjectIds.push(updatedFs.id);
-				}
-			}
-
-			const auditAction = await tx.auditLog.create({
-				data: {
-					schoolId,
-					schoolYearId,
-					actorId,
-					action: 'TEACHING_LOAD_ANNUAL_CHANGE',
-					targetIds: updatedSubjectSectionOwnershipIds,
-					metadata: {
-						changeCount: changes.length,
-						affectedFacultyIds: Array.from(affectedFacultyIds),
-						changes: changes.map((c) => ({ subjectId: c.subjectId, sectionId: c.sectionId, fromFacultyId: c.fromFacultyId, toFacultyId: c.toFacultyId })),
-					} as object,
-				},
-			});
-			return {
-				updatedSubjectSectionOwnershipIds,
-				updatedFacultySubjectIds,
-				affectedFacultyIds: Array.from(affectedFacultyIds),
-				operationId: auditAction.id,
-			};
-		}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-
-	await refreshTeachingLoadCycle(schoolId, schoolYearId);
-
-	return {
-		appliedChanges: changes,
-		...txResult,
-	};
+	void schoolId;
+	void schoolYearId;
+	void actorId;
+	void changes;
+	throw err(
+		410,
+		ANNUAL_TEACHING_LOAD_APPLY_RETIRED_CODE,
+		'The annual Teaching Load change apply is retired. Use the canonical Teaching Load reconciliation preview/apply, which binds actor-school, active-year, fingerprint, and run-version authority.',
+	);
 }

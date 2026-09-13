@@ -1,5 +1,3 @@
-import { Prisma } from '@prisma/client';
-
 import { prisma } from '../lib/prisma.js';
 import {
 	classifyReconciliationEntries,
@@ -7,9 +5,7 @@ import {
 	type ReconciliationSummary,
 } from './reconciliation-classifier.js';
 import {
-	computeGenerationInputSnapshot,
 	compareCurrentInputsForRun,
-	compareGenerationInputSnapshots,
 	type GenerationInputComparison,
 } from './generation-input-snapshot.service.js';
 import type { ScheduledEntry } from './constraint-validator.js';
@@ -44,6 +40,13 @@ export type ReconciliationPreviewResult = {
 	changedDomains: ReconciliationSourceDomain[];
 	summary: ReconciliationSummary;
 	comparison: GenerationInputComparison;
+	/**
+	 * B-02 / D3: the run-reconciliation apply mutation is retired. This preview
+	 * is advisory-only and cannot authorize a write. Callers must use the
+	 * canonical Teaching Load reconciliation apply for real ownership changes.
+	 */
+	nonAuthorizing: true;
+	applyRetired: true;
 };
 
 export type ReconciliationPreviewInput = {
@@ -71,8 +74,24 @@ export async function previewRunReconciliation(input: ReconciliationPreviewInput
 		changedDomains,
 		summary,
 		comparison,
+		nonAuthorizing: true,
+		applyRetired: true,
 	};
 }
+
+/**
+ * B-02 / D3 retirement. The previous implementation returned `APPLIED` with a
+ * fabricated `runVersion + 1` while only writing an audit row, so a caller
+ * could believe a reconciliation had been persisted when nothing changed.
+ *
+ * There is no production client caller and no real reconciliation engine on
+ * this path, so the mutation is retired: a bounded, typed 410 that never
+ * writes. Callers are routed to the canonical Teaching Load reconciliation
+ * apply, which has a real fingerprinted preview/apply contract. Keep this
+ * exported so any stale importer fails closed instead of resurrecting the
+ * phantom success.
+ */
+export const RECONCILIATION_APPLY_RETIRED_CODE = 'RECONCILIATION_APPLY_RETIRED';
 
 export async function applyRunReconciliation(input: {
 	runId: number;
@@ -82,59 +101,12 @@ export async function applyRunReconciliation(input: {
 	expectedRunVersion: number;
 	expectedFingerprint: string;
 }): Promise<ReconciliationApplyResult> {
-	const preview = await previewRunReconciliation({ runId: input.runId, schoolId: input.schoolId, schoolYearId: input.schoolYearId });
-	if (preview.status !== 'STALE') {
-		throw err(409, 'RECONCILIATION_NOT_NEEDED', 'This run already matches the current setup; no apply is required.');
-	}
-	if (preview.comparison.currentFingerprint !== input.expectedFingerprint) {
-		throw err(409, 'RECONCILIATION_STALE_PREVIEW', 'Setup changed after the preview was generated. Refresh and review again.');
-	}
-	const currentSnapshot = await computeGenerationInputSnapshot(input.schoolId, input.schoolYearId);
-	if (currentSnapshot.fingerprint !== input.expectedFingerprint) {
-		throw err(409, 'RECONCILIATION_INPUT_CHANGED', 'Setup changed after the preview. Refresh and review again.');
-	}
-
-	const run = await prisma.generationRun.findFirst({
-		where: { id: input.runId, schoolId: input.schoolId, schoolYearId: input.schoolYearId },
-		select: { id: true, version: true, summary: true },
-	});
-	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found.');
-	if (isPublishedRun(run.summary)) throw err(409, 'RUN_ALREADY_PUBLISHED', 'Published runs are immutable outside explicit revisions.');
-
-	const draftEntries = (run.summary as { draftEntries?: unknown } | null) == null ? [] : [];
-	const result = await prisma.$transaction(async (tx) => {
-		const guarded = await tx.generationRun.findFirst({ where: { id: input.runId, version: input.expectedRunVersion } });
-		if (!guarded) throw err(409, 'VERSION_CONFLICT', 'This timetable changed while the reconciliation preview was open. Reload and review the change again.');
-		const op = await tx.auditLog.create({
-			data: {
-				schoolId: input.schoolId,
-				schoolYearId: input.schoolYearId,
-				actorId: input.actorId,
-				action: 'RECONCILIATION_APPLIED',
-				targetIds: [input.runId],
-				metadata: {
-					runId: input.runId,
-					expectedFingerprint: input.expectedFingerprint,
-					previewStatus: preview.status,
-					changedDomains: preview.changedDomains,
-					summary: preview.summary,
-				} as object,
-			},
-		});
-		return {
-			operationId: op.id,
-			newVersion: guarded.version + 1,
-		};
-	}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-
-	void draftEntries;
-
-	return {
-		status: 'APPLIED',
-		summary: preview.summary,
-		runVersion: result.newVersion,
-		operationId: result.operationId,
-	};
+	void input;
+	throw err(
+		410,
+		RECONCILIATION_APPLY_RETIRED_CODE,
+		'Run reconciliation is preview-only; the apply mutation is retired because it never persisted a reconciled schedule. Use the canonical Teaching Load reconciliation apply instead.',
+	);
 }
 
 async function classifyRunAgainstCurrentSetup(
@@ -182,10 +154,19 @@ async function classifyRunAgainstCurrentSetup(
 	});
 }
 
+/**
+ * Canonical strict publication predicate (B-11 / CP-2). Only an explicit
+ * `isPublished === true` marks a run as published. Legacy `publishedAt` /
+ * `publishedBy` markers left on a superseded or unpublished run are
+ * informational and must never redirect it into revision behavior.
+ */
+export function isStrictlyPublishedSummary(summary: unknown): boolean {
+	if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return false;
+	return (summary as Record<string, unknown>).isPublished === true;
+}
+
 function isPublishedRun(summary: unknown): boolean {
-	if (!summary || typeof summary !== 'object') return false;
-	const record = summary as Record<string, unknown>;
-	return record.isPublished === true;
+	return isStrictlyPublishedSummary(summary);
 }
 
 function mapInputDomain(domain: string): ReconciliationSourceDomain {
