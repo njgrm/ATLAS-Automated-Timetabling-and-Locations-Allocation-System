@@ -29,8 +29,10 @@
 - Legacy non-promotable HARD violations are informational; server publication
   already permits them, and the client gate prefers the new blocking-hard
   field with a fail-closed fallback.
-- The C04 wave remains `INTEGRATED_AUDIT_PENDING` until its Wave Completion
-  Audit clears; `TT-TL-MODULES-C04` stays locked.
+- Wave Completion Audit `AUDIT_CLEAR` 11/11/0/0; the C04 wave is `COMPLETE`.
+  `TT-TL-MODULES-C04` is unlocked for its non-D1 modules and
+  `TT-SOURCE-FRESHNESS-C04` may be authored (folding non-blocking findings
+  F1/F3).
 
 ### Open Questions
 - Operator decision D1 (availability authority) still gates the
