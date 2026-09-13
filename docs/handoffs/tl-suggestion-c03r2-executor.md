@@ -54,11 +54,41 @@ or canonical authority is missing or changed.
 - Derived-demand revision binding: changing disposition/program/grade/minutes/section/term between preview and apply is rejected as stale; an unchanged control applies.
 - Transaction-client revalidation: the tx view flips a subject to REFERENCE_ONLY while the global client does not; the apply is rejected as stale (a global-client read would have proceeded).
 
+## Correction 1 — fixture restoration under canonical demand (additive)
+
+Fresh independent QA returned `CORRECTION_REQUIRED` because the new mandatory
+canonical-demand gate broke `teaching-load-suggestion-authority.test.ts`
+(the TL-UX-C01R2 DB-backed suite). Reproduced failing-first on a disposable
+`atlas_restore_drill_*` PostgreSQL database:
+
+```
+[FATAL] Error: Canonical derived demand is unavailable for this school year: TERM_STRUCTURE_UNAVAILABLE.
+  code: 'DERIVED_DEMAND_UNAVAILABLE'
+```
+
+Fixture edit (only this file plus this handoff):
+
+- added a persisted verified ordered-term `termContractCache` +
+  `termContractCachedAt` to the fixture year mirror (TRIMESTER, T1/T2/T3);
+- corrected the sections' internal EnrollPro grade key from `gradeLevelId: 7`
+  (which `normalizeInternalGradeId` maps to Grade 9) to `gradeLevelId: 17`
+  (current EnrollPro feed ID for Grade 7), matching the subjects' declared
+  `gradeLevels: [7]`.
+
+No assertion, expected count, or skip was changed. Post-fix on the same
+disposable database: `RESULT: 61 passed, 0 failed`, zero residue. Regression
+reruns: C03R2 74/74, C03 authority 64/64, apply parity 34/34.
+
+The suite provisions its database through the ambient `DATABASE_URL`
+(`createTestPrismaClient()` / `loadServerEnv()`); it does not create a database
+itself. It was run only against a disposable `atlas_restore_drill_*` target that
+was migrated, used, and dropped; the configured database was never the target.
+
 ## Known risks / residuals
 
 1. The reviewed C03 authority and C03R apply-parity suites required additive fixture updates (term snapshot, internal grade key, pinned derived authority) because canonical demand is now mandatory. Assertion counts and semantics are unchanged (64/64, 34/34).
 2. `teaching-load-write-authority.test.ts` also required additive fixture/dependency updates; all its assertions remain.
-3. Two DB-backed suites (`teaching-load-suggestion-authority.test.ts`, `teaching-load-reconciliation.test.ts` Part B) use the configured database fixture pattern and were NOT run under this packet's "never write the configured database" rule. The reconciliation hermetic A1–A14 controls pass; its Part B fixture failures are in a service graph untouched by this candidate (`teaching-load-reconciliation.service.ts` does not import the changed automation/proposal services).
+3. `teaching-load-reconciliation.test.ts` Part B uses the configured-database fixture pattern and was not run under this packet's "never write the configured database" rule. Its hermetic A1–A14 controls pass; its Part B fixture failures are in a service graph untouched by this candidate (`teaching-load-reconciliation.service.ts` does not import the changed automation/proposal services). `teaching-load-suggestion-authority.test.ts` Part B is now runnable and green against a disposable database (Correction 1).
 4. `isProgramScopeCompatible` was removed from the automation service because its only caller was the deleted Cartesian construction; the equivalent canonical scope check lives in `derived-demand.service.ts` / `qualification-evaluator.service.ts`.
 
 ## Mutation boundary
