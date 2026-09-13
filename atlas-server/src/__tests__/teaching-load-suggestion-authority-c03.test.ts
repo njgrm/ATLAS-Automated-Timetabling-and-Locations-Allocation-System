@@ -204,7 +204,9 @@ function section(externalId: number, programType = 'REGULAR', displayOrder = 7):
 		schoolYearId: YEAR,
 		externalId,
 		name: `G7-${externalId}`,
-		gradeLevelId: 7,
+		// EnrollPro internal grade key for Grade 7. The canonical derived-demand
+		// authority normalizes `gradeLevelId`; `displayOrder` is presentation only.
+		gradeLevelId: 17,
 		gradeLevelName: 'Grade 7',
 		displayOrder,
 		programType,
@@ -316,7 +318,25 @@ function ownership(
 
 function baseFixture(overrides: Partial<Row> = {}): Row {
 	return {
-		yearMirrors: [{ schoolId: SCHOOL, enrollProSchoolYearId: YEAR, isActive: true, isArchived: false }],
+		yearMirrors: [{
+			schoolId: SCHOOL,
+			enrollProSchoolYearId: YEAR,
+			isActive: true,
+			isArchived: false,
+			// Canonical derived demand requires a persisted verified ordered-term
+			// snapshot. The suggestion paths fail closed without it.
+			termContractCache: {
+				schoolId: SCHOOL,
+				schoolYear: { id: YEAR, yearLabel: '2030-2031' },
+				format: 'TRIMESTER',
+				terms: [
+					{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+					{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+					{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+				],
+			},
+			termContractCachedAt: now,
+		}],
 		policies: [{ schoolId: SCHOOL, schoolYearId: YEAR, teachingStandardMinutes: 1800, advisoryCreditMinutes: 300, hardCapMinutes: 2400 }],
 		sections: [],
 		subjects: [],

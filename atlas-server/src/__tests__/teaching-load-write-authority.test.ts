@@ -51,11 +51,31 @@ function yearClient(mode: 'active' | 'archived' | 'inactive', writes: WriteProbe
 				: mode === 'archived'
 					? [{ enrollProSchoolYearId: 9, isActive: false, isArchived: true }]
 					: [{ enrollProSchoolYearId: 9, isActive: false, isArchived: false }],
+			findUnique: async () => mode === 'active'
+				? {
+					isActive: true,
+					isArchived: false,
+					termContractCachedAt: now,
+					termContractCache: {
+						schoolId: 1,
+						schoolYear: { id: 9, yearLabel: '2030-2031' },
+						format: 'TRIMESTER',
+						terms: [
+							{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+							{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+							{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+						],
+					},
+				}
+				: { isActive: false, isArchived: mode === 'archived', termContractCache: null, termContractCachedAt: null },
 		},
 		sectionMirror: { findMany: async () => [] },
 		sectionSnapshot: {
 			findUnique: async () => ({ payload: [], fetchedAt: now }),
 		},
+		// Canonical derived demand reads these through the bound client.
+		subject: { findMany: async () => [] },
+		schedulingPolicy: { findUnique: async () => null },
 		facultyMirror: {
 			findUnique: async () => ({
 				id: 11,
@@ -337,7 +357,30 @@ const preview: AutoFillResult = {
 			balanced: true,
 		},
 	},
+	derivedDemandRevision: 'D'.repeat(64),
+	canonicalDemandPairCount: 1,
+	outsideDemandOwnershipCount: 0,
 };
+
+/**
+ * Canonical derived-demand authority pinned to the injected preview. The real
+ * transaction-client re-resolution is exercised by the C03R2 suite; this
+ * authority keeps the write-authority assertions focused on propose/apply
+ * persistence boundaries.
+ */
+const derivedAuthority = async () => ({
+	ok: true as const,
+	scope: { schoolId: 1, schoolYearId: 9 },
+	yearLabel: '2030-2031',
+	revision: 'D'.repeat(64),
+	termStructure: { format: 'TRIMESTER' as const, semanticRevision: 'A'.repeat(64), terms: [] },
+	periodLengthMinutes: 45,
+	timetableLines: [],
+	teachingLoadPairs: [],
+	totalsByTerm: {},
+	totalLines: 0,
+	totalPairs: 0,
+});
 
 const proposalRow = {
 	id: 41, schoolId: 1, schoolYearId: 9, coverageMode: 'REAL_FACULTY_STANDARD', status: 'PENDING',
@@ -521,7 +564,7 @@ async function run(): Promise<void> {
 	const proposalSuccess = proposalClient(initialProposalState);
 	const applied = await withDataContext(proposalSuccess.client, () => applyTeachingLoadSuggestionProposal(
 		{ proposalId: 41, actorId: 77, actorSchoolId: 1 },
-		{ preview: async () => structuredClone(preview) },
+		{ preview: async () => structuredClone(preview), resolveDerivedDemand: derivedAuthority as any },
 	));
 	assert.equal(applied.proposal.status, 'APPLIED');
 	let appliedState = proposalSuccess.snapshot();
@@ -544,7 +587,7 @@ async function run(): Promise<void> {
 	await withDataContext(proposalFailure.client, () => assert.rejects(
 		applyTeachingLoadSuggestionProposal(
 			{ proposalId: 41, actorId: 77, actorSchoolId: 1 },
-			{ preview: async () => structuredClone(preview) },
+			{ preview: async () => structuredClone(preview), resolveDerivedDemand: derivedAuthority as any },
 		),
 		/injected audit failure/,
 	));
