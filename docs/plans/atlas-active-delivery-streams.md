@@ -16,6 +16,28 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
+- Cycle recovery: `tt-c04-authority-wave-20260913` (`INTEGRATED_AUDIT_PENDING`)
+  activated 2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`) for three
+  parallel source lanes from `origin/main` `e3882ca0`: S1
+  `TT-DYNAMIC-WORKSPACE-C04` (`work/tt-dynamic-workspace-c04`, candidate
+  `2ebb0b17`, 2 correction rounds; fresh QA `ses_f64916224ffeSN4VTUJ96bA5b7`
+  `ACCEPT_READY` 12/12/0/0), S2 `TT-WARNING-AUTHORITY-C04`
+  (`work/tt-warning-authority-c04`, candidate `d9b1cd4a`, 1 correction round;
+  fresh QA `ses_f649f9429ffe6cNqapkasGZup9` `ACCEPT_READY` 14/14/0/0), and S3
+  `TT-TL-AUTHORITY-GUARD-C04` (`work/tt-tl-authority-guard-c04`, candidate
+  `7b31c592`; fresh QA `ses_f64d2ef8cffeRcQvFw74SsLLZA` `ACCEPT_READY`
+  16/16/0/0). Clean auto-union integration on `integration/tt-c04-20260913`
+  (tip `6d244d5e`) with per-lane union parity proven; combined gates green
+  (server/client tsc+build; S3 mounted 46/46 and sync-setup 16/16 on a
+  disposable database with zero residue; S2 warning 31/31; S1 operator UX
+  58/58, dynamic-workspace 71/71, full tracked client inventory 399/399;
+  `git diff --check` clean). Browser-only rows remain
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; no login, live mutation,
+  deployment, generation, publication, migration, or companion edit occurred.
+  Canonical directive advanced mid-cycle from `84047C3F…193149` to
+  `A896475B…C711589`; every role read the current root file directly and
+  candidate bytes were unaffected. The Wave Completion Audit is the only
+  remaining step.
 - Cycle recovery: `tt-dynamic-audit-c04` (`COMPLETE`) closed 2026-09-13
   (Asia/Manila): read-only audit cycle for the packet
   `docs/prompts/timetable-dynamic-workspace-audit-planner-cycle-2026-09-13.md`.
@@ -406,10 +428,10 @@ hard blockers before separately approving publication.
 | TL-RR01R | Correct integrated carry-forward grade authority, workload-policy gating, and actor identity | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01r`; `95ceedf9...f66ca392`; merge `8f210d7c` | Live apply remains separately gated | Fresh independent QA ACCEPT_READY: 12/12 authority incl. displayOrder mutants; 87/87 disposable-PostgreSQL mounted suite; tsc/build; active DB untouched; integration reproduced 87/87 on the merged tree plus a built-server mount probe | Closed in source; live preview requires the bounded runtime deployment and year-9 term sync; apply requires its own reviewed preview and explicit HIGH approval |
 | GEN-C02R1 | Consume one shared passive preflight in readiness and the real generation trigger; prove stakeholder shape and nonuniform rotation | `INTEGRATED` | MEDIUM source; HIGH generation | `integration/readiness-20260911`; `6f7b3c52...b1348113`; merge `c3744dc6` | None | Fresh independent QA ACCEPT_READY (5/5 production-trigger, 12/12 stakeholder shape, 7/7 rotation, 5/5 actor scope, 14/14 canonical, 1/1 disposable-PostgreSQL zero-write; tsc/build/startup/diff-check); integration gates reproduced on the merged tree | Closed in source; do not run live generation without its separate fingerprinted preview and explicit HIGH approval |
 | TT-DYNAMIC-AUDIT-C04 | Determine the target architecture and next implementation waves for a dynamic Timetable workspace via three read-only audit lanes | `INTEGRATED` | LOW docs-only | `codex/tt-dynamic-audit-c04`; base `e0a10ebc`; corrected candidate `bdfd395a`; closure commit pushed | None | Wave audit `AUDIT_CLEAR` 8/8/0/0 (`ses_f65189ae1ffeb3UPOeGNfsKgIu`) after correction round 1 (`ses_f6521cd11ffe2SIkDKpijen16t`); capsule at `docs/reviews/tt-dynamic-audit-c04/wave-completion-audit.md`; lanes A/B/C tallies 15/9/6/0, 14/12/1/1, 11/9/1/1; P0s C-02 (term-blind grouping) and B-01 (TL route actor-school) planner-verified; browser rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` | Closed; dispatch the two successor lanes (S1/S2) from this tip |
-| TT-DYNAMIC-WORKSPACE-C04 | One Simple-first Timetable workspace: truthful modes/status/undo/redo/history, capability-model guards, source-drift visibility, dead-link and state-hygiene fixes | `PLANNED` (packet ready) | MEDIUM source; HIGH interaction guardrails | Packet `docs/prompts/timetable-dynamic-workspace-one-shot-c04-2026-09-13.md`; worktree not created | None; parallel lane with TT-WARNING-AUTHORITY-C04 | Authored from audit findings A-01…A-19; exclusive path list in packet | Dispatch a fresh executor from the pushed audit tip after this cycle closes |
-| TT-WARNING-AUTHORITY-C04 | Retire false metric travel, add building/floor semantics, decouple policy families, promotion allowlist, term-aware grouping, context/label parity, strict publication predicate (`manual-edit.service.ts`) | `PLANNED` (packet ready) | MEDIUM full-stack; HIGH publication implications | Packet `docs/prompts/timetable-warning-authority-one-shot-c04-2026-09-13.md`; worktree not created | None; parallel lane with TT-DYNAMIC-WORKSPACE-C04 | Authored from findings C-01…C-16 and the CP-2 server half (B-11); exclusive path list in packet | Dispatch a fresh executor from the pushed audit tip after this cycle closes |
-| TT-TL-AUTHORITY-GUARD-C04 | Close the server-side actor-school/year, qualification, source-snapshot, phantom reconciliation, annual CAS, and strict-publication gaps before exposing Timetable Teaching Load modules | `PLANNED` (packet ready) | MEDIUM server source; HIGH write-authority implications | Packet `docs/prompts/timetable-teaching-load-authority-guard-c04-2026-09-13.md`; worktree not created | None; server-only split explicitly permitted by the locked S3 packet | Owns B-01/B-02/B-04/B-07/B-08/B-11 server authority without touching S1/S2 client or warning files | Dispatch in parallel with S1/S2; later S3 consumes these guarded APIs and must not duplicate them |
-| TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards; strict TL-repair publication predicate | `LOCKED` | MEDIUM source; HIGH write guards | Packet `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md`; worktree not created | Unlocks after TT-DYNAMIC-WORKSPACE-C04 integrates; class 5 blocked on decision D1 | Authored from findings B-01/B-07/B-15/CP-8 and the CP-2 server half; locked by design | Wait for S1 integration; resolve D1 before the availability module; verify (not duplicate) the shared strict-predicate helper |
+| TT-DYNAMIC-WORKSPACE-C04 | One Simple-first Timetable workspace: truthful modes/status/undo/redo/history, capability-model guards, source-drift visibility, dead-link and state-hygiene fixes | `INTEGRATED` — wave audit pending | MEDIUM source; HIGH interaction guardrails | `work/tt-dynamic-workspace-c04`; base `e3882ca0`; candidate `2ebb0b17` (2 correction rounds); integration `6d244d5e` | None in source; live/browser acceptance remains separately gated | Fresh QA `ses_f64916224ffeSN4VTUJ96bA5b7` `ACCEPT_READY` 12/12/0/0 (R2 consumer control reproduced failing on the loose-marker base; full tracked client inventory 399/399; tsc/build/diff-check); combined integration gates green | Wave Completion Audit is the only remaining step; do not deploy from this lane |
+| TT-WARNING-AUTHORITY-C04 | Retire false metric travel, add building/floor semantics, decouple policy families, promotion allowlist, term-aware grouping, context/label parity, strict publication predicate (`manual-edit.service.ts`) | `INTEGRATED` — wave audit pending | MEDIUM full-stack; HIGH publication implications | `work/tt-warning-authority-c04`; base `e3882ca0`; candidate `d9b1cd4a` (1 correction round); integration `6d244d5e` | None in source; live publication remains separately gated | Fresh QA `ses_f649f9429ffe6cNqapkasGZup9` `ACCEPT_READY` 14/14/0/0 (three-way generation/manual/pre-gen parity with load-bearing mutant; `blockingHardViolationCount` allowlist count + `counts.runWide.blockingHard`; disposable-PostgreSQL 16/16; both builds); combined integration gates green | Wave Completion Audit is the only remaining step; do not publish from this lane |
+| TT-TL-AUTHORITY-GUARD-C04 | Close the server-side actor-school/year, qualification, source-snapshot, phantom reconciliation, annual CAS, and strict-publication gaps before exposing Timetable Teaching Load modules | `INTEGRATED` — wave audit pending | MEDIUM server source; HIGH write-authority implications | `work/tt-tl-authority-guard-c04`; base `e3882ca0`; candidate `7b31c592`; integration `6d244d5e` | None in source; live writes remain separately gated | Fresh QA `ses_f64d2ef8cffeRcQvFw74SsLLZA` `ACCEPT_READY` 16/16/0/0 (mounted authority matrix with zero dispatch/writes; typed stale snapshot/CAS; phantom reconciliation apply retired; strict predicate; disposable-PostgreSQL 46/46 with zero residue); combined integration gates green | Wave Completion Audit is the only remaining step; later S3 consumes these guarded APIs and must not duplicate them |
+| TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards; strict TL-repair publication predicate | `LOCKED` | MEDIUM source; HIGH write guards | Packet `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md`; worktree not created | Unlocks after the C04 authority wave is integrated and its Wave Completion Audit clears; class 5 blocked on decision D1 | Authored from findings B-01/B-07/B-15/CP-8 and the CP-2 server half; locked by design | Wait for the wave audit; resolve D1 before the availability module; verify (not duplicate) the shared strict-predicate helper |
 | TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `PLANNED` (registered successor; scope in contract §7) | MEDIUM server source; HIGH generation | No packet yet; scope defined in the contract | After TT-WARNING-AUTHORITY-C04 (shared server files) and coordinated with TT-TL-MODULES-C04 (TL repair binding) | Findings B-03/B-04/B-06(server)/B-09/B-13(server)/B-11(server remainder); binding pattern at `timetable-sync-setup.service.ts:689-731` | Author the packet after S2 integration; verify (not duplicate) the shared strict-predicate helper |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
@@ -492,19 +514,21 @@ hard blockers before separately approving publication.
    action is unlocked by this closure; the shared runtime remains `3d916b26`
    and the new source is NOT deployed — runtime deployment remains a separate
    HIGH approval.
-10. `tt-dynamic-audit-c04` is closed and pushed. Dispatch the two parallel
-    source lanes now from the pushed tip: S1
-    `TT-DYNAMIC-WORKSPACE-C04` and S2 `TT-WARNING-AUTHORITY-C04` (disjoint file
-    boundaries; see each packet). The server-only
-    `TT-TL-AUTHORITY-GUARD-C04` split is also dispatchable now and removes the
-    P0 write-authority defects without waiting on client sequencing. S3
-    `TT-TL-MODULES-C04` stays `LOCKED` until S1 integrates; its class 5 remains
-    decision-locked by D1. S4 `TT-SOURCE-FRESHNESS-C04` is a registered
-    successor that must not start before S2 integrates.
+10. `tt-dynamic-audit-c04` is closed and pushed. The C04 authority wave — S1
+    `TT-DYNAMIC-WORKSPACE-C04` (`2ebb0b17`), S2 `TT-WARNING-AUTHORITY-C04`
+    (`d9b1cd4a`), and S3 `TT-TL-AUTHORITY-GUARD-C04` (`7b31c592`) — is
+    integrated on `integration/tt-c04-20260913` (tip `6d244d5e`; combined
+    gates green; pushed with this reconciliation) and awaits its Wave
+    Completion Audit. S3 `TT-TL-MODULES-C04` stays `LOCKED` until the audit
+    clears; its class 5 remains decision-locked by D1. S4
+    `TT-SOURCE-FRESHNESS-C04` is a registered successor that must not start
+    before this wave is audited.
 11. Operator decisions D1–D6 (contract §7) gate: S3 class 5 (D1), anchor
-    disclosure (D2), reconciliation endpoint retirement (D3), archived-mode
-    scope (D4), sync pin semantics (D5), room-capacity asymmetry confirmation
-    (D6). None of them blocks S1/S2 dispatch.
+    disclosure (D2), archived-mode scope (D4), sync pin semantics (D5),
+    room-capacity asymmetry confirmation (D6). D3 (reconciliation endpoint
+    retirement) is resolved by S3: the phantom apply is retired with a typed
+    410 and no client caller remains. D4 remains an honest-exclusion
+    follow-up recorded in the S1 handoff.
 12. Existing runtime/data gates are unchanged: the shared runtime remains
     release `3d916b26`; the term-cache catch-up apply (capture externally
     blocked on the offline EnrollPro host), Teaching Load apply, generation,
@@ -513,15 +537,10 @@ hard blockers before separately approving publication.
 
 ## Safe parallel work now
 
-- The two audit-derived source lanes are now dispatchable from the pushed audit
-  tip: `TT-DYNAMIC-WORKSPACE-C04` (client shell; owned paths in its packet) and
-  `TT-WARNING-AUTHORITY-C04` (validator/policy/read-model + warning labels).
-  They run in parallel with genuinely disjoint file boundaries (carve-outs
-  listed in both packets). Neither may touch the shared runtime, live database,
-  TL apply, generation, publication, or the other lane's files.
-- `TT-TL-AUTHORITY-GUARD-C04` is a third disjoint, server-only source lane. It
-  may run now from its packet, but it must not edit S1 client files, S2 warning
-  files, or the separate TL-SUGGESTION-C03R2 automation/proposal files.
+- No new executor stream is authorized. The C04 authority wave is integrated
+  at `6d244d5e` and awaits its Wave Completion Audit. `TT-TL-MODULES-C04`
+  stays `LOCKED` until the audit clears (class 5 also D1-locked), and
+  `TT-SOURCE-FRESHNESS-C04` must not start before the audit.
 - The TT/TL switch completed: release `3d916b26` serves the supervisor-owned
   5001/5174 (supervisor 44336; rollback = supervised reset to `9d293879`;
   `d44f29e0` is a manual non-supervised last resort only); no stream is
@@ -576,10 +595,10 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   closed and pushed. S3/S4 must verify (not duplicate) the shared
   strict-predicate helper when they run.
 - Operator decisions recorded for the successor lanes: D1 availability
-  authority; D2 prior-run anchor re-application; D3 `applyRunReconciliation`
-  retirement vs implementation; D4 archived-mode scope; D5 sync teacher-pin
-  semantics; D6 room-capacity asymmetry confirmation. Only D1 blocks a module
-  inside the locked S3 packet; none blocks S1/S2 dispatch.
+  authority; D2 prior-run anchor re-application; D4 archived-mode scope; D5
+  sync teacher-pin semantics; D6 room-capacity asymmetry confirmation. D3
+  (`applyRunReconciliation` retirement) is resolved by S3 (typed 410, no
+  client caller). Only D1 blocks a module inside the locked S3 packet.
 - Authenticated browser acceptance for the audit's browser-only rows remains
   `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; it belongs to a later approved
   post-deployment acceptance session, not to this cycle.
@@ -646,9 +665,13 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
 - `TL-SUGGESTION-C03R`: no executor or QA return remains. The reviewed
   candidate `6eb3a3b0` is integrated via merge `027b3f65` → `bbd6b0df` after
   fresh QA `ACCEPT_READY` 15/15/0/0 on the integrated tree.
-- `TT-TL-AUTHORITY-GUARD-C04`: no return is awaited yet; its server-only packet
-  is ready for dispatch in parallel with S1/S2. Integration remains
-  head-planner-owned.
+- `TT-TL-AUTHORITY-GUARD-C04`: no executor or QA return remains; candidate
+  `7b31c592` passed fresh QA `ACCEPT_READY` 16/16/0/0 and is integrated at
+  merge tip `6d244d5e`. `TT-DYNAMIC-WORKSPACE-C04` and
+  `TT-WARNING-AUTHORITY-C04` likewise have no return remaining (fresh QA
+  `ACCEPT_READY` 12/12 and 14/14; candidates `2ebb0b17` and `d9b1cd4a`).
+  The only remaining return is the Wave Completion Auditor for
+  `tt-c04-authority-wave-20260913`.
 - `TT-OUTPUT-C03R3`: no executor or QA return remains. The corrected chain
   `4e5ef1f6...e7deeb91` (exact-range 14/14/0/0) is integrated at merge
   `3c2fc2bd`; the wave audit returned `CORRECTION_REQUIRED` (F1), the bounded

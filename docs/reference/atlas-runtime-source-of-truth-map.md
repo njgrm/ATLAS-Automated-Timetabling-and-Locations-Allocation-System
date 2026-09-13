@@ -771,6 +771,19 @@ Timetable KISS UX critique repair and PWA cache note (`2026-06-11`):
 - Publish now emits `SCHEDULE_PUBLISHED` through the published-schedule event service after the run is marked published, so faculty clients and downstream notification consumers can observe the first official-schedule availability event.
 - The AppShell subscribes once to the unified stream for the active school year and surfaces global toasts for generation, timetable, publish/revision, and upstream sync events. Page-specific preference and room-request refresh behavior remains owned by their existing specialized streams.
 
+### 8j. Timetable Publication, Warning, And Repair Authority Contract (2026-09-13, C04 wave)
+
+- Publication truth is the strict predicate `summary.isPublished === true`; `publishedAt`/`publishedBy` markers on a superseded run are informational only and never render published affordances, revision CTAs, or edit/revision behavior.
+- Publish gating is run-wide: the client consumes the server-computed allowlist-filtered `summary.blockingHardViolationCount` (run-wide HARD codes that may legitimately block publication), falling back fail-closed to the unfiltered hard count when the field is absent. The interactive violation list remains selected-term scoped.
+- Server publication (`publication-contract.service.ts`) blocks only on `PROMOTABLE_CONSTRAINT_CODES`; non-allowlisted HARD severities are informational. `buildViolationReport` exposes run-wide `counts.runWide.blockingHard` derived from persisted violations.
+- Promotion of a constraint to `treatAsHard` is server-owned: `scheduling-policy.service.ts` rejects non-allowlisted promotion with a typed 400 `CONSTRAINT_NOT_PROMOTABLE`, coerces legacy rows to non-hard on read, and the validator consults the same allowlist.
+- The false metric travel warning (`FACULTY_EXCESSIVE_TRAVEL_DISTANCE`, Euclidean canvas distance) is retired from active behavior: no producer, no `Building.x/y` warning reads, no operator control; the code remains a deprecated label so old runs render.
+- `FACULTY_FLOOR_TRANSITION` is the auditable replacement: same-building consecutive sessions with `|floorDelta| >= floorTransitionThreshold` (default 3) and an inter-class gap below `floorTransitionBufferMinutes` (default 5); authority is `Room.floor` only.
+- Every soft/policy warning groups by `(facultyId|sectionId, day, termIndex)`; a year-long entry expanded across terms contributes minutes only inside each term. No cross-term accumulation.
+- Generation, manual-edit, and pre-generation preview contexts assemble the same authoritative inputs (room features, subject requiredFeatures, effective ancillary-deducted hours, placement term identity) and produce identical `{code,severity}` multisets for one schedule.
+- Generated run edits require an authenticated actor on a genuinely unpublished run; a published run routes to revisions. Timetable Teaching Load repair preview/apply and reconciliation routes enforce privileged actor + actor-school + sole active non-archived year, canonical qualification evaluation before ownership writes, and complete source-snapshot + run-version binding with typed stale rejection and zero writes on failure.
+- The phantom `applyRunReconciliation` mutation is retired (typed 410, no client caller, no audit-only success) and the annual Teaching Load apply mutation is retired (typed 410). The annual change preview remains read-only and non-authorizing.
+- The Simple-first workspace exposes one capability model (`deriveTimetableCapabilities`) for generate/publish/move/swap/requests/review; source-drift domains route to mounted repair actions; scope changes (school/year/run/term) clear or revalidate selection, preview, swap, repair, and dialog state before any dispatch.
 
 ## What Healthy Pages Do Not Prove
 - A healthy Dashboard does not prove generator readiness.
@@ -783,7 +796,7 @@ Timetable KISS UX critique repair and PWA cache note (`2026-06-11`):
 1. Template math remains overloaded.
 2. Slot-fit and fallback pressure remains high (`UNASSIGNED_SECTION=757`, `hardViolationCount=827`).
 3. Room topology and specialized-room pressure remain open (`SPECIALIZED_ROOM_UNAVAILABLE=240`).
-4. Faculty feasibility remains open (`FACULTY_SUBJECT_NOT_QUALIFIED=70`, `FACULTY_EXCESSIVE_IDLE_GAP=317`, `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=678`).
+4. Faculty feasibility remains open (`FACULTY_SUBJECT_NOT_QUALIFIED=70`, `FACULTY_EXCESSIVE_IDLE_GAP=317`); `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=678` is a historical run-8 count of the now-retired metric warning (no producer since the 2026-09-13 C04 wave; see §8j).
 5. Faculty baseline parity with stakeholder department counts is still mismatched and may be masking true staffing depth.
 6. Day-shape controls are now dual-mode representable, but generation remains `NO-GO` due unresolved math/policy/assignment feasibility blockers.
 7. Current campus topology and generator feasibility remain blockers even after output-label normalization is repaired.

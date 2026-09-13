@@ -1,5 +1,41 @@
 # Changelog
 
+## [2026-09-13] — TT C04 Authority Wave Integration
+
+### Added
+- Integrated three accepted source lanes from `origin/main` `e3882ca0`: the
+  Simple-first Timetable workspace (TT-DYNAMIC-WORKSPACE-C04, `2ebb0b17`), the
+  warning-authority and publication-predicate correction
+  (TT-WARNING-AUTHORITY-C04, `d9b1cd4a`), and the Teaching Load repair
+  authority guard (TT-TL-AUTHORITY-GUARD-C04, `7b31c592`), combined at
+  `integration/tt-c04-20260913` tip `6d244d5e`.
+
+### Changed
+- The Timetable publish gate now consumes the run-wide allowlist-filtered
+  blocking-hard count (`summary.blockingHardViolationCount`) while the
+  displayed violation list stays selected-term scoped; the client falls back
+  fail-closed when the field is absent.
+- Retired the false metric travel-distance warning and its operator control;
+  added auditable same-building floor-transition semantics; added a
+  server-owned promotion allowlist so only trustworthy structural checks can
+  block publication.
+- Timetable Teaching Load repair routes now require privileged actor +
+  actor-school + sole-active-year authority, evaluate qualifications through
+  the canonical evaluator, bind output to a complete source snapshot with a
+  typed stale rejection, and retire the phantom reconciliation apply and the
+  annual apply mutation paths (typed 410, no client caller).
+
+### Decisions Made
+- Legacy non-promotable HARD violations are informational; server publication
+  already permits them, and the client gate prefers the new blocking-hard
+  field with a fail-closed fallback.
+- The C04 wave remains `INTEGRATED_AUDIT_PENDING` until its Wave Completion
+  Audit clears; `TT-TL-MODULES-C04` stays locked.
+
+### Open Questions
+- Operator decision D1 (availability authority) still gates the
+  `TT-TL-MODULES-C04` availability module.
+
 ## [2026-09-13] — Timetable Repair Authority and Term Preview Preflight
 
 ### Added
