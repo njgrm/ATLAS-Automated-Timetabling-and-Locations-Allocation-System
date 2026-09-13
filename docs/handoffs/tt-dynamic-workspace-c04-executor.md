@@ -8,14 +8,55 @@ Risk tier: MEDIUM source (client-heavy) with HIGH interaction guardrails; no liv
 ## Immutable boundary
 
 - Base SHA: `e3882ca0356e04545fadaa9dbfa5cd1261ba64b5` (branch `work/tt-dynamic-workspace-c04`)
-- Source candidate SHA (pre-handoff): `4c711839`
+- Source candidate SHA (pre-handoff): `96f81aa6`
 - Candidate tip: the commit that contains this file (additive; read the exact tip
   from `git log -1 --format=%H` on this branch).
 - Worktree: `D:\ATLAS-worktrees\tt-dynamic-workspace-c04`
 - Commits: `c356ed72` (WIP), `cf949181` (R4), `a2922e4d` (R6/R7/R9/R10),
   `a49ae9d3` (tests + R7 guards), `93216b38` (policy link), `88ed0276`/`a1854eeb`
-  (handoff + counts), `4c711839` (correction round 1: F2 gate + routed repairs +
-  rendered/behavioral controls), plus this handoff commit.
+  (handoff + counts), `4c711839` (correction 1: F2 gate + routed repairs +
+  rendered/behavioral controls), `96f81aa6` (correction 2: load-bearing R2
+  consumer control + mutant proof), plus this handoff commit.
+
+## Correction round 2 (final, R2 load-bearing control)
+
+The QA round-2 finding was that no committed control covered the real R2
+consumers (`ScheduleReviewWorkspace.tsx`, `CenterWorkspace.tsx`), so reverting
+their published derivation to the base loose `publishedAt`/`publishedBy` OR-marker
+predicate kept the full inventory green. Rendering those consumers is infeasible
+in this harness (`ScheduleReviewWorkspace` calls the network hook
+`useScheduleReviewWorkspaceState()`; `CenterWorkspace` reads the browser viewport
+in a `useState` initializer and mounts heavy DOM/dnd sub-surfaces), so the packet's
+option 2 was implemented:
+
+- (a) `timetable-dynamic-workspace-r2-consumers.test.ts` executes the superseded
+  fixture `{isPublished:false, publishedAt:<string>, publishedBy:<number>}` on the
+  single selector `isDraftPublishedStrict`.
+- (b) a call-site binding check requires both real consumers to declare
+  `const isDraftPublished = isDraftPublishedStrict(<draft>)`, to contain no
+  `publishedAt`/`publishedBy` fallback, and to pass `isPublished={isDraftPublished}`
+  to the rendered published surface.
+- (c) a discrimination mutant reproduces the base loose OR-marker predicate and
+  proves it returns `true` for the superseded fixture while the selector returns
+  `false`.
+
+**Mutant proof (run during development; not left in the tree):** both consumers
+were temporarily reverted to the exact base predicate, then
+`npx tsx --test src/lib/__tests__/timetable-dynamic-workspace-r2-consumers.test.ts`
+exited `1`:
+
+```
+✖ R2 both real R2 consumers derive published state through the single selector
+AssertionError [ERR_ASSERTION]: src/components/timetable/CenterWorkspace.tsx must derive published state through isDraftPublishedStrict(draft)
+    at timetable-dynamic-workspace-r2-consumers.test.ts:88:10
+ℹ tests 3   pass 2   fail 1
+```
+
+The consumers were restored with `git checkout --` (verified: both call
+`isDraftPublishedStrict` again) and the test passes 3/3. The optional QA
+observation was also fixed: the R5 behavioral test's previously vacuous
+`dispatchCount` now observes a real captured-request dispatch counter, with a
+negative control proving an unchanged scope does not clear and still dispatches.
 
 ## Correction round 1 (all three QA defects addressed)
 
@@ -44,7 +85,7 @@ New: `components/timetable/{timetableWorkspaceTruth.ts, timetableDriftRouting.ts
 timetableUndoRedoState.ts, timetableSwapArming.ts, timetableScopeHygiene.ts,
 TimetableUndoRedoControl.tsx, ScheduleReviewInputStateBanner.tsx,
 simple/SimpleDriftBanner.tsx, simple/SimpleMoreMenuContent.tsx}`;
-`lib/__tests__/timetable-dynamic-workspace-{publication,undo-redo,drift,capabilities-guard,scope-links,truth-fixes,rendered,behavioral}.test.ts`.
+`lib/__tests__/timetable-dynamic-workspace-{publication,undo-redo,drift,capabilities-guard,scope-links,truth-fixes,rendered,behavioral,r2-consumers}.test.ts`.
 
 Modified: `components/timetable/{ScheduleReviewWorkspace, ScheduleReviewWorkspaceHeader,
 ScheduleReviewWorkspaceOverlays, CenterWorkspace, TimetableSimpleHeader,
@@ -72,7 +113,7 @@ server file.
 |---|---|---|---|---|
 | R1 run-wide publish gate vs term display | `deriveRunWideReadiness(summary, violations)` → `headerContext.blockingHardCount` → capability/publication gate | summary blocking=1 + term-filtered display=0 ⇒ rendered publish block | `publication.test.ts` (8) + `rendered.test.ts` R1 (2) | PASS |
 | R1b F2 allowlist-aligned gate | `blockingHardCount` from `summary.blockingHardViolationCount`, fail-closed fallback | total hard=1 (legacy non-blocking), blocking=0 ⇒ publish not blocked | `publication.test.ts`, `rendered.test.ts` R1b | PASS |
-| R2 one strict publication predicate | `isRunPublishedStrict` in workspace/center/header | superseded fixture (`isPublished:false` + markers) renders not-published | `publication.test.ts` + `rendered.test.ts` R2 (2) | PASS |
+| R2 one strict publication predicate | `isDraftPublishedStrict` in both real consumers (`ScheduleReviewWorkspace.tsx:174`, `CenterWorkspace.tsx:361`) | superseded fixture must be not-published; reverting a consumer to the loose OR-marker predicate fails the consumer control | `publication.test.ts` + `rendered.test.ts` R2 + `r2-consumers.test.ts` (3, incl. mutant) | PASS |
 | R3 selected-class Swap is armed | `createSwapArmHandler` in the strip/More/details | source only re-set `activeSimpleTask` on base | `behavioral.test.ts` R3 (setters called once, `select-first`) | PASS |
 | R4 bounded Redo/history | `dispatchRedo`/`runAuthoritativeRevert`; `TimetableUndoRedoControl`; history revert | stale CAS dispatches **zero** requests | `behavioral.test.ts` R4 (3) + `undo-redo.test.ts` (8) | PASS |
 | R5 scope hygiene | `buildScopeKey`/`shouldClearForScopeChange`/`clearScopeState` | unchanged/initial scope does not clear; changed scope clears before dispatch | `behavioral.test.ts` R5 (4) + `scope-links.test.ts` | PASS |
@@ -113,8 +154,8 @@ and a mounted-route assertion; the portal-rendered click is a
 | `npm run test:timetable-sync-setup` | 6 / 6 pass, 0 fail |
 | ordered-term + day-scope substitute | 9 / 9 pass, 0 fail |
 | `useTeachingLoadRouteIntent` substitute | 21 / 21 pass, 0 fail |
-| new `timetable-dynamic-workspace-*` | 67 / 67 pass, 0 fail |
-| full tracked client inventory (50 tracked test files) | **395 / 395 pass, 0 fail, 0 cancelled, 0 skipped** |
+| new `timetable-dynamic-workspace-*` | 71 / 71 pass, 0 fail |
+| full tracked client inventory (51 tracked test files) | **399 / 399 pass, 0 fail, 0 cancelled, 0 skipped** |
 | `git diff --check` | clean (exit 0) |
 | staged-path audit | owned paths only |
 | `npm run test:timetable-conflict` | **BLOCKED(BASE_TEST_UNTRACKED_4794bd9e)** — `timetable-live-conflict.test.ts`, `tactical-sandbox-dock-helpers.test.ts` |
@@ -134,8 +175,11 @@ no Tailnet navigation performed.
 ## Risks
 
 - BLOCKING: none within the candidate range.
-- NON_BLOCKING: `NO_DOM_RENDER_HARNESS` limits rendered click assertions for Radix
-  portal content (menu/sheet entries); these are covered by behavioral + source controls.
+- NON_BLOCKING: `NO_DOM_RENDER_HARNESS` limits rendered assertions for the two R2
+  consumers (`ScheduleReviewWorkspace` uses a network hook at top level;
+  `CenterWorkspace` reads the viewport in a `useState` initializer) and for Radix
+  portal content (menu/sheet entries). Both are covered by the sanctioned
+  call-site binding + discrimination-mutant controls, not silent skips.
 - NON_BLOCKING: the Advanced Undo/Redo control is absolutely positioned top-right and
   may crowd very narrow headers.
 - NON_BLOCKING: D3 (`applyRunReconciliation`) and full archived read-only binding (D4)
