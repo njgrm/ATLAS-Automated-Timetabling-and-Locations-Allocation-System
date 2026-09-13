@@ -1,5 +1,39 @@
 # Changelog
 
+## [2026-09-13] — TT-SYNC-TERM-C03R5 Source-Freshness Binding + TL-SUGGESTION-C03R Integration
+
+### Fixed
+- Sync timetable setup now computes all synchronized entries, unassigned items,
+  violations, and resource diagnostics from ONE Serializable transaction-bound
+  read snapshot and compares the complete `GenerationInputSnapshot` fingerprint
+  inside the final Serializable write transaction before any write. Any covered
+  input change (rooms/buildings, grade-shift windows, scheduling policy,
+  subjects, class templates, sections, faculty mirrors, FacultySubject
+  qualification/scope, derived demand) now fails closed with typed
+  `SOURCE_AUTHORITY_STALE` and zero GenerationRun/audit/notification writes
+  instead of attaching a newer snapshot to output computed from older data.
+- The sync computation path no longer auto-syncs section mirrors or probes the
+  EnrollPro runtime inside the read snapshot; an empty active-section mirror
+  fails closed with a typed 409.
+
+### Changed
+- `loadRunContext`, `getSectionSummary`, and `getTemplatePeriodProfiles` accept
+  optional transaction-client/options parameters with unchanged defaults for
+  existing callers.
+
+### Added
+- Deterministic interleave controls (R5-A room capacity, R5-B FacultySubject
+  scope, R5-C grade-shift window), the `isInputSnapshotBound` mutant control,
+  the empty-mirror R5-D control, and the preserved A–I sync controls (16/16
+  disposable-PostgreSQL).
+
+### Integrated
+- TL-SUGGESTION-C03R (candidate `6eb3a3b0`) integrated via merge `027b3f65`;
+  TT-SYNC-TERM-C03R5 (candidate `5163a335`) integrated via merge `bbd6b0df` on
+  `integration/tt-tl-c03-cycle-20260913`. Combined gates green. Deployment of
+  this source remains a separate reviewed HIGH action; the shared runtime
+  remains `3d916b26`.
+
 ## [2026-09-12] — ACTOR-SCOPE-C01 Actor-School/Year Scope Closure + Deploy-as-Restore Packet
 
 ### Fixed
