@@ -1,5 +1,24 @@
 # Changelog
 
+## [2026-09-13] — Timetable Repair Authority and Term Preview Preflight
+
+### Added
+- Added a server-only `TT-TL-AUTHORITY-GUARD-C04` packet so the P0
+  actor-school and repair-authority defects can be corrected without waiting
+  for the overlapping Timetable client workspace lane.
+
+### Changed
+- Required raw EnrollPro reachability and ordered-contract probes before a
+  bounded term-cache preview login is consumed after an upstream outage.
+- Refreshed active C04 packet pins to the current canonical planner directive.
+
+### Decisions Made
+- The phantom reconciliation apply endpoint is retired rather than allowed to
+  return an audit-only success and fabricated run version.
+- The later Timetable Teaching Load module packet shall consume the corrected
+  server authority instead of keeping the security correction locked behind
+  client-file sequencing.
+
 ## [2026-09-13] — TT-DYNAMIC-AUDIT-C04 Audit Completion and Implementation Packets
 
 ### Added

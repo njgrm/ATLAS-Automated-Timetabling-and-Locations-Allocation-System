@@ -73,6 +73,18 @@ re-verify read-only immediately before the bounded session (§3).
 
 ## 4. Exact authorization sentence (copy-ready)
 
+### Mandatory re-capture preflight after an external outage
+
+Before consuming a new login authorization, the planner shall use the
+configured integration credential without displaying it to prove all of the
+following from the ATLAS host: `dev-jegs` is online in `tailscale status`, TCP
+port 5002 accepts a connection, and raw read-only
+`GET /integration/v1/school-year` plus `GET /integration/v1/active-term`
+complete successfully. If any check fails, return
+`EXTERNALLY_BLOCKED(ENROLLPRO_UNREACHABLE)` without opening a browser, logging
+in, or consuming the authorization. Do not treat an ATLAS typed 503 after login
+as a substitute for this zero-cost prerequisite gate.
+
 > I authorize exactly one bounded local login at the ATLAS Tailnet origin
 > https://njgrm.buru-degree.ts.net for a privileged QA custodian context, whose
 > only expected database mutation is one `LOCAL_LOGIN_SUCCESS` audit row plus

@@ -15,7 +15,7 @@ must not implement product changes.
 - Create a clean worktree from refreshed `origin/main`; do not use the dirty
   `D:/ATLAS` checkout as a write or integration boundary.
 - Canonical directive: `D:/ATLAS/AGENTS.md`, normalized SHA-256
-  `29C1BD0600937B18C9B387B7F0A71A464E7EE8F7BC15D8A12B14AEE9CB41F81E` at
+  `84047C3FCB54D78ED9DC71B8B009DE1209B15EE2D6BA317D73D2B3F2DD193149` at
   packet authoring time. Recompute and obey the current canonical file if it
   has legitimately advanced.
 - Read `docs/reference/atlas-runtime-source-of-truth-map.md`,

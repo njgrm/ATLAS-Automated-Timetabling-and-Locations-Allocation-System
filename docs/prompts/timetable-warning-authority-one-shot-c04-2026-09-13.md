@@ -11,7 +11,7 @@ Date authored: 2026-09-13 (Asia/Manila), from cycle TT-DYNAMIC-AUDIT-C04.
 ## 0. Governing references
 
 - `D:/ATLAS/AGENTS.md` (canonical directive; normalized SHA-256 at authoring
-  `29C1BD0600937B18C9B387B7F0A71A464E7EE8F7BC15D8A12B14AEE9CB41F81E`).
+  `84047C3FCB54D78ED9DC71B8B009DE1209B15EE2D6BA317D73D2B3F2DD193149`).
 - `docs/reference/timetable-dynamic-workspace-and-warning-contract.md` §6.
 - `docs/audits/timetable-dynamic-workspace-audit-2026-09-13.md` findings
   C-01…C-16, CP-5/CP-6, and the server half of CP-2 (B-11 publication

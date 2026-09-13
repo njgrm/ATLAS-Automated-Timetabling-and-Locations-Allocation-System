@@ -12,7 +12,7 @@ Status: `READY_TO_DISPATCH`
 - At packet authoring, `origin/main` is
   `a8fe0dfa`; refresh before dispatch and report the actual base.
 - Canonical directive: `D:/ATLAS/AGENTS.md`, LF-normalized SHA-256
-  `29C1BD0600937B18C9B387B7F0A71A464E7EE8F7BC15D8A12B14AEE9CB41F81E`.
+  `84047C3FCB54D78ED9DC71B8B009DE1209B15EE2D6BA317D73D2B3F2DD193149`.
   Recompute and obey the current canonical file if it legitimately advanced.
 - Read `docs/reference/atlas-runtime-source-of-truth-map.md` and
   `docs/plans/atlas-active-delivery-streams.md` before work.
