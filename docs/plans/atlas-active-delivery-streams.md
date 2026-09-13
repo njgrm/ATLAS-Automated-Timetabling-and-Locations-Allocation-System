@@ -16,6 +16,20 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
+- Cycle recovery: `tt-dynamic-audit-c04` (`REVIEW_REQUIRED` — docs candidate
+  frozen, wave-completion audit pending) activated 2026-09-13 (Asia/Manila) by
+  the operator (`CYCLE ON`) for the read-only audit packet
+  `docs/prompts/timetable-dynamic-workspace-audit-planner-cycle-2026-09-13.md`.
+  Planner worktree `D:\ATLAS-worktrees\planner-tt-dynamic-audit-c04`, branch
+  `codex/tt-dynamic-audit-c04`, docs base `e0a10ebc`. Three read-only audit
+  lanes completed (A `ses_f6542af30ffekz7dBallM2PtL9`, B
+  `ses_f6542960bffe0TFEV47qvtiilR`, C `ses_f65427af3ffeK1z3rFBsZQQ1iY`;
+  tallies 15/9/6/0, 14/12/1/1, 11/9/1/1); planner verified the P0/P1 claims,
+  authored the contract, audit, and three implementation packets, and updated
+  this register. Browser-only rows are
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` (no reusable session; no login
+  performed or authorized). No product/runtime/data mutation. Next: one fresh
+  Wave Completion Auditor on the frozen docs candidate, then a docs-only push.
 - Cycle recovery: `tt-tl-runtime-acceptance-20260912` (DEPLOYED_ACCEPTANCE_INCOMPLETE) activated
   2026-09-12 (Asia/Manila) by the operator (`CYCLE ON`) for the packet
   `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`: deploy target
@@ -370,6 +384,11 @@ hard blockers before separately approving publication.
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01`; `89440321...23eae7de`; integration merge `618589dc` | Live preview requires deployed demand authority and synced year-9 terms; apply remains separately gated | Independent QA ACCEPT_READY: reproduced 8/8 authority+mutant, 11/11 client helpers, 60/60 disposable-PostgreSQL mounted-route, server/client type-checks+builds, health 200 on a live built process; the pre-existing `teaching-load-reconciliation-route.test.ts` failure reproduced identically on base and candidate; only `CHANGELOG.md` conflicted (docs-only union) | Closed in source at `origin/main` `618589dc`; do not invoke carry-forward apply without a separate reviewed preview and explicit HIGH approval |
 | TL-RR01R | Correct integrated carry-forward grade authority, workload-policy gating, and actor identity | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01r`; `95ceedf9...f66ca392`; merge `8f210d7c` | Live apply remains separately gated | Fresh independent QA ACCEPT_READY: 12/12 authority incl. displayOrder mutants; 87/87 disposable-PostgreSQL mounted suite; tsc/build; active DB untouched; integration reproduced 87/87 on the merged tree plus a built-server mount probe | Closed in source; live preview requires the bounded runtime deployment and year-9 term sync; apply requires its own reviewed preview and explicit HIGH approval |
 | GEN-C02R1 | Consume one shared passive preflight in readiness and the real generation trigger; prove stakeholder shape and nonuniform rotation | `INTEGRATED` | MEDIUM source; HIGH generation | `integration/readiness-20260911`; `6f7b3c52...b1348113`; merge `c3744dc6` | None | Fresh independent QA ACCEPT_READY (5/5 production-trigger, 12/12 stakeholder shape, 7/7 rotation, 5/5 actor scope, 14/14 canonical, 1/1 disposable-PostgreSQL zero-write; tsc/build/startup/diff-check); integration gates reproduced on the merged tree | Closed in source; do not run live generation without its separate fingerprinted preview and explicit HIGH approval |
+| TT-DYNAMIC-AUDIT-C04 | Determine the target architecture and next implementation waves for a dynamic Timetable workspace via three read-only audit lanes | `REVIEW_REQUIRED` (docs candidate; wave audit pending) | LOW docs-only | `codex/tt-dynamic-audit-c04`; base `e0a10ebc`; candidate pending commit | Wave-completion audit must clear before push | Contract, audit, and three packets authored; lanes A/B/C tallies 15/9/6/0, 14/12/1/1, 11/9/1/1; P0s C-02 (term-blind grouping) and B-01 (TL route actor-school) planner-verified; browser rows `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` | Commission one fresh Wave Completion Auditor on the frozen docs candidate; on `AUDIT_CLEAR`, push docs-only |
+| TT-DYNAMIC-WORKSPACE-C04 | One Simple-first Timetable workspace: truthful modes/status/undo/redo/history, capability-model guards, source-drift visibility, dead-link and state-hygiene fixes | `PLANNED` (packet ready) | MEDIUM source; HIGH interaction guardrails | Packet `docs/prompts/timetable-dynamic-workspace-one-shot-c04-2026-09-13.md`; worktree not created | None; parallel lane with TT-WARNING-AUTHORITY-C04 | Authored from audit findings A-01…A-19; exclusive path list in packet | Dispatch a fresh executor from the pushed audit tip after this cycle closes |
+| TT-WARNING-AUTHORITY-C04 | Retire false metric travel, add building/floor semantics, decouple policy families, promotion allowlist, term-aware grouping, context/label parity | `PLANNED` (packet ready) | MEDIUM full-stack; HIGH publication implications | Packet `docs/prompts/timetable-warning-authority-one-shot-c04-2026-09-13.md`; worktree not created | None; parallel lane with TT-DYNAMIC-WORKSPACE-C04 | Authored from findings C-01…C-16; exclusive path list in packet | Dispatch a fresh executor from the pushed audit tip after this cycle closes |
+| TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards | `LOCKED` | MEDIUM source; HIGH write guards | Packet `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md`; worktree not created | Unlocks after TT-DYNAMIC-WORKSPACE-C04 integrates; class 5 blocked on decision D1 | Authored from findings B-01/B-07/B-15/CP-8; locked by design | Wait for S1 integration; resolve D1 before the availability module |
+| TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots and surface ordered-term authority in run freshness | `PLANNED` (registered successor; scope in contract §7) | MEDIUM server source; HIGH generation | No packet yet; scope defined in the contract | After TT-WARNING-AUTHORITY-C04 (shared server files) and coordinated with TT-TL-MODULES-C04 (TL repair binding) | Findings B-03/B-04/B-06(server)/B-09/B-13(server); binding pattern at `timetable-sync-setup.service.ts:689-731` | Author the packet after S2 integration; do not dispatch before |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
 
@@ -447,9 +466,29 @@ hard blockers before separately approving publication.
    action is unlocked by this closure; the shared runtime remains `3d916b26`
    and the new source is NOT deployed — runtime deployment remains a separate
    HIGH approval.
+10. `tt-dynamic-audit-c04` is the active docs cycle. After `AUDIT_CLEAR` and the
+    docs push, dispatch the two parallel source lanes from the pushed tip: S1
+    `TT-DYNAMIC-WORKSPACE-C04` and S2 `TT-WARNING-AUTHORITY-C04` (disjoint file
+    boundaries; see each packet). S3 `TT-TL-MODULES-C04` stays `LOCKED` until S1
+    integrates and D1 resolves; S4 `TT-SOURCE-FRESHNESS-C04` is a registered
+    successor that must not start before S2 integrates.
+11. Operator decisions D1–D6 (contract §7) gate: S3 class 5 (D1), anchor
+    disclosure (D2), reconciliation endpoint retirement (D3), archived-mode
+    scope (D4), sync pin semantics (D5), room-capacity asymmetry confirmation
+    (D6). None of them blocks S1/S2 dispatch.
+12. Existing runtime/data gates are unchanged: the shared runtime remains
+    release `3d916b26`; term-cache catch-up preview/apply, Teaching Load apply,
+    generation, publication, deployment, and migration remain separately gated
+    HIGH actions and are not authorized by this cycle.
 
 ## Safe parallel work now
 
+- The two audit-derived source lanes are packet-ready but not dispatched:
+  `TT-DYNAMIC-WORKSPACE-C04` (client shell; owned paths in its packet) and
+  `TT-WARNING-AUTHORITY-C04` (validator/policy/read-model + warning labels).
+  They may run in parallel with genuinely disjoint file boundaries only after
+  this audit cycle's docs push. Neither may touch the shared runtime, live
+  database, TL apply, generation, publication, or the other lane's files.
 - The TT/TL switch completed: release `3d916b26` serves the supervisor-owned
   5001/5174 (supervisor 44336; rollback = supervised reset to `9d293879`;
   `d44f29e0` is a manual non-supervised last resort only); no stream is
@@ -494,6 +533,19 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
 
 ## Awaited returns and decisions
 
+- `tt-dynamic-audit-c04`: the one awaited return is the fresh Wave Completion
+  Auditor over the frozen docs candidate (contract, audit, three packets,
+  register, CHANGELOG). Its verdict + capsule close this cycle; on
+  `CORRECTION_REQUIRED` the planner applies at most two bounded docs-only
+  correction rounds and re-audits. No product executor is running.
+- Operator decisions recorded for the successor lanes: D1 availability
+  authority; D2 prior-run anchor re-application; D3 `applyRunReconciliation`
+  retirement vs implementation; D4 archived-mode scope; D5 sync teacher-pin
+  semantics; D6 room-capacity asymmetry confirmation. Only D1 blocks a module
+  inside the locked S3 packet; none blocks S1/S2 dispatch.
+- Authenticated browser acceptance for the audit's browser-only rows remains
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; it belongs to a later approved
+  post-deployment acceptance session, not to this cycle.
 - No DEMAND executor return remains. DEMAND-C01R2 is integrated at `b96caf40`.
 - All three readiness-wave candidates passed fresh QA and are integrated. No
   executor or QA return remains for this wave.

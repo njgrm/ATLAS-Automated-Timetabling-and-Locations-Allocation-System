@@ -1,5 +1,50 @@
 # Changelog
 
+## [2026-09-13] — TT-DYNAMIC-AUDIT-C04 Audit Completion and Implementation Packets
+
+### Added
+- Added the durable contract
+  `docs/reference/timetable-dynamic-workspace-and-warning-contract.md` (target
+  operating model, Simple/Advanced capability matrix, lifecycle-mode contract,
+  save/undo/redo/history semantics, Teaching Load module boundary, warning
+  retirement decisions, successor-stream registry).
+- Added the consolidated audit
+  `docs/audits/timetable-dynamic-workspace-audit-2026-09-13.md` from three
+  read-only lanes (click-path/state, dynamic lifecycle/TL authority, warning
+  provenance) with planner independent verification, severity ranking,
+  root-cause clusters, test gaps, merge forecast, and blocked browser rows.
+- Added three implementation packets:
+  `docs/prompts/timetable-dynamic-workspace-one-shot-c04-2026-09-13.md` (S1),
+  `docs/prompts/timetable-warning-authority-one-shot-c04-2026-09-13.md` (S2),
+  `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md`
+  (S3, locked).
+
+### Changed
+- The living register now carries the audit cycle, the three packet streams,
+  and the registered `TT-SOURCE-FRESHNESS-C04` successor with ownership,
+  dependencies, and locked successors.
+
+### Decisions Made
+- P0 findings: term-blind soft-check grouping fabricates a HARD daily-max and
+  blocks publication/manual edits (C-02); Timetable Teaching Load repair routes
+  lack actor-school authority (B-01).
+- `FACULTY_EXCESSIVE_TRAVEL_DISTANCE` is retired from active behavior (no
+  producer, no operator control, never promotable); replacement is
+  identity-based building/floor transition semantics on `Room.floor`.
+- Unreliable warnings can never become hard publication blockers; a server-side
+  promotion allowlist is required, and every faculty/day or section/day
+  calculation must be term-aware.
+- One Simple-first workspace with truthful per-action persistence status; Redo
+  is only ever an authoritative re-dispatch, never a client-only replay.
+
+### Open Questions
+- D1 availability authority, D2 anchor re-application, D3 reconciliation
+  endpoint, D4 archived-mode scope, D5 sync pin semantics, D6 room-capacity
+  asymmetry confirmation.
+- Authenticated browser acceptance for all three lanes remains
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)` and moves to post-deployment
+  acceptance; no login is authorized by this cycle.
+
 ## [2026-09-13] — Teaching Load Canonical-Demand Correction Packet
 
 ### Added

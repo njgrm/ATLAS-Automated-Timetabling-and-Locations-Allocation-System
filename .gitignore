@@ -49,6 +49,8 @@ docs/verification/*
 !docs/verification/sca-03e-r2-semantic-revision-planner-manifest-2026-09-08.json.sha256
 !docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json
 !docs/verification/atlas-core-integration-rc01-planner-manifest-2026-09-09.json.sha256
+!docs/audits/
+!docs/audits/**
 mcp-servers/
 SMART/
 SSE-PLAN/
