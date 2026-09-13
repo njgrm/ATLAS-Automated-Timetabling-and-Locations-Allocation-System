@@ -126,6 +126,38 @@ const WELLBEING_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_LATE_END_PREFERENCE',
 ]);
 
+/**
+ * Resolve a readable violation label. An unknown/legacy code must never throw;
+ * it degrades to a humanised code string (R7).
+ */
+export function resolveViolationLabel(code: string): string {
+	const known = VIOLATION_LABELS[code as ViolationCode];
+	return known ?? code.replace(/_/g, ' ').toLowerCase();
+}
+
+/** Search predicate shared by the violation rail (guarded label lookup). */
+export function matchesViolationSearch(violation: Violation, query: string): boolean {
+	const q = query.trim().toLowerCase();
+	if (!q) return true;
+	return violation.message.toLowerCase().includes(q)
+		|| violation.code.toLowerCase().includes(q)
+		|| resolveViolationLabel(violation.code).toLowerCase().includes(q);
+}
+
+/**
+ * R7/A-01: the publish gate consumes the run-wide authoritative hard count when
+ * the server provides it; the selected-term display list remains the fallback
+ * only for older payloads.
+ */
+export function resolveHardViolationCount(
+	report: { counts?: { runWide?: { hard?: number } } } | null | undefined,
+	violations: Violation[],
+): number {
+	const runWideHard = report?.counts?.runWide?.hard;
+	if (typeof runWideHard === 'number') return runWideHard;
+	return violations.filter((violation) => violation.severity === 'HARD').length;
+}
+
 const TIMETABLE_CACHE_TTL_MS = 120000;
 
 type CachedReferenceData = {
@@ -520,13 +552,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		else if (severityFilter === 'wellbeing') filtered = filtered.filter((v) => WELLBEING_CODES.has(v.code));
 
 		if (violationSearch.trim()) {
-			const q = violationSearch.toLowerCase();
-			filtered = filtered.filter(
-				(v) =>
-					v.message.toLowerCase().includes(q)
-					|| v.code.toLowerCase().includes(q)
-					|| (VIOLATION_LABELS[v.code] ?? v.code.replace(/_/g, ' ').toLowerCase()).toLowerCase().includes(q),
-			);
+			filtered = filtered.filter((v) => matchesViolationSearch(v, violationSearch));
 		}
 
 		return filtered;
@@ -543,15 +569,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [filteredViolations]);
 
 	// R7/A-01: the publish gate must consume run-wide truth while the rail keeps
-	// rendering the selected-term display list. Prefer the server's documented
-	// run-wide hard count; fall back to the term-scoped list only for older
-	// servers that do not yet return it.
-	const runWideHardCount = violationReport?.counts?.runWide?.hard;
+	// rendering the selected-term display list.
 	const hardViolationCount = useMemo(
-		() => (typeof runWideHardCount === 'number'
-			? runWideHardCount
-			: violations.filter((v) => v.severity === 'HARD').length),
-		[runWideHardCount, violations],
+		() => resolveHardViolationCount(violationReport, violations),
+		[violationReport, violations],
 	);
 
 	const topBlockers = useMemo(() => {
