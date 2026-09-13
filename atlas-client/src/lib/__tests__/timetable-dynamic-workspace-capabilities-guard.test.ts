@@ -40,6 +40,13 @@ test('R7 setup-sync impact review is reachable from Simple', () => {
 	assert.match(source('src/components/timetable/simple/SimpleDriftBanner.tsx'), /SetupImpactDialog/);
 });
 
+test('R7 Simple links to policy editing without duplicating the Advanced editor', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /data-testid="timetable-more-policy"/);
+	assert.match(header, /context\.enterPolicyView/);
+	assert.match(header, /onLayoutModeChange\('advanced'\)/);
+});
+
 // --- R9 A-12 Advanced Requests expands the collapsed rail ---
 
 test('R9/A-12 Advanced Requests expands the left rail instead of only setting the tab', () => {

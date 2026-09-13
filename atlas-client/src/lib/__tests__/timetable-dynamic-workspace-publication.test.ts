@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -82,4 +84,29 @@ test('R2 marker-only summaries are never treated as published', () => {
 	assert.equal(isRunPublishedStrict({ publishedBy: 4 }), false);
 	assert.equal(isRunPublishedStrict(null), false);
 	assert.equal(isRunPublishedStrict(undefined), false);
+});
+
+// --- Production-shape parity: the client consumer reads the real run-wide producer fields ---
+
+test('production-shape parity: run-wide counts come from the persisted run summary producer', () => {
+	const clientRoot = resolve(import.meta.dirname, '../../..');
+	const serverRoot = resolve(clientRoot, '../atlas-server');
+	const generation = readFileSync(resolve(serverRoot, 'src/services/generation.service.ts'), 'utf8');
+	// Real producer: generation persists run-wide hard and soft counts on the run summary.
+	assert.match(generation, /hardViolationCount: mergedValidationResult\.violations\.filter\(\(v\) => v\.severity === 'HARD'\)\.length/);
+	assert.match(generation, /softViolationCount: mergedValidationResult\.violations\.filter\(\(violation\) => violation\.severity === 'SOFT'\)\.length/);
+
+	// Real consumer: the workspace gate reads those run-wide summary fields.
+	const state = readFileSync(resolve(clientRoot, 'src/hooks/useScheduleReviewWorkspaceState.ts'), 'utf8');
+	assert.match(state, /deriveRunWideReadiness\(summary, violations\)/);
+	assert.match(state, /const hardCount = runWideReadiness\.hardCount/);
+	assert.match(state, /const softCount = runWideReadiness\.softCount/);
+
+	// Conservation: the term-scoped display array is passed through unchanged as the
+	// fallback only, so no display identity is dropped or reassigned.
+	const display: Violation[] = [violation('SOFT', 'ROOM_TIME_CONFLICT')];
+	const readiness = deriveRunWideReadiness(summary({ hardViolationCount: 2, softViolationCount: 5 }), display);
+	assert.equal(readiness.hardCount, 2);
+	assert.equal(readiness.softCount, 5);
+	assert.equal(display.length, 1, 'display identities are untouched by the gate derivation');
 });

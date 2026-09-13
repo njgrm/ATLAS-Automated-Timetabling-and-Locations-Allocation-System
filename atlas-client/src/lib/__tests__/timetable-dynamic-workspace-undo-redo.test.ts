@@ -66,8 +66,7 @@ test('R4 Advanced and Simple both render a visible Undo/Redo/History control', (
 	assert.match(control, /data-testid="timetable-visible-history"/);
 });
 
-test('R4 history shows actor/time/type/counts with a per-row revert affordance', () => {
-	const dialogs = source('src/components/timetable/modals/TimetableAssignmentDialogs.tsx');
+test('R4 history shows actor/time/type/counts with a per-row revert affordance', () => {	const dialogs = source('src/components/timetable/modals/TimetableAssignmentDialogs.tsx');
 	assert.match(dialogs, /edit\.actorId/);
 	assert.match(dialogs, /edit\.editType/);
 	assert.match(dialogs, /new Date\(edit\.createdAt\)/);
@@ -75,4 +74,16 @@ test('R4 history shows actor/time/type/counts with a per-row revert affordance',
 	assert.match(dialogs, /timetable-edit-history-revert/);
 	// Only the head edit can be reverted; the server CAS rejects older ones.
 	assert.match(dialogs, /Only the latest edit can be reverted/);
+});
+
+test('R4 pre-generation placement undo arms the same operation-bound route', () => {
+	const state = source('src/hooks/useScheduleReviewWorkspaceState.ts');
+	const workspace = source('src/components/timetable/ScheduleReviewWorkspace.tsx');
+	// The pre-gen placement commit captures the operation id + resulting version.
+	assert.match(state, /wrappedCommitPreGenPending/);
+	assert.match(state, /setLastAutoSaveUndo\(\{/);
+	assert.match(state, /editId: result\.operationId/);
+	assert.match(state, /newVersion: result\.resultingVersion/);
+	// The shared strip reverts that exact operation with its CAS version.
+	assert.match(workspace, /revertEditById\(state\.lastAutoSaveUndo!\.editId, state\.lastAutoSaveUndo!\.newVersion\)/);
 });

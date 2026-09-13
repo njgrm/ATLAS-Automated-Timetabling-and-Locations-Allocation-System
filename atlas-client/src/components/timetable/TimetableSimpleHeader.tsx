@@ -545,6 +545,20 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 										<History className="size-3.5" aria-hidden="true" />
 										Edit history
 									</DropdownMenuItem>
+									{/* R7 — policy editing stays Advanced; Simple exposes the link. */}
+									<DropdownMenuItem
+										className="h-9 gap-2 text-xs"
+										onSelect={(event) => {
+											event.preventDefault();
+											setMoreOpen(false);
+											onLayoutModeChange('advanced');
+											window.requestAnimationFrame(() => context.switchCenterViewWithGuard(context.enterPolicyView));
+										}}
+										data-testid="timetable-more-policy"
+									>
+										<Settings2 className="size-3.5" aria-hidden="true" />
+										Scheduling policy (Advanced)
+									</DropdownMenuItem>
 									<DropdownMenuItem
 										className="h-9 gap-2 text-xs"
 										onSelect={(event) => { event.preventDefault(); setMoreOpen(false); onLayoutModeChange('advanced'); }}
