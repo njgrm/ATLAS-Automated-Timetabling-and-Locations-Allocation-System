@@ -29,6 +29,9 @@ import {
 	upsertPolicy,
 } from '../services/scheduling-policy.service.js';
 import { countBlockingHardViolations } from '../services/publication-contract.service.js';
+import { buildViolationReport } from '../services/generation.service.js';
+import { buildPreflightValidatorContext } from '../services/generation-preflight.service.js';
+import { buildPreGenerationValidatorContext } from '../services/pre-generation-draft.service.js';
 import {
 	assertRunIsEditable,
 	buildValidatorCtx,
@@ -597,6 +600,171 @@ test('R6 mutant: raw maxHoursPerWeek hides the same overload', () => {
 	});
 	const result = validateHardConstraints(rawContext);
 	assert.equal(result.violations.filter((v) => v.code === 'FACULTY_OVERLOAD').length, 0);
+});
+
+// ─── R6 cross-surface parity: generation / manual / pre-gen ──────────────────
+
+const PARITY_POLICY = {
+	maxConsecutiveTeachingMinutesBeforeBreak: 120,
+	minBreakMinutesAfterConsecutiveBlock: 15,
+	maxTeachingMinutesPerDay: 480,
+	earliestStartTime: '06:00',
+	latestEndTime: '18:30',
+	enforceConsecutiveBreakAsHard: true,
+	enableTravelWellbeingChecks: true,
+	maxBuildingTransitionsPerDay: 1,
+	maxBackToBackTransitionsWithoutBuffer: 0,
+	maxIdleGapMinutesPerDay: 30,
+	avoidEarlyFirstPeriod: false,
+	avoidLateLastPeriod: false,
+	enableVacantAwareConstraints: false,
+	targetFacultyDailyVacantMinutes: 60,
+	targetSectionDailyVacantPeriods: 1,
+	maxCompressedTeachingMinutesPerDay: 300,
+	constraintConfig: {},
+};
+
+function parityReference() {
+	const rooms = [
+		{ id: 10, type: 'CLASSROOM' as const, capacity: 50, features: [] as string[], floor: 1, buildingId: 1 },
+		{ id: 12, type: 'CLASSROOM' as const, capacity: 50, features: [] as string[], floor: 4, buildingId: 1 },
+		{ id: 11, type: 'LABORATORY' as const, capacity: 40, features: ['SINK'] as string[], floor: 2, buildingId: 2 },
+	];
+	const subjects = [
+		{ id: 100, preferredRoomType: 'LABORATORY' as const, requiredFeatures: ['SINK'] as string[] },
+		{ id: 101, preferredRoomType: 'CLASSROOM' as const, requiredFeatures: [] as string[] },
+	];
+	const faculty = [{ id: 1, maxHoursPerWeek: 10, ancillaryMinutesPerWeek: 300 }];
+	const facultySubjects = [
+		{ facultyId: 1, subjectId: 100, sectionIds: [200] },
+		{ facultyId: 1, subjectId: 101, sectionIds: [200] },
+	];
+	const sectionEnrollment = new Map([[200, 45]]);
+	const sectionsByGrade = [{
+		gradeLevelId: 17,
+		gradeLevelName: 'Grade 7',
+		displayOrder: 7,
+		sections: [{ mirrorId: 1, id: 200, name: '7-A', maxCapacity: 50, enrolledCount: 45, gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR' }],
+	}];
+	const buildings = [{ id: 1 }, { id: 2 }];
+	// Representative schedule: feature mismatch, cross-floor transition, idle gap,
+	// and an effective-hours overload — all carrying explicit term identity.
+	const entries: ScheduledEntry[] = [
+		entry({ entryId: 'p-feat', facultyId: 1, roomId: 10, day: 'MONDAY', startTime: '08:00', endTime: '08:45', subjectId: 100, termIndex: 1 }),
+		entry({ entryId: 'p-floor-a', facultyId: 1, roomId: 10, day: 'TUESDAY', startTime: '08:00', endTime: '08:45', subjectId: 101, termIndex: 2 }),
+		entry({ entryId: 'p-floor-b', facultyId: 1, roomId: 12, day: 'TUESDAY', startTime: '08:49', endTime: '09:34', subjectId: 101, termIndex: 2 }),
+		entry({ entryId: 'p-idle-a', facultyId: 1, roomId: 10, day: 'WEDNESDAY', startTime: '08:00', endTime: '08:45', subjectId: 101, termIndex: 3 }),
+		entry({ entryId: 'p-idle-b', facultyId: 1, roomId: 10, day: 'WEDNESDAY', startTime: '09:30', endTime: '10:15', subjectId: 101, termIndex: 3 }),
+		...[
+			['08:00', '08:45'], ['08:45', '09:30'], ['09:30', '10:15'], ['10:15', '11:00'],
+			['11:00', '11:45'], ['11:45', '12:30'], ['12:30', '13:15'],
+		].map(([startTime, endTime], index) => entry({
+			entryId: `p-load-${index}`,
+			facultyId: 1,
+			roomId: 10,
+			day: 'THURSDAY',
+			startTime,
+			endTime,
+			subjectId: 101,
+			termIndex: 3,
+		})),
+	];
+	return { rooms, subjects, faculty, facultySubjects, sectionEnrollment, sectionsByGrade, buildings, entries };
+}
+
+function violationMultiset(context: ValidatorContext): string[] {
+	return validateHardConstraints(context).violations
+		.map((violation) => `${violation.code}:${violation.severity}`)
+		.sort();
+}
+
+function buildParityContexts(overrides: { generationSubjects?: unknown[] } = {}) {
+	const ref = parityReference();
+	const subjects = (overrides.generationSubjects ?? ref.subjects);
+
+	const generationCtx = buildPreflightValidatorContext(
+		{
+			scope: { schoolId: SCHOOL, schoolYearId: YEAR },
+			faculty: ref.faculty,
+			facultySubjects: ref.facultySubjects,
+			rooms: ref.rooms,
+			subjects,
+			sectionsByGrade: ref.sectionsByGrade,
+			policyRow: PARITY_POLICY,
+			policy: { present: true, id: 1, periodLengthMinutes: 45, periodsPerDay: 10 },
+			buildings: ref.buildings,
+		} as unknown as Parameters<typeof buildPreflightValidatorContext>[0],
+		ref.entries,
+		RUN,
+	);
+
+	const manualCtx = buildValidatorCtx(SCHOOL, YEAR, RUN, ref.entries, manualRefData({
+		faculty: ref.faculty,
+		facultySubjects: ref.facultySubjects.map((fs) => ({ ...fs, gradeLevels: [7] })),
+		rooms: ref.rooms.map((room) => ({ ...room, isTeachingSpace: true, isSharedFacility: false, buildingGradeScope: [7], building: { gradeScope: [7] } })),
+		subjects: ref.subjects.map((subject) => ({ ...subject, code: 'SUB', minMinutesPerWeek: 225, gradeLevels: [7] })),
+		sectionEnrollment: ref.sectionEnrollment,
+		sectionGradeLevel: new Map([[200, 7]]),
+		policyRecord: PARITY_POLICY,
+		buildings: ref.buildings,
+	}));
+
+	const preGenCtx = buildPreGenerationValidatorContext(SCHOOL, YEAR, ref.entries, {
+		facultyRefs: ref.faculty,
+		facultySubjects: ref.facultySubjects,
+		rooms: ref.rooms,
+		subjects: ref.subjects,
+		sectionEnrollment: ref.sectionEnrollment,
+		policyRecord: PARITY_POLICY,
+		buildings: ref.buildings,
+	});
+
+	return { generationCtx, manualCtx, preGenCtx };
+}
+
+test('R6 parity: generation, manual, and pre-gen contexts produce identical {code,severity} multisets', () => {
+	const { generationCtx, manualCtx, preGenCtx } = buildParityContexts();
+	const generation = violationMultiset(generationCtx);
+	const manual = violationMultiset(manualCtx);
+	const preGen = violationMultiset(preGenCtx);
+
+	// The fixture must be non-trivial: several codes fire, including the new ones.
+	assert.ok(generation.some((row) => row.startsWith('ROOM_FEATURE_MISMATCH:')), 'fixture must exercise features');
+	assert.ok(generation.some((row) => row.startsWith('FACULTY_FLOOR_TRANSITION:')), 'fixture must exercise floors');
+	assert.ok(generation.some((row) => row.startsWith('FACULTY_OVERLOAD:')), 'fixture must exercise effective hours');
+	assert.deepEqual(manual, generation, 'manual context must match generation');
+	assert.deepEqual(preGen, generation, 'pre-gen context must match generation');
+});
+
+test('R6 parity mutant: dropping requiredFeatures from the generation leg breaks the parity assertion', () => {
+	const { generationCtx, manualCtx } = buildParityContexts({
+		generationSubjects: parityReference().subjects.map((subject) => ({ ...subject, requiredFeatures: [] })),
+	});
+	assert.notDeepEqual(violationMultiset(generationCtx), violationMultiset(manualCtx), 'the parity control is load-bearing');
+});
+
+// ─── F2: run-wide publication-blocking count ─────────────────────────────────
+
+test('F2: buildViolationReport exposes run-wide blockingHard from the allowlist only', () => {
+	const makeViolation = (code: string, severity: 'HARD' | 'SOFT') => ({
+		code, severity, message: code, schoolId: SCHOOL, schoolYearId: YEAR, runId: RUN, entities: {},
+	});
+	const report = buildViolationReport({
+		id: RUN,
+		status: 'COMPLETED',
+		draftEntries: [],
+		summary: {},
+		violations: [
+			makeViolation('FACULTY_EXCESSIVE_TRAVEL_DISTANCE', 'HARD'),
+			makeViolation('FACULTY_TIME_CONFLICT', 'HARD'),
+			makeViolation('ROOM_FEATURE_MISMATCH', 'HARD'),
+			makeViolation('FACULTY_FLOOR_TRANSITION', 'SOFT'),
+		],
+	}, undefined);
+	assert.equal(report.counts.scope, 'RUN_WIDE');
+	assert.equal(report.counts.runWide.hard, 3, 'hard counts every HARD severity for display');
+	assert.equal(report.counts.runWide.blockingHard, 2, 'blockingHard counts only allowlisted codes');
+	assert.equal(report.counts.runWide.total, 4);
 });
 
 // ─── R9: strict publication predicate (B-11 server half) ─────────────────────

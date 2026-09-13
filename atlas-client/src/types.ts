@@ -1053,6 +1053,8 @@ export interface RunSummary {
 	homeRoomSuccessRate?: number;
 	policyBlockedCount: number;
 	hardViolationCount: number;
+	/** HARD violations that may block publication (server allowlist only). */
+	blockingHardViolationCount?: number;
 	prePlacedCount?: number;
 	invalidPrePlacedCount?: number;
 	skippedPrePlacedReasons?: string[];
@@ -1196,6 +1198,8 @@ export interface ViolationReport {
 		runWide?: {
 			total: number;
 			hard: number;
+			/** HARD violations on the server publication allowlist. */
+			blockingHard?: number;
 			soft: number;
 			byCode: Record<string, number>;
 		};

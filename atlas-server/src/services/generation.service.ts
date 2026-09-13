@@ -51,6 +51,7 @@ import {
 } from './generation-input-snapshot.service.js';
 import { assertActiveSchoolYearForGeneration } from './school-year-drift-guard.service.js';
 import { CANONICAL_TEMPLATE_VERSION } from './class-program-slot.service.js';
+import { isPromotableConstraintCode } from './scheduling-policy.service.js';
 
 // ─── Helpers ───
 
@@ -219,6 +220,13 @@ export interface RunSummary {
 	homeRoomSuccessRate?: number;
 	policyBlockedCount: number;
 	hardViolationCount: number;
+	/**
+	 * Run-wide HARD violations that may actually block publication, i.e. only
+	 * codes on the server-owned promotable allowlist (R4/F2). Always <=
+	 * `hardViolationCount`. `hardViolationCount` remains the unfiltered display
+	 * count.
+	 */
+	blockingHardViolationCount?: number;
 	prePlacedCount?: number;
 	invalidPrePlacedCount?: number;
 	skippedPrePlacedReasons?: string[];
@@ -822,6 +830,7 @@ export async function triggerGenerationRun(
 			homeRoomSuccessRate: homeRoomStats.successRate,
 			policyBlockedCount: result.policyBlockedCount,
 			hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
+			blockingHardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD' && isPromotableConstraintCode(v.code)).length,
 			prePlacedCount: preGenerationDrafts.prePlacedCount,
 			invalidPrePlacedCount: preGenerationDrafts.invalidPrePlacedCount,
 			skippedPrePlacedReasons: preGenerationDrafts.skippedPrePlacedReasons.length > 0 ? preGenerationDrafts.skippedPrePlacedReasons : undefined,
@@ -1377,13 +1386,15 @@ export interface ViolationReport {
 		runWide: {
 			total: number;
 			hard: number;
+			/** HARD violations on the server publication allowlist (the real gate). */
+			blockingHard: number;
 			soft: number;
 			byCode: Record<string, number>;
 		};
 	};
 }
 
-function buildViolationReport(
+export function buildViolationReport(
 	run: { id: number; status: string; violations: unknown; summary: unknown; draftEntries: unknown },
 	resolvedTermIndex: number | undefined,
 ): ViolationReport {
@@ -1410,12 +1421,14 @@ function buildViolationReport(
 			total: violations.length,
 			byCode: displayByCode,
 			scope: resolvedTermIndex === undefined ? 'RUN_WIDE' : 'SELECTED_TERM',
-			runWide: {
-				total: allViolations.length,
-				hard: allViolations.filter((violation) => violation.severity === 'HARD').length,
-				soft: allViolations.filter((violation) => violation.severity === 'SOFT').length,
-				byCode: runWideByCode,
-			},
+		runWide: {
+			total: allViolations.length,
+			hard: allViolations.filter((violation) => violation.severity === 'HARD').length,
+			/** HARD violations on the publication allowlist — the real gate count. */
+			blockingHard: allViolations.filter((violation) => violation.severity === 'HARD' && isPromotableConstraintCode(violation.code)).length,
+			soft: allViolations.filter((violation) => violation.severity === 'SOFT').length,
+			byCode: runWideByCode,
+		},
 		},
 	};
 }

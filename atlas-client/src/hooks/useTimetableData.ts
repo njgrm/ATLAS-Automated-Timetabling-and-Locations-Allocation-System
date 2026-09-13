@@ -145,14 +145,17 @@ export function matchesViolationSearch(violation: Violation, query: string): boo
 }
 
 /**
- * R7/A-01: the publish gate consumes the run-wide authoritative hard count when
+ * R7/A-01/F2: the publish gate consumes the run-wide authoritative count when
  * the server provides it; the selected-term display list remains the fallback
- * only for older payloads.
+ * only for older payloads. Prefer the allowlist-filtered `blockingHard`; a
+ * legacy payload without it falls back to the unfiltered `hard` (fail-closed).
  */
 export function resolveHardViolationCount(
-	report: { counts?: { runWide?: { hard?: number } } } | null | undefined,
+	report: { counts?: { runWide?: { hard?: number; blockingHard?: number } } } | null | undefined,
 	violations: Violation[],
 ): number {
+	const runWideBlocking = report?.counts?.runWide?.blockingHard;
+	if (typeof runWideBlocking === 'number') return runWideBlocking;
 	const runWideHard = report?.counts?.runWide?.hard;
 	if (typeof runWideHard === 'number') return runWideHard;
 	return violations.filter((violation) => violation.severity === 'HARD').length;

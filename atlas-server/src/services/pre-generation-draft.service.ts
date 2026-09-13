@@ -820,7 +820,52 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 	};
 }
 
-function buildValidatorCtx(schoolId: number, schoolYearId: number, entries: ScheduledEntry[], ctx: DraftContext): ValidatorContext {
+/**
+ * Structural source for the pre-generation validator context. Exported so the
+ * cross-surface parity control (R6/CP-6) can exercise the real pre-gen builder
+ * alongside the generation and manual builders.
+ */
+export interface PreGenerationValidatorContextSource {
+	facultyRefs: Array<{ id: number; maxHoursPerWeek: number; ancillaryMinutesPerWeek?: number | null }>;
+	facultySubjects: ValidatorContext['facultySubjects'];
+	rooms: Array<{ id: number; type: RoomType; capacity: number | null; features?: string[] | null; floor?: number | null; buildingId: number }>;
+	subjects: Array<{ id: number; preferredRoomType: RoomType; requiredFeatures?: string[] | null }>;
+	sectionEnrollment: Map<number, number>;
+	policyRecord: {
+		maxConsecutiveTeachingMinutesBeforeBreak: number;
+		minBreakMinutesAfterConsecutiveBlock: number;
+		maxTeachingMinutesPerDay: number;
+		earliestStartTime: string;
+		latestEndTime: string;
+		enforceConsecutiveBreakAsHard: boolean;
+		maxBuildingTransitionsPerDay: number;
+		maxBackToBackTransitionsWithoutBuffer: number;
+		maxIdleGapMinutesPerDay: number;
+		avoidEarlyFirstPeriod: boolean;
+		avoidLateLastPeriod: boolean;
+		enableVacantAwareConstraints: boolean;
+		targetFacultyDailyVacantMinutes: number;
+		targetSectionDailyVacantPeriods: number;
+		maxCompressedTeachingMinutesPerDay: number;
+		enableTravelWellbeingChecks?: boolean;
+		enableBuildingTransitionChecks?: boolean;
+		enableFloorTransitionChecks?: boolean;
+		enableIdleGapChecks?: boolean;
+		constraintConfig: unknown;
+	};
+	buildings: Array<{ id: number }>;
+}
+
+/**
+ * Build the pre-generation validator context. Exported as the pre-gen leg of the
+ * single warning-context contract (R6).
+ */
+export function buildPreGenerationValidatorContext(
+	schoolId: number,
+	schoolYearId: number,
+	entries: ScheduledEntry[],
+	ctx: PreGenerationValidatorContextSource,
+): ValidatorContext {
 	const families = resolveWarningFamilyPolicy(ctx.policyRecord);
 	return {
 		schoolId,
@@ -944,14 +989,14 @@ export async function previewPlacement(schoolId: number, schoolYearId: number, i
 		...(input.placementId != null ? [input.placementId] : []),
 	]));
 	const currentEntries = buildExistingEntries(ctx, excludedPlacementIds.length > 0 ? excludedPlacementIds : undefined);
-	const currentValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, currentEntries, ctx));
+	const currentValidation = validateHardConstraints(buildPreGenerationValidatorContext(schoolId, schoolYearId, currentEntries, ctx));
 	const candidateEntry = asScheduledEntry({
 		...input,
 		entryKind: input.entryKind ?? existingPlacement?.entryKind ?? 'SECTION',
 		cohortCode: input.cohortCode ?? existingPlacement?.cohortCode ?? null,
 	}, `draft-preview-${input.placementId ?? 'new'}`, demandItem);
 	const nextEntries = [...currentEntries, candidateEntry];
-	const nextValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, nextEntries, ctx));
+	const nextValidation = validateHardConstraints(buildPreGenerationValidatorContext(schoolId, schoolYearId, nextEntries, ctx));
 	const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
 	const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
 
@@ -1235,7 +1280,7 @@ function getDraftPlacementOrThrow(ctx: DraftContext, placementId: number, expect
 
 function buildSwapPreview(ctx: DraftContext, sourcePlacement: LockedSession, targetPlacement: LockedSession): DraftPlacementSwapPreview {
 	const currentEntries = buildExistingEntries(ctx);
-	const currentValidation = validateHardConstraints(buildValidatorCtx(sourcePlacement.schoolId, sourcePlacement.schoolYearId, currentEntries, ctx));
+	const currentValidation = validateHardConstraints(buildPreGenerationValidatorContext(sourcePlacement.schoolId, sourcePlacement.schoolYearId, currentEntries, ctx));
 	const sourceOriginal = placementToInput(sourcePlacement);
 	const targetOriginal = placementToInput(targetPlacement);
 	const sourceInput: DraftPlacementInput = {
@@ -1257,7 +1302,7 @@ function buildSwapPreview(ctx: DraftContext, sourcePlacement: LockedSession, tar
 		asScheduledEntry(sourceInput, `draft-swap-${sourcePlacement.id}`, sourceDemand),
 		asScheduledEntry(targetInput, `draft-swap-${targetPlacement.id}`, targetDemand),
 	];
-	const nextValidation = validateHardConstraints(buildValidatorCtx(sourcePlacement.schoolId, sourcePlacement.schoolYearId, nextEntries, ctx));
+	const nextValidation = validateHardConstraints(buildPreGenerationValidatorContext(sourcePlacement.schoolId, sourcePlacement.schoolYearId, nextEntries, ctx));
 	const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
 	const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
 	const sourceDailyMinutesAfter = computeFacultyDailyMinutes(sourceInput.facultyId, sourceInput.day, nextEntries);
@@ -1761,7 +1806,7 @@ export async function consumeDraftPlacementsForRun(runId: number, schoolId: numb
 			return item && row.facultyId != null && row.roomId != null ? placementToScheduledEntry(row, item) : null;
 		}).filter((entry): entry is ScheduledEntry => entry != null);
 		const candidateEntry = asScheduledEntry(input, `draft-${placement.id}`, demandItem);
-		const validation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, [...acceptedContextEntries, candidateEntry], ctx));
+		const validation = validateHardConstraints(buildPreGenerationValidatorContext(schoolId, schoolYearId, [...acceptedContextEntries, candidateEntry], ctx));
 		const hardViolations = validation.violations.filter((violation) => violation.severity === 'HARD');
 		if (hardViolations.length > 0) {
 			reject(placement, 'HARD_CONFLICT', hardViolations.map((violation) => violation.code).join(', '));

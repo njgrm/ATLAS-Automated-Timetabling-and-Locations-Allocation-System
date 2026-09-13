@@ -108,6 +108,33 @@ function gradeLabel(gradeLevel: number): string {
 	return `GR${gradeLevel}`;
 }
 
+/**
+ * Mirror of the server-owned promotable allowlist (R4/F2). Only these HARD codes
+ * may block publication; any other HARD severity (e.g. the retired travel
+ * metric persisted on a legacy run) is informational.
+ */
+const PUBLICATION_BLOCKING_CODES: ReadonlySet<string> = new Set([
+	'FACULTY_TIME_CONFLICT',
+	'ROOM_TIME_CONFLICT',
+	'SECTION_TIME_CONFLICT',
+	'FACULTY_OVERLOAD',
+	'FACULTY_SUBJECT_NOT_QUALIFIED',
+	'UNASSIGNED_SECTION',
+	'LACKING_FACULTY',
+	'INCOMPLETE_MODULAR_GROUP',
+	'ROOM_TYPE_MISMATCH',
+	'ROOM_FEATURE_MISMATCH',
+	'FACULTY_DAILY_MAX_EXCEEDED',
+]);
+
+export function isBlockingHardViolation(violation: Violation): boolean {
+	return violation.severity === 'HARD' && PUBLICATION_BLOCKING_CODES.has(violation.code);
+}
+
+export function isInformationalHardViolation(violation: Violation): boolean {
+	return violation.severity === 'HARD' && !PUBLICATION_BLOCKING_CODES.has(violation.code);
+}
+
 function resolveReason(item: UnassignedItem): BlockerReason {
 	if (item.reason && item.reason in REASON_TO_PLAIN_LABEL) {
 		return item.reason as BlockerReason;
@@ -184,7 +211,7 @@ function buildItemsFromViolations(
 	facultyLabel: (id: number) => string,
 ): Map<BlockerReason, BlockerItem[]> {
 	const groups = new Map<BlockerReason, BlockerItem[]>();
-	const hardViolations = violations.filter((v) => v.severity === 'HARD');
+	const hardViolations = violations.filter(isBlockingHardViolation);
 
 	for (const v of hardViolations) {
 		let reason: BlockerReason = 'UNKNOWN';
@@ -213,10 +240,12 @@ function buildItemsFromViolations(
 }
 
 function buildWarningGroups(violations: Violation[]): WarningGroup[] {
-	const softViolations = violations.filter((v) => v.severity === 'SOFT');
+	// Soft warnings plus informational (non-allowlisted) HARD severities: both are
+	// reviewable but neither blocks publication.
+	const warningViolations = violations.filter((v) => v.severity === 'SOFT' || isInformationalHardViolation(v));
 	const counts = new Map<string, number>();
 
-	for (const v of softViolations) {
+	for (const v of warningViolations) {
 		counts.set(v.code, (counts.get(v.code) ?? 0) + 1);
 	}
 
