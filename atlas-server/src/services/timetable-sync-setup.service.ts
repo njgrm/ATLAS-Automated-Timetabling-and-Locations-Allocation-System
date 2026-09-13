@@ -99,6 +99,15 @@ function canonicalEquals(left: unknown, right: unknown): boolean {
 	return canonicalStringify(left ?? null) === canonicalStringify(right ?? null);
 }
 
+/** Order-independent signature of the Teaching Load ownership authority. */
+function ownershipSignature(map: ReadonlyMap<string, number | null>): string {
+	return canonicalStringify(
+		[...map.entries()]
+			.map(([key, value]) => [key, value])
+			.sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+	);
+}
+
 /**
  * Volatile-free summary signature. `inputSnapshot.computedAt` changes on every
  * call, so replay detection compares the recomputed counters/diagnostics and the
@@ -261,6 +270,7 @@ export async function syncTimetableSetup(
 	for (const o of ownerships) {
 		ownershipMap.set(`${o.subjectId}:${o.sectionId}`, o.facultyId);
 	}
+	const preflightOwnershipSignature = ownershipSignature(ownershipMap);
 
 	// ─── 2. Canonical derived demand (exact per-term authority) ───
 	const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId);
@@ -534,6 +544,25 @@ export async function syncTimetableSetup(
 				409,
 				'SOURCE_AUTHORITY_STALE',
 				'The schedule setup authority changed while setup sync was being prepared. Reload the run and sync again.',
+			);
+		}
+
+		// The computed result also binds Teaching Load ownership (faculty
+		// authority), which is not part of the derived-demand revision. Re-read
+		// it through the transaction client and fail closed on drift.
+		const txOwnerships = await tx.subjectSectionOwnership.findMany({
+			where: { schoolId, schoolYearId },
+			select: { subjectId: true, sectionId: true, facultyId: true },
+		});
+		const txOwnershipMap = new Map<string, number | null>();
+		for (const ownership of txOwnerships) {
+			txOwnershipMap.set(`${ownership.subjectId}:${ownership.sectionId}`, ownership.facultyId);
+		}
+		if (ownershipSignature(txOwnershipMap) !== preflightOwnershipSignature) {
+			throw err(
+				409,
+				'SOURCE_AUTHORITY_STALE',
+				'Teaching Load ownership changed while setup sync was being prepared. Reload the run and sync again.',
 			);
 		}
 
