@@ -563,6 +563,8 @@ type ApplyState = {
 function createApplyClient(initial: ApplyState, overrides: { txSubjectDisposition?: (row: Row) => 'SCHEDULED_TEACHING' | 'REFERENCE_ONLY' } = {}) {
 	const state: ApplyState = structuredClone(initial);
 	const writes: Array<{ model: string; op: string }> = [];
+	/** Options every caller passed to `$transaction` (e.g. isolation level). */
+	const transactionOptions: Array<Record<string, unknown> | undefined> = [];
 	const record = (model: string, op: string) => { writes.push({ model, op }); };
 	let nextId = 9000;
 	let txOverrideActive = false;
@@ -728,7 +730,8 @@ function createApplyClient(initial: ApplyState, overrides: { txSubjectDispositio
 	}
 
 	const client: any = { ...models };
-	client.$transaction = async (callback: (tx: any) => Promise<unknown>) => {
+	client.$transaction = async (callback: (tx: any) => Promise<unknown>, options?: Record<string, unknown>) => {
+		transactionOptions.push(options);
 		const backup = structuredClone(state);
 		txOverrideActive = true;
 		try {
@@ -741,7 +744,7 @@ function createApplyClient(initial: ApplyState, overrides: { txSubjectDispositio
 			txOverrideActive = false;
 		}
 	};
-	return { client, state, writes };
+	return { client, state, writes, transactionOptions };
 }
 
 function buildApplyState(overrides: Partial<ApplyState> = {}): ApplyState {
@@ -995,6 +998,10 @@ async function testOverCapApplyRevalidation() {
 		positive.state.ownerships.filter((row) => row.facultyId === 102).length === positiveResult.movesApplied,
 		'unchanged over-cap apply reassigns exactly the proposed moves to the qualified receiver',
 	);
+	check(
+		positive.transactionOptions.some((options) => options?.isolationLevel === 'Serializable'),
+		'over-cap apply opens its transaction with isolationLevel: Serializable',
+	);
 
 	// The transaction view flips MATH to REFERENCE_ONLY. If the apply resolved the
 	// authority from the global client instead of the transaction client, the
@@ -1015,6 +1022,10 @@ async function testOverCapApplyRevalidation() {
 	checkEqual(JSON.stringify(stale.state.ownerships), JSON.stringify(ownershipsBefore), 'stale over-cap apply wrote zero ownership rows');
 	checkEqual(stale.state.audits.length, 0, 'stale over-cap apply wrote zero audits');
 	checkEqual(stale.state.cycles.length, 0, 'stale over-cap apply wrote zero cycle rows');
+	check(
+		stale.transactionOptions.some((options) => options?.isolationLevel === 'Serializable'),
+		'stale over-cap apply transaction is also Serializable',
+	);
 }
 
 // ─── Part 3: mounted routes ─────────────────────────────────────────────────
@@ -1159,6 +1170,18 @@ async function testDisposablePostgresApply(): Promise<void> {
 		const instrumented = prisma.$extends({
 			query: { $allModels: { async $allOperations({ args, query }: any) { return query(args); } } },
 		});
+
+		// Failing-first / freshness proof on the real engine. The pre-fix over-cap
+		// apply passed no options, so it inherited the read-committed default; the
+		// fixed path passes Serializable, which is what makes the canonical re-read
+		// a true freshness boundary.
+		const defaultIsolation = await prisma.$transaction(async (tx: any) => tx.$queryRawUnsafe('SHOW transaction_isolation'));
+		checkEqual((defaultIsolation as any[])[0]?.transaction_isolation, 'read committed', 'default transaction isolation is read committed (pre-fix fact)');
+		const serializableIsolation = await prisma.$transaction(
+			async (tx: any) => tx.$queryRawUnsafe('SHOW transaction_isolation'),
+			{ isolationLevel: 'Serializable' },
+		);
+		checkEqual((serializableIsolation as any[])[0]?.transaction_isolation, 'serializable', 'over-cap-style Serializable transaction reports serializable');
 
 		const school = await prisma.school.create({ data: { name: 'C03R2 Disposable Fixture — SAFE TO DELETE', shortName: 'C03R2' } });
 		const schoolId = school.id as number;

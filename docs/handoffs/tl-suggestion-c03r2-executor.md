@@ -40,7 +40,7 @@ or canonical authority is missing or changed.
 
 ## Decisive evidence
 
-- New C03R2 suite: 96/96 after Correction 2 (hermetic + one disposable `atlas_restore_drill_*` PostgreSQL fixture).
+- New C03R2 suite: 100/100 after Correction 3 (hermetic + one disposable `atlas_restore_drill_*` PostgreSQL fixture).
 - Preserved C03 authority: 64/64. C03R apply parity: 34/34. Distribution: 13/13. Workload policy: 56/56. Write authority: PASS. `generation-passive-teaching-load`: PASS.
 - Derived demand: `derived-demand-authority` 10/10; `derived-demand-correction-c01r` 10/10; `derived-demand-correction-c01r2` 7/7 (incl. disposable PostgreSQL).
 - Server `tsc --noEmit` and production build: exit 0. Client `tsc --noEmit` and `vite build`: exit 0.
@@ -130,10 +130,13 @@ minutes, move targets, or proposals.
   `OUTSIDE_CANONICAL_DEMAND` rejection. Legacy receiver diagnostics (e.g.
   `PROGRAM_SCOPE_INCOMPATIBLE`) remain visible, so the reviewed C03 suite is
   unchanged.
-- The apply branch persists writes, so it re-resolves canonical demand inside
-  its Serializable transaction through the transaction client and throws typed
-  `TEACHING_LOAD_REBALANCE_STALE` (409) before any write when the revision
-  changed.
+- The apply branch persists writes. It re-resolves canonical demand inside a
+  transaction opened with an explicit
+  `{ isolationLevel: 'Serializable' }` option through the transaction client and
+  throws typed `TEACHING_LOAD_REBALANCE_STALE` (409) before any write when the
+  revision changed. Correction 3 added the explicit option (the earlier commit
+  claimed Serializable but omitted it, so the revalidation ran at the
+  read-committed default).
 - `OverCapRebalanceResult` gained additive optional fields
   (`derivedDemandRevision`, `canonicalDemandPairCount`,
   `outsideDemandOwnershipCount`); no existing field changed.
@@ -150,6 +153,45 @@ minutes, move targets, or proposals.
   (≥1 move, exactly one audit, exactly the proposed ownerships reassigned); a
   transaction-view canonical change → `TEACHING_LOAD_REBALANCE_STALE` with zero
   ownership/FacultySubject/cycle/audit writes.
+
+## Correction 3 — make over-cap apply revalidation serializable (additive)
+
+Fresh QA returned `CORRECTION_REQUIRED`: the over-cap apply claimed a
+Serializable transaction but called `db().$transaction(...)` with no options, so
+the canonical-revision re-read ran at the PostgreSQL default
+(`read committed`). The freshness claim was false as written.
+
+### Isolation-claim audit (every `$transaction` in the two services)
+
+| Transaction | Service / mount | Isolation option | Status |
+|---|---|---|---|
+| over-cap apply + canonical revalidation | `teaching-load-automation.service.ts` → `POST /coverage/rebalance-over-cap` | **was absent** (read committed) | **FIXED** → `{ isolationLevel: 'Serializable' }` |
+| proposal create | `teaching-load-suggestion-proposal.service.ts` (`:229`→`:277`) | `{ isolationLevel: 'Serializable' }` | OK, unchanged |
+| proposal apply + canonical revalidation | `teaching-load-suggestion-proposal.service.ts` (`:360`→`:820`) | `{ isolationLevel: 'Serializable' }` | OK, unchanged |
+| proposal cancel | `teaching-load-suggestion-proposal.service.ts` (`:867`→`:888`) | `{ isolationLevel: 'Serializable' }` | OK, unchanged |
+
+No other `$transaction` exists in either service. No comment in either service
+claims a Serializable/revision-freshness guarantee that the code does not pass.
+
+Serialization-conflict behavior is intentionally consistent with the proposal
+apply: neither service installs a retry loop; a genuine Prisma `P2034`/SQLSTATE
+`40001` conflict propagates as an error rather than being silently retried. The
+mandated outcome is unchanged and is what the tests exercise: a canonical change
+between preview and apply is detected by the in-transaction revision comparison
+and yields typed `TEACHING_LOAD_REBALANCE_STALE` (over-cap) with zero
+ownership/FacultySubject/cycle/audit writes.
+
+### Failing-first and pass evidence
+
+- Pre-fix code inspection: `445b5a99` had
+  `await db().$transaction(async (tx) => {` with no options argument.
+- Real-engine fact (disposable `atlas_restore_drill_*`): a transaction opened
+  with no options reports `SHOW transaction_isolation = 'read committed'`; a
+  transaction opened with `{ isolationLevel: 'Serializable' }` reports
+  `'serializable'`. Both are asserted inside the C03R2 disposable control.
+- Real service assertion: the over-cap apply `$transaction` call records
+  `isolationLevel === 'Serializable'` on both the positive and the stale path.
+- The six-case disposable stale matrix was rerun green after the change.
 
 ## Known risks / residuals
 

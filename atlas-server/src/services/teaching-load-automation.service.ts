@@ -3419,6 +3419,9 @@ export async function previewOrApplyOverCapRebalance(
 	let facultyMirrorVersionsBumped = 0;
 	const affectedFacultyIds = new Set<number>();
 
+	// Serializable isolation (matching the proposal apply) is required so the
+	// canonical-revision re-read below is a true freshness boundary: a competing
+	// commit between the re-read and commit aborts instead of silently winning.
 	await db().$transaction(async (tx) => {
 		await assertTeachingLoadWriteAuthority({
 			schoolId: input.schoolId,
@@ -3558,7 +3561,7 @@ export async function previewOrApplyOverCapRebalance(
 				} as object,
 			},
 		});
-	});
+	}, { isolationLevel: 'Serializable' });
 
 	return {
 		applied: true,
