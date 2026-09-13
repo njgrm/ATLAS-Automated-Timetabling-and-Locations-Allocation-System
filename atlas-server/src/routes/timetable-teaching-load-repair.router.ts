@@ -3,17 +3,14 @@ import type { Request, Response, NextFunction } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
 import {
-	applyAnnualTeachingLoadChange,
+	ANNUAL_TEACHING_LOAD_APPLY_RETIRED_CODE,
 	applyTeachingLoadRepair,
 	previewAnnualTeachingLoadChange,
 	previewTeachingLoadRepair,
 	type AnnualTeachingLoadChange,
 } from '../services/timetable-teaching-load-repair.service.js';
-import {
-	applyRunReconciliation,
-	previewRunReconciliation,
-} from '../services/reconciliation.service.js';
-import type { ReconciliationSourceDomain } from '../services/reconciliation-classifier.js';
+import { previewRunReconciliation } from '../services/reconciliation.service.js';
+import { assertTeachingLoadWriteAuthority } from '../services/faculty-assignment.service.js';
 
 const router = Router();
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
@@ -71,14 +68,53 @@ function assertPrivileged(req: Request, res: Response): boolean {
 	return true;
 }
 
+function actorSchoolIdOf(req: Request): number | null {
+	const schoolId = req.user?.schoolId;
+	return typeof schoolId === 'number' && Number.isInteger(schoolId) && schoolId > 0 ? schoolId : null;
+}
+
+/**
+ * B-01 authority gate. Every Teaching Load repair / annual / reconciliation
+ * route must prove, before any service call and before any write:
+ *   - a privileged authenticated actor;
+ *   - a positive actor school equal to the requested school;
+ *   - the requested year is the school's sole active, non-archived year.
+ *
+ * This delegates to the canonical `assertTeachingLoadWriteAuthority` used by
+ * the rest of the Teaching Load write surface so the guard is not duplicated.
+ * Rejections return the canonical typed status/code and dispatch zero services.
+ */
+async function assertTimetableTeachingLoadAuthority(
+	req: Request,
+	res: Response,
+	schoolId: number,
+	schoolYearId: number,
+): Promise<boolean> {
+	if (!assertPrivileged(req, res)) return false;
+	try {
+		await assertTeachingLoadWriteAuthority({ schoolId, schoolYearId, actorSchoolId: actorSchoolIdOf(req) });
+		return true;
+	} catch (error) {
+		const serviceError = error as { statusCode?: unknown; code?: unknown; message?: unknown };
+		if (typeof serviceError.statusCode === 'number' && typeof serviceError.code === 'string') {
+			res.status(serviceError.statusCode).json({
+				code: serviceError.code,
+				message: typeof serviceError.message === 'string' ? serviceError.message : 'Teaching Load authority rejected this request.',
+			});
+			return false;
+		}
+		throw error;
+	}
+}
+
 router.post(
 	'/:schoolId/:schoolYearId/runs/:runId/teaching-load-repairs/preview',
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!(await assertTimetableTeachingLoadAuthority(req, res, scope.schoolId, scope.schoolYearId))) return;
 			const result = await previewTeachingLoadRepair(scope.runId, scope.schoolId, scope.schoolYearId, req.body ?? {});
 			res.json(result);
 		} catch (e) { next(e); }
@@ -90,9 +126,9 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!(await assertTimetableTeachingLoadAuthority(req, res, scope.schoolId, scope.schoolYearId))) return;
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 			const result = await applyTeachingLoadRepair(scope.runId, scope.schoolId, scope.schoolYearId, actorId, req.body ?? {});
@@ -106,9 +142,9 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!assertPrivileged(req, res)) return;
 			const scope = parseAnnualScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!(await assertTimetableTeachingLoadAuthority(req, res, scope.schoolId, scope.schoolYearId))) return;
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 			const changes = parseAnnualChanges(req.body?.changes);
@@ -119,67 +155,40 @@ router.post(
 	},
 );
 
+// B-08 / requirement 5: the annual Teaching Load apply mutation has no
+// production client caller and previously ignored its version parameter while
+// writing ownership without actor-school/active-year authority. It is retired
+// with a typed 410 that performs zero service dispatch and zero writes. The
+// canonical Teaching Load reconciliation apply is the guarded replacement.
 router.post(
 	'/:schoolId/:schoolYearId/annual-teaching-load/apply',
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!assertPrivileged(req, res)) return;
 			const scope = parseAnnualScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
-			const actorId = req.user?.userId;
-			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
-			const changes = parseAnnualChanges(req.body?.changes);
-			if (typeof changes === 'string') { res.status(400).json({ code: 'INVALID_BODY', message: changes }); return; }
-			const versions = (req.body?.expectedSubjectSectionOwnershipVersions ?? {}) as Record<string, number>;
-			const result = await applyAnnualTeachingLoadChange(scope.schoolId, scope.schoolYearId, actorId, changes, versions);
-			res.json(result);
+			if (!(await assertTimetableTeachingLoadAuthority(req, res, scope.schoolId, scope.schoolYearId))) return;
+			res.status(410).json({
+				code: ANNUAL_TEACHING_LOAD_APPLY_RETIRED_CODE,
+				message: 'The annual Teaching Load change apply is retired. Use the canonical Teaching Load reconciliation preview/apply, which binds actor-school, active-year, fingerprint, and run-version authority.',
+			});
 		} catch (e) { next(e); }
 	},
 );
 
+// B-02 / D3: the reconciliation/apply mutation is retired and removed from the
+// public surface. Only the read-only, explicitly non-authorizing preview
+// remains. A stale client receives a 404 here rather than an audit-only
+// "APPLIED" success.
 router.post(
 	'/:schoolId/:schoolYearId/runs/:runId/reconciliation/preview',
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			if (!assertPrivileged(req, res)) return;
 			const scope = parseScope(req.params as Record<string, string>);
 			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			if (!(await assertTimetableTeachingLoadAuthority(req, res, scope.schoolId, scope.schoolYearId))) return;
 			const result = await previewRunReconciliation({ runId: scope.runId, schoolId: scope.schoolId, schoolYearId: scope.schoolYearId });
-			res.json(result);
-		} catch (e) { next(e); }
-	},
-);
-
-router.post(
-	'/:schoolId/:schoolYearId/runs/:runId/reconciliation/apply',
-	authenticate,
-	async (req: Request, res: Response, next: NextFunction) => {
-		try {
-			if (!assertPrivileged(req, res)) return;
-			const scope = parseScope(req.params as Record<string, string>);
-			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
-			const actorId = req.user?.userId;
-			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
-			const expectedRunVersion = Number(req.body?.expectedRunVersion);
-			const expectedFingerprint = String(req.body?.expectedFingerprint ?? '');
-			if (!Number.isInteger(expectedRunVersion) || expectedRunVersion < 1) {
-				res.status(400).json({ code: 'INVALID_BODY', message: 'expectedRunVersion is required.' });
-				return;
-			}
-			if (!expectedFingerprint) {
-				res.status(400).json({ code: 'INVALID_BODY', message: 'expectedFingerprint is required.' });
-				return;
-			}
-			const result = await applyRunReconciliation({
-				runId: scope.runId,
-				schoolId: scope.schoolId,
-				schoolYearId: scope.schoolYearId,
-				actorId,
-				expectedRunVersion,
-				expectedFingerprint,
-			});
 			res.json(result);
 		} catch (e) { next(e); }
 	},
