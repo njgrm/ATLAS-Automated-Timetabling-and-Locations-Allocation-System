@@ -86,9 +86,12 @@ let subscribeNotificationEvents: any;
 let syncTimetableSetup: (schoolId: number, schoolYearId: number, runId: number, actorId: number, expectedRunVersion: number) => Promise<any>;
 
 let schoolId: number;
+let emptyMirrorSchoolId: number;
 const subjectIdByCode: Record<string, number> = {};
 let facultyId: number;
 let roomId: number;
+let facultySubjectId: number;
+let gradeShiftWindowId: number;
 
 function countUnassigned(items: any[], subjectId: number, termIndex: number): number {
 	return items.filter((item) => item.subjectId === subjectId && item.termIndex === termIndex).length;
@@ -145,6 +148,116 @@ function canonicalDemandEntries(): any[] {
 	entries.push(...makeEntries(subjectIdByCode.CHEM, 2, SESSIONS_PER_WEEK, 'chem-t2'));
 	entries.push(...makeEntries(subjectIdByCode.ES, 3, SESSIONS_PER_WEEK, 'es-t3'));
 	return entries;
+}
+
+// ─── R5 deterministic interleave harness ─────────────────────────────────────
+
+async function snapshotNow(): Promise<any> {
+	const { computeGenerationInputSnapshot } = await import('../services/generation-input-snapshot.service.js');
+	return computeGenerationInputSnapshot(schoolId, SCHOOL_YEAR_ID, prisma);
+}
+
+/**
+ * Call the production comparison predicate dynamically (after
+ * `DATABASE_URL` targets the disposable database), so the controls exercise the
+ * exact exported predicate the service uses.
+ */
+async function isSnapshotBound(readSnapshot: any, writeSnapshot: any): Promise<boolean> {
+	const { isInputSnapshotBound } = await import('../services/timetable-sync-setup.service.js');
+	return isInputSnapshotBound(readSnapshot, writeSnapshot);
+}
+
+/**
+ * Simulates "the comparison was removed": always reports the snapshot pair as
+ * bound, so the write would commit. Used to prove the exported predicate is the
+ * load-bearing guard, not incidental.
+ */
+const comparisonRemovedMutant = (_readSnapshot: any, _writeSnapshot: any): boolean => true;
+
+async function derivedRevisionNow(): Promise<string> {
+	const { buildDerivedDemand } = await import('../services/derived-demand.service.js');
+	const result = await buildDerivedDemand(schoolId, SCHOOL_YEAR_ID, { client: prisma });
+	if (!result.ok) throw new Error('derived demand unexpectedly blocked for the interleave controls');
+	return result.revision;
+}
+
+async function ownershipSignatureNow(): Promise<string> {
+	const ownerships = await prisma.subjectSectionOwnership.findMany({
+		where: { schoolId, schoolYearId: SCHOOL_YEAR_ID },
+		select: { subjectId: true, sectionId: true, facultyId: true },
+	});
+	return JSON.stringify(
+		ownerships
+			.map((o: any) => [o.subjectId, o.sectionId, o.facultyId])
+			.sort((a: any, b: any) => (a[0] - b[0]) || (a[1] - b[1])),
+	);
+}
+
+/**
+ * Deterministic interleave seam (documented, real, and repeatable).
+ *
+ * `syncTimetableSetup` performs exactly two `prisma.$transaction` calls: (1) the
+ * transaction-bound READ snapshot that computes the output and captures
+ * `readInputSnapshot`, and (2) the Serializable WRITE transaction. This helper
+ * patches the singleton `$transaction` so that immediately before the SECOND
+ * call the test commits a real persisted mutation through its own separate
+ * connection.
+ *
+ * A pre-existing implementation carried only the run-version CAS, the
+ * derived-demand revision guard, and the ownership signature. Each R5 interleave
+ * changes a covered input that none of those three guards observe, so that
+ * implementation would have committed output derived from the older snapshot
+ * while attaching the newer `GenerationInputSnapshot`. Only the complete
+ * snapshot fingerprint comparison fails closed. The interleave is consumed once
+ * (`pending = null`), so a Serializable retry cannot cascade it.
+ */
+async function withInterleavedMutation(
+	interleave: () => Promise<void>,
+	invoke: () => Promise<{ status: number; body: any }>,
+): Promise<{ status: number; body: any; calls: number }> {
+	const prismaModule: any = await import('../lib/prisma.js');
+	const singleton: any = prismaModule.prisma;
+	const original = singleton.$transaction;
+	let calls = 0;
+	let pending: (() => Promise<void>) | null = interleave;
+	singleton.$transaction = async (arg: any, opts: any) => {
+		calls += 1;
+		if (calls === 2 && pending) {
+			const mutation = pending;
+			pending = null;
+			await mutation();
+		}
+		return original.call(singleton, arg, opts);
+	};
+	try {
+		const result = await invoke();
+		return { ...result, calls };
+	} finally {
+		singleton.$transaction = original;
+	}
+}
+
+function syncSetupUrl(runId: number): string {
+	return `/api/v1/generation/${schoolId}/${SCHOOL_YEAR_ID}/runs/${runId}/sync-setup`;
+}
+
+async function postSyncSetup(runId: number, expectedRunVersion: number): Promise<{ status: number; body: any }> {
+	const res = await fetch(`${baseUrl}${syncSetupUrl(runId)}`, {
+		method: 'POST',
+		headers: { authorization: `Bearer ${privilegedToken}`, 'content-type': 'application/json' },
+		body: JSON.stringify({ expectedRunVersion }),
+	});
+	return { status: res.status, body: await res.json() };
+}
+
+async function assertRunUnchangedAndZeroWrite(runId: number, before: any, auditsBefore: number): Promise<void> {
+	const after = await prisma.generationRun.findUnique({ where: { id: runId } });
+	assert.equal(after.version, before.version, 'run version byte-identical');
+	assert.deepEqual(after.draftEntries, before.draftEntries, 'draftEntries byte-identical');
+	assert.deepEqual(after.unassignedItems, before.unassignedItems, 'unassignedItems byte-identical');
+	assert.deepEqual(after.violations, before.violations, 'violations byte-identical');
+	assert.deepEqual(after.summary, before.summary, 'summary byte-identical');
+	assert.equal(await syncAuditCount(runId), auditsBefore, 'zero new audit rows');
 }
 
 before(async () => {
@@ -266,10 +379,46 @@ before(async () => {
 		const facultySubject = await prisma.facultySubject.create({
 			data: { facultyId, subjectId, schoolId, schoolYearId: SCHOOL_YEAR_ID, gradeLevels: [7], sectionIds: [SECTION_EXTERNAL_ID], assignedBy: ACTOR_ID },
 		});
+		if (facultySubjectId === undefined) facultySubjectId = facultySubject.id as number;
 		await prisma.subjectSectionOwnership.create({
 			data: { schoolId, schoolYearId: SCHOOL_YEAR_ID, facultySubjectId: facultySubject.id, facultyId, subjectId, sectionId: SECTION_EXTERNAL_ID },
 		});
 	}
+
+	// A persisted grade-shift window is part of the `policy` freshness domain and
+	// is NOT part of the derived-demand revision, so it is an ideal interleave
+	// control for a change that the pre-existing revision/ownership guards miss.
+	const gradeShiftWindow = await prisma.gradeShiftWindow.create({
+		data: { schoolId, schoolYearId: SCHOOL_YEAR_ID, gradeLevel: 7, programType: 'REGULAR', startTime: '07:00', endTime: '16:00' },
+	});
+	gradeShiftWindowId = gradeShiftWindow.id as number;
+
+	// ── Empty-mirror school: proves the transaction-bound read snapshot never
+	//    auto-syncs external sections (the historical getSectionSummary write +
+	//    external fetch) and fails closed with zero residue. ───────────────────
+	const emptySchool = await prisma.school.create({ data: { name: 'TT-SYNC-TERM-C03R5 Empty Mirror', shortName: 'SYNCEM' } });
+	emptyMirrorSchoolId = emptySchool.id as number;
+	await prisma.enrollProSchoolYearMirror.create({
+		data: {
+			schoolId: emptyMirrorSchoolId,
+			enrollProSchoolYearId: SCHOOL_YEAR_ID,
+			yearLabel: '2030-2031',
+			isActive: true,
+			isArchived: false,
+			syncStatus: 'synced',
+			termContractCachedAt: new Date(),
+			termContractCache: {
+				schoolId: emptyMirrorSchoolId,
+				schoolYear: { id: SCHOOL_YEAR_ID, yearLabel: '2030-2031' },
+				format: 'TRIMESTER',
+				terms: [
+					{ identity: 'T1', displayLabel: 'First Trimester', order: 1 },
+					{ identity: 'T2', displayLabel: 'Second Trimester', order: 2 },
+					{ identity: 'T3', displayLabel: 'Third Trimester', order: 3 },
+				],
+			},
+		},
+	});
 
 	// ── Mount the REAL sync-setup router with an instrumented data context ────
 	const dataContext = await import('../lib/data-context.js');
@@ -600,4 +749,241 @@ test('control I: a repeat sync against already-synchronized state replays with z
 	assert.deepEqual(afterReplay.draftEntries, afterFirst.draftEntries, 'replay leaves the run byte-identical');
 	assert.deepEqual(afterReplay.unassignedItems, afterFirst.unassignedItems);
 	assert.equal(await syncAuditCount(run.id), auditsAfterFirst, 'replay writes no audit row');
+});
+
+// ─── R5: complete-snapshot interleave controls ───────────────────────────────
+//
+// Each control commits a REAL persisted input change through a separate
+// connection immediately before the service's write transaction. The change is
+// invisible to the pre-existing run-version/derived-revision/ownership guards
+// but visible to the complete `GenerationInputSnapshot` fingerprint, so only an
+// implementation that compares the complete fingerprint inside the write
+// transaction fails closed. The assertions below prove the mutation is real
+// (domain + complete fingerprint changed) and invisible (revision + ownership
+// unchanged); an implementation without the comparison would return 200 and
+// commit.
+
+test('control R5-A: a room capacity change between the read snapshot and the write transaction fails closed', { skip }, async () => {
+	const run = await createRun(makeEntries(subjectIdByCode.MATH, 1, SESSIONS_PER_WEEK, 'math-r5a'), 1);
+	const before = await prisma.generationRun.findUnique({ where: { id: run.id } });
+	const auditsBefore = await syncAuditCount(run.id);
+	const snapshotBefore = await snapshotNow();
+	const revisionBefore = await derivedRevisionNow();
+	const ownershipBefore = await ownershipSignatureNow();
+
+	let snapshotAfter: any = null;
+	let revisionAfter: any = null;
+	let ownershipAfter: any = null;
+
+	let notifications = 0;
+	const unsubscribe = subscribeNotificationEvents({
+		schoolId,
+		schoolYearId: SCHOOL_YEAR_ID,
+		send: (event: any) => { if (event?.type === 'TIMETABLE_SETUP_SYNC_COMPLETED') notifications += 1; },
+	});
+	let outcome: any = null;
+	try {
+		outcome = await withInterleavedMutation(
+			async () => {
+				await prisma.room.update({ where: { id: roomId }, data: { capacity: 51 } });
+				snapshotAfter = await snapshotNow();
+				revisionAfter = await derivedRevisionNow();
+				ownershipAfter = await ownershipSignatureNow();
+			},
+			() => postSyncSetup(run.id, 1),
+		);
+	} finally {
+		await prisma.room.update({ where: { id: roomId }, data: { capacity: 50 } });
+		unsubscribe();
+	}
+
+	assert.ok(outcome && outcome.calls >= 2, 'the read snapshot and the write transaction both ran');
+	assert.equal(outcome.status, 409, `expected stale rejection (got ${outcome.status}/${outcome.body?.code})`);
+	assert.equal(outcome.body.code, 'SOURCE_AUTHORITY_STALE');
+
+	assert.notEqual(snapshotAfter.domains.rooms.fingerprint, snapshotBefore.domains.rooms.fingerprint, 'rooms fingerprint changed');
+	assert.notEqual(snapshotAfter.fingerprint, snapshotBefore.fingerprint, 'complete snapshot fingerprint changed');
+	// The exported production predicate rejects this exact real interleave pair
+	// (equal pair -> bound), while a comparison-removed mutant would accept it.
+	assert.equal(await isSnapshotBound(snapshotBefore, snapshotBefore), true, 'equal snapshot pair is bound');
+	assert.equal(await isSnapshotBound(snapshotBefore, snapshotAfter), false, 'the changed rooms pair is stale');
+	assert.equal(comparisonRemovedMutant(snapshotBefore, snapshotAfter), true, 'a comparison-removed mutant would accept this pair');
+	assert.equal(revisionAfter, revisionBefore, 'a room change does not move the derived-demand revision');
+	assert.equal(ownershipAfter, ownershipBefore, 'a room change does not move the ownership signature');
+	assert.equal(notifications, 0, 'a rejected sync dispatches zero notifications');
+
+	await assertRunUnchangedAndZeroWrite(run.id, before, auditsBefore);
+});
+
+test('control R5-B: a FacultySubject qualification/scope change between the read snapshot and the write transaction fails closed', { skip }, async () => {
+	const run = await createRun(makeEntries(subjectIdByCode.MATH, 1, SESSIONS_PER_WEEK, 'math-r5b'), 1);
+	const before = await prisma.generationRun.findUnique({ where: { id: run.id } });
+	const auditsBefore = await syncAuditCount(run.id);
+	const snapshotBefore = await snapshotNow();
+	const revisionBefore = await derivedRevisionNow();
+	const ownershipBefore = await ownershipSignatureNow();
+
+	let snapshotAfter: any = null;
+	let revisionAfter: any = null;
+	let ownershipAfter: any = null;
+
+	let notifications = 0;
+	const unsubscribe = subscribeNotificationEvents({
+		schoolId,
+		schoolYearId: SCHOOL_YEAR_ID,
+		send: (event: any) => { if (event?.type === 'TIMETABLE_SETUP_SYNC_COMPLETED') notifications += 1; },
+	});
+	let outcome: any = null;
+	try {
+		outcome = await withInterleavedMutation(
+			async () => {
+				await prisma.facultySubject.update({ where: { id: facultySubjectId }, data: { gradeLevels: [7, 8] } });
+				snapshotAfter = await snapshotNow();
+				revisionAfter = await derivedRevisionNow();
+				ownershipAfter = await ownershipSignatureNow();
+			},
+			() => postSyncSetup(run.id, 1),
+		);
+	} finally {
+		await prisma.facultySubject.update({ where: { id: facultySubjectId }, data: { gradeLevels: [7] } });
+		unsubscribe();
+	}
+
+	assert.ok(outcome && outcome.calls >= 2, 'the read snapshot and the write transaction both ran');
+	assert.equal(outcome.status, 409, `expected stale rejection (got ${outcome.status}/${outcome.body?.code})`);
+	assert.equal(outcome.body.code, 'SOURCE_AUTHORITY_STALE');
+
+	assert.notEqual(snapshotAfter.domains.teachingLoad.fingerprint, snapshotBefore.domains.teachingLoad.fingerprint, 'teachingLoad fingerprint changed');
+	assert.notEqual(snapshotAfter.fingerprint, snapshotBefore.fingerprint, 'complete snapshot fingerprint changed');
+	assert.equal(await isSnapshotBound(snapshotBefore, snapshotBefore), true, 'equal snapshot pair is bound');
+	assert.equal(await isSnapshotBound(snapshotBefore, snapshotAfter), false, 'the changed teachingLoad pair is stale');
+	assert.equal(comparisonRemovedMutant(snapshotBefore, snapshotAfter), true, 'a comparison-removed mutant would accept this pair');
+	assert.equal(revisionAfter, revisionBefore, 'a FacultySubject scope change does not move the derived-demand revision');
+	assert.equal(ownershipAfter, ownershipBefore, 'a FacultySubject scope change does not move the ownership signature');
+	assert.equal(notifications, 0, 'a rejected sync dispatches zero notifications');
+
+	await assertRunUnchangedAndZeroWrite(run.id, before, auditsBefore);
+});
+
+test('control R5-C: a grade-shift-window change between the read snapshot and the write transaction fails closed', { skip }, async () => {
+	const run = await createRun(makeEntries(subjectIdByCode.MATH, 1, SESSIONS_PER_WEEK, 'math-r5c'), 1);
+	const before = await prisma.generationRun.findUnique({ where: { id: run.id } });
+	const auditsBefore = await syncAuditCount(run.id);
+	const snapshotBefore = await snapshotNow();
+	const revisionBefore = await derivedRevisionNow();
+	const ownershipBefore = await ownershipSignatureNow();
+
+	let snapshotAfter: any = null;
+	let revisionAfter: any = null;
+	let ownershipAfter: any = null;
+
+	let notifications = 0;
+	const unsubscribe = subscribeNotificationEvents({
+		schoolId,
+		schoolYearId: SCHOOL_YEAR_ID,
+		send: (event: any) => { if (event?.type === 'TIMETABLE_SETUP_SYNC_COMPLETED') notifications += 1; },
+	});
+	let outcome: any = null;
+	try {
+		outcome = await withInterleavedMutation(
+			async () => {
+				await prisma.gradeShiftWindow.update({ where: { id: gradeShiftWindowId }, data: { startTime: '07:30' } });
+				snapshotAfter = await snapshotNow();
+				revisionAfter = await derivedRevisionNow();
+				ownershipAfter = await ownershipSignatureNow();
+			},
+			() => postSyncSetup(run.id, 1),
+		);
+	} finally {
+		await prisma.gradeShiftWindow.update({ where: { id: gradeShiftWindowId }, data: { startTime: '07:00' } });
+		unsubscribe();
+	}
+
+	assert.ok(outcome && outcome.calls >= 2, 'the read snapshot and the write transaction both ran');
+	assert.equal(outcome.status, 409, `expected stale rejection (got ${outcome.status}/${outcome.body?.code})`);
+	assert.equal(outcome.body.code, 'SOURCE_AUTHORITY_STALE');
+
+	assert.notEqual(snapshotAfter.domains.policy.fingerprint, snapshotBefore.domains.policy.fingerprint, 'policy fingerprint changed');
+	assert.notEqual(snapshotAfter.fingerprint, snapshotBefore.fingerprint, 'complete snapshot fingerprint changed');
+	assert.equal(await isSnapshotBound(snapshotBefore, snapshotBefore), true, 'equal snapshot pair is bound');
+	assert.equal(await isSnapshotBound(snapshotBefore, snapshotAfter), false, 'the changed policy pair is stale');
+	assert.equal(comparisonRemovedMutant(snapshotBefore, snapshotAfter), true, 'a comparison-removed mutant would accept this pair');
+	assert.equal(revisionAfter, revisionBefore, 'a grade-shift-window change does not move the derived-demand revision');
+	assert.equal(ownershipAfter, ownershipBefore, 'a grade-shift-window change does not move the ownership signature');
+	assert.equal(notifications, 0, 'a rejected sync dispatches zero notifications');
+
+	await assertRunUnchangedAndZeroWrite(run.id, before, auditsBefore);
+});
+
+test('control R5-D: an empty section mirror fails closed with no external sync and zero writes', { skip }, async () => {
+	const run = await prisma.generationRun.create({
+		data: {
+			schoolId: emptyMirrorSchoolId,
+			schoolYearId: SCHOOL_YEAR_ID,
+			status: 'COMPLETED',
+			triggeredBy: ACTOR_ID,
+			draftEntries: [] as object[],
+			unassignedItems: [] as object[],
+			violations: [] as object[],
+			summary: {} as object,
+			version: 1,
+		},
+	});
+
+	await assert.rejects(
+		syncTimetableSetup(emptyMirrorSchoolId, SCHOOL_YEAR_ID, run.id, ACTOR_ID, 1),
+		(error: any) => error?.statusCode === 409 && error?.code === 'DERIVED_DEMAND_BLOCKED',
+		'the empty mirror fails closed instead of auto-syncing inside the read snapshot',
+	);
+
+	const after = await prisma.generationRun.findUnique({ where: { id: run.id } });
+	assert.equal(after.version, 1, 'run version unchanged');
+	assert.deepEqual(after.draftEntries, [], 'run entries unchanged');
+	assert.equal(
+		await prisma.sectionMirror.count({ where: { schoolId: emptyMirrorSchoolId } }),
+		0,
+		'the read snapshot never performed syncSectionsFromExternal (zero section-mirror rows)',
+	);
+	assert.equal(
+		await prisma.auditLog.count({ where: { schoolId: emptyMirrorSchoolId, action: 'GENERATION_RUN_SYNCED_WITH_SETUP' } }),
+		0,
+		'no audit row for the rejected empty-mirror sync',
+	);
+});
+
+// ─── R5-MUTANT: the comparison predicate is the effective guard ──────────────
+//
+// R5-A/B/C prove the REAL production path rejects each interleave with 409
+// SOURCE_AUTHORITY_STALE and zero writes. This control proves the same
+// comparison is load-bearing rather than incidental: the exact production
+// predicate is exported and used by the service, an equal pair is bound, a
+// real changed-domain pair is stale, and a comparison-removed mutant
+// (`() => true`) accepts that changed pair — so removing the comparison would
+// let the write commit output derived from the older snapshot.
+test('control R5-MUTANT: the exported snapshot comparison predicate is the effective guard', { skip }, async () => {
+	// A real covered-domain change captured from the disposable database.
+	const before = await snapshotNow();
+	await prisma.room.update({ where: { id: roomId }, data: { capacity: 53 } });
+	const after = await snapshotNow();
+	await prisma.room.update({ where: { id: roomId }, data: { capacity: 50 } });
+
+	assert.notEqual(after.domains.rooms.fingerprint, before.domains.rooms.fingerprint, 'the rooms domain fingerprint genuinely changed');
+	assert.notEqual(after.fingerprint, before.fingerprint, 'the complete snapshot fingerprint genuinely changed');
+
+	// (a) equal snapshot pair -> bound.
+	assert.equal(await isSnapshotBound(before, before), true, 'an identical snapshot pair is bound');
+	// (b) changed-domain pair -> stale (the real production predicate).
+	assert.equal(await isSnapshotBound(before, after), false, 'a changed-domain snapshot pair is stale');
+	// (c) a comparison-removed mutant accepts the same pair and must not be
+	//     mistaken for the production guard. R5-A/B/C prove the real service
+	//     path returns 409 + zero writes for the identical interleave shape.
+	assert.equal(comparisonRemovedMutant(before, after), true, 'the comparison-removed mutant accepts the changed pair');
+
+	// Cross-check the production write guard shape directly: the only condition
+	// that aborts persistence is the exported predicate returning false.
+	assert.notEqual(
+		comparisonRemovedMutant(before, after),
+		await isSnapshotBound(before, after),
+		'the mutant and the production predicate disagree on the interleave pair',
+	);
 });

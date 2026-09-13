@@ -11,7 +11,7 @@
  */
 
 import { getDataContext } from '../lib/data-context.js';
-import type { ProgramType } from '@prisma/client';
+import type { Prisma, PrismaClient, ProgramType } from '@prisma/client';
 
 const db = () => getDataContext();
 
@@ -437,9 +437,16 @@ export async function setTemplateSubjects(templateId: number, subjectIds: number
 /**
  * Get period profiles for all active templates in a school.
  * Used by the schedule constructor to determine period length per program type.
+ *
+ * `client` defaults to the ambient data context so existing callers are
+ * unchanged; a transaction-consistent caller may pass its interactive
+ * transaction client to bind the read to one snapshot.
  */
-export async function getTemplatePeriodProfiles(schoolId: number): Promise<TemplatePeriodProfile[]> {
-	const templates = await db().classTemplate.findMany({
+export async function getTemplatePeriodProfiles(
+	schoolId: number,
+	client: Prisma.TransactionClient | PrismaClient = db(),
+): Promise<TemplatePeriodProfile[]> {
+	const templates = await client.classTemplate.findMany({
 		where: { schoolId, isActive: true },
 		select: { programType: true, periodLengthMinutes: true, periodsPerDay: true },
 	});

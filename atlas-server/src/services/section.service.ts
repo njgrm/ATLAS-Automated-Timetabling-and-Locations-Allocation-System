@@ -5,6 +5,7 @@
  */
 
 import { getDataContext } from '../lib/data-context.js';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { resolveRuntimeContext } from './runtime-context.service.js';
 import { sectionAdapter, type SectionSummary, type SectionFetchResult } from './section-adapter.js';
 
@@ -297,28 +298,62 @@ export async function syncSectionsFromExternal(
 	};
 }
 
-export async function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary> {
-	// For Wave 5, we prefer reading from the Mirror first to ensure speed, 
+/**
+ * Read the section mirror for a school year.
+ *
+ * `options.client` lets a transaction-consistent caller (the setup sync read
+ * snapshot) bind these reads to one interactive transaction instead of the
+ * global singleton; existing callers keep the default `db()` context.
+ *
+ * `options.allowExternalSync` defaults to `true`, preserving the historical
+ * empty-mirror auto-sync. A transaction-bound caller sets it to `false`: the
+ * computation snapshot must never perform `syncSectionsFromExternal` (external
+ * fetch + mirror writes) inside a read transaction, so an empty mirror fails
+ * closed for that caller instead.
+ *
+ * `options.verifyRuntimeUpstream` defaults to `true`. A transaction-bound caller
+ * sets it to `false` so a live EnrollPro verification network read does not
+ * extend a Serializable read snapshot; the `source` label then stays
+ * `atlas-mirror`, which the setup-sync path does not consume.
+ */
+export async function getSectionSummary(
+	schoolYearId: number,
+	schoolId: number,
+	authToken?: string,
+	options?: {
+		client?: Prisma.TransactionClient | PrismaClient;
+		allowExternalSync?: boolean;
+		verifyRuntimeUpstream?: boolean;
+	},
+): Promise<SectionSummary> {
+	const client = options?.client ?? db();
+	const allowExternalSync = options?.allowExternalSync !== false;
+	const verifyRuntimeUpstream = options?.verifyRuntimeUpstream !== false;
+
+	// For Wave 5, we prefer reading from the Mirror first to ensure speed,
 	// but we might want to auto-sync if the mirror is empty.
 	let source: SectionSummary['source'] = 'atlas-mirror';
 
-	const runtimeCtx = await resolveRuntimeContext(schoolId);
-	const isUpstreamVerified = runtimeCtx?.source === 'enrollpro-verified' && runtimeCtx?.activeSchoolYearId === schoolYearId;
-
-	if (isUpstreamVerified) {
-		source = 'enrollpro';
+	// Live upstream verification is a network read. A transaction-bound caller
+	// skips it so the read snapshot is not held across external I/O.
+	if (verifyRuntimeUpstream) {
+		const runtimeCtx = await resolveRuntimeContext(schoolId);
+		const isUpstreamVerified = runtimeCtx?.source === 'enrollpro-verified' && runtimeCtx?.activeSchoolYearId === schoolYearId;
+		if (isUpstreamVerified) {
+			source = 'enrollpro';
+		}
 	}
 
-	let mirrors = await db().sectionMirror.findMany({
+	let mirrors = await client.sectionMirror.findMany({
 		where: { schoolId, schoolYearId, isStale: false },
 		orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
 	});
 
-	if (mirrors.length === 0) {
+	if (mirrors.length === 0 && allowExternalSync) {
 		// Initial sync
 		const syncResult = await syncSectionsFromExternal(schoolId, schoolYearId, authToken);
 		source = syncResult.source;
-		mirrors = await db().sectionMirror.findMany({
+		mirrors = await client.sectionMirror.findMany({
 			where: { schoolId, schoolYearId, isStale: false },
 			orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
 		});
