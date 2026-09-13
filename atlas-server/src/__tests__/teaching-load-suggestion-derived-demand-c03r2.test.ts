@@ -33,7 +33,9 @@ import facultyAssignmentRouter from '../routes/faculty-assignment.router.js';
 import { withDataContext } from '../lib/data-context.js';
 import {
 	autoFill,
+	previewOrApplyOverCapRebalance,
 	type AutoFillResult,
+	type OverCapRebalanceResult,
 } from '../services/teaching-load-automation.service.js';
 import {
 	applyTeachingLoadSuggestionProposal,
@@ -863,6 +865,158 @@ async function testTransactionClientRevalidation() {
 	checkEqual(controlApplied.proposal.status, 'APPLIED', 'positive control applies when the tx revision matches');
 }
 
+// ─── Part 2b: over-cap redistribution canonical binding ─────────────────────
+
+async function runOverCap(fixture: Row): Promise<{ result: OverCapRebalanceResult; state: ReadState }> {
+	const { client, state } = buildReadClient(fixture);
+	const result = await withDataContext(client, () => previewOrApplyOverCapRebalance({
+		schoolId: SCHOOL,
+		schoolYearId: YEAR,
+		actorId: ACTOR,
+		actorSchoolId: SCHOOL,
+		previewOnly: true,
+	}));
+	return { result, state };
+}
+
+/**
+ * A MATH teacher owns eight canonical REGULAR/grade-7 pairs plus one legacy pair
+ * whose subject declares grade 8 while its SPA section is grade 7. The legacy
+ * pair is out of canonical demand by grade scope, yet its section program (SPA)
+ * still matches the subject scope (SPA), so the receiver remains qualified and
+ * the pair would be proposed first (lowest ownership id) if unbound.
+ */
+function overCapFixture(outOfScopeGrades: number[]): Row {
+	const math = subject(21, 'MATH', { owner: 'MATH', minutes: 240 });
+	const spaMath = subject(22, 'SPA_MATH', {
+		name: 'SPA Mathematics',
+		owner: 'MATH',
+		minutes: 240,
+		programScopes: ['SPA'],
+		gradeLevels: outOfScopeGrades,
+	});
+	const canonicalSections = Array.from({ length: 8 }, (_, index) => section(9100 + index, 7));
+	const outOfScopeSection = section(9001, 7, 'SPA');
+	const donor = faculty(101, { firstName: 'Dana', lastName: 'Donor', department: 'MATH' });
+	const mathZero = faculty(102, { firstName: 'Mila', lastName: 'Math', department: 'MATH' });
+	const ownerships = [
+		// Lowest row id so the legacy out-of-scope target would sort first if bound.
+		ownership(1, spaMath, 9001, donor.id, 1),
+		...canonicalSections.map((s, index) => ownership(2 + index, math, s.externalId, donor.id, 2 + index)),
+	];
+	return baseState({
+		sections: [...canonicalSections, outOfScopeSection],
+		subjects: [math, spaMath],
+		faculty: [donor, mathZero],
+		ownerships,
+	});
+}
+
+async function testOverCapCanonicalBinding() {
+	heading('E2. Over-cap redistribution is bound to canonical derived demand');
+	const { result, state } = await runOverCap(overCapFixture([8]));
+
+	checkEqual(result.derivedDemandRevision?.length, 64, 'over-cap result carries the canonical revision');
+	checkEqual(result.canonicalDemandPairCount, 8, 'only the eight canonical MATH pairs are demand');
+	checkEqual(result.outsideDemandOwnershipCount, 1, 'the grade-mismatched ownership is diagnosed as outside demand');
+	const donorDetail = result.overCapFaculty.find((row) => row.facultyId === 101);
+	check(!!donorDetail, 'the donor is over the teaching standard on canonical minutes');
+	checkEqual(donorDetail?.teachingMinutes, 8 * 240, 'over-cap minutes exclude the out-of-scope ownership (1920, not 2160)');
+	check(
+		result.proposedMoves.every((move) => move.sectionId !== 9001),
+		'the out-of-scope ownership is never a proposed move target',
+	);
+	checkEqual(state.writes, [], 'over-cap preview performs zero writes');
+
+	// Mutant: making the legacy pair canonical (grade-7 scope) lets it count as
+	// ordinary minutes and sort first among equal-minute move targets.
+	const mutant = await runOverCap(overCapFixture([7]));
+	checkEqual(mutant.result.canonicalDemandPairCount, 9, 'scope mutant exposes the ninth canonical pair');
+	checkEqual(mutant.result.outsideDemandOwnershipCount, 0, 'scope mutant leaves no outside-demand ownership');
+	const mutantDonor = mutant.result.overCapFaculty.find((row) => row.facultyId === 101);
+	checkEqual(mutantDonor?.teachingMinutes, 9 * 240, 'scope mutant counts the formerly out-of-scope minutes');
+	check(
+		mutant.result.proposedMoves.some((move) => move.sectionId === 9001),
+		'the canonical filter is load-bearing: without it the pair would be proposed as a move',
+	);
+}
+
+async function testOverCapAbsentAuthorityMounted() {
+	heading('E3. Over-cap mounted preview fails closed without canonical term authority');
+	const fixture = baseState({
+		yearMirrors: [{ schoolId: SCHOOL, enrollProSchoolYearId: YEAR, isActive: true, isArchived: false, termContractCache: null, termContractCachedAt: null }],
+		sections: [section(9100, 7)],
+		subjects: [subject(21, 'MATH', { owner: 'MATH' })],
+		faculty: [faculty(101, { firstName: 'Dana', lastName: 'Donor', department: 'MATH' })],
+	});
+	await withMountedRouter(fixture, async (ctx) => {
+		ctx.state.reads.length = 0;
+		const response = await fetch(`${ctx.baseUrl}/api/v1/faculty-assignments/coverage/rebalance-over-cap`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${ctx.token}`, 'content-type': 'application/json' },
+			body: JSON.stringify({ schoolId: SCHOOL, schoolYearId: YEAR, previewOnly: true }),
+		});
+		checkEqual(response.status, 409, 'missing term authority returns 409 through the mounted route');
+		const body = await response.json() as { code?: string };
+		checkEqual(body.code, 'DERIVED_DEMAND_UNAVAILABLE', 'mounted over-cap fails closed with the typed contract');
+		checkEqual(ctx.state.writes, [], 'mounted over-cap missing authority performs zero writes');
+	});
+}
+
+function buildOverCapApplyState(): ApplyState {
+	const sections = Array.from({ length: 8 }, (_, index) => section(9100 + index, 7));
+	const donor = faculty(101, { firstName: 'Dana', lastName: 'Donor', department: 'MATH' });
+	const receiver = faculty(102, { firstName: 'Mila', lastName: 'Math', department: 'MATH' });
+	return buildApplyState({
+		sections,
+		subjects: [subject(21, 'MATH', { owner: 'MATH' })],
+		faculty: [donor, receiver],
+		facultySubjects: [{
+			id: 5001, facultyId: 101, subjectId: 21, schoolId: SCHOOL, schoolYearId: YEAR,
+			sectionIds: sections.map((s) => s.externalId), gradeLevels: [7], assignedBy: ACTOR,
+		}],
+		ownerships: sections.map((s, index) => ({
+			id: 100 + index, schoolId: SCHOOL, schoolYearId: YEAR, subjectId: 21,
+			sectionId: s.externalId, facultyId: 101, facultySubjectId: 5001,
+		})),
+	});
+}
+
+async function testOverCapApplyRevalidation() {
+	heading('E4. Over-cap apply re-resolves canonical demand inside the tx client');
+	const positive = createApplyClient(buildOverCapApplyState());
+	const positiveResult = await withDataContext(positive.client, () => previewOrApplyOverCapRebalance({
+		schoolId: SCHOOL, schoolYearId: YEAR, actorId: ACTOR, actorSchoolId: SCHOOL, previewOnly: false,
+	}));
+	checkEqual(positiveResult.applied, true, 'unchanged over-cap apply still applies');
+	check(positiveResult.movesApplied >= 1, 'unchanged over-cap apply persisted at least one move');
+	checkEqual(positive.state.audits.length, 1, 'unchanged over-cap apply writes exactly one audit');
+	check(
+		positive.state.ownerships.filter((row) => row.facultyId === 102).length === positiveResult.movesApplied,
+		'unchanged over-cap apply reassigns exactly the proposed moves to the qualified receiver',
+	);
+
+	// The transaction view flips MATH to REFERENCE_ONLY. If the apply resolved the
+	// authority from the global client instead of the transaction client, the
+	// revision would still match and it would wrongly proceed.
+	const stale = createApplyClient(buildOverCapApplyState(), {
+		txSubjectDisposition: (row) => (row.code === 'MATH' ? 'REFERENCE_ONLY' : (row.schedulingDisposition ?? 'SCHEDULED_TEACHING')),
+	});
+	const ownershipsBefore = structuredClone(stale.state.ownerships);
+	let code: string | undefined;
+	try {
+		await withDataContext(stale.client, () => previewOrApplyOverCapRebalance({
+			schoolId: SCHOOL, schoolYearId: YEAR, actorId: ACTOR, actorSchoolId: SCHOOL, previewOnly: false,
+		}));
+	} catch (error) {
+		code = (error as { code?: string })?.code;
+	}
+	checkEqual(code, 'TEACHING_LOAD_REBALANCE_STALE', 'a transaction-client canonical change is rejected as stale');
+	checkEqual(JSON.stringify(stale.state.ownerships), JSON.stringify(ownershipsBefore), 'stale over-cap apply wrote zero ownership rows');
+	checkEqual(stale.state.audits.length, 0, 'stale over-cap apply wrote zero audits');
+	checkEqual(stale.state.cycles.length, 0, 'stale over-cap apply wrote zero cycle rows');
+}
+
 // ─── Part 3: mounted routes ─────────────────────────────────────────────────
 
 async function withMountedRouter<T>(
@@ -1169,6 +1323,9 @@ async function main() {
 	await testFailClosedAuthority();
 	await testProposalApplyRealPath();
 	await testTransactionClientRevalidation();
+	await testOverCapCanonicalBinding();
+	await testOverCapAbsentAuthorityMounted();
+	await testOverCapApplyRevalidation();
 	await testMountedPreviewRoute();
 	await testDisposablePostgresApply();
 	console.log(`\n=== TL-SUGGESTION-C03R2 canonical derived-demand binding ===`);

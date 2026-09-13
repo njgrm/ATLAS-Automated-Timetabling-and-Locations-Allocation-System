@@ -168,7 +168,9 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'NOT_QUALIFIED'
 	| 'HARD_CAP_EXCEEDED'
 	| 'CURRENT_OWNER'
-	| 'PLACEHOLDER_FACULTY';
+	| 'PLACEHOLDER_FACULTY'
+	/** Ownership outside canonical derived demand is never an ordinary move target. */
+	| 'OUTSIDE_CANONICAL_DEMAND';
 
 export interface TeachingLoadCandidateRejection {
 	subjectId: number;
@@ -2880,6 +2882,12 @@ export interface OverCapRebalanceInput {
 	actorSchoolId?: number | null;
 	authToken?: string;
 	previewOnly?: boolean;
+	/**
+	 * Bind canonical derived-demand resolution to this client. The mounted routes
+	 * leave it undefined so the ambient data context is used; an apply re-resolves
+	 * inside its Serializable transaction through the transaction client.
+	 */
+	client?: unknown;
 }
 
 export interface OverCapRebalanceMove {
@@ -2929,6 +2937,12 @@ export interface OverCapRebalanceResult {
 	evaluated: boolean;
 	/** Bounded, stable diagnostics explaining why receivers were skipped. */
 	candidateRejections: TeachingLoadCandidateRejection[];
+	/** Canonical `DERIVED_DEMAND_V2` revision that produced this rebalance. */
+	derivedDemandRevision?: string;
+	/** Exact canonical (SCHEDULED_TEACHING) pair count consumed as demand authority. */
+	canonicalDemandPairCount?: number;
+	/** Current-year ownership rows outside canonical demand, excluded from minutes/moves. */
+	outsideDemandOwnershipCount?: number;
 }
 
 export async function previewOrApplyOverCapRebalance(
@@ -2942,6 +2956,12 @@ export async function previewOrApplyOverCapRebalance(
 			actorSchoolId: input.actorSchoolId ?? null,
 		});
 	}
+
+	// Canonical derived demand is the sole current-year pair authority for
+	// over-cap minutes, move targets, and the apply revalidation. A missing or
+	// malformed ordered-term authority fails closed with the typed
+	// DERIVED_DEMAND_UNAVAILABLE contract before any capacity or move work.
+	const derivedDemand = await resolveSuggestionDerivedDemand(input.schoolId, input.schoolYearId, input.client);
 
 	// The accepted Teaching Load contract is driven by the current persisted
 	// effective policy, never a module-level default. An UNCONFIGURED policy
@@ -2980,6 +3000,9 @@ export async function previewOrApplyOverCapRebalance(
 			sectionsResolved: allSectionIds.length,
 			policy: effectivePolicy,
 			evaluated: false,
+			derivedDemandRevision: derivedDemand.revision,
+			canonicalDemandPairCount: derivedDemand.totalPairs,
+			outsideDemandOwnershipCount: 0,
 		};
 	}
 
@@ -3097,7 +3120,25 @@ export async function previewOrApplyOverCapRebalance(
 		select: { id: true },
 	});
 	const nonDemandSubjectIdSetForRebalance = new Set(nonDemandSubjectRowsForRebalance.map((row) => row.id));
-	const nonDemandOwnershipRowsForRebalance = existingOwnerships.filter(
+
+	// Canonical pair authority: only SCHEDULED_TEACHING subject x active-section
+	// pairs whose normalized grade/program scope matches and whose ordered-term
+	// rotation is valid count as ordinary over-cap minutes or move targets.
+	// Ownership outside canonical demand is excluded from capacity and never
+	// proposed; it is counted and surfaced as a bounded diagnostic.
+	const canonicalPairKeySetForRebalance = new Set<string>(
+		derivedDemand.teachingLoadPairs
+			.filter((pair) => subjectById.has(pair.subjectId))
+			.map((pair) => `${pair.subjectId}:${pair.sectionExternalId}`),
+	);
+	const canonicalOwnershipRowsForRebalance = existingOwnerships.filter((o) =>
+		canonicalPairKeySetForRebalance.has(`${o.subjectId}:${o.sectionId}`),
+	);
+	const outsideDemandOwnershipRowsForRebalance = existingOwnerships.filter(
+		(o) => !canonicalPairKeySetForRebalance.has(`${o.subjectId}:${o.sectionId}`),
+	);
+	const outsideDemandOwnershipCount = outsideDemandOwnershipRowsForRebalance.length;
+	const nonDemandOwnershipRowsForRebalance = canonicalOwnershipRowsForRebalance.filter(
 		(o) => !nonDemandSubjectIdSetForRebalance.has(o.subjectId),
 	);
 	const realOwnershipRows = nonDemandOwnershipRowsForRebalance.filter((o) => realFaculty.some((f) => f.id === o.facultyId));
@@ -3141,6 +3182,9 @@ export async function previewOrApplyOverCapRebalance(
 			sectionsResolved: allSectionIds.length,
 			policy: effectivePolicy,
 			evaluated: true,
+			derivedDemandRevision: derivedDemand.revision,
+			canonicalDemandPairCount: derivedDemand.totalPairs,
+			outsideDemandOwnershipCount,
 		};
 	}
 
@@ -3196,6 +3240,12 @@ export async function previewOrApplyOverCapRebalance(
 			// overload move target.
 			if (isNonDemandSubjectCode(subject.code)) continue;
 			if ((subject as { schedulingDisposition?: string }).schedulingDisposition === 'REFERENCE_ONLY') continue;
+
+			// Canonical gate: only a pair produced by canonical derived demand may
+			// become an ordinary move target. Out-of-scope legacy ownership is still
+			// evaluated so its bounded receiver diagnostics remain visible, but it is
+			// excluded from capacity and can never enter proposedMoves.
+			const isCanonicalOwnership = canonicalPairKeySetForRebalance.has(`${ownership.subjectId}:${ownership.sectionId}`);
 
 			const sectionProgramType = sectionProgramTypeMap.get(ownership.sectionId) ?? 'REGULAR';
 			const ownershipRejections: TeachingLoadCandidateRejection[] = [];
@@ -3304,27 +3354,40 @@ export async function previewOrApplyOverCapRebalance(
 			}
 
 			if (bestReceiver && bestAuthority != null) {
-				proposedMoves.push({
-					ownershipId: ownership.id,
-					facultySubjectId: ownership.facultySubjectId,
-					subjectId: ownership.subjectId,
-					subjectCode: subject.code,
-					subjectName: subject.name,
-					sectionId: ownership.sectionId,
-					sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
-					fromFacultyId: overFaculty.facultyId,
-					fromFacultyName: overFaculty.facultyName,
-					toFacultyId: bestReceiver.id,
-					toFacultyName: `${bestReceiver.lastName}, ${bestReceiver.firstName}`,
-					minutes,
-					toQualificationTier: bestTier,
-					toQualificationAuthority: bestAuthority,
-				});
+				if (isCanonicalOwnership) {
+					proposedMoves.push({
+						ownershipId: ownership.id,
+						facultySubjectId: ownership.facultySubjectId,
+						subjectId: ownership.subjectId,
+						subjectCode: subject.code,
+						subjectName: subject.name,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						fromFacultyId: overFaculty.facultyId,
+						fromFacultyName: overFaculty.facultyName,
+						toFacultyId: bestReceiver.id,
+						toFacultyName: `${bestReceiver.lastName}, ${bestReceiver.firstName}`,
+						minutes,
+						toQualificationTier: bestTier,
+						toQualificationAuthority: bestAuthority,
+					});
 
-				// Update simulation
-				simCapacityUsed.set(overFaculty.facultyId, (simCapacityUsed.get(overFaculty.facultyId) ?? 0) - minutes);
-				simCapacityUsed.set(bestReceiver.id, (simCapacityUsed.get(bestReceiver.id) ?? 0) + minutes);
-				remainingOverMinutes -= minutes;
+					// Update simulation
+					simCapacityUsed.set(overFaculty.facultyId, (simCapacityUsed.get(overFaculty.facultyId) ?? 0) - minutes);
+					simCapacityUsed.set(bestReceiver.id, (simCapacityUsed.get(bestReceiver.id) ?? 0) + minutes);
+					remainingOverMinutes -= minutes;
+				} else {
+					// Non-canonical ownership is never moved; report why it is excluded.
+					appendBoundedCandidateRejections(candidateRejections, [{
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						sectionId: ownership.sectionId,
+						sectionName: sectionNameMap.get(ownership.sectionId) ?? `Section ${ownership.sectionId}`,
+						facultyId: bestReceiver.id,
+						facultyName: `${bestReceiver.lastName}, ${bestReceiver.firstName}`,
+						reason: 'OUTSIDE_CANONICAL_DEMAND',
+					}]);
+				}
 			}
 		}
 	}
@@ -3344,6 +3407,9 @@ export async function previewOrApplyOverCapRebalance(
 			sectionsResolved: allSectionIds.length,
 			policy: effectivePolicy,
 			evaluated: true,
+			derivedDemandRevision: derivedDemand.revision,
+			canonicalDemandPairCount: derivedDemand.totalPairs,
+			outsideDemandOwnershipCount,
 		};
 	}
 
@@ -3359,6 +3425,18 @@ export async function previewOrApplyOverCapRebalance(
 			schoolYearId: input.schoolYearId,
 			actorSchoolId: input.actorSchoolId ?? null,
 		}, tx as any);
+
+		// Canonical authority is re-resolved inside THIS Serializable transaction
+		// through the transaction client. A change to term, disposition, scope,
+		// section, or rotation authority since the preview fails typed stale before
+		// any ownership, FacultySubject, cycle, or audit write.
+		const txDerivedDemand = await resolveSuggestionDerivedDemand(input.schoolId, input.schoolYearId, tx);
+		if (txDerivedDemand.revision !== derivedDemand.revision) {
+			const stale = new Error('The canonical derived demand changed since this over-cap rebalance preview. Preview a fresh rebalance.') as Error & { statusCode: number; code: string };
+			stale.statusCode = 409;
+			stale.code = 'TEACHING_LOAD_REBALANCE_STALE';
+			throw stale;
+		}
 		// Group moves by (fromFacultyId, facultySubjectId) for sectionIds recomputation
 		const movesByFromFs = new Map<number, OverCapRebalanceMove[]>();
 		for (const move of proposedMoves) {
@@ -3496,5 +3574,8 @@ export async function previewOrApplyOverCapRebalance(
 		sectionsResolved: allSectionIds.length,
 		policy: effectivePolicy,
 		evaluated: true,
+		derivedDemandRevision: derivedDemand.revision,
+		canonicalDemandPairCount: derivedDemand.totalPairs,
+		outsideDemandOwnershipCount,
 	};
 }

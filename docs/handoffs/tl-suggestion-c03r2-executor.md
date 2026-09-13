@@ -40,7 +40,7 @@ or canonical authority is missing or changed.
 
 ## Decisive evidence
 
-- New C03R2 suite: 74/74 (hermetic + one disposable `atlas_restore_drill_*` PostgreSQL fixture).
+- New C03R2 suite: 96/96 after Correction 2 (hermetic + one disposable `atlas_restore_drill_*` PostgreSQL fixture).
 - Preserved C03 authority: 64/64. C03R apply parity: 34/34. Distribution: 13/13. Workload policy: 56/56. Write authority: PASS. `generation-passive-teaching-load`: PASS.
 - Derived demand: `derived-demand-authority` 10/10; `derived-demand-correction-c01r` 10/10; `derived-demand-correction-c01r2` 7/7 (incl. disposable PostgreSQL).
 - Server `tsc --noEmit` and production build: exit 0. Client `tsc --noEmit` and `vite build`: exit 0.
@@ -83,6 +83,67 @@ The suite provisions its database through the ambient `DATABASE_URL`
 (`createTestPrismaClient()` / `loadServerEnv()`); it does not create a database
 itself. It was run only against a disposable `atlas_restore_drill_*` target that
 was migrated, used, and dropped; the configured database was never the target.
+
+## Correction 2 — bind over-cap redistribution to canonical demand (additive)
+
+Fresh QA returned `CORRECTION_REQUIRED`: the sibling over-cap redistributor
+(`previewOrApplyOverCapRebalance`, mounted at `POST /coverage/rebalance-over-cap`)
+was left unbound. Capacity/move targets were built from raw ownerships filtered
+only by HG/ARAL/REFERENCE_ONLY, and the function ran even when canonical demand
+was unavailable (fail-open).
+
+### Entry-point inventory (`teaching-load-automation.service.ts`)
+
+| Exported entry point | Mounted consumer | Produces | Canonical binding |
+|---|---|---|---|
+| `autoFill` | `POST /auto-fill`, `POST /report/staffing-needs` | suggestion demand, staffing need, distribution plan | BOUND (Correction of round 1): work queue from `buildDerivedDemand` pairs; fail-closed `DERIVED_DEMAND_UNAVAILABLE` |
+| `previewOrApplyOverCapRebalance` | `POST /coverage/rebalance-over-cap` | over-cap minutes/capacity, move targets, apply writes | BOUND (this correction): canonical pairs gate capacity and `proposedMoves`; tx-client revision revalidation; fail-closed |
+| `previewOrApplyTeachingLoadSplitBrainReconcile` | `POST /integrity/reconcile-split-brain` | reconciliation counters, integrity/load diagnostics, repair preview | NOT APPLICABLE: consumes assignment/coverage summaries plus truth/stale/real-faculty reconciliation; it builds no `(subject, section)` demand pair set, no over-cap capacity, and no proposal |
+| `resolveTeachingLoadQualification` | library (via coverage) | pure qualification tier/authority | NOT APPLICABLE: pure evaluator, no demand or capacity |
+| `evaluateTeachingLoadReceiverQualification` | proposal apply | tx-bound receiver qualification | NOT APPLICABLE: pure/tx-bound evaluator, no demand |
+| `resolveSuggestionDerivedDemand` | internal | canonical pair authority resolver | BOUND: the shared binding helper itself |
+| `summarizeDistributionPlan`, `emptyDistributionPlan` | plan builders | pure summaries / empty plan | NOT APPLICABLE: pure |
+| `__testComputeCreditedCapacityMinutes`, `__testEstimateCapacityLaneDeltaMinutes`, `__testResolveEffectiveCapMinutes`, `__testRankCoverageCandidates`, `__testAggregateSplitBrainCoverageTotals`, `__testResolveSplitBrainQuarantine` | tests | test-only helpers | NOT APPLICABLE: test-only |
+
+Internal `buildTeachingLoadDistributionPlan` calls the (now bound) over-cap
+service and is reached only from the bound `autoFill`. No other exported
+entry point in this family produces suggestion demand, staffing need, over-cap
+minutes, move targets, or proposals.
+
+### Binding details
+
+- `previewOrApplyOverCapRebalance` resolves `resolveSuggestionDerivedDemand`
+  through `input.client` (ambient context for the mounted route) and fails closed
+  with `DERIVED_DEMAND_UNAVAILABLE` before any capacity/move work when the
+  ordered-term authority is unavailable.
+- Ordinary over-cap minutes come from canonical-demand ownership only
+  (`canonicalPairKeySetForRebalance`), keeping the HG/ARAL/REFERENCE_ONLY
+  exclusions. Out-of-scope ownership is excluded from capacity and can never
+  enter `proposedMoves`; it is counted (`outsideDemandOwnershipCount`) and, when
+  it would otherwise be eligible, reported as a bounded
+  `OUTSIDE_CANONICAL_DEMAND` rejection. Legacy receiver diagnostics (e.g.
+  `PROGRAM_SCOPE_INCOMPATIBLE`) remain visible, so the reviewed C03 suite is
+  unchanged.
+- The apply branch persists writes, so it re-resolves canonical demand inside
+  its Serializable transaction through the transaction client and throws typed
+  `TEACHING_LOAD_REBALANCE_STALE` (409) before any write when the revision
+  changed.
+- `OverCapRebalanceResult` gained additive optional fields
+  (`derivedDemandRevision`, `canonicalDemandPairCount`,
+  `outsideDemandOwnershipCount`); no existing field changed.
+
+### Over-cap controls and results
+
+- E2 canonical binding (hermetic, real service): 8 canonical pairs, 1
+  outside-demand ownership, donor teaching minutes 1920 (not 2160), no
+  `proposedMoves` entry for the out-of-scope pair, zero writes. Mutant (grade
+  scope widened): 9 pairs, 0 outside, 2160 minutes, and the pair is proposed.
+- E3 absent authority (real mounted route): `POST /coverage/rebalance-over-cap`
+  → 409 `DERIVED_DEMAND_UNAVAILABLE`, zero writes.
+- E4 apply revalidation (real service + tx client): unchanged control applies
+  (≥1 move, exactly one audit, exactly the proposed ownerships reassigned); a
+  transaction-view canonical change → `TEACHING_LOAD_REBALANCE_STALE` with zero
+  ownership/FacultySubject/cycle/audit writes.
 
 ## Known risks / residuals
 
