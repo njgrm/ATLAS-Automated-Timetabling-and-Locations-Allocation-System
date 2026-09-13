@@ -57,6 +57,16 @@ test('R7: rail search resolves new labels and tolerates an unknown code', () => 
 	assert.doesNotThrow(() => matchesViolationSearch(unknown, 'future'));
 	assert.equal(matchesViolationSearch(unknown, 'future'), true);
 	assert.equal(matchesViolationSearch(violation({ code: 'ROOM_TIME_CONFLICT' }), ''), true);
+	// Filtering preserves the server's violation ordering (display conservation).
+	const ordered = [
+		violation({ code: 'ROOM_TIME_CONFLICT' }),
+		violation({ code: 'ROOM_FEATURE_MISMATCH' }),
+		violation({ code: 'FACULTY_FLOOR_TRANSITION' }),
+	];
+	assert.deepEqual(
+		ordered.filter((v) => matchesViolationSearch(v, '')).map((v) => v.code),
+		['ROOM_TIME_CONFLICT', 'ROOM_FEATURE_MISMATCH', 'FACULTY_FLOOR_TRANSITION'],
+	);
 });
 
 test('R7: the client gate consumes run-wide hard counts while display stays term-scoped', () => {
