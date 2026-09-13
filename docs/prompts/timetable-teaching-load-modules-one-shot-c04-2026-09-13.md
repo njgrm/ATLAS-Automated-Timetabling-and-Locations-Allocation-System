@@ -140,9 +140,10 @@ show timetable impact before commit:
   `publishedAt`/`publishedBy` markers. Superseded runs are not published: the
   repair path must follow the normal repair rules for their actual state, while
   a genuine published run still routes to effective-dated revisions.
-- Control: superseded-run fixture — the preview labels the true publication
-  state and does not throw `RUN_ALREADY_PUBLISHED`; a genuine published run
-  still refuses with zero writes.
+- Control: superseded-run fixture — the apply/edit path does not refuse a
+  genuinely unpublished run with `RUN_ALREADY_PUBLISHED`, and any
+  operator-facing publication indicator it renders is truthful; a genuine
+  published run still refuses with zero writes.
 
 A time-slot swap must never be labeled a teacher swap.
 
