@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-09-13] — Teaching Load Canonical-Demand Correction Packet
+
+### Added
+- Added the `TL-SUGGESTION-C03R2` planner packet to bind suggestion, staffing,
+  redistribution, proposal, and apply-time checks to canonical derived demand.
+- Added failing-first coverage for non-HG reference-only subjects, scoped
+  sections, ordered-term rotations, stale preview/apply authority, and legacy
+  ownership outside demand.
+
+### Decisions Made
+- Passing the bounded C03R suggestion-policy suites does not prove end-to-end
+  suggestion correctness while automation independently rebuilds demand from
+  active subjects and sections.
+- Live Teaching Load suggestion apply remains separately gated HIGH until the
+  canonical-demand correction is implemented, independently reviewed, and
+  deployed.
+
 ## [2026-09-13] — Timetable Dynamic Workspace Audit Planner Cycle
 
 ### Added
