@@ -32,11 +32,21 @@
  * closed with `SOURCE_AUTHORITY_STALE`), and performs a version-aware CAS on the
  * final write. An identical retry against already-synchronized state returns an
  * explicit replay result with zero writes.
+ *
+ * SOURCE-FRESHNESS BINDING: all computation reads run in ONE Serializable read
+ * transaction and capture a complete `GenerationInputSnapshot` fingerprint. The
+ * write transaction recomputes that snapshot through its own client and compares
+ * the complete fingerprint; ANY covered input change (rooms/buildings,
+ * grade-shift windows, scheduling policy, subjects, class templates, sections,
+ * faculty mirrors, FacultySubject qualification/scope, or derived demand) aborts
+ * with typed `SOURCE_AUTHORITY_STALE` and zero writes instead of attaching a
+ * newer snapshot to output computed from older data.
  */
 
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
+import { withDataContext } from '../lib/data-context.js';
 import { canonicalStringify } from '../lib/canonical-json.js';
 import { loadRunContext, isPublishedSummary } from './manual-edit.service.js';
 import { validateHardConstraints } from './constraint-validator.js';
@@ -97,6 +107,29 @@ export interface SyncTimetableSetupResult {
 
 function canonicalEquals(left: unknown, right: unknown): boolean {
 	return canonicalStringify(left ?? null) === canonicalStringify(right ?? null);
+}
+
+/**
+ * Single source of truth for "the persisted synchronization output is bound to
+ * the exact source snapshot that produced it".
+ *
+ * The read snapshot computes the output and captures its complete
+ * `GenerationInputSnapshot` fingerprint. The write transaction recomputes the
+ * snapshot through its own client; only complete fingerprint equality proves
+ * that every covered input is unchanged between computation and persistence.
+ *
+ * This is extracted as a small named, exported pure predicate so the R5
+ * interleave controls can demonstrate the mutant explicitly: a predicate that
+ * always returns `true` (equivalent to deleting the comparison) accepts a
+ * changed-domain snapshot pair and would let the write commit, while this real
+ * predicate rejects it. The production service uses this exact predicate, so
+ * the mutant control exercises the same comparison the service relies on.
+ */
+export function isInputSnapshotBound(
+	readSnapshot: Pick<GenerationInputSnapshot, 'fingerprint'>,
+	writeSnapshot: Pick<GenerationInputSnapshot, 'fingerprint'>,
+): boolean {
+	return readSnapshot.fingerprint === writeSnapshot.fingerprint;
 }
 
 /** Order-independent signature of the Teaching Load ownership authority. */
@@ -221,14 +254,37 @@ export async function syncTimetableSetup(
 		throw err(400, 'INVALID_PARAM', 'expectedRunVersion must be a positive integer.');
 	}
 
-	// ─── 1. Preflight (read-only): live run context + live reference databases ───
-	const refData = await loadRunContext(runId, schoolId, schoolYearId);
+	// ─── 1-6. Transaction-bound read snapshot ─────────────────────────────────
+	//
+	// Every input that produces the synchronized entries, unassigned items,
+	// violations, and resource diagnostics is read through ONE Serializable
+	// read transaction on the singleton client, so the computed result is
+	// derived from a single consistent source state. `withDataContext(readTx)`
+	// also routes the `db()`-based helpers used here (`getOrCreatePolicy`,
+	// `resolveRuntimeContext`) through the same snapshot instead of the global
+	// singleton.
+	//
+	// The complete `GenerationInputSnapshot` fingerprint captured here is
+	// compared against a transaction-bound recomputation inside the write
+	// transaction below. A change to any covered domain (rooms/buildings,
+	// grade-shift windows, scheduling policy, subjects, class templates,
+	// sections, faculty mirrors, FacultySubject qualification/scope, or
+	// Teaching Load ownership) fails closed with SOURCE_AUTHORITY_STALE and
+	// zero writes.
+	//
+	// `getSectionSummary` is called with `allowExternalSync: false`: the sync
+	// computation path must never perform `syncSectionsFromExternal` (an
+	// external call plus mirror writes) inside a read snapshot. An empty
+	// section mirror therefore fails closed before any write; the operator must
+	// run the explicit section/rollover sync first.
+	async function computeFromSnapshot(readTx: Prisma.TransactionClient) {
+	const refData = await loadRunContext(runId, schoolId, schoolYearId, readTx);
 	const { run } = refData;
 	if (isPublishedSummary(run.summary)) {
 		throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published.');
 	}
 
-	const activeSubjects = await prisma.subject.findMany({
+	const activeSubjects = await readTx.subject.findMany({
 		where: { schoolId, isActive: true },
 		select: {
 			id: true,
@@ -252,8 +308,19 @@ export async function syncTimetableSetup(
 	const activeSubjectCodeById = new Map(activeSubjects.map((s) => [s.id, s.code]));
 	const subjectIdByCode = new Map(activeSubjects.map((s) => [s.code, s.id]));
 
-	const sectionSummary = await getSectionSummary(schoolYearId, schoolId);
+	const sectionSummary = await getSectionSummary(schoolYearId, schoolId, undefined, {
+		client: readTx,
+		allowExternalSync: false,
+		verifyRuntimeUpstream: false,
+	});
 	const activeSections = sectionSummary.sections;
+	if (activeSections.length === 0) {
+		throw err(
+			409,
+			'DERIVED_DEMAND_BLOCKED',
+			'No active section mirror exists for this school year. Run the explicit section/rollover sync before syncing timetable setup; ATLAS will not auto-sync sections inside the read snapshot.',
+		);
+	}
 	const sectionsByGrade = sectionSummary.gradeLevels;
 	const activeSectionIds = new Set(activeSections.map((s) => s.id));
 
@@ -263,7 +330,7 @@ export async function syncTimetableSetup(
 	}
 	refData.sectionEnrollment = liveSectionEnrollment;
 
-	const ownerships = await prisma.subjectSectionOwnership.findMany({
+	const ownerships = await readTx.subjectSectionOwnership.findMany({
 		where: { schoolId, schoolYearId },
 	});
 	const ownershipMap = new Map<string, number | null>();
@@ -273,7 +340,7 @@ export async function syncTimetableSetup(
 	const preflightOwnershipSignature = ownershipSignature(ownershipMap);
 
 	// ─── 2. Canonical derived demand (exact per-term authority) ───
-	const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId);
+	const derivedDemand = await buildDerivedDemand(schoolId, schoolYearId, { client: readTx as never });
 	if (!derivedDemand.ok) {
 		throw err(
 			409,
@@ -477,7 +544,7 @@ export async function syncTimetableSetup(
 		buildHomeRoomStats,
 		buildHomeRoomFallbackDiagnostics,
 	} = await import('./generation.service.js');
-	const facultySubjectRows = await prisma.facultySubject.findMany({
+	const facultySubjectRows = await readTx.facultySubject.findMany({
 		where: { schoolId, schoolYearId },
 		select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 	});
@@ -501,8 +568,88 @@ export async function syncTimetableSetup(
 	const homeRoomStats = buildHomeRoomStats(newEntries as unknown as ScheduledEntry[], newUnassignedItems as unknown as UnassignedItem[]);
 	const homeRoomFallbackDiagnostics = buildHomeRoomFallbackDiagnostics(newEntries as unknown as ScheduledEntry[], newUnassignedItems as unknown as UnassignedItem[]);
 
+	// Capture the complete input fingerprint from the SAME read snapshot that
+	// produced the output above. `computedAt` is excluded from `fingerprint`, so
+	// the write transaction can compare this deterministically.
+	const readInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, readTx);
+
+	return {
+		newEntries,
+		newUnassignedItems,
+		violations,
+		classesProcessed,
+		assignedCount,
+		unassignedCount,
+		hardViolationCount,
+		softViolationCount,
+		homeRoomStats,
+		qualifiedFacultyCoverageBySubject,
+		slotSaturationByInterval,
+		unassignedBySubjectGrade,
+		homeRoomFallbackDiagnostics,
+		termRefs,
+		derivedDemandRevision: derivedDemand.revision,
+		preflightOwnershipSignature,
+		updatedFacultyCount,
+		displacedEntriesCount,
+		addedUnassignedCount,
+		readInputSnapshot,
+	};
+	}
+
+	// The read snapshot may be aborted by Serializable SSI after a concurrent
+	// write to the same input rows. The computation is read-only and idempotent,
+	// so it is retried with the same bounded budget as the write transaction and
+	// fails closed with a typed conflict when it cannot be established. The
+	// generous timeout accommodates the larger reference read set without holding
+	// the snapshot across external I/O (upstream verification is disabled above).
+	const computation = await (async () => {
+		for (let attempt = 1; attempt <= MAX_SERIALIZABLE_ATTEMPTS; attempt += 1) {
+			try {
+				return await prisma.$transaction(
+					async (readTx) => withDataContext(readTx, () => computeFromSnapshot(readTx)),
+					{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30_000, maxWait: 10_000 },
+				);
+			} catch (error) {
+				if (isSerializationConflict(error) && attempt < MAX_SERIALIZABLE_ATTEMPTS) continue;
+				if (isSerializationConflict(error)) {
+					throw err(
+						409,
+						'SYNC_TRANSACTION_CONFLICT',
+						'Setup sync conflicted with another schedule change. Reload the run and sync again.',
+					);
+				}
+				throw error;
+			}
+		}
+		throw err(409, 'SYNC_TRANSACTION_CONFLICT', 'Setup sync could not complete. Reload the run and sync again.');
+	})();
+
 	// ─── 7. Transaction: re-validate authority + version, CAS, audit ───
 	const persist = async (tx: Prisma.TransactionClient): Promise<SyncTimetableSetupResult> => {
+		const {
+			newEntries,
+			newUnassignedItems,
+			violations,
+			classesProcessed,
+			assignedCount,
+			unassignedCount,
+			hardViolationCount,
+			softViolationCount,
+			homeRoomStats,
+			qualifiedFacultyCoverageBySubject,
+			slotSaturationByInterval,
+			unassignedBySubjectGrade,
+			homeRoomFallbackDiagnostics,
+			termRefs,
+			derivedDemandRevision,
+			preflightOwnershipSignature,
+			updatedFacultyCount,
+			displacedEntriesCount,
+			addedUnassignedCount,
+			readInputSnapshot,
+		} = computation;
+
 		const persisted = await tx.generationRun.findFirst({
 			where: { id: runId, schoolId, schoolYearId },
 			select: {
@@ -539,7 +686,7 @@ export async function syncTimetableSetup(
 				'The canonical derived demand could not be re-resolved inside the sync transaction.',
 			);
 		}
-		if (txDerivedDemand.revision !== derivedDemand.revision) {
+		if (txDerivedDemand.revision !== derivedDemandRevision) {
 			throw err(
 				409,
 				'SOURCE_AUTHORITY_STALE',
@@ -567,6 +714,21 @@ export async function syncTimetableSetup(
 		}
 
 		const txInputSnapshot: GenerationInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
+		// Bind the persisted output to the same source snapshot that produced it:
+		// if ANY covered input changed between the read snapshot and this write
+		// transaction, the transaction snapshot no longer matches, so the write
+		// aborts with zero residue. This closes the launder gap where a newer
+		// snapshot could be attached to output derived from older data (rooms,
+		// buildings, grade-shift windows, scheduling policy, class templates,
+		// faculty mirrors, FacultySubject qualification/scope, sections,
+		// subjects, or derived demand).
+		if (!isInputSnapshotBound(readInputSnapshot, txInputSnapshot)) {
+			throw err(
+				409,
+				'SOURCE_AUTHORITY_STALE',
+				'The timetable setup source changed while setup sync was being prepared. Reload the run and sync again.',
+			);
+		}
 		const persistedSummary = (persisted.summary ?? {}) as Record<string, any>;
 		const updatedSummary = {
 			...persistedSummary,
@@ -665,7 +827,16 @@ export async function syncTimetableSetup(
 
 	for (let attempt = 1; attempt <= MAX_SERIALIZABLE_ATTEMPTS; attempt += 1) {
 		try {
-			return await prisma.$transaction(persist, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+			// The write transaction now also recomputes the complete input
+			// snapshot through its own client to bind output to source. Use the
+			// same bounded budget as the read snapshot so a larger reference set
+			// does not hit Prisma's short interactive default timeout and abort a
+			// valid sync.
+			return await prisma.$transaction(persist, {
+				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+				timeout: 30_000,
+				maxWait: 10_000,
+			});
 		} catch (error) {
 			if (isSerializationConflict(error) && attempt < MAX_SERIALIZABLE_ATTEMPTS) {
 				continue;

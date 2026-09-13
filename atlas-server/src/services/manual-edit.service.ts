@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { publishTimetableEvent } from './timetable-events.service.js';
 import {
 	validateHardConstraints,
@@ -184,8 +185,20 @@ export interface ManualEditRecord {
 
 // ─── Internal: load run + reference data for validation ───
 
-export async function loadRunContext(runId: number, schoolId: number, schoolYearId: number) {
-	const run = await prisma.generationRun.findFirst({
+/**
+ * Load the run + reference data needed for validation.
+ *
+ * `client` defaults to the production singleton so existing callers keep their
+ * behavior unchanged. Transaction-consistent callers (the setup sync reads) pass
+ * their interactive transaction client so every read is bound to one snapshot.
+ */
+export async function loadRunContext(
+	runId: number,
+	schoolId: number,
+	schoolYearId: number,
+	client: Prisma.TransactionClient | PrismaClient = prisma,
+) {
+	const run = await client.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
@@ -196,15 +209,15 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 	const unassignedItems = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
 
 	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
-		prisma.facultyMirror.findMany({
+		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true, maxHoursPerWeek: true },
 		}),
-		prisma.facultySubject.findMany({
+		client.facultySubject.findMany({
 			where: { schoolId, schoolYearId },
 			select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 		}),
-		prisma.room.findMany({
+		client.room.findMany({
 			where: { isTeachingSpace: true, building: { schoolId, isTeachingBuilding: true } },
 			select: {
 				id: true,
@@ -216,29 +229,29 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 				building: { select: { gradeScope: true } },
 			},
 		}),
-		prisma.subject.findMany({
+		client.subject.findMany({
 			where: { schoolId, isActive: true },
 			select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
 		}),
 		getOrCreatePolicy(schoolId, schoolYearId),
-		prisma.building.findMany({
+		client.building.findMany({
 			where: { schoolId },
 			select: { id: true, x: true, y: true },
 		}),
 		// Name data for human-readable conflict messages
-		prisma.facultyMirror.findMany({
+		client.facultyMirror.findMany({
 			where: { schoolId },
 			select: { id: true, firstName: true, lastName: true, maxHoursPerWeek: true },
 		}),
-		prisma.room.findMany({
+		client.room.findMany({
 			where: { building: { schoolId } },
 			select: { id: true, name: true, buildingId: true, type: true, capacity: true, features: true, building: { select: { name: true, shortCode: true } } },
 		}),
-		prisma.subject.findMany({
+		client.subject.findMany({
 			where: { schoolId },
 			select: { id: true, code: true, name: true, requiredFeatures: true },
 		}),
-		prisma.sectionSnapshot.findUnique({
+		client.sectionSnapshot.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			select: { payload: true },
 		}),
