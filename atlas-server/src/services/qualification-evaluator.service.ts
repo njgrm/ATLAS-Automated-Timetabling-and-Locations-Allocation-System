@@ -212,6 +212,10 @@ export function resolveSubjectOwnerDepartmentCode(
   for (const [prefix, dept] of policy.subjectOwnerPrefixes) {
     if (subjectCode.toUpperCase().startsWith(prefix)) return dept;
   }
+  // Persisted-only callers must not infer ownership from legacy code prefixes
+  // or subject-name glossaries.  The persisted owner department, aliases, and
+  // explicit cross-department permissions are the complete authority surface.
+  if (policy.persistedOnly) return null;
   // Fall back to legacy prefix rules
   for (const [prefix, dept] of Object.entries(LEGACY_SUBJECT_OWNER_DEPARTMENT_BY_PREFIX)) {
     if (subjectCode.toUpperCase().startsWith(prefix)) return dept;

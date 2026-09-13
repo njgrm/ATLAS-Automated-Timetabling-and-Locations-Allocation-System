@@ -18,8 +18,13 @@ import type {
 	StaffingTruthBucket, 
 	StaffingTruthComparison,
 	StaffingReport,
-	AutoFillSummaryResult
+	AutoFillSummaryResult,
+	TeachingLoadCandidateRejection
 } from '@/types';
+import {
+	candidateRejectionsForResult,
+	summarizeCandidateRejections,
+} from '@/lib/teaching-load-suggestion-diagnostics';
 
 export type { AutoFillSummaryResult, CoverageMode };
 
@@ -238,6 +243,10 @@ export function AutoFillSummaryModal({
 					return `${summary}${unresolvedNote}`;
 				})();
 	const specialProgramApprovalQueue = result?.specialProgramApprovalQueue ?? [];
+	// Bounded candidate diagnostics: why each skipped teacher was not selected.
+	// Zero-load teachers are always evaluated, so this explains their outcome.
+	const candidateRejections: TeachingLoadCandidateRejection[] = candidateRejectionsForResult(result);
+	const rejectionGroups = summarizeCandidateRejections(candidateRejections);
 
 	const toggleDepartment = (department: string) => {
 		setExpandedDepartments((current) => ({
@@ -641,6 +650,52 @@ export function AutoFillSummaryModal({
 								</div>
 							) : null;
 						})()}
+						{/* Candidate Eligibility Diagnostics — concise, never a raw log */}
+						{hasResult && result && candidateRejections.length > 0 && (
+							<div className="max-w-3xl mx-auto space-y-2 pt-4 border-t border-border/40" data-testid="teaching-load-candidate-diagnostics">
+								<div className="flex items-center justify-between">
+									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+										<Info className="size-3.5" /> Candidate eligibility
+									</h4>
+									<span className="text-xs text-muted-foreground font-bold uppercase">
+										{candidateRejections.length} skipped
+									</span>
+								</div>
+								<p className="text-xs font-medium text-muted-foreground leading-relaxed">
+									Zero-load teachers are always evaluated. These candidates were skipped before an assignment was suggested:
+								</p>
+								<div className="grid gap-1.5">
+									{rejectionGroups.map((group) => (
+										<div
+											key={group.reason}
+											className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs"
+											data-testid={`teaching-load-rejection-${group.reason}`}
+										>
+											<span className="font-bold text-foreground shrink-0">{group.label}</span>
+											{group.facultyNames.length > 0 && (
+												<TooltipProvider>
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<span className="min-w-0 truncate text-muted-foreground">
+																{group.facultyNames.join(', ')}
+																{group.count > group.facultyNames.length ? ` +${group.count - group.facultyNames.length}` : ''}
+															</span>
+														</TooltipTrigger>
+														<TooltipContent side="top">{group.facultyNames.join(', ')}</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
+											)}
+											<Badge
+												variant="outline"
+												className="h-5 shrink-0 border-border/60 px-1.5 text-xs font-bold tabular-nums"
+											>
+												{group.count}
+											</Badge>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 

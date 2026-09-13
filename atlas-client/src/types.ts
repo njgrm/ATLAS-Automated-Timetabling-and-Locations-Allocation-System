@@ -2016,6 +2016,23 @@ export type DistributionMoveAction = {
 	minutes: number;
 };
 
+export type TeachingLoadCandidateRejectionReason =
+	| 'PROGRAM_SCOPE_INCOMPATIBLE'
+	| 'NOT_QUALIFIED'
+	| 'HARD_CAP_EXCEEDED'
+	| 'CURRENT_OWNER'
+	| 'PLACEHOLDER_FACULTY';
+
+export type TeachingLoadCandidateRejection = {
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+	sectionName: string;
+	facultyId: number;
+	facultyName: string;
+	reason: TeachingLoadCandidateRejectionReason;
+};
+
 export type TeachingLoadDistributionSummary = {
 	coveredRows: number;
 	uncoveredRows: number;
@@ -2031,6 +2048,7 @@ export type TeachingLoadDistributionPlan = {
 	retains: Array<{ action: 'RETAIN'; subjectId: number; sectionId: number; facultyId: number }>;
 	inserts: Array<{ action: 'INSERT'; subjectId: number; sectionId: number; facultyId: number }>;
 	moves: DistributionMoveAction[];
+	candidateRejections?: TeachingLoadCandidateRejection[];
 	summary: TeachingLoadDistributionSummary;
 };
 
@@ -2070,6 +2088,8 @@ export type AutoFillSummaryResult = {
 	}[];
 	suggestedAssignmentBreakdown?: SuggestedAssignmentBreakdown;
 	suggestedRows?: SuggestedRowPreview[];
+	/** Bounded, stable diagnostics explaining why candidate receivers were skipped. */
+	candidateRejections?: TeachingLoadCandidateRejection[];
 };
 
 export type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';

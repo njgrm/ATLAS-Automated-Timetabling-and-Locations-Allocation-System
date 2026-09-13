@@ -546,6 +546,14 @@ router.post('/coverage/rebalance-over-cap', authenticate, requirePrivilegedRole,
 			});
 			return;
 		}
+		// A preview is still a privileged, school/year-scoped decision. Do not
+		// allow a JWT to inspect another school or a historical year merely
+		// because no rows will be written.
+		await assignmentService.assertTeachingLoadWriteAuthority({
+			schoolId,
+			schoolYearId,
+			actorSchoolId: actorSchoolIdOf(req),
+		});
 
 		const authToken = getUpstreamAuthToken(req);
 		const result = await previewOrApplyOverCapRebalance({
@@ -1055,9 +1063,16 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req: Reque
 			});
 			return;
 		}
+		// Preview/report endpoints are read-only, but they still expose school and
+		// year-scoped Teaching Load decisions. Resolve the same actor-school and
+		// exact-active-year authority before invoking any suggestion service.
+		await assignmentService.assertTeachingLoadWriteAuthority({
+			schoolId,
+			schoolYearId,
+			actorSchoolId: actorSchoolIdOf(req),
+		});
 
 		if (!previewOnly) {
-			await assignmentService.assertTeachingLoadWriteAuthority({ schoolId, schoolYearId, actorSchoolId: actorSchoolIdOf(req) });
 			res.status(409).json({
 				code: 'TEACHING_LOAD_PROPOSAL_REQUIRED',
 				message: 'Direct Teaching Load auto-fill apply is retired. Create and review a suggestion proposal before applying changes.',
@@ -1097,6 +1112,11 @@ router.post('/report/staffing-needs', authenticate, requirePrivilegedRole, async
 			});
 			return;
 		}
+		await assignmentService.assertTeachingLoadWriteAuthority({
+			schoolId,
+			schoolYearId,
+			actorSchoolId: actorSchoolIdOf(req),
+		});
 
 		const authToken = getUpstreamAuthToken(req);
 		const result = await autoFill(schoolId, schoolYearId, authToken, {
