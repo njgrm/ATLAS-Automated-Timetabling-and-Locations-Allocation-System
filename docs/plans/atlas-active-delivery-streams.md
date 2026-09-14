@@ -16,15 +16,19 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Cycle recovery: `tl-suggestion-c03r2-integration-20260914` (`INTEGRATED_AUDIT_PENDING`)
+- Cycle recovery: `tl-suggestion-c03r2-integration-20260914` (`CORRECTION_REQUIRED`)
   integrated frozen candidate `bcb53822` from base `e0a10ebc` at merge
-  `020fbe85`. Fresh QA returned `ACCEPT_READY` 18/18/0/0 and the completion
+  `020fbe85`. Fresh QA returned `ACCEPT_READY` 18/18/0/0 and the
   pre-integration completion audit returned `AUDIT_CLEAR` 15/15/0/0. Head-planner verification refreshed
   the index, confirmed the exact eight-path range and committed Serializable
   over-cap transaction option, reran the committed hermetic production path
   68/68 plus server TypeScript, and reconciled the stale 96/96 handoff cell to
-  100/100. The required post-integration Wave Completion Auditor remains
-  awaited. No deployment, login, live/shared database write, Teaching Load
+  100/100. The post-integration Wave Completion Auditor returned
+  `CORRECTION_REQUIRED` 12/17 passed, 3 blocked, 2 environment-unperformed:
+  over-cap apply can run write-capable stale-ownership reconciliation before
+  the later Serializable canonical-revision check, so a stale rejection is not
+  guaranteed zero-write. Correction branch `work/tl-suggestion-c03r3-atomicity`
+  is active from `c46cb06f`. No deployment, login, live/shared database write, Teaching Load
   apply, generation, publication, migration, or companion action occurred.
 - Cycle recovery: `tt-c04-authority-wave-20260913` (`COMPLETE`)
   activated 2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`) for three
@@ -429,7 +433,7 @@ hard blockers before separately approving publication.
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
 | TL-SUGGESTION-C03R | Unify suggestion and over-cap qualification with persisted policy, include qualified zero-load faculty, expose typed rejection reasons, and scope every preview/report | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 6/6/0/0) | MEDIUM cross-layer source; HIGH future apply | `work/tl-suggestion-c03`; base `4e5ef1f6`; reviewed candidate `6eb3a3b0`; integration merge `027b3f65` on `486bf8c7`; integrated onto `origin/main` via `bbd6b0df` | None in source; live suggestion apply remains separately gated HIGH | Fresh QA on the integrated tree `ses_f65804431ffefia10Eep6r4Zsd` `ACCEPT_READY` 15/15/0/0 (exact 12-path attribution; clean `types.ts` auto-union with no hunk lost; authority 64/64; apply parity 34/34 incl. TOCTOU/program-scope stale zero-write; distribution 13/13; workload policy 56/56; diagnostics client 7/7; disposable-PG authority 61/61; server/client tsc+build); merged-tree combined gates green | Closed in source; do not invoke suggestion/apply without its own reviewed preview and explicit HIGH approval; deployment remains a separate reviewed HIGH action |
-| TL-SUGGESTION-C03R2 | Make canonical derived demand the sole current-year pair authority for Teaching Load suggestions, staffing need, over-cap redistribution, and apply-time revalidation | `INTEGRATED_AUDIT_PENDING` (fresh QA `ACCEPT_READY` 18/18/0/0; pre-integration completion audit `AUDIT_CLEAR` 15/15/0/0) | MEDIUM cross-layer source; HIGH future apply | `work/tl-suggestion-c03r2`; base `e0a10ebc`; candidate `bcb53822`; integration merge `020fbe85` | Required post-integration Wave Completion Auditor; deployment and every live suggestion/over-cap apply remain separately gated HIGH | Exact eight-path range and clean frozen bytes verified after index refresh; C03R2 100/100 in formal QA, committed hermetic production path independently rerun 68/68, server TypeScript clean; reference-only and out-of-scope pairs excluded, zero-load Filipino/ESP candidates retained, over-cap apply revalidates canonical authority in an explicitly Serializable transaction | Run the post-integration auditor over the merged production tree; deploy only through a separately reviewed runtime packet and do not invoke suggestion/over-cap apply without a fingerprinted preview, independent QA, and explicit HIGH approval |
+| TL-SUGGESTION-C03R2 | Make canonical derived demand the sole current-year pair authority for Teaching Load suggestions, staffing need, over-cap redistribution, and apply-time revalidation | `CORRECTION_REQUIRED` after integration audit | MEDIUM cross-layer source; HIGH future apply | Integrated candidate `bcb53822` at merge `020fbe85`; correction `work/tl-suggestion-c03r3-atomicity` from `c46cb06f` | Write-capable stale-ownership reconciliation precedes canonical-revision revalidation; deployment and every live suggestion/over-cap apply remain locked | Fresh QA was 18/18/0/0 and pre-integration audit 15/15/0/0, but the required post-integration auditor proved the stale-rejection zero-write claim incomplete; exact eight-path source range and corrected 100/100 count remain valid | Make preliminary stale-ownership handling zero-write or move it into the same Serializable transaction after canonical revalidation; add a stale-ownership plus revision-change zero-write control; fresh QA and post-integration audit required |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
 | TT-SHAPE-DIAGNOSTIC-C02 | Bind timetable readiness to the 2026-2027 stakeholder shape policy and canonical section/teacher/room output projections | `INTEGRATED` | MEDIUM source; HIGH generation | `work/tt-shape-diagnostic-c02`; `8f48a2fe...ddbdaced`; integration `e83d25d5` | Live generation remains separately gated | Exact-range advisory coverage is carried by the committed 13-test C02 suite (the older committed advisory text is stale, per the wave audit); C02 13/13, stakeholder matrix 12/12, canonical readiness 14/14, real preflight/readiness zero-write mutants, server tsc/build and diff-check passed | Closed in source; use the diagnostic in the fingerprinted generation preview; do not generate or publish from this lane |
 | TT-OUTPUT-C03R | Preserve weekday and term identity through the scheduler, main grid, section/teacher/room projections, and beneficiary class-program exports | `INTEGRATED` (candidate content carried onto `origin/main` by the TT-OUTPUT-C03R3 merge `3c2fc2bd`) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; base `4e5ef1f6`; candidate `4f596af0`; capsule `docs/handoffs/tt-output-c03r-planner-result.md` | None in source | Fresh QA round 2 `ses_f69d7bda1ffeaHjNVOffKHo48U` `ACCEPT_READY` 14/14/0/0 on `4e5ef1f6..4f596af0`; the two post-capsule commits are covered by the C03R3 exact-range QA (see the C03R3 row) | Closed in source; live per-term output verification belongs to the bounded runtime deployment and its separately approved term-cache catch-up |
@@ -531,9 +535,9 @@ hard blockers before separately approving publication.
    action is unlocked by this closure; the shared runtime remains `3d916b26`
    and the new source is NOT deployed — runtime deployment remains a separate
    HIGH approval. `TL-SUGGESTION-C03R2` is integrated at merge
-   `020fbe85`; it supersedes the remaining Cartesian/current-year suggestion
-   authority without authorizing deployment or any live Teaching Load apply,
-   and remains `INTEGRATED_AUDIT_PENDING` until the post-integration auditor returns.
+   `020fbe85`, but the post-integration auditor found a pre-transaction
+   stale-ownership write hazard. It remains `CORRECTION_REQUIRED`; deployment
+   and every live Teaching Load apply are locked pending C03R3 correction.
 10. `tt-dynamic-audit-c04` is closed and pushed. The C04 authority wave — S1
     `TT-DYNAMIC-WORKSPACE-C04` (`2ebb0b17`), S2 `TT-WARNING-AUTHORITY-C04`
     (`d9b1cd4a`), and S3 `TT-TL-AUTHORITY-GUARD-C04` (`7b31c592`) — is
@@ -590,8 +594,10 @@ hard blockers before separately approving publication.
   verified on the integrated tree. Its canonical-demand successor
   `TL-SUGGESTION-C03R2` is integrated at merge `020fbe85` after fresh QA
   `ACCEPT_READY` 18/18/0/0 and a pre-integration completion audit
-  `AUDIT_CLEAR` 15/15/0/0; the post-integration auditor is awaited and no live
-  apply is authorized. The companion-SSO lane (`COMPANION-SSO-C01`)
+  `AUDIT_CLEAR` 15/15/0/0; the post-integration auditor returned
+  `CORRECTION_REQUIRED` for the stale-ownership atomicity gap. Correction branch
+  `work/tl-suggestion-c03r3-atomicity` is active; no live apply is authorized.
+  The companion-SSO lane (`COMPANION-SSO-C01`)
   is integrated in source at merge `c989f03d`. No lane may touch the shared
   runtime, live/shared database, task/environment configuration, generation,
   publication, or the living register under ordinary integration authority.
@@ -693,8 +699,8 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   fresh QA `ACCEPT_READY` 15/15/0/0 on the integrated tree. Its successor
   `TL-SUGGESTION-C03R2` is integrated at merge `020fbe85`; candidate
   `bcb53822` passed fresh QA 18/18/0/0 and pre-integration completion audit
-  15/15/0/0. The required post-integration Wave Completion Auditor is the only
-  remaining return for this source lane.
+  15/15/0/0, but post-integration audit returned `CORRECTION_REQUIRED`.
+  Await correction executor, fresh QA, integration, and re-audit.
 - `TT-TL-AUTHORITY-GUARD-C04`: no executor or QA return remains; candidate
   `7b31c592` passed fresh QA `ACCEPT_READY` 16/16/0/0 and is integrated at
   merge tip `6d244d5e`. `TT-DYNAMIC-WORKSPACE-C04` and
