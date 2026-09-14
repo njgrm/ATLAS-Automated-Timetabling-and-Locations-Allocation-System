@@ -8,12 +8,12 @@ Risk: **HIGH — shared-runtime environment change + release install + supervise
 process restart on ports 5001/5174.** Prepared 2026-09-14 (Asia/Manila) by the
 primary planner after source integration of `ENROLLPRO-PROXY-RECOVERY-C01`.
 
-Canonical directive: `D:/ATLAS/AGENTS.md`, LF-normalized SHA-256
-`4949c91b5a53a571c5c56c2fcbcee8c763712ceb838d4d8d8f8e50ccc8ee76b8` (recomputed
-at this packet correction 2026-09-14 after the root directive advanced mid-cycle
-from `4A501E7B…DBE5007` at 12:32 +08; the source prompt's preparation-time pin
-is preserved there as historical record — read the root file directly and carry
-this current hash in every execution handoff).
+Canonical directive: tracked `origin/main:AGENTS.md` (identical to the local root
+copy), LF-normalized SHA-256
+`F4F86185F2A0B4D78B50E8375F72E35B9F6E8A788A6F558952C2B29BE174CE64` (verified
+2026-09-14 after the directive advanced twice mid-cycle; the source prompt's
+preparation-time pin is preserved there as historical record — re-read the root
+file at execution and carry the then-current hash in every handoff).
 
 ## 1. Objective
 
