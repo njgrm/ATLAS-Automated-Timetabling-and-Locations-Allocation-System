@@ -24,7 +24,7 @@
   temp tree (`planner/pdf` 4 PDFs; `planner/png` 8 PNGs; DNO render at temp
   root; `lane-a/xlsx-pdf` 39 PDFs incl. probe; `lane-a/pdf-png` 272 PNGs).
 - Decisive source re-checks: G1 (`academic-term.service.ts:141-147` + route term
-  parsing), G2 (`published-schedule.service.ts:613-666`; 
+  parsing), G2 (`published-schedule.service.ts:613-666`;
   `teacher-program-export.service.ts:261,271-278`), G11
   (`room-schedule.service.ts:101` → `scheduling-policy.service.ts:963-983`,
   passive reader `:1001+`), class builder inline teacher + no merges/print setup
