@@ -4,17 +4,14 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   FIXTURES_DIR,
-  VERIFY_CLI,
-  createTempRepo,
-  cleanupRepo,
+  getSharedRepo,
   fixtureRaw,
   repoSubstitutions,
   substitute,
   writeState,
   makeReceipt,
   writeReceipt,
-  runCli,
-  errorCodes,
+  verifyInProcess,
 } from "./harness.mjs";
 
 const EXPECTED = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, "expected.json"), "utf8"));
@@ -49,8 +46,7 @@ function prepareFixture(name, repo) {
   const raw = fixtureRaw(name);
   const subs = repoSubstitutions(repo);
   if (!raw.includes("{{RECEIPT_SHA}}")) {
-    const statePath = writeState(repo, `state-${name}`, substitute(raw, subs));
-    return { statePath };
+    return { statePath: writeState(repo, `state-${name}`, substitute(raw, subs)) };
   }
   const spec = RECEIPT_FIXTURES[name];
   assert.ok(spec, `no receipt spec registered for ${name}`);
@@ -77,51 +73,46 @@ test("fixture index covers every fixture file", () => {
   assert.deepEqual(files, Object.keys(EXPECTED).sort());
 });
 
+// Every fixture is validated in-process through the production engine, against a
+// single shared disposable repository (A6). The CLI process contract is covered
+// separately by cli.test.mjs.
 for (const [name, expectation] of Object.entries(EXPECTED)) {
-  test(`fixture ${name} expects ${expectation.expect}`, (t) => {
-    const repo = createTempRepo();
-    t.after(() => cleanupRepo(repo.dir));
+  test(`fixture ${name} expects ${expectation.expect}`, () => {
+    const repo = getSharedRepo();
     const { statePath } = prepareFixture(name, repo);
-    const result = runCli(VERIFY_CLI, ["--state", statePath], { cwd: repo.dir });
-
+    const result = verifyInProcess(statePath);
     if (expectation.expect === "pass") {
-      assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stdout}${result.stderr}`);
-      assert.equal(result.json.status, "ok");
-      assert.deepEqual(result.json.errors, []);
+      assert.equal(result.ok, true, `expected a clean verification: ${JSON.stringify(result.errors)}`);
+      assert.deepEqual(result.errors, []);
     } else {
-      assert.notEqual(result.status, 0, `expected nonzero exit, got 0: ${result.stdout}`);
-      assert.equal(result.json.status, "fail");
-      assert.ok(
-        errorCodes(result).includes(expectation.code),
-        `expected ${expectation.code} in ${JSON.stringify(errorCodes(result))}`,
-      );
+      assert.equal(result.ok, false, `expected verification to fail for ${name}`);
+      const codes = result.errors.map((e) => e.code);
+      assert.ok(codes.includes(expectation.code), `expected ${expectation.code} in ${JSON.stringify(codes)}`);
     }
   });
 }
 
-test("positive fixtures expose no error codes at all", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+test("positive fixtures expose no error codes at all", () => {
+  const repo = getSharedRepo();
   for (const name of ["pass-ordinary.json", "pass-audited-wave.json", "pass-high-prepared.json"]) {
     const { statePath } = prepareFixture(name, repo);
-    const result = runCli(VERIFY_CLI, ["--state", statePath], { cwd: repo.dir });
-    assert.equal(result.status, 0, `${name} should pass: ${result.stdout}`);
-    assert.deepEqual(errorCodes(result), [], `${name} should report no codes`);
+    const result = verifyInProcess(statePath);
+    assert.equal(result.ok, true, `${name} should pass: ${JSON.stringify(result.errors)}`);
+    assert.deepEqual(result.errors, [], `${name} should report no codes`);
   }
 });
 
-test("changed-path fixtures isolate the mismatch direction", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+test("changed-path fixtures isolate the mismatch direction", () => {
+  const repo = getSharedRepo();
 
-  const missing = runCli(VERIFY_CLI, ["--state", prepareFixture("fail-changed-paths.json", repo).statePath], { cwd: repo.dir });
-  const missingError = missing.json.errors.find((e) => e.code === "CHANGED_PATHS_MISMATCH");
+  const missing = verifyInProcess(prepareFixture("fail-changed-paths.json", repo).statePath);
+  const missingError = missing.errors.find((e) => e.code === "CHANGED_PATHS_MISMATCH");
   assert.ok(missingError, "expected CHANGED_PATHS_MISMATCH for the missing path");
   assert.match(missingError.message, /missing: \[candidate\.txt\]/);
   assert.match(missingError.message, /extra: \[\]/);
 
-  const extra = runCli(VERIFY_CLI, ["--state", prepareFixture("fail-changed-paths-extra.json", repo).statePath], { cwd: repo.dir });
-  const extraError = extra.json.errors.find((e) => e.code === "CHANGED_PATHS_MISMATCH");
+  const extra = verifyInProcess(prepareFixture("fail-changed-paths-extra.json", repo).statePath);
+  const extraError = extra.errors.find((e) => e.code === "CHANGED_PATHS_MISMATCH");
   assert.ok(extraError, "expected CHANGED_PATHS_MISMATCH for the extra path");
   assert.match(extraError.message, /missing: \[\]/);
   assert.match(extraError.message, /extra: \[extra\.txt\]/);

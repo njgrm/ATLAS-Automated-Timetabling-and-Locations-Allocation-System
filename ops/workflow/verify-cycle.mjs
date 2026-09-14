@@ -39,6 +39,10 @@ if (!parsed.ok) {
 }
 
 const statePath = parsed.values.state;
+if (parsed.values.stream !== undefined && parsed.values.receipt === undefined) {
+  emit(usageReport({ code: "USAGE_STREAM_REQUIRES_RECEIPT", message: 'flag "--stream" is only meaningful together with "--receipt"' }));
+  process.exit(2);
+}
 const result = verifyStateDocument(statePath);
 
 if (parsed.values.receipt !== undefined) {

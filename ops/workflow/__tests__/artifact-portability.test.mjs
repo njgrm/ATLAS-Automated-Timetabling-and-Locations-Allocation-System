@@ -104,8 +104,12 @@ test("every seed-pinned artifact path is covered by an eol=lf attribute", () => 
   for (const artifact of pinnedArtifacts()) {
     assert.ok(
       prefixes.some((prefix) => artifact.path.startsWith(prefix)),
-      `pinned artifact ${artifact.path} is not covered by any eol=lf prefix (${prefixes.join(", ")}) — extend .gitattributes`,
+      `pinned artifact ${artifact.path} is not covered by any eol=lf prefix (${prefixes.join(", ")}) - extend .gitattributes`,
     );
+    // Load-bearing: ask Git itself which attribute applies to the exact path.
+    const res = spawnSync("git", ["-C", REPO_ROOT, "check-attr", "eol", "--", artifact.path], { encoding: "utf8", windowsHide: true });
+    assert.equal(res.status, 0, `git check-attr failed for ${artifact.path}: ${res.stderr}`);
+    assert.match(res.stdout.trim(), /:\s*eol:\s*lf$/, `git check-attr must resolve eol=lf for ${artifact.path}`);
   }
 });
 

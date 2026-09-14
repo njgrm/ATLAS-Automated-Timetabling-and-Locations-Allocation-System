@@ -5,8 +5,7 @@ import path from "node:path";
 import {
   VERIFY_CLI,
   SCHEMA_FILE,
-  createTempRepo,
-  cleanupRepo,
+  getSharedRepo,
   fixtureRaw,
   repoSubstitutions,
   substitute,
@@ -25,8 +24,7 @@ test("a missing schema file fails closed with SCHEMA_LOAD_FAILED", (t) => {
   t.after(() => fs.rmSync(tree.dir, { recursive: true, force: true }));
   fs.rmSync(tree.schemaFile, { force: true });
 
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = validStatePath(repo);
 
   const result = runCli(tree.verifyCli, ["--state", statePath], { cwd: repo.dir });
@@ -39,8 +37,7 @@ test("an unparseable schema file fails closed with SCHEMA_LOAD_FAILED", (t) => {
   t.after(() => fs.rmSync(tree.dir, { recursive: true, force: true }));
   fs.writeFileSync(tree.schemaFile, "{ not json");
 
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = validStatePath(repo);
 
   const result = runCli(tree.verifyCli, ["--state", statePath], { cwd: repo.dir });
@@ -55,8 +52,7 @@ test("an unsupported schema keyword fails closed with SCHEMA_UNSUPPORTED_KEYWORD
   schema.format = "date-time";
   fs.writeFileSync(tree.schemaFile, `${JSON.stringify(schema)}\n`);
 
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = validStatePath(repo);
 
   const result = runCli(tree.verifyCli, ["--state", statePath], { cwd: repo.dir });
@@ -67,13 +63,28 @@ test("an unsupported schema keyword fails closed with SCHEMA_UNSUPPORTED_KEYWORD
 test("the shipped schema is a 2020-12 document with the frozen contract version", () => {
   const schema = JSON.parse(fs.readFileSync(SCHEMA_FILE, "utf8"));
   assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
-  assert.equal(schema.properties.contractVersion.const, "1.0.0");
+  assert.equal(schema.properties.contractVersion.const, "1.1.0");
   assert.equal(schema.additionalProperties, false);
 });
 
+test("the schema no longer expresses a remoteSha self-reference (A1)", () => {
+  const raw = fs.readFileSync(SCHEMA_FILE, "utf8");
+  assert.equal(/"remoteSha"/.test(raw), false, "the ambiguous remoteSha field must be gone");
+  const schema = JSON.parse(raw);
+  assert.deepEqual(schema.$defs.git.required.includes("remoteObservation"), true);
+  assert.deepEqual(schema.$defs.git.required.includes("remoteSha"), false);
+});
+
+test("the schema carries the CAS revision and the lease array (A3)", () => {
+  const schema = JSON.parse(fs.readFileSync(SCHEMA_FILE, "utf8"));
+  assert.equal(schema.required.includes("leases"), true);
+  assert.equal(schema.properties.leases.type, "array");
+  assert.deepEqual(schema.$defs.lease.properties.state.enum, ["ACTIVE", "RETURNED", "IDLE", "ERROR", "STALE_UNCONFIRMED"]);
+  assert.equal(schema.properties.registry.required.includes("revision"), true);
+});
+
 test("unknown top-level keys are rejected by the schema", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const doc = JSON.parse(substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo)));
   doc.unexpectedTopLevelKey = true;
   const statePath = writeState(repo, "unknown-key.json", `${JSON.stringify(doc)}\n`);
@@ -84,8 +95,7 @@ test("unknown top-level keys are rejected by the schema", (t) => {
 });
 
 test("unknown nested stream keys are rejected by the schema", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const doc = JSON.parse(substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo)));
   doc.streams[0].unexpectedNestedKey = 1;
   const statePath = writeState(repo, "unknown-nested.json", `${JSON.stringify(doc)}\n`);
@@ -96,8 +106,7 @@ test("unknown nested stream keys are rejected by the schema", (t) => {
 });
 
 test("a missing required key is rejected by the schema", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const doc = JSON.parse(substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo)));
   delete doc.streams[0].objective;
   const statePath = writeState(repo, "missing-key.json", `${JSON.stringify(doc)}\n`);
@@ -108,8 +117,7 @@ test("a missing required key is rejected by the schema", (t) => {
 });
 
 test("a drive-qualified changed path is rejected by the path pattern", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const doc = JSON.parse(substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo)));
   doc.streams[0].git.changedPaths = ["C:/absolute/path.ts"];
   const statePath = writeState(repo, "bad-path.json", `${JSON.stringify(doc)}\n`);

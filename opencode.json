@@ -1,5 +1,17 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 12000
+  },
+  "agent": {
+    "compaction": {
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "variant": "low"
+    }
+  },
+  "subagent_depth": 1,
   "permission": {
     "external_directory": {
       "*": "ask",

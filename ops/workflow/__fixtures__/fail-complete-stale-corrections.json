@@ -1,12 +1,12 @@
 {
-  "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:48:00+08:00", "lastUpdatedBy": "fixture" },
+  "contractVersion": "1.1.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T10:48:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
   "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
   "streams": [{
     "id": "PC-1", "kind": "CYCLE", "objective": "COMPLETE after correction without a fresh QA session.", "riskTier": "MEDIUM",
     "state": "COMPLETE", "stateUpdatedAt": "2026-09-14T10:48:00+08:00", "nextAction": null,
     "awaited": [], "running": [],
-    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
     "owners": { "planner": { "sessionId": null, "status": "NONE", "writable": false }, "executor": { "sessionId": null, "status": "NONE", "writable": false }, "qa": { "sessionId": null, "status": "NONE", "writable": false }, "auditor": { "sessionId": null, "status": "NONE", "writable": false } },
     "gates": { "total": 6, "passed": 6, "failed": 0, "blocked": 0, "unperformed": 0 },
     "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "sess-qa-final", "auditorVerdict": "AUDIT_CLEAR", "auditorSessionId": "sess-aud-final", "auditRequired": true },
@@ -21,5 +21,6 @@
     "closure": { "receipt": { "path": "receipt-stale-corrections.json", "sha256": "{{RECEIPT_SHA}}" } },
     "sessionRouting": { "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }, "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" } }
   }],
+  "leases": [],
   "browserCustody": { "profiles": [], "logins": [] }
 }

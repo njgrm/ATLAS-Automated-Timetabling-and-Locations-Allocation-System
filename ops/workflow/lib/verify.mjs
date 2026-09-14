@@ -13,11 +13,9 @@ import {
 } from "./schema.mjs";
 import {
   resolveRepoRoot,
-  shaExists,
-  isAncestor,
-  isAncestorOrEqual,
-  diffNameOnly,
+  createGitMemo,
   normalizePath,
+  worktreeStatusPorcelain,
 } from "./git.mjs";
 import { sha256Hex } from "./util.mjs";
 import { validateClosureReceipt } from "./receipt.mjs";
@@ -35,7 +33,7 @@ const NEXT_ACTION_STATES = new Set([
   "EXTERNALLY_BLOCKED",
 ]);
 
-const TERMINAL_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED", "SUPERSEDED"]);
+export const TERMINAL_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED", "SUPERSEDED"]);
 const SUCCESSOR_UNLOCKABLE_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED"]);
 const DEPENDENCY_GATED_STATES = new Set(["RUNNING", "ACCEPT_READY", "INTEGRATION_READY"]);
 const CLOSURE_TERMINAL_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED"]);
@@ -80,20 +78,25 @@ export function verifyStateDocument(statePath, options = {}) {
     return { ok: false, errors: sortErrors(errors), doc: null, stateBytes: null, stateSha256: null, repoRoot: null, schemaPath };
   }
 
-  // 2. State file must be readable and parseable.
+  // 2. State file must be readable and parseable. An in-memory override lets the
+  //    atomic transition engine validate candidate bytes before any replace.
   let stateBytes;
-  try {
-    stateBytes = fs.readFileSync(statePath);
-  } catch (err) {
-    return {
-      ok: false,
-      errors: [{ code: "STATE_UNREADABLE", message: `cannot read state file: ${err.message}`, path: statePath }],
-      doc: null,
-      stateBytes: null,
-      stateSha256: null,
-      repoRoot: null,
-      schemaPath,
-    };
+  if (options.stateBytes !== undefined) {
+    stateBytes = Buffer.isBuffer(options.stateBytes) ? options.stateBytes : Buffer.from(options.stateBytes, "utf8");
+  } else {
+    try {
+      stateBytes = fs.readFileSync(statePath);
+    } catch (err) {
+      return {
+        ok: false,
+        errors: [{ code: "STATE_UNREADABLE", message: `cannot read state file: ${err.message}`, path: statePath }],
+        doc: null,
+        stateBytes: null,
+        stateSha256: null,
+        repoRoot: null,
+        schemaPath,
+      };
+    }
   }
   const stateSha256 = sha256Hex(stateBytes);
   let doc;
@@ -129,6 +132,23 @@ export function verifyStateDocument(statePath, options = {}) {
   const repoRoot = resolveRepoRoot(stateDir);
   const streams = doc.streams;
   const push = (code, message, errPath) => errors.push({ code, message, path: errPath });
+
+  // A caller (the atomic transition engine) may share a memo between the
+  // current-state and candidate-state validations so unchanged Git facts are
+  // resolved once. Every entry is read-only and keyed by its exact query.
+  const gitMemo = options.gitMemo || createGitMemo();
+  const ancestorCached = (a, b) => gitMemo.isAncestor(repoRoot, a, b);
+  const ancestorOrEqualCached = (a, b) => gitMemo.isAncestorOrEqual(repoRoot, a, b);
+  const diffCached = (base, candidate) => gitMemo.diffNameOnly(repoRoot, base, candidate);
+
+  // Batch commit-object existence for every stream in one Git call.
+  const existenceShas = [];
+  for (const s of streams) {
+    const gg = s.git;
+    const candidates = [gg.baseSha, gg.candidateSha, gg.integrationSha, gg.remoteObservation ? gg.remoteObservation.sha : null];
+    for (const sha of candidates) if (typeof sha === "string") existenceShas.push(sha);
+  }
+  const existence = repoRoot ? gitMemo.shaExistsMany(repoRoot, existenceShas) : new Map();
 
   // ---- Stream identity -----------------------------------------------------
   const seenIds = new Map();
@@ -195,7 +215,7 @@ export function verifyStateDocument(statePath, options = {}) {
           push("CORRECTIONS_INVALID", `last correction candidateSha ${last.candidateSha} != git.candidateSha ${stream.git.candidateSha}`, `${sp}.corrections`);
         }
       }
-      const receiptError = validateClosureReceipt(stream, repoRoot, stateDir);
+      const receiptError = validateClosureReceipt(stream, repoRoot, stateDir, options.resolveReceiptBytes);
       if (receiptError) {
         push(receiptError.code, receiptError.message, `${sp}.closure.receipt`);
       }
@@ -218,8 +238,8 @@ export function verifyStateDocument(statePath, options = {}) {
       if (!repoRoot) {
         push("GIT_REPO_UNAVAILABLE", "candidateSha is set but no Git repository could be resolved from the state file directory", `${sp}.git`);
       } else {
-        const required = [g.baseSha, g.candidateSha, g.integrationSha, g.remoteSha].filter((sha) => sha !== null);
-        const unknown = required.filter((sha) => !shaExists(repoRoot, sha));
+        const required = [g.baseSha, g.candidateSha, g.integrationSha].filter((sha) => sha !== null);
+        const unknown = required.filter((sha) => !existence.get(sha));
         if (unknown.length > 0) {
           push("GIT_SHA_UNKNOWN", `unknown commit object(s): ${unknown.join(", ")}`, `${sp}.git`);
         } else {
@@ -227,20 +247,16 @@ export function verifyStateDocument(statePath, options = {}) {
           if (g.baseSha === null) {
             ancestryOk = false;
             push("GIT_ANCESTRY", "candidateSha is set but baseSha is null", `${sp}.git.baseSha`);
-          } else if (!isAncestor(repoRoot, g.baseSha, g.candidateSha)) {
+          } else if (!ancestorCached(g.baseSha, g.candidateSha)) {
             ancestryOk = false;
             push("GIT_ANCESTRY", `baseSha ${g.baseSha} is not an ancestor of candidateSha ${g.candidateSha}`, `${sp}.git`);
           }
-          if (g.integrationSha !== null && !isAncestor(repoRoot, g.candidateSha, g.integrationSha)) {
+          if (g.integrationSha !== null && !ancestorCached(g.candidateSha, g.integrationSha)) {
             ancestryOk = false;
             push("GIT_ANCESTRY", `candidateSha ${g.candidateSha} is not an ancestor of integrationSha ${g.integrationSha}`, `${sp}.git`);
           }
-          if (g.integrationSha !== null && g.remoteSha !== null && !isAncestorOrEqual(repoRoot, g.integrationSha, g.remoteSha)) {
-            ancestryOk = false;
-            push("GIT_ANCESTRY", `integrationSha ${g.integrationSha} is not an ancestor-or-equal of remoteSha ${g.remoteSha}`, `${sp}.git`);
-          }
           if (ancestryOk && g.baseSha !== null) {
-            const actual = diffNameOnly(repoRoot, g.baseSha, g.candidateSha);
+            const actual = diffCached(g.baseSha, g.candidateSha);
             if (actual === null) {
               push("GIT_DIFF_FAILED", `git diff ${g.baseSha}...${g.candidateSha} failed`, `${sp}.git`);
             } else {
@@ -259,6 +275,30 @@ export function verifyStateDocument(statePath, options = {}) {
             }
           }
         }
+      }
+    }
+
+    // ---- Remote observation (A1: a snapshot, never required to equal HEAD) ----
+    // An observation attests a named ref and the SHA observed there. It is NOT
+    // compared with the containing commit, the current tip, or the working
+    // HEAD, so recording one cannot create a "new final SHA" fix-up chain. It
+    // is rejected when the observed SHA is not a real commit or when it is not
+    // downstream of the integrated work.
+    if (g.remoteObservation !== null) {
+      if (!repoRoot) {
+        push("GIT_REPO_UNAVAILABLE", "remoteObservation is set but no Git repository could be resolved from the state file directory", `${sp}.git.remoteObservation`);
+      } else if (!existence.get(g.remoteObservation.sha)) {
+        push(
+          "REMOTE_OBSERVATION_INVALID",
+          `remote observation sha ${g.remoteObservation.sha} is not a commit in this repository`,
+          `${sp}.git.remoteObservation.sha`,
+        );
+      } else if (g.integrationSha !== null && !ancestorOrEqualCached(g.integrationSha, g.remoteObservation.sha)) {
+        push(
+          "REMOTE_OBSERVATION_INVALID",
+          `integrationSha ${g.integrationSha} is not an ancestor-or-equal of observed remote sha ${g.remoteObservation.sha}`,
+          `${sp}.git.remoteObservation.sha`,
+        );
       }
     }
 
@@ -397,6 +437,43 @@ export function verifyStateDocument(statePath, options = {}) {
       );
     }
   }
+
+  // ---- Stream/worktree leases (A3 active-work detection) -------------------
+  // A stream may not be declared PLANNED with an empty running list while a
+  // verified ACTIVE lease names it, or while its owned worktree is dirty. Plain
+  // directory existence is NOT activity: a clean worktree with no lease passes.
+  // Lease expiry is evidence of uncertainty, never authority to clean up or
+  // replace another owner's work.
+  const leases = Array.isArray(doc.leases) ? doc.leases : [];
+  const seenLeaseIds = new Set();
+  leases.forEach((lease, li) => {
+    const lp = `leases[${li}]`;
+    if (seenLeaseIds.has(lease.id)) {
+      push("DUPLICATE_LEASE_ID", `duplicate lease id "${lease.id}"`, `${lp}.id`);
+    } else {
+      seenLeaseIds.add(lease.id);
+    }
+    const ownerStream = streamsById.get(lease.streamId);
+    if (!ownerStream) {
+      push("LEASE_UNKNOWN_STREAM", `lease ${lease.id} references undefined stream "${lease.streamId}"`, `${lp}.streamId`);
+      return;
+    }
+    if (lease.state === "ACTIVE" && ownerStream.state === "COMPLETE") {
+      push("COMPLETE_WITH_LIVE_LEASE", `stream ${ownerStream.id} is COMPLETE but lease ${lease.id} is ACTIVE`, `${lp}.state`);
+    }
+  });
+  streams.forEach((stream, i) => {
+    if (stream.state !== "PLANNED" || stream.running.length > 0) return;
+    const sp = `streams[${i}]`;
+    const activeLease = leases.find((l) => l.streamId === stream.id && l.state === "ACTIVE");
+    if (activeLease) {
+      push("PLANNED_WITH_LIVE_LEASE", `stream ${stream.id} is PLANNED with empty running but lease ${activeLease.id} is ACTIVE`, `${sp}.state`);
+    }
+    const dirty = worktreeStatusPorcelain(stream.git.worktree);
+    if (dirty !== null && dirty.trim().length > 0) {
+      push("PLANNED_WITH_DIRTY_WORKTREE", `stream ${stream.id} is PLANNED with empty running but its owned worktree is dirty`, `${sp}.git.worktree`);
+    }
+  });
 
   // ---- Coordination --------------------------------------------------------
   const coordination = doc.coordination;

@@ -1,12 +1,12 @@
 {
-  "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:25:00+08:00", "lastUpdatedBy": "fixture" },
+  "contractVersion": "1.1.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T10:25:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
   "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
   "streams": [{
     "id": "GIT-1", "kind": "STREAM", "objective": "Candidate does not descend from base.", "riskTier": "LOW",
     "state": "REVIEW_REQUIRED", "stateUpdatedAt": "2026-09-14T10:25:00+08:00", "nextAction": "Dispatch fresh QA.",
     "awaited": ["fresh QA verdict"], "running": [],
-    "git": { "worktree": null, "branch": "work/x", "baseSha": "{{BASE_SHA}}", "candidateSha": "{{OTHER_SHA}}", "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+    "git": { "worktree": null, "branch": "work/x", "baseSha": "{{BASE_SHA}}", "candidateSha": "{{OTHER_SHA}}", "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
     "owners": { "planner": { "sessionId": null, "status": "ACTIVE", "writable": true }, "executor": { "sessionId": null, "status": "NONE", "writable": false }, "qa": { "sessionId": null, "status": "NONE", "writable": false }, "auditor": { "sessionId": null, "status": "NONE", "writable": false } },
     "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
     "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
@@ -16,5 +16,6 @@
     "observations": [], "artifacts": [], "closure": null,
     "sessionRouting": { "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }, "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" } }
   }],
+  "leases": [],
   "browserCustody": { "profiles": [], "logins": [] }
 }

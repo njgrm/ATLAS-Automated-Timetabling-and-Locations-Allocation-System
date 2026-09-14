@@ -6,8 +6,7 @@ import path from "node:path";
 import {
   VERIFY_CLI,
   RENDER_CLI,
-  createTempRepo,
-  cleanupRepo,
+  getSharedRepo,
   fixtureRaw,
   repoSubstitutions,
   substitute,
@@ -54,8 +53,7 @@ test("verify without --state exits 2 and does not consume a decoy default", (t) 
 });
 
 test("verify with an unknown flag exits 2", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = materializedState(repo, "pass-ordinary.json", "state.json");
   const result = runCli(VERIFY_CLI, ["--state", statePath, "--manifest", "x.json"], { cwd: repo.dir });
   assert.equal(result.status, 2);
@@ -63,16 +61,22 @@ test("verify with an unknown flag exits 2", (t) => {
 });
 
 test("verify with --state but no value exits 2", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const result = runCli(VERIFY_CLI, ["--state"], { cwd: repo.dir });
   assert.equal(result.status, 2);
   assert.deepEqual(errorCodes(result), ["USAGE_MISSING_VALUE_STATE"]);
 });
 
+test("--stream without --receipt is a usage error (no silent no-op)", (t) => {
+  const repo = getSharedRepo();
+  const statePath = materializedState(repo, "pass-ordinary.json", "stream-no-receipt.json");
+  const result = runCli(VERIFY_CLI, ["--state", statePath, "--stream", "ORD-1"], { cwd: repo.dir });
+  assert.equal(result.status, 2);
+  assert.deepEqual(errorCodes(result), ["USAGE_STREAM_REQUIRES_RECEIPT"]);
+});
+
 test("render without --output exits 2 and writes nothing", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = materializedState(repo, "pass-ordinary.json", "state.json");
   const result = runCli(RENDER_CLI, ["--state", statePath], { cwd: repo.dir });
   assert.equal(result.status, 2);
@@ -80,8 +84,7 @@ test("render without --output exits 2 and writes nothing", (t) => {
 });
 
 test("receipt mint on a valid state records the exact state bytes", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = integrationReadyState(repo);
   const receiptPath = path.join(repo.dir, "receipts", "mint.json");
 
@@ -106,8 +109,7 @@ test("receipt mint on a valid state records the exact state bytes", (t) => {
 });
 
 test("receipt is never created when the state fails validation", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = materializedState(repo, "fail-gates-arithmetic.json", "state.json");
   const receiptPath = path.join(repo.dir, "receipt-fail.json");
 
@@ -118,8 +120,7 @@ test("receipt is never created when the state fails validation", (t) => {
 });
 
 test("receipt minting refuses an ambiguous stream selection", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = materializedState(repo, "pass-ordinary.json", "state.json");
   const receiptPath = path.join(repo.dir, "receipt-ambiguous.json");
 
@@ -130,8 +131,7 @@ test("receipt minting refuses an ambiguous stream selection", (t) => {
 });
 
 test("receipt minting refuses an unknown --stream id", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = integrationReadyState(repo);
   const receiptPath = path.join(repo.dir, "receipt-unknown.json");
 
@@ -142,8 +142,7 @@ test("receipt minting refuses an unknown --stream id", (t) => {
 });
 
 test("receipt minting accepts an explicit --stream id", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = integrationReadyState(repo);
   const receiptPath = path.join(repo.dir, "receipt-explicit.json");
 
@@ -153,8 +152,7 @@ test("receipt minting accepts an explicit --stream id", (t) => {
 });
 
 test("renderer refuses an invalid state without writing or touching the output", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = materializedState(repo, "fail-gates-arithmetic.json", "state.json");
   const outputPath = path.join(repo.dir, "register.md");
   fs.writeFileSync(outputPath, "SENTINEL\n");
@@ -168,8 +166,7 @@ test("renderer refuses an invalid state without writing or touching the output",
 });
 
 test("renderer creates the output on a valid state and reports pinned artifacts", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = materializedState(repo, "pass-ordinary.json", "state.json");
   const outputPath = path.join(repo.dir, "nested", "register.md");
 
@@ -183,18 +180,36 @@ test("renderer creates the output on a valid state and reports pinned artifacts"
 });
 
 test("verify on an unreadable state file exits 1", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const result = runCli(VERIFY_CLI, ["--state", path.join(repo.dir, "does-not-exist.json")], { cwd: repo.dir });
   assert.equal(result.status, 1);
   assert.deepEqual(errorCodes(result), ["STATE_UNREADABLE"]);
 });
 
 test("verify on an unparseable state file exits 1", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = writeState(repo, "broken.json", "{not json\n");
   const result = runCli(VERIFY_CLI, ["--state", statePath], { cwd: repo.dir });
   assert.equal(result.status, 1);
   assert.deepEqual(errorCodes(result), ["STATE_PARSE_FAILED"]);
+});
+
+test("render --check passes on a matching output and fails on a mismatch without writing", (t) => {
+  const repo = getSharedRepo();
+  const statePath = materializedState(repo, "pass-ordinary.json", "rendercheck-state.json");
+  const outputPath = path.join(repo.dir, "rendercheck.md");
+
+  const write = runCli(RENDER_CLI, ["--state", statePath, "--output", outputPath], { cwd: repo.dir });
+  assert.equal(write.status, 0, write.stdout);
+
+  const ok = runCli(RENDER_CLI, ["--check", "--state", statePath, "--output", outputPath], { cwd: repo.dir });
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.deepEqual(errorCodes(ok), []);
+
+  fs.writeFileSync(outputPath, "SENTINEL\n");
+  const before = sha256(fs.readFileSync(outputPath));
+  const bad = runCli(RENDER_CLI, ["--check", "--state", statePath, "--output", outputPath], { cwd: repo.dir });
+  assert.equal(bad.status, 1);
+  assert.deepEqual(errorCodes(bad), ["RENDER_CHECK_MISMATCH"]);
+  assert.equal(sha256(fs.readFileSync(outputPath)), before, "--check must never write");
 });
