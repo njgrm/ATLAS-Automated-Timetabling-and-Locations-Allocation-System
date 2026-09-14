@@ -21,12 +21,19 @@ plus temp renders under `%TEMP%/opencode/stakeholder-export-parity-c05/`
 §0/§6/§7/§9 and to packet T10/M23); F3/F4 evidence-index corrections. Revision
 r1 was frozen at `5eb14664`; audit round-1 verdict preserved at
 `docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r1.md`.
+**Revision r3 (2026-09-14):** operator-issued correction applied — ARAL
+authority resolved (ARAL Program absent from every official export; no
+placeholder; no load-block component; `Total Teaching Load` excludes ARAL);
+D-A removed from the open decisions; ARAL observations in beneficiary files
+classified as historical content overridden by the current decision;
+analysis/contract/packet/handoff updated; prior audit capsules preserved.
 
 ## 0. Verdict summary
 
 ATLAS has three genuinely wired, actor-scoped, zero-write official export routes
 (summary workbook, class program, teacher program) sharing one per-term entry
-source with correct ARAL/HG/AP/Flag semantics and a client contract that binds
+source with correctly enforced ARAL absence, HG exclusion, AP, and Flag
+semantics and a client contract that binds
 every official download to one selected term. **The beneficiary-ready claim is
 NOT met.** Confirmed blocking and material defects:
 
@@ -43,7 +50,7 @@ NOT met.** Confirmed blocking and material defects:
 | G9 | DNO template catalog is a single-school default seed; editing surface/authority unstated | DECISION_REQUIRED (D-F) |
 | G10 | Committed docs contain three false/stale parity claims | MATERIAL (docs-only) |
 | G11 | Room read path performs writes via `getOrCreatePolicy` (create/normalize/DDL) | MATERIAL |
-| G12 | Beneficiary artifacts show ARAL rows / minutes conventions that conflict with decision 6 wording; placeholder/period-config questions | DECISION_REQUIRED (D-A, D-C, D-D, D-E) |
+| G12 | Historical beneficiary artifacts show ARAL rows/minute conventions (DNO “ARAL-Reading”; SPEC “ARAL 0 min”; 2025–2026 “60 min”; SUMMARY “ARAL 1/2”) — observed historical content overridden by the operator-resolved ARAL absence; remaining conventions: class-program family, period/shift, learner counts | DECISION_REQUIRED (D-C, D-D, D-E); ARAL itself resolved |
 | G13 | Draft/review official outputs carry no publication-state marker; a draft export is indistinguishable from a published one (contract §7.11) | MATERIAL |
 
 **Classification vs the six categories:** no output type is
@@ -79,17 +86,17 @@ layout/room evidence only; **X** = context/technical (not a layout contract).
 
 | Artifact | SHA-256 | Extent | Class |
 |---|---|---|---|
-| `stakeholderFiles/DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx` | `9FDAC094…4E09EED0` | 4 pp (G7, G7-Spec, G9, G9-Spec; single-section day-column; Teacher column; merged breaks; Flag/HGP Monday overlay; ARAL-Reading rows; totals; 4-signature block; division footer) | C |
+| `stakeholderFiles/DNO-CLASS-PROGRAM-TEMPLATE-2026-2027.docx` | `9FDAC094…4E09EED0` | 4 pp (G7, G7-Spec, G9, G9-Spec; single-section day-column; Teacher column; merged breaks; Flag/HGP Monday overlay; ARAL-Reading rows (historical observed content; overridden — ARAL is absent from ATLAS outputs per G12); totals; 4-signature block; division footer) | C |
 | `stakeholderFiles/aral-prog_G7_Class-Program_SY2026-2027docx.docx` | `A83A09F6…B9B8954D3A` | 5 pp (Grade 7 all-sections section-column: 20 sections as columns, subject/teacher stacked sub-rows, HEALTH/LUNCH bands, legend, HNHS branding, 10-signature page). Contains ARAL PAN (AP), not the ARAL Program | C |
-| `stakeholderFiles/Teachers-PROGRAM_SPEC-PROG-AFTERNOON.docx` | `79AEC643…F6D1A3BF9` | 1 p (afternoon teacher program; Time/No. of min/Subject/Grade and section/Day/Bldg/Room #; load block with ARAL 0 min; photo box; 5-role signature block; “45 mins Inclusive of HGP/PEACE Campaign (Monday)” note) | C |
-| `stakeholderFiles/root-reference/SUMMARY-AND-TEACHERS-SCHEDULE-PER-SUBJECT-2026-2027.xlsx` | `63DB8E9A…79D0B3B3` | 10 sheets (SUMMARY ×2, SCIENCE, MATH, ENGLISH, FIL, AP, ESPGMRC, MAPEH, TLE; panel-per-teacher; ARAL 1/2 rows; print area `$B$40:$N$77` truncation) | C |
+| `stakeholderFiles/Teachers-PROGRAM_SPEC-PROG-AFTERNOON.docx` | `79AEC643…F6D1A3BF9` | 1 p (afternoon teacher program; Time/No. of min/Subject/Grade and section/Day/Bldg/Room #; load block with an ARAL 0-min row (historical convention; overridden — ATLAS load block excludes ARAL); photo box; 5-role signature block; “45 mins Inclusive of HGP/PEACE Campaign (Monday)” note) | C |
+| `stakeholderFiles/root-reference/SUMMARY-AND-TEACHERS-SCHEDULE-PER-SUBJECT-2026-2027.xlsx` | `63DB8E9A…79D0B3B3` | 10 sheets (SUMMARY ×2, SCIENCE, MATH, ENGLISH, FIL, AP, ESPGMRC, MAPEH, TLE; panel-per-teacher; “ARAL 1/2” rows (historical workbook convention; overridden — ATLAS summary excludes ARAL); print area `$B$40:$N$77` truncation) | C |
 | `stakeholderFiles/CamScanner-04-16-2026-14.38.pdf` | `1C907A86…23FDDDE` | 7 pp rendered (Annex B three-term school calendar SY 2026–2027; T1 Jun 8–Sep 15 2026; T3 Jan 4–Apr 8 [2026 print typo for 2027]) | C (term calendar) |
 | `D:/ATLAS/teacherSched+LoadActual.png` | `359E6E4D…EB3AD34C` | 1 (SY2026-2027 teacher program photo reference; 225/60/0/285 min block) | C |
 | `D:/ATLAS/teacher2Sched+LoadActual.png` | `7C976636…6B43919` | 1 (SY2026-2027 teacher program photo reference) | C |
 | `D:/ATLAS/793160024_…jpg` | `1FDD01C4…8E18D05` | 1 (Grade 9 class program photo; learners 14/20/34; 510/495 min; adviser + 4 signatories) | C |
 | `stakeholderFiles/CLASS-PROGRAM-SY-2025-2026-GRADE-8.xlsx` | `16668493…D13F0BD32` | 14 sheets (FLAG row, RECESS/LUNCH, “TEACHER X” placeholders, signature block) | H |
 | `stakeholderFiles/quarter-3_grade-10-schedule-monitoring.xlsx` | `474AA680…BADEE183` | 11 sheets (Q3 special program monitoring; 40-min periods; B3/2F/R1) | H |
-| `stakeholderFiles/root-reference/Teachers-PROGRAM.docx` | `44DBDD52…260E6D77` | 1 p (SY 2025–2026; RECESS/lunch; ARAL Program 60 min; “For every learner, we rise!”) | H |
+| `stakeholderFiles/root-reference/Teachers-PROGRAM.docx` | `44DBDD52…260E6D77` | 1 p (SY 2025–2026; RECESS/lunch; ARAL Program 60 min — historical convention; overridden; “For every learner, we rise!”) | H |
 | `stakeholderFiles/root-reference/CLASS-PROGRAM-v2.docx` | `C44ACAC1…EFD260B` | 1 p (SY 2025–2026 Grade 7 - AGONCILLO; full-width Flag band; inline subject/teacher) | H |
 | `stakeholderFiles/root-reference/40-minutes.xlsx` | `C5396FE0…F4D962` | 3 sheets/39 pp (SY 2025–2026; three mutually inconsistent internal time grids) | H |
 | Occupancy set: `BLDG3-BLDG-9-occupancy-plan-2023-24.docx`, `GARDE-8-OCCUPANCY-PLAN.docx`, `OCCUPANCY-PLAN-IN-4-STOREY-20-CL_24-CL-BUILDINGS_SY-2023-2024.docx`, `GRADE-7-OCCUPANCY-PLAN.pdf` | see lane A | room→section→adviser history | H |
@@ -149,7 +156,7 @@ question_prompt 5 pp (1 sampled); all three SY2026-2027 root images inspected.
 | Flag/HGP | Monday-only overlay sharing the Tue–Fri period | Not present | Monday-only overlay implemented (policy-driven) |
 | AP | Ordinary row | ARAL PAN ordinary subject | Ordinary (ARAL PAN unaffected) |
 | HG standalone row | None | None | Excluded |
-| ARAL Program row | “ARAL-Reading English/Filipino/Math” 60 min row (Mon–Thu) with Friday “TLE *45 min only”; totals 420/405 and 510/495 | Not present (decision 6 scope) | Excluded from cells |
+| ARAL Program row | “ARAL-Reading English/Filipino/Math” 60 min row (Mon–Thu) with Friday “TLE *45 min only”; totals 420/405 and 510/495 — **historical observed content; overridden by the operator-resolved ARAL absence** | Not present | Excluded from cells; must remain absent from room/summary outputs and contain no placeholder (packet T4/T7/M8) |
 | Totals row | Present (“Total minutes per day”) | Absent | Absent |
 | Adviser | Present | Present (row) | Adviser in SUMMARY only |
 | Approval areas | Prepared/Reviewed/Recommending/Approved (4) | Signature page (10 signatures) | Absent |
@@ -165,7 +172,7 @@ question_prompt 5 pp (1 sampled); all three SY2026-2027 root images inspected.
 | Day representation | “Monday to Friday” compaction | Same | Same compaction implemented |
 | Photo | Picture box | Picture box | Absent (no placeholder box) |
 | Profile block | Name/Position/Bachelor’s/Post-grad | Same | Present (Name/Position/degrees) |
-| Load block | Class Advising / Actual / ARAL (0 min) / Total | ARAL 60 min (2025–2026) | Present incl. Ancillary row; ARAL 0 in 2026–2027 path per exclusion filters |
+| Load block | Class Advising / Actual / **ARAL (0 min)** / Total — observed template content; **overridden: no ARAL component in ATLAS outputs** | ARAL 60 min (2025–2026, historical) | Present incl. Ancillary row; **no ARAL component**; `Total = advisory + actual + ancillary` (packet T6/M10; current builder still emits an `ARAL Program` row at `docx-export.service.ts:297-303` — removal required) |
 | Daily totals | “315 mins. (Monday–Friday)” + HGP note | “285 mins…” | Per-day table (Day × min) — different shape |
 | Ancillary | Time-slotted rows in schedule | Time-slotted rows | Weekly “Credited Non-Teaching Work” table |
 | Signatures | Teacher/School Head/PSDS/CID/ASDS (names printed) | Same | Roles present; names blank placeholders (configurable) |
@@ -320,15 +327,23 @@ stale.
 backfill UPDATEs). A passive reader already exists (`:1001+`) and should be
 used by read/export paths.
 
-**G12 — Preserved semantics & beneficiary-document conventions. DECISION_REQUIRED.**
+**G12 — ARAL authority (operator-resolved) and remaining conventions.
+DECISION_REQUIRED (D-C, D-D, D-E).**
 Correct and must not be rewritten: Flag/HGP Monday-only overlay
-(`workbook-export.service.ts:75-80,604-613`), HG/ARAL exclusion from cells and
+(`workbook-export.service.ts:75-80,604-613`), HG exclusion from cells and
 teacher rows (`:297`, `teacher-program-export.service.ts:283-286`,
 `class-program-matrix.service.ts:281-283`), AP ordinary, per-term demand
-5/term, no T1 coercion. Open conventions: ARAL placeholder vs omission (D-A),
-class-program family choice (D-C), period/shift canonicalization (D-D),
-learner-count source (D-E). Latent: teacher-program break rows lack the
-Flag→Monday day fallback used by the workbook
+5/term, no T1 coercion. **ARAL Program is operator-resolved as absent from
+class, teacher, room, and summary exports** — no demand, credit, cell, row,
+label, or empty placeholder. ARAL rows/minutes observed in beneficiary files
+(DNO “ARAL-Reading”, the SPEC template’s “ARAL 0 min” row, 2025–2026 “ARAL
+Program 60 min”, the reference workbook’s “ARAL 1/2” rows) are historical
+observed content overridden by this decision (packet T4/T6/T7/M8); the current
+teacher builder still emits an `ARAL Program` load row
+(`docx-export.service.ts:297-303`) whose removal is required by T6/M10.
+Remaining open conventions: class-program family (D-C), period/shift
+canonicalization (D-D), learner-count source (D-E). Latent: teacher-program
+break rows lack the Flag→Monday day fallback used by the workbook
 (`teacher-program-export.service.ts:320-336`) — included in the packet.
 
 **G13 — Draft/review outputs carry no publication-state marker. MATERIAL.**
@@ -392,17 +407,15 @@ separately gated HIGH actions. None of those were touched by this audit.
 deliverable set does not include editing pre-existing docs).
 
 **Preserve (must not be rewritten):** per-term demand 5/term + rotation
-isolation tests; no implicit T1 coercion; HG/ARAL exclusion; AP ordinary;
-Flag Monday-only overlay with Tue–Fri teachable; actor-school scope with zero
-dispatch; client term-bound requests, all-term disable, visible retryable
-errors, single-flight; export services read-only; published workbook revision
-binding; zero-write instrumentation in `tt-output-c03r-route.test.ts`.
+isolation tests; no implicit T1 coercion; HG exclusion; ARAL Program absent
+from every output (no demand, credit, cell, row, label, or placeholder);
+AP ordinary; Flag Monday-only overlay with Tue–Fri teachable; actor-school
+scope with zero dispatch; client term-bound requests, all-term disable, visible
+retryable errors, single-flight; export services read-only; published workbook
+revision binding; zero-write instrumentation in `tt-output-c03r-route.test.ts`.
 
 ## 10. Operator decisions (DECISION_REQUIRED)
 
-- **D-A**: ARAL placeholder row in official class program: render an empty
-  labeled row, or omit entirely? (Decision 6 excludes demand/credit/cells;
-  artifacts show ARAL rows for the school’s own use.)
 - **D-B**: Confirm the default room-program shape (§3.3 of the contract) or
   supply the school’s preferred form; confirm the room program is required for
   the pilot.
@@ -428,7 +441,7 @@ binding; zero-write instrumentation in `tt-output-c03r-route.test.ts`.
    integrated and the term-cache apply is separately approved, verify rendered
    exports from a real run against the contract’s print matrix. Not part of
    the correction packet.
-3. **No other successor is needed for this audit.** G-9/D-F and D-A..D-D are
+3. **No other successor is needed for this audit.** G-9/D-F and D-B..D-D are
    decisions, not workstreams; defaults are specified if unanswered.
 
 ## 12. Evidence index

@@ -23,10 +23,12 @@ not authorize any deployment, live generation, or publication.
 4. Rotating subjects may change subject, teacher, and room by term.
 5. The current beneficiary rotates Science subject identity while retaining the
    teacher; ATLAS must support future teacher and room changes.
-6. **ARAL Program is beneficiary-managed**: it creates no timetable demand, no
-   Teaching Load credit, no ordinary schedule cell, and no official export row.
-   Whether ATLAS renders an empty labeled ARAL placeholder row for print
-   alignment is an open decision (D-C).
+6. **ARAL Program is beneficiary-managed and must be absent from every official
+   output.** It creates no timetable demand, no Teaching Load credit, no
+   ordinary schedule cell, no export row, and no empty labeled placeholder in
+   the class, teacher, room, or summary exports. ARAL rows or minutes observed
+   in beneficiary files (including 2026–2027 references) are historical
+   observed content overridden by this operator decision.
 7. **Araling Panlipunan (AP / ARAL PAN)** remains an ordinary scheduled subject.
 8. **HG is not** a standalone ordinary-demand subject.
 9. **Flag Ceremony/HGP is a Monday-only overlay** on the underlying
@@ -88,8 +90,8 @@ Required content, per section:
 - Monday-only `Flag Ceremony/HGP` overlay in the underlying period; Tue–Fri
   cells of the same interval remain ordinary teachable periods.
 - AP as an ordinary subject row/cell.
-- No HG standalone row; no ARAL Program row/cell unless decision D-C selects a
-  labeled empty placeholder.
+- No HG standalone row; ARAL Program absent entirely (no row, cell, label,
+  placeholder, or credit) in every export.
 - Daily minute totals row with exact arithmetic; Friday or shift-specific
   variants must reconcile to the configured period structure.
 - Adviser name; approval areas: Prepared by, Reviewed by, Recommending
@@ -108,9 +110,12 @@ Required content per teacher:
 - Monday–Friday representation (compact `Monday to Friday` when all five days
   match, matching the reference convention).
 - Ancillary work and class-advising duty shown; lunch and health break rows.
-- Actual teaching load; **ARAL Program total fixed at 0 min** for 2026–2027
-  (legacy 2025–2026 documents showing 60 min are historical); total teaching
-  load = sum of credited components.
+- Actual teaching load. The load block carries **no ARAL component**:
+  `Total Teaching Load = Class Advising Duty + Actual Teaching Load +
+  Ancillary Work`. ARAL Program must not appear in the document (no row, no
+  label, no 0-min entry); ARAL minutes in historical references (2025–2026
+  “60 min”, the SPEC template’s “ARAL 0 min” row) are observed historical
+  content overridden by this decision.
 - Term-specific rotating assignments only; no cross-term leakage; the
   output is resolved for the requested term and bound to the requested run.
 - Print-readable portrait output with signature block (Checked by Teacher +
@@ -125,6 +130,7 @@ No 2026–2027 per-room artifact exists; the contract defines the default shape
 - Room/building identity; school year; selected term.
 - Columns: Time; minutes; Monday–Friday; cell shows Subject + Section +
   Teacher unambiguously (stacked), breaks banded.
+- ARAL Program absent entirely (no row, cell, or label).
 - Selected-term entries only; no cross-school rows; no same-term collision;
   cross-term reuse of the same room allowed; breaks/non-demand rows handled
   consistently with the class program.
@@ -137,6 +143,10 @@ No 2026–2027 per-room artifact exists; the contract defines the default shape
   subject row, and breaks, reconciled with the class program.
 - Per-subject teacher schedule sheets (one panel per teacher: subject, section,
   time rows, advisory/ancillary/total rows) as in the reference workbook.
+- ARAL Program absent entirely (no row, cell, or label); the reference
+  workbook’s “ARAL 1 / ARAL 2” rows are observed historical content overridden
+  by this decision; Araling Panlipunan (AP / ARAL PAN) remains an ordinary
+  subject.
 - Term identity in the header; per-term completeness; totals that reconcile
   with the class program and teacher program for the same selected term.
 - Print setup: orientation, fit-to-width, sensible page breaks; no truncated
@@ -188,10 +198,6 @@ auto-creation/normalization, no DDL, no cache writes.
 
 ## 8. Open operator decisions
 
-- **D-A (ARAL placeholder)**: may an official class program render an empty
-  labeled ARAL-Reading/Program row for print alignment, or must ARAL be absent
-  entirely? (Decision 6 excludes demand/credit/export rows; this is only about
-  a beneficiary-managed placeholder.)
 - **D-B (room program shape)**: confirm the default room-program shape in §3.3
   or provide the school's preferred form.
 - **D-C (class-program family)**: confirm the DNO single-section day-column
@@ -212,6 +218,9 @@ default and is recorded as `DECISION_REQUIRED` in the audit.
 ## 9. Non-goals
 
 - No mixed all-term official file, ever.
+- No ARAL Program content, row, label, or empty placeholder in any official
+  output; Araling Panlipunan (AP) remains the only ARAL-family subject that
+  appears, as an ordinary subject.
 - No hardcoded beneficiary names/sections/buildings.
 - No publication, deployment, or live generation authority is created by this
   contract.

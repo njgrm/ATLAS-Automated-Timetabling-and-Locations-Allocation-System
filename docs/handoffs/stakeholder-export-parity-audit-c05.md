@@ -10,7 +10,7 @@ and source audit; operator-activated `CYCLE ON`)
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`
 **Worktree/branch:** `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05`
 / `audit/stakeholder-export-parity-c05`
-**Docs candidate:** revision r2 — round-1 candidate `5eb14664` (6 files), round-1 remedy commit `9d2c2527` (G13 + packet T10/M23 + evidence-index fixes + preserved r1 capsule), r2 handoff commit `18a2111f`, and the closing commit carrying the r2 `AUDIT_CLEAR` capsule plus the D1 docs-only reconciliation (final tip recorded in the cycle return).
+**Docs candidate:** revision r3 — r1 candidate `5eb14664`, r1 remedy `9d2c2527`, r2 capsule/D1 closing `9eb91426` + `d39f6064`, and the r3 operator-correction commit (this revision; final tip recorded in the cycle return). Prior capsules preserved.
 **Correction history (this cycle):** round 1 — fresh auditor
 `ses_f5f80ea3dffeiRaYCNpIzKs8nM` returned `CORRECTION_REQUIRED`
 (16/15/0/1; F2 material: contract §7.11 declared ABSENT but mapped to no
@@ -18,12 +18,22 @@ gap/packet row; F3/F4 evidence-index nits). Deterministic docs-only remedy
 applied at `9d2c2527`; fresh re-audit commissioned for the r2 tip. Capsules:
 `docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r1.md`
 (preserved) and `...-r2.md` (closing).
+**Round 3 (operator correction, 2026-09-14):** operator-issued
+`CORRECTION_REQUIRED` resolving ARAL authority — ARAL Program absent from
+class, teacher, room, and summary exports; no placeholder; no load-block
+component; `Total Teaching Load` excludes ARAL; AP remains an ordinary subject;
+ARAL rows in beneficiary files are historical content overridden by the
+current decision. D-A removed from the open decisions; analysis, contract,
+packet, and this handoff updated (revision r3); a fresh targeted auditor
+verifies every ARAL/AP occurrence across the final docs and successor packet
+(16/16/0/0 expected; capsule r3 to follow).
 
 ## Verdict
 
 Beneficiary-export parity is **PARTIAL** — not ready. The audit confirmed three
 genuinely wired, actor-scoped, zero-write official export routes
-(summary/class/teacher) with correct ARAL/HG/AP/Flag semantics, and confirmed
+(summary/class/teacher) with correctly enforced ARAL absence, HG exclusion, AP,
+and Flag semantics, and confirmed
 these blocking/material gaps: **G1** server all-term fail-open;
 **G2** published teacher-program term loss + missing run binding; **G3**
 class-program template-parity layout; **G4** room program export absent; **G5**

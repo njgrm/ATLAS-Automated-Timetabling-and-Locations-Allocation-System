@@ -23,8 +23,9 @@ Make ATLAS produce beneficiary-ready, term-correct official outputs that
 faithfully reproduce the practical content and layout of the school’s 2026–2027
 class and teacher programs and provide equivalent section, teacher, room, and
 summary exports — per the output contract above, with the fixed decisions
-(three ordered terms; selected-term-only official exports; ARAL/HG excluded;
-AP ordinary; Flag/HGP Monday-only overlay; school-agnostic configuration).
+(three ordered terms; selected-term-only official exports; ARAL Program absent
+from every output (operator-resolved); HG excluded; AP ordinary; Flag/HGP
+Monday-only overlay; school-agnostic configuration).
 
 The audit found the outputs **PARTIAL/ABSENT**, not complete. This packet closes
 the confirmed gaps. **Do not rewrite what is already correct** (§10).
@@ -135,8 +136,8 @@ workbook path (`class-program-matrix.service.ts:115-119,140-143,211-227`).
   Recommending Approval / Approved by with configurable names/roles (blank
   lines when unset) and Adviser;
 - print setup: landscape, fit-to-width, no clipped columns;
-- no HG/ARAL rows unless decision D-A selects an empty labeled ARAL
-  placeholder (default: omit).
+- no HG rows; ARAL Program absent entirely (no row, cell, label, placeholder,
+  or credit) — operator-resolved, not optional.
 
 **T5. Summary workbook parity.** Extend `exportSummaryWorkbook`
 (`workbook-export.service.ts:384-478`): keep the SUMMARY matrix; add per-subject
@@ -150,18 +151,21 @@ selected term and run.
 `teacher-program-export.service.ts`: add the configurable branding block above
 the title (school/division/district lines with blank fallback); render the
 picture placeholder box (embed a photo only if an existing faculty image value
-is available — no schema change); keep the six-column schedule, `Monday to
-Friday` compaction, load block with **ARAL 0 min** for 2026–2027 and the
-`Total Teaching Load = advisory + actual + ancillary (+ ARAL 0)` invariant; add
-the daily-total annotation row convention (“X mins. (Monday–Friday)” plus the
-conditioned HGP/PEACE note) when policy defines those windows.
+is available — no schema change); keep the six-column schedule and `Monday to
+Friday` compaction; the load block carries **no ARAL component** —
+`Total Teaching Load = Class Advising Duty + Actual Teaching Load + Ancillary
+Work` — and ARAL Program must not appear anywhere in the document (no row, no
+label, no 0-min entry); add the daily-total annotation row convention
+(“X mins. (Monday–Friday)” plus the conditioned HGP/PEACE note) when policy
+defines those windows.
 
 **T7. Room program official export (new).** Add a server export route
 (`runs/:runId/export/room-program.xlsx?termIndex=&roomId=`) built from the same
 `loadExportContext` entries as the class program (`roomId` scopes rooms; omit
 = all rooms with entries). Layout per the contract §3.3: room/building + year +
 term header; TIME | minutes | Monday–Friday; cells carry Subject + Section +
-Teacher; breaks banded; print setup. Actor-school scope and zero-write apply.
+Teacher; breaks banded; ARAL Program absent (no cell/row/label); print setup.
+Actor-school scope and zero-write apply.
 Client: bind an official room download control on the RoomSchedules page to a
 resolved run + selected term; disabled with zero dispatch when either is
 unresolved.
@@ -219,9 +223,9 @@ not PASS.
 | M5 | Five-session weekly subject | 5 sessions in every applicable term in class/teacher/summary outputs | Drop one term occurrence → reconciliation fails |
 | M6 | Rotation propagation | T1/T2/T3 subject/teacher/room changes appear in every output | Share/freeze rotation → cross-surface check fails |
 | M7 | Monday-only Flag/HGP | Monday flag cell; Tue–Fri teachable cells; teacher-program break day-scope | Flag on all days → fails |
-| M8 | ARAL/HG exclusion, AP inclusion | No ARAL/HG demand/cell/row; AP present; D-A default honored | Inject ARAL subject → cell appears (must fail) |
+| M8 | ARAL absence everywhere, HG exclusion, AP inclusion | ARAL Program absent from class/teacher/room/summary exports (no row/cell/label/placeholder/credit; operator-resolved); HG excluded; AP present as an ordinary subject | Inject ARAL subject → any ARAL cell/row/load entry appears (must fail); ARAL label/placeholder reappearing must fail; AP removal must fail |
 | M9 | Class-program layout | Teacher column values, merged break ranges, totals arithmetic, approval rows, learner fields present in produced xlsx | Remove merge/totals → geometry/extraction assertion fails |
-| M10 | Teacher-program layout | Branding rows, ARAL 0, total invariant, signature roles, photo placeholder | Break total invariant → fails |
+| M10 | Teacher-program layout | Branding rows, **no ARAL component**, `Total Teaching Load = advisory + actual + ancillary`, signature roles, photo placeholder | ARAL row/0-min entry appearing → fails; break total invariant → fails |
 | M11 | Room program export | Mounted route 200 selected term, zero-write, filename identity; client control dispatches only with resolved scope | Client unresolved scope → zero dispatch |
 | M12 | Summary workbook | Per-subject sheets present; print setup set; totals reconcile with class program | Remove a subject sheet → fails |
 | M13 | Cross-output reconciliation | Independently parsed class/teacher/room/summary artifacts agree on the fixture’s `(term, day, interval, section, subject, teacher, room)` tuples | Any single-surface mutation fails |
@@ -239,7 +243,8 @@ not PASS.
 **Fixture requirements (deterministic):** three ordered terms; ≥1 ordinary
 five-session subject; ≥1 rotation family with per-term subject/teacher/room
 changes; Monday Flag/HGP + Tue–Fri teachable period; ARAL and HG subjects
-present in input demand but excluded from outputs; AP ordinary; morning and
+present in input demand but absent from every output (no cell, row, label,
+placeholder, or credit); AP ordinary; morning and
 afternoon shift grades; ≥2 sections; ≥2 teachers; ≥2 rooms; breaks defined in
 policy; one fixture variant for published revision-effective truth.
 
@@ -298,17 +303,19 @@ the decisive pages independently.
 
 ## 9. Open decisions (defaults apply if unanswered)
 
-D-A ARAL placeholder (default: omit); D-B room shape (default: contract §3.3);
-D-C class-program family (default: DNO single-section day-column field set per
-T4); D-D period/shift canonicalization (default: persisted scheduling policy +
-canonical slots as-is); D-E learner counts (default: blank fields); D-F slot
-configuration (default: persisted `classProgramSlot` rows are authoritative;
-DNO catalog is the default seed).
+D-B room shape (default: contract §3.3); D-C class-program family (default:
+DNO single-section day-column field set per T4); D-D period/shift
+canonicalization (default: persisted scheduling policy + canonical slots
+as-is); D-E learner counts (default: blank fields); D-F slot configuration
+(default: persisted `classProgramSlot` rows are authoritative; DNO catalog is
+the default seed). D-A (ARAL placeholder) is closed by the operator decision:
+ARAL is absent from every official export.
 
 ## 10. Preserve list (must not be rewritten)
 
 Per-term derived-demand 5/term + rotation isolation logic; no implicit T1
-coercion; HG/ARAL demand+cell+credit exclusion; AP ordinary; Flag/HGP
+coercion; HG exclusion; ARAL Program absent from every output (no demand,
+credit, cell, row, label, or placeholder); AP ordinary; Flag/HGP
 Monday-only overlay with Tue–Fri teachable; actor-school scope with zero
 dispatch; client term-bound requests, all-term disable, visible retryable error
 banner, single-flight guard; export service read-only behavior; published
