@@ -5172,3 +5172,24 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 - None for the bounded first-pass retirement cycle; ambiguous worktrees are
   preserved for a later explicit decision.
+## [2026-09-14] — E-Drive Worktree Authority
+
+### Added
+- Established `E:/ATLAS-worktrees` as the required root for new ATLAS planner,
+  executor, QA, audit, and integration worktrees.
+
+### Changed
+- Reclassified `D:/ATLAS-worktrees` as legacy-retention storage only and
+  prohibited copying its historical paths into successor handoffs.
+- Made the 12-worktree budget apply across both the new E-drive root and any
+  retained legacy D-drive worktrees.
+
+### Decisions Made
+- The main checkout and shared Git object database remain at `D:/ATLAS`; new
+  linked checkout files, builds, and isolated dependencies move to `E:`.
+- Active, dirty, or decision-pending D-drive worktrees remain in place until
+  their owning stream reaches a safe retirement boundary.
+
+### Open Questions
+- None. Future handoffs must name `E:/ATLAS-worktrees/<stream>` unless the
+  operator explicitly changes the storage decision.

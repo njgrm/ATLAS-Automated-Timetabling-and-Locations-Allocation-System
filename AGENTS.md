@@ -25,9 +25,12 @@ After **every output that changes code or files**, suggest a conventional-commit
 
 ## Workspace Capacity And Worktree Lifecycle Rule
 
-`D:/ATLAS-worktrees` is temporary execution capacity, not a permanent archive.
-Git branches, commits, pushed review artifacts, and the living register preserve
-history; retaining every completed checkout and its dependency tree does not.
+`E:/ATLAS-worktrees` is the preferred root for every new ATLAS planner,
+executor, QA, audit, and integration linked worktree. `D:/ATLAS-worktrees` is a
+legacy-retention root only: do not create another worktree there unless the
+operator explicitly changes this storage decision. Git branches, commits,
+pushed review artifacts, and the living register preserve history; retaining
+every completed checkout and its dependency tree does not.
 
 - Before creating a worktree, installing dependencies, generating a large
   fixture, or starting a build expected to consume substantial disk, record the
@@ -36,10 +39,11 @@ history; retaining every completed checkout and its dependency tree does not.
   another full checkout or dependency tree; retire eligible historical
   worktrees or obtain an explicit operator exception first. PostgreSQL also
   uses `D:`, so database headroom is part of this safety gate.
-- Keep at most **12 active task worktrees** under `D:/ATLAS-worktrees` by
-  default. A larger parallel wave must name why each additional checkout is
-  simultaneously necessary and how it will be retired. Integration worktrees
-  count toward this limit and must not remain merely as historical evidence.
+- Keep at most **12 active task worktrees** in total across
+  `E:/ATLAS-worktrees` and the legacy `D:/ATLAS-worktrees` root by default. A
+  larger parallel wave must name why each additional checkout is simultaneously
+  necessary and how it will be retired. Integration worktrees count toward this
+  limit and must not remain merely as historical evidence.
 - Every stream handoff must include a worktree disposition: `KEEP_ACTIVE`,
   `RETIRE_AFTER_INTEGRATION`, or `PRESERVE_FOR_DECISION`. After a candidate is
   integrated and pushed, the integration owner shall retire its clean inactive
@@ -55,8 +59,10 @@ history; retaining every completed checkout and its dependency tree does not.
 - Retire registered worktrees only with
   `git worktree remove <exact-validated-path>` followed by `git worktree prune`.
   Never use `--force`, raw recursive deletion, a glob, or a computed path that
-  has not been resolved and proven to be a direct child of
-  `D:/ATLAS-worktrees`. Worktree retirement never authorizes branch deletion.
+  has not been resolved and proven to be a direct child of the applicable
+  approved worktree root (`E:/ATLAS-worktrees` for new work or the legacy
+  `D:/ATLAS-worktrees` root). Worktree retirement never authorizes branch
+  deletion.
 - Never retire or modify `D:/ATLAS`, Codex-managed worktrees under the user
   profile, `D:/ATLAS-runtime-*`, `D:/ATLAS-runtime-config`, PostgreSQL storage,
   companion repositories, `stakeholderFiles`, or preservation/backup
@@ -68,8 +74,11 @@ history; retaining every completed checkout and its dependency tree does not.
   part of worktree retirement. If an isolated install is necessary, the disk
   floor still applies and its cleanup owner must be named.
 - At planner startup and cycle closure, reconcile `git worktree list` with the
-  living register. Worktree existence alone never means a stream is running;
-  stale terminal worktrees are cleanup debt and must be queued immediately.
+  living register. Every new handoff must use an exact
+  `E:/ATLAS-worktrees/<stream>` path; an old prompt's D-drive path is historical
+  text and must not be copied into a successor packet. Worktree existence alone
+  never means a stream is running; stale terminal worktrees are cleanup debt
+  and must be queued immediately.
 
 ## External Subsystem Source Protection Rule
 
@@ -163,7 +172,8 @@ history; retaining every completed checkout and its dependency tree does not.
   rules here only.
 - `AGENTS.md` is a tracked repository directive. The version on current
   `origin/main` is the distribution authority for every sibling
-  `D:/ATLAS-worktrees/*` checkout; `D:/ATLAS/AGENTS.md` is the canonical local
+  `D:/ATLAS-worktrees/*` or `E:/ATLAS-worktrees/*` checkout;
+  `D:/ATLAS/AGENTS.md` is the canonical local
   convenience copy only when its LF-normalized hash matches that tracked
   version. Before dispatching or resuming an agent in an older worktree, the
   planner must fetch `origin/main`, compare the worktree file with
