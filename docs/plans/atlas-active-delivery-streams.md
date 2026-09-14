@@ -16,27 +16,30 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Cycle recovery: `workflow-closure-recovery-20260914` (`RUNNING`) activated
-  2026-09-14 (Asia/Manila) by the operator (`CYCLE ON`) to correctly close two
-  invalid wave states with zero live actions. Lane A (`TT-TL-MODULES-C04` /
-  `tt-tl-modules-c04r1-recovery-20260914`) is reopened as
-  `INTEGRATED_AUDIT_PENDING`: its auditor returned `PLANNER_DECISION_REQUIRED`
-  8/7/0/1 (one unperformed labeled production-shape parity row) and the former
-  `COMPLETE` declaration was invalid because the docs-only remedy at `119277ce`
-  skipped the required fresh-QA + fresh-auditor loop. Lane B
-  (`enrollpro-proxy-recovery-20260914`) is reopened: its auditor returned
-  `CORRECTION_REQUIRED` 11/12/0/0 (blocked 0, unperformed 0; one
-  register-continuity finding) and the former closure likewise skipped fresh QA
-  + a fresh auditor after the docs-only register remedy at `bba85ea5`. Recovery
-  worktree `D:\ATLAS-worktrees\workflow-closure-recovery-20260914`, branch
-  `integration/workflow-closure-recovery-20260914`, base `origin/main`
-  `47582013`; per-lane fresh QA and fresh Wave Completion Auditors run before
-  either closure. Lane B's packet correction adds the durable scheduled-task
-  launch-ownership record and the revised exact HIGH approval sentence. Nothing
-  live is authorized or executed in this cycle: no deployment, restart,
-  task/env mutation, login, browser session, or database action.
-- Cycle recovery: `tt-tl-modules-c04r1-recovery-20260914` (REOPENED;
-  `INTEGRATED_AUDIT_PENDING`) activated 2026-09-14 (Asia/Manila) by the operator
+- Cycle recovery: `workflow-closure-recovery-20260914` (`COMPLETE`) closed
+  2026-09-14 (Asia/Manila); activated by the operator (`CYCLE ON`) to correctly
+  close two invalid wave states with zero live actions; integration commit
+  `b258357a` (docs-only: register recovery + proxy packet correction) pushed to
+  `origin/main`. Lane A: fresh QA `ses_f6113fbc6ffeqDNLqJBtZTW7fh`
+  `ACCEPT_READY` 7/7/0/0 over docs correction `5ad87db8...119277ce`, then fresh
+  Wave Completion Auditor `ses_f610f79a6ffegjLNmkTRCxWWuq` `AUDIT_CLEAR`
+  7/7/0/0 (r2 capsule at
+  `docs/reviews/tt-tl-modules-c04r1-recovery-20260914/wave-completion-audit-r2.md`);
+  `TT-TL-MODULES-C04` closes `COMPLETE` with the prior invalid capsule
+  preserved. Lane B: fresh QA `ses_f6113dc91ffeZPHAdXjA7220Rr` `ACCEPT_READY`
+  10/10/0/0 over the corrected packet candidate `b258357a` (durable
+  scheduled-task launch ownership + symmetric rollback + revised approval
+  sentence), then fresh Wave Completion Auditor
+  `ses_f610f5553ffeTRLyJuMTctgzVY` `AUDIT_CLEAR` 11/11/0/0 (r2 capsule at
+  `docs/reviews/enrollpro-proxy-recovery-20260914/wave-completion-audit-r2.md`);
+  the revised exact HIGH approval sentence is returned NOT GRANTED. Both
+  closures rest on passed == total, blocked 0, unperformed 0; the r2 capsules
+  carry the disclosed auditor-tier fallback and the execution-preflight notes.
+  No deployment, restart, task/env mutation, login, browser session, or
+  database action was executed by this cycle.
+- Cycle recovery: `tt-tl-modules-c04r1-recovery-20260914` (`COMPLETE` — audit
+  recovery closed under `workflow-closure-recovery-20260914`) activated
+  2026-09-14 (Asia/Manila) by the operator
   (`CYCLE ON`) for packet
   `docs/prompts/tt-tl-modules-c04r1-stalled-recovery-2026-09-14.md` (directive
   pin at activation `F4F86185…CE64`, current `CFA7BFAB…AB1E7E4`; governing packet
@@ -58,11 +61,13 @@ hard blockers before separately approving publication.
   audit's single unperformed parity row is `119277ce`. Wave Completion Auditor
   `ses_f613ff1b8ffee8j9Evzi4ZL2YU` returned `PLANNER_DECISION_REQUIRED` 8/7/0/1
   with no product/runtime or write-authority defect (audit-tier fallback
-  `opencode-go/deepseek-v4.1-flash`, no max variant selectable, disclosed); the
-  former `COMPLETE` declaration applied the docs remedies without the required
-  fresh QA + fresh audit loop and is superseded by
-  `workflow-closure-recovery-20260914`. Prior capsule (preserved) at
-  `docs/reviews/tt-tl-modules-c04r1-recovery-20260914/wave-completion-audit.md`.
+  disclosed). The former `COMPLETE` declaration was invalid (it skipped the
+  required fresh QA + fresh auditor loop); the recovery cycle re-verified the
+  docs correction (fresh QA `ses_f6113fbc6ffeqDNLqJBtZTW7fh` 7/7/0/0) and
+  closed it with fresh auditor `ses_f610f79a6ffegjLNmkTRCxWWuq` `AUDIT_CLEAR`
+  7/7/0/0. Prior capsule (preserved) at
+  `docs/reviews/tt-tl-modules-c04r1-recovery-20260914/wave-completion-audit.md`;
+  r2 capsule `.../wave-completion-audit-r2.md`.
   Accepted residuals: unreachable legacy capability-override exports and the
   missing `Serializable` assertion (folded into `TT-SOURCE-FRESHNESS-C04`); the
   Dock rendered-coverage note and two data-dependent suite non-reruns
@@ -70,24 +75,28 @@ hard blockers before separately approving publication.
   (environment-only, byte-identical base→tip); pre-existing tracked
   `atlas-client/qa-artifacts/` hygiene (separate backlog). No live/runtime/data
   mutation, login, or deployment occurred in the stream.
-- Cycle recovery: `enrollpro-proxy-recovery-20260914` (REOPENED; audit recovery
-  in progress under `workflow-closure-recovery-20260914`). Candidate `54dce67b`
+- Cycle recovery: `enrollpro-proxy-recovery-20260914` (`COMPLETE` — audit
+  recovery closed under `workflow-closure-recovery-20260914`). Candidate `54dce67b`
   (base `d61c38d0`, 25 paths) passed fresh QA
   `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 and is integrated at
   merge `bc61ecd5`; the fresh Wave Completion Auditor
   `ses_f61644891ffeKRvP4CGjAidRtd` returned `CORRECTION_REQUIRED` 11/12/0/0 with
   a single blocking register-continuity finding whose deterministic docs-only
-  remedy was applied at `bba85ea5`; the former closure skipped the required
-  fresh QA + fresh auditor after that remedy and is superseded by the recovery
-  cycle. Original capsule (preserved) at
-  `docs/reviews/enrollpro-proxy-recovery-20260914/wave-completion-audit.md`.
+  remedy was applied at `bba85ea5`; the former closure was invalid (it skipped
+  the required fresh QA + fresh auditor). The recovery cycle corrected the
+  packet (durable launch ownership, symmetric rollback, revised approval
+  sentence; blob `bbaab939`), which passed fresh QA
+  `ses_f6113dc91ffeZPHAdXjA7220Rr` 10/10/0/0 and fresh auditor
+  `ses_f610f5553ffeTRLyJuMTctgzVY` `AUDIT_CLEAR` 11/11/0/0. Original capsule
+  (preserved) at
+  `docs/reviews/enrollpro-proxy-recovery-20260914/wave-completion-audit.md`;
+  r2 capsule `.../wave-completion-audit-r2.md`.
   Product/test bytes are unchanged from the audited tree; no live mutation. The
   prepared HIGH packet
   `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md` binds release
-  `54dce67b` and remains NOT GRANTED (row `ENROLLPRO-PROXY-RECOVERY-LIVE`); its
-  recovery correction adds the durable scheduled-task launch-ownership record
-  (launch/rollback owner + mechanism) and the revised approval sentence, both
-  under fresh QA before any approval is requested.
+  `54dce67b` and remains NOT GRANTED (row `ENROLLPRO-PROXY-RECOVERY-LIVE`); the
+  audited correction's revised exact approval sentence is returned to the
+  operator as NOT GRANTED.
 - Cycle recovery: `tl-suggestion-c03r3-20260914` (`COMPLETE`) closed
   2026-09-14 Asia/Manila. C03R3 correction `83415bd9` (base `c46cb06f`) passed
   fresh independent QA `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY`
@@ -527,10 +536,10 @@ hard blockers before separately approving publication.
 | TT-DYNAMIC-WORKSPACE-C04 | One Simple-first Timetable workspace: truthful modes/status/undo/redo/history, capability-model guards, source-drift visibility, dead-link and state-hygiene fixes | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 11/11 | MEDIUM source; HIGH interaction guardrails | `work/tt-dynamic-workspace-c04`; base `e3882ca0`; candidate `2ebb0b17` (2 correction rounds); integration `6d244d5e` | None in source; live/browser acceptance remains separately gated | Fresh QA `ses_f64916224ffeSN4VTUJ96bA5b7` `ACCEPT_READY` 12/12/0/0 (R2 consumer control reproduced failing on the loose-marker base; full tracked client inventory 399/399; tsc/build/diff-check); combined integration gates green | Wave Completion Audit is the only remaining step; do not deploy from this lane |
 | TT-WARNING-AUTHORITY-C04 | Retire false metric travel, add building/floor semantics, decouple policy families, promotion allowlist, term-aware grouping, context/label parity, strict publication predicate (`manual-edit.service.ts`) | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 11/11 | MEDIUM full-stack; HIGH publication implications | `work/tt-warning-authority-c04`; base `e3882ca0`; candidate `d9b1cd4a` (1 correction round); integration `6d244d5e` | None in source; live publication remains separately gated | Fresh QA `ses_f649f9429ffe6cNqapkasGZup9` `ACCEPT_READY` 14/14/0/0 (three-way generation/manual/pre-gen parity with load-bearing mutant; `blockingHardViolationCount` allowlist count + `counts.runWide.blockingHard`; disposable-PostgreSQL 16/16; both builds); combined integration gates green | Wave Completion Audit is the only remaining step; do not publish from this lane |
 | TT-TL-AUTHORITY-GUARD-C04 | Close the server-side actor-school/year, qualification, source-snapshot, phantom reconciliation, annual CAS, and strict-publication gaps before exposing Timetable Teaching Load modules | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 11/11 | MEDIUM server source; HIGH write-authority implications | `work/tt-tl-authority-guard-c04`; base `e3882ca0`; candidate `7b31c592`; integration `6d244d5e` | None in source; live writes remain separately gated | Fresh QA `ses_f64d2ef8cffeRcQvFw74SsLLZA` `ACCEPT_READY` 16/16/0/0 (mounted authority matrix with zero dispatch/writes; typed stale snapshot/CAS; phantom reconciliation apply retired; strict predicate; disposable-PostgreSQL 46/46 with zero residue); combined integration gates green | Wave Completion Audit is the only remaining step; later S3 consumes these guarded APIs and must not duplicate them |
-| TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards; strict TL-repair publication predicate (C04R1 correction: F1–F5) | `INTEGRATED` — AUDIT REOPENED (`INTEGRATED_AUDIT_PENDING`; recovery cycle `workflow-closure-recovery-20260914`; class 5 remains decision-locked by D1) | MEDIUM source; HIGH write guards | `work/tt-tl-modules-c04`; base `d4e9dc8e`; product `e7916315`; docs `b7c4d386`; integration merge `eb60d78b` on `origin/main` | Live writes remain separately gated HIGH; residuals folded into `TT-SOURCE-FRESHNESS-C04`/backlog; the former docs-only `COMPLETE` skipped the fresh QA + fresh audit loop | Fresh QA `ses_f614eae8dffehzAuUXagMxQcYO` `ACCEPT_READY` 30/30/0/0 (mounted 69/69 disposable-DB authority/zero-write matrix incl. the previously fail-open GET; exact Serializable transaction inspection; rendered F1/F4 controls; both-side F3 mutant; test preservation 14→14; zero residue); merged-tree combined gates green | Fresh QA over `5ad87db8...119277ce`, then one fresh Wave Completion Auditor against final `origin/main`; do not deploy or invoke any live Teaching Load write from this lane |
+| TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards; strict TL-repair publication predicate (C04R1 correction: F1–F5) | `INTEGRATED` — wave-audit closed, `COMPLETE` (recovery r2 `AUDIT_CLEAR` 7/7/0/0; class 5 remains decision-locked by D1) | MEDIUM source; HIGH write guards | `work/tt-tl-modules-c04`; base `d4e9dc8e`; product `e7916315`; docs `b7c4d386`; integration merge `eb60d78b` on `origin/main` | Live writes remain separately gated HIGH; residuals folded into `TT-SOURCE-FRESHNESS-C04`/backlog; closure re-verified by the recovery cycle | Fresh QA `ses_f614eae8dffehzAuUXagMxQcYO` `ACCEPT_READY` 30/30/0/0 (mounted 69/69 disposable-DB authority/zero-write matrix incl. the previously fail-open GET; exact Serializable transaction inspection; rendered F1/F4 controls; both-side F3 mutant; test preservation 14→14; zero residue); merged-tree combined gates green | Fresh QA over `5ad87db8...119277ce` completed 7/7/0/0 and the fresh Wave Completion Auditor returned `AUDIT_CLEAR` 7/7/0/0; closed — do not deploy or invoke any live Teaching Load write from this lane |
 | TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `PLANNED` (registered successor; scope in contract §7 plus wave-audit F1/F3) | MEDIUM server source; HIGH generation | No packet yet; scope defined in the contract | C04 authority wave audit cleared; coordinates with TT-TL-MODULES-C04 (TL repair binding) | Findings B-03/B-04/B-06(server)/B-09/B-13(server)/B-11(server remainder); binding pattern at `timetable-sync-setup.service.ts:689-731`; wave-audit F3 (`blockingHardViolationCount` dropped by post-generation summary merges at `manual-edit.service.ts:696-724`) and F1 (stale `/campus-rooms` href at `simplePublishReadiness.ts:66-67`) | Author the packet from `92c14f95`; verify (not duplicate) the shared strict-predicate helper; fold in the C04R1 dead-export removal and the capability-override `Serializable` assertion note |
-| ENROLLPRO-PROXY-RECOVERY-C01 | Make the supervised production host consume one explicit durable HTTPS EnrollPro origin, fail closed on invalid configuration, keep degraded ATLAS operation, and remove stale raw-IP companion fallbacks | `INTEGRATED` — AUDIT REOPENED (recovery cycle `workflow-closure-recovery-20260914`; the former post-remedy closure skipped fresh QA + fresh audit) | MEDIUM source/test; live env + supervised restart stays HIGH | `work/enrollpro-proxy-recovery-c01`; base `d61c38d0`; candidate `54dce67b`; merge `bc61ecd5` on `origin/main` | Live recovery remains separately gated HIGH (packet correction under recovery QA) | Fresh QA `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 (independent failing-first at base + load-bearing `baseEnv→env` mutant restored byte-exact); combined merged-tree gates green (runtime 74/74, client 23/23, client tsc/build, server build, diff-check) | Source closed; the exact approval sentence is reissued only after recovery `AUDIT_CLEAR`; do not execute the live packet without it |
-| ENROLLPRO-PROXY-RECOVERY-LIVE | Set the durable EnrollPro origin + install release `54dce67b` and restart supervisor-owned 5001/5174 | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime env change + install/restart | Packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`; release `54dce67b` (descends from reviewed pin `d44f29e0`); incumbent `3d916b26` retained for rollback | Exact operator approval NOT GRANTED; packet correction (durable launch ownership) under fresh recovery QA; product/test bytes unchanged | Prepared-time snapshot: listeners 5001→19448 / 5174→10880 under supervisor 3132; supervisor state `running` release `3d916b26`; durable env `D:\ATLAS-runtime-config\atlas-server.env` has `ENROLLPRO_API` and no `ENROLLPRO_PROXY_ORIGIN`; proxy `/enrollpro-api/settings/public` 502 vs direct EnrollPro 200 | After recovery `AUDIT_CLEAR`, return the revised exact approval sentence; do not execute |
+| ENROLLPRO-PROXY-RECOVERY-C01 | Make the supervised production host consume one explicit durable HTTPS EnrollPro origin, fail closed on invalid configuration, keep degraded ATLAS operation, and remove stale raw-IP companion fallbacks | `INTEGRATED` — wave-audit r2 closed (`AUDIT_CLEAR` 11/11/0/0; corrected packet audited at `b258357a`) | MEDIUM source/test; live env + supervised restart stays HIGH | `work/enrollpro-proxy-recovery-c01`; base `d61c38d0`; candidate `54dce67b`; merge `bc61ecd5` on `origin/main` | Live recovery remains separately gated HIGH (corrected packet audited; awaiting exact approval) | Fresh QA `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 (independent failing-first at base + load-bearing `baseEnv→env` mutant restored byte-exact); combined merged-tree gates green (runtime 74/74, client 23/23, client tsc/build, server build, diff-check) | Source closed; return the revised exact HIGH approval (NOT GRANTED); do not execute the live packet without it |
+| ENROLLPRO-PROXY-RECOVERY-LIVE | Set the durable EnrollPro origin + install release `54dce67b` and restart supervisor-owned 5001/5174 | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime env change + install/restart | Packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`; release `54dce67b` (descends from reviewed pin `d44f29e0`); incumbent `3d916b26` retained for rollback | Exact operator approval NOT GRANTED; corrected packet audited at `b258357a` (r2 `AUDIT_CLEAR`; carry the r2 execution-preflight notes); product/test bytes unchanged | Prepared-time snapshot: listeners 5001→19448 / 5174→10880 under supervisor 3132; supervisor state `running` release `3d916b26`; durable env `D:\ATLAS-runtime-config\atlas-server.env` has `ENROLLPRO_API` and no `ENROLLPRO_PROXY_ORIGIN`; proxy `/enrollpro-api/settings/public` 502 vs direct EnrollPro 200 | Return the revised exact approval sentence (NOT GRANTED); do not execute |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
 
@@ -626,10 +635,10 @@ hard blockers before separately approving publication.
     integrated and pushed on `origin/main` (`92c14f95`) with combined gates
     green and wave-audited `AUDIT_CLEAR` 11/11 (capsule committed).
     `TT-TL-MODULES-C04` C04R1 correction is integrated at merge `eb60d78b`
-    (fresh QA `ACCEPT_READY` 30/30/0/0) and its wave audit is REOPENED under
-    `workflow-closure-recovery-20260914` — the former docs-only `COMPLETE`
-    skipped the required fresh QA + fresh auditor loop; its class 5 remains
-    decision-locked by D1. `TT-SOURCE-FRESHNESS-C04` remains the
+    (fresh QA `ACCEPT_READY` 30/30/0/0) and its wave audit was re-verified and
+    closed by the recovery cycle (docs-correction QA 7/7/0/0; fresh auditor
+    `AUDIT_CLEAR` 7/7/0/0; r2 capsule); its class 5 remains decision-locked by
+    D1. `TT-SOURCE-FRESHNESS-C04` remains the
     packet-authoring successor from `92c14f95` (folding F1/F3 plus the C04R1
     dead-export removal and `Serializable` assertion note).
 11. Operator decisions D1–D6 (contract §7) gate: S3 class 5 (D1), anchor
@@ -645,13 +654,12 @@ hard blockers before separately approving publication.
     publication, deployment, and migration remain separately gated HIGH actions
     and are not authorized by this cycle.
 13. `ENROLLPRO-PROXY-RECOVERY-C01` is integrated at `54dce67b` (merge
-    `bc61ecd5`) and its wave audit is REOPENED under
-    `workflow-closure-recovery-20260914`; the packet correction (durable
-    scheduled-task launch ownership + revised approval sentence) is under fresh
-    QA, followed by one fresh Wave Completion Auditor.
+    `bc61ecd5`) and its wave audit was closed by the recovery cycle (corrected
+    packet audited at `b258357a`; fresh QA 10/10/0/0; fresh auditor
+    `AUDIT_CLEAR` 11/11/0/0; r2 capsule).
     `ENROLLPRO-PROXY-RECOVERY-LIVE` is prepared but NOT approved (packet
-    `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`). Only after
-    recovery `AUDIT_CLEAR` is the revised exact HIGH approval sentence returned;
+    `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`). The revised
+    exact HIGH approval sentence is returned NOT GRANTED;
     on approval, execute the packet, verify its acceptance matrix, and then
     resume the EnrollPro-dependent rows (the host is reachable again; a fresh
     one-login authorization is needed for the term-cache re-capture). Generation
@@ -661,8 +669,8 @@ hard blockers before separately approving publication.
 
 - The C04 authority wave is integrated and wave-audited `AUDIT_CLEAR`.
   `TT-TL-MODULES-C04` C04R1 correction is integrated at merge `eb60d78b` and
-  its wave audit is reopened for recovery under
-  `workflow-closure-recovery-20260914`; its candidate worktree is closed to
+  its wave audit was re-verified and closed by the recovery cycle (r2
+  `AUDIT_CLEAR` 7/7/0/0); its candidate worktree is closed to
   further writers (18 accepted paths). `TT-SOURCE-FRESHNESS-C04` packet
   authorship from `92c14f95` (folding F1/F3) remains available in parallel. No
   live/shared-database, generation, publication, migration, term-cache, or
@@ -711,9 +719,9 @@ hard blockers before separately approving publication.
    host was re-verified reachable 2026-09-14); its apply stays separate and
    unbound.
 - `ENROLLPRO-PROXY-RECOVERY-C01` is integrated at `54dce67b` and its wave audit
-  is reopened for recovery (see the cycle bullet); its live
-  environment/install/restart packet correction (durable launch ownership) is
-  under fresh recovery QA and remains NOT approved. Until the revised exact
+  was closed by the recovery cycle (corrected packet audited at `b258357a`; r2
+  `AUDIT_CLEAR` 11/11/0/0); the live environment/install/restart packet remains
+  NOT approved. Until the revised exact
   approval is granted, no lane may touch
   `D:\ATLAS-runtime-config\atlas-server.env`, the supervisor task, or ports
   5001/5174. The `workflow-closure-recovery-20260914` cycle (see the
@@ -729,12 +737,12 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
 
 ## Awaited returns and decisions
 
-- `tt-tl-modules-c04r1-recovery-20260914`: REOPENED under
-  `workflow-closure-recovery-20260914`. Fresh QA over the docs correction
-  `5ad87db8...119277ce` is commissioned; on `ACCEPT_READY`, one fresh Wave
-  Completion Auditor runs against the final `origin/main`; the audit re-closes
-  only on `AUDIT_CLEAR` with passed == total, blocked 0, unperformed 0. No live
-  mutation, login, or deployment belongs to this stream.
+- `tt-tl-modules-c04r1-recovery-20260914`: closed; no return remains. The
+  recovery re-verified the docs correction (fresh QA
+  `ses_f6113fbc6ffeqDNLqJBtZTW7fh` 7/7/0/0) and closed with fresh auditor
+  `ses_f610f79a6ffegjLNmkTRCxWWuq` `AUDIT_CLEAR` 7/7/0/0; r2 capsule at
+  `docs/reviews/tt-tl-modules-c04r1-recovery-20260914/wave-completion-audit-r2.md`.
+  No live mutation, login, or deployment belongs to this stream.
 - `tt-dynamic-audit-c04`: no return remains. Round 1
   (`ses_f6521cd11ffe2SIkDKpijen16t`) returned `CORRECTION_REQUIRED`; the
   bounded docs-only correction (`bdfd395a`) was applied; the fresh re-audit
@@ -858,14 +866,13 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   EnrollPro host is reachable again; fresh one-login authorization needed; its
   apply remains a separate HIGH
   action).
-- `ENROLLPRO-PROXY-RECOVERY-C01`: REOPENED under
-  `workflow-closure-recovery-20260914`. The packet correction (durable
-  scheduled-task launch ownership + revised approval sentence) freezes as a
-  docs-only candidate under fresh QA; on `ACCEPT_READY` it integrates, and one
-  fresh Wave Completion Auditor runs over the final `origin/main`. Only
-  `AUDIT_CLEAR` permits returning the revised exact HIGH approval sentence; the
-  sentence is NOT GRANTED and must not be executed. No live action belongs to
-  this cycle.
+- `ENROLLPRO-PROXY-RECOVERY-C01`: closed; no executor or QA return remains. The
+  corrected packet candidate `b258357a` passed fresh QA
+  `ses_f6113dc91ffeZPHAdXjA7220Rr` 10/10/0/0 and fresh auditor
+  `ses_f610f5553ffeTRLyJuMTctgzVY` `AUDIT_CLEAR` 11/11/0/0; r2 capsule at
+  `docs/reviews/enrollpro-proxy-recovery-20260914/wave-completion-audit-r2.md`.
+  The only awaited item is the operator's revised exact HIGH approval sentence;
+  it is NOT GRANTED and must not be executed without it.
 - Observation backlog (non-blocking, no new executor stream authorized): the
   non-listed runtime mutation routes still default `parseSchoolId` to school 1
   (`atlas-server/src/routes/runtime.router.ts:26-32` and its mutation call
