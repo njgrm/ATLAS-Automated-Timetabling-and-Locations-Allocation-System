@@ -7,6 +7,7 @@
 
 import { prisma } from '../lib/prisma.js';
 import type { GenerationRun, FacultyMirror, Subject, SectionMirror } from '@prisma/client';
+import { resolveSpecialEventDay } from './workbook-export.service.js';
 
 // ─── Types ───
 
@@ -135,7 +136,10 @@ export async function buildTeacherProgramExportShape(params: {
 	/** Disposable read-only client for source-level export contract tests. */
 	client?: any;
 	/** Disposable published-schedule resolver for source-level export contract tests. */
-	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{ entries?: unknown[] }>;
+	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{
+		entries?: unknown[];
+		source?: { runId?: number } | null;
+	}>;
 }): Promise<TeacherProgramExportShape> {
 	const { schoolId, schoolYearId, runId, facultyId, termIndex, client, publishedScheduleResolver } = params;
 	const db = (client ?? prisma) as typeof prisma;
@@ -230,6 +234,13 @@ export async function buildTeacherProgramExportShape(params: {
 			return getPublishedFacultySchedule(resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId);
 		});
 		const published = await resolvePublished(schoolId, facultyId, schoolYearId);
+		// BENEFICIARY-EXPORT-PARITY-C05 T2/M4 — the export URL is run-scoped and
+		// published; never silently substitute the latest published run when the
+		// authoritative published identity for this scope differs from the
+		// requested run. This mirrors workbook-export.service.ts exactly.
+		if (published.source?.runId !== runId) {
+			throw new Error('RUN_NOT_FOUND');
+		}
 		// The revision-effective published service returns presentation entries
 		// with nested subject/section/faculty/room references. Normalize that
 		// production shape before applying the same printable identity and
@@ -320,7 +331,11 @@ export async function buildTeacherProgramExportShape(params: {
 	const breakSlots = displaySlots.filter(s => s.isSpecialEvent);
 	const schoolDays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 	for (const slot of breakSlots) {
-		const eventDay = slot.dayOfWeek?.trim().toUpperCase();
+		// Flag/HGP is a Monday-only overlay: a break/event slot without an
+		// explicit dayOfWeek still resolves to Monday, matching
+		// workbook-export.service.ts. An unrecognized explicit day keeps the
+		// whole-week fallback.
+		const eventDay = resolveSpecialEventDay(slot.eventName, slot.dayOfWeek);
 		const days = eventDay && schoolDays.includes(eventDay) ? [eventDay] : schoolDays;
 		for (const day of days) {
 			rows.push({

@@ -24,8 +24,18 @@ const SECTIONS = [
 	{ id: 1, externalId: 701, name: '7-Rizal', gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', isActiveForScheduling: true, isStale: false },
 ];
 const FACULTY = [
-	{ id: 501, firstName: 'Juan', lastName: 'Dela Cruz', advisedSectionId: 701 },
-	{ id: 502, firstName: 'Maria', lastName: 'Santos', advisedSectionId: null },
+	{
+		id: 501, firstName: 'Juan', lastName: 'Dela Cruz', advisedSectionId: 701, employeeId: 'E-501',
+		plantillaPosition: 'Teacher I', designationTitle: null, undergraduateDegree: 'BSED', postgraduateDegree: null,
+		ancillaryRoles: [], ancillaryMinutesPerWeek: 0, ancillaryLoadSource: 'NONE', advisoryEquivalentHours: 0,
+		isClassAdviser: true, advisedSectionName: '7-Rizal', isStale: false,
+	},
+	{
+		id: 502, firstName: 'Maria', lastName: 'Santos', advisedSectionId: null, employeeId: 'E-502',
+		plantillaPosition: 'Teacher II', designationTitle: null, undergraduateDegree: null, postgraduateDegree: null,
+		ancillaryRoles: [], ancillaryMinutesPerWeek: 0, ancillaryLoadSource: 'NONE', advisoryEquivalentHours: 0,
+		isClassAdviser: false, advisedSectionName: null, isStale: false,
+	},
 ];
 const SUBJECTS = [
 	{ id: 11, name: 'Mathematics', code: 'MATH' },
@@ -43,6 +53,23 @@ const ENTRIES = [
 	{ entryId: 'mon', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
 	{ entryId: 'tue', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
 ];
+
+/**
+ * C05 T1/M1 — verified ordered-term authority fixture. Official export routes
+ * now require an explicit/resolved selected term; this is the cached EnrollPro
+ * contract the resolver validates `termIndex` against.
+ */
+const TERM_CONTRACT = {
+	schoolId: SCHOOL_ID,
+	schoolYear: { id: SCHOOL_YEAR_ID },
+	format: 'TRIMESTER',
+	terms: [
+		{ identity: 'T1', displayLabel: 'First Term', order: 1 },
+		{ identity: 'T2', displayLabel: 'Second Term', order: 2 },
+		{ identity: 'T3', displayLabel: 'Third Term', order: 3 },
+	],
+	activeTerm: { order: 1 },
+};
 
 const WRITE_METHODS = new Set(['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany', 'executeRaw', 'queryRaw']);
 const calls: Array<{ model: string; method: string }> = [];
@@ -72,11 +99,34 @@ function buildFakeModels(): Record<string, Record<string, unknown>> {
 			findMany: async () => [{ id: RUN_ID }],
 		}),
 		school: readModel('school', { findUnique: async () => ({ name: 'ATLAS School' }) }),
-		enrollProSchoolYearMirror: readModel('enrollProSchoolYearMirror', { findFirst: async () => ({ yearLabel: '2026-2027' }) }),
+		enrollProSchoolYearMirror: readModel('enrollProSchoolYearMirror', {
+			findFirst: async () => ({ yearLabel: '2026-2027' }),
+			// C05 T1 — the verified ordered-term authority the export routes resolve
+			// an explicit `termIndex` against.
+			findUnique: async () => ({
+				isActive: true,
+				isArchived: false,
+				termContractCache: TERM_CONTRACT,
+				termContractCachedAt: new Date('2026-09-14T00:00:00Z'),
+			}),
+		}),
 		sectionMirror: readModel('sectionMirror', { findMany: async () => SECTIONS }),
-		facultyMirror: readModel('facultyMirror', { findMany: async () => FACULTY }),
+		facultyMirror: readModel('facultyMirror', {
+			findFirst: async (args: any) => {
+				const id = args?.where?.id;
+				return FACULTY.find((f) => id == null || f.id === id) ?? null;
+			},
+			findMany: async () => FACULTY,
+		}),
 		subject: readModel('subject', { findMany: async () => SUBJECTS }),
 		room: readModel('room', { findMany: async () => ROOMS }),
+		building: readModel('building', { findMany: async () => [{ id: 1, name: 'Building A' }] }),
+		schedulingPolicy: readModel('schedulingPolicy', {
+			findFirst: async () => ({
+				lunchStartTime: '12:00', lunchEndTime: '12:45', recessStartTime: '09:00', recessEndTime: '09:15',
+				flagCeremonyStartTime: '07:00', flagCeremonyEndTime: '07:30', enableRecess: false, enableFlagCeremony: false,
+			}),
+		}),
 		classProgramSlot: readModel('classProgramSlot', {
 			findMany: async (args: any) => {
 				const where = args?.where ?? {};
@@ -152,7 +202,7 @@ test.after(async () => {
 
 test('mounted class-program-matrix route preserves weekday cells and binds the requested run', { skip: harnessSkip }, async () => {
 	calls.length = 0;
-	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}`, {
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}&termIndex=1`, {
 		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
 	});
 	assert.equal(response.status, 200);
@@ -168,7 +218,7 @@ test('mounted class-program-matrix route preserves weekday cells and binds the r
 
 test('mounted class-program-matrix route fails closed on an unknown run and invalid term', { skip: harnessSkip }, async () => {
 	calls.length = 0;
-	const missingRun = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=999`, {
+	const missingRun = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=999&termIndex=1`, {
 		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
 	});
 	assert.equal(missingRun.status, 404);
@@ -200,7 +250,7 @@ test('all output routes reject a cross-school actor before any read or write', {
 
 test('summary-teacher-schedule route admits a same-school actor and completes with zero writes', { skip: harnessSkip }, async () => {
 	calls.length = 0;
-	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx`, {
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`, {
 		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
 	});
 	assert.equal(response.status, 200, 'same-school scope must not be rejected by the guard');
@@ -213,7 +263,7 @@ test('mounted class-program.xlsx route returns a real weekday workbook', {
 	skip: harnessSkip || (exceljsUsable ? false : 'EXTERNALLY_BLOCKED: worktree exceljs dependency tree is incomplete'),
 }, async () => {
 	calls.length = 0;
-	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx`, {
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=1`, {
 		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
 	});
 	assert.equal(response.status, 200);
@@ -229,4 +279,70 @@ test('mounted class-program.xlsx route returns a real weekday workbook', {
 	assert.equal(sheet.getRow(6).getCell(3).value, 'Mathematics\nDela Cruz, Juan');
 	assert.equal(sheet.getRow(6).getCell(4).value, 'Science\nSantos, Maria');
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
+});
+
+// ─── C05 M1 — official exports require a resolved selected term ───
+
+test('every official export route rejects an absent termIndex with a typed 4xx and zero bytes', { skip: harnessSkip }, async () => {
+	// Failing-first control (G1): on the base revision each of these requests
+	// returned 200 with a mixed all-term document. The requirement is a typed
+	// 4xx and zero file bytes, so an omitted term can never be exported.
+	calls.length = 0;
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const targets = [
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}`,
+	];
+	for (const url of targets) {
+		const response = await fetch(url, { headers });
+		assert.equal(response.status, 400, `${url} must reject an absent termIndex`);
+		assert.equal((await response.json() as any).code, 'TERM_INDEX_REQUIRED');
+		assert.equal(response.headers.get('content-disposition'), null, 'a rejected export must not attach a file');
+		assert.doesNotMatch(String(response.headers.get('content-type')), /spreadsheetml|wordprocessingml/, 'a rejected export must not emit a document content type');
+	}
+	assert.equal(calls.length, 0, 'an absent term must be rejected before any downstream read/write');
+});
+
+test('official export routes accept an explicit in-contract term and reject an out-of-contract one', { skip: harnessSkip }, async () => {
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const accepted = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=active`, { headers });
+	// `active` resolves to order 1 in the verified fixture contract.
+	assert.equal(accepted.status, 200);
+	assert.match(String(accepted.headers.get('content-disposition')), /term1/, 'resolved term identity is part of the filename');
+
+	const outsideContract = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=4`, { headers });
+	assert.equal(outsideContract.status, 400);
+	assert.equal((await outsideContract.json() as any).code, 'TERM_INDEX_OUTSIDE_CONTRACT');
+});
+
+// ─── C05 M3/M14 — mounted published teacher-program DOCX requires a term and scope ───
+
+test('mounted teacher-program.docx returns a real DOCX for a same-school actor with a selected term', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501&termIndex=1`, { headers });
+	assert.equal(response.status, 200);
+	assert.match(String(response.headers.get('content-type')), /wordprocessingml/);
+	const buffer = Buffer.from(await response.arrayBuffer());
+	assert.ok(buffer.length > 0, 'teacher program DOCX is non-empty');
+	assert.equal(buffer.subarray(0, 2).toString('latin1'), 'PK', 'DOCX is a real zip container');
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
+});
+
+test('mounted teacher-program.docx fails closed without a term and across schools', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const noTerm = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501`, {
+		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+	});
+	assert.equal(noTerm.status, 400);
+	assert.equal((await noTerm.json() as any).code, 'TERM_INDEX_REQUIRED');
+
+	const crossSchool = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501&termIndex=1`, {
+		headers: { Authorization: `Bearer ${authToken(999)}` },
+	});
+	assert.equal(crossSchool.status, 403);
+	assert.equal((await crossSchool.json() as any).code, 'CROSS_SCHOOL_DENIED');
+	assert.equal(calls.length, 0, 'rejected teacher-program requests must dispatch zero downstream reads/writes');
 });

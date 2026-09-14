@@ -123,7 +123,13 @@ test('published teacher-program shape normalizes nested production entries and e
 		runId: 42,
 		facultyId: 501,
 		client,
-		publishedScheduleResolver: async () => ({ entries: [
+		publishedScheduleResolver: async () => ({
+			// C05 T2/M4 — the production published resolver always returns the
+			// authoritative published run identity; the export binds the requested
+			// runId to it. The previous stub omitted `source`, masking the missing
+			// run-binding requirement.
+			source: { runId: 42 },
+			entries: [
 			{
 				entryId: 'published-math', day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45,
 				subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 },

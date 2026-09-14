@@ -48,6 +48,35 @@ function assertActorSchoolScope(req: Request, res: Response, schoolId: number): 
 	return true;
 }
 
+type RequiredTermParse =
+	| { ok: true; requested: number | 'active' }
+	| { ok: false; code: string; message: string };
+
+/**
+ * BENEFICIARY-EXPORT-PARITY-C05 T1/M1 — official outputs are selected-term
+ * documents. An absent `termIndex` fails closed at the transport boundary with
+ * a typed 4xx (zero file bytes) instead of silently serving a mixed all-term
+ * document. `active` resolution and explicit-index contract validation remain
+ * owned by `resolveRequestedTermIndex`; this helper only enforces presence and
+ * syntax, and must never be imposed on non-export consumers of the resolver.
+ */
+function parseRequiredTermQuery(raw: unknown): RequiredTermParse {
+	if (raw == null || String(raw).trim() === '') {
+		return {
+			ok: false,
+			code: 'TERM_INDEX_REQUIRED',
+			message: 'termIndex is required for official exports; provide a numeric term (1..N) or "active".',
+		};
+	}
+	const value = String(raw).trim().toLowerCase();
+	if (value === 'active') return { ok: true, requested: 'active' };
+	const parsed = parseSupportedTermIndex(value);
+	if (parsed === null) {
+		return { ok: false, code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` };
+	}
+	return { ok: true, requested: parsed };
+}
+
 // ─── POST /:schoolId/:schoolYearId/runs — trigger generation run ───
 
 router.post(
@@ -598,21 +627,12 @@ router.get(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
-			const termIndexRaw = req.query.termIndex;
-			let requestedTerm: number | 'active' | undefined;
-			if (termIndexRaw != null) {
-				const val = String(termIndexRaw).trim().toLowerCase();
-				if (val === 'active') requestedTerm = 'active';
-				else {
-					const parsedTermIndex = parseSupportedTermIndex(val);
-					if (parsedTermIndex === null) {
-						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
-						return;
-					}
-					requestedTerm = parsedTermIndex;
-				}
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) {
+				res.status(400).json({ code: termParse.code, message: termParse.message });
+				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
 
 			const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId, termIndex });
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -630,6 +650,13 @@ router.get(
 			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified from the persisted EnrollPro term authority.' });
+				return;
+			}
+			// Preserve the typed ordered-term authority errors (e.g.
+			// TERM_INDEX_OUTSIDE_CONTRACT / TERM_STRUCTURE_UNAVAILABLE) as JSON
+			// instead of leaking a generic HTML error response.
+			if (typeof e?.statusCode === 'number' && typeof e?.code === 'string') {
+				res.status(e.statusCode).json({ code: e.code, message: e.message });
 				return;
 			}
 			next(e);
@@ -658,21 +685,12 @@ router.get(
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
-			const termIndexRaw = req.query.termIndex;
-			let requestedTerm: number | 'active' | undefined;
-			if (termIndexRaw != null) {
-				const val = String(termIndexRaw).trim().toLowerCase();
-				if (val === 'active') requestedTerm = 'active';
-				else {
-					const parsedTermIndex = parseSupportedTermIndex(val);
-					if (parsedTermIndex === null) {
-						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
-						return;
-					}
-					requestedTerm = parsedTermIndex;
-				}
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) {
+				res.status(400).json({ code: termParse.code, message: termParse.message });
+				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
 
 			const specializationVisibilityRaw = req.query.specializationVisibility as string | undefined;
 			let specializationVisibility: 'hidden' | 'visible' | undefined;
@@ -704,6 +722,13 @@ router.get(
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified from the persisted EnrollPro term authority.' });
 				return;
 			}
+			// Preserve the typed ordered-term authority errors (e.g.
+			// TERM_INDEX_OUTSIDE_CONTRACT / TERM_STRUCTURE_UNAVAILABLE) as JSON
+			// instead of leaking a generic HTML error response.
+			if (typeof e?.statusCode === 'number' && typeof e?.code === 'string') {
+				res.status(e.statusCode).json({ code: e.code, message: e.message });
+				return;
+			}
 			next(e);
 		}
 	},
@@ -732,21 +757,12 @@ router.get(
 			if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
 			if (!assertActorSchoolScope(req, res, schoolId)) return;
 
-			const termIndexRaw = req.query.termIndex;
-			let requestedTerm: number | 'active' | undefined;
-			if (termIndexRaw != null) {
-				const val = String(termIndexRaw).trim().toLowerCase();
-				if (val === 'active') requestedTerm = 'active';
-				else {
-					const parsedTermIndex = parseSupportedTermIndex(val);
-					if (parsedTermIndex === null) {
-						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
-						return;
-					}
-					requestedTerm = parsedTermIndex;
-				}
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) {
+				res.status(400).json({ code: termParse.code, message: termParse.message });
+				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
 
 			const shape = await buildTeacherProgramExportShape({
 				schoolId,
@@ -777,6 +793,11 @@ router.get(
 			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the run has no verified ordered-term identity.' });
+				return;
+			}
+			// Preserve typed ordered-term authority errors as JSON.
+			if (typeof e?.statusCode === 'number' && typeof e?.code === 'string') {
+				res.status(e.statusCode).json({ code: e.code, message: e.message });
 				return;
 			}
 			// Published schedule resolution errors from getPublishedFacultySchedule
@@ -835,21 +856,12 @@ router.get(
 				if (typeof parsedRunId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsedRunId }); return; }
 				runId = parsedRunId;
 			}
-			const termIndexRaw = req.query.termIndex;
-			let requestedTerm: number | 'active' | undefined;
-			if (termIndexRaw != null) {
-				const val = String(termIndexRaw).trim().toLowerCase();
-				if (val === 'active') requestedTerm = 'active';
-				else {
-					const parsedTermIndex = parseSupportedTermIndex(val);
-					if (parsedTermIndex === null) {
-						res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
-						return;
-					}
-					requestedTerm = parsedTermIndex;
-				}
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) {
+				res.status(400).json({ code: termParse.code, message: termParse.message });
+				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, requestedTerm);
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
 
 			const matrix = await generateClassProgramMatrix({
 				schoolId,
@@ -870,8 +882,21 @@ router.get(
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
 				return;
 			}
+			if (e?.message === 'NO_SOURCE_RUN') {
+				res.status(409).json({ code: 'NO_SOURCE_RUN', message: 'No completed source run is available for the requested grade and term.' });
+				return;
+			}
+			if (e?.message === 'EMPTY_SOURCE_RUN') {
+				res.status(422).json({ code: 'EMPTY_SOURCE_RUN', message: 'The source run has no entries for the requested grade and term.' });
+				return;
+			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the source run has no verified ordered-term identity.' });
+				return;
+			}
+			// Preserve typed ordered-term authority errors as JSON.
+			if (typeof e?.statusCode === 'number' && typeof e?.code === 'string') {
+				res.status(e.statusCode).json({ code: e.code, message: e.message });
 				return;
 			}
 			next(e);

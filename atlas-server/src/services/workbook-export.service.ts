@@ -72,7 +72,7 @@ function toMinutes(time: string): number {
 	return hours * 60 + minutes;
 }
 
-function resolveSpecialEventDay(eventName: string | undefined, dayOfWeek: string | undefined): string | null {
+export function resolveSpecialEventDay(eventName: string | undefined, dayOfWeek: string | undefined): string | null {
 	const explicit = (dayOfWeek ?? '').trim().toUpperCase();
 	if (explicit) return explicit;
 	if ((eventName ?? '').toUpperCase().includes('FLAG')) return 'MONDAY';
