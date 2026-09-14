@@ -98,6 +98,15 @@ export interface SyncTimetableSetupResult {
 	replayed: boolean;
 	noChange: boolean;
 	updatedFacultyCount: number;
+	/**
+	 * D5/B-13: exact totals for retained, manually reviewed teacher assignments
+	 * the sync preserved because they remain valid, and assignments that are no
+	 * longer valid and require operator review. A conflicted pin aborts the sync
+	 * with typed `TEACHER_PIN_CONFLICT`; a committed result therefore always has
+	 * `conflictedFacultyPinCount === 0`.
+	 */
+	retainedFacultyPinCount: number;
+	conflictedFacultyPinCount: number;
 	displacedEntriesCount: number;
 	addedUnassignedCount: number;
 	hardViolationCount: number;
@@ -399,6 +408,38 @@ export async function syncTimetableSetup(
 	const baseEntries = (run.draftEntries ?? []) as unknown as RetainedEntry[];
 	const resolvedEntries = resolveRetainedEntries(baseEntries, termRefs, subjectIdByCode);
 
+	// D5/B-13: teacher-pin validity is decided from the same read snapshot. A
+	// retained entry facultyId is a manually reviewed pin: it is preserved while
+	// it remains a valid active/qualified assignment for the retained
+	// subject/section, and is reported as a typed conflict when it is not. It is
+	// never silently rebound to the live ownership row.
+	const facultySubjectRows = await readTx.facultySubject.findMany({
+		where: { schoolId, schoolYearId },
+		select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
+	});
+	const activeFacultyIdSet = new Set(refData.faculty.map((member) => member.id));
+	const rosterIndex = buildSectionRosterIndex(sectionsByGrade);
+	const normalizedFacultySubjects = facultySubjectRows
+		.filter((assignment) => activeFacultyIdSet.has(assignment.facultyId))
+		.map((assignment) => {
+			const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
+			return {
+				facultyId: assignment.facultyId,
+				subjectId: assignment.subjectId,
+				gradeLevels: normalized.gradeLevels,
+				sectionIds: normalized.sectionIds,
+			};
+		});
+	const isPinnedFacultyValid = (facultyId: number, subjectId: number, sectionId: number): boolean => {
+		if (!activeFacultyIdSet.has(facultyId)) return false;
+		return normalizedFacultySubjects.some((assignment) => {
+			if (assignment.facultyId !== facultyId || assignment.subjectId !== subjectId) return false;
+			const scoped = Array.isArray(assignment.sectionIds) && assignment.sectionIds.length > 0;
+			if (scoped && !(assignment.sectionIds as number[]).includes(sectionId)) return false;
+			return true;
+		});
+	};
+
 	const remaining = new Map<string, number>();
 	for (const [key, line] of demandByKey) remaining.set(key, line.item.sessionsPerWeek);
 	const keptCounts = new Map<string, number>();
@@ -406,6 +447,15 @@ export async function syncTimetableSetup(
 	const newEntries: ResolvedRetainedEntry[] = [];
 	let updatedFacultyCount = 0;
 	let displacedEntriesCount = 0;
+	let retainedFacultyPinCount = 0;
+	const facultyPinConflicts: Array<{
+		entryId: string;
+		subjectId: number;
+		sectionId: number;
+		termIndex: number;
+		pinnedFacultyId: number;
+		liveFacultyId: number | null;
+	}> = [];
 
 	for (const entry of resolvedEntries) {
 		const subjectActive = activeSubjectIds.has(entry.subjectId);
@@ -446,9 +496,47 @@ export async function syncTimetableSetup(
 
 		const ownershipKey = `${entry.subjectId}:${entry.sectionId}`;
 		const liveFacultyId = ownershipMap.has(ownershipKey) ? ownershipMap.get(ownershipKey) ?? null : null;
-		if (entry.facultyId !== liveFacultyId) updatedFacultyCount++;
+		const pinnedFacultyId = entry.facultyId ?? null;
+		let resolvedFacultyId: number | null;
+		if (pinnedFacultyId === null) {
+			// No manual pin: adopt the live owner (existing behavior).
+			resolvedFacultyId = liveFacultyId;
+			if (liveFacultyId !== null) updatedFacultyCount++;
+		} else if (pinnedFacultyId === liveFacultyId) {
+			resolvedFacultyId = pinnedFacultyId;
+		} else if (isPinnedFacultyValid(pinnedFacultyId, entry.subjectId, entry.sectionId)) {
+			// Preserve the reviewed assignment; keep valid swaps/manual placements.
+			resolvedFacultyId = pinnedFacultyId;
+			retainedFacultyPinCount++;
+		} else {
+			// Never silently rebind. Report and fail closed.
+			facultyPinConflicts.push({
+				entryId: entry.entryId,
+				subjectId: entry.subjectId,
+				sectionId: entry.sectionId,
+				termIndex,
+				pinnedFacultyId,
+				liveFacultyId,
+			});
+			resolvedFacultyId = pinnedFacultyId;
+		}
 
-		newEntries.push({ ...entry, facultyId: liveFacultyId });
+		newEntries.push({ ...entry, facultyId: resolvedFacultyId });
+	}
+
+	if (facultyPinConflicts.length > 0) {
+		const conflict = err(
+			409,
+			'TEACHER_PIN_CONFLICT',
+			`${facultyPinConflicts.length} reviewed teacher assignment(s) are no longer valid under current ownership, qualification, section, and term authority; ${retainedFacultyPinCount} valid reviewed assignment(s) will be retained. ATLAS will not silently rebind them; review them before syncing.`,
+		);
+		(conflict as any).actionHint = 'Review the conflicted assignments in Teaching Load, then sync again.';
+		(conflict as any).details = {
+			retainedFacultyPinCount,
+			conflictedFacultyPinCount: facultyPinConflicts.length,
+			conflicts: facultyPinConflicts,
+		};
+		throw conflict;
 	}
 
 	// ─── 4. Rebuild term-scoped unresolved items for every missing session ───
@@ -544,23 +632,6 @@ export async function syncTimetableSetup(
 		buildHomeRoomStats,
 		buildHomeRoomFallbackDiagnostics,
 	} = await import('./generation.service.js');
-	const facultySubjectRows = await readTx.facultySubject.findMany({
-		where: { schoolId, schoolYearId },
-		select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
-	});
-	const activeFacultyIdSet = new Set(refData.faculty.map((member) => member.id));
-	const rosterIndex = buildSectionRosterIndex(sectionsByGrade);
-	const normalizedFacultySubjects = facultySubjectRows
-		.filter((assignment) => activeFacultyIdSet.has(assignment.facultyId))
-		.map((assignment) => {
-			const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
-			return {
-				facultyId: assignment.facultyId,
-				subjectId: assignment.subjectId,
-				gradeLevels: normalized.gradeLevels,
-				sectionIds: normalized.sectionIds,
-			};
-		});
 
 	const qualifiedFacultyCoverageBySubject = buildQualifiedCoverageBySubject(demand, normalizedFacultySubjects);
 	const slotSaturationByInterval = buildSlotSaturation(newEntries as unknown as ScheduledEntry[], refData.rooms.length);
@@ -591,6 +662,7 @@ export async function syncTimetableSetup(
 		derivedDemandRevision: derivedDemand.revision,
 		preflightOwnershipSignature,
 		updatedFacultyCount,
+		retainedFacultyPinCount,
 		displacedEntriesCount,
 		addedUnassignedCount,
 		readInputSnapshot,
@@ -645,6 +717,7 @@ export async function syncTimetableSetup(
 			derivedDemandRevision,
 			preflightOwnershipSignature,
 			updatedFacultyCount,
+			retainedFacultyPinCount,
 			displacedEntriesCount,
 			addedUnassignedCount,
 			readInputSnapshot,
@@ -762,6 +835,8 @@ export async function syncTimetableSetup(
 				replayed: true,
 				noChange: true,
 				updatedFacultyCount: 0,
+				retainedFacultyPinCount,
+				conflictedFacultyPinCount: 0,
 				displacedEntriesCount: 0,
 				addedUnassignedCount: 0,
 				hardViolationCount,
@@ -817,6 +892,8 @@ export async function syncTimetableSetup(
 			replayed: false,
 			noChange: false,
 			updatedFacultyCount,
+			retainedFacultyPinCount,
+			conflictedFacultyPinCount: 0,
 			displacedEntriesCount,
 			addedUnassignedCount,
 			hardViolationCount,

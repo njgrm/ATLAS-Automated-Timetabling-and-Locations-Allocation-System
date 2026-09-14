@@ -9,7 +9,7 @@
 const db = () => getDataContext();
 
 import { getDataContext } from '../lib/data-context.js';
-import type { GenerationRunStatus } from '@prisma/client';
+import { Prisma, type GenerationRunStatus } from '@prisma/client';
 import {
 	validateHardConstraints,
 	type ValidatorContext,
@@ -611,6 +611,15 @@ export async function triggerGenerationRun(
 	}
 	const assembly = preflight.assembly;
 
+	// ── SOURCE-FRESHNESS B-03: capture ONE canonical source snapshot BEFORE any
+	// scheduling and bind the produced output to it. The post-scheduling global
+	// snapshot (`computeGenerationInputSnapshot(schoolId, schoolYearId)`) is no
+	// longer used: it could attach a newer snapshot to output computed from older
+	// data. The captured fingerprint is revalidated with the TRANSACTION client
+	// inside the final Serializable write transaction below; any covered input
+	// change aborts with typed `SOURCE_AUTHORITY_STALE` and zero COMPLETED writes.
+	const capturedSourceSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+
 	// Create run as QUEUED
 	const run = await db().generationRun.create({
 		data: {
@@ -818,7 +827,6 @@ export async function triggerGenerationRun(
 		const termCounts = buildTermCounts(entriesWithTerms);
 		const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
 		const timetableDisplaySlots = buildUnionDisplaySlots(timetableShapeContracts);
-		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
 
 		const summary: RunSummary = {
 			classesProcessed: result.classesProcessed,
@@ -851,47 +859,72 @@ export async function triggerGenerationRun(
 			timetableShapeContracts,
 			canonicalTemplateVersion: CANONICAL_TEMPLATE_VERSION,
 			timetableDisplaySlots,
-			inputSnapshot,
 			derivedDemandRevision: assembly.derivedDemandRevision ?? undefined,
 		};
 
 		const finishedAt = new Date();
 		const durationMs = finishedAt.getTime() - startedAt.getTime();
 
-		// Finalize as COMPLETED with draft entries
+		// Finalize as COMPLETED with draft entries, binding the persisted
+		// `inputSnapshot` to the source snapshot that produced the schedule.
+		// The complete fingerprint is recomputed with the TRANSACTION client and
+		// compared against the captured pre-scheduling snapshot; ANY covered input
+		// change (rooms/buildings, grade-shift windows, policy, subjects/templates,
+		// sections, faculty mirrors/qualifications/ownership, or the verified
+		// ordered-term + derived-demand revision) aborts with typed
+		// `SOURCE_AUTHORITY_STALE` and zero COMPLETED timetable / zero success audit
+		// / zero success notification.
 		stage = 'persist';
-		const completed = await db().generationRun.update({
-			where: { id: run.id },
-			data: {
-				status: 'COMPLETED',
-				finishedAt,
-				durationMs,
-				summary: summary as object,
-				violations: mergedValidationResult.violations as unknown as object[],
-				draftEntries: entriesWithTerms as unknown as object[],
-				unassignedItems: resolvedUnassignedItems as unknown as object[],
-			},
-		});
+		const completed = await db().$transaction(async (tx) => {
+			const txInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
+			if (txInputSnapshot.fingerprint !== capturedSourceSnapshot.fingerprint) {
+				throw err(
+					409,
+					'SOURCE_AUTHORITY_STALE',
+					'Generation inputs changed while this schedule was being built. Re-run generation so it binds the current setup.',
+					{
+						actionHint: 'Re-run generation to bind the current setup data.',
+						details: { schoolId, schoolYearId },
+					},
+				);
+			}
+			const boundSummary: RunSummary = { ...summary, inputSnapshot: txInputSnapshot };
 
-		// Audit log
-		await db().auditLog.create({
-			data: {
-				schoolId,
-				schoolYearId,
-				action: 'GENERATION_RUN_COMPLETED',
-				actorId,
-				targetIds: [run.id],
-				metadata: {
+			const updated = await tx.generationRun.update({
+				where: { id: run.id },
+				data: {
+					status: 'COMPLETED',
+					finishedAt,
 					durationMs,
-					summary,
-					gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
-					roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
-					shiftWindowPolicy: enforceShiftWindows ? 'ENFORCED' : 'DISABLED',
-					gradeWindowCount: gradeWindows.length,
-					gateOpenRequestCountAtTrigger: gateStatus.openCount,
-				} as object,
-			},
-		});
+					summary: boundSummary as object,
+					violations: mergedValidationResult.violations as unknown as object[],
+					draftEntries: entriesWithTerms as unknown as object[],
+					unassignedItems: resolvedUnassignedItems as unknown as object[],
+				},
+			});
+
+			// Audit log
+			await tx.auditLog.create({
+				data: {
+					schoolId,
+					schoolYearId,
+					action: 'GENERATION_RUN_COMPLETED',
+					actorId,
+					targetIds: [run.id],
+					metadata: {
+						durationMs,
+						summary: boundSummary,
+						gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
+						roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+						shiftWindowPolicy: enforceShiftWindows ? 'ENFORCED' : 'DISABLED',
+						gradeWindowCount: gradeWindows.length,
+						gateOpenRequestCountAtTrigger: gateStatus.openCount,
+					} as object,
+				},
+			});
+
+			return updated;
+		}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30_000, maxWait: 10_000 });
 
 		await preGenerationDraftService.markPlacementsLockedForRun(schoolId, schoolYearId, run.id, preGenerationDrafts.acceptedPlacementIds);
 		publishNotificationEvent({
@@ -959,6 +992,14 @@ export async function triggerGenerationRun(
 				error: rawMessage,
 			},
 		});
+
+		// SOURCE-FRESHNESS B-03: a stale source rejection is recorded as FAILED
+		// under the existing lifecycle (no completed timetable/audit/notification),
+		// but the typed error must reach the route so the operator sees
+		// `SOURCE_AUTHORITY_STALE` rather than a generic failure.
+		if ((error as { code?: string } | null | undefined)?.code === 'SOURCE_AUTHORITY_STALE') {
+			throw error;
+		}
 
 		return failed;
 	}

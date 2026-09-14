@@ -998,6 +998,49 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 	}
 }
 
+// ─── Passive policy read (no hidden write on read snapshots) ───
+
+type SchedulingPolicyReader = {
+	schedulingPolicy: {
+		findUnique(args: unknown): Promise<any>;
+	};
+};
+
+/**
+ * SOURCE-FRESHNESS B-09 — passive scheduling-policy resolution.
+ *
+ * Resolves the persisted policy row through the supplied client (or the ambient
+ * data context) WITHOUT creating or normalizing any row. A read snapshot must
+ * never perform a hidden write: `manual-edit.service.loadRunContext` previously
+ * called `getOrCreatePolicy`, which created/normalized the policy row inside the
+ * declared read snapshot. A missing persisted policy resolves to in-memory
+ * defaults for the read only; persistence requires a separately authorized write
+ * path. Legacy unreliable promotions are normalized in memory, never persisted.
+ */
+export async function resolveSchedulingPolicyForRead(
+	schoolId: number,
+	schoolYearId: number,
+	client?: SchedulingPolicyReader | null,
+): Promise<any> {
+	const reader = (client ?? (db() as unknown as SchedulingPolicyReader));
+	try {
+		const existing = await reader.schedulingPolicy.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+		});
+		if (!existing) return buildSyntheticPolicy(schoolId, schoolYearId);
+		const normalized = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
+		if (normalized !== existing.constraintConfig && normalized != null) {
+			return { ...existing, constraintConfig: normalized };
+		}
+		return existing;
+	} catch (e: unknown) {
+		if (isSchemaDriftError(e)) {
+			return buildSyntheticPolicy(schoolId, schoolYearId);
+		}
+		throw e;
+	}
+}
+
 // ─── Read-only effective workload policy (no creation on read paths) ───
 
 export type WorkloadPolicyReadiness = 'CONFIGURED' | 'UNCONFIGURED';

@@ -15,7 +15,7 @@ import {
 	type Violation,
 } from './constraint-validator.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
+import { resolveSchedulingPolicyForRead, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
@@ -235,7 +235,7 @@ export async function loadRunContext(
 			where: { schoolId, isActive: true },
 			select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, requiredFeatures: true, gradeLevels: true },
 		}),
-		getOrCreatePolicy(schoolId, schoolYearId),
+		resolveSchedulingPolicyForRead(schoolId, schoolYearId, client as never),
 		client.building.findMany({
 			where: { schoolId },
 			select: { id: true, x: true, y: true },
@@ -714,6 +714,11 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
 		'resourceDiagnostics',
 		'inputSnapshot',
 		'performanceFixture',
+		// Audit F3 — run-wide publication truth the edit does not recompute. A
+		// partial summary merge must never erase the promotable-blocker count or
+		// the per-term session counts produced by generation.
+		'blockingHardViolationCount',
+		'termCounts',
 	];
 	for (const key of preserveKeys) {
 		if (prev[key] !== undefined) {
@@ -1318,6 +1323,7 @@ export async function commitManualEditBatch(
 	expectedVersion: number,
 	allowSoftOverride = false,
 	customSummaryOverrides?: Record<string, any>,
+	sourceSnapshot?: { expectedFingerprint: string; serviceLabel?: string },
 ): Promise<CommitResult> {
 	if (!Array.isArray(proposals) || proposals.length === 0) {
 		throw err(400, 'EMPTY_BATCH', 'At least one manual edit proposal is required.');
@@ -1388,14 +1394,33 @@ export async function commitManualEditBatch(
 	}
 	const newVersion = run.version + 1;
 
+	// SOURCE-FRESHNESS B-04: when a caller computed its output from a captured
+	// source snapshot, recompute the complete fingerprint with the TRANSACTION
+	// client before ANY write and fail closed with typed `SOURCE_AUTHORITY_STALE`
+	// when a covered input changed. The persisted `inputSnapshot` is the
+	// tx-verified snapshot, never a value captured from a different source state.
+	let committedSummary: typeof finalSummary = finalSummary;
+
 	const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
+		if (sourceSnapshot) {
+			const { computeGenerationInputSnapshot } = await import('./generation-input-snapshot.service.js');
+			const txInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
+			if (txInputSnapshot.fingerprint !== sourceSnapshot.expectedFingerprint) {
+				throw err(
+					409,
+					'SOURCE_AUTHORITY_STALE',
+					'The timetable source changed while this change was being prepared. Reload the run and try again.',
+				);
+			}
+			committedSummary = { ...finalSummary, inputSnapshot: txInputSnapshot };
+		}
 		const updated = await tx.generationRun.update({
 			where: { id: runId, version: expectedVersion },
 			data: {
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],
 				violations: newValidation.violations as unknown as object[],
-				summary: finalSummary as object,
+				summary: committedSummary as object,
 				version: newVersion,
 			},
 		});
@@ -1476,7 +1501,7 @@ export async function commitManualEditBatch(
 		status: updatedRun.status,
 		entries: newEntries,
 		unassignedItems: newUnassigned as unknown as DraftReport['unassignedItems'],
-		summary: finalSummary,
+		summary: committedSummary,
 		finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
 		createdAt: updatedRun.createdAt.toISOString(),
 		version: updatedRun.version,

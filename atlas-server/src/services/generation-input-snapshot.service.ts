@@ -275,6 +275,13 @@ export async function computeGenerationInputSnapshot(
 				derivedDemandRevision: derived.revision,
 				termFormat: derived.termStructure.format,
 				termCount: derived.termStructure.terms.length,
+				// Explicit ordered-term identity+order binding (SOURCE-FRESHNESS
+				// B-06): a changed/missing/duplicated/reordered contract changes
+				// this signal even if a revision computation were to miss it.
+				termIdentities: derived.termStructure.terms
+					.map((term) => `${term.order}:${term.identity}`)
+					.sort()
+					.join('|'),
 				timetableLineCount: derived.totalLines,
 				teachingLoadPairCount: derived.totalPairs,
 			}

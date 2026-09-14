@@ -166,9 +166,14 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				if ((data.displacedEntriesCount ?? 0) > 0 || (data.addedUnassignedCount ?? 0) > 0) {
 					setShowPostSyncOffer(true);
 				} else {
+					const retainedReviewedCount = data.retainedFacultyPinCount ?? 0;
+					const retainedCopy = retainedReviewedCount > 0
+						? `, retained ${retainedReviewedCount} reviewed teacher assignment(s)`
+						: '';
 					toast.success(
 						`Timetable synced successfully: updated ${data.updatedFacultyCount ?? 0} teacher assignments, ` +
-						`displaced ${data.displacedEntriesCount ?? 0} entries, added ${data.addedUnassignedCount ?? 0} unassigned sessions.`
+						`displaced ${data.displacedEntriesCount ?? 0} entries, added ${data.addedUnassignedCount ?? 0} unassigned sessions` +
+						`${retainedCopy}.`
 					);
 				}
 				handleRefresh();

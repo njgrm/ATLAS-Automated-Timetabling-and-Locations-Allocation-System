@@ -20,7 +20,7 @@ import {
   type AssignmentScopeInput,
   type NormalizedAssignmentScope,
 } from './faculty-assignment-scope.service.js';
-import { getOrCreatePolicy, getEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
+import { getEffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 import { computeWorkload } from './workload-policy.service.js';
 import { readTeachingLoadCycleSource, refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
 
@@ -480,25 +480,6 @@ export interface TeachingLoadCapabilityOverride {
   approvedBy: number;
   approvedAt: string;
   note: string | null;
-}
-
-export interface TeachingLoadCapabilityOverrideMutationInput {
-  schoolId: number;
-  schoolYearId: number;
-  facultyId: number;
-  subjectCode?: string | null;
-  specializationCode?: string | null;
-  specializationLabel?: string | null;
-  approvedBy: number;
-  note?: string | null;
-}
-
-export interface TeachingLoadCapabilityOverrideDeleteInput {
-  schoolId: number;
-  schoolYearId: number;
-  facultyId: number;
-  subjectCode?: string | null;
-  specializationCode?: string | null;
 }
 
 export interface TeachingLoadTruthReconcileInput {
@@ -3388,76 +3369,22 @@ export async function listTeachingLoadCapabilityOverrides(
   });
 }
 
-export async function upsertTeachingLoadCapabilityOverride(
-  input: TeachingLoadCapabilityOverrideMutationInput,
-): Promise<TeachingLoadCapabilityOverride[]> {
-  const policy = await getOrCreatePolicy(input.schoolId, input.schoolYearId);
-  const current = getTeachingLoadCapabilityOverridesFromConfig(policy.constraintConfig as Prisma.JsonValue | null);
-
-  const subjectCode = normalizeOverrideSubjectCode(input.subjectCode);
-  const specializationCode = normalizeSpecializationCode(input.specializationCode);
-  const specializationLabel = normalizeSpecializationLabel(input.specializationLabel);
-  const note = normalizeSpecializationLabel(input.note);
-
-  const nextEntry: TeachingLoadCapabilityOverride = {
-    facultyId: input.facultyId,
-    subjectCode,
-    specializationCode,
-    specializationLabel,
-    approvedBy: input.approvedBy,
-    approvedAt: new Date().toISOString(),
-    note,
-  };
-
-  const nextOverrides = [
-    ...current.filter((entry) => !(
-      entry.facultyId === nextEntry.facultyId
-      && (entry.subjectCode ?? null) === (nextEntry.subjectCode ?? null)
-      && (entry.specializationCode ?? null) === (nextEntry.specializationCode ?? null)
-    )),
-    nextEntry,
-  ];
-
-  await db().schedulingPolicy.update({
-    where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
-    data: {
-      constraintConfig: buildConstraintConfigWithTeachingLoadOverrides(
-        policy.constraintConfig as Prisma.JsonValue | null,
-        nextOverrides,
-      ),
-    },
-  });
-
-  return listTeachingLoadCapabilityOverrides(input.schoolId, input.schoolYearId);
-}
-
-export async function deleteTeachingLoadCapabilityOverride(
-  input: TeachingLoadCapabilityOverrideDeleteInput,
-): Promise<TeachingLoadCapabilityOverride[]> {
-  const policy = await getOrCreatePolicy(input.schoolId, input.schoolYearId);
-  const current = getTeachingLoadCapabilityOverridesFromConfig(policy.constraintConfig as Prisma.JsonValue | null);
-
-  const subjectCode = normalizeOverrideSubjectCode(input.subjectCode);
-  const specializationCode = normalizeSpecializationCode(input.specializationCode);
-
-  const nextOverrides = current.filter((entry) => !(
-    entry.facultyId === input.facultyId
-    && (entry.subjectCode ?? null) === (subjectCode ?? null)
-    && (entry.specializationCode ?? null) === (specializationCode ?? null)
-  ));
-
-  await db().schedulingPolicy.update({
-    where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
-    data: {
-      constraintConfig: buildConstraintConfigWithTeachingLoadOverrides(
-        policy.constraintConfig as Prisma.JsonValue | null,
-        nextOverrides,
-      ),
-    },
-  });
-
-  return listTeachingLoadCapabilityOverrides(input.schoolId, input.schoolYearId);
-}
+/* -------------------------------------------------------------------------- *
+ * TT-SOURCE-FRESHNESS-C04 (legacy/dead-export inventory):
+ *
+ * The former direct capability-override mutations
+ * (`upsertTeachingLoadCapabilityOverride`, `deleteTeachingLoadCapabilityOverride`)
+ * and their parameter interfaces (`TeachingLoadCapabilityOverrideMutationInput`,
+ * `TeachingLoadCapabilityOverrideDeleteInput`) were removed after a mechanical
+ * repo-wide consumer search (routes, clients, tests, dynamic imports) proved
+ * zero consumers. The retired HTTP PUT/DELETE routes still return the typed
+ * `CAPABILITY_OVERRIDE_DIRECT_MUTATION_RETIRED` 410 contract; only the unused
+ * service functions were removed. The shared helpers they used
+ * (`normalizeOverrideSubjectCode`, `normalizeSpecializationCode`,
+ * `normalizeSpecializationLabel`, `buildConstraintConfigWithTeachingLoadOverrides`,
+ * `getTeachingLoadCapabilityOverridesFromConfig`) remain because other live
+ * callers use them.
+ * -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- *
  * TT-TL-MODULES-C04R1 (F2) — bounded capability-override preview/apply.

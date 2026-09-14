@@ -63,8 +63,8 @@ const REASON_TO_ACTION: Record<string, { label: string; href: string }> = {
 	FACULTY_OVERLOADED: { label: 'Open Teaching Load', href: '/teaching-load' },
 	NO_QUALIFIED_FACULTY: { label: 'Open Teaching Load', href: '/teaching-load' },
 	NO_AVAILABLE_SLOT: { label: 'Place manually', href: '/timetable' },
-	NO_COMPATIBLE_ROOM: { label: 'Review rooms', href: '/campus-rooms' },
-	ROOM_CAPACITY_EXCEEDED: { label: 'Review rooms', href: '/campus-rooms' },
+	NO_COMPATIBLE_ROOM: { label: 'Review rooms', href: '/map' },
+	ROOM_CAPACITY_EXCEEDED: { label: 'Review rooms', href: '/map' },
 	UNASSIGNED_SECTION: { label: 'Review issue', href: '/timetable' },
 };
 
