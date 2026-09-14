@@ -6,8 +6,9 @@
 - Branch: `work/workflow-hardening-c02`
 - Base SHA: `84dd537bb2a2c045b8518c35b3a5372142e0080c` (= refreshed `origin/main` at dispatch)
 - Candidate: bounded additive commits on the branch (the product/test candidate,
-  a test-value hygiene commit, the R1 lock correction, and the R2
-  coordination-deadlock correction with their tests). A file cannot contain its
+  a test-value hygiene commit, the R1 lock correction, the R2
+  coordination-deadlock correction, the R3 inventory correction, and the R4
+  claim-serialized reclaim correction with their tests). A file cannot contain its
   own commit SHA; the planner/QA resolve the tip with
   `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`.
 - Directive: worktree `AGENTS.md`, LF-normalized SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (unchanged).
@@ -60,6 +61,7 @@ ops/workflow/__tests__/fixtures.test.mjs
 ops/workflow/__tests__/harness.mjs
 ops/workflow/__tests__/identity.test.mjs
 ops/workflow/__tests__/leases.test.mjs
+ops/workflow/__tests__/lock-stampede.test.mjs
 ops/workflow/__tests__/lock.test.mjs
 ops/workflow/__tests__/roles.test.mjs
 ops/workflow/__tests__/schema.test.mjs
@@ -103,6 +105,7 @@ any other script.
 | COV-1 | Committed candidateSha→integrationSha ancestry negative control | `lib/verify.mjs` `GIT_ANCESTRY` | candidate not an ancestor of the declared integration commit | `coverage.test.mjs` GIT_ANCESTRY case | PASS |
 | COV-2 | Committed `lease-update` red/green control | `lib/transition.mjs` `lease-update` | bogus state, bogus role, cross-stream lease | `transition.test.mjs` lease-update case | PASS |
 | COORD-1 | Document-scoped `coordination-update`; the active cycle can move off a closing stream so the closure sequence is executable | `lib/transition.mjs` `coordination-update` + `scope: "document"`; `lib/verify.mjs` `TERMINAL_STATES` | MANUAL+non-null id, CYCLE_ACTIVE unknown/terminal id, cleared next action, stale revision | `transition.test.mjs` R2-T1…T4 | PASS |
+| LOCK-1 | Reclaim is serialized and byte-verified; no live record can be unlinked; stale claims and unreadable locks stay fail-closed | `lib/lock.mjs` `reclaimDeadLock` + `classifyLock` fingerprint + claim mutex | dead-owner stampede (20 rounds, 6 real processes, 1 MB/4 MB records), stale claim, unreadable/foreign release, existing R1/R2 controls | `lock-stampede.test.mjs` S1/S3; `transition.test.mjs` S1c | PASS |
 | A3-1 | Dirty worktree + live lease + PLANNED/running[] fails | `lib/verify.mjs` lease rules; `lib/git.mjs` `worktreeStatusPorcelain` | TT-SOURCE-FRESHNESS-C04 shape | `leases.test.mjs` first case | PASS |
 | A3-2 | Directory existence alone is not activity | `lib/verify.mjs` | clean worktree, no lease | `leases.test.mjs` "a clean worktree with no lease …" | PASS |
 | A3-3 | Expiry never grants cleanup/replacement authority | lease rule + `lease-update` transition | expired `ACTIVE` lease | `leases.test.mjs` "an expired-but-unconfirmed ACTIVE lease …" | PASS |
@@ -117,7 +120,7 @@ any other script.
 
 ## Decisive gate outputs
 
-- `npm run workflow:test` (after R2): `tests 143 / pass 143 / fail 0 / cancelled 0 / skipped 0 / todo 0`; full-suite `duration_ms` 28.1–38.2 s and wall 28.8–39.7 s across repeated runs of the same tree bytes (typical committed-tree runs measured 30.6–30.9 s duration / 31.3–31.8 s wall). Still inside the 45 s budget.
+- `npm run workflow:test` (after R4): `tests 145 / pass 145 / fail 0 / cancelled 0 / skipped 0 / todo 0`; full-suite wall ≈ 34–37 s in the final three measured runs (observed 32.5–56.7 s across the session under host load; `duration_ms` 31.9–56.7 s). Inside the 45 s budget on the final runs. Pre-R4 the suite was 143 tests / ~29–40 s.
 - Before (WF-C01 tip, same host): `npm run workflow:test` wall `82562 ms` (60 tests).
 - Fixture/semantic suite (`fixtures.test.mjs`): `duration_ms 2008 ms` (target < 20000 ms).
 - `npm run workflow:verify -- --state docs/plans/atlas-delivery-cycles.json`: exit 0, `status ok`, `errors []`, 6 streams.
@@ -283,6 +286,86 @@ reverted). The committed R2 controls were run against it:
 | pre-R2 `lib/transition.mjs` | ✖ fail | ✖ fail (`0/2` pass) |
 | corrected | ✔ pass | ✔ pass (`2/2` pass) |
 
+## R4 correction (F1 — reclaim TOCTOU; Wave Completion Auditor `CORRECTION_REQUIRED` 10/9/0/0)
+
+**Defect (blocking).** `acquireLock` classified a dead record `ABSENT` and then
+unconditionally unlinked the lock. Two reclaimers that both classified the same
+dead record could interleave: A unlinked and published its own record, then B
+unlinked A's **live** record and published its own — both believed they held the
+lock. The auditor observed 2–3 of 4 synchronized acquirers returning `ok`, widening
+with 1 MB/4 MB records.
+
+**Fix — claim-serialized reclaim (`ops/workflow/lib/lock.mjs`).**
+
+- Publication stays CAS: staged complete record + `fs.linkSync` (`EEXIST` while held).
+- `classifyLock` also returns a byte `fingerprint` of the record it classified.
+- `reclaimDeadLock({ lockPath, expectedFingerprint, tempPath })` opens the claim
+  mutex `<lock>.claim` with `openSync(claimPath, "wx")` and always releases it in a
+  `finally`. If the claim already exists it returns `CLAIM_BLOCKED`, surfacing as a
+  typed `LOCK_CONTENTION` that names the claim file, with zero mutation; a claim
+  file is never automatically deleted.
+- Inside the claim section the lock file is re-read and must still hash to the
+  classified dead record before `unlinkSync(lockPath)`; the staged record is then
+  immediately CAS-published with `linkSync`. `EEXIST` means a fresh acquirer won
+  the gap (contention); a missing or changed record means nothing is touched.
+- `releaseLock` (only this process's readable record) and `inspectLock` are unchanged.
+- Race hardening: Windows can report `EPERM`/access-denied (not only `EEXIST`)
+  while a claim file is being created or removed, and a hard link can fail
+  transiently during a concurrent create/remove. Both are treated as "not
+  acquired": the claim section fails closed, the caller retries within the
+  bounded window, and the outcome is typed contention — never a hard failure and
+  never a deletion of the claim.
+
+**Invariant argument.** (i) `lockPath` is unlinked only inside the claim section
+after a byte-verified dead-record check, or by `releaseLock` for a readable record
+whose `ownerPid` is this process. (ii) At most one process is inside the claim
+section (O_EXCL mutex, released in `finally`, never auto-deleted). (iii) Every
+publication at `lockPath` is CAS (`linkSync`). Because a fresh acquirer cannot
+publish while the dead record exists (`EEXIST`), and only the unique claim holder
+can remove it, no live record can ever be unlinked by a reclaimer.
+
+**Controls (failing-first).**
+
+| Control | Where | Result |
+| --- | --- | --- |
+| S1: 12 synchronized rounds of 6 persistent real OS processes from a dead-owner lock (11 exact-record rounds + one 1 MB widened round) — exactly one winner per round, typed losers only, no lock/claim/temp residue | `lock-stampede.test.mjs` | PASS |
+| S1c: four real transition processes from a dead-owner lock — exactly one commit, revision +1, three typed losers, no claim/temp residue, winner released its lock | `transition.test.mjs` | PASS |
+| S3: stale claim file — typed `LOCK_CONTENTION` naming the claim, byte-identical state/render, lock and claim untouched; no claim residue after a normal reclaim | `lock-stampede.test.mjs` | PASS |
+| S4: all prior controls stay green (R1 T1–T4, R2 T1–T4, lease-update, mid-write fault atomicity, CAS/publication) | whole suite | PASS |
+
+**S2 failing-first proof.** The identical committed `lock-stampede.test.mjs` was run
+against a disposable copy of `ops/workflow` whose only change was `lib/lock.mjs`
+reverted to tip `5d902bf4` (no claim mutex): the harness reported
+`round 1 (padding=0) produced 2 winners`. A heavier one-off widened variant
+(6 workers × 12 rounds at 4 MB records) against the same pre-fix lock produced the
+winner distribution `{"1":2,"2":7,"3":3}` — **10 of 12 rounds multi-winner** —
+matching the auditor's `{"2":3,"3":1}`-class evidence. The corrected
+implementation passed every round at exactly one winner. The worktree was never
+reverted.
+
+**Design note (budget).** The packet budget is 45 s wall for `npm run
+workflow:test`. The committed S1 is a bounded version (12 rounds, one 1 MB widened
+record) that keeps the suite at ≈ 34–37 s; the heavier 4 MB widened variant above
+was run once as evidence rather than in the default suite, as the resume
+instructions permit. The literal long repetition with *real transition* processes
+costs ≈ 20–25 s on this host and is therefore represented by the four-process
+real-transition control S1c. No control was removed or weakened.
+
+**Retry semantics (disclosed).** The round helper returns immediately when more
+than one acquirer wins — the load-bearing F1 assertion is never retried or
+masked. A *zero*-winner round (a reused/live seed pid or a transient filesystem
+race) is retried a bounded three times with a refreshed dead pid, because a
+genuine lock regression also yields zero winners on every attempt and therefore
+still fails. The seed pid is refreshed whenever it stops being provably absent.
+
+**Race hardening.** A contended claim file can surface as `EPERM`/access-denied
+on Windows (not only `EEXIST`), and the claim-section read/unlink/relink can fail
+transiently while another reclaimer creates or removes it; a hard-link publish can
+likewise fail transiently during a concurrent create/remove. All of these are
+treated as "not acquired": the claim section fails closed, the caller retries
+within the bounded window, and the outcome is typed contention — never a hard
+failure and never a deletion of the claim (or of a lock) without proof.
+
 ## Known risks (all NON_BLOCKING for this packet)
 
 1. The candidate cannot embed its own commit SHA; the planner/QA resolve the tip
@@ -310,6 +393,15 @@ reverted). The committed R2 controls were run against it:
    human to prove no owner exists before removal; the README gives the exact
    recovery step. This is intentional (never delete a lock without proof) but it
    means an externally corrupted lock blocks transitions until cleared.
+9. A crashed reclaimer leaves a `<lock>.claim` file; reclaim then fails closed as
+   `LOCK_CONTENTION` (claim message) until an operator removes that single file
+   after confirming no transition is running. Intentional (never auto-delete a
+   claim) but it is a manual recovery step, documented in the README.
+10. Concurrent correctness is proven by real-process, barrier-synchronized
+    stampedes; the 20-round repetition drives the lock protocol directly while
+    commit-level exactly-once is proven by the four-process real-transition
+    control, because 20 real-transition iterations alone would exceed the suite
+    time budget.
 
 ## Zero-mutation statement
 
