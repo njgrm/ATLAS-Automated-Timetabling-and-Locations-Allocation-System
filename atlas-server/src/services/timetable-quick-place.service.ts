@@ -451,6 +451,14 @@ export async function applyQuickPlace(
 		throw err(409, 'VERSION_CONFLICT', 'Timetable was modified by another user. Reload and try again.');
 	}
 
+	// SOURCE-FRESHNESS B-04: capture ONE source snapshot BEFORE the solver and
+	// diagnostics run. The commit transaction recomputes the complete fingerprint
+	// through its own client and fails closed with typed `SOURCE_AUTHORITY_STALE`
+	// if any covered input (rooms, policy, subjects, ownership, ordered-term +
+	// derived demand, shifts, sections) changed. Solver output and every
+	// recalculated diagnostic are therefore bound to the same source state.
+	const capturedSourceSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+
 	// 2. Solve Quick Place
 	const solution = await solveQuickPlace(runId, schoolId, schoolYearId);
 
@@ -536,8 +544,6 @@ export async function applyQuickPlace(
 	const slotSaturationByInterval = buildSlotSaturation(finalEntries, refData.rooms.length);
 	const unassignedBySubjectGrade = buildUnassignedBySubjectGrade(finalUnassigned, activeSubjectCodeById);
 
-	const nextInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
-
 	// Construct summary overrides to be saved inside the commit transaction
 	const summaryOverrides = {
 		homeRoomAttemptedCount: homeRoomStats.attempted,
@@ -549,10 +555,12 @@ export async function applyQuickPlace(
 			unassignedBySubjectGrade,
 			homeRoomFallbackDiagnostics,
 		},
-		inputSnapshot: nextInputSnapshot,
 	};
 
-	// 5. Commit using commitManualEditBatch (reusing manual-edit checks, audit log, manual edits history)
+	// 5. Commit using commitManualEditBatch (reusing manual-edit checks, audit log, manual edits history).
+	// The captured fingerprint is revalidated with the commit transaction client;
+	// a stale source aborts with typed SOURCE_AUTHORITY_STALE and zero writes, and
+	// the persisted snapshot is the tx-verified snapshot.
 	const commitRes = await commitManualEditBatch(
 		runId,
 		schoolId,
@@ -561,7 +569,8 @@ export async function applyQuickPlace(
 		proposals,
 		expectedVersion,
 		true, // allowSoftOverride
-		summaryOverrides
+		summaryOverrides,
+		{ expectedFingerprint: capturedSourceSnapshot.fingerprint, serviceLabel: 'QUICK_PLACE' },
 	);
 
 	const finalReport = {
