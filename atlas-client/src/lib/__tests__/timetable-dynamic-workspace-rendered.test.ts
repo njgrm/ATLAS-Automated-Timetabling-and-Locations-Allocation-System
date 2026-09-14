@@ -51,7 +51,7 @@ function draftWithInputState(inputState: GenerationInputComparison): DraftReport
 	} as unknown as DraftReport;
 }
 
-function renderBanner(inputState: GenerationInputComparison) {
+function renderBanner(inputState: GenerationInputComparison, isPublished = false) {
 	return renderToStaticMarkup(
 		createElement(MemoryRouter, null,
 			createElement(SimpleDriftBanner, {
@@ -63,6 +63,7 @@ function renderBanner(inputState: GenerationInputComparison) {
 				loading: false,
 				onRefresh: () => {},
 				capabilities: READY_CAPABILITIES,
+				isPublished,
 			}),
 		),
 	);

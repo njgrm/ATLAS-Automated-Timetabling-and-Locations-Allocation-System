@@ -34,7 +34,6 @@ import {
 	buildRevisionPayloadChange,
 	buildTeachingLoadRepairProposals,
 	canonicalRefusalFromError,
-	DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE,
 	facultyDisplayName,
 	findCanonicalOwner,
 	isEligibleFaculty,
@@ -54,6 +53,7 @@ import {
 } from './TacticalSandboxDock.helpers';
 import {
 	AvailabilityDeferredNotice,
+	CapabilityOverrideModule,
 	OwnerSourceMismatchNotice,
 	QualificationAuthorityModule,
 	RedistributionSummaryCard,
@@ -62,6 +62,7 @@ import {
 	type Candidate,
 	type ReviewStep,
 } from './TacticalSandboxDock.parts';
+import { useTeachingLoadModules } from './TacticalSandboxDock.useTeachingLoadModules';
 import { PublishedRevisionDialog } from './PublishedRevisionDialog';
 import {
 	buildRevisionCreatePayload,
@@ -161,22 +162,6 @@ export function TacticalSandboxDock({
 	const [revisionSuccess, setRevisionSuccess] = useState<RevisionSuccess | null>(null);
 	const [unassignedTargetFacultyId, setUnassignedTargetFacultyId] = useState<number | null>(null);
 	const [selectedPlacementProposal, setSelectedPlacementProposal] = useState<ManualEditProposal | null>(null);
-	// TT-TL-MODULES-C04: read-only redistribution summary (R3) and the bounded
-	// qualification/department authority module (R4). Neither duplicates the
-	// Teaching Load editor nor dispatches an apply outside the canonical flow.
-	const [redistributionSummary, setRedistributionSummary] = useState<RedistributionSummary | null>(null);
-	const [redistributionReadiness, setRedistributionReadiness] = useState<ReadinessSummary | null>(null);
-	const [redistributionLoading, setRedistributionLoading] = useState(false);
-	const [redistributionError, setRedistributionError] = useState<string | null>(null);
-	const [qualificationOpen, setQualificationOpen] = useState(false);
-	const [qualificationAliases, setQualificationAliases] = useState<Array<{ key: string; value: string }>>([]);
-	const [qualificationLabels, setQualificationLabels] = useState<Array<{ key: string; value: string }>>([]);
-	const [qualificationPreview, setQualificationPreview] = useState<QualificationPreviewState | null>(null);
-	const [qualificationPreviewing, setQualificationPreviewing] = useState(false);
-	const [qualificationApplying, setQualificationApplying] = useState(false);
-	const [qualificationConfirmation, setQualificationConfirmation] = useState('');
-	const [qualificationStatus, setQualificationStatus] = useState<string | null>(null);
-	const [qualificationError, setQualificationError] = useState<string | null>(null);
 	const activeSubjectId = selectedEntry?.subjectId ?? selectedUnassigned?.subjectId ?? null;
 	const activeSectionId = selectedEntry?.sectionId ?? selectedUnassigned?.sectionId ?? null;
 	const subject = activeSubjectId ? subjectMap.get(activeSubjectId) : undefined;
@@ -184,9 +169,9 @@ export function TacticalSandboxDock({
 	const unassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
 	// R8(d): scope identity for every bound repair state and module request.
 	const workspaceScope = workspaceScopeKey({ schoolId, schoolYearId, runId });
-	// Monotonic request epoch: any scope change invalidates in-flight module
-	// responses so a stale school/year payload can never be rendered.
-	const qualificationRequestRef = useRef(0);
+	// F5: the focused redistribution/qualification mini-module state and handlers
+	// live in a dedicated hook so this presenter stays under the line limit.
+	const modules = useTeachingLoadModules({ schoolId, schoolYearId, scopeKey: workspaceScope });
 	const activeContextEntry = useMemo<ScheduledEntry | null>(() => {
 		if (selectedEntry) return selectedEntry;
 		if (!selectedUnassigned || !unassignedKey) return null;
@@ -279,19 +264,6 @@ export function TacticalSandboxDock({
 		setUnassignedTargetFacultyId(null);
 		setSelectedPlacementProposal(null);
 	}, [selectedEntry?.entryId, unassignedKey]);
-
-	useEffect(() => {
-		setRedistributionSummary(null);
-		setRedistributionReadiness(null);
-		setRedistributionError(null);
-		setRedistributionLoading(false);
-		qualificationRequestRef.current += 1;
-		setQualificationPreview(null);
-		setQualificationError(null);
-		setQualificationStatus(null);
-		setQualificationConfirmation('');
-		setQualificationOpen(false);
-	}, [workspaceScope]);
 
 	useEffect(() => {
 		if (selectedUnassigned && previewFacultyId) {
@@ -518,115 +490,6 @@ export function TacticalSandboxDock({
 			}
 		} finally {
 			setBatchCommitLoading(false);
-		}
-	}
-
-	/**
-	 * R3: read-only redistribution summary. It dispatches at most the canonical
-	 * `previewOnly: true` request and the canonical readiness read; it never
-	 * sends `previewOnly:false`/`confirmApply`, so it cannot rebind Teaching Load.
-	 */
-	async function triggerRedistributionPreview() {
-		const request = buildRedistributionRequest({ schoolId, schoolYearId });
-		if (!request) {
-			setRedistributionSummary(null);
-			setRedistributionReadiness(null);
-			setRedistributionError(null);
-			return;
-		}
-		const epoch = ++qualificationRequestRef.current;
-		setRedistributionLoading(true);
-		setRedistributionError(null);
-		try {
-			const { data: rebalance } = await atlasApi.post(`/faculty-assignments/coverage/rebalance-over-cap`, request);
-			if (epoch !== qualificationRequestRef.current) return;
-			setRedistributionSummary(summarizeRedistribution(rebalance));
-		} catch (error) {
-			if (epoch !== qualificationRequestRef.current) return;
-			setRedistributionSummary(null);
-			setRedistributionError(previewErrorCopy(error));
-		}
-		try {
-			const { data: readiness } = await atlasApi.get(`/faculty-assignments/reconciliation/readiness`, {
-				params: { schoolId: request.schoolId, schoolYearId: request.schoolYearId },
-			});
-			if (epoch !== qualificationRequestRef.current) return;
-			setRedistributionReadiness(summarizeReadiness(readiness));
-		} catch (error) {
-			if (epoch !== qualificationRequestRef.current) return;
-			setRedistributionReadiness(null);
-			setRedistributionError((previous) => previous ?? previewErrorCopy(error));
-		} finally {
-			if (epoch === qualificationRequestRef.current) setRedistributionLoading(false);
-		}
-	}
-
-	/** R4: read-only department-authority preview; issues the server fingerprint. */
-	async function previewQualificationAuthority() {
-		const payload = buildQualificationPreviewPayload({ schoolId }, qualificationAliases, qualificationLabels);
-		if (!payload) {
-			setQualificationError('An authenticated school scope is required before qualification authority can be previewed.');
-			return;
-		}
-		const epoch = ++qualificationRequestRef.current;
-		setQualificationPreviewing(true);
-		setQualificationError(null);
-		setQualificationStatus(null);
-		try {
-			const { data } = await atlasApi.post(`/faculty-assignments/department-authority/preview`, payload);
-			if (epoch !== qualificationRequestRef.current) return;
-			const changes = Array.isArray(data?.changes) ? data.changes as Array<{ action?: string }> : [];
-			setQualificationPreview({
-				fingerprint: typeof data?.fingerprint === 'string' && data.fingerprint ? data.fingerprint : null,
-				expectedSourceRevision: data?.sourceRevision ?? null,
-				conflicts: changes.filter((change) => change.action === 'conflict').length,
-				creates: changes.filter((change) => change.action === 'create').length,
-			});
-			setQualificationStatus('Preview complete. Nothing was written; apply is now authorized by this fingerprint.');
-		} catch (error) {
-			if (epoch !== qualificationRequestRef.current) return;
-			const refusal = canonicalRefusalFromError(error);
-			setQualificationPreview(null);
-			setQualificationError(qualificationRefusalCopy(refusal.code, refusal.message));
-		} finally {
-			if (epoch === qualificationRequestRef.current) setQualificationPreviewing(false);
-		}
-	}
-
-	/**
-	 * R4: fingerprinted apply. Blocked until the server preview issued a
-	 * fingerprint and the operator typed the server's confirmation phrase.
-	 */
-	async function applyQualificationAuthority() {
-		const payload = buildQualificationApplyPayload({ schoolId }, qualificationAliases, qualificationLabels, qualificationPreview, qualificationConfirmation);
-		if (!payload) {
-			setQualificationError(qualificationRefusalCopy('FINGERPRINT_REQUIRED'));
-			return;
-		}
-		const epoch = ++qualificationRequestRef.current;
-		setQualificationApplying(true);
-		setQualificationError(null);
-		setQualificationStatus(null);
-		try {
-			const { data } = await atlasApi.post(`/faculty-assignments/department-authority/apply`, payload);
-			if (epoch !== qualificationRequestRef.current) return;
-			const created = Array.isArray(data?.created) ? data.created.length : 0;
-			const conflicting = Array.isArray(data?.conflicting) ? data.conflicting.length : 0;
-			setQualificationStatus(
-				conflicting > 0
-					? `Nothing was written: ${conflicting} conflicting authority row${conflicting === 1 ? '' : 's'} must be resolved before apply.`
-					: `Applied ${created} authority row${created === 1 ? '' : 's'}. Nothing else changed.`,
-			);
-			if (conflicting === 0) {
-				setQualificationPreview(null);
-				setQualificationConfirmation('');
-			}
-		} catch (error) {
-			if (epoch !== qualificationRequestRef.current) return;
-			const refusal = canonicalRefusalFromError(error);
-			setQualificationError(qualificationRefusalCopy(refusal.code, refusal.message));
-		} finally {
-			if (epoch === qualificationRequestRef.current) setQualificationApplying(false);
 		}
 	}
 
@@ -973,30 +836,45 @@ export function TacticalSandboxDock({
 				    read-only or fingerprinted and never become a second editor. */}
 				<div className="shrink-0 space-y-2 border-t border-border/70 pt-3">
 					<RedistributionSummaryCard
-						data={{ summary: redistributionSummary, readiness: redistributionReadiness }}
-						loading={redistributionLoading}
-						error={redistributionError}
+						data={{ summary: modules.redistributionSummary, readiness: modules.redistributionReadiness }}
+						loading={modules.redistributionLoading}
+						error={modules.redistributionError}
 						candidate={redistributeDispatchAllowed({ schoolId, schoolYearId })}
-						onPreview={() => void triggerRedistributionPreview()}
+						onPreview={() => void modules.triggerRedistributionPreview()}
 					/>
 					<QualificationAuthorityModule
-						open={qualificationOpen}
-						onOpenChange={setQualificationOpen}
+						open={modules.qualificationOpen}
+						onOpenChange={modules.setQualificationOpen}
 						contextLabel={activeContextEntry ? sectionLabel(activeContextEntry.sectionId) : 'No selected class'}
 						subjectLabel={activeContextEntry ? subjectLabel(activeContextEntry.subjectId) : 'Select a class or session first'}
-						aliasRows={qualificationAliases}
-						labelRows={qualificationLabels}
-						onAliasChange={setQualificationAliases}
-						onLabelChange={setQualificationLabels}
-						preview={qualificationPreview}
-						previewing={qualificationPreviewing}
-						applying={qualificationApplying}
-						confirmationText={qualificationConfirmation}
-						onConfirmationChange={setQualificationConfirmation}
-						status={qualificationStatus}
-						error={qualificationError}
-						onPreview={() => void previewQualificationAuthority()}
-						onApply={() => void applyQualificationAuthority()}
+						aliasRows={modules.qualificationAliases}
+						labelRows={modules.qualificationLabels}
+						onAliasChange={modules.setQualificationAliases}
+						onLabelChange={modules.setQualificationLabels}
+						preview={modules.qualificationPreview}
+						previewing={modules.qualificationPreviewing}
+						applying={modules.qualificationApplying}
+						confirmationText={modules.qualificationConfirmation}
+						onConfirmationChange={modules.setQualificationConfirmation}
+						status={modules.qualificationStatus}
+						error={modules.qualificationError}
+						onPreview={() => void modules.previewQualificationAuthority()}
+						onApply={() => void modules.applyQualificationAuthority()}
+					/>
+					<CapabilityOverrideModule
+						targetLabel={activeContextEntry?.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No selected teacher'}
+						candidate={Boolean(activeContextEntry?.facultyId) && Number.isInteger(schoolYearId)}
+						draft={modules.capabilityDraft}
+						onDraftChange={modules.setCapabilityDraft}
+						preview={modules.capabilityPreview}
+						previewing={modules.capabilityPreviewing}
+						applying={modules.capabilityApplying}
+						confirmationText={modules.capabilityConfirmation}
+						onConfirmationChange={modules.setCapabilityConfirmation}
+						status={modules.capabilityStatus}
+						error={modules.capabilityError}
+						onPreview={() => void modules.previewCapabilityOverride(activeContextEntry?.facultyId ?? null)}
+						onApply={() => void modules.applyCapabilityOverride(activeContextEntry?.facultyId ?? null)}
 					/>
 					<AvailabilityDeferredNotice />
 				</div>

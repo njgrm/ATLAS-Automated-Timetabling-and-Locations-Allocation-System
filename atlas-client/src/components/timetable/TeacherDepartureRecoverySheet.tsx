@@ -6,7 +6,6 @@ import { buildUnassignedKey } from '@/lib/timetable-utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
-import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { SearchableSelect } from '@/ui/searchable-select';
 import {
@@ -19,13 +18,10 @@ import {
 } from '@/ui/sheet';
 import { PublishedRevisionDialog } from './PublishedRevisionDialog';
 import {
-	absenceWindowRevisionDateError,
 	buildRevisionPayloadChange,
 	canonicalRefusalFromError,
-	createEmptyAbsenceWindow,
-	describeAbsenceWindow,
-	validateAbsenceWindow,
-	type AbsenceWindow,
+	describeDepartureRepairTruth,
+	revisionDateError,
 } from './TacticalSandboxDock.helpers';
 import {
 	buildRevisionCreatePayload,
@@ -210,10 +206,11 @@ export function TeacherDepartureRecoverySheet({
 	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
 	const [revisionSuccess, setRevisionSuccess] = useState<{ revisionId: number; effectiveDate: string; changeCount: number } | null>(null);
 	const [currentStep, setCurrentStep] = useState<TeacherDepartureStep>(0);
-	// R2: the explicit absence window. Required start date; optional end date or
-	// an explicit "until further notice". It is operator context and revision
-	// metadata, not a new server field, and it gates every preview/save.
-	const [absenceWindow, setAbsenceWindow] = useState<AbsenceWindow>(() => createEmptyAbsenceWindow());
+	// F1: there is no absence window. Decision D1 defers persisted faculty
+	// availability, so this sheet records no absence period and schedules no
+	// future reversion; an unpublished run reassigns the affected classes of the
+	// current generated run, and a published run changes only through an
+	// effective-dated revision.
 
 	useEffect(() => {
 		if (!open) return;
@@ -231,7 +228,6 @@ export function TeacherDepartureRecoverySheet({
 		setRevisionError(null);
 		setRevisionActionHint(null);
 		setRevisionSuccess(null);
-		setAbsenceWindow(createEmptyAbsenceWindow());
 	}, [initialFacultyId, open]);
 
 	const facultyOptions = useMemo(() => {
@@ -279,13 +275,10 @@ export function TeacherDepartureRecoverySheet({
 	);
 	const hasBlockingPreview = (preview?.hardViolations.length ?? 0) > 0 || (preview?.errorCount ?? 0) > 0;
 	const hasSoftWarnings = (preview?.softViolations.length ?? 0) > 0;
-	// R2: the absence window is validated before any preview or save. It is
-	// operator context that governs the repair, not persisted server state.
-	const absenceWindowError = validateAbsenceWindow(absenceWindow);
+	// F1: the only temporal authority is the published revision effective date.
+	const departureTruth = describeDepartureRepairTruth(isPublished, affectedGroups.length);
 	const saveDisabledReason = isPublished
 		? 'Published schedules require an effective-date revision. Do not rewrite the published run directly.'
-		: absenceWindowError
-			? absenceWindowError
 		: !draft
 			? 'No generated run is loaded.'
 			: departingFacultyId == null
@@ -361,11 +354,6 @@ export function TeacherDepartureRecoverySheet({
 	};
 
 	const handlePreview = async () => {
-		// R2: the absence window must be valid before the canonical preview runs.
-		if (absenceWindowError) {
-			setStatus(absenceWindowError);
-			return;
-		}
 		setPreviewing(true);
 		setStatus(null);
 		setPreview(null);
@@ -375,7 +363,7 @@ export function TeacherDepartureRecoverySheet({
 			if (!result) setStatus('ATLAS could not preview the reassignment. Try refreshing, then preview again.');
 			else if (result.hardViolations.length > 0 || result.errorCount > 0) setStatus('Preview found blockers. Review the messages before saving.');
 			else if (result.softViolations.length > 0) setStatus('Preview found warnings. You may save after acknowledging them.');
-			else setStatus(`Preview passed. ${describeAbsenceWindow(absenceWindow)} This reassignment is ready to save.`);
+			else setStatus(`Preview passed. ${departureTruth}`);
 			if (result) setCurrentStep(4);
 		} catch (error) {
 			// R2: a canonical typed refusal is rendered truthfully inline; the
@@ -400,7 +388,7 @@ export function TeacherDepartureRecoverySheet({
 				setStatus('ATLAS could not save the reassignment. No changes were applied.');
 				return;
 			}
-			setStatus(`Reassignment saved. ${describeAbsenceWindow(absenceWindow)} ATLAS refreshed the timetable and Teaching Load ownership.`);
+			setStatus(`Reassignment saved for the current generated run. ${departureTruth} ATLAS refreshed the timetable and Teaching Load ownership.`);
 			onSaved();
 			onOpenChange(false);
 		} catch (error) {
@@ -429,15 +417,10 @@ export function TeacherDepartureRecoverySheet({
 			setRevisionActionHint('Every affected group needs a replacement teacher.');
 			return;
 		}
-		// R2: the absence window governs the revision effective date in Published
-		// mode. No direct Teaching Load write is attempted on this path.
-		const windowError = validateAbsenceWindow(absenceWindow);
-		if (windowError) {
-			setRevisionError(windowError);
-			setRevisionActionHint('Set the absence window before scheduling the revision.');
-			return;
-		}
-		const dateError = absenceWindowRevisionDateError(absenceWindow, revisionEffectiveDate);
+		// F1: in Published mode the revision effective date is the sole temporal
+		// authority. No absence window exists and no direct Teaching Load write is
+		// attempted on this path.
+		const dateError = revisionDateError(revisionEffectiveDate);
 		if (dateError) {
 			setRevisionError(dateError);
 			setRevisionActionHint('The current published schedule stays active until the future effective date you choose.');
@@ -558,48 +541,8 @@ export function TeacherDepartureRecoverySheet({
 							Published run selected. Use an effective-date revision for already-published schedules; this sheet will not rewrite the published record.
 						</div>
 					) : null}
-					<div className="mt-1 space-y-2 border-t border-border/70 pt-2" data-testid="teacher-departure-window">
-						<p className="text-sm font-semibold text-foreground">Absence window (required)</p>
-						<p className="text-xs text-muted-foreground">Capture when this teacher becomes unavailable. The window is recorded on the repair/revision and shown in the confirmation step.</p>
-						<div className="grid gap-2 sm:grid-cols-2">
-							<label className="space-y-1 text-xs">
-								<span className="font-medium text-foreground">Unavailable from</span>
-								<Input
-									type="date"
-									value={absenceWindow.startDate}
-									onChange={(event) => setAbsenceWindow((previous) => ({ ...previous, startDate: event.target.value }))}
-									className="h-9 text-xs"
-									data-testid="teacher-departure-window-start"
-								/>
-							</label>
-							<label className="space-y-1 text-xs">
-								<span className="font-medium text-foreground">Unavailable until</span>
-								<Input
-									type="date"
-									value={absenceWindow.endDate}
-									onChange={(event) => setAbsenceWindow((previous) => ({ ...previous, endDate: event.target.value }))}
-									disabled={absenceWindow.untilFurtherNotice}
-									className="h-9 text-xs"
-									data-testid="teacher-departure-window-end"
-								/>
-							</label>
-						</div>
-						<label className="flex items-center gap-2 text-xs text-foreground">
-							<Checkbox
-								checked={absenceWindow.untilFurtherNotice}
-								onCheckedChange={(value) => setAbsenceWindow((previous) => ({ ...previous, untilFurtherNotice: value === true, endDate: value === true ? '' : previous.endDate }))}
-								data-testid="teacher-departure-window-indefinite"
-							/>
-							Until further notice (no end date)
-						</label>
-						{absenceWindowError ? (
-							<p className="flex items-start gap-1.5 text-xs text-amber-800" data-testid="teacher-departure-window-error">
-								<AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
-								{absenceWindowError}
-							</p>
-						) : (
-							<p className="text-xs text-muted-foreground" data-testid="teacher-departure-window-summary">{describeAbsenceWindow(absenceWindow)}</p>
-						)}
+					<div className="mt-1 rounded-md border border-border bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground" data-testid="teacher-departure-truth">
+						{departureTruth}
 					</div>
 				</div>
 				) : null}
@@ -721,7 +664,7 @@ export function TeacherDepartureRecoverySheet({
 					<div className="flex items-center justify-between gap-2">
 						<div className="min-w-0">
 							<p className="text-sm font-semibold text-foreground">Preview result</p>
-							<p className="text-xs text-muted-foreground" data-testid="teacher-departure-window-confirmation">{describeAbsenceWindow(absenceWindow)}</p>
+							<p className="text-xs text-muted-foreground" data-testid="teacher-departure-window-confirmation">{departureTruth}</p>
 						</div>
 						{preview ? (
 							<Badge variant={hasBlockingPreview ? 'destructive' : hasSoftWarnings ? 'outline' : 'secondary'} className="text-xs">
@@ -791,7 +734,7 @@ export function TeacherDepartureRecoverySheet({
 						<Button
 							type="button"
 							onClick={goNext}
-							disabled={visibleStep >= maxReachableStep || previewing || saving || (visibleStep === 0 && !!absenceWindowError)}
+							disabled={visibleStep >= maxReachableStep || previewing || saving}
 							data-testid="teacher-departure-next-button"
 						>
 							Next

@@ -214,10 +214,6 @@ export function formatSlot(entry: ScheduledEntry, formatTimeValue: (value: strin
 export const AVAILABILITY_MODULE_DEFERRED_COPY =
 	'Availability-driven moves are deferred: ATLAS has no persisted faculty availability authority yet, so no availability repair is offered here.';
 
-/** Server-issued department-authority confirmation phrase. The operator must
- * type the phrase the server preview advertises; the client never invents it. */
-export const DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE = 'APPLY DEPARTMENT AUTHORITY';
-
 /**
  * R8(d): the scope identity every bound repair state is keyed to. When the
  * school, year, or run changes, consumers must clear their staged/preview/
@@ -231,66 +227,21 @@ export function workspaceScopeKey(scope: {
 	return `${scope.schoolId ?? 'none'}:${scope.schoolYearId ?? 'none'}:${scope.runId ?? 'none'}`;
 }
 
-export type AbsenceWindow = {
-	startDate: string;
-	endDate: string;
-	untilFurtherNotice: boolean;
-};
-
-export function createEmptyAbsenceWindow(): AbsenceWindow {
-	return { startDate: '', endDate: '', untilFurtherNotice: false };
-}
-
-function isValidDateOnly(value: string): boolean {
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return false;
-	return !Number.isNaN(new Date(`${value.trim()}T00:00:00Z`).getTime());
-}
-
 /**
- * Validates the operator-supplied absence window before any preview/save. The
- * window is operator context and revision metadata, not a new server field, so
- * validation stays client-side and explicit.
+ * TT-TL-MODULES-C04R1 (F1) — truthful departure-repair copy.
+ *
+ * Decision D1 defers persisted faculty availability, so there is no absence
+ * window to capture. An unpublished run reassigns the affected classes of the
+ * current generated run only. A published run changes nothing until an
+ * effective-dated revision, and that revision effective date is the sole
+ * temporal authority — the client must never imply an end-date reversion.
  */
-export function validateAbsenceWindow(window: AbsenceWindow): string | null {
-	if (!isValidDateOnly(window.startDate)) {
-		return 'Choose the first date this teacher is unavailable.';
+export function describeDepartureRepairTruth(isPublished: boolean, affectedClassCount: number): string {
+	const count = Number.isFinite(affectedClassCount) && affectedClassCount > 0 ? Math.floor(affectedClassCount) : 0;
+	if (isPublished) {
+		return 'This schedule is published. The published run stays unchanged; an effective-dated revision is the only way to change it, and its effective date is the sole temporal authority.';
 	}
-	if (window.untilFurtherNotice) {
-		if (window.endDate.trim()) {
-			return 'Clear the end date or uncheck "Until further notice" so the window has one meaning.';
-		}
-		return null;
-	}
-	if (!isValidDateOnly(window.endDate)) {
-		return 'Choose an end date, or mark the absence as "until further notice".';
-	}
-	const start = Date.parse(`${window.startDate.trim()}T00:00:00Z`);
-	const end = Date.parse(`${window.endDate.trim()}T00:00:00Z`);
-	if (end < start) {
-		return 'The absence end date cannot be earlier than its start date.';
-	}
-	return null;
-}
-
-/** Compact, operator-facing rendering of the validated window. */
-export function describeAbsenceWindow(window: AbsenceWindow): string {
-	if (!isValidDateOnly(window.startDate)) return 'No absence window set yet.';
-	if (window.untilFurtherNotice) return `Unavailable from ${window.startDate.trim()} until further notice.`;
-	if (!isValidDateOnly(window.endDate)) return `Unavailable from ${window.startDate.trim()}.`;
-	return `Unavailable ${window.startDate.trim()} to ${window.endDate.trim()}.`;
-}
-
-/** The revision effective date may not precede the absence start. */
-export function absenceWindowRevisionDateError(window: AbsenceWindow, effectiveDate: string): string | null {
-	const base = revisionDateError(effectiveDate);
-	if (base) return base;
-	if (!isValidDateOnly(window.startDate)) return null;
-	const effective = Date.parse(`${effectiveDate.trim()}T00:00:00Z`);
-	const start = Date.parse(`${window.startDate.trim()}T00:00:00Z`);
-	if (effective < start) {
-		return `Choose an effective date on or after ${window.startDate.trim()}, when this teacher becomes unavailable.`;
-	}
-	return null;
+	return `This reassigns ${count} affected class${count === 1 ? '' : 'es'} for the current generated run only. It records no absence period and does not schedule a future reversion.`;
 }
 
 /**
@@ -454,6 +405,12 @@ export type QualificationPreviewState = {
 	/** The server-issued fingerprint; null before any successful preview. */
 	fingerprint: string | null;
 	expectedSourceRevision: unknown;
+	/**
+	 * TT-TL-MODULES-C04R1 (F3): the exact confirmation text the server preview
+	 * returned. The client renders and requires this value; it never declares
+	 * or hardcodes the phrase itself.
+	 */
+	confirmationText: string | null;
 	conflicts: number;
 	creates: number;
 };
@@ -498,7 +455,10 @@ export function buildQualificationApplyPayload(
 	const base = buildQualificationPreviewPayload(scope, aliases, labels);
 	if (!base) return null;
 	if (!preview?.fingerprint) return null;
-	if (confirmationText !== DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE) return null;
+	// F3: the required phrase is the server-issued value from this preview.
+	// There is no client-side phrase authority to drift from it.
+	if (!preview.confirmationText) return null;
+	if (confirmationText !== preview.confirmationText) return null;
 	return {
 		...base,
 		expectedFingerprint: preview.fingerprint,
@@ -514,7 +474,7 @@ export function qualificationApplyEnabled(preview: QualificationPreviewState | n
 /** Canonical typed qualification/department-authority refusals -> truthful copy. */
 const QUALIFICATION_REFUSAL_COPY: Record<string, string> = {
 	FINGERPRINT_REQUIRED: 'Preview this qualification change first; the server must issue the fingerprint that authorizes apply.',
-	CONFIRMATION_REQUIRED: `Type the exact confirmation phrase "${DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE}" to apply.`,
+	CONFIRMATION_REQUIRED: 'Type the exact confirmation text the server preview returned to apply.',
 	SOURCE_DRIFT: 'Department authority changed since the preview. Nothing was saved; preview again.',
 	ACTOR_SCHOOL_REQUIRED: 'An authenticated operator school is required for this qualification change.',
 	SCHOOL_MISMATCH: 'This qualification change belongs to a different school than your account.',
@@ -531,6 +491,102 @@ export function buildQualificationNodes(rows: Array<{ key: string; value: string
 	return rows
 		.map((row) => ({ key: row.key.trim(), value: row.value.trim() }))
 		.filter((row) => row.key !== '' && row.value !== '');
+}
+
+/* -------------------------------------------------------------------------- *
+ * F2 — bounded capability-override module (Timetable qualification entry).
+ * The Timetable surface is a selected teacher/subject repair only: it previews
+ * one capability override at a time against the active school year and applies
+ * only with the server-issued fingerprint and server-issued confirmation text.
+ * The Teaching Load page remains the canonical home for broad editing.
+ * -------------------------------------------------------------------------- */
+
+export type CapabilityOverrideDraft = {
+	action: 'SET' | 'REMOVE';
+	subjectCode: string;
+	specializationCode: string;
+	specializationLabel: string;
+	note: string;
+};
+
+export type CapabilityOverridePreviewState = {
+	fingerprint: string | null;
+	expectedSourceRevision: unknown;
+	confirmationText: string | null;
+	changeAction: 'create' | 'update' | 'remove' | 'unchanged' | null;
+	subjectCode: string | null;
+	specializationCode: string | null;
+	conflictCount: number;
+};
+
+export type CapabilityOverrideMutation = {
+	action: 'SET' | 'REMOVE';
+	facultyId: number;
+	subjectCode: string | null;
+	specializationCode: string | null;
+	specializationLabel: string | null;
+	note: string | null;
+};
+
+export function createEmptyCapabilityOverrideDraft(): CapabilityOverrideDraft {
+	return { action: 'SET', subjectCode: '', specializationCode: '', specializationLabel: '', note: '' };
+}
+
+/** Null when no teacher is selected; dispatch stays zero until a target exists. */
+export function buildCapabilityOverrideMutation(
+	draft: CapabilityOverrideDraft,
+	facultyId: number | null | undefined,
+): CapabilityOverrideMutation | null {
+	if (!Number.isInteger(facultyId) || (facultyId ?? 0) <= 0) return null;
+	const subjectCode = draft.subjectCode.trim().toUpperCase();
+	const specializationCode = draft.specializationCode.trim().toUpperCase();
+	return {
+		action: draft.action,
+		facultyId: facultyId as number,
+		subjectCode: subjectCode || null,
+		specializationCode: specializationCode || null,
+		specializationLabel: draft.specializationLabel.trim() || null,
+		note: draft.note.trim() || null,
+	};
+}
+
+export function capabilityOverrideApplyEnabled(preview: CapabilityOverridePreviewState | null): boolean {
+	return Boolean(preview?.fingerprint && preview?.confirmationText);
+}
+
+/** Truthful one-line effect summary derived only from the server preview. */
+export function describeCapabilityOverrideEffect(preview: CapabilityOverridePreviewState | null): string {
+	if (!preview) return 'Preview shows the exact effect before anything is written.';
+	const target = [preview.subjectCode ?? 'any subject', preview.specializationCode ?? 'any specialization'].join(' / ');
+	const action = preview.changeAction === 'create'
+		? 'will create'
+		: preview.changeAction === 'update'
+			? 'will update'
+			: preview.changeAction === 'remove'
+				? 'will remove'
+				: 'is already current (no change)';
+	return `Effect: ${action} a capability override for ${target}.`;
+}
+
+const CAPABILITY_OVERRIDE_REFUSAL_COPY: Record<string, string> = {
+	INVALID_CAPABILITY_OVERRIDE: 'Choose SET or REMOVE and valid subject/specialization codes before previewing.',
+	FINGERPRINT_MISMATCH: 'The capability-override preview no longer matches the source. Nothing was saved; preview again.',
+	CAPABILITY_OVERRIDE_SOURCE_DRIFT: 'Capability-override inputs changed after preview. Nothing was saved; preview again.',
+	CAPABILITY_OVERRIDE_CONFLICT: 'A concurrent capability-override change occurred. Nothing was saved; preview again.',
+	CONFIRMATION_REQUIRED: 'Type the exact confirmation text the server preview returned to apply.',
+	ACTOR_SCHOOL_REQUIRED: 'An authenticated operator school is required for this capability override.',
+	SCHOOL_MISMATCH: 'This capability override belongs to a different school than your account.',
+	ARCHIVED_YEAR_READ_ONLY: 'Archived school years are read-only; capability overrides cannot be changed.',
+	INACTIVE_HISTORICAL_YEAR: 'Only the currently active school year can be changed for capability overrides.',
+	ACTIVE_YEAR_UNAVAILABLE: 'No active, non-archived school year is available for capability overrides.',
+	ACTIVE_YEAR_AMBIGUOUS: 'More than one active school year exists. Resolve school-year authority first.',
+	YEAR_MIRROR_NOT_FOUND: 'No school-year mirror exists for this school and year.',
+};
+
+export function capabilityOverrideRefusalCopy(code: string | null | undefined, fallbackMessage?: string | null): string {
+	if (code && CAPABILITY_OVERRIDE_REFUSAL_COPY[code]) return CAPABILITY_OVERRIDE_REFUSAL_COPY[code];
+	if (fallbackMessage && fallbackMessage.trim()) return fallbackMessage;
+	return 'ATLAS refused the capability override. Nothing was saved.';
 }
 
 

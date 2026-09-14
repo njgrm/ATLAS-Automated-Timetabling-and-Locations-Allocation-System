@@ -35,6 +35,11 @@ type SimpleDriftBannerProps = {
 	onRolloverStatus?: (status: RolloverStatus) => void;
 	/** The shared capability model; the setup-input gate guards the repair actions. */
 	capabilities: TimetableCapabilities;
+	/**
+	 * F4: the strict published predicate. A published run must never expose the
+	 * direct setup-sync action; it routes to revision/review guidance instead.
+	 */
+	isPublished: boolean;
 };
 
 export function SimpleDriftBanner({
@@ -47,6 +52,7 @@ export function SimpleDriftBanner({
 	onRefresh,
 	onRolloverStatus,
 	capabilities,
+	isPublished,
 }: SimpleDriftBannerProps) {
 	const inputState = draft?.inputState ?? null;
 	const drift = useMemo(() => describeRunInputDrift(inputState), [inputState]);
@@ -62,6 +68,8 @@ export function SimpleDriftBanner({
 	const needsPrimaryFallback = showPrimaryFallback(drift.primaryHref, domainHrefs);
 
 	const handleSyncSetup = async () => {
+		// F4 defense in depth: a published run never dispatches the direct sync.
+		if (isPublished) return;
 		if (!schoolYearId || activeGeneratedRunId == null) return;
 		setSyncing(true);
 		try {
@@ -110,6 +118,13 @@ export function SimpleDriftBanner({
 						{drift.actionHint || drift.message}
 						{formatCheckedAtAge(drift.checkedAt) ? ` · ${formatCheckedAtAge(drift.checkedAt)}` : ''}
 					</span>
+					{isPublished ? (
+						<span
+							className="shrink-0 rounded border border-amber-300 bg-white/70 px-2 py-0.5 font-semibold text-amber-900"
+							data-testid="timetable-simple-published-drift-guidance"
+						>Published snapshot: create an effective-dated revision from the published run. Direct sync is disabled.</span>
+					) : (
+					<>
 					{/* Per-domain routed repairs. Disabled (never dead) when the shared
 					    setup-input capability gate denies the action. */}
 					{repairGate.enabled ? (
@@ -173,17 +188,19 @@ export function SimpleDriftBanner({
 						<RefreshCw className="size-3" />
 						Sync with setup
 					</Button>
+					</>
+					)}
 				</div>
 			) : null}
 			<RolloverGuidanceCard compact schoolId={schoolId} onApplied={() => onRefresh()} onStatus={onRolloverStatus} />
 			<SyncTimetableConfirmDialog
-				open={showSyncConfirm}
+				open={showSyncConfirm && !isPublished}
 				onOpenChange={setShowSyncConfirm}
 				syncing={syncing}
 				onSyncNow={() => void handleSyncSetup()}
 			/>
 			<SetupImpactDialog
-				open={showImpactPreview}
+				open={showImpactPreview && !isPublished}
 				onOpenChange={setShowImpactPreview}
 				inputState={inputState}
 				changedDomainLabels={drift.domains.map((domain) => domain.label)}

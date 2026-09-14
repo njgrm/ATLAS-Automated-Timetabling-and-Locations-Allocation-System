@@ -13,14 +13,17 @@ import { Textarea } from '@/ui/textarea';
 
 import {
 	AVAILABILITY_MODULE_DEFERRED_COPY,
+	capabilityOverrideApplyEnabled,
 	compactLoadStatus,
-	DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE,
+	describeCapabilityOverrideEffect,
 	describeRedistributionStatus,
 	facultyDisplayName,
 	formatHours,
 	qualificationApplyEnabled,
 	REDISTRIBUTION_HOME_HREF,
 	reviewStatusCopy,
+	type CapabilityOverrideDraft,
+	type CapabilityOverridePreviewState,
 	type QualificationPreviewState,
 	type ReadinessSummary,
 	type RedistributionSummary,
@@ -178,7 +181,10 @@ export function QualificationAuthorityModule({
 	onPreview,
 	onApply,
 }: QualificationAuthorityModuleProps) {
-	const applyReady = qualificationApplyEnabled(preview) && confirmationText === DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE;
+	// F3: the required phrase is the server-issued value from the preview.
+	const applyReady = qualificationApplyEnabled(preview)
+		&& Boolean(preview?.confirmationText)
+		&& confirmationText === preview?.confirmationText;
 	const updateRow = (rows: Array<{ key: string; value: string }>, index: number, patch: Partial<{ key: string; value: string }>, onChange: (next: Array<{ key: string; value: string }>) => void) => {
 		onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
 	};
@@ -243,13 +249,20 @@ export function QualificationAuthorityModule({
 							Add label
 						</Button>
 					</div>
+					{preview?.confirmationText ? (
+						<p className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-muted-foreground" data-testid="timetable-qualification-issued-confirmation">
+							Server-issued confirmation. Type it exactly to apply: <span className="font-mono font-semibold text-foreground">{preview.confirmationText}</span>
+						</p>
+					) : null}
 					<Textarea
 						value={confirmationText}
 						onChange={(event) => onConfirmationChange(event.target.value)}
-						placeholder={`Type exactly: ${DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE}`}
+						placeholder={preview?.confirmationText
+							? `Type exactly: ${preview.confirmationText}`
+							: 'Preview first to receive the server confirmation text.'}
 						className="min-h-16 text-xs"
 						data-testid="timetable-qualification-confirmation"
-						aria-label="Department authority confirmation phrase"
+						aria-label="Department authority confirmation text"
 					/>
 					{preview ? (
 						<p className="text-muted-foreground" data-testid="timetable-qualification-fingerprint">
@@ -333,6 +346,138 @@ export function OwnerSourceMismatchNotice({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+type CapabilityOverrideModuleProps = {
+	targetLabel: string;
+	candidate: boolean;
+	draft: CapabilityOverrideDraft;
+	onDraftChange: (draft: CapabilityOverrideDraft) => void;
+	preview: CapabilityOverridePreviewState | null;
+	previewing: boolean;
+	applying: boolean;
+	confirmationText: string;
+	onConfirmationChange: (value: string) => void;
+	status: string | null;
+	error: string | null;
+	onPreview: () => void;
+	onApply: () => void;
+};
+
+/**
+ * F2 — bounded capability-override module for the Timetable qualification entry.
+ *
+ * Scope is the selected teacher/subject repair only; the Teaching Load page stays
+ * the canonical home for broad capability editing. Preview is read-only and
+ * issues the fingerprint + confirmation text; apply requires both. There is no
+ * blind PUT/DELETE control anywhere in this surface.
+ */
+export function CapabilityOverrideModule({
+	targetLabel,
+	candidate,
+	draft,
+	onDraftChange,
+	preview,
+	previewing,
+	applying,
+	confirmationText,
+	onConfirmationChange,
+	status,
+	error,
+	onPreview,
+	onApply,
+}: CapabilityOverrideModuleProps) {
+	const applyReady = capabilityOverrideApplyEnabled(preview)
+		&& Boolean(preview?.confirmationText)
+		&& confirmationText === preview?.confirmationText;
+	return (
+		<section className="rounded-lg border border-border bg-background p-3 text-xs" data-testid="timetable-capability-override-module">
+			<div className="flex flex-wrap items-start justify-between gap-2">
+				<div className="min-w-0">
+					<p className="text-sm font-semibold text-foreground">Capability override (selected teacher)</p>
+					<p className="text-muted-foreground">Target: {targetLabel}. The Teaching Load page stays the home for broad capability editing.</p>
+				</div>
+				<Badge variant="outline" className="h-5 px-2 text-[0.65rem]">{draft.action}</Badge>
+			</div>
+			{!candidate ? (
+				<p className="mt-2 rounded-md border border-border bg-muted/20 px-2 py-1.5 text-muted-foreground" data-testid="timetable-capability-scope-unresolved">
+					Select a scheduled class with an owner and an active school year first. No request is sent while the target is unresolved.
+				</p>
+			) : (
+				<div className="mt-2 space-y-2">
+					<div className="grid gap-1.5 sm:grid-cols-2">
+						<Input
+							value={draft.subjectCode}
+							onChange={(event) => onDraftChange({ ...draft, subjectCode: event.target.value })}
+							placeholder="Subject code (e.g. MATH)"
+							className="h-8 text-xs"
+							data-testid="timetable-capability-subject"
+						/>
+						<Input
+							value={draft.specializationCode}
+							onChange={(event) => onDraftChange({ ...draft, specializationCode: event.target.value })}
+							placeholder="Specialization code (optional)"
+							className="h-8 text-xs"
+							data-testid="timetable-capability-specialization"
+						/>
+					</div>
+					<div className="flex flex-wrap gap-1.5">
+						<Button
+							type="button"
+							size="sm"
+							variant={draft.action === 'SET' ? 'secondary' : 'outline'}
+							className="h-7 text-xs"
+							onClick={() => onDraftChange({ ...draft, action: 'SET' })}
+							data-testid="timetable-capability-action-set"
+						>
+							Grant / update
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							variant={draft.action === 'REMOVE' ? 'secondary' : 'outline'}
+							className="h-7 text-xs"
+							onClick={() => onDraftChange({ ...draft, action: 'REMOVE' })}
+							data-testid="timetable-capability-action-remove"
+						>
+							Remove
+						</Button>
+					</div>
+					<p className="text-muted-foreground" data-testid="timetable-capability-effect">{describeCapabilityOverrideEffect(preview)}</p>
+					{preview?.confirmationText ? (
+						<p className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-muted-foreground" data-testid="timetable-capability-issued-confirmation">
+							Server-issued confirmation. Type it exactly to apply: <span className="font-mono font-semibold text-foreground">{preview.confirmationText}</span>
+						</p>
+					) : null}
+					<Textarea
+						value={confirmationText}
+						onChange={(event) => onConfirmationChange(event.target.value)}
+						placeholder={preview?.confirmationText ? `Type exactly: ${preview.confirmationText}` : 'Preview first to receive the server confirmation text.'}
+						className="min-h-16 text-xs"
+						data-testid="timetable-capability-confirmation"
+						aria-label="Capability override confirmation text"
+					/>
+					{error ? (
+						<p className="flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-red-700" data-testid="timetable-capability-error">
+							<AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+							{error}
+						</p>
+					) : null}
+					{status ? <p className="text-muted-foreground" data-testid="timetable-capability-status">{status}</p> : null}
+					<div className="flex flex-wrap gap-1.5">
+						<Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={onPreview} disabled={previewing || applying} data-testid="timetable-capability-preview">
+							{previewing ? <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden="true" /> : <ShieldCheck className="mr-1.5 size-3.5" aria-hidden="true" />}
+							Preview override
+						</Button>
+						<Button type="button" size="sm" className="h-8 text-xs" onClick={onApply} disabled={!applyReady || previewing || applying} data-testid="timetable-capability-apply">
+							{applying ? <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="mr-1.5 size-3.5" aria-hidden="true" />}
+							Apply override
+						</Button>
+					</div>
+				</div>
+			)}
+		</section>
 	);
 }
 

@@ -2,72 +2,58 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-	absenceWindowRevisionDateError,
+	buildCapabilityOverrideMutation,
 	buildQualificationApplyPayload,
 	buildQualificationPreviewPayload,
 	buildRedistributionRequest,
 	canonicalRefusalFromError,
-	createEmptyAbsenceWindow,
-	DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE,
-	describeAbsenceWindow,
+	capabilityOverrideApplyEnabled,
+	capabilityOverrideRefusalCopy,
+	createEmptyCapabilityOverrideDraft,
+	describeCapabilityOverrideEffect,
+	describeDepartureRepairTruth,
 	qualificationApplyEnabled,
 	qualificationRefusalCopy,
 	redistributeDispatchAllowed,
 	refusalCopy,
 	summarizeReadiness,
 	summarizeRedistribution,
-	validateAbsenceWindow,
 	workspaceScopeKey,
-	type AbsenceWindow,
+	type CapabilityOverridePreviewState,
 	type QualificationPreviewState,
 } from '@/components/timetable/TacticalSandboxDock.helpers';
 
-const window = (patch: Partial<AbsenceWindow> = {}): AbsenceWindow => ({ ...createEmptyAbsenceWindow(), ...patch });
-
 /* ------------------------------------------------------------------ *
- * R2 — absence window validation
+ * F1 — truthful departure repair copy (no absence window)
  * ------------------------------------------------------------------ */
 
-test('R2 absence window requires a start date', () => {
-	assert.match(String(validateAbsenceWindow(window())), /first date/i);
-	assert.equal(validateAbsenceWindow(window({ startDate: '2026-09-01', endDate: '2026-09-10' })), null);
+test('F1 unpublished copy describes a current-run reassignment and no reversion', () => {
+	const copy = describeDepartureRepairTruth(false, 3);
+	assert.match(copy, /current generated run/i);
+	assert.match(copy, /3 affected classes/i);
+	assert.match(copy, /no absence period/i);
+	assert.doesNotMatch(copy, /until further notice|unavailable until|end date/i);
 });
 
-test('R2 absence window requires an end date unless until-further-notice', () => {
-	assert.match(String(validateAbsenceWindow(window({ startDate: '2026-09-01' }))), /end date/i);
-	assert.equal(validateAbsenceWindow(window({ startDate: '2026-09-01', untilFurtherNotice: true })), null);
-	assert.match(String(validateAbsenceWindow(window({ startDate: '2026-09-01', endDate: '2026-09-10', untilFurtherNotice: true }))), /one meaning/i);
+test('F1 published copy names the revision effective date as the only temporal authority', () => {
+	const copy = describeDepartureRepairTruth(true, 2);
+	assert.match(copy, /published/i);
+	assert.match(copy, /effective-dated revision/i);
+	assert.match(copy, /sole temporal authority/i);
+	assert.doesNotMatch(copy, /until further notice|end date/i);
 });
 
-test('R2 absence window rejects an end date before the start date', () => {
-	assert.match(String(validateAbsenceWindow(window({ startDate: '2026-09-10', endDate: '2026-09-01' }))), /cannot be earlier/i);
-	assert.equal(validateAbsenceWindow(window({ startDate: '2026-09-01', endDate: '2026-09-01' })), null);
-});
-
-test('R2 absence window rejects malformed dates', () => {
-	assert.match(String(validateAbsenceWindow(window({ startDate: 'not-a-date' }))), /first date/i);
-	assert.match(String(validateAbsenceWindow(window({ startDate: '2026-09-01', endDate: '2026-13-45' }))), /end date/i);
-});
-
-test('R2 describeAbsenceWindow is truthful for each window shape', () => {
-	assert.match(describeAbsenceWindow(window()), /No absence window/i);
-	assert.match(describeAbsenceWindow(window({ startDate: '2026-09-01' })), /Unavailable from 2026-09-01/i);
-	assert.match(describeAbsenceWindow(window({ startDate: '2026-09-01', untilFurtherNotice: true })), /until further notice/i);
-	assert.match(describeAbsenceWindow(window({ startDate: '2026-09-01', endDate: '2026-09-10' })), /2026-09-01 to 2026-09-10/);
-});
-
-test('R2 published-mode revision effective date may not precede the absence start', () => {
-	const future = '2099-01-01';
-	const w = window({ startDate: future, untilFurtherNotice: true });
-	assert.match(String(absenceWindowRevisionDateError(w, '2098-12-31')), /on or after 2099-01-01/i);
-	assert.equal(absenceWindowRevisionDateError(w, future), null);
+test('F1 singular and zero counts read truthfully', () => {
+	assert.match(describeDepartureRepairTruth(false, 1), /1 affected class /i);
+	assert.match(describeDepartureRepairTruth(false, 0), /0 affected classes/i);
+	assert.match(describeDepartureRepairTruth(false, -5), /0 affected classes/i);
 });
 
 /* ------------------------------------------------------------------ *
- * R2 — canonical refusal mapping
+ * Canonical refusal mapping
  * ------------------------------------------------------------------ */
 
-test('R2 canonical refusals map to truthful, non-retrying copy', () => {
+test('canonical refusals map to truthful, non-retrying copy', () => {
 	for (const code of [
 		'TEACHING_LOAD_QUALIFICATION_MISSING',
 		'TEACHING_LOAD_REPAIR_STALE',
@@ -82,18 +68,18 @@ test('R2 canonical refusals map to truthful, non-retrying copy', () => {
 	}
 });
 
-test('R2 refusal copy never advertises success for a refusal', () => {
+test('refusal copy never advertises success for a refusal', () => {
 	assert.doesNotMatch(refusalCopy('HARD_VIOLATION_BLOCK'), /saved successfully|save complete|success/i);
 	assert.match(refusalCopy('HARD_VIOLATION_BLOCK'), /Nothing was saved/i);
 	assert.doesNotMatch(refusalCopy('TEACHING_LOAD_QUALIFICATION_MISSING'), /saved successfully|success/i);
 });
 
-test('R2 unknown refusal falls back to the server message, never swallowed', () => {
+test('unknown refusal falls back to the server message, never swallowed', () => {
 	assert.equal(refusalCopy('SOMETHING_NEW', 'Server said no.'), 'Server said no.');
 	assert.match(refusalCopy(null), /refused the repair/i);
 });
 
-test('R2 canonicalRefusalFromError extracts the typed code and message', () => {
+test('canonicalRefusalFromError extracts the typed code and message', () => {
 	const refusal = canonicalRefusalFromError({ response: { data: { code: 'TEACHING_LOAD_REPAIR_STALE' } } });
 	assert.equal(refusal.code, 'TEACHING_LOAD_REPAIR_STALE');
 	assert.match(refusal.message, /Nothing was saved/i);
@@ -148,33 +134,53 @@ test('R3 readiness summary preserves canonical blocker codes and totals', () => 
 });
 
 /* ------------------------------------------------------------------ *
- * R4 — qualification authority apply gating
+ * F3 — qualification apply requires the SERVER-issued confirmation
  * ------------------------------------------------------------------ */
+
+const SERVER_ISSUED = 'APPLY DEPARTMENT AUTHORITY';
 
 const qualifiedPreview: QualificationPreviewState = {
 	fingerprint: 'fp-abc',
 	expectedSourceRevision: { revisionHash: 'rev-1' },
+	confirmationText: SERVER_ISSUED,
 	conflicts: 0,
 	creates: 2,
 };
 
-test('R4 no apply payload without a server fingerprint', () => {
+test('F3 no apply payload without a server fingerprint', () => {
 	const aliases = [{ key: 'MATH', value: 'Mathematics' }];
-	assert.equal(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], null, DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE), null);
+	assert.equal(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], null, SERVER_ISSUED), null);
 	assert.equal(
-		buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], { ...qualifiedPreview, fingerprint: null }, DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE),
+		buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], { ...qualifiedPreview, fingerprint: null }, SERVER_ISSUED),
 		null,
 	);
 	assert.equal(qualificationApplyEnabled({ ...qualifiedPreview, fingerprint: null }), false);
 });
 
-test('R4 apply requires the exact server-issued confirmation phrase', () => {
+test('F3 no apply payload when the preview carried no server confirmation', () => {
+	const aliases = [{ key: 'MATH', value: 'Mathematics' }];
+	assert.equal(
+		buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], { ...qualifiedPreview, confirmationText: null }, SERVER_ISSUED),
+		null,
+	);
+});
+
+test('F3 apply requires the exact value the server preview returned', () => {
 	const aliases = [{ key: 'MATH', value: 'Mathematics' }];
 	assert.equal(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], qualifiedPreview, 'apply department authority'), null);
 	assert.equal(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], qualifiedPreview, ''), null);
-	const payload = buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], qualifiedPreview, DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE);
+	assert.equal(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], qualifiedPreview, 'APPLY SOMETHING ELSE'), null);
+	const payload = buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], qualifiedPreview, SERVER_ISSUED);
 	assert.equal(payload?.expectedFingerprint, 'fp-abc');
-	assert.equal(payload?.confirmationText, DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE);
+	assert.equal(payload?.confirmationText, SERVER_ISSUED);
+});
+
+test('F3 a mutated server-issued value rejects the previously valid input', () => {
+	const aliases = [{ key: 'MATH', value: 'Mathematics' }];
+	// If the server changes the phrase, the old client input must no longer authorize.
+	const mutated = { ...qualifiedPreview, confirmationText: 'APPLY DEPARTMENT AUTHORITY V2' };
+	assert.equal(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], mutated, SERVER_ISSUED), null);
+	assert.ok(buildQualificationApplyPayload({ schoolId: 5 }, aliases, [], mutated, 'APPLY DEPARTMENT AUTHORITY V2'));
 });
 
 test('R4 preview payload dispatches nothing without a resolved school', () => {
@@ -186,8 +192,65 @@ test('R4 preview payload dispatches nothing without a resolved school', () => {
 test('R4 qualification refusals are typed and truthful', () => {
 	assert.match(qualificationRefusalCopy('FINGERPRINT_REQUIRED'), /fingerprint/i);
 	assert.match(qualificationRefusalCopy('SOURCE_DRIFT'), /preview again/i);
-	assert.match(qualificationRefusalCopy('CONFIRMATION_REQUIRED'), /APPLY DEPARTMENT AUTHORITY/);
+	assert.match(qualificationRefusalCopy('CONFIRMATION_REQUIRED'), /confirmation text the server preview returned/i);
 	assert.equal(qualificationRefusalCopy('WHATEVER', 'Server copy.'), 'Server copy.');
+});
+
+/* ------------------------------------------------------------------ *
+ * F2 — capability-override helper gating
+ * ------------------------------------------------------------------ */
+
+test('F2 capability mutation dispatches nothing without a selected teacher', () => {
+	assert.equal(buildCapabilityOverrideMutation(createEmptyCapabilityOverrideDraft(), null), null);
+	assert.equal(buildCapabilityOverrideMutation(createEmptyCapabilityOverrideDraft(), 0), null);
+	assert.equal(buildCapabilityOverrideMutation(createEmptyCapabilityOverrideDraft(), 12)?.facultyId, 12);
+});
+
+test('F2 capability mutation normalizes codes and honors SET/REMOVE', () => {
+	const draft = { ...createEmptyCapabilityOverrideDraft(), action: 'SET' as const, subjectCode: ' math ', specializationCode: ' math ' };
+	const mutation = buildCapabilityOverrideMutation(draft, 4);
+	assert.equal(mutation?.subjectCode, 'MATH');
+	assert.equal(mutation?.specializationCode, 'MATH');
+	assert.equal(buildCapabilityOverrideMutation({ ...draft, action: 'REMOVE' }, 4)?.action, 'REMOVE');
+});
+
+test('F2 capability apply stays disabled until a server fingerprint exists', () => {
+	const noFingerprint: CapabilityOverridePreviewState = {
+		fingerprint: null,
+		expectedSourceRevision: null,
+		confirmationText: null,
+		changeAction: 'create',
+		subjectCode: 'MATH',
+		specializationCode: null,
+		conflictCount: 0,
+	};
+	assert.equal(capabilityOverrideApplyEnabled(noFingerprint), false);
+	assert.equal(capabilityOverrideApplyEnabled({ ...noFingerprint, fingerprint: 'fp', confirmationText: SERVER_ISSUED }), true);
+	assert.equal(capabilityOverrideApplyEnabled({ ...noFingerprint, fingerprint: 'fp', confirmationText: null }), false);
+});
+
+test('F2 capability effect is truthful for each classified action', () => {
+	const base: CapabilityOverridePreviewState = {
+		fingerprint: 'fp',
+		expectedSourceRevision: null,
+		confirmationText: SERVER_ISSUED,
+		changeAction: 'create',
+		subjectCode: 'MATH',
+		specializationCode: null,
+		conflictCount: 0,
+	};
+	assert.match(describeCapabilityOverrideEffect(base), /will create/i);
+	assert.match(describeCapabilityOverrideEffect({ ...base, changeAction: 'remove' }), /will remove/i);
+	assert.match(describeCapabilityOverrideEffect({ ...base, changeAction: 'unchanged' }), /already current/i);
+	assert.match(describeCapabilityOverrideEffect(null), /Preview shows/i);
+});
+
+test('F2 capability refusals are typed and truthful', () => {
+	assert.match(capabilityOverrideRefusalCopy('FINGERPRINT_MISMATCH'), /preview again/i);
+	assert.match(capabilityOverrideRefusalCopy('CAPABILITY_OVERRIDE_SOURCE_DRIFT'), /Nothing was saved/i);
+	assert.match(capabilityOverrideRefusalCopy('ARCHIVED_YEAR_READ_ONLY'), /read-only/i);
+	assert.match(capabilityOverrideRefusalCopy('SCHOOL_MISMATCH'), /different school/i);
+	assert.equal(capabilityOverrideRefusalCopy('WHATEVER', 'Server copy.'), 'Server copy.');
 });
 
 /* ------------------------------------------------------------------ *

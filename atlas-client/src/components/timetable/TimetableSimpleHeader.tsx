@@ -366,6 +366,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				onRefresh={context.handleRefresh}
 				onRolloverStatus={setRolloverStatus}
 				capabilities={capabilities}
+				isPublished={isRunPublished}
 			/>
 			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden px-3 py-1.5 lg:flex-nowrap [&>*]:min-w-0">
