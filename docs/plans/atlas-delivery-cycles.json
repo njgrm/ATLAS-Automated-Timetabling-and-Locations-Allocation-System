@@ -1,6 +1,6 @@
 {
   "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T21:06:51+08:00", "lastUpdatedBy": "primary-planner" },
+  "registry": { "lastUpdatedAt": "2026-09-14T21:08:20+08:00", "lastUpdatedBy": "primary-planner" },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
@@ -230,7 +230,7 @@
         "baseSha": "7f1fc7f6ad11abacb195d3848eb10b9484298121",
         "candidateSha": "0553bba0267f0d361c63050a7be27720dbfb4abb",
         "integrationSha": "9732658db4559c32795be5451f295e8bc60e5258",
-        "remoteSha": null,
+        "remoteSha": "58ec0853dc0a8823cc6c34cd03b61e940b14b7b2",
         "changedPaths": [
           "atlas-client/src/components/timetable/ScheduleReviewWorkspaceDialogs.tsx",
           "atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx",
