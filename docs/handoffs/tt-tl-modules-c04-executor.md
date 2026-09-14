@@ -1,182 +1,196 @@
-# TT-TL-MODULES-C04 — Executor Handoff
+# TT-TL-MODULES-C04R1 — Executor Handoff
 
-- Packet: `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md`
-  (R1–R7), **operator dispatch supersedes** where they differ: implement only the
-  non-D1 modules; class 5 (faculty availability) is DEFERRED on decision D1.
 - Role: EXECUTOR. Returns `REVIEW_REQUIRED` only; no self-approval.
+- Worktree: `D:/ATLAS-worktrees/tt-tl-modules-c04`
 - Branch: `work/tt-tl-modules-c04`
-- Base SHA: `d4e9dc8e07869725d4beb55b30c4502650597d24` (refreshed `origin/main`; the
-  historical packet base `92c14f95` is SUPERSEDED and was not used).
-- Product candidate SHA (commit containing the product source + tests):
-  `6a8f471712eb51a6ff83549beb446bd6242dc5de`
-- Handoff commit: this document is committed as the tip above the product
-  candidate; its exact SHA is quoted in the executor's return message and is
-  resolvable as `git log -1 --format=%H` on `work/tt-tl-modules-c04`. Its parent
-  is the product candidate `6a8f4717`. (A commit cannot contain its own SHA
-  without amending, which is forbidden.)
-- Canonical directive: `D:/ATLAS/AGENTS.md`, LF-normalized SHA-256
-  `0F6612BA7979DAE5DD275108B4BA9C8B6AEF346AA36F9C2CC44285C7B1A4AB72`
-  (recomputed at execution and verified equal to the dispatch pin). The
-  worktree-local tracked `AGENTS.md` is stale and was not modified or used as
-  authority.
+- Cumulative base: `d4e9dc8e07869725d4beb55b30c4502650597d24`
+- Commit chain: `6a8f4717` → `a09a4316` → `5afdd1cd` → `117beeb9` → **`e7916315`** (this correction)
+- Product candidate SHA: `e7916315843ef74e0b4f64c9b8e41d7e63cddde4`
+- Docs tip: this document, quoted in the executor's return message.
+- Canonical directive: `origin/main:AGENTS.md`, LF-normalized SHA-256
+  `F4F86185F2A0B4D78B50E8375F72E35B9F6E8A788A6F558952C2B29BE174CE64`. The
+  worktree-local `AGENTS.md` is stale and was neither modified nor used.
 
-## 1. Exact changed paths (all owned)
+## 1. Cumulative changed paths (18)
 
-Product (5 modified):
-- `atlas-client/src/components/timetable/TacticalSandboxDock.helpers.ts`
-- `atlas-client/src/components/timetable/TacticalSandboxDock.parts.tsx`
+Product:
 - `atlas-client/src/components/timetable/TacticalSandboxDock.tsx`
+- `atlas-client/src/components/timetable/TacticalSandboxDock.parts.tsx`
+- `atlas-client/src/components/timetable/TacticalSandboxDock.helpers.ts`
+- `atlas-client/src/components/timetable/TacticalSandboxDock.useTeachingLoadModules.ts`
 - `atlas-client/src/components/timetable/TeacherDepartureRecoverySheet.tsx`
 - `atlas-client/src/components/timetable/TimetableSimpleHeader.tsx`
+- `atlas-client/src/components/timetable/simple/SimpleDriftBanner.tsx`
+- `atlas-server/src/routes/faculty-assignment.router.ts`
+- `atlas-server/src/services/faculty-assignment.service.ts`
+- `atlas-server/src/services/department-authority.service.ts`
 
-New tests (3):
-- `atlas-server/src/__tests__/tt-tl-modules-contract.test.ts`
-- `atlas-client/src/lib/__tests__/tt-tl-modules-helpers.test.ts`
+Tests:
+- `atlas-client/src/lib/__tests__/timetable-dynamic-workspace-rendered.test.ts`
 - `atlas-client/src/lib/__tests__/tt-tl-modules-contract.test.ts`
+- `atlas-client/src/lib/__tests__/tt-tl-modules-helpers.test.ts`
+- `atlas-client/src/lib/__tests__/tt-tl-modules-c04r1-contract.test.ts`
+- `atlas-client/src/lib/__tests__/tt-tl-modules-c04r1-behavior.test.ts`
+- `atlas-server/src/__tests__/tt-tl-modules-contract.test.ts`
+- `atlas-server/src/__tests__/capability-override-mount.test.ts` (new, F2)
 
-Documentation (1, this handoff — separate commit):
-- `docs/handoffs/tt-tl-modules-c04-executor.md`
+Docs:
+- `docs/handoffs/tt-tl-modules-c04-executor.md` (this file)
 
-No server product source was modified: R1 is verify-only (S3 already integrated
-the guarded authority on this base).
-
-## 2. Trace table (requirement → production path → negative control → verification)
+## 2. C04R1 trace table (F1–F5)
 
 | Req | Production path | Negative control | Verification command | Outcome |
 |---|---|---|---|---|
-| R1 | 6 mounted routes in `timetable-teaching-load-repair.router.ts` → `assertTeachingLoadWriteAuthority`; repair service consumes `isStrictlyPublishedSummary` | cross-school/stale/published refusals with zero dispatch (S3 M1–M6) | `npx tsx src/__tests__/tt-tl-authority-guard-c04.test.ts` (disposable DB) + `grep` consumption map | **PASS** — 46/46; helper imported at `timetable-teaching-load-repair.service.ts:28`, used :648/:1141/:1167; no local duplicate predicate |
-| R2 | `TeacherDepartureRecoverySheet` + dock owner-repair preview/apply via workspace; `PublishedRevisionDialog` for published | refusal mapping / no-save-on-refusal; window validation; published path never calls direct commit | `npx tsx --test src/lib/__tests__/tt-tl-modules-helpers.test.ts src/lib/__tests__/tt-tl-modules-contract.test.ts` | **PASS** (33/33 across both suites) |
-| R3 | dock `RedistributionSummaryCard` → `POST /faculty-assignments/coverage/rebalance-over-cap {previewOnly:true}` + `GET /faculty-assignments/reconciliation/readiness` | unresolved school/year ⇒ zero dispatch; no apply variant; routes to `/teaching-load` | helper tests + source-contract wiring test | **PASS (hermetic contract)** — request shape/gating proven; positive live response runtime-dependent (see §7) |
-| R4 | dock `QualificationAuthorityModule` → `POST /faculty-assignments/department-authority/preview|apply` | apply blocked without server fingerprint; exact server confirmation phrase; typed refusal copy | helper tests (`buildQualificationApplyPayload`) + source-contract test | **PASS** — no capability-override calls |
-| R5 | owned header region `TimetableSimpleHeader` + `timetableDriftRouting` domain hrefs (canonical homes) | published-mode drift affordance | source review | **VERIFIED in owned region; discovered non-owned gap in `SimpleDriftBanner` (see §5)** |
-| R6 | `isDraftPublishedStrict` / `isRunPublishedStrict` single predicate; no retired path | no loose `publishedAt`/`publishedBy` decisions; no `reconciliation/apply`, `annual-teaching-load/apply`, `capability-overrides` | source-contract test + grep | **PASS** |
-| R7 | availability class 5 deferred (D1); owned surfaces render an explicit deferred notice | no availability source/endpoint/fingerprint domain invented | source-contract test (`timetable-availability-deferred`) | **DEFERRED (D1)** — no authority invented |
-| R8 | dock scope-clear effects + `workspaceScopeKey`; published gating; impact-before-commit | year/run/school change clears staged/preview/module state | helper `workspaceScopeKey` test + source-contract scope test | **PASS** (archived mode D4 does not exist and was not invented) |
+| F1 | `TeacherDepartureRecoverySheet.tsx` renders `describeDepartureRepairTruth(isPublished, …)` at `teacher-departure-truth` and `teacher-departure-window-confirmation`; published mode validates only `revisionDateError(revisionEffectiveDate)` | rendered body has no `type="date"`, no `teacher-departure-window-start/end/indefinite`, no `absenceWindow*`; absence-window mutant test rejects reintroduction | `npx tsx --test src/lib/__tests__/tt-tl-modules-c04r1-behavior.test.ts` | **PASS** — 6/6 |
+| F2 | `faculty-assignment.router.ts` `parseCapabilityOverrideScope` + `rejectCapabilityOverrideScope` on GET/preview/apply; retired PUT/DELETE → 410; `faculty-assignment.service.ts` preview/apply fingerprint + revision + Serializable transaction; read path is zero-write | missing actor school, malformed IDs, cross-school, archived/historical year, stale fingerprint, concurrent source drift, duplicate replay, system token — each with zero writes | `npx tsx src/__tests__/capability-override-mount.test.ts` (disposable DB) | **PASS** — 69/69 |
+| F3 | `department-authority.service.ts` preview returns `confirmationText: DEPARTMENT_AUTHORITY_APPLY_CONFIRMATION`; apply requires it exactly; client binds `preview.confirmationText` only | mutating either side alone fails: client contract suite asserts no client constant and requires `confirmationText !== preview.confirmationText` gating | `npx tsx --test src/lib/__tests__/tt-tl-modules-c04r1-contract.test.ts` + helpers suite | **PASS** — 11/11 + 23/23 |
+| F4 | `TimetableSimpleHeader.tsx` derives `isRunPublished = isRunPublishedStrict(draftSummaryRaw)` and passes it to `SimpleDriftBanner`; banner gates sync/dispatch and renders `timetable-simple-published-drift-guidance` | loose-predicate mutant: retained `publishedAt`/`publishedBy` on a superseded run still renders the sync action when `isPublished` is false | `npx tsx --test src/lib/__tests__/tt-tl-modules-c04r1-behavior.test.ts` | **PASS** — rendered 3/3 F4 rows |
+| F5 | `TacticalSandboxDock.tsx` presenter; mini-module section extracted to `TeachingLoadModulesSection` in `TacticalSandboxDock.parts.tsx` | physical-line gate fails if the dock exceeds 900 | `npx tsx --test src/lib/__tests__/tt-tl-modules-c04r1-contract.test.ts` | **PASS** — dock 882 phys (≤900); all touched files ≤1000 |
 
-### Gates
+## 3. Corrections applied in `e7916315`
 
-| Gate | Command | Raw tally | Outcome |
-|---|---|---|---|
-| Server type-check | `npx tsc --noEmit` | exit 0 | PASS |
-| Server build | `npm run build` | exit 0 | PASS |
-| Client type-check | `npx tsc --noEmit` | exit 0 | PASS |
-| Client build | `npm run build` | exit 0 (`✓ built in 2.11s`) | PASS |
-| Client operator UX | `npm run test:timetable-operator-ux` | 58/58, 0 fail | PASS |
-| New client helpers | `npx tsx --test src/lib/__tests__/tt-tl-modules-helpers.test.ts` | 19 tests, 19 pass, 0 fail | PASS |
-| New client contract | `npx tsx --test src/lib/__tests__/tt-tl-modules-contract.test.ts` | 14 tests, 14 pass, 0 fail | PASS |
-| New server contract | `npx tsx src/__tests__/tt-tl-modules-contract.test.ts` (disposable DB) | 21 passed, 0 failed | PASS |
-| S3 authority suite | `npx tsx src/__tests__/tt-tl-authority-guard-c04.test.ts` (disposable DB) | 46 passed, 0 failed | PASS |
-| TL write authority | `npx tsx src/__tests__/teaching-load-write-authority.test.ts` (disposable DB) | `PASS`, exit 0 | PASS |
-| TL reconciliation (pre-existing) | `npx tsx src/__tests__/teaching-load-reconciliation.test.ts` | 112 PASS / 9 FAIL / 1 FATAL, exit 2 | PRE-EXISTING (see §6) |
-| TL reconciliation route (pre-existing) | `npx tsx src/__tests__/teaching-load-reconciliation-route.test.ts` | 46 PASS / 3 FAIL / 1 FATAL, exit 2 | PRE-EXISTING (see §6) |
-| Diff whitespace | `git diff --check` | exit 0 | PASS |
-| Staged whitespace | `git diff --cached --check` | exit 0 | PASS |
-| Test removal audit | `git diff --diff-filter=D --name-only` | empty; no test file modified, only added | PASS |
+1. **F5** — dock was 919 physical lines (above the 900 target). Extracted the
+   focused mini-module section into `TeachingLoadModulesSection` (parts), behavior
+   unchanged. Dock → 882.
+2. **F1 rendered control** — Radix `SheetContent` renders through a client portal
+   that `renderToStaticMarkup` cannot emit, so the C04R1 behavior suite rendered
+   `''`. Split the sheet into a portal-free `TeacherDepartureRecoverySheetBody`
+   (the real interior) plus the thin `TeacherDepartureRecoverySheet` wrapper. The
+   rendered F1 rows now execute the production interior: 6/6.
+3. **Stale assertions in the original suite** — `tt-tl-modules-contract.test.ts`
+   (untouched since `6a8f4717`) still asserted the removed absence window and the
+   removed client confirmation constant, so it failed 7/14 while contradicting
+   F1/F3. Repaired those assertions to the corrected contract and relocated
+   production paths (mini-modules now live in the extracted hook). No coverage
+   was deleted; the suite is 14/14.
+4. **F2 fail-open GET** (new mounted suite caught it) — `GET
+   /capability-overrides` accepted an actor with **no** school and dispatched the
+   read (`rejectSchoolScopeConflict` is permissive for the documented
+   integration-token surface). Added `rejectCapabilityOverrideScope`, then used
+   it on all three capability-override routes: missing actor school → 403
+   `ACTOR_SCHOOL_REQUIRED`, cross-school → 403 `SCHOOL_MISMATCH`.
+5. **F2 write-on-read** — `listTeachingLoadCapabilityOverrides` called
+   `getOrCreatePolicy`, creating a `schedulingPolicy` row on a GET. Replaced with
+   a read-only `findUnique`; a missing policy now means "no stored overrides".
 
-Known pre-existing absent-file suite (per dispatch): `npm run test:timetable-conflict`
-references `timetable-live-conflict.test.ts` / `tactical-sandbox-dock-helpers.test.ts`,
-which are absent at this base. Not created, not run — recorded as pre-existing.
+## 4. Failing-first / mutant evidence
 
-## 3. Production-shape parity row
+- **F2 actor-school guard**: before the fix the mounted suite recorded
+  `F2-a GET missing actor school → 200` and a policy row created by the read
+  (zero-write checks failed). After the fix: 403 `ACTOR_SCHOOL_REQUIRED` and
+  `policy=0 / audit=0` on every rejection row.
+- **F3 server-issued confirmation**: `tt-tl-modules-c04r1-contract` asserts the
+  four client files declare no `DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE` and
+  that `buildQualificationApplyPayload` returns `null` unless the typed value
+  equals `preview.confirmationText`; helpers suite covers the mutated-preview
+  case. The pre-fix original suite asserted the local constant and failed.
+- **F4 published sync gate**: `tt-tl-modules-c04r1-behavior` renders the banner
+  with `isPublished=true` (no sync/impact/repair testids) and with a
+  loose-marker superseded draft + `isPublished=false` (sync present), proving the
+  strict prop is the only authority.
+- **F1 absence-window removal**: the behavior suite renders the real interior in
+  both modes and asserts no date input, no window testids, no "until further
+  notice"; the pre-fix render contained `teacher-departure-window-start`.
+- **F2 drift/replay**: `F2-e` wrong fingerprint → 409 `FINGERPRINT_MISMATCH`;
+  `F2-f` interleave (unrelated policy write between preview and apply) → 409
+  `CAPABILITY_OVERRIDE_SOURCE_DRIFT` with no audit row; `F2-g` re-preview then
+  re-apply → `replayed:true` with zero new rows.
 
-| Field | Value |
-|---|---|
-| Real producer | `timetable-teaching-load-repair.service.ts` (`previewTeachingLoadRepair` → `sourceFingerprint`; `applyTeachingLoadRepair` → CAS + fingerprint + qualification) |
-| Real consumer | `TacticalSandboxDock` owner-repair preview/apply; `TeacherDepartureRecoverySheet` reassignment; new redistribution/qualification modules |
-| Conservation invariant | one repair preview authorizes at most one apply; receiver qualification, run version, and covered-input fingerprint all survive preview→apply or the write fails closed with zero ownership/FacultySubject/run/edit/audit writes |
-| Negative control | C2 room interleave between preview and apply ⇒ `409 TEACHING_LOAD_REPAIR_STALE`, protected tables byte-identical; C1 unqualified receiver ⇒ `409 TEACHING_LOAD_QUALIFICATION_MISSING`, zero writes; C3 published run ⇒ `409 RUN_ALREADY_PUBLISHED`, zero writes |
-| Result | PASS — `tt-tl-modules-contract.test.ts` 21/21 on the disposable DB |
+## 5. Command outcomes (frozen tip `e7916315`)
 
-No shape-translating client change could alter canonical authority: the client
-module layer only builds canonical request shapes and maps typed refusals.
+Client (`npx tsx --test`, all exit 0): `tt-tl-modules-contract` 14/14,
+`tt-tl-modules-helpers` 23/23, `tt-tl-modules-c04r1-contract` 11/11,
+`tt-tl-modules-c04r1-behavior` 6/6, `timetable-dynamic-workspace-rendered` 8/8,
+`npm run test:timetable-operator-ux` 58/58, plus `-drift` 8/8, `-publication`
+8/8, `-capabilities-guard` 7/7, `-behavioral` 12/12, `-r2-consumers` 3/3,
+`-scope-links` 6/6, `-truth-fixes` 11/11, `-undo-redo` 8/8.
 
-## 4. Environment and disposable-database discipline
+Server (disposable DB, all exit 0): `capability-override-mount` 69/69,
+`tt-tl-modules-contract` 21/21, `tt-tl-authority-guard-c04` 46/46,
+`department-authority-apply` 63/63, `teaching-load-suggestion-apply-parity`
+34/34, `teaching-load-write-authority` exit 0.
 
-- Disposable database: `atlas_restore_drill_20260914_d2805da5`
-  (classification: **disposable**; host `localhost:5432`). Schema applied with
-  `npx prisma migrate deploy --schema=../prisma/schema.prisma` (45 public tables,
-  3 `_prisma_migrations`). The configured `.env` database was never the mutation
-  target; `.env` is gitignored and was never staged or printed.
-- Teardown: `DROP DATABASE atlas_restore_drill_20260914_d2805da5 WITH (FORCE)`.
-  Post-drop `SELECT count(*) FROM pg_database WHERE datname = 'atlas_restore_drill_20260914_d2805da5'`
-  returned `0` — **zero residue**. Two unrelated disposable databases from other
-  streams (`atlas_restore_drill_20260911_uxc01rc6e5ba0d`,
+Type-check/build: server `tsc --noEmit` exit 0; server `npm run build` exit 0;
+client `tsc --noEmit` exit 0; client `npm run build` exit 0.
+
+Built-server import/startup + mounted touched-route probe (built `dist/server.js`,
+disposable DB, ephemeral port): `startup_ready=true`, `health_status=200`,
+`GET /faculty-assignments/capability-overrides` unauthenticated → `401 NO_TOKEN`
+(route mounted, not 404), bogus token → `401`, process alive after probes.
+
+`git diff --check` exit 0; `git diff --cached --check` exit 0.
+
+## 6. Physical / nonblank line counts
+
+| File | Physical | Nonblank |
+|---|---|---|
+| `TacticalSandboxDock.tsx` | 882 | 841 |
+| `TacticalSandboxDock.parts.tsx` | 800 | 777 |
+| `TacticalSandboxDock.useTeachingLoadModules.ts` | 355 | 344 |
+| `TacticalSandboxDock.helpers.ts` | 612 | 549 |
+| `TeacherDepartureRecoverySheet.tsx` | 811 | 774 |
+| `TimetableSimpleHeader.tsx` | 813 | 779 |
+| `SimpleDriftBanner.tsx` | 214 | 206 |
+
+## 7. Disposable database and zero residue
+
+- Database: `atlas_restore_drill_20260914_c04r1a` (classification: **disposable**;
+  PostgreSQL 18.1 at `localhost:5432`). Schema applied with
+  `npx prisma migrate deploy --schema=../prisma/schema.prisma` — 3 migrations
+  (`0000_clean_baseline`, `0001_term_subject_authority`, `0002_companion_sso_code`).
+  The configured `.env` database was never a mutation target and was never printed.
+- Teardown: `DROP DATABASE atlas_restore_drill_20260914_c04r1a WITH (FORCE)`;
+  post-drop `pg_database` count for that name returned `0` — **zero residue**.
+  The two unrelated disposable databases
+  (`atlas_restore_drill_20260911_uxc01rc6e5ba0d`,
   `atlas_restore_drill_20260912_rrtc80be4ffb`) were observed and left untouched.
-- The new server contract suite hard-fails if `DATABASE_URL` does not name an
-  `atlas_restore_drill_*` database, so it cannot silently target the dev DB.
 
-## 5. Discovered non-owned findings (report only; NOT fixed)
+## 8. Clean-state proof
 
-1. **`SimpleDriftBanner.tsx` exposes Sync in published mode.** The banner renders
-   `timetable-simple-sync-setup` and the "Sync with setup" action without any
-   `isPublished` input, even though `deriveSimpleCapabilities` labels the
-   lifecycle `published`. The owned header region was left as-is (it cannot
-   change a non-owned component). R5's published-mode drift wording requirement
-   is therefore **NON_BLOCKING for the owned diff but incomplete globally**.
-   Successor needed owning
-   `atlas-client/src/components/timetable/simple/SimpleDriftBanner.tsx`
-   (and `SimpleHeaderHelpers`/capability plumbing if the gate must be read).
-2. **Capability-override endpoints lack actor-school scope.** `GET/PUT/DELETE
-   /faculty-assignments/capability-overrides` and their service functions take no
-   `actorSchoolId` and call no `rejectSchoolScopeConflict`, so cross-school
-   override reads/writes are reachable. Per dispatch, no client call was wired
-   to those endpoints (not even reads) and those files were not edited. Successor
-   needed owning `faculty-assignment.router.ts` / `faculty-assignment.service.ts`.
+At the frozen tip: `git status --porcelain=v2` is empty and `git diff --quiet`
+exits `0`.
 
-## 6. Pre-existing failures (reproduced, not fixed)
+## 9. Integration conflict forecast
 
-`teaching-load-reconciliation.test.ts` (112 PASS / 9 FAIL / 1 FATAL):
-- `[FAIL] MATH:102 and ENG:101 inserted (expected 2, got 0)`
-- `[FAIL] unqualified ENG owner moved to qualified ENG faculty (expected 8, got undefined)`
-- `[FAIL] one retained (expected 1, got 0)` / `[FAIL] one moved (expected 1, got 0)`
-- `[FAIL] two inserted (expected 2, got 0)` / `[FAIL] four ownership rows after apply (expected 4, got 0)`
-- `[FATAL] TypeError: Cannot read properties of undefined (reading 'facultyId')` at
-  `teaching-load-reconciliation.test.ts:1032`
+- Refreshed `origin/main` = `bba85ea5d69ac7f53ffb87c01d734f8e235c5299`
+  (the packet's `ab75c131` has advanced by one docs commit).
+- Branch is ahead 5 / behind 18 vs `origin/main`; merge-base is exactly
+  `d4e9dc8e`.
+- `origin/main` changed 39 paths since the base; the branch changed 18.
+  **Path overlap: none.** The only plausible integration conflicts are shared
+  documentation (`CHANGELOG.md`, living register) owned by the integration owner.
+- No remote branch contains HEAD; the branch was never pushed.
 
-`teaching-load-reconciliation-route.test.ts` (46 PASS / 3 FAIL / 1 FATAL):
-- `[FAIL] first apply executes writes (expected false, got true)`
-- `[FAIL] one ownership inserted through the route (expected 1, got 0)`
-- `[FAIL] ownership row created through the route (expected 1, got 0)`
-- `[FATAL] TypeError: Cannot read properties of null (reading 'sectionIds')` at
-  `teaching-load-reconciliation-route.test.ts:244`
+## 10. Known risks / BLOCKED
 
-Classification: **pre-existing**. Neither test file was modified by this
-candidate (verified: only added files appear in the diff), and **no server
-product source was changed**, so both suites execute identical base bytes. The
-failures match the S3 handoff "Known risks" note for this line of development.
+- **Not re-run (data-dependent):** `teaching-load-summary-zero-write-route.test.ts`
+  requires an active non-archived school-year mirror and fails on an empty
+  disposable DB (`[FAIL] active non-archived school year resolves (found 0)`). It
+  is not in the C04R1 required gate list and touches no changed code path.
+- **Pre-existing, environment:** `department-authority-gates.test.ts` 82 total /
+  81 pass / 1 fail — `sidecar carries the exact byte SHA of the artifact file`.
+  `docs/verification/department-authority-apply-r4a.json` is checked out with
+  CRLF, so its on-disk byte hash (`44ADC028…`) differs from the sidecar
+  (`D1D8E74E…`); the LF-normalized hash equals the sidecar exactly, and the
+  artifact + sidecar are **byte-identical between base `d4e9dc8e` and this tip**.
+  This is a checkout line-ending artifact, not a candidate regression.
+- **Previously recorded pre-existing:** `teaching-load-reconciliation.test.ts`
+  and `teaching-load-reconciliation-route.test.ts` were recorded failing at the
+  base by the prior C04 executor pass; they were not re-run this pass and no
+  changed code path is shared with them.
+- **DEFERRED (D1):** persisted faculty availability remains out of scope; no
+  availability table, endpoint, or automatic reversion was added.
 
-## 7. Known risks
+## 11. No-mutation statement
 
-- **NON_BLOCKING (R3 runtime-dependence):** the redistribution card's positive
-  live response depends on upstream faculty/section context and a persisted
-  effective workload policy. The hermetic contract (request shape, zero-dispatch
-  gating, read-only construction, canonical blocker surfacing) is proven; the
-  positive live payload was not exercised (no live/runtime/browser authority in
-  this packet). Labeled hermetic-only.
-- **NON_BLOCKING (published-mode drift banner):** see §5.1 — requires non-owned
-  ownership to close.
-- **NON_BLOCKING (capability-overrides scope):** see §5.2 — pre-existing, outside
-  owned paths; no client wiring added.
-- **NON_BLOCKING (refactor):** to respect the mandatory 1000-line component limit,
-  `StagedRepairReview`, `TeacherCandidateList`, and `OwnerSourceMismatchNotice`
-  were extracted unchanged from `TacticalSandboxDock.tsx` into the owned
-  `TacticalSandboxDock.parts.tsx` (dock now 996 lines). Behaviour is preserved;
-  no assertions or tests were removed.
-- **BLOCKING:** none identified within owned scope.
-- **DEFERRED (D1):** class 5 faculty availability. No availability source,
-  endpoint, fingerprint domain, or repair module was invented; owned surfaces
-  render an explicit deferred state.
+No live or shared-database write, Teaching Load apply, generation, publication,
+deployment/restart, schema/migration apply against the configured database,
+login, browser use, companion-repository edit, integration, push, merge, rebase,
+amend, or history rewrite was performed. The living register, `CHANGELOG.md`, the
+runtime source-of-truth map, and both governing packets were not modified. The
+only database activity was against the uniquely named disposable database, which
+was dropped with proven zero residue.
 
-## 8. No-mutation statement
-
-No live/shared data write, Teaching Load apply, generation, publication,
-deployment, runtime/process action, migration or schema apply against the
-configured database, login, browser use, companion-repo edit, merge, rebase,
-amend, or push was performed. The only database activity was against the
-uniquely named disposable database, which was dropped with zero residue. The
-living register, runtime source map, `CHANGELOG.md`, and every forbidden path
-were not touched.
-
-## 9. Return
+## 12. Return
 
 `REVIEW_REQUIRED`
