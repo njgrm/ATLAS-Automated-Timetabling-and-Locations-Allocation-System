@@ -274,13 +274,15 @@ Database (verify in §8):
      scoped system token). Pass condition: the missing-snapshot blocker
      (`TERM_STRUCTURE_UNAVAILABLE`, "no persisted verified EnrollPro term
      snapshot", `derived-demand.service.ts:1042-1046`) no longer appears for
-     the active year; when derived demand is otherwise resolvable,
-     `derivedDemand.revision` equals `a51b62a2…` and
-     `derivedDemand.termStructure` carries the persisted TRIMESTER T1/T2/T3.
-     If other derived-demand blockers remain, the response is
-     `available:true, ready:false` with `termStructure`/`revision` possibly
-     null — record those blockers truthfully as still-blocked; never report a
-     row as passing on a missing snapshot.
+     the active year, and `derivedDemand.available` is `true` (the read
+     completed; a typed remaining blocker is still "available"). When
+     `derivedDemand.ready` is `true`, `derivedDemand.termStructure` carries the
+     persisted TRIMESTER T1/T2/T3 and `derivedDemand.revision` is a non-null
+     canonical derived-demand revision (an UPPERCASE sha256 over the
+     derived-demand payload; it is NOT the contract `semanticRevision` — that
+     `a51b62a2…` binding is proven separately by §8.1 on mirror 223). When
+     `ready` is `false`, record the remaining blockers truthfully as
+     still-blocked; never report a row as passing on a missing snapshot.
 5. **Canonical readiness diagnostic, read-only.** Same call as row 4; record
    the complete typed blocker list. **Do not generate and do not publish.**
 6. **Custodian cleanup.** Log out; assert `GET /api/v1/auth/me` without an
