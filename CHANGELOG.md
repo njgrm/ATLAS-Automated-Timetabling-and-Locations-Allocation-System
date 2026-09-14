@@ -1,5 +1,30 @@
 # Changelog
 
+## [2026-09-14] — Teaching Load Canonical Suggestion Authority
+
+### Added
+- Added canonical derived-demand pair and revision proof across Teaching Load
+  suggestions, staffing needs, over-cap redistribution, and reviewed apply.
+- Added load-bearing Serializable transaction controls for positive and stale
+  over-cap apply paths.
+
+### Changed
+- Replaced remaining current-year Cartesian suggestion authority with the same
+  ordered-term, subject-scope, and section-scope authority used by timetable
+  demand and generation.
+- Excluded reference-only and outside-demand ownership from ordinary workload
+  and redistribution while preserving qualified zero-load faculty discovery.
+- Reconciled the runtime source map so retired Curriculum Requirements tables
+  are no longer described as current-year demand authority.
+
+### Decisions Made
+- Source integration does not authorize deployment or a live Teaching Load
+  suggestion, redistribution, or carry-forward apply.
+
+### Open Questions
+- None for source integration. Live execution remains behind its own reviewed
+  preview and explicit HIGH approval.
+
 ## [2026-09-13] — TT C04 Authority Wave Integration
 
 ### Added
