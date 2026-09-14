@@ -168,7 +168,6 @@ export function renderRegister(doc, stateSha256) {
   for (const artifact of artifacts) {
     lines.push(`| \`${cell(artifact.path)}\` | \`${cell(artifact.sha256)}\` |`);
   }
-  lines.push("");
 
   return `${lines.join("\n")}\n`;
 }
