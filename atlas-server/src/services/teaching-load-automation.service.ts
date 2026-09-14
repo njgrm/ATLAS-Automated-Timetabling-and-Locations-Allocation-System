@@ -3006,15 +3006,24 @@ export async function previewOrApplyOverCapRebalance(
 		};
 	}
 
-	// Fix D: Run stale-ownership reconciliation before capacity computation
-	// so stale rows don't pollute the over-cap detection.
-	await previewOrApplyStaleOwnershipReconcile({
+	// Stale ownership must be inspected without mutation before capacity
+	// computation. An apply cannot repair it here: doing so would commit writes
+	// before the later Serializable canonical-revision revalidation.
+	const staleOwnershipPreview = await previewOrApplyStaleOwnershipReconcile({
 		schoolId: input.schoolId,
 		schoolYearId: input.schoolYearId,
 		actorId: input.actorId,
 		authToken: input.authToken,
-		previewOnly: !apply,
+		previewOnly: true,
 	});
+	if (apply && staleOwnershipPreview.staleOwnedCurrentYearPairCount > 0) {
+		const error = new Error(
+			'Teaching Load contains stale ownership. Reconcile stale ownership before applying an over-cap rebalance.',
+		) as Error & { statusCode: number; code: string };
+		error.statusCode = 409;
+		error.code = 'TEACHING_LOAD_STALE_OWNERSHIP_RECONCILIATION_REQUIRED';
+		throw error;
+	}
 
 	const [faculty, subjects, existingOwnerships] = await Promise.all([
 		db().facultyMirror.findMany({

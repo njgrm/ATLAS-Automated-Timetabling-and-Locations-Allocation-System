@@ -37,6 +37,8 @@ import {
 	type AutoFillResult,
 	type OverCapRebalanceResult,
 } from '../services/teaching-load-automation.service.js';
+import { previewOrApplyStaleOwnershipReconcile } from '../services/faculty-assignment.service.js';
+import { getNotificationEventsSince } from '../services/notification-events.service.js';
 import {
 	applyTeachingLoadSuggestionProposal,
 	createTeachingLoadSuggestionProposal,
@@ -667,8 +669,17 @@ function createApplyClient(initial: ApplyState, overrides: { txSubjectDispositio
 				record('subjectSectionOwnership', 'update');
 				return hydrateOwnership(row);
 			},
+			deleteMany: async (args: any = {}) => {
+				const removed = state.ownerships.filter((row) => matchesWhere(row, args.where));
+				state.ownerships = state.ownerships.filter((row) => !matchesWhere(row, args.where));
+				record('subjectSectionOwnership', 'deleteMany');
+				return { count: removed.length };
+			},
 		},
 		facultySubject: {
+			findMany: async (args: any = {}) => state.facultySubjects
+				.filter((row) => matchesWhere(row, args.where))
+				.map((row) => structuredClone(row)),
 			findUnique: async (args: any = {}) => {
 				const found = state.facultySubjects.find((row) => matchesWhere(row, args.where));
 				return found ? structuredClone(found) : null;
@@ -695,6 +706,10 @@ function createApplyClient(initial: ApplyState, overrides: { txSubjectDispositio
 			},
 		},
 		teachingLoadCycle: {
+			findUnique: async (args: any = {}) => {
+				const found = state.cycles.find((row) => matchesWhere(row, args.where));
+				return found ? structuredClone(found) : null;
+			},
 			upsert: async (args: any = {}) => {
 				const compound = args.where?.schoolId_schoolYearId ?? {};
 				const existing = state.cycles.find((row) => row.schoolId === compound.schoolId && row.schoolYearId === compound.schoolYearId);
@@ -1028,6 +1043,97 @@ async function testOverCapApplyRevalidation() {
 	);
 }
 
+function buildStaleOwnershipOverCapApplyState(): ApplyState {
+	const state = buildOverCapApplyState();
+	state.faculty.push(faculty(103, {
+		firstName: 'Stale', lastName: 'Owner', department: 'MATH',
+	}));
+	state.faculty[state.faculty.length - 1]!.isStale = true;
+	state.facultySubjects.push({
+		id: 5002, facultyId: 103, subjectId: 21, schoolId: SCHOOL, schoolYearId: YEAR,
+		sectionIds: [9100], gradeLevels: [7], assignedBy: ACTOR,
+	});
+	state.ownerships.push({
+		id: 200, schoolId: SCHOOL, schoolYearId: YEAR, subjectId: 21,
+		sectionId: 9100, facultyId: 103, facultySubjectId: 5002,
+	});
+	state.cycles.push({
+		id: 6001, schoolId: SCHOOL, schoolYearId: YEAR, state: 'POPULATED', version: 4,
+	});
+	state.audits.push({ id: 7001, schoolId: SCHOOL, schoolYearId: YEAR, action: 'FIXTURE_BASELINE' });
+	return state;
+}
+
+async function testOverCapStaleOwnershipAtomicity() {
+	heading('E5. Stale ownership blocks over-cap apply before canonical interleave and before writes');
+	const fixture = buildStaleOwnershipOverCapApplyState();
+	const guarded = createApplyClient(fixture, {
+		// This canonical revision change is visible only after a transaction starts.
+		// The stale-ownership gate must reject before reaching that transaction.
+		txSubjectDisposition: (row) => (row.code === 'MATH' ? 'REFERENCE_ONLY' : (row.schedulingDisposition ?? 'SCHEDULED_TEACHING')),
+	});
+	const before = {
+		ownerships: JSON.stringify(guarded.state.ownerships),
+		facultySubjects: JSON.stringify(guarded.state.facultySubjects),
+		cycles: JSON.stringify(guarded.state.cycles),
+		audits: JSON.stringify(guarded.state.audits),
+		notifications: JSON.stringify(getNotificationEventsSince(0, { schoolId: SCHOOL, schoolYearId: YEAR })),
+	};
+	let code: string | undefined;
+	try {
+		await withDataContext(guarded.client, () => previewOrApplyOverCapRebalance({
+			schoolId: SCHOOL, schoolYearId: YEAR, actorId: ACTOR, actorSchoolId: SCHOOL, previewOnly: false,
+		}));
+	} catch (error) {
+		code = (error as { code?: string })?.code;
+	}
+	checkEqual(code, 'TEACHING_LOAD_STALE_OWNERSHIP_RECONCILIATION_REQUIRED', 'stale ownership returns a typed reconciliation-required failure');
+	checkEqual(guarded.transactionOptions.length, 0, 'stale ownership rejects before the apply transaction and canonical interleave');
+	checkEqual(JSON.stringify(guarded.state.ownerships), before.ownerships, 'stale ownership rejection leaves ownership bytes unchanged');
+	checkEqual(JSON.stringify(guarded.state.facultySubjects), before.facultySubjects, 'stale ownership rejection leaves FacultySubject bytes unchanged');
+	checkEqual(JSON.stringify(guarded.state.cycles), before.cycles, 'stale ownership rejection leaves TeachingLoadCycle bytes unchanged');
+	checkEqual(JSON.stringify(guarded.state.audits), before.audits, 'stale ownership rejection leaves audit bytes unchanged');
+	checkEqual(
+		JSON.stringify(getNotificationEventsSince(0, { schoolId: SCHOOL, schoolYearId: YEAR })),
+		before.notifications,
+		'stale ownership rejection leaves the production notification buffer unchanged',
+	);
+
+	// Mutant: reproduce the pre-fix apply-capable preliminary reconciliation,
+	// then invoke the same real over-cap entry point. The later canonical stale
+	// failure cannot roll back the already committed reconciliation writes.
+	const mutant = createApplyClient(fixture, {
+		txSubjectDisposition: (row) => (row.code === 'MATH' ? 'REFERENCE_ONLY' : (row.schedulingDisposition ?? 'SCHEDULED_TEACHING')),
+	});
+	const mutantBefore = JSON.stringify({
+		ownerships: mutant.state.ownerships,
+		facultySubjects: mutant.state.facultySubjects,
+		cycles: mutant.state.cycles,
+		audits: mutant.state.audits,
+		notifications: getNotificationEventsSince(0, { schoolId: SCHOOL, schoolYearId: YEAR }),
+	});
+	await withDataContext(mutant.client, () => previewOrApplyStaleOwnershipReconcile({
+		schoolId: SCHOOL, schoolYearId: YEAR, actorId: ACTOR, previewOnly: false,
+	}));
+	let mutantCode: string | undefined;
+	try {
+		await withDataContext(mutant.client, () => previewOrApplyOverCapRebalance({
+			schoolId: SCHOOL, schoolYearId: YEAR, actorId: ACTOR, actorSchoolId: SCHOOL, previewOnly: false,
+		}));
+	} catch (error) {
+		mutantCode = (error as { code?: string })?.code;
+	}
+	checkEqual(mutantCode, 'TEACHING_LOAD_REBALANCE_STALE', 'pre-fix mutant reaches the later canonical stale failure');
+	const mutantAfter = JSON.stringify({
+		ownerships: mutant.state.ownerships,
+		facultySubjects: mutant.state.facultySubjects,
+		cycles: mutant.state.cycles,
+		audits: mutant.state.audits,
+		notifications: getNotificationEventsSince(0, { schoolId: SCHOOL, schoolYearId: YEAR }),
+	});
+	check(mutantAfter !== mutantBefore, 'pre-fix mutant fails the byte-identical zero-write invariant');
+}
+
 // ─── Part 3: mounted routes ─────────────────────────────────────────────────
 
 async function withMountedRouter<T>(
@@ -1349,6 +1455,7 @@ async function main() {
 	await testOverCapCanonicalBinding();
 	await testOverCapAbsentAuthorityMounted();
 	await testOverCapApplyRevalidation();
+	await testOverCapStaleOwnershipAtomicity();
 	await testMountedPreviewRoute();
 	await testDisposablePostgresApply();
 	console.log(`\n=== TL-SUGGESTION-C03R2 canonical derived-demand binding ===`);
