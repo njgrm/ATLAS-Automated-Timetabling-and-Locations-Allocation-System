@@ -24,8 +24,8 @@
 - B-13/D5: a non-null retained `facultyId` is a reviewed pin. Valid (active +
   qualified for the subject/section) pins are preserved and counted; invalid pins
   abort the sync with typed `TEACHER_PIN_CONFLICT` and exact retained/conflicted
-  totals. No silent rebinding. Client copy is S1-owned (register) and is reported as
-  a bounded residual, not edited here (outside the packet's allowed client paths).
+  totals. No silent rebinding. Correction C1 (below) completes the §3.5 client copy
+  that states those totals.
 - F3: added `blockingHardViolationCount` and `termCounts` to the manual-edit summary
   preserve list; Quick Place/sync already spread the persisted summary.
 - F1: `/campus-rooms` → `/map` in `simplePublishReadiness.ts`; repair hrefs now
@@ -42,6 +42,29 @@
   identity before any service dispatch.
 - `generation.service.ts:93-98` loose helper left untouched (no proven mutation/
   publication consumer) — reported as a bounded residual.
+
+## Correction C1 (planner-directed, additive; base `eeb42697`)
+
+- Defect: packet §3.5 requires "The response and client copy must state exact
+  retained and conflicted totals." The server response carried both counts and the
+  typed 409 `TEACHER_PIN_CONFLICT` message carried only the conflicted total; the
+  client copy stated neither, and `SDK` classification fell through to `UNKNOWN`.
+- Server `timetable-sync-setup.service.ts`: the typed `TEACHER_PIN_CONFLICT` message
+  now states BOTH exact integers, interpolating the same `facultyPinConflicts.length`
+  and `retainedFacultyPinCount` expressions used by `details`. No decision/zero-write
+  logic, snapshot binding, or Serializable path changed.
+- Client `lib/timetable-sync-setup.ts`: `SyncSetupSuccessData` now carries
+  `retainedFacultyPinCount`/`conflictedFacultyPinCount`; `ERROR_KIND_BY_CODE` maps
+  `TEACHER_PIN_CONFLICT: 'BLOCKED'`. Chosen kind: `BLOCKED` is an existing
+  non-retryable kind (`retryable === kind === 'STALE'`) and no consumer branches on
+  `kind` beyond the message/`retryable`, so it is the least-ripple review-required
+  classification. One-line comment records the choice; no enum widening.
+- Client copy: Advanced (`ScheduleReviewWorkspaceHeader`) and Simple
+  (`SimpleDriftBanner`) success toasts state the exact retained reviewed-assignment
+  count when > 0; `SyncTimetableConfirmDialog` copy now states that valid reviewed
+  assignments/slot swaps are preserved, that an invalid reviewed assignment stops the
+  sync with a conflict list for operator review, and that the result reports exact
+  retained/conflicted totals. No layout/design change.
 
 ## Changed paths
 
@@ -61,6 +84,15 @@
 - `atlas-server/src/__tests__/tt-source-freshness-capability-c04.test.ts` (new)
 - `atlas-client/src/lib/__tests__/tt-source-freshness-client-c04.test.ts` (new)
 - `docs/progress/tt-source-freshness-c04-progress.md`
+
+Correction C1 additionally edits (additive commit on top of `eeb42697`):
+- `atlas-server/src/services/timetable-sync-setup.service.ts` (message text only)
+- `atlas-client/src/lib/timetable-sync-setup.ts`
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`
+- `atlas-client/src/components/timetable/simple/SimpleDriftBanner.tsx`
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspaceDialogs.tsx`
+- `atlas-server/src/__tests__/tt-source-freshness-sync-pin-c04.test.ts`
+- `atlas-client/src/lib/__tests__/tt-source-freshness-client-c04.test.ts`
 
 ## Gates run (all green on the final tree)
 
@@ -82,6 +114,18 @@ Client:
 
 Repository: `git diff --check` clean.
 
+### Correction C1 focused reruns (all exit 0 on the restored tree, SHA-256-verified)
+
+- Server: `npx tsx src/__tests__/tt-source-freshness-sync-pin-c04.test.ts` (5/5,
+  0 skipped) and `npx tsx src/__tests__/timetable-sync-setup.test.ts` (16/16,
+  0 skipped, `DATABASE_URL` resolved from the durable runtime env; each
+  self-provisions + drops an `atlas_restore_drill_*` DB); `npx tsc --noEmit`;
+  `npm run build`.
+- Client: `npx tsx --test src/lib/__tests__/timetable-sync-setup-contract.test.ts
+  src/lib/__tests__/tt-source-freshness-client-c04.test.ts
+  src/lib/__tests__/timetable-dynamic-workspace-drift.test.ts` (21/21, 0 skipped);
+  `npx tsc --noEmit`; `npm run build`.
+
 ## Mutants (each failed its intended test; restored byte-for-byte by SHA-256)
 
 | # | Mutant | Failing test | Restoration hash match |
@@ -94,13 +138,16 @@ Repository: `git diff --check` clean.
 | 6 | drop `blockingHardViolationCount` from the summary merge | generation S1 | yes |
 | 7 | remove `Serializable` from capability-override apply | capability P1/P2 | yes |
 | 8 | restore `/campus-rooms` (client) | client F1 | yes |
+| 9 | C1: remove exact totals from the server conflict message + all three client copy surfaces | sync-pin C3 (exit 1), client C04 dialog/toast copy ×2 (exit 1) | yes |
 
 ## Remaining risks
 
 - BLOCKING: none identified.
 - NON_BLOCKING: `generation.service.ts:93-98` loose `hasPublishedMarkers` helper
-  (no proven consumer; residual). Client sync-dialog copy for the teacher-pin
-  conflict is S1-owned (register B-13) and not in this packet's allowed client
-  paths. Browser/render-consumer proof of `SimplePublishReadinessSheet` is limited
-  to the real pure consumer + mounted-route resolution + wiring assertions at the
-  node-test level (no jsdom available).
+  (no proven consumer; residual). The former "client sync-dialog copy is S1-owned"
+  residual is resolved by correction C1 (server message + all three client copy
+  surfaces now state the exact retained/conflicted totals). Browser/render-consumer
+  proof of `SimplePublishReadinessSheet` is limited to the real pure consumer +
+  mounted-route resolution + wiring assertions at the node-test level (no jsdom
+  available); correction C1 copy proof uses the same established static-source
+  pattern.

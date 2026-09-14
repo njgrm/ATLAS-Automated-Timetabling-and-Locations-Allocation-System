@@ -18,6 +18,10 @@ export type SyncSetupSuccessData = {
 	updatedFacultyCount?: number;
 	displacedEntriesCount?: number;
 	addedUnassignedCount?: number;
+	// TT-SOURCE-FRESHNESS-C04 §3.5: the server reports exact retained/conflicted
+	// reviewed teacher-pin totals so client copy can state them.
+	retainedFacultyPinCount?: number;
+	conflictedFacultyPinCount?: number;
 	hardViolationCount?: number;
 	softViolationCount?: number;
 	summary?: unknown;
@@ -65,6 +69,10 @@ const ERROR_KIND_BY_CODE: Record<string, SyncSetupErrorKind> = {
 	RUN_ALREADY_PUBLISHED: 'BLOCKED',
 	RUN_NOT_FOUND: 'BLOCKED',
 	RUN_NOT_COMPLETED: 'BLOCKED',
+	// A teacher-pin conflict halts the sync until an operator reviews it, so it is
+	// a non-retryable review-required failure; `BLOCKED` is the existing kind with
+	// the least consumer ripple (no consumer branches on kind past message/retryable).
+	TEACHER_PIN_CONFLICT: 'BLOCKED',
 	INVALID_PARAM: 'VALIDATION',
 };
 

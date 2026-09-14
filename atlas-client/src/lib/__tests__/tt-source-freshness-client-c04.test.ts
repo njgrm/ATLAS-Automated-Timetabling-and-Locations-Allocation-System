@@ -24,6 +24,11 @@ import {
 	isBlockingHardViolation,
 	isInformationalHardViolation,
 } from '../../components/timetable/simplePublishReadiness';
+import {
+	classifySyncSetupError,
+	createSyncSetupInFlightGuard,
+	runSyncSetup,
+} from '@/lib/timetable-sync-setup';
 import type { DraftReport, Violation } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
@@ -110,4 +115,56 @@ test('F2 the client blocking behavior matches the server promotable allowlist', 
 	for (const code of serverCodes) {
 		assert.equal(isInformationalHardViolation(hardViolation(code)), false, `allowlisted code is not informational: ${code}`);
 	}
+});
+
+// --- §3.5 teacher-pin conflict totals surface in sync copy ---
+
+test('C04 the sync success contract carries both exact reviewed-pin totals', async () => {
+	const guard = createSyncSetupInFlightGuard();
+	const outcome = await runSyncSetup({
+		schoolId: 2,
+		schoolYearId: 9,
+		runId: 42,
+		draftVersion: 7,
+		guard,
+		post: async () => ({
+			data: { runId: 42, version: 8, replayed: false, retainedFacultyPinCount: 3, conflictedFacultyPinCount: 0 },
+		}),
+	});
+	assert.equal(outcome.status, 'COMMITTED');
+	if (outcome.status === 'COMMITTED') {
+		assert.equal(outcome.data.retainedFacultyPinCount, 3, 'the retained total is carried through the outcome');
+		assert.equal(outcome.data.conflictedFacultyPinCount, 0, 'the conflicted total is carried through the outcome');
+	}
+});
+
+test('C04 TEACHER_PIN_CONFLICT is a non-retryable review-required failure with the server message intact', () => {
+	const serverMessage =
+		'2 reviewed teacher assignment(s) are no longer valid under current ownership, qualification, section, and term authority; 1 valid reviewed assignment(s) will be retained. ATLAS will not silently rebind them; review them before syncing.';
+	const classification = classifySyncSetupError({ response: { data: { code: 'TEACHER_PIN_CONFLICT', message: serverMessage } } });
+	assert.equal(classification.code, 'TEACHER_PIN_CONFLICT');
+	assert.equal(classification.kind, 'BLOCKED', 'a teacher-pin conflict is classified, not UNKNOWN');
+	assert.equal(classification.retryable, false, 'a teacher-pin conflict must never auto-retry');
+	assert.equal(classification.message, serverMessage, 'the server conflict message is preserved verbatim');
+});
+
+test('C04 the sync confirm dialog states preservation, the review stop, and exact totals', () => {
+	const dialogs = source('src/components/timetable/ScheduleReviewWorkspaceDialogs.tsx');
+	for (const fragment of [
+		'Valid manually reviewed teacher assignments and slot swaps are preserved.',
+		'the sync stops with a conflict list for operator review.',
+		'The result reports the exact retained and conflicted totals.',
+	]) {
+		assert.ok(dialogs.includes(fragment), `the dialog must state: ${fragment}`);
+	}
+});
+
+test('C04 both sync success toasts state the exact retained reviewed-assignment count', () => {
+	const advanced = source('src/components/timetable/ScheduleReviewWorkspaceHeader.tsx');
+	const simple = source('src/components/timetable/simple/SimpleDriftBanner.tsx');
+	const retainedCopy = 'retained ${retainedReviewedCount} reviewed teacher assignment(s)';
+	assert.ok(advanced.includes('retainedFacultyPinCount'), 'Advanced consumes the retained total from the sync result');
+	assert.ok(advanced.includes(retainedCopy), 'Advanced success toast states the exact retained reviewed-assignment count');
+	assert.ok(simple.includes('retainedFacultyPinCount'), 'Simple consumes the retained total from the sync result');
+	assert.ok(simple.includes(retainedCopy), 'Simple success toast states the exact retained reviewed-assignment count');
 });

@@ -63,7 +63,7 @@ export function SyncTimetableConfirmDialog({ open, onOpenChange, syncing, onSync
 							<li>Re-evaluate policy violations.</li>
 						</ul>
 						<p className="text-xs font-semibold text-amber-600">
-							Manual slot swaps and pins will be preserved, but new conflicts may be highlighted.
+							Valid manually reviewed teacher assignments and slot swaps are preserved. If a reviewed assignment is no longer valid, the sync stops with a conflict list for operator review. The result reports the exact retained and conflicted totals.
 						</p>
 					</DialogDescription>
 				</DialogHeader>

@@ -178,6 +178,18 @@ test('C3. an invalid teacher pin fails closed with typed TEACHER_PIN_CONFLICT an
 	assert.equal(error.code, 'TEACHER_PIN_CONFLICT', 'the conflict is typed');
 	assert.equal(error.details?.conflictedFacultyPinCount, 1, 'the exact conflicted total is reported');
 	assert.equal(typeof error.details?.retainedFacultyPinCount, 'number', 'the retained total is reported');
+	// §3.5: the typed message must state BOTH exact integers, and they must be the
+	// same values carried in `details` — not a second, independently-worded guess.
+	const conflictedTotal = error.details.conflictedFacultyPinCount as number;
+	const retainedTotal = error.details.retainedFacultyPinCount as number;
+	assert.ok(
+		error.message.includes(`${conflictedTotal} reviewed teacher assignment(s) are no longer valid`),
+		`the conflict message states the exact conflicted total (message: ${error.message})`,
+	);
+	assert.ok(
+		error.message.includes(`${retainedTotal} valid reviewed assignment(s) will be retained`),
+		`the conflict message states the exact retained total (message: ${error.message})`,
+	);
 	const after = await prisma.generationRun.findUnique({ where: { id: run.id } });
 	assert.equal(after.version, before.version, 'zero version increment');
 	assert.deepEqual(after.draftEntries, before.draftEntries, 'zero entry writes');

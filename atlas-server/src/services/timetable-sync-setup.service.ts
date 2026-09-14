@@ -528,7 +528,7 @@ export async function syncTimetableSetup(
 		const conflict = err(
 			409,
 			'TEACHER_PIN_CONFLICT',
-			`${facultyPinConflicts.length} retained teacher assignment(s) are no longer valid under current ownership, qualification, section, and term authority. ATLAS will not silently rebind them; review them before syncing.`,
+			`${facultyPinConflicts.length} reviewed teacher assignment(s) are no longer valid under current ownership, qualification, section, and term authority; ${retainedFacultyPinCount} valid reviewed assignment(s) will be retained. ATLAS will not silently rebind them; review them before syncing.`,
 		);
 		(conflict as any).actionHint = 'Review the conflicted assignments in Teaching Load, then sync again.';
 		(conflict as any).details = {

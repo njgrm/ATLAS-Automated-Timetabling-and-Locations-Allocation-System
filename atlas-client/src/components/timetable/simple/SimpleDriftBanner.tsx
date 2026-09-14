@@ -81,7 +81,12 @@ export function SimpleDriftBanner({
 				guard: syncGuardRef.current,
 			});
 			if (outcome.status === 'COMMITTED') {
-				toast.success('Timetable synced with setup.');
+				const retainedReviewedCount = outcome.data.retainedFacultyPinCount ?? 0;
+				toast.success(
+					retainedReviewedCount > 0
+						? `Timetable synced with setup; retained ${retainedReviewedCount} reviewed teacher assignment(s).`
+						: 'Timetable synced with setup.'
+				);
 				onRefresh();
 			} else if (outcome.status === 'REPLAYED') {
 				toast.success('Timetable setup already matches the current run. Nothing to change.');
