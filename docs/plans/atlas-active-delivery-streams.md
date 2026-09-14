@@ -16,6 +16,32 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
+- Cycle recovery: `term-cache-catchup-preview-20260914` (`INTEGRATED` —
+  capture complete; apply remains locked and unbound) activated 2026-09-14
+  (Asia/Manila) by the operator (`CYCLE ON`) to resume
+  `TERM-CACHE-CATCHUP-PREVIEW` under a fresh one-login authorization. Planner
+  preflight (read-only): directive `CFA7BFAB…`; `origin/main` `29284ac6`;
+  release `3d916b26` healthy; EnrollPro `dev-jegs` online with raw
+  `school-year` 200 (TRIMESTER T1/T2/T3) and typed 409
+  `ACTIVE_TERM_UNRESOLVED`. Custodian attempt 1
+  `ses_f60cccf03ffeHaxbJZ94yEqiOF` stopped BEFORE login on an off-cycle
+  external login (`EXTERNAL_LOGIN_OBSERVED`: row 792, actor 46,
+  2026-09-14T09:08:43.462Z, localhost, not this cycle's tooling) and committed
+  the truthful record `8d28ec75`. Custodian attempt 2
+  `ses_f60c6ea9bffeun31inR12PLXRP` re-captured under the re-based anchor: login
+  audit 793 (actor 46, 09:27:58.608Z), one zero-write preview HTTP 200
+  `state=READY`, `format=TRIMESTER`, terms T1/T2/T3, `liveSemanticRevision`
+  `a51b62a2…`, fingerprint
+  `d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81`,
+  `confirmationText` `SAVE_TERM_AUTHORITY_1_9`, `zeroWrite:true`, cleanup
+  `/auth/me` 401 `NO_TOKEN` (candidate `9c19b772`). Fresh QA
+  `ses_f60bc2230ffePHmYhV99tiOfTm` `ACCEPT_READY` 8/8/0/0 (independent
+  fingerprint recomputation, fresh raw upstream parity, live DB
+  before/after signatures, secret scan). No apply/rollover/TL/generation/
+  publication/migration/runtime action was executed. Host note: `D:` had
+  ~150 MB free; the cycle worktree is an intentional sparse `docs`-only
+  checkout (~4 MB) and the Postgres data dir is on `D:` — free space before
+  any further large checkout or deployment.
 - Cycle recovery: `workflow-closure-recovery-20260914` (`COMPLETE`) closed
   2026-09-14 (Asia/Manila); activated by the operator (`CYCLE ON`) to correctly
   close two invalid wave states with zero live actions; integration commit
@@ -204,10 +230,9 @@ hard blockers before separately approving publication.
   pre-cycle/pre-execution observations with zero mutations — the earlier
   "no other login" wording applies only to the R3 execution window. No
   apply/sync/generation/publication. The term-cache catch-up capture was
-  attempted under the 2026-09-13 one-login authorization and failed closed
-  (`ENROLLPRO_UNREACHABLE` then; see the `term-cache-catchup-preview-20260913`
-  cycle bullet); the host was re-verified reachable 2026-09-14 and a fresh login
-  authorization is needed to re-capture.
+  re-attempted and completed 2026-09-14 (`9c19b772`; see the
+  `term-cache-catchup-preview-20260914` cycle bullet); the separate apply
+  remains locked and unbound.
 - Cycle recovery: `tt-sync-term-c03r4-20260913` (`COMPLETE`)
   activated 2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`) for one
   bounded source correction: worktree `D:\ATLAS-worktrees\tt-sync-term-c03r4`,
@@ -266,26 +291,15 @@ hard blockers before separately approving publication.
   No product or live mutation beyond the accepted source integration. Hard
   boundaries preserved: `tt-output-c03` untouched; no runtime/task/env/live-data
   action.
-- Cycle recovery: `term-cache-catchup-preview-20260913`
-  (`BLOCKED — EXTERNALLY_BLOCKED(LOGIN_CONSUMED)`; the original blocker was
-  `ENROLLPRO_UNREACHABLE`, resolved 2026-09-14) activated 2026-09-13
-  (Asia/Manila) by the operator (`CYCLE ON`) for packet §5 under the exact
-  one-login authorization. The fresh QA custodian
-  `ses_f651b6c6dffePniVCtdESY7Zrc` logged in once (actor 46,
-  `LOCAL_LOGIN_SUCCESS` audit id 785, `lastLoginAt` 2026-09-13T13:13:31.799Z);
-  the zero-write preview failed closed with HTTP 503 `ENROLLPRO_UNREACHABLE`
-  (server log 13:14:14.513Z). Raw read-only probes at the time confirmed the
-  EnrollPro host `dev-jegs` (`100.120.169.123:5002`) was offline (Tailscale +
-  TCP/HTTP timeouts) — not an ATLAS defect; the preview path, cache read, and
-  apply stayed untouched. Cleanup proven (`/auth/me` 401 `NO_TOKEN`); zero-write
-  assertion holds. Evidence + verdict at `28617cab`, merged `23ad9d71`; fresh QA
-  `ses_f65151c6effe15Q5F87iA2FUmm` `ACCEPT_READY` 6/6/0/0 (capsule under
-  `docs/reviews/term-cache-catchup-preview-20260913/`). No
-  fingerprint/confirmation exists; the apply stays locked and unbound. Next:
-  the host was re-verified reachable 2026-09-14 (TCP `5002` open; direct
-  `/api/settings/public` and `/api/integration/v1/health` 200), so only a fresh
-  one-login authorization is needed to re-capture (the 2026-09-13 login is
-  consumed).
+- Cycle recovery: `term-cache-catchup-preview-20260913` (`SUPERSEDED` — the
+  blocked attempt was re-captured by `term-cache-catchup-preview-20260914`).
+  Custodian `ses_f651b6c6dffePniVCtdESY7Zrc` logged in once (audit 785, actor
+  46) and the zero-write preview failed closed HTTP 503
+  `ENROLLPRO_UNREACHABLE` (host offline then) with zero cache write and proven
+  cleanup; evidence `28617cab` merged `23ad9d71`; fresh QA
+  `ses_f65151c6effe15Q5F87iA2FUmm` `ACCEPT_READY` 6/6/0/0; no
+  fingerprint existed. Record preserved at
+  `docs/reviews/term-cache-catchup-preview-20260913/`.
 - Cycle recovery: `tt-output-c03r3-20260913` (`COMPLETE`)
   activated 2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`) for one
   bounded production-term correction: worktree `D:\ATLAS-worktrees\tt-output-c03`,
@@ -505,14 +519,14 @@ hard blockers before separately approving publication.
 | MIG-GUARD-R1 | Make the canonical guarded migration command locate the root Prisma schema without manual forwarded arguments | `INTEGRATED` | LOW | `work/migration-guard-r1`; `ec7d54ed...63bf48eb`; integration commits `be4b4a16` + `bb499bf3` | None | Primary planner reproduced 31/31, TypeScript, production build, canonical-schema negative control, and zero-spawn failure ordering | Closed; use the guarded wrapper for future migrations, but do not re-run migration 0001 |
 | W1-RUNTIME-DEPLOY | Deploy the integrated Wave-1 server/client against the migrated schema and verify the corrected EnrollPro term contract | `SUPERSEDED` | HIGH shared-runtime deployment/cutover | Deployed `fdd0c8c7`; evidence `fdd0c8c7...1ead5622` merged at `ed44d62f` | Replaced after the post-deploy outage by ACTOR-SCOPE-DEPLOY-RESTORE | Deployment identity, rollover-disabled log, unauthenticated pages, and zero unauthorized writes were independently verified; its global QA verdict was rejected for unperformed mandatory rows; ACTOR-SCOPE-DEPLOY-RESTORE re-verified the six approved Stage C rows (C2/C3/C4-positive/C5/C6/C8) at the `d44f29e0` pin; remaining W1 surface rows (Teaching Load history + carry-forward preview, authenticated Subjects, Simple Timetable) are explicitly deferred, not re-verified | Historical record; do not reuse its swap/probe wording. The later supervisor restore completed and passed its post-action wave audit (see RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE) |
 | RR-TERM-CACHE-C01 | Separate year alignment from persisted ordered-term readiness and provide one narrow, previewed term-cache catch-up path | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01`; `77894b7a...45f08955`; merge `8c0a1207` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0); planner pre-QA reproduced status 11/11 and client 6/6; integration-tier reruns C02 8/8, cache-instrumentation 32/32 zero-residue, lifecycle 208/0, rr-ux01 pass; both builds/startup previously verified; rollover-automation suite not independently rerun (seeded-disposable only; all changed-field assertions expect false and the change is strictly more conservative) | Closed in source; deployed via the `d44f29e0` restore (its own deployment was superseded by the C01R correction at `a1256506`); term-cache apply remains separately gated |
-| RR-TERM-CACHE-C01R | Close term-authority JWT/actor-school authority, client school-1 defaults, and in-transaction complete active-year election | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01r`; `904818d4...86376ba7`; merge `a1256506` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0): mounted JWT/system-token matrix with zero dispatch, no school-1 defaults, fail-closed actor-scoped wrapper, scope-transition clearing, in-transaction complete-set re-election (`ACTIVE_YEAR_AMBIGUOUS`, zero writes), replay/audit invariants, both tsc/builds, isolated built-server 401s; integration gates rerun on the merged tree | Closed in source; its code is deployed via the `d44f29e0` restore (the old bounded deployment packet is superseded). The catch-up capture was attempted 2026-09-13 under the one-login authorization and failed closed (`ENROLLPRO_UNREACHABLE` then; login consumed); the host was re-verified reachable 2026-09-14 and the later apply remains gated and unbound |
+| RR-TERM-CACHE-C01R | Close term-authority JWT/actor-school authority, client school-1 defaults, and in-transaction complete active-year election | `INTEGRATED` | MEDIUM source; HIGH future cache apply | `work/rr-term-cache-c01r`; `904818d4...86376ba7`; merge `a1256506` | Live term-cache apply remains separately gated | Fresh QA ACCEPT_READY 17/17 (blocked 0, unperformed 0): mounted JWT/system-token matrix with zero dispatch, no school-1 defaults, fail-closed actor-scoped wrapper, scope-transition clearing, in-transaction complete-set re-election (`ACTIVE_YEAR_AMBIGUOUS`, zero writes), replay/audit invariants, both tsc/builds, isolated built-server 401s; integration gates rerun on the merged tree | Closed in source; its code is deployed via the `d44f29e0` restore (the old bounded deployment packet is superseded). The catch-up capture completed 2026-09-14 (`9c19b772`; login audit 793); the later apply remains gated and unbound |
 | RR-TERM-CACHE-C01R2 | Bind the client actor-school resolver cache to the authenticated token epoch and make the deploy packet's listener sequence executable (stop-then-start with per-stage rollback) | `INTEGRATED` | MEDIUM source + docs; deployment stays HIGH | `work/rr-term-cache-c01r2`; `781a457f...4489bbbd`; merge `a633db50` | Live deployment remains separately gated | Fresh QA `ACCEPT_READY` (mandatory 10/10, blocked 0, unperformed 0): real-path session-epoch transition (no-token fail-closed, logout/expiry, A→B re-login with zero school-1 dispatch, late obsolete-response discard in both orderings, bridge replacement, invalid-id rejection, zero scoped dispatch unresolved); independent mutant control 6/9 failing; client tsc/build; server status 11/11 + mounted disposable-PostgreSQL 1/1 preserved; packet re-read confirms stop-then-start and no zero-downtime claim | Closed in source; deployed via the `d44f29e0` restore (the corrected swap packet is SUPERSEDED by the outage and must not be executed). Term-cache apply remains separately gated |
 | ACTOR-SCOPE-C01 | Close actor-school/year scope end to end: remove school-1 defaults from actor-sensitive helpers, bind client consumers to the authenticated token epoch, and gate the runtime read routes on explicit actor school | `INTEGRATED` | MEDIUM source; deployment stays HIGH | `work/actor-scope-c01`; `a4dcd061...98ab5e04`; merge `d44f29e0` | Live deployment and the remaining defaulting `parseSchoolId` sites on non-listed runtime mutation routes are separate successor actions | Fresh QA `ACCEPT_READY` (mandatory 18/18, blocked 0, unperformed 0): real-path epoch suites, 55/55 focused client tests, two independent mutant controls, mounted disposable-PostgreSQL runtime-route matrix with zero DB/upstream dispatch on every rejection, both builds; integration reproduced product-tree identity, client 55/55, and server 3/3 on the merged tree | Closed in source; deployed via ACTOR-SCOPE-DEPLOY-RESTORE (`d44f29e0` live, acceptance closed); the remaining defaulting sites stay backlog-only |
 | ACTOR-SCOPE-DEPLOY-RESTORE | Restore the shared runtime from the confirmed outage by deploying product pin `d44f29e0` on 5001/5174 with rollover automation disabled, then run the bounded authenticated Tailnet Stage C acceptance | `INTEGRATED` | HIGH shared-runtime deploy-as-restore | `work/actor-scope-deploy-restore-20260912`; `d44f29e0...534832bc`; merge `1add5323` | Runtime was later restored by RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE (supervised release; see that row) | Fresh QA `ses_f6b893b57ffelxC4Jcm0m2HPxB` `ACCEPT_READY` 13/13 (blocked 0, unperformed 0): C2/C3/C4-positive/C5/C6/C8 on live Tailnet; DB delta exactly one `LOCAL_LOGIN_SUCCESS` (id 762, actor 46) + `last_login_at`, all else 0; product tree == pin; wave audit `ses_f6b724735ffezVWNnma0wKLgLJ` `AUDIT_CLEAR` 8/8 (F1–F4 non-blocking docs-only, reconciled) | Lane A COMPLETE; capsule at `docs/reviews/runtime-stability-wave-20260912/wave-completion-audit.md`; runtime later restored by RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE |
 | RUNTIME-SUPERVISION-C01 | Replace the ephemeral Vite/unmanaged-PID runtime with a repository-owned, production-hosted, restartable supervision contract | `INTEGRATED` | MEDIUM source/test; HIGH future live install | `work/runtime-supervision-c01`; `cf9b7e6e...05143d65`; merge `0ec3b8f7` | Install remains separately gated by the prepared HIGH packet | Round-2 pin correction `05143d65` passed fresh QA `ses_f6b56dd43ffeG3CSnFNNJBficZ` `ACCEPT_READY` 8/8 (blocked 0, unperformed 0): real-tree pin positive (previously unsatisfiable), equality-mutant failing-first, `PIN_MISMATCH`/`RELEASE_SHA_*` fail-closed, distinct status, inventory redaction, 56/56 ops, ports untouched. Pre-install audit `ses_f6b5175c6ffejlywhgblmX7c5k` `AUDIT_CLEAR` 14/14 | Closed in source; original install packet SUPERSEDED; the deploy-as-restore packet (R1) was approved and executed — runtime restored (see RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE row) |
 | RUNTIME-SUPERVISION-LIVE-INSTALL | Replace the ephemeral runtime by installing the reviewed supervisor on 5001/5174 with boot recovery and rollback | `SUPERSEDED` | HIGH shared-runtime cutover + boot-task registration | Correction packet `docs/prompts/runtime-supervisor-live-install-correction-2026-09-12.md`; frozen release `9d293879`; no candidate created | Replaced by the deploy-as-restore boundary after the runtime outage was reconfirmed (`d44f29e0` no longer running; Tailnet 502; no 5001/5174 listener) | Prior attempt `2794c40f` was independently rejected for Access Denied task registration; the elevated retry never ran because the runtime was found down before execution | Historical record; do not execute with swap wording |
-| RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE | Restore the down shared runtime by starting the reviewed supervisor (`9d293879`, pin `d44f29e0`) on empty 5001/5174, registering boot recovery, then disabling the legacy task after health | `INTEGRATED` — COMPLETE (post-action audit cleared) | HIGH shared-runtime deploy-as-restore + boot-task registration | approval received 2026-09-12 (DB `atlas_recovery_clean_rebuild_20260905` confirmed); executor task `ses_f6aa9bd82ffeZuVkjof36wri6Z`; evidence `f52e4b1e...5c699f36`; merge `1792cca9`; pre-action audit `ses_f6abf6c5effeY3MI5UGXRdUkeQ`; post-action audit `ses_f6a97cff2ffe6GdgWaJ4O2A0c4` | Closed; residuals recorded (reboot-start unexercised; running supervisor is a detached manual process; ONSTART task is the restart mechanism) | Live: 5001→15388 / 5174→22272, health/ready/Tailnet 200, boot task ONSTART/`PT0S`, legacy Disabled; fresh QA `ACCEPT_READY` 9/9; post-action audit `AUDIT_CLEAR` 14/14; capsules under `docs/reviews/runtime-supervisor-live-install-restore-20260912/` | Closed; runtime map reconciled; the term-cache catch-up capture is blocked on the consumed 2026-09-13 login (the EnrollPro host was re-verified reachable 2026-09-14; fresh one-login authorization needed; apply stays separately gated) |
-| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `DEPLOYED_ACCEPTANCE_INCOMPLETE` (release `3d916b26` live; rows 4–5 blocked on `TERM_STRUCTURE_UNAVAILABLE`) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; audit spec `docs/prompts/tt-tl-runtime-acceptance-r3-final-audit-2026-09-12.md`; deployed `3d916b26` (deployment-time supervisor 44336; 5001→30032 / 5174→27408; superseded by the 2026-09-13 PID drift recorded in the shared-runtime bullet; evidence merge `dbde5689`); rollback: supervised reset to `9d293879` + `d44f29e0` manual fallback | Blocked rows are mandatory and are re-verified after the separately approved term-cache catch-up (RR-TERM-CACHE-C01); post-action wave audit complete (`AUDIT_CLEAR` 11/11, capsule at `docs/reviews/tt-tl-runtime-acceptance-20260912/wave-completion-audit-postaction.md`) | Live: local health/ready + Tailnet 200; `releaseSha=3d916b26` (status + installed HEAD); QA tally 6/4/2/0 — origin/routes/no-write PASS (910 GETs), exactly two mandatory rows (4–5) blocked (`DERIVED_DEMAND_BLOCKED`, `termStructure:null`); authorized R3 execution login audit id 773; custody cleaned (logout, 401 `NO_TOKEN`) | Run the prepared term-cache catch-up re-capture after a fresh one-login authorization (host re-verified reachable 2026-09-14; packet `docs/prompts/term-cache-catchup-preview-2026-09-13.md`); after an approved apply, re-run rows 4–5 and the readiness diagnostic; then close the cycle |
+| RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE | Restore the down shared runtime by starting the reviewed supervisor (`9d293879`, pin `d44f29e0`) on empty 5001/5174, registering boot recovery, then disabling the legacy task after health | `INTEGRATED` — COMPLETE (post-action audit cleared) | HIGH shared-runtime deploy-as-restore + boot-task registration | approval received 2026-09-12 (DB `atlas_recovery_clean_rebuild_20260905` confirmed); executor task `ses_f6aa9bd82ffeZuVkjof36wri6Z`; evidence `f52e4b1e...5c699f36`; merge `1792cca9`; pre-action audit `ses_f6abf6c5effeY3MI5UGXRdUkeQ`; post-action audit `ses_f6a97cff2ffe6GdgWaJ4O2A0c4` | Closed; residuals recorded (reboot-start unexercised; running supervisor is a detached manual process; ONSTART task is the restart mechanism) | Live: 5001→15388 / 5174→22272, health/ready/Tailnet 200, boot task ONSTART/`PT0S`, legacy Disabled; fresh QA `ACCEPT_READY` 9/9; post-action audit `AUDIT_CLEAR` 14/14; capsules under `docs/reviews/runtime-supervisor-live-install-restore-20260912/` | Closed; runtime map reconciled; the term-cache catch-up capture completed 2026-09-14 (`9c19b772`); the apply stays separately gated |
+| TT-TL-RUNTIME-ACCEPTANCE | Deploy integrated TT/TL source and perform read-only live diagnostics | `DEPLOYED_ACCEPTANCE_INCOMPLETE` (release `3d916b26` live; rows 4–5 blocked on `TERM_STRUCTURE_UNAVAILABLE`) | HIGH shared-runtime source deployment | `docs/prompts/tt-tl-runtime-acceptance-2026-09-12.md`; audit spec `docs/prompts/tt-tl-runtime-acceptance-r3-final-audit-2026-09-12.md`; deployed `3d916b26` (deployment-time supervisor 44336; 5001→30032 / 5174→27408; superseded by the 2026-09-13 PID drift recorded in the shared-runtime bullet; evidence merge `dbde5689`); rollback: supervised reset to `9d293879` + `d44f29e0` manual fallback | Blocked rows are mandatory and are re-verified after the separately approved term-cache catch-up (RR-TERM-CACHE-C01); post-action wave audit complete (`AUDIT_CLEAR` 11/11, capsule at `docs/reviews/tt-tl-runtime-acceptance-20260912/wave-completion-audit-postaction.md`) | Live: local health/ready + Tailnet 200; `releaseSha=3d916b26` (status + installed HEAD); QA tally 6/4/2/0 — origin/routes/no-write PASS (910 GETs), exactly two mandatory rows (4–5) blocked (`DERIVED_DEMAND_BLOCKED`, `termStructure:null`); authorized R3 execution login audit id 773; custody cleaned (logout, 401 `NO_TOKEN`) | The term-cache catch-up capture completed 2026-09-14 (`9c19b772`; fingerprint `d4cd7cc4…`); after an approved apply (separate HIGH), re-run rows 4–5 and the readiness diagnostic; then close the cycle |
 | DASH-RESILIENCE-C01 | Preserve saved Dashboard truth and typed term state when EnrollPro or one ATLAS read is unavailable | `INTEGRATED` | MEDIUM cross-layer read path | `work/dashboard-resilience-c01`; `ec7d54ed...9b05a7c6`; integration `47a4405d` | Deployment remains separate | Primary planner reproduced 9/9 resilience, 38/38 HTTP authority, 11/11 server lifecycle, 12/12 client lifecycle, term-authority coverage, both type-checks, and both builds | Closed in source; verify saved-data and typed unresolved-term UX during bounded runtime deployment |
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
@@ -522,11 +536,11 @@ hard blockers before separately approving publication.
 | TT-SHAPE-DIAGNOSTIC-C02 | Bind timetable readiness to the 2026-2027 stakeholder shape policy and canonical section/teacher/room output projections | `INTEGRATED` | MEDIUM source; HIGH generation | `work/tt-shape-diagnostic-c02`; `8f48a2fe...ddbdaced`; integration `e83d25d5` | Live generation remains separately gated | Exact-range advisory coverage is carried by the committed 13-test C02 suite (the older committed advisory text is stale, per the wave audit); C02 13/13, stakeholder matrix 12/12, canonical readiness 14/14, real preflight/readiness zero-write mutants, server tsc/build and diff-check passed | Closed in source; use the diagnostic in the fingerprinted generation preview; do not generate or publish from this lane |
 | TT-OUTPUT-C03R | Preserve weekday and term identity through the scheduler, main grid, section/teacher/room projections, and beneficiary class-program exports | `INTEGRATED` (candidate content carried onto `origin/main` by the TT-OUTPUT-C03R3 merge `3c2fc2bd`) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; base `4e5ef1f6`; candidate `4f596af0`; capsule `docs/handoffs/tt-output-c03r-planner-result.md` | None in source | Fresh QA round 2 `ses_f69d7bda1ffeaHjNVOffKHo48U` `ACCEPT_READY` 14/14/0/0 on `4e5ef1f6..4f596af0`; the two post-capsule commits are covered by the C03R3 exact-range QA (see the C03R3 row) | Closed in source; live per-term output verification belongs to the bounded runtime deployment and its separately approved term-cache catch-up |
 | TT-OUTPUT-C03R3 | Complete the beneficiary-output correction on the live branch above `f00daa69` and produce a frozen tip with fresh coverage for the two post-capsule commits | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 9/9 via the readiness correction) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; `4e5ef1f6...e7deeb91`; merge `3c2fc2bd` on `origin/main` | None in source | QA: round 1 `ses_f696b93baffe4dPW7LsrSYAW0M` `CORRECTION_REQUIRED` 38/36 (placement term loss); round 2 `ses_f695442d1ffe568Btme9JM4fN4` `CORRECTION_REQUIRED` 31/30 (quick-place commit binding); round 3 `ses_f69440b5cffekqzFdwbc0orOex` `ACCEPT_READY` 31/31/0/0; exact-range `ses_f693863c7ffe8xE4rlEp99yjDq` `ACCEPT_READY` 14/14/0/0 over `4e5ef1f6...e7deeb91`; integration gates: 43/43 candidate-path parity, server/client tsc+build, 14 decisive suites, `git diff --check`, all clean; wave audit `ses_f692956d5ffemfOtICwokWAPU3` F1 correction `TT-READINESS-TERM-C03R3` integrated and re-audited `AUDIT_CLEAR` 9/9 (`ses_f690e4b3fffeQ7Z62jwtkA6X3E`) | Closed in source; verify selected-term outputs only during the bounded runtime deployment after the approved term-cache catch-up; no generation/publication from this lane |
-| TT-READINESS-TERM-C03R3 | Migrate the canonical readiness diagnostic to the resolved per-term entries so it reports `READY` for ordinary year-long + rotation datasets | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 9/9) | MEDIUM server source; HIGH generation | `work/readiness-term-c03r3`; base `94b5c7bd`; candidate `5256dc5a`; merge `0abfe457` on `origin/main` | None in source; live generation remains separately gated | Wave audit `ses_f692956d5ffemfOtICwokWAPU3` F1 was the driver; fresh QA `ses_f6914cdc2ffe4ZbvcQq14Kxqw0` `ACCEPT_READY` 17/17/0/0 (positive control `READY`/`generateAllowed=true`, mutant reproduces the old false block); re-audit `ses_f690e4b3fffeQ7Z62jwtkA6X3E` `AUDIT_CLEAR` 9/9 with F1 closure and no missed consumer; integration gates: server tsc/build, readiness 16/16, tt-output-c03r3 12/12, placement-term 8/8, candidate parity and `git diff --check` clean | Closed; the term-cache catch-up apply remains the next operator decision |
+| TT-READINESS-TERM-C03R3 | Migrate the canonical readiness diagnostic to the resolved per-term entries so it reports `READY` for ordinary year-long + rotation datasets | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 9/9) | MEDIUM server source; HIGH generation | `work/readiness-term-c03r3`; base `94b5c7bd`; candidate `5256dc5a`; merge `0abfe457` on `origin/main` | None in source; live generation remains separately gated | Wave audit `ses_f692956d5ffemfOtICwokWAPU3` F1 was the driver; fresh QA `ses_f6914cdc2ffe4ZbvcQq14Kxqw0` `ACCEPT_READY` 17/17/0/0 (positive control `READY`/`generateAllowed=true`, mutant reproduces the old false block); re-audit `ses_f690e4b3fffeQ7Z62jwtkA6X3E` `AUDIT_CLEAR` 9/9 with F1 closure and no missed consumer; integration gates: server tsc/build, readiness 16/16, tt-output-c03r3 12/12, placement-term 8/8, candidate parity and `git diff --check` clean | Closed; the term-cache catch-up capture completed 2026-09-14 (`9c19b772`); the apply remains the next operator decision (separate HIGH) |
 | TT-SYNC-TERM-C03R4 | Reconcile the mounted “Sync timetable setup” workflow against canonical per-term derived demand with actor-school authority, version CAS, and replay idempotence | `SUPERSEDED` (by `TT-SYNC-TERM-C03R5`) | MEDIUM source/test; no live mutation | `work/tt-sync-term-c03r4`; `def0dcc9...09027671`; merge `5328c9f6` | None in source | Fresh QA `ses_f67812ec1ffeuHBDkIaaZE7Dlg` `ACCEPT_READY` 19/19/0/0; wave-audited `AUDIT_CLEAR` 16/16 with the non-blocking X2 stale-authority interleave residual (capsule at `docs/reviews/tt-sync-term-c03r4-20260913/wave-completion-audit.md`) | Historical; the residual snapshot-provenance gap is corrected by `TT-SYNC-TERM-C03R5` (candidate `5163a335`, merge `bbd6b0df`). Do not deploy R4 separately |
 | TT-SYNC-TERM-C03R5 | Bind Sync timetable setup output to one complete source snapshot and fail closed with `SOURCE_AUTHORITY_STALE` on any covered-input change between computation and persistence | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 6/6/0/0 | MEDIUM source/test; no live mutation | `work/tt-sync-term-c03r5`; base `486bf8c7`; candidate `5163a335`; integrated via merge `bbd6b0df` | None in source; deployment remains separately gated HIGH | Fresh QA `ses_f65865e78ffeyS7ipb1PYVeg07` `ACCEPT_READY` 21/21/0/0 (Serializable transaction-bound read snapshot; complete `GenerationInputSnapshot` fingerprint comparison inside the final Serializable write tx before any write; deterministic R5-A/B/C interleaves for room capacity, FacultySubject scope, grade-shift window with typed 409 + zero writes and guard-invisibility proofs; `isInputSnapshotBound` load-bearing R5-MUTANT control; R5-D empty-mirror fail-closed; A–I preserved; 16/16 disposable-PostgreSQL; tsc/build; consumer regressions); wave audit `ses_f656caa06ffeOlTTDGRFEFs0l3` `AUDIT_CLEAR` 6/6/0/0 (capsule at `docs/reviews/tt-tl-c03-cycle-20260913/wave-completion-audit.md`) | Closed in source and wave-audited; do not deploy without its own reviewed HIGH action |
 | COMPANION-SSO-C01 | Implement the complete ATLAS side of EnrollPro↔ATLAS SSO: Flow A callback/exchange/local session, Flow B reverse authorize/exchange with hash-only one-time codes, strict validation, and the Integrated Systems AppShell area | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 8/8 | MEDIUM source (security-sensitive); live activation HIGH | `work/companion-sso-c01`; base `a284d775`; product `3e0103a3`; correction `fbb9dc63`; merge `c989f03d` | Live activation, env configuration, and companion-repo changes remain separately gated HIGH actions | Fresh QA `ses_f694593f8ffe2VZhrp3QQSUkBV` `ACCEPT_READY` 24/24/0/0 (server 18/18 mounted, client 14/14, role-intersection negative controls, atomic consume/concurrency, zero plaintext/leak, builds + isolated startup); round-1 QA found and the correction fixed the upstream allowed-role gap; wave audit `ses_f693a866bffeaOWmjfKrP3P45W` `AUDIT_CLEAR` 8/8 | Closed in source and wave-audited; do not deploy, configure env, or mutate companions from this lane (live activation is a separate HIGH action) |
-| TERM-CACHE-CATCHUP-PREVIEW | Capture the live zero-write term-authority preview fingerprint/confirmation as the reviewed basis for the later term-cache catch-up apply | `BLOCKED` — `EXTERNALLY_BLOCKED(LOGIN_CONSUMED)`; login consumed | LOW authorized (one login audit delta + zero-write preview); follow-on apply HIGH | Packet `docs/prompts/term-cache-catchup-preview-2026-09-13.md`; evidence `28617cab` + merge `23ad9d71` on `integration/term-cache-preview-20260913` | EnrollPro host `dev-jegs` (`100.120.169.123:5002`) re-verified reachable 2026-09-14 (TCP `5002` open; direct settings/integration endpoints 200); the 2026-09-13 login is consumed; a fresh one-login authorization is required for re-capture | Custodian login audit 785 (actor 46); preview HTTP 503 `ENROLLPRO_UNREACHABLE` (server log 13:14:14.513Z); zero cache write; fresh QA `ACCEPT_READY` 6/6/0/0; capsule `docs/reviews/term-cache-catchup-preview-20260913/` | Operator returns a fresh one-login authorization sentence (host re-verified reachable 2026-09-14); apply remains locked and unbound |
+| TERM-CACHE-CATCHUP-PREVIEW | Capture the live zero-write term-authority preview fingerprint/confirmation as the reviewed basis for the later term-cache catch-up apply | `INTEGRATED` (capture complete; apply remains locked and unbound) | LOW authorized (one login audit delta + zero-write preview); follow-on apply HIGH | Packet `docs/prompts/term-cache-catchup-preview-2026-09-13.md`; blocked attempt `28617cab` + merge `23ad9d71`; re-capture branch `integration/term-cache-preview-20260914`, base `29284ac6`, candidates `8d28ec75` + `9c19b772` | None for the capture; the term-cache apply is a separate HIGH action needing its own fingerprinted packet and pre-approval audit | Custodian `ses_f60c6ea9bffeun31inR12PLXRP` (login audit 793, actor 46, 2026-09-14T09:27:58.608Z); preview HTTP 200 `state=READY`, `format=TRIMESTER`, fingerprint `d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81`, `confirmationText=SAVE_TERM_AUTHORITY_1_9`, zero-write; off-cycle external login 792 disclosed and re-based; fresh QA `ses_f60bc2230ffePHmYhV99tiOfTm` `ACCEPT_READY` 8/8/0/0 (independent fingerprint recomputation + raw upstream parity + live DB signatures); evidence `docs/reviews/term-cache-catchup-preview-20260914/` | Author the fingerprinted apply packet binding `SAVE_TERM_AUTHORITY_1_9` + fingerprint `d4cd7cc4…`; independent pre-action review and explicit HIGH approval required; do not apply the cache without them |
 | DEMAND-C01 | Replace annual Curriculum Requirements authority with one deterministic derived-demand contract | `INTEGRATED` | MEDIUM cross-layer authority | `work/derived-demand-c01`; `ec7d54ed...c9263b5f`; integration `b96caf40` | Live deployment and explicit rollover term-cache sync remain separate | Primary planner reproduced C01/C01R/C01R2 authority, timetable, publication, term, TypeScript, and production-build gates; doc-only merge conflicts were reconciled | Closed in source; verify derived year-9 demand during bounded runtime deployment/sync |
 | UX-C01R | Gate every Timetable generation action on the canonical generation diagnostic; stop Dashboard overclaiming final readiness | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/ux-c01-derived-setup`; `89440321...9e280369`; merge `fc8796c6` | Combined positive readiness browser matrix belongs to the bounded runtime deployment | Fresh independent QA ACCEPT_READY: 36/36 UX-C01R + 58/58 operator UX + 21/21 guardrails client; 6/6 + 11/11 + 9/9 + 5/5 server incl. disposable-PostgreSQL zero-write; both tsc/build; field-for-field contract parity; integration gates and isolated mount probe reproduced on the merged tree; runtime-map attribution corrected at integration | Closed in source; verify the positive readiness UX during the bounded runtime deployment |
 | TL-RR01 | Preview and optionally carry forward last year's Teaching Load into empty current-year demand | `INTEGRATED` | MEDIUM preview; HIGH apply | `work/teaching-load-carry-forward-tlrr01`; `89440321...23eae7de`; integration merge `618589dc` | Live preview requires deployed demand authority and synced year-9 terms; apply remains separately gated | Independent QA ACCEPT_READY: reproduced 8/8 authority+mutant, 11/11 client helpers, 60/60 disposable-PostgreSQL mounted-route, server/client type-checks+builds, health 200 on a live built process; the pre-existing `teaching-load-reconciliation-route.test.ts` failure reproduced identically on base and candidate; only `CHANGELOG.md` conflicted (docs-only union) | Closed in source at `origin/main` `618589dc`; do not invoke carry-forward apply without a separate reviewed preview and explicit HIGH approval |
@@ -579,11 +593,10 @@ hard blockers before separately approving publication.
    approved and executed 2026-09-12 and the runtime is restored under the
    supervised release (see the RUNTIME-SUPERVISION-LIVE-INSTALL-RESTORE row);
    fresh QA `ACCEPT_READY` 9/9; post-action wave audit `AUDIT_CLEAR` 14/14 — cycle complete. The
-   term-cache catch-up capture (blocked on the consumed 2026-09-13 login; the
-   EnrollPro host was re-verified reachable 2026-09-14) and its separately
-   gated apply remain separate data actions and must
-   not share this listener restore.
-6. After an approved term-cache catch-up AND the integrated
+   term-cache catch-up capture completed 2026-09-14 (`9c19b772`); its
+   separately gated apply remains a separate data action and must not share
+   this listener restore.
+6. After an approved term-cache catch-up apply (capture complete 2026-09-14) AND the integrated
    `TT-READINESS-TERM-C03R3` correction (wave-audit F1), run the canonical
    readiness diagnostic for the live school/year. Only if it proves zero hard
    blockers and exact source freshness, prepare the fingerprinted generation
@@ -603,16 +616,13 @@ hard blockers before separately approving publication.
    6/4/2/0 (exactly two mandatory rows 4–5 blocked on
    `TERM_STRUCTURE_UNAVAILABLE`), evidence merged at `dbde5689`, and session
    cleanup. The post-action wave audit is complete (`AUDIT_CLEAR` 11/11,
-   capsule committed 2026-09-13). Next: the prepared term-cache catch-up
-   capture is blocked on the consumed 2026-09-13 login (the EnrollPro host was
-   re-verified reachable 2026-09-14); after a fresh one-login authorization,
-   re-capture,
-   then apply (separate HIGH), then re-run rows 4–5 and the readiness
-   diagnostic before closing.
+    capsule committed 2026-09-13). Next: the term-cache catch-up capture is
+    complete (`9c19b772`); prepare the separately gated apply (HIGH, with its
+    own fingerprinted packet and pre-approval audit), then re-run rows 4–5 and
+    the readiness diagnostic before closing.
 8. `TT-READINESS-TERM-C03R3` is integrated at merge `0abfe457` (fresh QA
    17/17) and wave-audited `AUDIT_CLEAR` 9/9. The term-cache catch-up capture
-   is blocked on the consumed 2026-09-13 login (the EnrollPro host was
-   re-verified reachable 2026-09-14) and the apply remains locked and unbound. The separately tracked audit-F3 defect
+   is complete (`9c19b772`) and the apply remains locked and unbound. The separately tracked audit-F3 defect
    (`timetable-sync-setup.service.ts` rebuilt unassigned items without term
    identity) is fixed by `TT-SYNC-TERM-C03R4`.
 9. `TT-SYNC-TERM-C03R5` (supersedes `TT-SYNC-TERM-C03R4`) and the
@@ -648,11 +658,10 @@ hard blockers before separately approving publication.
     410 and no client caller remains. D4 remains an honest-exclusion
     follow-up recorded in the S1 handoff.
 12. Existing runtime/data gates are unchanged: the shared runtime remains
-    release `3d916b26`; the term-cache catch-up apply (capture blocked on the
-    consumed 2026-09-13 login; host reachable again), Teaching Load apply,
-    generation,
-    publication, deployment, and migration remain separately gated HIGH actions
-    and are not authorized by this cycle.
+    release `3d916b26`; the term-cache catch-up apply (capture complete
+    `9c19b772`), Teaching Load apply, generation, publication, deployment, and
+    migration remain separately gated HIGH actions and are not authorized by
+    this cycle.
 13. `ENROLLPRO-PROXY-RECOVERY-C01` is integrated at `54dce67b` (merge
     `bc61ecd5`) and its wave audit was closed by the recovery cycle (corrected
     packet audited at `b258357a`; fresh QA 10/10/0/0; fresh auditor
@@ -661,8 +670,8 @@ hard blockers before separately approving publication.
     `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`). The revised
     exact HIGH approval sentence is returned NOT GRANTED;
     on approval, execute the packet, verify its acceptance matrix, and then
-    resume the EnrollPro-dependent rows (the host is reachable again; a fresh
-    one-login authorization is needed for the term-cache re-capture). Generation
+    resume the EnrollPro-dependent rows (the term-cache capture is complete;
+    only its separately gated apply remains). Generation
     and publication remain locked.
 
 ## Safe parallel work now
@@ -682,10 +691,9 @@ hard blockers before separately approving publication.
   `d44f29e0` is a manual non-supervised last resort only); no stream is
   currently authorized to stop/start the runtime again, and read-only
    monitoring is permitted. The mandatory acceptance rows blocked on the term
-   snapshot are re-verified after the separately approved term-cache catch-up;
-   its capture is blocked on the consumed 2026-09-13 login (the EnrollPro host
-   was re-verified reachable 2026-09-14; a fresh one-login authorization is
-   needed to re-capture). Its apply remains separately gated.
+   snapshot are re-verified after the separately approved term-cache catch-up
+   apply; the capture is complete (`9c19b772`) and the apply remains
+   separately gated.
   Carry-forward apply, suggestion apply, generation, and publication remain
   separately gated. The remaining defaulting `parseSchoolId` sites on non-listed
   runtime mutation routes and the `DEFAULT_SCHOOL_ID` backlog pages (MapEditor,
@@ -713,11 +721,10 @@ hard blockers before separately approving publication.
 - `RUNTIME-SUPERVISION-C01` is integrated in source at merge `0ec3b8f7`; its
   original install packet is `SUPERSEDED` and the deploy-as-restore execution is
   complete (runtime restored; post-action wave audit `AUDIT_CLEAR` 14/14). No other stream may
-  install/modify a Windows task
-   or service, or alter the shared 5001/5174 runtime. The term-cache
-   catch-up capture is blocked on the consumed 2026-09-13 login (the EnrollPro
-   host was re-verified reachable 2026-09-14); its apply stays separate and
-   unbound.
+   install/modify a Windows task
+    or service, or alter the shared 5001/5174 runtime. The term-cache
+    catch-up capture is complete (`9c19b772`); its apply stays separate and
+    unbound.
 - `ENROLLPRO-PROXY-RECOVERY-C01` is integrated at `54dce67b` and its wave audit
   was closed by the recovery cycle (corrected packet audited at `b258357a`; r2
   `AUDIT_CLEAR` 11/11/0/0); the live environment/install/restart packet remains
@@ -812,10 +819,10 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   pre-stop recheck PASS, switch phase (release `3d916b26` live; evidence merge
   `dbde5689`), QA acceptance tally 6/4/2/0 (rows 4–5 blocked on
   `TERM_STRUCTURE_UNAVAILABLE`), and session cleanup (logout; 401 `NO_TOKEN`).
-  Awaited: EnrollPro host restoration, then a fresh one-bounded-login
-  authorization for the term-cache catch-up re-capture
+  Awaited: none for the capture (completed 2026-09-14, `9c19b772`); the
+  term-cache apply remains separately gated
   (`docs/prompts/term-cache-catchup-preview-2026-09-13.md`; see the
-  `term-cache-catchup-preview-20260913` cycle bullet). The post-action wave audit returned
+  `term-cache-catchup-preview-20260914` cycle bullet). The post-action wave audit returned
   `AUDIT_CLEAR` 11/11 on 2026-09-13 (capsule at
   `docs/reviews/tt-tl-runtime-acceptance-20260912/wave-completion-audit-postaction.md`).
   No TT-TL executor or QA return remains in flight.
@@ -847,24 +854,22 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   candidate is integrated at merge `c989f03d`. Live activation/deployment/env
   configuration and any EnrollPro/SMART/AIMS change remain separate HIGH
   actions; Flow A `POST` variant remains deferred per its packet.
-- Term-cache catch-up preview: `BLOCKED` —
-  `EXTERNALLY_BLOCKED(LOGIN_CONSUMED)`. The authorized 2026-09-13 login
-  is consumed (audit 785); the zero-write preview returned 503 because the
-  EnrollPro host was offline then, and the host was re-verified reachable
-  2026-09-14 (TCP `5002` open; direct settings/integration endpoints 200).
-  Awaiting a fresh one-login
-  authorization for re-capture (sentence in
-  `docs/prompts/term-cache-catchup-preview-2026-09-13.md` §4); the apply remains
-  locked and unbound.
+- Term-cache catch-up preview: `INTEGRATED` (capture complete). The 2026-09-14
+  re-capture (`9c19b772`; custodian `ses_f60c6ea9bffeun31inR12PLXRP`, login
+  audit 793) produced the live ordered terms, fingerprint
+  `d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81`,
+  `confirmationText` `SAVE_TERM_AUTHORITY_1_9`, and zero-write before/after
+  signatures; fresh QA `ses_f60bc2230ffePHmYhV99tiOfTm` `ACCEPT_READY`
+  8/8/0/0. No return remains; the apply remains locked and unbound pending its
+  own fingerprinted packet, pre-approval audit, and explicit HIGH approval.
 - TT-UX01R2 is ratified at `a0ca05e5`; the primary planner accepts the bounded
   one-click clean-placement + prominent Undo contract. Advanced Requests and
   duplicate-publish cleanup remain non-blocking follow-ups.
 - The shared runtime serves supervised release `3d916b26` on 5001/5174
   (health/ready/Tailnet 200), boot task re-pointed, legacy task disabled. The
   prior `EPHEMERAL_DEPLOYMENT` is superseded. Next bounded runtime step: the
-  term-cache catch-up re-capture (blocked on the consumed 2026-09-13 login; the
-  EnrollPro host is reachable again; fresh one-login authorization needed; its
-  apply remains a separate HIGH
+  separately gated term-cache catch-up apply (the capture is complete at
+  `9c19b772`; apply remains a separate HIGH
   action).
 - `ENROLLPRO-PROXY-RECOVERY-C01`: closed; no executor or QA return remains. The
   corrected packet candidate `b258357a` passed fresh QA
