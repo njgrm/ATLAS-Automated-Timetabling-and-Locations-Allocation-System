@@ -25,16 +25,23 @@ preparation.
 
 Apply the already captured ordered term authority for school 1 / EnrollPro
 school year 9 (`2030-2031`, TRIMESTER, T1/T2/T3) to the single active ATLAS
-school-year mirror so that:
+school-year mirror so that exactly this declared change set occurs:
 
 - mirror `223.termContractCache` receives the captured ordered-term contract;
 - mirror `223.termContractCachedAt` becomes non-null;
+- mirror `223.updatedAt` advances to a new engine-managed timestamp, because
+  `EnrollProSchoolYearMirror.updatedAt` is declared `@updatedAt` in
+  `prisma/schema.prisma` and Prisma sets it on the apply's non-empty
+  `updateMany`;
 - exactly one school/year-scoped `TERM_CACHE_SYNC_APPLIED` audit row is created
   for actor = the authorized login actor.
 
-Nothing else is in scope. This is one bounded live-data write, executed by one
-apply request over the deployed runtime. It is not a rollover, not a Teaching
-Load action, not a timetable edit/sync, and not generation or publication.
+The separately authorized login delta (exactly one `LOCAL_LOGIN_SUCCESS` audit
+row plus that actor's `last_login_at`) is the only other write in the whole
+action. Nothing else is in scope. This is one bounded live-data write, executed
+by one apply request over the deployed runtime. It is not a rollover, not a
+Teaching Load action, not a timetable edit/sync, and not generation or
+publication.
 
 ## 2. Exact identities (re-verified read-only on 2026-09-14, ~13:32–13:49 UTC)
 
@@ -63,7 +70,7 @@ Telemetry note (non-blocking, observed): the `cli.mjs status` snapshot reports
 | Target | `atlas_recovery_clean_rebuild_20260905` on `localhost:5432` (PostgreSQL) |
 | Schools | 2 rows: id `1` `HINIGARAN NATIONAL HIGH SCHOOL`; id `261` (test fixture) |
 | Active mirror set (school 1) | exactly **one** active, non-archived mirror: id `223` |
-| Mirror 223 | school 1, EnrollPro year `9`, label `2030-2031`, `is_active=true`, `is_archived=false`, `term_contract_cache = NULL`, `term_contract_cached_at = NULL` |
+| Mirror 223 | school 1, EnrollPro year `9`, label `2030-2031`, `is_active=true`, `is_archived=false`, `term_contract_cache = NULL`, `term_contract_cached_at = NULL`, `updated_at = 2026-09-10T11:18:14.634Z` (bound; see §3), `created_at = 2026-09-10T11:18:14.634Z` |
 | Mirror 1 | school 1, year `8`, `2029-2030`, archived (read-only history) |
 | `TERM_CACHE_SYNC_APPLIED` audit count | `0` (no row has ever existed) |
 | Audit baseline | max `audit_logs.id` = `793`; total rows `242`; zero rows with id > 793 |
@@ -101,6 +108,8 @@ Telemetry note (non-blocking, observed): the `cli.mjs status` snapshot reports
   (independent recomputation this session from the live contract, production
   normalization path + independent canonicalization; both matched)
 - Persisted semantic revision / cachedAt before apply: `NULL` / `NULL`
+- Mirror 223 pre-apply `updated_at` (bound exact value; engine-managed Prisma
+  `@updatedAt` and expected to advance on the apply): `2026-09-10T11:18:14.634Z`
 - Ordered terms (exact, order-sensitive):
 
 | identity | displayLabel | order | startDate | endDate |
@@ -142,9 +151,10 @@ login and without an apply request**.
 4. **Database target and signatures.** Connect read-only through the durable
    env (`DATABASE_URL`), printing only host/database/sanitized values.
    Confirm `current_database() = atlas_recovery_clean_rebuild_20260905` and
-   re-capture the §2 database table. If mirror 223 is no longer
-   `NULL`/`NULL`, or a `TERM_CACHE_SYNC_APPLIED` row now exists, stop for
-   replanning (possible unapproved apply or competing writer).
+   re-capture the §2 database table, including mirror 223 `updated_at`. If
+   mirror 223 is no longer `NULL`/`NULL`, if its `updated_at` differs from the
+   §3 bound value, or if a `TERM_CACHE_SYNC_APPLIED` row now exists, stop for
+   replanning (possible unapproved apply, competing writer, or row touch).
 5. **Active-year election.** Confirm exactly one active, non-archived school-1
    mirror and that it is id `223` / EnrollPro year `9` / `2030-2031`.
 6. **Upstream contract.** Through the currently configured `ENROLLPRO_API`
@@ -233,14 +243,19 @@ Database (verify in §8):
 - mirror `223.term_contract_cache` = the captured contract (school 1, school
   `{id:9, yearLabel:"2030-2031"}`, format `TRIMESTER`, exact ordered terms,
   `semanticRevision=a51b62a2…`, `activeTermState.availability=UNRESOLVED`);
-- mirror `223.term_contract_cached_at` = a new non-null timestamp;
+- mirror `223.term_contract_cached_at` = a new non-null timestamp (record the
+  exact value; it is the §9 rollback guard slot `${POST_APPLY_CACHED_AT}` and
+  must equal the response `cachedAt`);
+- mirror `223.updated_at` = a new engine-managed timestamp that advanced from
+  the §3 bound pre-apply value (record the exact value; equality with
+  `term_contract_cached_at` is neither required nor excluded);
 - exactly one new `TERM_CACHE_SYNC_APPLIED` audit row: `schoolId=1`,
   `schoolYearId=9`, `actorId` = the authorized login actor,
   `targetIds=[9]`, metadata
   `{source:"enrollpro-term-cache-catchup", yearLabel:"2030-2031",
   semanticRevision:"a51b62a2…", previousSemanticRevision:null, termCount:3,
   format:"TRIMESTER", activeTermAvailability:"UNRESOLVED", completedAt:<ISO>}`;
-- no other table or row changes (see §8.3).
+- no changes beyond this declared four-part set plus the login delta (§8.3).
 
 ## 8. Mandatory post-apply verification
 
@@ -252,13 +267,18 @@ Database (verify in §8):
 2. **Exact audit row.** Confirm exactly one new `TERM_CACHE_SYNC_APPLIED` row
    with id above the §2 baseline max, actor = login actor, school 1, year 9,
    `targetIds=[9]`, and the §7 metadata. Report the raw id and `createdAt`.
-3. **Immutability proof.** Confirm unchanged: `faculty_subjects` 183,
-   `generation_runs` 1, `published_schedule_revisions` 0,
-   `teaching_load_cycles` 2, `_prisma_migrations` 2; mirror 1 untouched;
-   no rollover/sync/Teaching Load/generation/publication/migration audit rows;
-   the only new audit rows attributable to this action are the one login row
-   (§5) and the one apply row. Any other new row must be attributed and
-   disclosed, or the action stops as an incident.
+3. **Immutability and exact-delta proof.** Re-read mirror `223` and confirm it
+   changed only in `term_contract_cache`, `term_contract_cached_at`, and the
+   engine-managed `updated_at` (advanced from the §3 bound value); record the
+   exact post-apply values of `term_contract_cached_at` (the §9 rollback guard
+   slot `${POST_APPLY_CACHED_AT}`) and `updated_at`. Confirm every other
+   mirror-223 column is unchanged (school, year, label, active/archived flags,
+   archive metadata) and mirror 1 is untouched. Confirm the global set is
+   unchanged: `faculty_subjects` 183, `generation_runs` 1,
+   `published_schedule_revisions` 0, `teaching_load_cycles` 2,
+   `_prisma_migrations` 2. The only new audit rows attributable to this action
+   are the one login row (§5) and the one apply row. Any other change must be
+   attributed and disclosed, or the action stops as an incident.
 4. **TT-TL runtime-acceptance rows 4–5 re-run** with the custodian's retained
    session (these were the two mandatory rows blocked on the missing term
    snapshot; see the `TT-TL-RUNTIME-ACCEPTANCE` register row):
@@ -294,23 +314,92 @@ Database (verify in §8):
    stays open (`DEPLOYED`-style compound state where applicable), and no
    generation or publication may be prepared.
 
-## 9. Failure handling and rollback
+## 9. Failure handling and rollback (exact, pre-reviewed)
 
-If the apply **committed** but any mandatory §8 verification fails:
+If the apply **committed** but any mandatory §8 verification fails, the live
+executor executes **exactly one** run of the pre-reviewed rollback transaction
+below, then stops for replanning.
 
-1. The live executor restores mirror `223` in one transaction/statement:
-   `term_contract_cache = NULL`, `term_contract_cached_at = NULL`, guarded by a
-   precondition that the current persisted `semanticRevision` equals
-   `a51b62a2…` (fail closed to the planner otherwise). Implement it as a
-   reviewed, single-purpose script or reviewed SQL — never an ad-hoc wildcard
-   update.
-2. The immutable `TERM_CACHE_SYNC_APPLIED` audit row is **retained**; it is
-   never deleted, edited, or hidden.
-3. The rollback is recorded separately and truthfully (timestamp, actor,
-   before/after values, reason) in the execution evidence. Do not claim the
-   operation never happened.
-4. Stop for replanning. No retry, no second apply, no compensating extra writes
-   beyond the exact mirror-223 restore above.
+- Raw SQL is mandatory for the restore: it returns `updated_at` to its exact
+  bound pre-apply value. An ORM `update`/`updateMany` would re-bump
+  `updated_at` implicitly and is **not** authorized for the rollback.
+- Substitution slots (the only two permitted edits before execution):
+  - `${PRE_APPLY_UPDATED_AT}` = `2026-09-10T11:18:14.634Z` (bound in §3; a
+    literal, already reviewed).
+  - `${POST_APPLY_CACHED_AT}` = the exact `term_contract_cached_at` value
+    recorded in the §8 read-back (ISO-8601 UTC with milliseconds; must equal
+    the apply response `cachedAt`; if they differ, record both and stop —
+    never guess).
+- The immutable `TERM_CACHE_SYNC_APPLIED` audit row is **retained**; the
+  transaction never touches `audit_logs`.
+- Run with `ON_ERROR_STOP` inside one transaction; any guard failure raises and
+  aborts with **zero changes**.
+
+```sql
+BEGIN;
+
+-- One guarded, single-purpose rollback of mirror 223 only.
+DO $$
+DECLARE affected integer;
+BEGIN
+  UPDATE enrollpro_school_year_mirrors
+     SET term_contract_cache = NULL,
+         term_contract_cached_at = NULL,
+         updated_at = TIMESTAMPTZ '${PRE_APPLY_UPDATED_AT}'
+   WHERE id = 223
+     AND school_id = 1
+     AND enrollpro_school_year_id = 9
+     AND is_active = TRUE
+     AND is_archived = FALSE
+     AND term_contract_cache IS NOT NULL
+     AND term_contract_cached_at IS NOT NULL
+     AND term_contract_cache ->> 'semanticRevision' = 'a51b62a26e27416c3d1295697f144d7ae5de5c56bb6a5e0d25bcb0c24dd8abb9'
+     AND term_contract_cached_at = TIMESTAMPTZ '${POST_APPLY_CACHED_AT}';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 1 THEN
+    RAISE EXCEPTION 'TERM_CACHE_ROLLBACK_GUARD_FAILED affected=%', affected;
+  END IF;
+END $$;
+
+-- Post-restore assertion inside the same transaction.
+DO $$
+DECLARE ok boolean;
+BEGIN
+  SELECT (term_contract_cache IS NULL
+          AND term_contract_cached_at IS NULL
+          AND updated_at = TIMESTAMPTZ '${PRE_APPLY_UPDATED_AT}')
+    INTO ok
+    FROM enrollpro_school_year_mirrors
+   WHERE id = 223
+     AND school_id = 1
+     AND enrollpro_school_year_id = 9
+     AND is_active = TRUE
+     AND is_archived = FALSE;
+  IF ok IS NOT TRUE THEN
+    RAISE EXCEPTION 'TERM_CACHE_ROLLBACK_VERIFY_FAILED';
+  END IF;
+END $$;
+
+COMMIT;
+```
+
+Rollback rules:
+
+1. Target: **only** mirror id `223`, school 1, EnrollPro year 9, with
+   `is_active = true` and `is_archived = false`; exactly one affected row is
+   required or the whole transaction aborts with zero changes.
+2. Guards: persisted `semanticRevision = a51b62a2…` **and** the exact
+   post-apply `term_contract_cached_at` must both hold at execution time.
+3. Restore: `term_contract_cache = NULL`, `term_contract_cached_at = NULL`,
+   `updated_at = 2026-09-10T11:18:14.634Z` (the exact bound pre-apply value).
+4. After a committed rollback, verify read-only that mirror 223 is
+   `NULL`/`NULL` with the bound `updated_at`, that the audit row is retained,
+   and record the rollback truthfully (timestamp, executor, before/after
+   values, reason) in the execution evidence. Do not claim the operation never
+   happened.
+5. On any guard failure, exception, or `affected <> 1`: the transaction aborts
+   with zero changes; **stop for replanning** — never retry the rollback
+   without a new review.
 
 If the apply did **not** commit (typed `4xx/5xx`, or DB read-back shows
 `NULL`/`NULL` and no audit row), no rollback is needed; record the typed error
@@ -352,32 +441,42 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 > `3d916b261d6a2db71b153558ac8c2d151e2fccd0`) and database
 > `atlas_recovery_clean_rebuild_20260905` only, as follows: (1) let the live
 > executor re-run the read-only preflight in §4 and stop before any login or
-> write if any runtime, database, mirror, audit-baseline, upstream-contract, or
-> fingerprint check differs from the packet's captured values; (2) authorize
-> exactly ONE fresh local browser login at `https://njgrm.buru-degree.ts.net`
-> for the named QA/session custodian (expected delta: exactly one
-> `LOCAL_LOGIN_SUCCESS` audit row plus that actor's `last_login_at`, and no
-> other authentication side effect), whose authenticated actions are exactly
-> the single `POST /api/v1/runtime/term-authority/apply` with
+> write if any runtime, database, mirror, audit-baseline, `updated_at`,
+> upstream-contract, or fingerprint check differs from the packet's captured
+> values; (2) authorize exactly ONE fresh local browser login at
+> `https://njgrm.buru-degree.ts.net` for the named QA/session custodian
+> (expected delta: exactly one `LOCAL_LOGIN_SUCCESS` audit row plus that
+> actor's `last_login_at`, and no other authentication side effect), whose
+> authenticated actions are exactly the single
+> `POST /api/v1/runtime/term-authority/apply` with
 > `{"schoolId":1,"confirmationText":"SAVE_TERM_AUTHORITY_1_9","fingerprint":"d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81"}`
-> — expected successful write being mirror `223` receiving the captured
-> ordered-term contract, `termContractCachedAt` becoming non-null, and exactly
-> one scoped `TERM_CACHE_SYNC_APPLIED` audit row — plus the authenticated
-> read-only acceptance GETs of §8.4 (TT-TL rows 4–5); and authorize the live
-> executor to perform, only if that apply commits but the mandatory post-write
-> verification fails, the single §9 rollback restoring mirror 223
-> `termContractCache`/`termContractCachedAt` to NULL/NULL while retaining the
-> immutable audit row; (3) forbid every action in
+> — the authorized apply changing exactly mirror `223.term_contract_cache`,
+> mirror `223.term_contract_cached_at`, mirror `223.updated_at` (the
+> engine-managed Prisma `@updatedAt` timestamp advancing on the non-empty
+> `updateMany`), and exactly one scoped `TERM_CACHE_SYNC_APPLIED` audit row —
+> plus the authenticated read-only acceptance GETs of §8.4 (TT-TL rows 4–5);
+> and authorize the live executor to perform, only if that apply commits but
+> the mandatory post-write verification fails, exactly one execution of the
+> pre-reviewed guarded rollback transaction in §9 (raw SQL; targeting only
+> mirror id `223` / school 1 / EnrollPro year 9 with `is_active = true` and
+> `is_archived = false`; requiring the persisted `semanticRevision`
+> `a51b62a2…` and the exact post-apply `term_contract_cached_at`; restoring
+> `term_contract_cache = NULL`, `term_contract_cached_at = NULL`, and the
+> exact bound pre-apply `updated_at` `2026-09-10T11:18:14.634Z`; requiring
+> exactly one affected row and self-verifying inside the same transaction;
+> retaining the immutable audit row; and aborting with zero changes and
+> stopping on any guard failure); (3) forbid every action in
 > §10 (no second login, no second apply or replay request, no
 > rollover/sync/archive, no Teaching Load action, no timetable
 > edit/sync/generation/publication, no migration/schema operation, no runtime
 > deployment/restart/task/env change, no Tailscale or companion mutation);
 > (4) require the post-apply acceptance matrix in §8 (read-back semantic
-> parity, exact audit row, immutability proof, TT-TL runtime-acceptance rows 4–5
-> re-run, canonical readiness diagnostic read-only with an honest typed
-> blocker list); and (5) return the evidence to the head planner, who must
-> obtain a fresh post-action Wave Completion Auditor before closing TT-TL
-> runtime acceptance or unlocking generation or publication.
+> parity, exact audit row, immutability proof that the only changed mirror-223
+> fields are the declared three plus the one audit row, TT-TL
+> runtime-acceptance rows 4–5 re-run, canonical readiness diagnostic read-only
+> with an honest typed blocker list); and (5) return the evidence to the head
+> planner, who must obtain a fresh post-action Wave Completion Auditor before
+> closing TT-TL runtime acceptance or unlocking generation or publication.
 
 ## Appendix A — Zero-write failure matrix (reviewed source + committed tests)
 
@@ -410,3 +509,10 @@ transaction, the complete-set active-year re-election inside the transaction,
 and the guarded compare-and-set on `termContractCachedAt`. This packet performs
 a single request with no competing writer expected; any `409` is recorded and
 stops the action without a retry.
+
+Successful-write note (implicit ORM-managed mutation): the applied `updateMany`
+is the only write to mirror 223, and Prisma's `@updatedAt` semantics set
+`updated_at` on that non-empty update — which is why the declared write set
+(§1/§7) and the §9 rollback include `updated_at` explicitly. An already-current
+replay performs no write and changes neither the cache, the cached-at
+timestamp, nor `updated_at`.
