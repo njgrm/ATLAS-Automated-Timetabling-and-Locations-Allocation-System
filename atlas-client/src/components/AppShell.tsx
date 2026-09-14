@@ -8,7 +8,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
-import { captureBridgeToken, getBackHref as _getBackHref } from '@/lib/bridge';
+import { captureBridgeToken } from '@/lib/bridge';
+import { resolveEnrollProLogoutRedirect } from '@/lib/companion-config';
 import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
 import { invalidateActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import {
@@ -61,12 +62,8 @@ import {
 	type NavItemDef,
 } from './app-shell/navigation';
 
-// Re-import to satisfy linter without unused warning when bridge href is used elsewhere later.
-void _getBackHref;
-
 /* ─── Constants ─── */
 
-const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
 const SHELL_BRANDING_CACHE_KEY = 'atlas:shell-branding:v1';
 const DEFAULT_SHELL_SCHOOL_NAME = 'ATLAS High School';
 const SIDEBAR_COOKIE_NAME = 'sidebar:state';
@@ -418,7 +415,16 @@ export function AppShell() {
 		if (authSource === 'bridge') {
 			clearBridgeToken();
 			clearUserRoleCache();
-			window.location.href = `${ENROLLPRO_URL}/login`;
+			setBridgeUser(null);
+			setAuthSource(null);
+			// Return to the EnrollPro personnel login when the companion origin
+			// is configured; otherwise stay local — never navigate to a raw IP.
+			const enrollProLogin = resolveEnrollProLogoutRedirect();
+			if (enrollProLogin) {
+				window.location.href = enrollProLogin;
+				return;
+			}
+			navigate('/login', { replace: true });
 			return;
 		}
 		clearLocalToken();

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
-	ExternalLink,
 	LogOut,
 	School,
 } from 'lucide-react';
@@ -43,6 +42,7 @@ import {
 	timetableNav,
 	type NavItemDef,
 } from './navigation';
+import { BackToEnrollProLink } from './BackToEnrollProLink';
 import { IntegratedSystems } from './IntegratedSystems';
 
 function enrollProAsset(path: string | null): string {
@@ -124,6 +124,7 @@ export function AppSidebar({
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
 	const isFaculty = bridgeUser?.role === 'faculty';
 	const topNavigation = isFaculty ? [] : navigationNav;
+	const backHref = getBackHref();
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 	return (
@@ -267,12 +268,11 @@ export function AppSidebar({
 									</SidebarMenuButton>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent side='right' align='end' sideOffset={8} className='w-48'>
-									<DropdownMenuItem asChild>
-										<a href={getBackHref()} className='flex items-center gap-2 text-xs text-muted-foreground'>
-											<ExternalLink className='size-3.5' />
-											<span>Back to EnrollPro</span>
-										</a>
-									</DropdownMenuItem>
+									{backHref && (
+										<DropdownMenuItem asChild>
+											<BackToEnrollProLink href={backHref} className='flex items-center gap-2 text-xs text-muted-foreground' />
+										</DropdownMenuItem>
+									)}
 									<DropdownMenuSeparator />
 									<DropdownMenuItem
 										className='gap-2 text-xs text-destructive focus:bg-destructive/10 focus:text-destructive'

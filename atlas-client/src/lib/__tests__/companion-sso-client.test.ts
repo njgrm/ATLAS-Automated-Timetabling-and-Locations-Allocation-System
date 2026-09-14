@@ -95,7 +95,7 @@ test('canUseEnrollProReverseSso gates the companion link to privileged staff rol
 	assert.deepEqual(buildIntegratedSystems(true).map((item) => item.key), ['AIMS', 'SMART', 'ATLAS', 'MRF']);
 });
 
-test('EnrollPro reverse start URL honors VITE_ENROLLPRO_SSO_START_URL then derives from VITE_ENROLLPRO_URL', () => {
+test('EnrollPro reverse start URL honors VITE_ENROLLPRO_SSO_START_URL then derives from VITE_ENROLLPRO_URL, and fails closed when unset', () => {
 	assert.equal(
 		resolveEnrollProReverseStartUrl({ VITE_ENROLLPRO_SSO_START_URL: 'https://explicit.example/start' }),
 		'https://explicit.example/start',
@@ -104,10 +104,10 @@ test('EnrollPro reverse start URL honors VITE_ENROLLPRO_SSO_START_URL then deriv
 		resolveEnrollProReverseStartUrl({ VITE_ENROLLPRO_URL: 'https://enrollpro.example/' }),
 		'https://enrollpro.example/api/auth/companion-sso/atlas/reverse/start',
 	);
-	assert.equal(
-		resolveEnrollProReverseStartUrl({}),
-		'http://100.88.55.125:5173/api/auth/companion-sso/atlas/reverse/start',
-	);
+	// Fail-closed replacement of the retired raw-IP default: unresolved
+	// configuration yields no EnrollPro URL at all, never a stale raw IP.
+	assert.equal(resolveEnrollProReverseStartUrl({}), null);
+	assert.equal(resolveEnrollProReverseStartUrl({ VITE_ENROLLPRO_URL: '   ' }), null);
 });
 
 /* ─── §5.12 /auth/sso/callback fragment consumption ────────────────────────── */

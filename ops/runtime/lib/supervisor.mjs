@@ -8,6 +8,7 @@ import { fail } from './errors.mjs';
 import { assertSingleOwnedListener, inspectPortOwners, stopOwnedProcesses, defaultTerminateTree } from './listeners.mjs';
 import { clearState, isPidAlive as defaultIsPidAlive, newState, readState, writeState } from './state.mjs';
 import { resolveInvariantEnv } from './contract.mjs';
+import { resolveEnrollProOrigin } from './enrollpro-origin.mjs';
 
 const POLL_INTERVAL_MS = 200;
 
@@ -48,8 +49,11 @@ export function defaultProbeHttp({ port, path, host = '127.0.0.1', timeoutMs = 3
 export function buildTargets(options) {
 	const { contract, sourceDir, envValues = {}, env = process.env } = options;
 	const invariantEnv = resolveInvariantEnv(contract);
+	// Durable operator values compose last, so they win over a conflicting
+	// inherited process value. The EnrollPro origin must be resolved from this
+	// fully composed child environment — never from the raw inherited `env`.
 	const baseEnv = { ...env, ...envValues, ...invariantEnv };
-	const enrollProTarget = env[contract.upstream?.enrollProOriginVariable] || contract.upstream?.defaultEnrollProOrigin || `http://127.0.0.1:5000`;
+	const enrollProTarget = resolveEnrollProOrigin({ contract, childEnv: baseEnv });
 	return [
 		{
 			name: 'server',

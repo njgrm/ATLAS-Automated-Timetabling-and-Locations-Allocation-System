@@ -1,4 +1,5 @@
 import { ATLAS_BRIDGE_TOKEN_KEY, setBridgeToken } from './auth';
+import { resolveEnrollProBackHref } from './companion-config';
 
 export function captureBridgeToken(): string | null {
 	const url = new URL(window.location.href);
@@ -14,6 +15,11 @@ export function captureBridgeToken(): string | null {
 	return sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
 }
 
-export function getBackHref(): string {
-	return (import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173') + '/dashboard';
+/**
+ * The reciprocal "Back to EnrollPro" dashboard link, or `null` when the
+ * companion origin is not configured. Consumers must render no anchor for
+ * `null` (fail closed) — never a raw-IP or stale fallback.
+ */
+export function getBackHref(): string | null {
+	return resolveEnrollProBackHref();
 }

@@ -5,6 +5,7 @@ import { connect } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 
 import { fail } from './errors.mjs';
+import { normalizeEnrollProOrigin } from './enrollpro-origin.mjs';
 
 const CONTENT_TYPES = {
 	'.html': 'text/html; charset=utf-8',
@@ -86,13 +87,16 @@ export function assertProductionArtifact(staticRoot) {
 
 function normalizeTargets(options) {
 	const apiTarget = options.apiTarget;
-	const enrollProTarget = options.enrollProTarget ?? options.apiTarget;
-	for (const [label, value] of [['apiTarget', apiTarget], ['enrollProTarget', enrollProTarget]]) {
-		const parsed = new URL(value);
-		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-			throw fail('PROXY_TARGET_INVALID', `${label} must be an http(s) origin.`);
-		}
+	const apiParsed = new URL(apiTarget);
+	if (apiParsed.protocol !== 'http:' && apiParsed.protocol !== 'https:') {
+		throw fail('PROXY_TARGET_INVALID', 'apiTarget must be an http(s) origin.');
 	}
+	// The EnrollPro origin uses the same shared normalizer as the supervisor and
+	// the production host entry point, so a value accepted at one boundary can
+	// never be rejected at another. A missing value is a programming error here:
+	// the host entry point always supplies `ATLAS_HOST_ENROLLPRO_TARGET`.
+	const enrollProTarget = normalizeEnrollProOrigin(options.enrollProTarget ?? apiTarget, { label: 'enrollProTarget' });
+	if (!enrollProTarget) throw fail('PROXY_TARGET_INVALID', 'enrollProTarget must be an http(s) origin.');
 	return [
 		{ prefix: '/api', target: apiTarget, rewrite: null },
 		{ prefix: '/uploads', target: apiTarget, rewrite: null },

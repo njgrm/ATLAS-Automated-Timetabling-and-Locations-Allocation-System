@@ -3,11 +3,13 @@ import { isAbsolute, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { fail } from './errors.mjs';
+import { normalizeHttpOrigin } from './enrollpro-origin.mjs';
 
 /** Default location of the reviewed, immutable contract. */
 export const DEFAULT_CONTRACT_PATH = fileURLToPath(new URL('../runtime-contract.json', import.meta.url));
 
-const CONTRACT_REQUIRED_KEYS = ['contractVersion', 'stream', 'productPin', 'releaseLabel', 'serverEntry', 'clientDist', 'ports', 'invariants', 'environmentReference', 'logs', 'supervision', 'state', 'legacyScheduledTask'];
+const CONTRACT_REQUIRED_KEYS = ['contractVersion', 'stream', 'productPin', 'releaseLabel', 'serverEntry', 'clientDist', 'ports', 'invariants', 'environmentReference', 'upstream', 'logs', 'supervision', 'state', 'legacyScheduledTask'];
+const ENV_VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const HEX40 = /^[0-9a-f]{40}$/;
 
 function assertObject(value, code, label) {
@@ -66,6 +68,17 @@ export function validateContract(contract) {
 	}
 	if (!Array.isArray(envRef.requiredKeys) || envRef.requiredKeys.length === 0 || envRef.requiredKeys.some((k) => typeof k !== 'string' || k.trim() === '')) {
 		throw fail('RUNTIME_CONTRACT_INVALID', 'environmentReference.requiredKeys must be a non-empty string list.');
+	}
+
+	const upstream = assertObject(contract.upstream, 'RUNTIME_CONTRACT_INVALID', 'upstream');
+	if (typeof upstream.enrollProOriginVariable !== 'string' || !ENV_VAR_NAME.test(upstream.enrollProOriginVariable)) {
+		throw fail('RUNTIME_CONTRACT_INVALID', 'upstream.enrollProOriginVariable must be a valid environment variable name.');
+	}
+	// The reviewed default is a development fallback only; it must still be a
+	// valid normalized http(s) origin so a local start cannot resolve a broken
+	// proxy target. Production launch separately requires an explicit origin.
+	if (normalizeHttpOrigin(upstream.defaultEnrollProOrigin, { code: 'RUNTIME_CONTRACT_INVALID', label: 'upstream.defaultEnrollProOrigin' }) === null) {
+		throw fail('RUNTIME_CONTRACT_INVALID', 'upstream.defaultEnrollProOrigin must be a valid http(s) origin.');
 	}
 
 	const logs = assertObject(contract.logs, 'RUNTIME_CONTRACT_INVALID', 'logs');

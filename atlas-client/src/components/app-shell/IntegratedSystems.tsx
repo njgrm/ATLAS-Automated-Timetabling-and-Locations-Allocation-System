@@ -13,7 +13,7 @@ export type IntegratedSystemsProps = {
 	/** Authenticated privileged staff (same predicate as the shell's isAdmin). */
 	privilegedStaff: boolean;
 	/** Next start URL; injectable for hermetic tests. */
-	enrollProStartUrl?: string;
+	enrollProStartUrl?: string | null;
 	className?: string;
 };
 
@@ -73,7 +73,15 @@ function CurrentRow({ item }: { item: IntegratedSystemItem }) {
 export function IntegratedSystems({ privilegedStaff, enrollProStartUrl, className }: IntegratedSystemsProps) {
 	const systems = buildIntegratedSystems(privilegedStaff);
 	const showEnrollPro = shouldEnableEnrollPro(privilegedStaff);
-	const startUrl = enrollProStartUrl ?? resolveEnrollProReverseStartUrl();
+	// Fail closed: when the companion origin is not configured this is `null`
+	// and EnrollPro renders as disabled plain text with no href.
+	const startUrl = enrollProStartUrl === undefined ? resolveEnrollProReverseStartUrl() : enrollProStartUrl;
+	const enrollProItem: IntegratedSystemItem = {
+		key: 'ENROLLPRO',
+		label: 'EnrollPro',
+		enabled: Boolean(startUrl),
+		disabledReason: 'EnrollPro is not configured',
+	};
 
 	return (
 		<div data-testid='integrated-systems' className={cn('flex flex-col gap-0.5', className)}>
@@ -81,7 +89,7 @@ export function IntegratedSystems({ privilegedStaff, enrollProStartUrl, classNam
 				if (item.current) return <CurrentRow key={item.key} item={item} />;
 				return <DisabledRow key={item.key} item={item} />;
 			})}
-			{showEnrollPro && <EnrollProRow startUrl={startUrl} />}
+			{showEnrollPro && (startUrl ? <EnrollProRow startUrl={startUrl} /> : <DisabledRow item={enrollProItem} />)}
 		</div>
 	);
 }
