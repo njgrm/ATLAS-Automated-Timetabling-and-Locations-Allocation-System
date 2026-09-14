@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-14T17:31:56.639Z",
+    "lastUpdatedAt": "2026-09-14T18:00:53.827Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 6
+    "revision": 9
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "WF-C02 integrated; awaiting Wave Completion Audit; WF-C03 dispatch follows."
+    "globalNextAction": "WF-C02 COMPLETE with pinned receipt and AUDIT_CLEAR; WF-C03 (Lane B) dispatch follows from the refreshed origin/main tip."
   },
   "streams": [
     {
@@ -217,12 +217,10 @@
       "kind": "CYCLE",
       "objective": "Make the WF-C01 workflow foundation operational: non-self-referential closure identity, atomic validated state transitions, real active-work leases, four least-privilege OpenCode roles, verified compaction, and a fast regression suite.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-14T17:31:56.639Z",
-      "nextAction": "Fresh Wave Completion Auditor reviews the corrected integrated tree.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-14T18:00:51.253Z",
+      "nextAction": "Closed; WF-C03 dispatch follows from the refreshed origin/main tip.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/workflow-hardening-c02",
@@ -315,8 +313,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5f03ab62ffeVEyJlNSS9Ikiit",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -330,8 +328,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5f03ab62ffeVEyJlNSS9Ikiit",
         "auditRequired": true
       },
       "corrections": [
@@ -342,15 +340,15 @@
           "reason": "Wave-audit F1 (blocking): lock reclaim was a TOCTOU that allowed concurrent reclaimers to unlink each other's live records. Corrected by the claim-mutex reclaim protocol (byte-fingerprint re-verification inside the claim section, CAS republish, bounded fail-closed claim races) with failing-first dead-owner stampede controls.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f5f03ab62ffeVEyJlNSS9Ikiit"
         }
       ],
       "successors": [
         {
           "streamId": "WF-C03",
-          "unlocked": false,
-          "reason": "Serialized after WF-C02: locked until WF-C02 is accepted, integrated, and wave-audited."
+          "unlocked": true,
+          "reason": "Dependency satisfied: WF-C02 is COMPLETE with AUDIT_CLEAR and a pinned receipt; dispatch continues under the operator-activated serialized wave."
         }
       ],
       "requires": [],
@@ -373,7 +371,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/wf-c02.receipt.json",
+          "sha256": "6690c776519d951837a289556df3c3828daaea152b3ded448ebc2e31b58969aa"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
