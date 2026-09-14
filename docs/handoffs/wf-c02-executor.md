@@ -248,18 +248,19 @@ TRANSITION_RESULT_INVALID: ACTIVE_CYCLE_TERMINAL: active cycle ORD-1 is terminal
 
 **Fix (bounded; existing pipeline/lock/CAS unchanged).**
 
-- New document-scoped transition `coordination-update` in
-  `ops/workflow/lib/transition.mjs` with `--mode MANUAL|CYCLE_ACTIVE`,
+- New document-scoped transition `coordination-update`
+  (`ops/workflow/lib/transition.mjs:271`) with `--mode MANUAL|CYCLE_ACTIVE`,
   `--active-cycle-id <stream-id|null>`, `--global-next-action <text|null>`.
   `MANUAL` forces a null active cycle and rejects an explicitly non-null id;
   `CYCLE_ACTIVE` requires a defined, non-terminal target stream and a non-empty
   global next action (typed `TRANSITION_COORDINATION_*` rejections).
-- `runTransition` now supports `spec.scope === "document"`: no stream target and
-  no stream-bound state/awaited/running/nextAction post-processing, while the
-  lock, CAS, staging, render, verification, and atomic-replace path is unchanged.
-- `lib/verify.mjs` exports `TERMINAL_STATES` for the transition's explicit
-  fail-closed check (the verifier still owns unknown/terminal/empty-awaited
-  detection and surfaces the first error).
+- `runTransition` now supports `spec.scope === "document"`
+  (`ops/workflow/lib/transition.mjs:469`, `:488`): no stream target and no
+  stream-bound state/awaited/running/nextAction post-processing, while the lock,
+  CAS, staging, render, verification, and atomic-replace path is unchanged.
+- `lib/verify.mjs` exports `TERMINAL_STATES` (`ops/workflow/lib/verify.mjs:36`)
+  for the transition's explicit fail-closed check (the verifier still owns
+  unknown/terminal/empty-awaited detection and surfaces the first error).
 - README lists `coordination-update` and corrects the closure sequence: the
   coordination step belongs immediately before `record-integration`.
 
