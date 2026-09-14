@@ -37,8 +37,10 @@ school-year mirror so that exactly this declared change set occurs:
   for actor = the authorized login actor.
 
 The separately authorized login delta (exactly one `LOCAL_LOGIN_SUCCESS` audit
-row plus that actor's `last_login_at`) is the only other write in the whole
-action. Nothing else is in scope. This is one bounded live-data write, executed
+row, that actor's `last_login_at`, and that actor's engine-managed `updated_at`
+advance — `AtlasAuthAccount.updatedAt` is `@updatedAt`) is the only other write
+in the whole action. Nothing else is in scope. This is one bounded live-data
+write, executed
 by one apply request over the deployed runtime. It is not a rollover, not a
 Teaching Load action, not a timetable edit/sync, and not generation or
 publication.
@@ -74,7 +76,7 @@ Telemetry note (non-blocking, observed): the `cli.mjs status` snapshot reports
 | Mirror 1 | school 1, year `8`, `2029-2030`, archived (read-only history) |
 | `TERM_CACHE_SYNC_APPLIED` audit count | `0` (no row has ever existed) |
 | Audit baseline | max `audit_logs.id` = `793`; total rows `242`; zero rows with id > 793 |
-| Actor baseline | actor `46`: role `officer`, school 1, active, `last_login_at = 2026-09-14T09:27:55.967Z`, `failed_login_count = 0`, `locked_until = NULL` |
+| Actor baseline | actor `46`: role `officer`, school 1, active, `last_login_at = 2026-09-14T09:27:55.967Z`, `updated_at = 2026-09-14T09:27:58.562Z` (engine-managed; advances on the authorized login), `failed_login_count = 0`, `locked_until = NULL` |
 | Signatures | `faculty_subjects` 183; `generation_runs` 1; `published_schedule_revisions` 0; `teaching_load_cycles` 2; `_prisma_migrations` applied 2 (latest finished `2026-09-10T18:01:29Z`) |
 
 ### Upstream (EnrollPro) and origin handling
@@ -110,6 +112,9 @@ Telemetry note (non-blocking, observed): the `cli.mjs status` snapshot reports
 - Persisted semantic revision / cachedAt before apply: `NULL` / `NULL`
 - Mirror 223 pre-apply `updated_at` (bound exact value; engine-managed Prisma
   `@updatedAt` and expected to advance on the apply): `2026-09-10T11:18:14.634Z`
+- Actor 46 pre-action `updated_at` (bound exact value; engine-managed Prisma
+  `@updatedAt` and expected to advance on the authorized login):
+  `2026-09-14T09:27:58.562Z`
 - Ordered terms (exact, order-sensitive):
 
 | identity | displayLabel | order | startDate | endDate |
@@ -198,10 +203,12 @@ Only after all nine steps pass may the single authorized login be performed.
   time; no other role touches the profile.
 - **Login budget: exactly one (1) fresh local login**, only if the §12 approval
   sentence is granted. Expected delta: one `LOCAL_LOGIN_SUCCESS` audit row
-  (actor = the authorized operator, expected actor `46`, school 1) plus that
-  actor's `last_login_at`. Nothing else attributable to authentication.
-  No second login; no "Remember me"; no token export or handoff; no session
-  reuse across roles beyond the custodian's own retained tab.
+  (actor = the authorized operator, expected actor `46`, school 1), that
+  actor's `last_login_at`, and that actor's engine-managed `updated_at` advance
+  (`AtlasAuthAccount.updatedAt`). Nothing else is attributable to
+  authentication. No second login; no "Remember me"; no token export or
+  handoff; no session reuse across roles beyond the custodian's own retained
+  tab.
 - **Post-action audit**: after execution, a fresh independent Wave Completion
   Auditor reviews the executed state before the cycle may close (see §8 end).
 - The custodian performs the apply as the authenticated operator proxy; the
@@ -276,9 +283,12 @@ Database (verify in §8):
    archive metadata) and mirror 1 is untouched. Confirm the global set is
    unchanged: `faculty_subjects` 183, `generation_runs` 1,
    `published_schedule_revisions` 0, `teaching_load_cycles` 2,
-   `_prisma_migrations` 2. The only new audit rows attributable to this action
-   are the one login row (§5) and the one apply row. Any other change must be
-   attributed and disclosed, or the action stops as an incident.
+   `_prisma_migrations` 2. Confirm actor `46`'s row changed only in
+   `last_login_at` and the engine-managed `updated_at` (record both exact
+   post-action values; every other actor column and every other account row is
+   unchanged). The only new audit rows attributable to this action are the one
+   login row (§5) and the one apply row. Any other change must be attributed
+   and disclosed, or the action stops as an incident.
 4. **TT-TL runtime-acceptance rows 4–5 re-run** with the custodian's retained
    session (these were the two mandatory rows blocked on the missing term
    snapshot; see the `TT-TL-RUNTIME-ACCEPTANCE` register row):
@@ -323,13 +333,21 @@ below, then stops for replanning.
 - Raw SQL is mandatory for the restore: it returns `updated_at` to its exact
   bound pre-apply value. An ORM `update`/`updateMany` would re-bump
   `updated_at` implicitly and is **not** authorized for the rollback.
-- Substitution slots (the only two permitted edits before execution):
-  - `${PRE_APPLY_UPDATED_AT}` = `2026-09-10T11:18:14.634Z` (bound in §3; a
-    literal, already reviewed).
-  - `${POST_APPLY_CACHED_AT}` = the exact `term_contract_cached_at` value
-    recorded in the §8 read-back (ISO-8601 UTC with milliseconds; must equal
-    the apply response `cachedAt`; if they differ, record both and stop —
-    never guess).
+- Time-zone pinning: both live columns are `TIMESTAMP(3)` (without time zone)
+  and sessions run `Asia/Kuala_Lumpur`; the transaction therefore pins
+  `SET LOCAL TIME ZONE 'UTC';` immediately after `BEGIN;` **and** uses naive
+  UTC `TIMESTAMP` literals (no `Z` suffix), so guards and the restore are
+  immune to the session time zone.
+- Substitution slots (the only two permitted edits before execution; both
+  rendered as naive UTC wall-clock text):
+  - `${PRE_APPLY_UPDATED_AT}` = `2026-09-10 11:18:14.634` (the §3 bound value
+    `2026-09-10T11:18:14.634Z` rendered as naive UTC; a literal, already
+    reviewed).
+  - `${POST_APPLY_CACHED_AT}` = the exact post-apply `term_contract_cached_at`
+    recorded in the §8 read-back as naive UTC text (its `::text`, e.g.
+    `2026-09-14 16:30:12.345`); must equal the apply response `cachedAt`
+    converted from ISO-UTC (`T`→space, drop `Z`); if the two forms differ,
+    record both and stop — never guess.
 - The immutable `TERM_CACHE_SYNC_APPLIED` audit row is **retained**; the
   transaction never touches `audit_logs`.
 - Run with `ON_ERROR_STOP` inside one transaction; any guard failure raises and
@@ -337,6 +355,7 @@ below, then stops for replanning.
 
 ```sql
 BEGIN;
+SET LOCAL TIME ZONE 'UTC';
 
 -- One guarded, single-purpose rollback of mirror 223 only.
 DO $$
@@ -345,7 +364,7 @@ BEGIN
   UPDATE enrollpro_school_year_mirrors
      SET term_contract_cache = NULL,
          term_contract_cached_at = NULL,
-         updated_at = TIMESTAMPTZ '${PRE_APPLY_UPDATED_AT}'
+         updated_at = TIMESTAMP '${PRE_APPLY_UPDATED_AT}'
    WHERE id = 223
      AND school_id = 1
      AND enrollpro_school_year_id = 9
@@ -354,7 +373,7 @@ BEGIN
      AND term_contract_cache IS NOT NULL
      AND term_contract_cached_at IS NOT NULL
      AND term_contract_cache ->> 'semanticRevision' = 'a51b62a26e27416c3d1295697f144d7ae5de5c56bb6a5e0d25bcb0c24dd8abb9'
-     AND term_contract_cached_at = TIMESTAMPTZ '${POST_APPLY_CACHED_AT}';
+     AND term_contract_cached_at = TIMESTAMP '${POST_APPLY_CACHED_AT}';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 1 THEN
     RAISE EXCEPTION 'TERM_CACHE_ROLLBACK_GUARD_FAILED affected=%', affected;
@@ -367,7 +386,7 @@ DECLARE ok boolean;
 BEGIN
   SELECT (term_contract_cache IS NULL
           AND term_contract_cached_at IS NULL
-          AND updated_at = TIMESTAMPTZ '${PRE_APPLY_UPDATED_AT}')
+          AND updated_at = TIMESTAMP '${PRE_APPLY_UPDATED_AT}')
     INTO ok
     FROM enrollpro_school_year_mirrors
    WHERE id = 223
@@ -391,7 +410,8 @@ Rollback rules:
 2. Guards: persisted `semanticRevision = a51b62a2…` **and** the exact
    post-apply `term_contract_cached_at` must both hold at execution time.
 3. Restore: `term_contract_cache = NULL`, `term_contract_cached_at = NULL`,
-   `updated_at = 2026-09-10T11:18:14.634Z` (the exact bound pre-apply value).
+   `updated_at = 2026-09-10 11:18:14.634` (the exact bound pre-apply value,
+   naive UTC; `SET LOCAL TIME ZONE 'UTC'` pinned).
 4. After a committed rollback, verify read-only that mirror 223 is
    `NULL`/`NULL` with the bound `updated_at`, that the audit row is retained,
    and record the rollback truthfully (timestamp, executor, before/after
@@ -446,7 +466,8 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 > values; (2) authorize exactly ONE fresh local browser login at
 > `https://njgrm.buru-degree.ts.net` for the named QA/session custodian
 > (expected delta: exactly one `LOCAL_LOGIN_SUCCESS` audit row plus that
-> actor's `last_login_at`, and no other authentication side effect), whose
+> actor's `last_login_at` and that actor's engine-managed `updated_at`
+> advance, and no other authentication side effect), whose
 > authenticated actions are exactly the single
 > `POST /api/v1/runtime/term-authority/apply` with
 > `{"schoolId":1,"confirmationText":"SAVE_TERM_AUTHORITY_1_9","fingerprint":"d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81"}`
@@ -457,12 +478,14 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 > plus the authenticated read-only acceptance GETs of §8.4 (TT-TL rows 4–5);
 > and authorize the live executor to perform, only if that apply commits but
 > the mandatory post-write verification fails, exactly one execution of the
-> pre-reviewed guarded rollback transaction in §9 (raw SQL; targeting only
-> mirror id `223` / school 1 / EnrollPro year 9 with `is_active = true` and
-> `is_archived = false`; requiring the persisted `semanticRevision`
+> pre-reviewed guarded rollback transaction in §9 (raw SQL executed with
+> `SET LOCAL TIME ZONE 'UTC'` and naive UTC `TIMESTAMP` literals; targeting
+> only mirror id `223` / school 1 / EnrollPro year 9 with `is_active = true`
+> and `is_archived = false`; requiring the persisted `semanticRevision`
 > `a51b62a2…` and the exact post-apply `term_contract_cached_at`; restoring
 > `term_contract_cache = NULL`, `term_contract_cached_at = NULL`, and the
-> exact bound pre-apply `updated_at` `2026-09-10T11:18:14.634Z`; requiring
+> exact bound pre-apply `updated_at` `2026-09-10T11:18:14.634Z`
+> (naive-UTC literal `2026-09-10 11:18:14.634`); requiring
 > exactly one affected row and self-verifying inside the same transaction;
 > retaining the immutable audit row; and aborting with zero changes and
 > stopping on any guard failure); (3) forbid every action in
