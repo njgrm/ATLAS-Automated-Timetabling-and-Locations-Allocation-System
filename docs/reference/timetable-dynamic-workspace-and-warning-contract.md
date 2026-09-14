@@ -229,9 +229,9 @@ and lane C's warning matrix. Governing decisions:
 
 | Stream | Scope | Packet | State | Depends on |
 |---|---|---|---|---|
-| S1 `TT-DYNAMIC-WORKSPACE-C04` | Unified Simple-first workspace shell; capability model consumption; publish-gate parity (client); source-drift visibility; truthful save/undo/redo/history; Advanced capability migration; deep-link/state hygiene; archived read-only contract | `docs/prompts/timetable-dynamic-workspace-one-shot-c04-2026-09-13.md` | READY_FOR_EXECUTION | none (parallel lane A) |
-| S2 `TT-WARNING-AUTHORITY-C04` | Retire false metric travel; add cross-building/cross-floor semantics; split policy families; term-aware grouping; promotion allowlist; context-builder parity; client label contract; warning tests; strict publication predicate for `manual-edit.service.ts` (B-11 server half) | `docs/prompts/timetable-warning-authority-one-shot-c04-2026-09-13.md` | READY_FOR_EXECUTION | none (parallel lane B) |
-| S3 `TT-TL-MODULES-C04` | Focused owner/departure/redistribution/qualification/availability/setup-drift modules; TL repair authority guards; strict publication predicate for the TL repair service; reconciliation endpoint cleanup | `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md` | **LOCKED** | S1 integrated (shared client files) + D1 for class 5 |
+| S1 `TT-DYNAMIC-WORKSPACE-C04` | Unified Simple-first workspace shell; capability model consumption; publish-gate parity (client); source-drift visibility; truthful save/undo/redo/history; Advanced capability migration; deep-link/state hygiene; archived read-only contract | `docs/prompts/timetable-dynamic-workspace-one-shot-c04-2026-09-13.md` | INTEGRATED; wave-audited | live/browser acceptance remains separately gated |
+| S2 `TT-WARNING-AUTHORITY-C04` | Retire false metric travel; add cross-building/cross-floor semantics; split policy families; term-aware grouping; promotion allowlist; context-builder parity; client label contract; warning tests; strict publication predicate for `manual-edit.service.ts` (B-11 server half) | `docs/prompts/timetable-warning-authority-one-shot-c04-2026-09-13.md` | INTEGRATED; wave-audited | live publication remains separately gated |
+| S3 `TT-TL-MODULES-C04` | Focused owner/departure/redistribution/qualification/availability/setup-drift modules; TL repair authority guards; strict publication predicate for the TL repair service; reconciliation endpoint cleanup | `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md` | DISPATCHABLE for non-D1 modules | D1 still blocks class 5 availability-driven repair |
 | S4 `TT-SOURCE-FRESHNESS-C04` | Generation snapshot binding (B-03); quick-place/sync freshness (B-04/B-09); term-authority binding (B-06 server); sync pin behavior (B-13 server); carries strict-predicate alignment for `timetable-quick-place.service.ts:447` and `timetable-sync-setup.service.ts:283,667` (B-11 server half) | (packet not yet authored; scope defined here and in the audit) | PLANNED (successor) | S2 (shared validator-context ownership) and S3 (TL repair file) |
 
 ### Unresolved decisions (operator/planner)
@@ -274,3 +274,127 @@ HIGH actions (generation, publication, deployment, term-cache apply, TL apply) r
 - All findings above are source-traced against the frozen product tree with
   path:line anchors; runtime/data-conditioned uncertainties are listed in the
   audit document §8.
+
+## 9. Durable planner memory — accepted dynamic Timetable target
+
+This section is the compact product checkpoint for future planners. It records
+the operator experience being built and must not be weakened by a later packet.
+The living delivery register remains authoritative for current SHAs and stream
+states.
+
+### 9.1 One continuous workspace
+
+- Timetable is one Simple-first workspace with `Plan`, `Review`, `Published`,
+  and `Archived` modes. Pre-generation and post-generation are modes, not
+  disconnected products.
+- The visual shell, term switcher, section/teacher/room views, filters, and run
+  selection remain coherent across modes. Server write authorities remain
+  distinct and fail closed.
+- Advanced contains expert policy, map, matrix, and raw diagnostic tools only.
+  No routine operator workflow may be reachable exclusively from Advanced.
+
+### 9.2 Complete ordered-term truth
+
+- Each selected term is a complete schedule. A five-session weekly subject has
+  five sessions in every applicable term; sessions are never distributed
+  `2/2/1` across three terms.
+- Ordinary subjects persist across applicable terms. Rotating families resolve
+  the term-specific subject, teacher, and room.
+- Grid, unresolved and violation rails, section/teacher/room projections,
+  official exports, and published reads consume the same selected-term entries.
+- Switching term clears stale selection, previews, dialogs, swap state, repair
+  drawers, pending confirmations, inline status, and term-scoped Undo/Redo,
+  while retaining the run and chosen layout.
+- ARAL Program and standalone HG create no ordinary demand, workload credit, or
+  official export. Araling Panlipunan remains scheduled. Flag Ceremony/HGP is a
+  Monday-only overlay on the underlying advisory period.
+
+### 9.3 Dynamic change response
+
+- Policy or shift-window changes show the affected constraint families and a
+  reviewed sync/regenerate decision; they never silently make a stale run look
+  current.
+- Ordered-term changes hard-block repair/generation until authority is synced.
+- Teaching Load owner changes show affected timetable sessions before commit.
+- Subject/template, section/enrollment, room/building, qualification, and
+  added/retired-demand changes receive typed, domain-specific impact and repair
+  routes rather than one generic stale banner.
+- Enrollment-only changes must not visually invalidate placements unless the
+  governed scheduling contract actually changes.
+- Generation, quick-place, setup sync, Teaching Load repair, and publication
+  must bind to the exact source snapshot and run version they evaluated.
+
+### 9.4 Direct manipulation and recovery
+
+- Routine actions include Move, Change room, armed two-session Swap, Change
+  owner, Teacher departure, unresolved placement, and setup synchronization.
+- Swap means exchanging timetable placements; it is never mislabeled or routed
+  as a teacher/Teaching Load swap.
+- Every consequential action shows a visual before/after preview, affected
+  sessions, resolved/new warnings, blocking conflicts, save semantics, and Undo
+  availability. Invalid targets are highlighted in the grid, not explained only
+  by a wall of text.
+- Plan mode uses explicit preview then `Save placement`. Review mode may
+  one-click save clean moves only when the control says so; warning-bearing
+  moves require review and hard conflicts block.
+- Undo targets an exact committed edit and expected version. Redo re-enters the
+  authoritative preview/commit workflow; it is never a client-only replay.
+  History records actor, time, reason, action type, and affected sessions.
+
+### 9.5 Focused Teaching Load modules
+
+Timetable embeds focused repair entry points, not a duplicate Teaching Load
+editor:
+
+1. change one subject-section owner;
+2. teacher departure or long-term absence with reason/effective window;
+3. overload/underload summary and redistribution impact, with Teaching Load as
+   the full-workflow home;
+4. qualification/department/program authority with typed reasons;
+5. availability-driven session movement only after D1 establishes a persisted
+   authority; and
+6. added/retired demand and setup drift with truthful pin/anchor effects.
+
+Every module previews timetable impact, enforces actor school/active year/CAS
+and source freshness, routes published changes through revision authority, and
+leaves archived schedules read-only.
+
+### 9.6 Warning and publication truth
+
+- Retire false metric travel distance and its operator policy. Use auditable
+  cross-building identity and cross-floor transition checks instead.
+- Warning families are independently configured and term-aware. Generation,
+  pre-generation, and manual-edit paths use one warning authority.
+- Unreliable warnings cannot be promoted to hard publication blockers.
+- Room capacity remains intentionally asymmetric: generation warns; manual
+  placement into an undersized room rejects.
+- Publication requires a completed generated run, zero run-wide blocking hard
+  violations, zero unassigned/unresolved sessions, fresh source authority, and
+  valid output parity. A clean selected term cannot hide another term's blocker.
+- Only `isPublished === true` is publication truth. Published changes are
+  append-only revisions; archived schedules expose history without mutations.
+
+### 9.7 Older-scheduler usability and outputs
+
+- Present one obvious primary action, visible lifecycle mode and term, concise
+  issue cards, highlighted cells, icons plus text, and optional detail
+  disclosure. Avoid duplicate controls, hidden mutation buttons, and cold
+  diagnostic walls.
+- Keep official selected-term class, teacher, room, summary, workbook, and DOCX
+  outputs aligned with the same resolved timetable truth and beneficiary
+  templates.
+- The end-to-end acceptance target is a realistic three-term morning/afternoon
+  schedule with correct rotations and resource views, zero hard blockers and
+  unresolved sessions, export parity, and a separately reviewed publication.
+
+### 9.8 Remaining named work at this checkpoint
+
+- `TT-TL-MODULES-C04`: implement and verify the non-D1 focused modules.
+- `TT-SOURCE-FRESHNESS-C04`: complete snapshot/version binding and targeted
+  source-change behavior after the module surface freezes.
+- Resolve D1 availability authority and the retained-anchor, archived-mode, and
+  teacher-pin decisions without inventing hidden defaults.
+- Deploy accepted source, restore live ordered-term authority, run authenticated
+  browser acceptance, execute the canonical generation diagnostic, correct
+  real-data blockers, and obtain separate HIGH approvals for generation and
+  publication.

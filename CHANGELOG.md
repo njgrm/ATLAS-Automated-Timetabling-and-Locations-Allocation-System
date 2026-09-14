@@ -1,5 +1,29 @@
 # Changelog
 
+## [2026-09-14] — Dynamic Timetable Planning Memory
+
+### Added
+- Added a durable Simple-first Timetable product checkpoint covering lifecycle
+  modes, complete ordered-term behavior, source-change response, direct
+  manipulation, authoritative Undo/Redo/history, focused Teaching Load modules,
+  warning truth, publication gates, older-scheduler usability, and beneficiary
+  output parity.
+
+### Changed
+- Reconciled the contract's C04 lane table: workspace and warning authority are
+  integrated; non-availability Teaching Load modules are dispatchable; source
+  freshness remains the next coordinated successor.
+
+### Decisions Made
+- Pre-generation and post-generation remain distinct server authorities inside
+  one continuous operator workspace.
+- Advanced remains expert-only; no routine scheduling workflow may exist only
+  there.
+
+### Open Questions
+- Faculty availability authority, retained-anchor behavior, archived-mode
+  scope, and teacher-pin synchronization remain explicit decisions.
+
 ## [2026-09-14] — Teaching Load Canonical Suggestion Authority
 
 ### Added
