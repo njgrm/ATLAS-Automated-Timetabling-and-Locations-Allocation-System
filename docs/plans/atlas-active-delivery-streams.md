@@ -16,8 +16,9 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Cycle recovery: `tt-source-freshness-c04-20260914` (`INTEGRATION_READY` —
-  wave audit pending; push only on `AUDIT_CLEAR`) activated 2026-09-14
+- Cycle recovery: `tt-source-freshness-c04-20260914` (`COMPLETE` — QA
+  `ACCEPT_READY` 14/14/0/0; Wave Completion Audit `AUDIT_CLEAR`; receipt-pinned)
+  activated 2026-09-14
   (Asia/Manila) by the operator (`CYCLE ON`) for `TT-SOURCE-FRESHNESS-C04`.
   Base `be1a2d6f` (fresh `origin/main` at packet authoring; planner packet
   commit `7f1fc7f6`), worktree `D:\ATLAS-worktrees\tt-source-freshness-c04`,
@@ -43,10 +44,15 @@ hard blockers before separately approving publication.
   F2 grade scope enforced transitively through `normalizeStoredAssignmentScope`;
   F3 Quick Place uses a default-isolation transaction with a version CAS;
   F4 parity extraction formatting-sensitive but fail-loud; F5/F6 environment
-  notes. Worktree disposition: `RETIRE_AFTER_INTEGRATION` for both the
-  candidate (D:) and integration (E:) worktrees. No deployment, login,
-  live-data, generation, publication, migration, or companion action
-  occurred.
+  notes. Wave audit `ses_f600a4fc2ffe7gph36LvkM5zHj` returned
+  `AUDIT_CLEAR` (auditor areas 6/6; the F-A origin drift remedy was applied as
+  a clean auto-union merge `266055ce` over `origin/main` `53967c81`, with the
+  product tree byte-identical to the reviewed candidate). Machine-state
+  receipt `docs/plans/receipts/tt-source-freshness-c04.receipt.json`
+  (`48dacd62…`); closure pushed and both cycle worktrees retired
+  (`RETIRE_AFTER_INTEGRATION`; non-forced removal, no branch deletion). No
+  deployment, login, live-data, generation, publication, migration, or
+  companion action occurred.
 - Cycle recovery: `workflow-foundation-wfc01` (`COMPLETE` — wave-audited and
   receipt-pinned) activated 2026-09-14 (Asia/Manila) by the operator
   (`CYCLE ON`) for WF-C01: a repository-owned machine-readable delivery-cycle
@@ -634,7 +640,7 @@ hard blockers before separately approving publication.
 | TT-WARNING-AUTHORITY-C04 | Retire false metric travel, add building/floor semantics, decouple policy families, promotion allowlist, term-aware grouping, context/label parity, strict publication predicate (`manual-edit.service.ts`) | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 11/11 | MEDIUM full-stack; HIGH publication implications | `work/tt-warning-authority-c04`; base `e3882ca0`; candidate `d9b1cd4a` (1 correction round); integration `6d244d5e` | None in source; live publication remains separately gated | Fresh QA `ses_f649f9429ffe6cNqapkasGZup9` `ACCEPT_READY` 14/14/0/0 (three-way generation/manual/pre-gen parity with load-bearing mutant; `blockingHardViolationCount` allowlist count + `counts.runWide.blockingHard`; disposable-PostgreSQL 16/16; both builds); combined integration gates green | Wave Completion Audit is the only remaining step; do not publish from this lane |
 | TT-TL-AUTHORITY-GUARD-C04 | Close the server-side actor-school/year, qualification, source-snapshot, phantom reconciliation, annual CAS, and strict-publication gaps before exposing Timetable Teaching Load modules | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 11/11 | MEDIUM server source; HIGH write-authority implications | `work/tt-tl-authority-guard-c04`; base `e3882ca0`; candidate `7b31c592`; integration `6d244d5e` | None in source; live writes remain separately gated | Fresh QA `ses_f64d2ef8cffeRcQvFw74SsLLZA` `ACCEPT_READY` 16/16/0/0 (mounted authority matrix with zero dispatch/writes; typed stale snapshot/CAS; phantom reconciliation apply retired; strict predicate; disposable-PostgreSQL 46/46 with zero residue); combined integration gates green | Wave Completion Audit is the only remaining step; later S3 consumes these guarded APIs and must not duplicate them |
 | TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards; strict TL-repair publication predicate (C04R1 correction: F1–F5) | `INTEGRATED` — wave-audit closed, `COMPLETE` (recovery r2 `AUDIT_CLEAR` 7/7/0/0; class 5 remains decision-locked by D1) | MEDIUM source; HIGH write guards | `work/tt-tl-modules-c04`; base `d4e9dc8e`; product `e7916315`; docs `b7c4d386`; integration merge `eb60d78b` on `origin/main` | Live writes remain separately gated HIGH; residuals folded into `TT-SOURCE-FRESHNESS-C04`/backlog; closure re-verified by the recovery cycle | Fresh QA `ses_f614eae8dffehzAuUXagMxQcYO` `ACCEPT_READY` 30/30/0/0 (mounted 69/69 disposable-DB authority/zero-write matrix incl. the previously fail-open GET; exact Serializable transaction inspection; rendered F1/F4 controls; both-side F3 mutant; test preservation 14→14; zero residue); merged-tree combined gates green | Fresh QA over `5ad87db8...119277ce` completed 7/7/0/0 and the fresh Wave Completion Auditor returned `AUDIT_CLEAR` 7/7/0/0; closed — do not deploy or invoke any live Teaching Load write from this lane |
-| TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `INTEGRATION_READY` (wave audit pending; push only on `AUDIT_CLEAR`) | MEDIUM server source; HIGH generation | `work/tt-source-freshness-c04`; base `7f1fc7f6` (over `be1a2d6f`); candidate `0553bba0`; integration merge `9732658d` on origin/main `4e6419c0` | None in source; live generation/publication remain separately gated HIGH | Fresh QA `ses_f6030850affeiZPOm2tfO9G3En` `ACCEPT_READY` 14/14/0/0 (generation/quick-place interleave fail-closed matrices; sync hidden-write instrumentation; exact teacher-pin totals; F3 conservation with both-side mutant; Serializable observation mutant; 20/20 attribution; no assertion removals); combined gates: workflow 60/60, machine-state verify exit 0, renderer byte-identical, product parity, diff-check clean | Run the fresh Wave Completion Auditor over `9732658d`; push only on `AUDIT_CLEAR`; no HIGH action follows; retire both cycle worktrees after push |
+| TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `COMPLETE` — wave-audited `AUDIT_CLEAR` (auditor areas 6/6), receipt-pinned | MEDIUM server source; HIGH generation | `work/tt-source-freshness-c04`; base `7f1fc7f6` (over `be1a2d6f`); candidate `0553bba0`; integration merge `9732658d` (drift-merge `266055ce` over `origin/main` `53967c81`) | None in source; live generation/publication remain separately gated HIGH | Fresh QA `ses_f6030850affeiZPOm2tfO9G3En` `ACCEPT_READY` 14/14/0/0 (generation/quick-place interleave fail-closed matrices; sync hidden-write instrumentation; exact teacher-pin totals; F3 conservation with both-side mutant; Serializable observation mutant; 20/20 attribution; no assertion removals); combined gates: workflow 60/60, machine-state verify exit 0, renderer byte-identical, product parity, diff-check clean; wave audit `AUDIT_CLEAR` | Closed; receipt `docs/plans/receipts/tt-source-freshness-c04.receipt.json` (`48dacd62…`); do not deploy or generate; no HIGH action unlocked |
 | ENROLLPRO-PROXY-RECOVERY-C01 | Make the supervised production host consume one explicit durable HTTPS EnrollPro origin, fail closed on invalid configuration, keep degraded ATLAS operation, and remove stale raw-IP companion fallbacks | `INTEGRATED` — wave-audit r2 closed (`AUDIT_CLEAR` 11/11/0/0; corrected packet audited at `b258357a`) | MEDIUM source/test; live env + supervised restart stays HIGH | `work/enrollpro-proxy-recovery-c01`; base `d61c38d0`; candidate `54dce67b`; merge `bc61ecd5` on `origin/main` | Live recovery remains separately gated HIGH (corrected packet audited; awaiting exact approval) | Fresh QA `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 (independent failing-first at base + load-bearing `baseEnv→env` mutant restored byte-exact); combined merged-tree gates green (runtime 74/74, client 23/23, client tsc/build, server build, diff-check) | Source closed; return the revised exact HIGH approval (NOT GRANTED); do not execute the live packet without it |
 | ENROLLPRO-PROXY-RECOVERY-LIVE | Set the durable EnrollPro origin + install release `54dce67b` and restart supervisor-owned 5001/5174 | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime env change + install/restart | Packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`; release `54dce67b` (descends from reviewed pin `d44f29e0`); incumbent `3d916b26` retained for rollback | Exact operator approval NOT GRANTED; corrected packet audited at `b258357a` (r2 `AUDIT_CLEAR`; carry the r2 execution-preflight notes); product/test bytes unchanged | Prepared-time snapshot: listeners 5001→19448 / 5174→10880 under supervisor 3132; supervisor state `running` release `3d916b26`; durable env `D:\ATLAS-runtime-config\atlas-server.env` has `ENROLLPRO_API` and no `ENROLLPRO_PROXY_ORIGIN`; proxy `/enrollpro-api/settings/public` 502 vs direct EnrollPro 200 | Return the revised exact approval sentence (NOT GRANTED); do not execute |
 | WF-C01 | Machine-readable delivery-cycle state contract, fail-closed verifier, deterministic Markdown register renderer, and hermetic regression fixtures (3 positive + 21 negative fixtures, 60 tests) | `COMPLETE` — wave-audited, receipt-pinned | MEDIUM | `work/workflow-foundation-wfc01`; `29284ac6...6b2cb7f1`; merge `4fd18601` on `3d013421`; closure record | None | QA `ACCEPT_READY` 23/23/0/0; re-audit `ses_f6061f82effeG93vM9t2z7iqjB` `AUDIT_CLEAR` 13/13/0/0; receipt `docs/plans/receipts/wf-c01.receipt.json` (`30e62324…`); capsule `docs/reviews/workflow-foundation-wfc01/wave-completion-audit.md` | Closed; no return remains |
@@ -734,9 +740,9 @@ hard blockers before separately approving publication.
     `AUDIT_CLEAR` 7/7/0/0; r2 capsule); its class 5 remains decision-locked by
     D1. `TT-SOURCE-FRESHNESS-C04` ran as the operator-activated cycle
     `tt-source-freshness-c04-20260914`: candidate `0553bba0` (base `7f1fc7f6`)
-    passed fresh QA `ACCEPT_READY` 14/14/0/0 and is integrated at merge
-    `9732658d`; the wave audit is pending and nothing is pushed until
-    `AUDIT_CLEAR`.
+    passed fresh QA `ACCEPT_READY` 14/14/0/0, is integrated at merge
+    `9732658d`, wave-audited `AUDIT_CLEAR` (6/6), and closed `COMPLETE` with
+    receipt `48dacd62…`; the closure was pushed.
 11. Operator decisions D1–D6 (contract §7) gate: S3 class 5 (D1), anchor
     disclosure (D2), archived-mode scope (D4), sync pin semantics (D5),
     room-capacity asymmetry confirmation (D6). D3 (reconciliation endpoint
@@ -782,10 +788,10 @@ hard blockers before separately approving publication.
   `TT-TL-MODULES-C04` C04R1 correction is integrated at merge `eb60d78b` and
   its wave audit was re-verified and closed by the recovery cycle (r2
   `AUDIT_CLEAR` 7/7/0/0); its candidate worktree is closed to
-  further writers (18 accepted paths). `TT-SOURCE-FRESHNESS-C04` is
-  `INTEGRATION_READY` at `9732658d` (fresh QA 14/14/0/0; wave audit pending,
-  push only on `AUDIT_CLEAR`); its two cycle worktrees are
-  `RETIRE_AFTER_INTEGRATION`. No
+  further writers (18 accepted paths). `TT-SOURCE-FRESHNESS-C04` is closed
+  `COMPLETE` at `9732658d` (fresh QA 14/14/0/0; wave audit `AUDIT_CLEAR`;
+  receipt `48dacd62…`); its two cycle worktrees were retired after the closure
+  push. No
   live/shared-database, generation, publication, migration, term-cache, or
   Teaching Load apply action is unlocked, and the shared runtime still serves
   the previously deployed release.

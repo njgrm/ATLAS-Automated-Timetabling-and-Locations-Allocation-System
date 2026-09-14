@@ -1,10 +1,10 @@
 {
   "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T20:38:45+08:00", "lastUpdatedBy": "primary-planner" },
+  "registry": { "lastUpdatedAt": "2026-09-14T21:06:51+08:00", "lastUpdatedBy": "primary-planner" },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "TT-SOURCE-FRESHNESS-C04",
-    "globalNextAction": "Run the fresh Wave Completion Auditor over the integrated result 9732658d and push only on AUDIT_CLEAR; all live/HIGH actions remain locked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "TT-SOURCE-FRESHNESS-C04 closed COMPLETE (QA ACCEPT_READY 14/14/0/0; wave audit AUDIT_CLEAR; receipt pinned). Next: operator-activated dispatch of a registered lane (WF-C02 / WF-EVAL-C01 or another successor); all live/HIGH actions remain locked."
   },
   "streams": [
     {
@@ -219,10 +219,10 @@
       "kind": "CYCLE",
       "objective": "Bind generation, quick-place, and sync outputs to one captured source snapshot (B-03/B-04/B-06/B-09), carry strict-predicate alignment (B-11 remainder), make setup-sync teacher pins truthful (B-13/D5), preserve run-wide summary truth (wave-audit F3), and close the F1/F2 client corrections.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATION_READY",
-      "stateUpdatedAt": "2026-09-14T20:38:45+08:00",
-      "nextAction": "Run the fresh Wave Completion Auditor over the integrated result 9732658d; push only on AUDIT_CLEAR; no HIGH action follows.",
-      "awaited": ["Fresh Wave Completion Auditor verdict"],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-14T21:06:51+08:00",
+      "nextAction": null,
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:\\ATLAS-worktrees\\integration-tt-source-freshness-c04",
@@ -255,13 +255,13 @@
         ]
       },
       "owners": {
-        "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
+        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
         "executor": { "sessionId": "ses_f6087994dffe5zEwP2HMEyjCzy", "status": "RETURNED", "writable": false },
         "qa": { "sessionId": "ses_f6030850affeiZPOm2tfO9G3En", "status": "RETURNED", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+        "auditor": { "sessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj", "status": "RETURNED", "writable": false }
       },
       "gates": { "total": 14, "passed": 14, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En", "auditorVerdict": "AUDIT_CLEAR", "auditorSessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj", "auditRequired": true },
       "corrections": [
         {
           "round": 1,
@@ -270,8 +270,8 @@
           "reason": "C1 (packet 3.5): the server returned exact retained/conflicted teacher-pin totals but the client copy did not state them; the correction adds both exact totals to the typed TEACHER_PIN_CONFLICT message, classifies the conflict non-retryably, surfaces the retained count in both sync success toasts, makes the dialog copy truthful, and adds focused fail-on-mutant controls.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj"
         }
       ],
       "successors": [],
@@ -283,7 +283,7 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": { "receipt": { "path": "docs/plans/receipts/tt-source-freshness-c04.receipt.json", "sha256": "48dacd627ae2c96cdfd37188a4e536ffeba3b3bc5817cb18fa67cf8f09fd24a4" } },
       "sessionRouting": {
         "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owned the cycle, packet, integration, and closure" },
         "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "the initial executor hit its step limit mid-commit; the bounded correction ran fresh on the same worktree lineage (main ses_f6087994dffe5zEwP2HMEyjCzy, correction ses_f603c1ce6ffej42VwzS6INx01G)" },

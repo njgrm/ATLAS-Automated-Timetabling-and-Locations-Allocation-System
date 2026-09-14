@@ -28,9 +28,10 @@
   `hasPublishedMarkers` stays a bounded residual (conservative reconciliation
   and performance-fixture consumers only; no publication authority);
   `enrollpro-rollover.service.ts` loose predicate remains registered residual.
-- Candidate `0553bba0` integrated at merge `9732658d`; wave audit pending;
-  nothing is pushed until `AUDIT_CLEAR`; both cycle worktrees are
-  `RETIRE_AFTER_INTEGRATION`; no live/HIGH action was executed.
+- Candidate `0553bba0` integrated at merge `9732658d` (drift-merge `266055ce`)
+  and wave-audited `AUDIT_CLEAR` (receipt `48dacd62…`); closure pushed; both
+  cycle worktrees retired (`RETIRE_AFTER_INTEGRATION`); no live/HIGH action was
+  executed.
 
 ## [2026-09-14] — WF-C01 Delivery-Cycle State Contract And Wave Closure
 
