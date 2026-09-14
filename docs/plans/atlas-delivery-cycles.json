@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-14T18:00:53.827Z",
+    "lastUpdatedAt": "2026-09-14T18:02:40.169Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 9
+    "revision": 10
   },
   "coordination": {
     "mode": "MANUAL",
@@ -218,7 +218,7 @@
       "objective": "Make the WF-C01 workflow foundation operational: non-self-referential closure identity, atomic validated state transitions, real active-work leases, four least-privilege OpenCode roles, verified compaction, and a fast regression suite.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-14T18:00:51.253Z",
+      "stateUpdatedAt": "2026-09-14T18:02:40.169Z",
       "nextAction": "Closed; WF-C03 dispatch follows from the refreshed origin/main tip.",
       "awaited": [],
       "running": [],
@@ -294,7 +294,12 @@
           "ops/workflow/verify-cycle.mjs",
           "package.json"
         ],
-        "remoteObservation": null
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "b81426ab1193d3f5e62b8ec36cd31941c8239759",
+          "observedAt": "2026-09-14T18:02:40.169Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
       },
       "owners": {
         "planner": {
