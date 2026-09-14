@@ -16,9 +16,12 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Cycle recovery: `root-worktree-retire-c01-20260914` (`RETIREMENT COMPLETE -
-  post-action audit pending`) executed 2026-09-14 (Asia/Manila) by the operator
-  (`CYCLE ON`) for `docs/prompts/root-worktree-retire-c01-2026-09-14.md`. Frozen
+- Cycle recovery: `root-worktree-retire-c01-20260914` (`COMPLETE`) closed
+  2026-09-14 (Asia/Manila); pre-action audit `ses_f60641866ffeor8pO4YRBhj0zl`
+  `AUDIT_CLEAR` 28/28/0/0, post-action audit `ses_f605410e4ffeGvyoyBmErRMwQe`
+  `AUDIT_CLEAR` 97/97/0/0; evidence commits pushed to `origin/main`. Executed by
+  the operator (`CYCLE ON`) for `docs/prompts/root-worktree-retire-c01-2026-09-14.md`.
+  Frozen
   pre-action manifest `docs/reviews/root-worktree-retire-c01-20260914/` (commit
   `757a75ba`, 94 rows; base `origin/main` `3d013421`; directive LF-SHA-256
   `a44056d4...40feb`) passed fresh pre-action audit
@@ -39,6 +42,7 @@ hard blockers before separately approving publication.
   `docs/reviews/root-worktree-retire-c01-20260914/post-action-report.md`. Per
   operator directive, future worktree creation moves to `E:/ATLAS-worktrees`;
   do not create new `D:/ATLAS-worktrees` checkouts until capacity is re-evaluated.
+  Cycle closed; no return remains.
 - Cycle recovery: `term-cache-catchup-preview-20260914` (`INTEGRATED` —
   capture complete; apply remains locked and unbound) activated 2026-09-14
   (Asia/Manila) by the operator (`CYCLE ON`) to resume
@@ -532,7 +536,7 @@ hard blockers before separately approving publication.
 
 | Stream | Objective | State | Risk | Git boundary | Dependency or blocker | Last decisive evidence | Exact next action |
 |---|---|---|---|---|---|---|---|
-| ROOT-WORKTREE-RETIRE-C01 | Retire registered clean/merged/junction-free/inactive historical worktrees under `D:/ATLAS-worktrees` under audited safety gates | `REVIEW_REQUIRED` (retirement executed; post-action audit pending) | MEDIUM repository hygiene; no live mutation | Manifest `757a75ba`; executor `ses_f60614614ffeJuq4sG7XT1NWbB`; no branch deletion | Fresh post-action audit before push | Pre-action `AUDIT_CLEAR` 28/28/0/0 (`ses_f60641866ffeor8pO4YRBhj0zl`); 28 removed / 66 retained; D: 5.58 -> 30.57 GiB | Fresh post-action audit; then set this row `INTEGRATED` and push the evidence commits |
+| ROOT-WORKTREE-RETIRE-C01 | Retire registered clean/merged/junction-free/inactive historical worktrees under `D:/ATLAS-worktrees` under audited safety gates | `INTEGRATED` (post-action audit clear; evidence pushed) | MEDIUM repository hygiene; no live mutation | Manifest `757a75ba`; executor `ses_f60614614ffeJuq4sG7XT1NWbB`; no branch deletion | None | Pre-action `AUDIT_CLEAR` 28/28/0/0 (`ses_f60641866ffeor8pO4YRBhj0zl`); post-action `AUDIT_CLEAR` 97/97/0/0 (`ses_f605410e4ffeGvyoyBmErRMwQe`); 28 removed / 66 retained; D: 5.58 -> 30.57 GiB | Closed; no return remains |
 | GEN-ZW01 | Make generation passive over Teaching Load and close actor/audit/write authority | `INTEGRATED` | MEDIUM | `work/generation-zw01`; `e39da520...00488bbf` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
 | RR-UX01 | Visible rollover awareness, one Year Setup status surface, and read-only archived Teaching Load | `INTEGRATED` | MEDIUM | `work/rollover-rrux01`; `00488bbf...ea44e155` | None | Independent QA and combined Wave-1 integration gates passed | Closed into `origin/main` at `36c5d3d1` |
 | TERM-SUBJ-C01 | Consume exact EnrollPro term authority and prepare Subject scheduling metadata without false operative controls | `INTEGRATED` | MEDIUM source; HIGH live migration | `work/term-subject-c01`; `e39da520...8abc2ab1` | None in source; migration is already closed separately | Independent QA passed 13/13 server authority and 11/11 client controls; combined builds passed | Closed in source; migration 0001 is recorded under TERM-LIVE-APPLY and must not be re-run |

@@ -119,5 +119,18 @@ The full per-path disposition and reason for all 94 pre-action rows is in
 
 ## Post-action audit
 
-PENDING - to be recorded with the fresh post-action auditor's verdict, task identifier,
-and mandatory-gate tally after it is dispatched over this commit and the live state.
+Fresh read-only auditor `ses_f605410e4ffeGvyoyBmErRMwQe` returned `AUDIT_CLEAR` with
+mandatory tally 97/97 passed, 0 blocked, 0 unperformed, over base `3d013421`, manifest
+`757a75ba`, evidence `2bbea504`, and live state:
+
+- Removed rows: 28/28 (absent from disk, worktree list, and `.git/worktrees` admin dirs;
+  every branch ref still resolves to its recorded HEAD).
+- Preserved rows: 63/63 (exist, still registered, HEAD and clean/dirty class unchanged;
+  the six dirty worktrees matched their frozen status counts exactly).
+- Closure rows: 6/6 (root clean at `2bbea504` with parent `757a75ba`; all required
+  boundary paths exist; 74 registered / 66 children / 0 prunable / D: 30.57 GiB / 107
+  branch refs; register names the retained categories and contains no all-removed claim;
+  docs-only commits with no side effects).
+- Informational note: `integration-wfc01-20260914` HEAD drifted during the window
+  (`bd42eab66b` -> `b7aab204b2`) as the concurrent workflow session committed; not a
+  cleanup effect.
