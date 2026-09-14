@@ -80,3 +80,22 @@ before acceptance); the mechanically derived, exactly equal inventory passes.
   changed-path enumeration of its candidate range).
 - This file is the durable record of the steering. It does not modify,
   reopen, or invalidate the frozen WF-C02 candidate or its immutable ranges.
+
+## Operationally discovered gap recorded during WF-C02 (not from the steering)
+
+Post-integration auditor corrections are not expressible through the WF-C02
+transition set. `record-audit` records a `CORRECTION_REQUIRED` verdict but keeps
+the stream `INTEGRATED` (`ops/workflow/lib/transition.mjs` returns
+`state: "INTEGRATED"` for both verdicts), and no transition accepts an
+`INTEGRATED` stream to record a corrected candidate / fresh-QA / re-integration
+set (`record-correction` and `record-executor-return` accept only
+`REVIEW_REQUIRED`, `CORRECTION_REQUIRED`, `ACCEPT_READY`, `PLANNED`, and
+`RUNNING`). During the WF-C02 R4 cycle the corrected candidate, fresh-QA tally,
+and re-integration were therefore recorded through one explicit, validated
+planner state update (direct edit followed by `render-register` regeneration and
+`verify-cycle` exit 0), disclosed in the record commit and to the round-2
+auditor.
+
+Required WF-EVAL-C01 trap: add a closed reopen path (for example, allow
+`record-correction` from `INTEGRATED`) with failing-first tests, so a
+wave-audit-required correction never requires hand-editing machine state.

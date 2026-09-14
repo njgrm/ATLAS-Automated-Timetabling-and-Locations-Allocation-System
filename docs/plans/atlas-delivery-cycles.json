@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-14T16:07:05.537Z",
+    "lastUpdatedAt": "2026-09-14T17:31:56.639Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 5
+    "revision": 6
   },
   "coordination": {
     "mode": "MANUAL",
@@ -218,8 +218,8 @@
       "objective": "Make the WF-C01 workflow foundation operational: non-self-referential closure identity, atomic validated state transitions, real active-work leases, four least-privilege OpenCode roles, verified compaction, and a fast regression suite.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-14T16:07:05.537Z",
-      "nextAction": "Wave Completion Auditor reviews the integrated tree.",
+      "stateUpdatedAt": "2026-09-14T17:31:56.639Z",
+      "nextAction": "Fresh Wave Completion Auditor reviews the corrected integrated tree.",
       "awaited": [
         "fresh Wave Completion Auditor"
       ],
@@ -228,8 +228,8 @@
         "worktree": "E:/ATLAS-worktrees/workflow-hardening-c02",
         "branch": "work/workflow-hardening-c02",
         "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c",
-        "candidateSha": "5d902bf42cf009ca28034ed30b7877b8505fca24",
-        "integrationSha": "386fdaf1614384da3eecf5d62364ae0c3318c7b0",
+        "candidateSha": "cf1d360cbf185e5db38888e426c976e96a076607",
+        "integrationSha": "6be52b4c2035fc053415b222dec25cbf9b389f14",
         "changedPaths": [
           ".gitattributes",
           ".opencode/agents/atlas-executor.md",
@@ -274,6 +274,7 @@
           "ops/workflow/__tests__/harness.mjs",
           "ops/workflow/__tests__/identity.test.mjs",
           "ops/workflow/__tests__/leases.test.mjs",
+          "ops/workflow/__tests__/lock-stampede.test.mjs",
           "ops/workflow/__tests__/lock.test.mjs",
           "ops/workflow/__tests__/roles.test.mjs",
           "ops/workflow/__tests__/schema.test.mjs",
@@ -309,7 +310,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f5f5b04c0ffe6tyQ48Lt7QKRDz",
+          "sessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF",
           "status": "RETURNED",
           "writable": false
         },
@@ -320,20 +321,31 @@
         }
       },
       "gates": {
-        "total": 15,
-        "passed": 15,
+        "total": 25,
+        "passed": 25,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5f5b04c0ffe6tyQ48Lt7QKRDz",
+        "qaSessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "5d902bf42cf009ca28034ed30b7877b8505fca24",
+          "candidateSha": "cf1d360cbf185e5db38888e426c976e96a076607",
+          "reason": "Wave-audit F1 (blocking): lock reclaim was a TOCTOU that allowed concurrent reclaimers to unlink each other's live records. Corrected by the claim-mutex reclaim protocol (byte-fingerprint re-verification inside the claim section, CAS republish, bounded fail-closed claim races) with failing-first dead-owner stampede controls.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [
         {
           "streamId": "WF-C03",
