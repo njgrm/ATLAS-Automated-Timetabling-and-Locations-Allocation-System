@@ -745,7 +745,6 @@ hard blockers before separately approving publication.
   30.57 GiB. Per operator directive, future worktree creation moves to
   `E:/ATLAS-worktrees`; do not create new `D:/ATLAS-worktrees` checkouts until
   capacity is re-evaluated.
->>>>>>> 3255683c13d33a30d219d8475585dbd09b745903
 - The C04 authority wave is integrated and wave-audited `AUDIT_CLEAR`.
   `TT-TL-MODULES-C04` C04R1 correction is integrated at merge `eb60d78b` and
   its wave audit was re-verified and closed by the recovery cycle (r2
