@@ -40,6 +40,7 @@ import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetabl
 import type { TimetableLayoutMode, TimetableSimpleTask } from '@/components/timetable/TimetableSimpleTypes';
 import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
+import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
 import { UnassignedInsertionWorkflow } from '@/components/timetable/UnassignedInsertionWorkflow';
 import {
@@ -121,7 +122,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// operators do not read this as "nothing ever happened".
 	const latestRunFailed = !hasGeneratedRun && (context.runs?.[0]?.status === 'FAILED');
 	const draftSummaryRaw = context.draft?.summary as unknown as Record<string, unknown> | null;
-	const isRunPublished = draftSummaryRaw?.isPublished === true;
+	// R6/CP-2: the single strict predicate. Loose `publishedAt`/`publishedBy`
+	// markers on a superseded run must never render published affordances.
+	const isRunPublished = isRunPublishedStrict(draftSummaryRaw);
 
 	// One shared capability and generation decision for Simple and Advanced.
 	const capabilities = deriveTimetableCapabilities({
@@ -363,6 +366,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				onRefresh={context.handleRefresh}
 				onRolloverStatus={setRolloverStatus}
 				capabilities={capabilities}
+				isPublished={isRunPublished}
 			/>
 			{/* Keep source, readiness, schedule choice, and actions in one non-overlapping row. */}
 			<div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden px-3 py-1.5 lg:flex-nowrap [&>*]:min-w-0">

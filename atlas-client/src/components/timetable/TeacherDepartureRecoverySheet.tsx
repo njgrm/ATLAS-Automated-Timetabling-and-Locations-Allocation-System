@@ -17,7 +17,12 @@ import {
 	SheetTitle,
 } from '@/ui/sheet';
 import { PublishedRevisionDialog } from './PublishedRevisionDialog';
-import { buildRevisionPayloadChange, revisionDateError } from './TacticalSandboxDock.helpers';
+import {
+	buildRevisionPayloadChange,
+	canonicalRefusalFromError,
+	describeDepartureRepairTruth,
+	revisionDateError,
+} from './TacticalSandboxDock.helpers';
 import {
 	buildRevisionCreatePayload,
 	fetchLatestRevisionToken,
@@ -165,7 +170,17 @@ function buildRepairChanges(groups: AffectedGroup[], replacementByGroup: Record<
 	return changes;
 }
 
-export function TeacherDepartureRecoverySheet({
+/**
+ * TT-TL-MODULES-C04R1 (F1) — portal-free sheet interior.
+ *
+ * The sheet body is exported separately from the Radix `Sheet`/`SheetContent`
+ * portal wrapper so the rendered-component harness can exercise the real
+ * production content (the truthful departure copy, the preview result, and the
+ * absence-window-free controls) without a DOM portal. Behavior is unchanged:
+ * the mounted `TeacherDepartureRecoverySheet` renders this body inside the
+ * portal exactly as before.
+ */
+export function TeacherDepartureRecoverySheetBody({
 	open,
 	onOpenChange,
 	initialFacultyId,
@@ -201,6 +216,11 @@ export function TeacherDepartureRecoverySheet({
 	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
 	const [revisionSuccess, setRevisionSuccess] = useState<{ revisionId: number; effectiveDate: string; changeCount: number } | null>(null);
 	const [currentStep, setCurrentStep] = useState<TeacherDepartureStep>(0);
+	// F1: there is no absence window. Decision D1 defers persisted faculty
+	// availability, so this sheet records no absence period and schedules no
+	// future reversion; an unpublished run reassigns the affected classes of the
+	// current generated run, and a published run changes only through an
+	// effective-dated revision.
 
 	useEffect(() => {
 		if (!open) return;
@@ -265,6 +285,8 @@ export function TeacherDepartureRecoverySheet({
 	);
 	const hasBlockingPreview = (preview?.hardViolations.length ?? 0) > 0 || (preview?.errorCount ?? 0) > 0;
 	const hasSoftWarnings = (preview?.softViolations.length ?? 0) > 0;
+	// F1: the only temporal authority is the published revision effective date.
+	const departureTruth = describeDepartureRepairTruth(isPublished, affectedGroups.length);
 	const saveDisabledReason = isPublished
 		? 'Published schedules require an effective-date revision. Do not rewrite the published run directly.'
 		: !draft
@@ -351,17 +373,23 @@ export function TeacherDepartureRecoverySheet({
 			if (!result) setStatus('ATLAS could not preview the reassignment. Try refreshing, then preview again.');
 			else if (result.hardViolations.length > 0 || result.errorCount > 0) setStatus('Preview found blockers. Review the messages before saving.');
 			else if (result.softViolations.length > 0) setStatus('Preview found warnings. You may save after acknowledging them.');
-			else setStatus('Preview passed. This reassignment is ready to save.');
+			else setStatus(`Preview passed. ${departureTruth}`);
 			if (result) setCurrentStep(4);
 		} catch (error) {
-			setStatus(error instanceof Error ? error.message : 'ATLAS could not preview the reassignment.');
+			// R2: a canonical typed refusal is rendered truthfully inline; the
+			// failure is never silently retried and never reported as success.
+			const refusal = canonicalRefusalFromError(error);
+			setStatus(refusal.message);
 		} finally {
 			setPreviewing(false);
 		}
 	};
 
 	const handleSave = async () => {
-		if (saveDisabledReason) return;
+		if (saveDisabledReason) {
+			setStatus(saveDisabledReason);
+			return;
+		}
 		setSaving(true);
 		setStatus(null);
 		try {
@@ -370,11 +398,12 @@ export function TeacherDepartureRecoverySheet({
 				setStatus('ATLAS could not save the reassignment. No changes were applied.');
 				return;
 			}
-			setStatus('Reassignment saved. ATLAS refreshed the timetable and Teaching Load ownership.');
+			setStatus(`Reassignment saved for the current generated run. ${departureTruth} ATLAS refreshed the timetable and Teaching Load ownership.`);
 			onSaved();
 			onOpenChange(false);
 		} catch (error) {
-			setStatus(error instanceof Error ? error.message : 'ATLAS could not save the reassignment.');
+			const refusal = canonicalRefusalFromError(error);
+			setStatus(refusal.message);
 		} finally {
 			setSaving(false);
 		}
@@ -398,6 +427,9 @@ export function TeacherDepartureRecoverySheet({
 			setRevisionActionHint('Every affected group needs a replacement teacher.');
 			return;
 		}
+		// F1: in Published mode the revision effective date is the sole temporal
+		// authority. No absence window exists and no direct Teaching Load write is
+		// attempted on this path.
 		const dateError = revisionDateError(revisionEffectiveDate);
 		if (dateError) {
 			setRevisionError(dateError);
@@ -454,13 +486,8 @@ export function TeacherDepartureRecoverySheet({
 	};
 
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent
-				side="right"
-				className="isolate flex h-full w-[92vw] max-w-none flex-col gap-3 overflow-hidden bg-background p-4 text-foreground shadow-2xl sm:w-[34rem] sm:max-w-[34rem]"
-				data-testid="teacher-departure-recovery-sheet"
-			>
-				<SheetHeader className="space-y-1 pr-8 text-left">
+		<>
+		<SheetHeader className="space-y-1 pr-8 text-left">
 					<SheetTitle className="flex items-center gap-2 text-base">
 						<UserRoundX className="size-4 text-primary" aria-hidden="true" />
 						Teacher leaving
@@ -519,6 +546,9 @@ export function TeacherDepartureRecoverySheet({
 							Published run selected. Use an effective-date revision for already-published schedules; this sheet will not rewrite the published record.
 						</div>
 					) : null}
+					<div className="mt-1 rounded-md border border-border bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground" data-testid="teacher-departure-truth">
+						{departureTruth}
+					</div>
 				</div>
 				) : null}
 
@@ -637,7 +667,10 @@ export function TeacherDepartureRecoverySheet({
 				{visibleStep === 3 || visibleStep === 4 ? (
 				<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" role="status" aria-live="polite">
 					<div className="flex items-center justify-between gap-2">
-						<p className="text-sm font-semibold text-foreground">Preview result</p>
+						<div className="min-w-0">
+							<p className="text-sm font-semibold text-foreground">Preview result</p>
+							<p className="text-xs text-muted-foreground" data-testid="teacher-departure-window-confirmation">{departureTruth}</p>
+						</div>
 						{preview ? (
 							<Badge variant={hasBlockingPreview ? 'destructive' : hasSoftWarnings ? 'outline' : 'secondary'} className="text-xs">
 								{hasBlockingPreview ? 'Blocked' : hasSoftWarnings ? 'Warnings' : 'Ready'}
@@ -756,6 +789,22 @@ export function TeacherDepartureRecoverySheet({
 					sectionLabel={sectionLabel}
 					facultyLabel={facultyLabel}
 				/>
+		</>
+	);
+}
+
+/**
+ * The mounted sheet wrapper: the Radix portal plus the real interior body.
+ */
+export function TeacherDepartureRecoverySheet(props: TeacherDepartureRecoverySheetProps) {
+	return (
+		<Sheet open={props.open} onOpenChange={props.onOpenChange}>
+			<SheetContent
+				side="right"
+				className="isolate flex h-full w-[92vw] max-w-none flex-col gap-3 overflow-hidden bg-background p-4 text-foreground shadow-2xl sm:w-[34rem] sm:max-w-[34rem]"
+				data-testid="teacher-departure-recovery-sheet"
+			>
+				<TeacherDepartureRecoverySheetBody {...props} />
 			</SheetContent>
 		</Sheet>
 	);

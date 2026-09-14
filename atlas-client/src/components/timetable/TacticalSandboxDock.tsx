@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Search, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,18 +28,37 @@ import {
 	buildEntryRepairChanges,
 	buildFacultyTeachingMinuteIndex,
 	buildFacultyChangeProposals,
+	buildQualificationApplyPayload,
+	buildQualificationPreviewPayload,
+	buildRedistributionRequest,
 	buildRevisionPayloadChange,
 	buildTeachingLoadRepairProposals,
+	canonicalRefusalFromError,
 	facultyDisplayName,
 	findCanonicalOwner,
 	isEligibleFaculty,
 	previewErrorCopy,
 	projectedTeachingHoursForFaculty,
+	qualificationRefusalCopy,
 	revisionDateError,
 	reviewStatusCopy,
+	summarizeReadiness,
+	summarizeRedistribution,
 	teachingHoursForFaculty,
+	workspaceScopeKey,
+	type QualificationPreviewState,
+	type ReadinessSummary,
+	type RedistributionSummary,
 } from './TacticalSandboxDock.helpers';
-import { ReviewStepPill, TeacherCandidateCard, type Candidate, type ReviewStep } from './TacticalSandboxDock.parts';
+import {
+	OwnerSourceMismatchNotice,
+	StagedRepairReview,
+	TeacherCandidateList,
+	TeachingLoadModulesSection,
+	type Candidate,
+	type ReviewStep,
+} from './TacticalSandboxDock.parts';
+import { useTeachingLoadModules } from './TacticalSandboxDock.useTeachingLoadModules';
 import { PublishedRevisionDialog } from './PublishedRevisionDialog';
 import {
 	buildRevisionCreatePayload,
@@ -144,6 +163,11 @@ export function TacticalSandboxDock({
 	const subject = activeSubjectId ? subjectMap.get(activeSubjectId) : undefined;
 	const canonicalOwner = useMemo(() => findCanonicalOwner(activeSubjectId, activeSectionId, facultyMap), [activeSectionId, activeSubjectId, facultyMap]);
 	const unassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
+	// R8(d): scope identity for every bound repair state and module request.
+	const workspaceScope = workspaceScopeKey({ schoolId, schoolYearId, runId });
+	// F5: the focused redistribution/qualification mini-module state and handlers
+	// live in a dedicated hook so this presenter stays under the line limit.
+	const modules = useTeachingLoadModules({ schoolId, schoolYearId, scopeKey: workspaceScope });
 	const activeContextEntry = useMemo<ScheduledEntry | null>(() => {
 		if (selectedEntry) return selectedEntry;
 		if (!selectedUnassigned || !unassignedKey) return null;
@@ -218,6 +242,9 @@ export function TacticalSandboxDock({
 		{ label: isPublished ? '3 Create revision' : '3 Preview and save', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : hasStagedChanges ? 'active' : 'waiting' },
 	]), [activeContextEntry, batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, hasStagedChanges]);
 
+	// R8(d): every scope-bound repair state is cleared when the school, year, or
+	// run changes so a stale preview/selection from the previous scope can never
+	// be committed against the new scope.
 	useEffect(() => {
 		setBatchPreview(null);
 		setBatchPreviewError(null);
@@ -225,7 +252,7 @@ export function TacticalSandboxDock({
 		setRevisionError(null);
 		setRevisionActionHint(null);
 		setRevisionSuccess(null);
-	}, [stagedProposalKey]);
+	}, [stagedProposalKey, workspaceScope]);
 
 	useEffect(() => {
 		setCandidateQuery('');
@@ -593,24 +620,13 @@ export function TacticalSandboxDock({
 									<p className="font-medium text-foreground">{canonicalOwner ? facultyDisplayName(canonicalOwner) : 'No saved owner'}</p>
 								</div>
 								{canonicalOwnerMismatch ? (
-									<div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-800">
-										<div className="flex items-start gap-2">
-											<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-											<div className="min-w-0">
-												<p className="font-semibold">Timetable and Teaching Load do not match</p>
-												<p className="mt-0.5 text-xs">Choose which source should drive this class before saving.</p>
-												<div className="mt-2 flex flex-wrap gap-1.5">
-													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-xs" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry?.facultyId}>
-														Use timetable owner
-													</Button>
-													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-xs" onClick={() => canonicalOwner ? applyCandidate(canonicalOwner.id) : undefined} disabled={!canonicalOwner}>
-														Use Teaching Load owner
-													</Button>
-												</div>
-												{isPublished ? <p className="mt-1 text-xs">Published repairs use revisions only.</p> : null}
-											</div>
-										</div>
-									</div>
+									<OwnerSourceMismatchNotice
+										isPublished={isPublished}
+										selectedEntryFacultyId={selectedEntry?.facultyId ?? null}
+										canonicalOwnerId={canonicalOwner?.id ?? null}
+										onUseTimetableOwner={useTimetableTeacherAsTeachingLoadOwner}
+										onUseCanonicalOwner={applyCandidate}
+									/>
 								) : null}
 								{subject ? (
 									<div className="rounded border border-border/70 bg-background px-2 py-1.5 text-xs text-muted-foreground">
@@ -642,31 +658,13 @@ export function TacticalSandboxDock({
 									/>
 								</div>
 							</div>
-							<ScrollArea className="h-52 min-h-0 md:h-full md:flex-1">
-								<div className="space-y-2 p-3">
-									{filteredCandidates.length === 0 ? (
-										<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-											No eligible owner matches this search. Clear the search or pick another block.
-										</div>
-									) : (
-										<>
-										{filteredCandidates.length > MAX_RENDERED_TEACHER_CANDIDATES ? (
-											<div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-												Showing the first {MAX_RENDERED_TEACHER_CANDIDATES} of {filteredCandidates.length} eligible owners. Use search to narrow the list.
-											</div>
-										) : null}
-										{visibleCandidates.map((candidate) => (
-											<TeacherCandidateCard
-												key={candidate.faculty.id}
-												candidate={candidate}
-												showWorkloadDetails={showWorkloadDetails}
-												onApply={applyCandidate}
-											/>
-										))}
-										</>
-									)}
-								</div>
-							</ScrollArea>
+							<TeacherCandidateList
+								filteredCount={filteredCandidates.length}
+								maxRendered={MAX_RENDERED_TEACHER_CANDIDATES}
+								visibleCandidates={visibleCandidates}
+								showWorkloadDetails={showWorkloadDetails}
+								onApply={applyCandidate}
+							/>
 						</section>
 
 						{selectedUnassigned ? (
@@ -807,98 +805,42 @@ export function TacticalSandboxDock({
 				</div>
 
 				{stagedCount > 0 ? (
-					<div className="rounded-lg border border-border bg-background px-3 py-3 text-xs">
-						<div className="flex flex-wrap items-center justify-between gap-2">
-							<div>
-								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Create timetable revision' : 'Preview and save'}</p>
-								<p className="text-xs text-muted-foreground">
-									{selectedUnassigned
-										? `${unassignedOwnerChanged ? 'Ownership and placement changes' : 'Session placement'} waiting for review.`
-										: `${stagedCount} ownership change${stagedCount === 1 ? '' : 's'} waiting for ${isPublished ? 'an effective date' : 'impact preview'}.`}
-								</p>
-							</div>
-							<div className="flex flex-wrap gap-1.5">
-								{reviewSteps.map((step) => <ReviewStepPill key={step.label} step={step} />)}
-							</div>
-							{batchPreview ? (
-								<Badge variant={canCommitPreview ? 'secondary' : 'destructive'} className="h-5 px-2 text-xs">
-									{canCommitPreview ? 'Ready to save' : 'Needs changes'}
-								</Badge>
-							) : null}
-						</div>
-						{batchPreviewError ? (
-							<div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-red-700">
-								<div className="flex items-start gap-1.5">
-									<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-									<div>
-										<p className="font-medium">Preview blocked</p>
-										<p className="mt-0.5 text-xs">{batchPreviewError}</p>
-									</div>
-								</div>
-							</div>
-						) : null}
-						<div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-							{selectedUnassigned && unassignedRepairChange ? (
-								<div className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
-									<div className="flex items-center justify-between gap-2">
-										<span className="truncate font-medium text-foreground">{sectionLabel(selectedUnassigned.sectionId)}</span>
-										<Badge variant="outline" className="h-4 px-1.5 text-xs">Unassigned</Badge>
-									</div>
-									<p className="truncate text-xs text-muted-foreground">
-										{canonicalOwner ? facultyDisplayName(canonicalOwner) : 'No saved owner'} -&gt; {facultyLabel(unassignedRepairChange.toFacultyId)}
-									</p>
-									<p className="mt-0.5 text-xs text-amber-700">
-										{selectedPlacementProposal ? 'The selected slot will be applied when you save.' : 'Session stays in Needs attention until a valid slot is chosen.'}
-									</p>
-								</div>
-							) : null}
-							{draftEntries.filter((entry) => stagedEntryIds.has(entry.entryId)).slice(0, 6).map((entry) => {
-								const targetFacultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? canonicalOnlyTargets.get(entry.entryId);
-								const rowPreview = batchPreview?.proposals.find((item) => item.entryId === entry.entryId);
-								return (
-									<div key={entry.entryId} className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
-										<div className="flex items-center justify-between gap-2">
-											<span className="truncate font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
-											{rowPreview?.status === 'FAILED' ? <Badge variant="destructive" className="h-4 px-1.5 text-xs">Failed</Badge> : null}
-										</div>
-										<p className="truncate text-xs text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No owner'} -&gt; {targetFacultyId ? facultyLabel(targetFacultyId) : 'No owner'}</p>
-										{canonicalOnlyTargets.has(entry.entryId) ? <p className="mt-0.5 text-xs text-amber-700">Teaching Load owner will be updated.</p> : null}
-										{rowPreview?.errorMessage ? <p className="mt-1 text-xs text-destructive">{rowPreview.errorMessage}</p> : null}
-									</div>
-								);
-							})}
-						</div>
-						{stagedCount > 6 ? <p className="mt-1.5 text-xs text-muted-foreground">{stagedCount - 6} more staged change{stagedCount - 6 === 1 ? '' : 's'} included in the batch.</p> : null}
-						{batchPreview ? (
-							<div className={`mt-2 rounded-md border px-2.5 py-2 ${canCommitPreview ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-								<div className="flex items-start gap-1.5">
-									{canCommitPreview ? <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
-									<div>
-										<p className="font-medium">{reviewStatusCopy(batchPreview, canCommitPreview)}</p>
-										<p className="mt-0.5 text-xs opacity-90">Blocking conflicts: {batchPreview.violationDelta.hardAfter}. Warnings to review before publish: {batchPreview.violationDelta.softAfter}.</p>
-										<p className="mt-0.5 text-xs opacity-90">Teaching Load transfers: {batchPreview.ownershipDeltas.filter((delta) => delta.ownershipAction === 'TRANSFER').length}.</p>
-									</div>
-								</div>
-								{batchPreview.humanConflicts.slice(0, 2).map((conflict, conflictIndex) => (
-									<p key={`${conflict.code}-${conflict.humanDetail}-${conflictIndex}`} className="mt-1 text-xs">{conflict.humanTitle}: {conflict.humanDetail}</p>
-								))}
-							</div>
-						) : null}
-						{requiresSoftWarningAcknowledgement ? (
-							<label className="mt-2 flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-800">
-								<Checkbox
-									checked={softWarningAcknowledged}
-									onCheckedChange={(checked) => setSoftWarningAcknowledged(checked === true)}
-									aria-label="Acknowledge soft warnings before saving sandbox changes"
-								/>
-									<span>
-										<span className="block font-medium">Acknowledge {softWarningCount} soft warning{softWarningCount === 1 ? '' : 's'} before saving</span>
-										<span className="block text-xs">The warnings will remain after save. Check this box only if you want to save the batch anyway and review those warnings before publish.</span>
-									</span>
-							</label>
-						) : null}
-					</div>
+					<StagedRepairReview
+						isPublished={isPublished}
+						stagedCount={stagedCount}
+						selectedUnassigned={Boolean(selectedUnassigned)}
+						unassignedOwnerChanged={unassignedOwnerChanged}
+						hasSelectedPlacement={selectedPlacementProposal !== null}
+						reviewSteps={reviewSteps}
+						batchPreview={batchPreview}
+						canCommitPreview={canCommitPreview}
+						batchPreviewError={batchPreviewError}
+						requiresSoftWarningAcknowledgement={requiresSoftWarningAcknowledgement}
+						softWarningAcknowledgement={softWarningAcknowledged}
+						onSoftWarningAcknowledgeChange={setSoftWarningAcknowledged}
+						softWarningCount={softWarningCount}
+						stagedEntryIds={stagedEntryIds}
+						draftEntries={draftEntries}
+						sandboxFacultyByEntryId={sandboxFacultyByEntryId}
+						canonicalOnlyTargets={canonicalOnlyTargets}
+						sectionLabel={sectionLabel}
+						facultyLabel={facultyLabel}
+					/>
 				) : null}
+
+				{/* R3/R4/R7 — focused Teaching Load mini-modules. All three are
+				    read-only or fingerprinted and never become a second editor.
+				    F5: the section is extracted so this presenter stays under the
+				    mandatory physical-line limit. */}
+				<TeachingLoadModulesSection
+					schoolId={schoolId}
+					schoolYearId={schoolYearId}
+					activeContextEntry={activeContextEntry}
+					sectionLabel={sectionLabel}
+					subjectLabel={subjectLabel}
+					facultyLabel={facultyLabel}
+					modules={modules}
+				/>
 
 				<SheetFooter className="shrink-0 gap-2 border-t border-border/70 pt-3 sm:space-x-0">
 					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setUnassignedTargetFacultyId(null); setSelectedPlacementProposal(null); setBatchPreview(null); setBatchPreviewError(null); setBulkEntryIds(new Set()); }} disabled={!hasStagedChanges} className="gap-1.5">
