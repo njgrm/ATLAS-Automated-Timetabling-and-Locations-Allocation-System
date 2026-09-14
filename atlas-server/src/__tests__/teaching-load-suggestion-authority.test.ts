@@ -250,6 +250,19 @@ async function runFixtureTests() {
 				isActive: true,
 				isArchived: false,
 				syncStatus: 'synced',
+				// Canonical derived demand requires a persisted verified ordered-term
+				// snapshot; suggestion preview/apply now fail closed without it.
+				termContractCache: {
+					schoolId: fixtureSchoolId,
+					schoolYear: { id: fixtureYearId, yearLabel: '2029-2030' },
+					format: 'TRIMESTER',
+					terms: [
+						{ identity: 'T1', displayLabel: 'Term 1', order: 1 },
+						{ identity: 'T2', displayLabel: 'Term 2', order: 2 },
+						{ identity: 'T3', displayLabel: 'Term 3', order: 3 },
+					],
+				},
+				termContractCachedAt: new Date(),
 			},
 		});
 
@@ -275,7 +288,7 @@ async function runFixtureTests() {
 			await instrumented.sectionMirror.create({
 				data: {
 					schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId, name: `Grade 7 - ${externalId}`,
-					gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+					gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
 					isActiveForScheduling: true, isStale: false,
 				},
 			});
@@ -283,7 +296,7 @@ async function runFixtureTests() {
 		await instrumented.sectionMirror.create({
 			data: {
 				schoolId: fixtureSchoolId, schoolYearId: fixtureYearId, externalId: 301, name: 'Grade 7 - ENG',
-				gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
+				gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', maxCapacity: 50, enrolledCount: 50,
 				isActiveForScheduling: true, isStale: false,
 			},
 		});

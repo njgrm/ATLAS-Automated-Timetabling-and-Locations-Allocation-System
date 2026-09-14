@@ -306,6 +306,27 @@ const OWNERSHIP = 501;
 const DONOR_FS = 901;
 
 const POLICY_REVISION = 'std:1800;adv:300;cap:2400';
+const DERIVED_REVISION = 'D'.repeat(64);
+
+/**
+ * The move-parity suite injects the reviewed/refreshed preview and therefore
+ * also pins the canonical derived-demand authority the production apply would
+ * re-resolve through its Serializable transaction client. The real
+ * transaction-client resolution is exercised by the dedicated C03R2 suite.
+ */
+const derivedAuthority = async () => ({
+	ok: true as const,
+	scope: { schoolId: SCHOOL, schoolYearId: YEAR },
+	yearLabel: '2030-2031',
+	revision: DERIVED_REVISION,
+	termStructure: { format: 'TRIMESTER' as const, semanticRevision: 'A'.repeat(64), terms: [] },
+	periodLengthMinutes: 45,
+	timetableLines: [],
+	teachingLoadPairs: [],
+	totalsByTerm: {},
+	totalLines: 0,
+	totalPairs: 0,
+});
 
 function buildState(overrides: Partial<ApplyState> = {}): ApplyState {
 	return {
@@ -407,6 +428,9 @@ function buildPreview(plan: any): any {
 		staffingTruth: {},
 		suggestedRows: [],
 		distribution: plan,
+		derivedDemandRevision: DERIVED_REVISION,
+		canonicalDemandPairCount: 1,
+		outsideDemandOwnershipCount: 0,
 	};
 }
 
@@ -440,7 +464,7 @@ async function expectStale(state: ApplyState, mutateBeforeTransaction: (client: 
 	try {
 		await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 			{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-			{ preview: previewWithRace as any },
+			{ preview: previewWithRace as any, resolveDerivedDemand: derivedAuthority as any },
 		));
 	} catch (error) {
 		code = (error as { code?: string })?.code;
@@ -461,7 +485,7 @@ async function run(): Promise<void> {
 
 		const result = await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 			{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-			{ preview: freshPreview as any },
+			{ preview: freshPreview as any, resolveDerivedDemand: derivedAuthority as any },
 		));
 
 		check(result.applyResult?.movesApplied === 1, `positive apply persisted one move (got ${result.applyResult?.movesApplied})`);
@@ -544,7 +568,7 @@ async function run(): Promise<void> {
 		try {
 			await withDataContext(client, () => applyTeachingLoadSuggestionProposal(
 				{ proposalId: 1, actorId: ACTOR, actorSchoolId: SCHOOL },
-				{ preview: previewWithRace as any },
+				{ preview: previewWithRace as any, resolveDerivedDemand: derivedAuthority as any },
 			));
 		} catch (error) {
 			code = (error as { code?: string })?.code;

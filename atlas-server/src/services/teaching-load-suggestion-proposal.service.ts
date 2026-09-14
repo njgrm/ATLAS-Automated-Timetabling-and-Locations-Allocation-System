@@ -10,6 +10,7 @@ import {
 } from './teaching-load-automation.service.js';
 import { assertTeachingLoadWriteAuthority } from './faculty-assignment.service.js';
 import { refreshTeachingLoadCycle } from './teaching-load-cycle.service.js';
+import { buildDerivedDemand, type DerivedDemandResult } from './derived-demand.service.js';
 import { workloadPolicyRevision } from './workload-policy.service.js';
 import { getEffectiveWorkloadPolicyFromClient, type EffectiveWorkloadPolicy } from './scheduling-policy.service.js';
 
@@ -286,7 +287,17 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 	actorId: number;
 	actorSchoolId: number | null;
 	authToken?: string;
-}, dependencies: { preview?: typeof autoFill } = {}): Promise<TeachingLoadSuggestionProposalResult> {
+}, dependencies: {
+	preview?: typeof autoFill;
+	/**
+	 * Resolve the canonical derived-demand authority through the supplied client.
+	 * Defaults to the production `buildDerivedDemand`; hermetic move-parity tests
+	 * inject a matching authority so the move re-validation remains the subject
+	 * under test while the real Serializable transaction-client path is exercised
+	 * by the dedicated derived-demand correction suite.
+	 */
+	resolveDerivedDemand?: (schoolId: number, schoolYearId: number, client: unknown) => Promise<DerivedDemandResult>;
+} = {}): Promise<TeachingLoadSuggestionProposalResult> {
 	requireActor(input.actorId);
 	const existing = await db().teachingLoadSuggestionProposal.findUnique({
 		where: { id: input.proposalId },
@@ -371,6 +382,27 @@ export async function applyTeachingLoadSuggestionProposal(input: {
 		// authority, and a policy change after preview invalidates the apply.
 		const txPolicyResolution = await getEffectiveWorkloadPolicyFromClient(tx as any, existing.schoolId, existing.schoolYearId);
 		const txPolicy = assertPolicyRevisionMatches(refreshedPlan, txPolicyResolution.policy);
+
+		// Canonical derived demand is re-resolved INSIDE this Serializable
+		// transaction through the transaction client. The reviewed preview and the
+		// refreshed preview must both name the exact same canonical revision; a
+		// missing or changed term, disposition, scope, section, or rotation
+		// authority fails closed before any ownership, FacultySubject, cycle,
+		// audit, or notification write.
+		const resolveDerivedDemand = dependencies.resolveDerivedDemand
+			?? ((schoolId: number, schoolYearId: number, client: unknown) => buildDerivedDemand(schoolId, schoolYearId, { client: client as never }));
+		const txDerivedDemand = await resolveDerivedDemand(existing.schoolId, existing.schoolYearId, tx);
+		const reviewedDerivedRevision = (existing.previewPayload as { derivedDemandRevision?: unknown } | null)?.derivedDemandRevision;
+		const refreshedDerivedRevision = (refreshedPreview as { derivedDemandRevision?: unknown }).derivedDemandRevision;
+		if (
+			!txDerivedDemand.ok
+			|| typeof reviewedDerivedRevision !== 'string'
+			|| typeof refreshedDerivedRevision !== 'string'
+			|| txDerivedDemand.revision !== reviewedDerivedRevision
+			|| txDerivedDemand.revision !== refreshedDerivedRevision
+		) {
+			throw distributionStale('The canonical derived demand changed since the reviewed preview. Preview a fresh proposal.');
+		}
 
 		const facultyIds = [...new Set(candidateRows.map((row) => row.facultyId as number))];
 		const subjectIds = [...new Set(candidateRows.map((row) => row.subjectId))];
