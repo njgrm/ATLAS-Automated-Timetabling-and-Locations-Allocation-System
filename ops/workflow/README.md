@@ -149,10 +149,24 @@ as `LOCK_UNREADABLE` after the bounded inspection window with zero mutation. Two
 or more concurrent writers produce exactly one committed transition and typed
 losers (`LOCK_CONTENTION` or `TRANSITION_STALE_REVISION`) with zero partial files.
 
-Recovery for a manually proven-crashed unreadable lock: read the lock file,
-confirm it carries no live `ownerPid` (and that no process is still running the
-transition), then remove that one file by hand and re-run; never delete it merely
-because it is old, and never delete a lock owned by a live process.
+Reclaim is also serialized: reclaiming a dead lock happens inside a claim mutex
+(`<lock>.claim`, created `O_EXCL` and always released in a `finally`). Inside the
+claim section the lock file is re-read and must still carry the exact dead record
+that was classified (byte fingerprint) before it may be unlinked and immediately
+CAS-republished with `linkSync`; if the record is missing or changed, nothing is
+touched. A fresh acquirer cannot publish while the dead record exists, and only
+the unique claim holder can remove it, so a live record can never be unlinked by a
+reclaimer. If a claim file is already present — an active reclaimer or a crashed
+one — reclaim is blocked: the caller receives a typed `LOCK_CONTENTION` naming the
+claim file, with zero mutation. A claim file is never automatically deleted.
+
+Recovery for a manually proven-crashed lock: read the lock file, confirm it
+carries no live `ownerPid` (and that no process is still running the transition),
+then remove that one file by hand and re-run. Recovery for a stale claim (a
+reclaimer that crashed between claim and release): confirm no transition process
+is running for this repository, then remove the single `<lock>.claim` file and
+re-run. Never delete either file merely because it is old, and never delete a lock
+owned by a live process.
 
 ## Compaction checkpoint (A5)
 

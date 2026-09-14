@@ -10,7 +10,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   TRANSITION_CLI,
   VERIFY_CLI,
@@ -23,7 +23,7 @@ import {
   verifyInProcess,
 } from "./harness.mjs";
 import { runTransition } from "../lib/transition.mjs";
-import { lockPathFor } from "../lib/lock.mjs";
+import { lockPathFor, processAlive } from "../lib/lock.mjs";
 import { createGitMemo } from "../lib/git.mjs";
 
 const memo = createGitMemo();
@@ -336,10 +336,20 @@ test("a mid-write failure leaves state, render, and receipt byte-identical", () 
   }
 });
 
-test("three concurrent writers produce exactly one commit and typed losers", async () => {
+test("S1c four real transition writers from a dead-owner lock commit exactly once", async () => {
   const repo = createTempRepo();
   try {
     const statePath = writeStateDoc(repo, "state.json", baseDoc(repo));
+    const lockPath = path.join(repo.dir, ".git", "atlas-workflow.lock");
+    const claimPath = `${lockPath}.claim`;
+    // Seed a provably dead owner, exactly as a crashed transition would leave it.
+    const dead = spawnSync(process.execPath, ["-e", "process.exit(0)"], { windowsHide: true }).pid;
+    assert.equal(processAlive(dead), false, "the seeded owner pid must be provably absent");
+    fs.writeFileSync(
+      lockPath,
+      `${JSON.stringify({ schema: "atlas.workflow.lock/1", ownerPid: dead, transition: "dead-holder" }, null, 2)}\n`,
+    );
+
     const args = [
       "--transition", "record-executor-return",
       "--stream", "ORD-1",
@@ -348,19 +358,17 @@ test("three concurrent writers produce exactly one commit and typed losers", asy
       "--candidate", repo.candidateSha,
     ];
     const writers = await Promise.all([
-      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "700" }),
-      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "700" }),
-      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "700" }),
+      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "900" }),
+      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "900" }),
+      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "900" }),
+      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "900" }),
     ]);
     const winners = writers.filter((r) => r.json && r.json.status === "ok");
     const losers = writers.filter((r) => r.json && r.json.status === "fail");
     assert.equal(winners.length, 1, JSON.stringify(writers.map((r) => r.out)));
-    assert.equal(losers.length, 2, JSON.stringify(writers.map((r) => r.out)));
+    assert.equal(losers.length, 3, JSON.stringify(writers.map((r) => r.out)));
     for (const loser of losers) {
       const loserCodes = (loser.json.errors || []).map((e) => e.code);
-      // A loser may only ever observe a complete live record or a stale
-      // revision. An unreadable/partial lock is impossible under atomic
-      // publication, so it is deliberately not an accepted loser outcome.
       assert.ok(
         loserCodes.includes("LOCK_CONTENTION") || loserCodes.includes("TRANSITION_STALE_REVISION"),
         `loser must carry a typed contention/CAS error, got ${JSON.stringify(loserCodes)}`,
@@ -370,6 +378,8 @@ test("three concurrent writers produce exactly one commit and typed losers", asy
     const doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
     assert.equal(doc.registry.revision, 2, "exactly one transition may commit");
     assert.equal(doc.streams[0].state, "REVIEW_REQUIRED");
+    assert.equal(fs.existsSync(claimPath), false, "no claim residue");
+    assert.equal(fs.existsSync(lockPath), false, "the winner released its lock");
     assert.deepEqual(walk(repo.dir, (name) => name.includes(".tmp") || name.includes(".stage")), []);
   } finally {
     cleanupRepo(repo.dir);

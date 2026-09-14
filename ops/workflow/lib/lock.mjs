@@ -19,11 +19,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { gitCommonDir } from "./git.mjs";
+import { sha256Hex } from "./util.mjs";
 
 export const LOCK_FILE_NAME = "atlas-workflow.lock";
+export const CLAIM_FILE_SUFFIX = ".claim";
 export const LOCK_SCHEMA = "atlas.workflow.lock/1";
 export const DEFAULT_MAX_INSPECT = 6;
 export const DEFAULT_BACKOFF_MS = 40;
+
+// A hard link can fail with a non-EEXIST code when a concurrent create/remove
+// races it (observed on Windows). Such a publish simply did not succeed, so it is
+// retried within the bounded window instead of being reported as a hard failure.
+export const TRANSIENT_LINK_ERRORS = new Set(["EPERM", "EACCES", "ENOENT", "EBUSY", "UNKNOWN"]);
 
 function sleepSync(ms) {
   const shared = new Int32Array(new SharedArrayBuffer(4));
@@ -69,22 +76,24 @@ export function readLockRecord(lockPath) {
 export function classifyLock(lockPath) {
   let raw;
   try {
-    raw = fs.readFileSync(lockPath, "utf8");
+    raw = fs.readFileSync(lockPath);
   } catch (err) {
-    if (err && err.code === "ENOENT") return { kind: "GONE", reason: "lock disappeared", owner: null };
-    return { kind: "UNPROVEN", reason: `lock is unreadable (${(err && err.code) || "unknown error"})`, owner: null };
+    if (err && err.code === "ENOENT") return { kind: "GONE", reason: "lock disappeared", owner: null, fingerprint: null };
+    return { kind: "UNPROVEN", reason: `lock is unreadable (${(err && err.code) || "unknown error"})`, owner: null, fingerprint: null };
   }
+  const fingerprint = sha256Hex(raw);
   let record;
   try {
-    record = JSON.parse(raw);
+    record = JSON.parse(raw.toString("utf8"));
   } catch {
-    return { kind: "UNPROVEN", reason: raw.trim().length === 0 ? "lock is empty" : "lock record is malformed JSON", owner: null };
+    const trimmed = raw.toString("utf8").trim();
+    return { kind: "UNPROVEN", reason: trimmed.length === 0 ? "lock is empty" : "lock record is malformed JSON", owner: null, fingerprint };
   }
   if (record === null || typeof record !== "object" || Array.isArray(record) || !Number.isInteger(record.ownerPid) || record.ownerPid <= 0) {
-    return { kind: "UNPROVEN", reason: "lock record has no integer ownerPid > 0", owner: record && typeof record === "object" && !Array.isArray(record) ? record : null };
+    return { kind: "UNPROVEN", reason: "lock record has no integer ownerPid > 0", owner: record && typeof record === "object" && !Array.isArray(record) ? record : null, fingerprint };
   }
-  if (processAlive(record.ownerPid)) return { kind: "LIVE", reason: `held by live pid ${record.ownerPid}`, owner: record };
-  return { kind: "ABSENT", reason: `owner pid ${record.ownerPid} is provably absent`, owner: record };
+  if (processAlive(record.ownerPid)) return { kind: "LIVE", reason: `held by live pid ${record.ownerPid}`, owner: record, fingerprint };
+  return { kind: "ABSENT", reason: `owner pid ${record.ownerPid} is provably absent`, owner: record, fingerprint };
 }
 
 // Stage a complete record beside the lock path. The temp is never a lock.
@@ -95,6 +104,68 @@ function writeTempRecord(lockPath, record, attempt) {
   const tempPath = path.join(dir, `${path.basename(lockPath)}.${process.pid}.${Date.now()}.${attempt}.${suffix}.tmp`);
   fs.writeFileSync(tempPath, `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
   return tempPath;
+}
+
+export function claimPathFor(lockPath) {
+  return `${lockPath}${CLAIM_FILE_SUFFIX}`;
+}
+
+/**
+ * Serialized reclaim of a provably dead lock.
+ *
+ * The claim file (<lock>.claim) is an O_EXCL mutex: at most one reclaimer may be
+ * inside this section at a time. Inside it we re-read the lock and require the
+ * byte fingerprint to still match the dead record we classified; only then may
+ * we unlink it and immediately CAS-publish our own staged record. A fresh
+ * acquirer cannot publish while the dead record exists (linkSync => EEXIST), and
+ * only this unique claim holder can remove it, so a live record can never be
+ * unlinked by a reclaimer.
+ *
+ * Returns { result }: ACQUIRED | CONTENDED | NOT_ABSENT | CLAIM_BLOCKED | CLAIM_ERROR.
+ * The claim file is always released in a finally and is never auto-deleted when
+ * it already exists.
+ */
+function reclaimDeadLock({ lockPath, expectedFingerprint, tempPath }) {
+  const claimPath = claimPathFor(lockPath);
+  let claimFd;
+  try {
+    claimFd = fs.openSync(claimPath, "wx");
+  } catch (err) {
+    if (err.code === "EEXIST") return { result: "CLAIM_BLOCKED" };
+    return { result: "CLAIM_ERROR", message: err.message };
+  }
+  try {
+    let current;
+    try {
+      current = fs.readFileSync(lockPath);
+    } catch (err) {
+      if (err.code === "ENOENT") return { result: "CONTENDED" };
+      return { result: "CLAIM_ERROR", message: err.message };
+    }
+    if (expectedFingerprint === null || sha256Hex(current) !== expectedFingerprint) {
+      // The record changed or was replaced after classification: never touch it.
+      return { result: "NOT_ABSENT" };
+    }
+    fs.unlinkSync(lockPath);
+    try {
+      fs.linkSync(tempPath, lockPath);
+      return { result: "ACQUIRED" };
+    } catch (err) {
+      if (err.code === "EEXIST") return { result: "CONTENDED" };
+      return { result: "CLAIM_ERROR", message: err.message };
+    }
+  } finally {
+    try {
+      fs.closeSync(claimFd);
+    } catch {
+      /* best effort */
+    }
+    try {
+      fs.unlinkSync(claimPath);
+    } catch {
+      /* the claim is ours; a failed unlink leaves a recovery note for an operator */
+    }
+  }
 }
 
 /**
@@ -128,59 +199,86 @@ export function acquireLock({
     } catch (err) {
       return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: `could not stage a lock record beside ${lockPath}: ${err.message}`, lockPath };
     }
-    let linked = false;
     try {
-      fs.linkSync(tempPath, lockPath);
-      linked = true;
-    } catch (err) {
-      if (err.code !== "EEXIST") {
-        try {
-          fs.unlinkSync(tempPath);
-        } catch {
-          /* best effort */
-        }
-        return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: `could not publish lock ${lockPath}: ${err.message}`, lockPath };
-      }
-    }
-    try {
-      fs.unlinkSync(tempPath);
-    } catch {
-      /* a stray temp is never a lock; a crashed publisher may leave one behind */
-    }
-    if (linked) return { ok: true, lockPath, record, reclaimed };
-
-    // EEXIST: inspect the holder before doing anything destructive.
-    const verdict = classifyLock(lockPath);
-    if (verdict.kind === "ABSENT") {
+      // CAS publication: linkSync fails with EEXIST while any lock file exists.
+      let linked = false;
       try {
-        fs.unlinkSync(lockPath);
-        reclaimed = true;
-      } catch {
-        /* another writer won the reclaim race; retry below */
+        fs.linkSync(tempPath, lockPath);
+        linked = true;
+      } catch (err) {
+        if (err.code !== "EEXIST" && !TRANSIENT_LINK_ERRORS.has(err.code)) {
+          return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: `could not publish lock ${lockPath}: ${err.message}`, lockPath };
+        }
+        // EEXIST, or a transient create/remove race: the publish did not succeed.
       }
-      continue;
-    }
-    if (verdict.kind === "GONE") continue;
-    if (attempt < maxInspect) {
-      sleepSync(backoffMs);
-      continue;
-    }
-    if (verdict.kind === "LIVE") {
+      if (linked) return { ok: true, lockPath, record, reclaimed };
+
+      // EEXIST: inspect the holder before doing anything destructive.
+      const verdict = classifyLock(lockPath);
+
+      if (verdict.kind === "ABSENT") {
+        const outcome = reclaimDeadLock({ lockPath, expectedFingerprint: verdict.fingerprint, tempPath });
+        if (outcome.result === "ACQUIRED") return { ok: true, lockPath, record, reclaimed: true };
+        if (outcome.result === "CLAIM_ERROR") {
+          return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: `could not reclaim lock ${lockPath}: ${outcome.message}`, lockPath };
+        }
+        // CONTENDED / NOT_ABSENT / CLAIM_BLOCKED re-enter the bounded loop.
+        if (attempt < maxInspect) {
+          sleepSync(backoffMs);
+          continue;
+        }
+        if (outcome.result === "CLAIM_BLOCKED") {
+          return {
+            ok: false,
+            code: "LOCK_CONTENTION",
+            message: `lock ${lockPath} reclaim is blocked by an active or stale claim file (${claimPathFor(lockPath)}) that this tool never removes automatically`,
+            lockPath,
+          };
+        }
+        return { ok: false, code: "LOCK_CONTENTION", message: `lock ${lockPath} could not be acquired within the bounded inspection window`, lockPath };
+      }
+
+      if (verdict.kind === "LIVE") {
+        if (attempt < maxInspect) {
+          sleepSync(backoffMs);
+          continue;
+        }
+        return {
+          ok: false,
+          code: "LOCK_CONTENTION",
+          message: `lock ${lockPath} is held by live pid ${verdict.owner.ownerPid} (${verdict.owner.transition || "unknown transition"})`,
+          lockPath,
+          owner: verdict.owner,
+        };
+      }
+
+      if (verdict.kind === "GONE") {
+        if (attempt < maxInspect) {
+          sleepSync(backoffMs);
+          continue;
+        }
+        return { ok: false, code: "LOCK_CONTENTION", message: `lock ${lockPath} could not be acquired within the bounded inspection window`, lockPath };
+      }
+
+      // UNPROVEN: never reclaimable.
+      if (attempt < maxInspect) {
+        sleepSync(backoffMs);
+        continue;
+      }
       return {
         ok: false,
-        code: "LOCK_CONTENTION",
-        message: `lock ${lockPath} is held by live pid ${verdict.owner.ownerPid} (${verdict.owner.transition || "unknown transition"})`,
+        code: "LOCK_UNREADABLE",
+        message: `lock ${lockPath} is not a complete owner record (${verdict.reason}); refusing to reclaim without proof the owner is absent`,
         lockPath,
         owner: verdict.owner,
       };
+    } finally {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {
+        /* a stray temp is never a lock; a crashed publisher may leave one behind */
+      }
     }
-    return {
-      ok: false,
-      code: "LOCK_UNREADABLE",
-      message: `lock ${lockPath} is not a complete owner record (${verdict.reason}); refusing to reclaim without proof the owner is absent`,
-      lockPath,
-      owner: verdict.owner,
-    };
   }
   return { ok: false, code: "LOCK_CONTENTION", message: `lock ${lockPath} could not be acquired within the bounded inspection window`, lockPath };
 }
