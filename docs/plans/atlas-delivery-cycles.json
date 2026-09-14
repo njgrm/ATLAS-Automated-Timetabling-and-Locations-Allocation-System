@@ -25,6 +25,7 @@
         "integrationSha": null,
         "remoteSha": "29284ac6218b989ab860cde0d36266eabf26395b",
         "changedPaths": [
+          ".gitattributes",
           "docs/handoffs/wf-c01-executor.md",
           "docs/plans/atlas-active-delivery-streams.generated.md",
           "docs/plans/atlas-delivery-cycles.json",
@@ -54,6 +55,7 @@
           "ops/workflow/__fixtures__/pass-audited-wave.json",
           "ops/workflow/__fixtures__/pass-high-prepared.json",
           "ops/workflow/__fixtures__/pass-ordinary.json",
+          "ops/workflow/__tests__/artifact-portability.test.mjs",
           "ops/workflow/__tests__/cli.test.mjs",
           "ops/workflow/__tests__/determinism.test.mjs",
           "ops/workflow/__tests__/fixtures.test.mjs",
@@ -95,7 +97,7 @@
       "observations": [],
       "artifacts": [
         { "path": "ops/workflow/schema/cycle-state.schema.json", "sha256": "6125be928cc9eac70dcda86c76242105ce0107a72a9abc12ee2f9010e5128101" },
-        { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "d73260d1db9d050b7608ae41a0e57e71ad80615e59be1f8865b3d0ddd79cf08b" }
+        { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "f717c7f158549b549b6cfc6fad39d7f9e2e4e9acbc174306490ca96b2963c236" }
       ],
       "closure": null,
       "sessionRouting": {

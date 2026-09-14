@@ -5,15 +5,16 @@
 - Worktree: `D:\ATLAS-worktrees\workflow-foundation-wfc01`
 - Branch: `work/workflow-foundation-wfc01`
 - Base SHA: `29284ac6218b989ab860cde0d36266eabf26395b` (= refreshed `origin/main` at dispatch)
-- Candidate product/test tip SHA: `e98b89eaaef96d53222180980e3df98f458d6a97` (every product, test, fixture, README, `package.json`, and renderer change)
+- Candidate product/test tip SHA: `08f8d0d0f8a598935115803c4f979abb510d961e` (every product, test, fixture, README, `package.json`, renderer, and `.gitattributes` change; includes the R1 portability correction)
 - Candidate branch tip: the commit that carries this handoff, the seed document, and the generated register. A file cannot contain its own commit SHA, so the branch tip is resolved with
   `git -C D:\ATLAS-worktrees\workflow-foundation-wfc01 rev-parse HEAD`; the planner/QA records that SHA as the candidate SHA. The seed deliberately keeps `git.candidateSha` null for WF-C01. Commits above the product/test tip are documentation-only (seed, generated register, handoff).
 - Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, or HIGH action)
 - Verdict: `REVIEW_REQUIRED`
 
-## Changed paths (base...tip, 46)
+## Changed paths (base...tip, 48)
 
 ```
+.gitattributes
 docs/handoffs/wf-c01-executor.md
 docs/plans/atlas-active-delivery-streams.generated.md
 docs/plans/atlas-delivery-cycles.json
@@ -43,6 +44,7 @@ ops/workflow/__fixtures__/fail-unknown-requires.json
 ops/workflow/__fixtures__/pass-audited-wave.json
 ops/workflow/__fixtures__/pass-high-prepared.json
 ops/workflow/__fixtures__/pass-ordinary.json
+ops/workflow/__tests__/artifact-portability.test.mjs
 ops/workflow/__tests__/cli.test.mjs
 ops/workflow/__tests__/determinism.test.mjs
 ops/workflow/__tests__/fixtures.test.mjs
@@ -66,9 +68,9 @@ package.json
 
 | ID | Requirement | Production path | Negative control | Verification command | Result |
 | --- | --- | --- | --- | --- | --- |
-| G01 | Clean worktree, correct base ancestry, exact changed-path attribution | branch `work/workflow-foundation-wfc01` at base `29284ac6` | — | `git status --porcelain`; `git merge-base --is-ancestor 29284ac6 HEAD`; `git diff --name-only --no-renames 29284ac6...HEAD` | PASS (clean; base is ancestor; 46 paths identical to the seed `changedPaths` list) |
+| G01 | Clean worktree, correct base ancestry, exact changed-path attribution | branch `work/workflow-foundation-wfc01` at base `29284ac6` | — | `git status --porcelain`; `git merge-base --is-ancestor 29284ac6 HEAD`; `git diff --name-only --no-renames 29284ac6...HEAD` | PASS (clean; base is ancestor; 48 paths identical to the seed `changedPaths` list) |
 | G02 | Every required surface exists at its exact path | `ops/workflow/{schema,lib,verify-cycle.mjs,render-register.mjs,__tests__,__fixtures__,README.md}`, `docs/plans/atlas-delivery-cycles.json`, `docs/plans/atlas-active-delivery-streams.generated.md`, `docs/handoffs/wf-c01-executor.md`, `package.json` | — | `git ls-files ops/workflow docs/plans/atlas-delivery-cycles.json docs/plans/atlas-active-delivery-streams.generated.md docs/handoffs/wf-c01-executor.md package.json` | PASS |
-| G03 | `npm run workflow:test` exits 0 with no skips | `ops/workflow/__tests__/*.test.mjs` | per-fixture child-process exit codes | `npm run workflow:test` | PASS (57 tests / 57 pass / 0 fail / 0 skipped) |
+| G03 | `npm run workflow:test` exits 0 with no skips | `ops/workflow/__tests__/*.test.mjs` | per-fixture child-process exit codes | `npm run workflow:test` | PASS (60 tests / 60 pass / 0 fail / 0 skipped) |
 | G04 | Committed seed verifies cleanly | `verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | — | `node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | PASS (exit 0, status ok, 5 streams) |
 | G05 | Verify stdout is byte-identical for identical input | `lib/verify.mjs` + `buildReport` | repeated run | `determinism.test.mjs` "verify stdout is byte-identical across two runs" | PASS |
 | G06 | Renderer is deterministic and path-independent | `lib/render.mjs` | two paths, identical content | `determinism.test.mjs` "render output is byte-identical across two runs" + "independent of the state file path" | PASS |
@@ -90,11 +92,49 @@ package.json
 
 ## Test evidence
 
-- `npm run workflow:test` -> `tests 57 / pass 57 / fail 0 / cancelled 0 / skipped 0 / todo 0`.
+- `npm run workflow:test` -> `tests 60 / pass 60 / fail 0 / cancelled 0 / skipped 0 / todo 0` (57 in the original candidate + 3 portability controls in R1).
 - Fixture totals: 24 fixture files (3 positive, 21 negative) indexed by `__fixtures__/expected.json`; extra tests assert the index covers every fixture file, that positives expose zero error codes, and that changed-path mismatches report the exact missing/extra direction.
 - Determinism: verify stdout and rendered Markdown are byte-identical across repeats and across two distinct state paths; the mutated-renderer control proves the assertion is load-bearing.
 - Receipt: minted receipt carries `stateSha256` equal to the SHA-256 of the state bytes; no receipt is created for a failing state; ambiguous selection returns `RECEIPT_STREAM_AMBIGUOUS` with no write.
 - Hermeticity: tests create disposable repositories under `os.tmpdir()` with fixed `-c user.name` / `-c user.email` / `-c commit.gpgsign=false`; `git status --porcelain` is empty after the full suite.
+
+## R1 correction (additive; found by the primary planner during integration gates)
+
+**Root cause.** The seed's artifact pins are raw working-tree SHA-256 values, and
+the worktree files were written by tools as LF, so the pins are LF hashes
+(schema `6125be928cc9eac70dcda86c76242105ce0107a72a9abc12ee2f9010e5128101`,
+handoff `d73260d1…`). This host's global Git config sets `core.autocrlf=true`
+and the repository had no `.gitattributes`, so any Git-materialized checkout
+rewrote LF to CRLF. On the integration merge tree `936aa439` the schema
+materialized as `0745843a…` (CR=323, 13173 bytes vs the pinned LF 12850 bytes)
+and the handoff as `b28b0fc6…`, while the Git-normalized blob identities stayed
+identical (`ac76b8f9…` schema, `ada087c0…` handoff). The committed seed
+therefore failed `ARTIFACT_HASH_MISMATCH` (G04) in any fresh checkout, and the
+same class would have broken the future `closure.receipt.sha256` pin under
+`docs/plans/receipts/`.
+
+**Fix (smallest complete).** Added the repository root `.gitattributes`
+enforcing `eol=lf` for the pinned classes (`ops/workflow/**`, `docs/plans/**`,
+`docs/handoffs/**`) so the raw LF bytes are checkout-stable; no pin semantics,
+verifier, receipt, schema, or fixture behaviour changed. The schema pin is
+unchanged because the schema bytes did not change. `ops/workflow/README.md`
+now documents that artifact and receipt pins are raw LF byte hashes and that
+future pinned artifacts must live under an LF-enforced path.
+
+**Load-bearing regression.** `ops/workflow/__tests__/artifact-portability.test.mjs`
+adds three controls:
+
+| ID | Control | Negative/mutant flow | Result |
+| --- | --- | --- | --- |
+| R1-01 | Every seed-pinned artifact path is covered by an `eol=lf` attribute | a future pin outside the enforced directories fails until the policy is extended | PASS |
+| R1-02 | Real flow: each pin materializes through a disposable `core.autocrlf=true` Git checkout (`.gitattributes` copied, `git add`, commit, delete working copies, `git checkout -- .`) and its raw SHA-256 equals the pin | — | PASS (schema and handoff both equal their pins) |
+| R1-03 | Mutant flow: the same materialization **without** the `.gitattributes` rules | at least one materialized file's raw SHA-256 differs from its pin (reproduces the CRLF defect) | PASS (CRLF materialization detected) |
+
+Commands: `node --test ops/workflow/__tests__/artifact-portability.test.mjs`
+(3/3) and `npm run workflow:test` (60/60). The seed was re-pinned for the
+handoff only after its R1 content was final, and
+`docs/plans/atlas-active-delivery-streams.generated.md` was regenerated after
+the seed edit.
 
 ## Known risks (all NON_BLOCKING for this packet)
 
@@ -103,6 +143,7 @@ package.json
 3. `--stream` without `--receipt` is accepted and has no effect (no usage error is defined for that combination).
 4. When no Git repository is resolvable around the state file, artifact paths resolve against the state file's directory; this fallback is documented in `ops/workflow/README.md`.
 5. The generated register is committed alongside — and does not modify — the historical prose register.
+6. `.gitattributes` fixes future checkouts. A working tree that was already materialized as CRLF before this commit keeps CRLF bytes until it is re-materialized (`git checkout -- .` or `git reset --hard`); the integration worktree observed at `936aa439` needs that one-time re-materialization before the seed verifies there.
 
 ## Return
 
