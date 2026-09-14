@@ -1,0 +1,328 @@
+{
+  "contractVersion": "1.0.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T17:20:00+08:00", "lastUpdatedBy": "wf-c01-executor" },
+  "coordination": {
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "WF-C01",
+    "globalNextAction": "Close WF-C01 through fresh QA, integration, wave audit, and a machine receipt; then return to MANUAL."
+  },
+  "streams": [
+    {
+      "id": "WF-C01",
+      "kind": "CYCLE",
+      "objective": "Introduce the repository-owned machine-readable delivery-cycle state contract, a fail-closed verifier, a deterministic Markdown register renderer, and regression fixtures.",
+      "riskTier": "MEDIUM",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-14T17:20:00+08:00",
+      "nextAction": "Dispatch fresh independent QA over the frozen candidate range, then planner integration and wave audit.",
+      "awaited": ["Fresh QA verdict over base...candidate"],
+      "running": [],
+      "git": {
+        "worktree": "D:\\ATLAS-worktrees\\workflow-foundation-wfc01",
+        "branch": "work/workflow-foundation-wfc01",
+        "baseSha": "29284ac6218b989ab860cde0d36266eabf26395b",
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteSha": "29284ac6218b989ab860cde0d36266eabf26395b",
+        "changedPaths": [
+          "docs/handoffs/wf-c01-executor.md",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "ops/workflow/README.md",
+          "ops/workflow/__fixtures__/expected.json",
+          "ops/workflow/__fixtures__/fail-accept-ready-blocked.json",
+          "ops/workflow/__fixtures__/fail-candidate-unknown.json",
+          "ops/workflow/__fixtures__/fail-changed-paths-extra.json",
+          "ops/workflow/__fixtures__/fail-changed-paths.json",
+          "ops/workflow/__fixtures__/fail-complete-stale-corrections.json",
+          "ops/workflow/__fixtures__/fail-custody-overlap.json",
+          "ops/workflow/__fixtures__/fail-dependency-not-satisfied.json",
+          "ops/workflow/__fixtures__/fail-duplicate-writable.json",
+          "ops/workflow/__fixtures__/fail-external-with-safe-work.json",
+          "ops/workflow/__fixtures__/fail-gates-arithmetic.json",
+          "ops/workflow/__fixtures__/fail-high-boundary-exceeded.json",
+          "ops/workflow/__fixtures__/fail-high-expired-dependency.json",
+          "ops/workflow/__fixtures__/fail-high-unreachable-dependency.json",
+          "ops/workflow/__fixtures__/fail-high-without-approval.json",
+          "ops/workflow/__fixtures__/fail-missing-next-action.json",
+          "ops/workflow/__fixtures__/fail-receipt-missing.json",
+          "ops/workflow/__fixtures__/fail-receipt-stale.json",
+          "ops/workflow/__fixtures__/fail-stale-candidate.json",
+          "ops/workflow/__fixtures__/fail-successor-unlocked.json",
+          "ops/workflow/__fixtures__/fail-unauthorized-login.json",
+          "ops/workflow/__fixtures__/fail-unknown-requires.json",
+          "ops/workflow/__fixtures__/pass-audited-wave.json",
+          "ops/workflow/__fixtures__/pass-high-prepared.json",
+          "ops/workflow/__fixtures__/pass-ordinary.json",
+          "ops/workflow/__tests__/cli.test.mjs",
+          "ops/workflow/__tests__/determinism.test.mjs",
+          "ops/workflow/__tests__/fixtures.test.mjs",
+          "ops/workflow/__tests__/harness.mjs",
+          "ops/workflow/__tests__/schema.test.mjs",
+          "ops/workflow/__tests__/seed.test.mjs",
+          "ops/workflow/lib/args.mjs",
+          "ops/workflow/lib/git.mjs",
+          "ops/workflow/lib/receipt.mjs",
+          "ops/workflow/lib/render.mjs",
+          "ops/workflow/lib/schema.mjs",
+          "ops/workflow/lib/util.mjs",
+          "ops/workflow/lib/verify.mjs",
+          "ops/workflow/render-register.mjs",
+          "ops/workflow/schema/cycle-state.schema.json",
+          "ops/workflow/verify-cycle.mjs",
+          "package.json"
+        ]
+      },
+      "owners": {
+        "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
+        "executor": { "sessionId": null, "status": "IDLE", "writable": false },
+        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": { "total": 21, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 21 },
+      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "corrections": [],
+      "successors": [
+        { "streamId": "WF-C02", "unlocked": false, "reason": "Locked until WF-C01 reaches INTEGRATED with ACCEPT_READY + AUDIT_CLEAR." },
+        { "streamId": "WF-EVAL-C01", "unlocked": false, "reason": "Locked until WF-C01 is COMPLETE and its contract is available as the baseline for evaluation work." }
+      ],
+      "requires": [],
+      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "approval": {
+        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
+        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+      },
+      "observations": [],
+      "artifacts": [
+        { "path": "ops/workflow/schema/cycle-state.schema.json", "sha256": "6125be928cc9eac70dcda86c76242105ce0107a72a9abc12ee2f9010e5128101" },
+        { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "ebcc98ac42ce247a50afc778298b99b01f643cf6fbb1ec5c01056411f0f38ea1" }
+      ],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns this cycle's continuity, integration and closure updates" },
+        "executor": { "decision": "EXISTING", "sessionId": null, "reason": "bounded corrections within this packet return to the same executor session" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "each candidate requires a fresh independent QA context" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "wave completion audit requires a fresh adversarial context" }
+      }
+    },
+    {
+      "id": "ENROLLPRO-PROXY-RECOVERY-LIVE",
+      "kind": "STREAM",
+      "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
+      "riskTier": "HIGH",
+      "state": "EXTERNALLY_BLOCKED",
+      "stateUpdatedAt": "2026-09-14T16:30:00+08:00",
+      "nextAction": "Await operator decision; re-verify EnrollPro reachability at execution preflight before any attempt.",
+      "awaited": ["Revised exact HIGH approval (currently NOT GRANTED)", "EnrollPro host reachability"],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": "d61c38d0f9d38a2bc89ee233164d1dc843b74cc8",
+        "candidateSha": "54dce67b8392cbce09aa810813c37f9c87a67159",
+        "integrationSha": "bc61ecd58fd4e5caaa5bdde43496b13032221354",
+        "remoteSha": "29284ac6218b989ab860cde0d36266eabf26395b",
+        "changedPaths": [
+          "atlas-client/.env.example",
+          "atlas-client/src/components/AppShell.tsx",
+          "atlas-client/src/components/app-shell/AppSidebar.tsx",
+          "atlas-client/src/components/app-shell/BackToEnrollProLink.tsx",
+          "atlas-client/src/components/app-shell/IntegratedSystems.tsx",
+          "atlas-client/src/components/app-shell/MobileNavigationDrawer.tsx",
+          "atlas-client/src/lib/__tests__/companion-config.test.ts",
+          "atlas-client/src/lib/__tests__/companion-sso-client.test.ts",
+          "atlas-client/src/lib/bridge.ts",
+          "atlas-client/src/lib/companion-config.ts",
+          "atlas-client/src/lib/integrated-systems.ts",
+          "atlas-server/.env.example",
+          "atlas-server/test-secret.mjs",
+          "atlas-server/test-tailscale.mjs",
+          "docs/reference/atlas-runtime-source-of-truth-map.md",
+          "ops/runtime/README.md",
+          "ops/runtime/__tests__/enrollpro-origin-cli.e2e.test.mjs",
+          "ops/runtime/__tests__/enrollpro-origin.test.mjs",
+          "ops/runtime/__tests__/production-host.test.mjs",
+          "ops/runtime/cli.mjs",
+          "ops/runtime/host.mjs",
+          "ops/runtime/lib/contract.mjs",
+          "ops/runtime/lib/enrollpro-origin.mjs",
+          "ops/runtime/lib/production-host.mjs",
+          "ops/runtime/lib/supervisor.mjs"
+        ]
+      },
+      "owners": {
+        "planner": { "sessionId": null, "status": "NONE", "writable": false },
+        "executor": { "sessionId": null, "status": "NONE", "writable": false },
+        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "EXTERNAL",
+        "detail": "EnrollPro host dev-jegs / 100.120.169.123:5002 unreachable as of 2026-09-14 (DNS resolves; TCP connect fails; HTTP 000). Live env/install/restart packet also NOT approved.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": true, "presentedReady": false, "granted": false, "operatorIdentity": null,
+        "approvedAt": null, "boundary": null, "approvedActions": [],
+        "requiredObservationIds": ["obs-enrollpro-reachability"], "execution": null
+      },
+      "observations": [
+        {
+          "id": "obs-enrollpro-reachability",
+          "target": "EnrollPro dev-jegs (100.120.169.123:5002)",
+          "checkedAt": "2026-09-14T16:30:00+08:00",
+          "status": "FAIL",
+          "expiresAt": "2026-09-15T00:00:00+08:00",
+          "detail": "Read-only probe: TCP connect failed; HTTPS 000; host currently unreachable."
+        }
+      ],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns the approval packet and sequencing" },
+        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "future execution packet runs in a fresh executor context" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "pre-action acceptance requires a fresh QA context" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "high-risk live action requires a fresh adversarial audit" }
+      }
+    },
+    {
+      "id": "TT-SOURCE-FRESHNESS-C04",
+      "kind": "STREAM",
+      "objective": "Bind generation, quick-place, and sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment.",
+      "riskTier": "MEDIUM",
+      "state": "PLANNED",
+      "stateUpdatedAt": "2026-09-14T16:00:00+08:00",
+      "nextAction": "Author the implementation packet from 92c14f95 folding wave-audit F1/F3, the C04R1 dead-export removal, and the Serializable assertion note.",
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": "92c14f9564d6cc5fa16603118ff1ec16af11c748",
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteSha": null,
+        "changedPaths": []
+      },
+      "owners": {
+        "planner": { "sessionId": null, "status": "NONE", "writable": false },
+        "executor": { "sessionId": null, "status": "NONE", "writable": false },
+        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "approval": {
+        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
+        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "packet authorship is a new planner-led stream" },
+        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "no executor session exists for this stream yet" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "each candidate requires a fresh independent QA context" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "wave completion audit requires a fresh adversarial context" }
+      }
+    },
+    {
+      "id": "LIVE-GENERATION",
+      "kind": "STREAM",
+      "objective": "Generate one current-year schedule and reach zero hard violations and unresolved sessions.",
+      "riskTier": "HIGH",
+      "state": "BLOCKED",
+      "stateUpdatedAt": "2026-09-14T16:00:00+08:00",
+      "nextAction": "Remain locked; no fingerprinted generation preview or approval is authorized.",
+      "awaited": ["Approved term-cache catch-up + zero-hard-blocker readiness diagnostic", "Explicit generation approval"],
+      "running": [],
+      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+      "owners": {
+        "planner": { "sessionId": null, "status": "NONE", "writable": false },
+        "executor": { "sessionId": null, "status": "NONE", "writable": false },
+        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "DEPENDENCY",
+        "detail": "Requires the term-cache catch-up apply (EnrollPro currently unreachable) and a canonical zero-hard-blocker readiness diagnostic before any fingerprinted preview and explicit HIGH approval.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": true, "presentedReady": false, "granted": false, "operatorIdentity": null,
+        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns the generation approval package" },
+        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "no executor session exists for this stream yet" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "generation preview requires a fresh independent QA context" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "generation mutation requires a fresh adversarial audit" }
+      }
+    },
+    {
+      "id": "LIVE-PUBLICATION",
+      "kind": "STREAM",
+      "objective": "Publish the accepted zero-hard-blocker schedule.",
+      "riskTier": "HIGH",
+      "state": "BLOCKED",
+      "stateUpdatedAt": "2026-09-14T16:00:00+08:00",
+      "nextAction": "Remain locked until an accepted, zero-hard-blocker generation run exists.",
+      "awaited": ["Completed accepted current-year run", "Publication preview + explicit HIGH approval"],
+      "running": [],
+      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+      "owners": {
+        "planner": { "sessionId": null, "status": "NONE", "writable": false },
+        "executor": { "sessionId": null, "status": "NONE", "writable": false },
+        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+      "corrections": [],
+      "successors": [],
+      "requires": ["LIVE-GENERATION"],
+      "blocker": {
+        "kind": "DEPENDENCY",
+        "detail": "No completed current-year run with zero hard violations; publication preview and approval outstanding.",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": true, "presentedReady": false, "granted": false, "operatorIdentity": null,
+        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns the publication approval package" },
+        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "no executor session exists for this stream yet" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "publication preview requires a fresh independent QA context" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "publication mutation requires a fresh adversarial audit" }
+      }
+    }
+  ],
+  "browserCustody": {
+    "profiles": [{ "profilePath": "C:\\Users\\njgro\\.config\\opencode\\playwright-profile", "custody": [] }],
+    "logins": []
+  }
+}
