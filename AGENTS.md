@@ -1685,6 +1685,12 @@ or another pending HIGH action, use the strongest available planning model at
 max reasoning. Use high only when max is unavailable and disclose that fallback
 in the audit capsule. Ordinary isolated LOW work does not require this extra
 audit.
+Where the orchestration harness (for example the OpenCode task tool) exposes
+the reviewer's task/session identifier only after the delegated task returns,
+the primary planner records that returned identifier in the committed capsule
+before closing the cycle; that recording satisfies the capsule provenance
+requirement, and a replacement audit is required only when no identifier was
+ever returned.
 
 The Wave Completion Auditor is read-only and adversarial. It shall:
 
