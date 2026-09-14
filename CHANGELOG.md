@@ -1,5 +1,28 @@
 # Changelog
 
+## [2026-09-14] — Timetable Teaching Load Modules C04R1 Planning
+
+### Added
+- Added a bounded correction packet for the C04 Teaching Load mini-modules
+  after head-planner review found false absence-window authority, omitted
+  capability-override safety/wiring, duplicated confirmation authority,
+  published-mode setup sync, and a physical component-size violation.
+
+### Changed
+- Reclassified the frozen `6a8f4717` candidate from externally reported
+  `ACCEPT_READY` to `CORRECTION_REQUIRED`; integration remains withheld.
+
+### Decisions Made
+- A UI-only absence end date cannot stand in for deferred faculty-availability
+  authority. Until D1 is resolved, unpublished departure repair is run-wide and
+  published repair uses the revision effective date only.
+- Explicit packet requirements cannot be downgraded merely because the
+  implementation left the necessary files outside its self-declared ownership.
+
+### Open Questions
+- Persisted availability and automatic finite-window reversion remain deferred
+  to decision D1 and are not authorized by C04R1.
+
 ## [2026-09-14] — EnrollPro Proxy Recovery Planning
 
 ### Added
