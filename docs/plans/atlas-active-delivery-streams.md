@@ -16,6 +16,22 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
+- Cycle recovery: `workflow-foundation-wfc01` (`INTEGRATION_READY` — wave
+  audit pending) activated 2026-09-14 (Asia/Manila) by the operator
+  (`CYCLE ON`) for WF-C01: a repository-owned machine-readable delivery-cycle
+  state contract, fail-closed verifier, deterministic Markdown register
+  renderer, and hermetic regression fixtures. Executor
+  `ses_f60d597c3ffewjfwlh93OH31qO` produced candidate `bcee9d0d` (base
+  `29284ac6`, 48 paths, 60 tests; one bounded R1 correction made artifact
+  pins checkout-stable via a root `.gitattributes` LF policy plus a
+  load-bearing materialization regression). Fresh QA
+  `ses_f609c69e3ffeBW5SDmOoUA4QCf` returned `ACCEPT_READY` 22/22/0/0.
+  Integrated at merge `e617647d` on `be1a2d6f` (clean auto-union; no conflict
+  paths; merged-tree gates green: 60/60, seed verify exit 0, renderer output
+  byte-identical). The machine register is
+  `docs/plans/atlas-delivery-cycles.json` with its generated projection at
+  `docs/plans/atlas-active-delivery-streams.generated.md`; the historical
+  prose register is preserved. No live/HIGH action was executed.
 - Cycle recovery: `term-cache-catchup-preview-20260914` (`INTEGRATED` —
   capture complete; apply remains locked and unbound) activated 2026-09-14
   (Asia/Manila) by the operator (`CYCLE ON`) to resume
@@ -554,6 +570,7 @@ hard blockers before separately approving publication.
 | TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `PLANNED` (registered successor; scope in contract §7 plus wave-audit F1/F3) | MEDIUM server source; HIGH generation | No packet yet; scope defined in the contract | C04 authority wave audit cleared; coordinates with TT-TL-MODULES-C04 (TL repair binding) | Findings B-03/B-04/B-06(server)/B-09/B-13(server)/B-11(server remainder); binding pattern at `timetable-sync-setup.service.ts:689-731`; wave-audit F3 (`blockingHardViolationCount` dropped by post-generation summary merges at `manual-edit.service.ts:696-724`) and F1 (stale `/campus-rooms` href at `simplePublishReadiness.ts:66-67`) | Author the packet from `92c14f95`; verify (not duplicate) the shared strict-predicate helper; fold in the C04R1 dead-export removal and the capability-override `Serializable` assertion note |
 | ENROLLPRO-PROXY-RECOVERY-C01 | Make the supervised production host consume one explicit durable HTTPS EnrollPro origin, fail closed on invalid configuration, keep degraded ATLAS operation, and remove stale raw-IP companion fallbacks | `INTEGRATED` — wave-audit r2 closed (`AUDIT_CLEAR` 11/11/0/0; corrected packet audited at `b258357a`) | MEDIUM source/test; live env + supervised restart stays HIGH | `work/enrollpro-proxy-recovery-c01`; base `d61c38d0`; candidate `54dce67b`; merge `bc61ecd5` on `origin/main` | Live recovery remains separately gated HIGH (corrected packet audited; awaiting exact approval) | Fresh QA `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 (independent failing-first at base + load-bearing `baseEnv→env` mutant restored byte-exact); combined merged-tree gates green (runtime 74/74, client 23/23, client tsc/build, server build, diff-check) | Source closed; return the revised exact HIGH approval (NOT GRANTED); do not execute the live packet without it |
 | ENROLLPRO-PROXY-RECOVERY-LIVE | Set the durable EnrollPro origin + install release `54dce67b` and restart supervisor-owned 5001/5174 | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime env change + install/restart | Packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`; release `54dce67b` (descends from reviewed pin `d44f29e0`); incumbent `3d916b26` retained for rollback | Exact operator approval NOT GRANTED; corrected packet audited at `b258357a` (r2 `AUDIT_CLEAR`; carry the r2 execution-preflight notes); product/test bytes unchanged | Prepared-time snapshot: listeners 5001→19448 / 5174→10880 under supervisor 3132; supervisor state `running` release `3d916b26`; durable env `D:\ATLAS-runtime-config\atlas-server.env` has `ENROLLPRO_API` and no `ENROLLPRO_PROXY_ORIGIN`; proxy `/enrollpro-api/settings/public` 502 vs direct EnrollPro 200 | Return the revised exact approval sentence (NOT GRANTED); do not execute |
+| WF-C01 | Machine-readable delivery-cycle state contract, fail-closed verifier, deterministic Markdown register renderer, and hermetic regression fixtures (3 positive + 21 negative fixtures, 60 tests) | `INTEGRATION_READY` — wave audit pending | MEDIUM | `work/workflow-foundation-wfc01`; `29284ac6...bcee9d0d`; merge `e617647d` on `be1a2d6f` | None in source; audit pending | Fresh QA `ses_f609c69e3ffeBW5SDmOoUA4QCf` `ACCEPT_READY` 22/22/0/0 after one bounded R1 correction (checkout-stable artifact pins); merged-tree combined gates green | Run the fresh Wave Completion Auditor against `e617647d`, then apply the docs-only closure (state `COMPLETE` + receipt) and push |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
 
