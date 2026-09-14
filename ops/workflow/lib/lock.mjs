@@ -131,7 +131,10 @@ function reclaimDeadLock({ lockPath, expectedFingerprint, tempPath }) {
   try {
     claimFd = fs.openSync(claimPath, "wx");
   } catch (err) {
-    if (err.code === "EEXIST") return { result: "CLAIM_BLOCKED" };
+    // EEXIST is the normal "someone else is reclaiming". Windows can also report
+    // EPERM/access-denied while an existing claim is being created or removed.
+    // All of these mean "I do not hold the claim": fail closed and retry.
+    if (err.code === "EEXIST" || TRANSIENT_LINK_ERRORS.has(err.code)) return { result: "CLAIM_BLOCKED" };
     return { result: "CLAIM_ERROR", message: err.message };
   }
   try {
@@ -140,18 +143,24 @@ function reclaimDeadLock({ lockPath, expectedFingerprint, tempPath }) {
       current = fs.readFileSync(lockPath);
     } catch (err) {
       if (err.code === "ENOENT") return { result: "CONTENDED" };
+      if (TRANSIENT_LINK_ERRORS.has(err.code)) return { result: "CONTENDED" };
       return { result: "CLAIM_ERROR", message: err.message };
     }
     if (expectedFingerprint === null || sha256Hex(current) !== expectedFingerprint) {
       // The record changed or was replaced after classification: never touch it.
       return { result: "NOT_ABSENT" };
     }
-    fs.unlinkSync(lockPath);
+    try {
+      fs.unlinkSync(lockPath);
+    } catch (err) {
+      if (err.code === "ENOENT" || TRANSIENT_LINK_ERRORS.has(err.code)) return { result: "CONTENDED" };
+      return { result: "CLAIM_ERROR", message: err.message };
+    }
     try {
       fs.linkSync(tempPath, lockPath);
       return { result: "ACQUIRED" };
     } catch (err) {
-      if (err.code === "EEXIST") return { result: "CONTENDED" };
+      if (err.code === "EEXIST" || TRANSIENT_LINK_ERRORS.has(err.code)) return { result: "CONTENDED" };
       return { result: "CLAIM_ERROR", message: err.message };
     }
   } finally {

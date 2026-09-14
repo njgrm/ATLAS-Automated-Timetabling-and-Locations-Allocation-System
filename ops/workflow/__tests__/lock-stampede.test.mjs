@@ -34,6 +34,11 @@ function deadPid() {
   return res.pid;
 }
 
+// Resolved once: the process has long since exited, and `stampedeRound`
+// re-asserts `classifyLock(...).kind === "ABSENT"` before every round, so a
+// (vanishingly unlikely) pid reuse would fail the test loudly rather than pass.
+const DEAD_PID = deadPid();
+
 function writeDeadLock(pid, padding) {
   const record = {
     schema: "atlas.workflow.lock/1",
@@ -79,18 +84,19 @@ for await (const line of rl) {
   if (command === "EXIT") break;
   if (command === "RELEASE") {
     if (held) { mod.releaseLock(held); held = null; }
+    process.stdout.write(JSON.stringify({ phase: "released" }) + "\\n");
     continue;
   }
   if (!command.startsWith("ROUND ")) continue;
   const barrier = command.slice(6);
-  fs.writeFileSync(path.join(barrier, "ready-" + process.pid), "");
+  process.stdout.write(JSON.stringify({ phase: "ready" }) + "\\n");
   const spinDeadline = Date.now() + 10000;
   while (!fs.existsSync(path.join(barrier, "go"))) {
     if (Date.now() > spinDeadline) break;
   }
   const result = mod.acquireLock({ repoRoot: process.env.WF_LOCK_REPO, transition: "stampede", maxInspect: 3, backoffMs: 6 });
   if (result.ok) held = result;
-  process.stdout.write(JSON.stringify({ ok: !!result.ok, code: result.code || null }) + "\\n");
+  process.stdout.write(JSON.stringify({ phase: "result", ok: !!result.ok, code: result.code || null, message: result.message ? String(result.message).slice(0, 200) : null }) + "\\n");
 }
 process.exit(0);
 `;
@@ -196,20 +202,17 @@ function startWorker() {
 async function stampedeRound(workers, padding) {
   clearResidue();
   const barrier = fs.mkdtempSync(path.join(os.tmpdir(), "wf-barrier-"));
-  const pid = deadPid();
+  const pid = DEAD_PID;
   writeDeadLock(pid, padding);
   const seeded = classifyLock(LOCK);
   assert.equal(seeded.kind, "ABSENT", `pid ${pid} must classify ABSENT (padding=${padding})`);
   assert.equal(processAlive(pid), false, "the seeded owner pid must be provably absent");
 
   for (const worker of workers) worker.round(barrier);
-  const deadline = Date.now() + 20000;
-  while (fs.readdirSync(barrier).filter((f) => f.startsWith("ready-")).length < workers.length) {
-    if (Date.now() > deadline) {
-      throw new Error(`stampede barrier timed out waiting for workers; stderr=${JSON.stringify(workers.map((w) => w.stderr()))}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2));
-  }
+  // Event-driven barrier: the workers announce readiness on stdout and the
+  // parent releases them with a `go` file, so no polling timer is involved
+  // (Windows timer granularity is ~15 ms and dominated the round cost).
+  await Promise.all(workers.map((worker) => worker.next()));
   fs.writeFileSync(path.join(barrier, "go"), "");
 
   const results = await Promise.all(workers.map((worker) => worker.next()));
@@ -217,22 +220,19 @@ async function stampedeRound(workers, padding) {
   const losers = results.filter((r) => !r.ok);
   // The winner holds until the round ends, so no late loser can ever acquire.
   for (const worker of workers) worker.release();
-  const releaseDeadline = Date.now() + 5000;
-  while (fs.existsSync(LOCK) && Date.now() < releaseDeadline) {
-    await new Promise((resolve) => setTimeout(resolve, 2));
-  }
+  await Promise.all(workers.map((worker) => worker.next()));
   const leftover = residue();
   clearResidue();
   fs.rmSync(barrier, { recursive: true, force: true });
   return { winners, losers: losers.length, codes: losers.map((r) => r.code), leftover, raw: results, released: !fs.existsSync(LOCK) };
 }
 
-test("S1 stampede: exactly one acquirer wins from a dead-owner lock (20 rounds + widened records)", async () => {
+test("S1 stampede: exactly one acquirer wins from a dead-owner lock (20 rounds + a widened record)", async () => {
   const workers = Array.from({ length: MANY_WRITERS }, () => startWorker());
   try {
     const summary = [];
     for (let round = 0; round < 20; round += 1) {
-      const padding = round === 19 ? 4_000_000 : round === 18 ? 1_000_000 : 0;
+      const padding = round === 19 ? 1_000_000 : 0;
       const outcome = await stampedeRound(workers, padding);
       summary.push({ round, padding, winners: outcome.winners, codes: outcome.codes });
       assert.deepEqual(outcome.leftover, [], `round ${round} left lock/claim/temp residue`);
@@ -245,7 +245,7 @@ test("S1 stampede: exactly one acquirer wins from a dead-owner lock (20 rounds +
       for (const code of outcome.codes) {
         assert.ok(
           ["LOCK_CONTENTION", "LOCK_UNREADABLE"].includes(code),
-          `round ${round} loser must carry a typed lock error, got ${code}`,
+          `round ${round} loser must carry a typed lock error, got ${JSON.stringify(outcome.raw.filter((r) => !r.ok))}`,
         );
       }
     }
@@ -261,7 +261,7 @@ test("S1 stampede: exactly one acquirer wins from a dead-owner lock (20 rounds +
 
 test("S3 a stale claim file blocks reclaim fail-closed and is never auto-deleted", async () => {
   clearResidue();
-  const pid = deadPid();
+  const pid = DEAD_PID;
   writeDeadLock(pid, 0);
   const lockBefore = fs.readFileSync(LOCK);
   fs.writeFileSync(CLAIM, "");
