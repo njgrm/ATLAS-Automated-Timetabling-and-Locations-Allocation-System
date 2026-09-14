@@ -5,9 +5,9 @@
 - Worktree: `D:\ATLAS-worktrees\workflow-foundation-wfc01`
 - Branch: `work/workflow-foundation-wfc01`
 - Base SHA: `29284ac6218b989ab860cde0d36266eabf26395b` (= refreshed `origin/main` at dispatch)
-- Candidate product/test tip SHA: `c03defb476f9b8ab2143e8db21b837d7a0040def` (every product, test, fixture, README, and `package.json` change)
+- Candidate product/test tip SHA: `e98b89eaaef96d53222180980e3df98f458d6a97` (every product, test, fixture, README, `package.json`, and renderer change)
 - Candidate branch tip: the commit that carries this handoff, the seed document, and the generated register. A file cannot contain its own commit SHA, so the branch tip is resolved with
-  `git -C D:\ATLAS-worktrees\workflow-foundation-wfc01 rev-parse HEAD`; the planner/QA records that SHA as the candidate SHA. The seed deliberately keeps `git.candidateSha` null for WF-C01.
+  `git -C D:\ATLAS-worktrees\workflow-foundation-wfc01 rev-parse HEAD`; the planner/QA records that SHA as the candidate SHA. The seed deliberately keeps `git.candidateSha` null for WF-C01. Commits above the product/test tip are documentation-only (seed, generated register, handoff).
 - Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, or HIGH action)
 - Verdict: `REVIEW_REQUIRED`
 
@@ -66,7 +66,7 @@ package.json
 
 | ID | Requirement | Production path | Negative control | Verification command | Result |
 | --- | --- | --- | --- | --- | --- |
-| G01 | Clean worktree, correct base ancestry, exact changed-path attribution | branch `work/workflow-foundation-wfc01` at base `29284ac6` | — | `git status --short`; `git merge-base --is-ancestor 29284ac6 HEAD`; `git diff --name-only --no-renames 29284ac6...HEAD` | PASS (clean; base is ancestor; 43 paths identical to the seed list) |
+| G01 | Clean worktree, correct base ancestry, exact changed-path attribution | branch `work/workflow-foundation-wfc01` at base `29284ac6` | — | `git status --porcelain`; `git merge-base --is-ancestor 29284ac6 HEAD`; `git diff --name-only --no-renames 29284ac6...HEAD` | PASS (clean; base is ancestor; 46 paths identical to the seed `changedPaths` list) |
 | G02 | Every required surface exists at its exact path | `ops/workflow/{schema,lib,verify-cycle.mjs,render-register.mjs,__tests__,__fixtures__,README.md}`, `docs/plans/atlas-delivery-cycles.json`, `docs/plans/atlas-active-delivery-streams.generated.md`, `docs/handoffs/wf-c01-executor.md`, `package.json` | — | `git ls-files ops/workflow docs/plans/atlas-delivery-cycles.json docs/plans/atlas-active-delivery-streams.generated.md docs/handoffs/wf-c01-executor.md package.json` | PASS |
 | G03 | `npm run workflow:test` exits 0 with no skips | `ops/workflow/__tests__/*.test.mjs` | per-fixture child-process exit codes | `npm run workflow:test` | PASS (57 tests / 57 pass / 0 fail / 0 skipped) |
 | G04 | Committed seed verifies cleanly | `verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | — | `node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | PASS (exit 0, status ok, 5 streams) |
