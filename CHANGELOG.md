@@ -1,5 +1,37 @@
 # Changelog
 
+## [2026-09-14] — TT-SOURCE-FRESHNESS-C04 Source-Authority Binding
+
+### Added
+- Source-snapshot binding for generation and Quick Place: one pre-scheduling
+  captured fingerprint revalidated with the transaction client inside the final
+  write transaction, typed `SOURCE_AUTHORITY_STALE` on drift, and a
+  tx-verified persisted `inputSnapshot` (no post-scheduling snapshot swap).
+- Passive scheduling-policy read resolver (no create/normalize on read paths);
+  ordered-term identity signal in the run snapshot; D5 teacher-pin retention
+  (valid reviewed assignments preserved and counted, invalid pins fail closed
+  as typed `TEACHER_PIN_CONFLICT` with exact retained/conflicted totals).
+- Focused suites `tt-source-freshness-{generation,quick-place,sync-pin,capability}-c04`
+  (server) and `tt-source-freshness-client-c04` (client); F1 `/map` repair
+  route; deterministic client/server publication-blocking allowlist parity.
+
+### Changed
+- `mergePreservedSummaryFields` now preserves `blockingHardViolationCount` and
+  `termCounts`; Quick Place/sync persist their tx-verified snapshots; the
+  Quick Place mounted routes enforce actor-school/active-year/run-scope
+  authority before any service dispatch.
+- Removed the zero-consumer capability-override legacy exports (retired
+  410 routes and the read/preview/apply surface retained).
+
+### Decisions Made
+- Wave-audit residuals re-affirmed or superseded: `generation.service.ts`
+  `hasPublishedMarkers` stays a bounded residual (conservative reconciliation
+  and performance-fixture consumers only; no publication authority);
+  `enrollpro-rollover.service.ts` loose predicate remains registered residual.
+- Candidate `0553bba0` integrated at merge `9732658d`; wave audit pending;
+  nothing is pushed until `AUDIT_CLEAR`; both cycle worktrees are
+  `RETIRE_AFTER_INTEGRATION`; no live/HIGH action was executed.
+
 ## [2026-09-14] — WF-C01 Delivery-Cycle State Contract And Wave Closure
 
 ### Added

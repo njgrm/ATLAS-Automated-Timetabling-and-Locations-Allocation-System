@@ -1,10 +1,10 @@
 {
   "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T19:40:30+08:00", "lastUpdatedBy": "primary-planner" },
+  "registry": { "lastUpdatedAt": "2026-09-14T20:38:45+08:00", "lastUpdatedBy": "primary-planner" },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "Dispatch the next operator-activated cycle (TT-SOURCE-FRESHNESS-C04 packet authoring and/or WF-C02 or WF-EVAL-C01); all live/HIGH actions remain locked."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "TT-SOURCE-FRESHNESS-C04",
+    "globalNextAction": "Run the fresh Wave Completion Auditor over the integrated result 9732658d and push only on AUDIT_CLEAR; all live/HIGH actions remain locked."
   },
   "streams": [
     {
@@ -216,32 +216,64 @@
     },
     {
       "id": "TT-SOURCE-FRESHNESS-C04",
-      "kind": "STREAM",
-      "objective": "Bind generation, quick-place, and sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment.",
+      "kind": "CYCLE",
+      "objective": "Bind generation, quick-place, and sync outputs to one captured source snapshot (B-03/B-04/B-06/B-09), carry strict-predicate alignment (B-11 remainder), make setup-sync teacher pins truthful (B-13/D5), preserve run-wide summary truth (wave-audit F3), and close the F1/F2 client corrections.",
       "riskTier": "MEDIUM",
-      "state": "PLANNED",
-      "stateUpdatedAt": "2026-09-14T16:00:00+08:00",
-      "nextAction": "Author the implementation packet from 92c14f95 folding wave-audit F1/F3, the C04R1 dead-export removal, and the Serializable assertion note.",
-      "awaited": [],
+      "state": "INTEGRATION_READY",
+      "stateUpdatedAt": "2026-09-14T20:38:45+08:00",
+      "nextAction": "Run the fresh Wave Completion Auditor over the integrated result 9732658d; push only on AUDIT_CLEAR; no HIGH action follows.",
+      "awaited": ["Fresh Wave Completion Auditor verdict"],
       "running": [],
       "git": {
-        "worktree": null,
-        "branch": null,
-        "baseSha": "92c14f9564d6cc5fa16603118ff1ec16af11c748",
-        "candidateSha": null,
-        "integrationSha": null,
+        "worktree": "E:\\ATLAS-worktrees\\integration-tt-source-freshness-c04",
+        "branch": "integration/tt-source-freshness-c04-20260914",
+        "baseSha": "7f1fc7f6ad11abacb195d3848eb10b9484298121",
+        "candidateSha": "0553bba0267f0d361c63050a7be27720dbfb4abb",
+        "integrationSha": "9732658db4559c32795be5451f295e8bc60e5258",
         "remoteSha": null,
-        "changedPaths": []
+        "changedPaths": [
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspaceDialogs.tsx",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx",
+          "atlas-client/src/components/timetable/simple/SimpleDriftBanner.tsx",
+          "atlas-client/src/components/timetable/simplePublishReadiness.ts",
+          "atlas-client/src/lib/__tests__/tt-source-freshness-client-c04.test.ts",
+          "atlas-client/src/lib/timetable-sync-setup.ts",
+          "atlas-server/src/__tests__/helpers/tt-source-freshness-db.ts",
+          "atlas-server/src/__tests__/tt-source-freshness-capability-c04.test.ts",
+          "atlas-server/src/__tests__/tt-source-freshness-generation-c04.test.ts",
+          "atlas-server/src/__tests__/tt-source-freshness-quick-place-c04.test.ts",
+          "atlas-server/src/__tests__/tt-source-freshness-sync-pin-c04.test.ts",
+          "atlas-server/src/routes/timetable-quick-place.router.ts",
+          "atlas-server/src/services/faculty-assignment.service.ts",
+          "atlas-server/src/services/generation-input-snapshot.service.ts",
+          "atlas-server/src/services/generation.service.ts",
+          "atlas-server/src/services/manual-edit.service.ts",
+          "atlas-server/src/services/scheduling-policy.service.ts",
+          "atlas-server/src/services/timetable-quick-place.service.ts",
+          "atlas-server/src/services/timetable-sync-setup.service.ts",
+          "docs/progress/tt-source-freshness-c04-progress.md"
+        ]
       },
       "owners": {
-        "planner": { "sessionId": null, "status": "NONE", "writable": false },
-        "executor": { "sessionId": null, "status": "NONE", "writable": false },
-        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
+        "executor": { "sessionId": "ses_f6087994dffe5zEwP2HMEyjCzy", "status": "RETURNED", "writable": false },
+        "qa": { "sessionId": "ses_f6030850affeiZPOm2tfO9G3En", "status": "RETURNED", "writable": false },
         "auditor": { "sessionId": null, "status": "NONE", "writable": false }
       },
-      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
-      "corrections": [],
+      "gates": { "total": 14, "passed": 14, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "7f1fc7f6ad11abacb195d3848eb10b9484298121",
+          "candidateSha": "0553bba0267f0d361c63050a7be27720dbfb4abb",
+          "reason": "C1 (packet 3.5): the server returned exact retained/conflicted teacher-pin totals but the client copy did not state them; the correction adds both exact totals to the typed TEACHER_PIN_CONFLICT message, classifies the conflict non-retryably, surfaces the retained count in both sync success toasts, makes the dialog copy truthful, and adds focused fail-on-mutant controls.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [],
       "requires": [],
       "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
@@ -253,8 +285,8 @@
       "artifacts": [],
       "closure": null,
       "sessionRouting": {
-        "planner": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "packet authorship is a new planner-led stream" },
-        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "no executor session exists for this stream yet" },
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owned the cycle, packet, integration, and closure" },
+        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "the initial executor hit its step limit mid-commit; the bounded correction ran fresh on the same worktree lineage (main ses_f6087994dffe5zEwP2HMEyjCzy, correction ses_f603c1ce6ffej42VwzS6INx01G)" },
         "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "each candidate requires a fresh independent QA context" },
         "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "wave completion audit requires a fresh adversarial context" }
       }
