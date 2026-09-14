@@ -1,0 +1,206 @@
+# WF-C02 Lane A executor handoff (workflow state, roles, compaction, closure)
+
+## Identity
+
+- Worktree: `E:\ATLAS-worktrees\workflow-hardening-c02`
+- Branch: `work/workflow-hardening-c02`
+- Base SHA: `84dd537bb2a2c045b8518c35b3a5372142e0080c` (= refreshed `origin/main` at dispatch)
+- Candidate: a single bounded commit on the branch. A file cannot contain its own
+  commit SHA; the planner/QA resolve it with
+  `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`.
+- Directive: worktree `AGENTS.md`, LF-normalized SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (unchanged).
+- Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, credential, or HIGH action).
+- Verdict: `REVIEW_REQUIRED`
+
+## Changed paths (base...candidate)
+
+```
+.opencode/agents/atlas-executor.md
+.opencode/agents/atlas-planner.md
+.opencode/agents/atlas-qa.md
+.opencode/agents/atlas-wave-auditor.md
+docs/handoffs/wf-c02-executor.md
+docs/plans/atlas-active-delivery-streams.generated.md
+docs/plans/atlas-delivery-cycles.json
+opencode.json
+ops/workflow/README.md
+ops/workflow/__fixtures__/fail-accept-ready-blocked.json
+ops/workflow/__fixtures__/fail-candidate-unknown.json
+ops/workflow/__fixtures__/fail-changed-paths.json
+ops/workflow/__fixtures__/fail-changed-paths-extra.json
+ops/workflow/__fixtures__/fail-complete-stale-corrections.json
+ops/workflow/__fixtures__/fail-custody-overlap.json
+ops/workflow/__fixtures__/fail-dependency-not-satisfied.json
+ops/workflow/__fixtures__/fail-duplicate-writable.json
+ops/workflow/__fixtures__/fail-external-with-safe-work.json
+ops/workflow/__fixtures__/fail-gates-arithmetic.json
+ops/workflow/__fixtures__/fail-high-boundary-exceeded.json
+ops/workflow/__fixtures__/fail-high-expired-dependency.json
+ops/workflow/__fixtures__/fail-high-unreachable-dependency.json
+ops/workflow/__fixtures__/fail-high-without-approval.json
+ops/workflow/__fixtures__/fail-missing-next-action.json
+ops/workflow/__fixtures__/fail-receipt-missing.json
+ops/workflow/__fixtures__/fail-receipt-stale.json
+ops/workflow/__fixtures__/fail-stale-candidate.json
+ops/workflow/__fixtures__/fail-successor-unlocked.json
+ops/workflow/__fixtures__/fail-unauthorized-login.json
+ops/workflow/__fixtures__/fail-unknown-requires.json
+ops/workflow/__fixtures__/pass-audited-wave.json
+ops/workflow/__fixtures__/pass-high-prepared.json
+ops/workflow/__fixtures__/pass-ordinary.json
+ops/workflow/__tests__/artifact-portability.test.mjs
+ops/workflow/__tests__/checkpoint.test.mjs
+ops/workflow/__tests__/cli.test.mjs
+ops/workflow/__tests__/coverage.test.mjs
+ops/workflow/__tests__/determinism.test.mjs
+ops/workflow/__tests__/fixtures.test.mjs
+ops/workflow/__tests__/harness.mjs
+ops/workflow/__tests__/identity.test.mjs
+ops/workflow/__tests__/leases.test.mjs
+ops/workflow/__tests__/roles.test.mjs
+ops/workflow/__tests__/schema.test.mjs
+ops/workflow/__tests__/seed.test.mjs
+ops/workflow/__tests__/transition.test.mjs
+ops/workflow/checkpoint.mjs
+ops/workflow/lib/checkpoint.mjs
+ops/workflow/lib/git.mjs
+ops/workflow/lib/lock.mjs
+ops/workflow/lib/migrate.mjs
+ops/workflow/lib/receipt.mjs
+ops/workflow/lib/render.mjs
+ops/workflow/lib/transition.mjs
+ops/workflow/lib/util.mjs
+ops/workflow/lib/verify.mjs
+ops/workflow/render-register.mjs
+ops/workflow/schema/cycle-state.schema.json
+ops/workflow/transition.mjs
+ops/workflow/verify-cycle.mjs
+package.json
+```
+
+`package.json` (repository root) adds the `workflow:transition`,
+`workflow:checkpoint`, and `workflow:render:check` scripts and does not change
+any other script.
+
+## Trace matrix (requirement -> production path -> negative control -> verification)
+
+| ID | Requirement | Production path | Negative control | Verification command | Result |
+| --- | --- | --- | --- | --- | --- |
+| A1-1 | No committed field must equal the containing commit | `schema.$defs.git.remoteObservation`; `lib/verify.mjs` observation rule; `lib/migrate.mjs` | schema has no `remoteSha`; verifier source has no `rev-parse HEAD` | `node --test ops/workflow/__tests__/identity.test.mjs` | PASS |
+| A1-2 | Stale candidate/integration ancestry still fails closed | `lib/verify.mjs` `GIT_ANCESTRY` | base = orphan root | `identity.test.mjs` "stale … ancestry still fails closed" | PASS |
+| A1-3 | A forged remote observation fails | `lib/verify.mjs` `REMOTE_OBSERVATION_INVALID` | orphan SHA; non-existent SHA | `identity.test.mjs` "a forged remote observation fails closed" | PASS |
+| A1-4 | One closure reaches a stable state with no follow-up SHA-fix commit | `lib/transition.mjs` lifecycle end-to-end | advance the branch tip after recording the observation | `transition.test.mjs` "a full closure lifecycle …" + `identity.test.mjs` first case | PASS |
+| A1-5 | WF-C01 identity migrates without loss | `lib/migrate.mjs`; `docs/plans/atlas-delivery-cycles.json` | legacy `remoteSha` doc | `identity.test.mjs` migration case; `npm run workflow:verify` | PASS |
+| A2-1 | One atomic named-transition CLI | `ops/workflow/transition.mjs` + `lib/transition.mjs` + `lib/lock.mjs` | stale CAS, invalid transition, ambiguous stream, lock contention, mid-write faults | `transition.test.mjs` (9 cases) | PASS |
+| A2-2 | One committed writer + one typed loser, zero partial files | `lib/lock.mjs` + `lib/transition.mjs` | two concurrent processes | `transition.test.mjs` "two concurrent writers …" | PASS |
+| A2-3 | Byte-identical before/after on every failure | staging + rename in `lib/transition.mjs` | `STAGE_STATE`, `STAGE_RENDER`, `VERIFY_RENDERED` faults | `transition.test.mjs` "a mid-write failure …" | PASS |
+| A2-4 | Crash recovery reclaims a provably-absent owner and never deletes a live lock | `lib/lock.mjs` `processAlive` | dead pid vs live pid | `transition.test.mjs` live/absent lock cases | PASS |
+| A3-1 | Dirty worktree + live lease + PLANNED/running[] fails | `lib/verify.mjs` lease rules; `lib/git.mjs` `worktreeStatusPorcelain` | TT-SOURCE-FRESHNESS-C04 shape | `leases.test.mjs` first case | PASS |
+| A3-2 | Directory existence alone is not activity | `lib/verify.mjs` | clean worktree, no lease | `leases.test.mjs` "a clean worktree with no lease …" | PASS |
+| A3-3 | Expiry never grants cleanup/replacement authority | lease rule + `lease-update` transition | expired `ACTIVE` lease | `leases.test.mjs` "an expired-but-unconfirmed ACTIVE lease …" | PASS |
+| A4-1 | Four roles resolve from the installed harness | `.opencode/agents/*.md` | — | `node --test ops/workflow/__tests__/roles.test.mjs` | PASS |
+| A4-2 | Least-privilege, fail-closed permission matrix; no self-promotion | agent frontmatter `permission` | wrong path, wrong task target, push/merge | `roles.test.mjs` matrix cases | PASS |
+| A4-3 | Existing delegate faces preserved | global `atlas-executor-delegate` / `atlas-qa-delegate` | — | `roles.test.mjs` "existing delegate faces are preserved" | PASS |
+| A5-1 | Automatic compaction + pruning configured and resolvable | project `opencode.json` | — | `roles.test.mjs` compaction case; `opencode debug config --pure` | PASS |
+| A5-2 | Minimal, redacted, size-bounded checkpoint | `lib/checkpoint.mjs` + `ops/workflow/checkpoint.mjs` | secret-shaped values, oversize, unknown keys | `checkpoint.test.mjs` (10 cases) | PASS |
+| A6-1 | Fixture harness no longer spawns a Node/Git repo per assertion | `__tests__/harness.mjs`, `fixtures.test.mjs` | one true CLI process test and the real Git checkout controls preserved | `npm run workflow:test`; `cli.test.mjs`; `artifact-portability.test.mjs` | PASS |
+| A6-2 | Suite meets the time budget | harness + `lib/git.mjs` memo | — | before/after wall times below | PASS |
+| R2 | Every deterministic verifier code is reachable | `lib/verify.mjs`, `lib/schema.mjs` | table-driven mutations | `coverage.test.mjs` (27 cases) | PASS |
+
+## Decisive gate outputs
+
+- `npm run workflow:test`: `tests 126 / pass 126 / fail 0 / cancelled 0 / skipped 0 / todo 0`; last full-suite `duration_ms 28936.87`, wall `29942 ms`.
+- Before (WF-C01 tip, same host): `npm run workflow:test` wall `82562 ms` (60 tests).
+- Fixture/semantic suite (`fixtures.test.mjs`): `duration_ms 2008 ms` (target < 20000 ms).
+- `npm run workflow:verify -- --state docs/plans/atlas-delivery-cycles.json`: exit 0, `status ok`, `errors []`, 6 streams.
+- `npm run workflow:render:check`: exit 0 (committed generated register is byte-identical to the deterministic render).
+- `git diff --check`: clean. `git status --porcelain`: clean after the final commit.
+
+## Resolved OpenCode surface
+
+- Installed harness: OpenCode 1.18.21, Node v24.14.1, npm 11.11.0.
+- Detection surface: `opencode debug config --pure` (local-only mode; `--pure`
+  disables external plugins, so no `@latest` fetch was required). Raw output
+  contains provider credentials and was never committed, echoed into evidence,
+  or pasted; only the `agent`, `compaction`, `subagent_depth` fields were
+  extracted.
+- Roles: `atlas-planner` (`mode: primary`, `opencode-go/deepseek-v4.1-flash`,
+  `variant: max`); `atlas-executor`, `atlas-qa`, `atlas-wave-auditor`
+  (`mode: subagent`, same model, `variant: high`).
+- Max-variant subagent spawnability: a subagent declaring `variant: max`
+  resolves successfully through `opencode debug agent` (config-resolution
+  evidence). Runtime spawning of a max subagent was not exercised, so the proven
+  `high` reviewer tier is used for subagents and the fallback is disclosed here.
+- Permission matrix (resolved): planner may invoke only `atlas-executor`,
+  `atlas-qa`, `atlas-wave-auditor`, `atlas-executor-delegate`, `atlas-qa-delegate`
+  (plus the read-only built-in `explore`/`scout` inherited from global config);
+  executor edits only ATLAS repo/worktree paths, denies runtime-config, database
+  recovery, and companion paths, and denies push/merge/rebase/reset/stash/worktree
+  mutations and `npm install`; QA and the auditor have `edit: deny` and
+  `task: deny`. `read` was not overridden, so the global `.env` read denies remain
+  intact.
+- Compaction keys accepted by 1.18.21: `compaction { auto: true, prune: true,
+  reserved: 12000 }`, `agent.compaction { model: "opencode-go/deepseek-v4.1-flash",
+  variant: "low" }`, `subagent_depth: 1`.
+
+## CLI named transitions and concurrency proof
+
+- `record-executor-return`, `record-correction`, `record-qa-result`,
+  `record-integration`, `record-audit`, `close-cycle`,
+  `record-remote-observation`, `lease-update`.
+- Lock: `<git-common-dir>/atlas-workflow.lock`, `O_EXCL`, owner metadata
+  (pid/host/transition/stream/state/acquiredAt), bounded stale inspection
+  (6 attempts, 40 ms backoff), reclaim only on proof of owner absence.
+- Two concurrent CLI writers on one document: exactly one `status: ok` and one
+  typed loser (`LOCK_CONTENTION` or `TRANSITION_STALE_REVISION`), revision
+  advanced by exactly one, and no `.tmp`/`.stage` residue.
+
+## Residual disposition
+
+Closed: R4 (base-path fallback documented), R2 (rule-code coverage added), R1
+(portability now asserts Git `check-attr eol`), O1 (closure receipt pin rendered),
+O2 (authority wording), R6 (`--stream` without `--receipt` is now exit 2).
+Retained with reason: R3 (`verified.artifacts` not in the staleness compare;
+artifact bytes are enforced by `ARTIFACT_HASH_MISMATCH`), R5 (`.gitattributes`
+covers future checkouts), R7 (`receipt.stateSha256` is informational), R8 (seed
+predicate is a shape check). `GIT_DIFF_FAILED` and unused schema keywords
+(`SCHEMA_MAXIMUM`, `SCHEMA_MIN_ITEMS`, `SCHEMA_MAX_LENGTH`) remain defensive and
+unreachable with the shipped contract.
+
+## Known risks (all NON_BLOCKING for this packet)
+
+1. The candidate cannot embed its own commit SHA; the planner/QA resolve the tip
+   with `git rev-parse HEAD`.
+2. `WF-C02` was registered with `state: RUNNING`, `candidateSha: null`, and no
+   session id, because no candidate or session existed at authoring time. The
+   planner records the candidate/QA/integration/audit/receipt/observation facts
+   through the transition CLI.
+3. The candidate time state document was verified at the authoring revision
+   (`registry.revision: 1`); it becomes `REVIEW_REQUIRED` only through the CLI.
+4. Concurrent CLI runs hold the lock; the bounded window (6 × 40 ms) is shorter
+   than a long verify, so a very slow writer yields `LOCK_CONTENTION` rather than
+   waiting indefinitely — typed and safe, but a caller must retry.
+5. `--pure` was used for the config-resolution proof; plugin-backed behavior
+   (`@cortexkit/opencode-magic-context`) is not exercised by these tests.
+6. The fixture migration was applied as one deterministic, formatting-preserving
+   projection (`contractVersion`, `remoteSha` -> `remoteObservation`,
+   `registry.revision`, `leases`) across 24 data fixtures; the full suite proves
+   the result.
+7. OpenCode created a project-local `.opencode/node_modules`, `.opencode/package.json`,
+   `.opencode/package-lock.json`, and `.opencode/.gitignore` when its debug
+   commands resolved the plugin; that `.gitignore` self-ignores those artifacts,
+   and only `.opencode/agents/*.md` are committed.
+
+## Zero-mutation statement
+
+No live, HIGH, database, migration, runtime, task, port, Tailnet, browser, login,
+credential, or companion action was performed. `atlas-server/**`,
+`atlas-client/**`, `prisma/**`, `ops/runtime/**`, runtime releases/config, the
+shared Playwright profile, and all companion repositories were never touched.
+`CHANGELOG.md`, `docs/plans/atlas-active-delivery-streams.md`, and the living
+register were not edited. No `git worktree`, push, merge, rebase, reset, stash,
+or branch-deletion command was run. No dependency installation was performed.
+
+## Return
+
+`REVIEW_REQUIRED` — no merge, rebase, amend, push, or self-acceptance performed.

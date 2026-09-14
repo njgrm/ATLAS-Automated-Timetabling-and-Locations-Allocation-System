@@ -62,20 +62,28 @@ export function validateReceiptShape(receipt) {
   return problems;
 }
 
-export function validateClosureReceipt(stream, repoRoot, stateDir) {
+export function validateClosureReceipt(stream, repoRoot, stateDir, resolveReceiptBytes) {
   const closure = stream.closure;
   if (!closure || !closure.receipt) {
     return { code: "COMPLETE_MISSING_RECEIPT", message: "COMPLETE stream has no closure.receipt" };
   }
   const filePath = receiptPathFor(closure.receipt, repoRoot, stateDir);
-  let bytes;
-  try {
-    bytes = fs.readFileSync(filePath);
-  } catch (err) {
-    return {
-      code: "COMPLETE_MISSING_RECEIPT",
-      message: `receipt file ${closure.receipt.path} is missing: ${err.message}`,
-    };
+  let bytes = null;
+  if (typeof resolveReceiptBytes === "function") {
+    const provided = resolveReceiptBytes(filePath, closure.receipt);
+    if (provided !== undefined && provided !== null) {
+      bytes = Buffer.isBuffer(provided) ? provided : Buffer.from(provided, "utf8");
+    }
+  }
+  if (bytes === null) {
+    try {
+      bytes = fs.readFileSync(filePath);
+    } catch (err) {
+      return {
+        code: "COMPLETE_MISSING_RECEIPT",
+        message: `receipt file ${closure.receipt.path} is missing: ${err.message}`,
+      };
+    }
   }
   const actualSha = sha256Hex(bytes);
   if (actualSha !== closure.receipt.sha256) {

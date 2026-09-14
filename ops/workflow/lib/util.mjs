@@ -23,3 +23,25 @@ export function writeFileAtomicSync(filePath, contents) {
   fs.writeFileSync(tmp, contents);
   fs.renameSync(tmp, filePath);
 }
+
+// Stage bytes beside a target without touching the target. Returns the temp path.
+export function stageFileSync(filePath, contents) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.stage.tmp`);
+  fs.writeFileSync(tmp, contents);
+  return tmp;
+}
+
+// Publish a staged temp file over its target, and discard it on demand.
+export function commitStagedSync(tmpPath, filePath) {
+  fs.renameSync(tmpPath, filePath);
+}
+
+export function discardStagedSync(tmpPath) {
+  try {
+    fs.unlinkSync(tmpPath);
+  } catch {
+    /* already gone */
+  }
+}

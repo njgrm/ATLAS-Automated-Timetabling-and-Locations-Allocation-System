@@ -14,7 +14,7 @@ test("the committed seed state verifies cleanly with exit code 0", () => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(result.json.status, "ok");
   assert.deepEqual(result.json.errors, []);
-  assert.equal(result.json.summary.streams.total, 5);
+  assert.equal(result.json.summary.streams.total, 6);
 });
 
 test("the committed generated register matches the renderer output byte-for-byte", (t) => {
@@ -42,13 +42,18 @@ function isNullOrCommittedSha(value) {
   return value === null || CANDIDATE_SHA_PATTERN.test(value);
 }
 
-test("the seed declares the five expected streams with null-or-committed candidate SHAs", () => {
+test("the seed declares the six expected streams with null-or-committed candidate SHAs", () => {
   const doc = JSON.parse(fs.readFileSync(STATE, "utf8"));
+  assert.equal(doc.contractVersion, "1.1.0");
+  assert.equal(Number.isInteger(doc.registry.revision) && doc.registry.revision >= 1, true);
+  assert.ok(Array.isArray(doc.leases), "the seed must declare the leases array");
   assert.deepEqual(
     doc.streams.map((s) => s.id).sort(),
-    ["ENROLLPRO-PROXY-RECOVERY-LIVE", "LIVE-GENERATION", "LIVE-PUBLICATION", "TT-SOURCE-FRESHNESS-C04", "WF-C01"],
+    ["ENROLLPRO-PROXY-RECOVERY-LIVE", "LIVE-GENERATION", "LIVE-PUBLICATION", "TT-SOURCE-FRESHNESS-C04", "WF-C01", "WF-C02"],
   );
   for (const stream of doc.streams) {
+    assert.equal(Object.prototype.hasOwnProperty.call(stream.git, "remoteSha"), false, `${stream.id} must not carry the legacy remoteSha`);
+    assert.equal(Object.prototype.hasOwnProperty.call(stream.git, "remoteObservation"), true, `${stream.id} must carry remoteObservation`);
     if (stream.id === "ENROLLPRO-PROXY-RECOVERY-LIVE") {
       assert.equal(stream.git.candidateSha, "54dce67b8392cbce09aa810813c37f9c87a67159");
       continue;

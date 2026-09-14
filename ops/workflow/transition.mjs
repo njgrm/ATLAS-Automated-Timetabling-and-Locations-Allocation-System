@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+// ops/workflow/transition.mjs
+// CLI for the atomic delivery-cycle state transitions (A2).
+//
+//   node ops/workflow/transition.mjs --transition <name> --state <path> \
+//     --expect-revision <n> [--stream <id>] [--render <path>] [--now <iso>] \
+//     [transition-specific flags]
+//
+// Exactly one JSON object is printed: status, summary, nextActions, artifacts,
+// errors. Exit codes: 0 ok, 1 transition/verification failure, 2 usage error.
+import process from "node:process";
+import { listTransitions, runTransition, TRANSITIONS } from "./lib/transition.mjs";
+
+const BASE_FLAGS = new Set(["transition", "state", "expect-revision", "stream", "render", "by", "now"]);
+const ALL_ALLOWED = new Set(BASE_FLAGS);
+for (const spec of Object.values(TRANSITIONS)) {
+  for (const name of [...(spec.required || []), ...(spec.optional || [])]) ALL_ALLOWED.add(name);
+}
+
+function emit(report) {
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+}
+
+function usageReport(code, message) {
+  return {
+    status: "fail",
+    summary: { transition: null, statePath: null },
+    nextActions: [],
+    artifacts: [],
+    errors: [{ code, message, path: "$" }],
+  };
+}
+
+function parse(argv) {
+  const values = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!token.startsWith("--")) return { ok: false, code: "USAGE_UNEXPECTED_ARGUMENT", message: `unexpected argument "${token}"` };
+    const name = token.slice(2);
+    if (!ALL_ALLOWED.has(name)) return { ok: false, code: "USAGE_UNKNOWN_FLAG", message: `unknown flag "${token}"` };
+    const next = argv[i + 1];
+    if (next === undefined || next.startsWith("--")) {
+      // Empty values are meaningful only for explicitly nullable lease fields.
+      if (["lease-session", "lease-expires", "lease-worktree"].includes(name)) {
+        values[name] = "";
+        continue;
+      }
+      return { ok: false, code: `USAGE_MISSING_VALUE_${name.toUpperCase().replace(/-/g, "_")}`, message: `flag "${token}" requires a value` };
+    }
+    values[name] = next;
+    i += 1;
+  }
+  return { ok: true, values };
+}
+
+const parsed = parse(process.argv.slice(2));
+if (!parsed.ok) {
+  emit(usageReport(parsed.code, parsed.message));
+  process.exit(2);
+}
+const flags = parsed.values;
+if (!flags.transition) {
+  emit(usageReport("USAGE_MISSING_TRANSITION", `missing required flag "--transition" (known: ${listTransitions().join(", ")})`));
+  process.exit(2);
+}
+if (!flags.state) {
+  emit(usageReport("USAGE_MISSING_STATE", 'missing required flag "--state"'));
+  process.exit(2);
+}
+if (!flags["expect-revision"]) {
+  emit(usageReport("USAGE_MISSING_EXPECT_REVISION", 'missing required flag "--expect-revision"'));
+  process.exit(2);
+}
+
+const report = runTransition({ statePath: flags.state, transitionName: flags.transition, flags, now: flags.now || null });
+emit(report);
+process.exit(report.status === "ok" ? 0 : 1);

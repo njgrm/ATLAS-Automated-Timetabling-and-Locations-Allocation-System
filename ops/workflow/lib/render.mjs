@@ -5,6 +5,7 @@
 import { collectArtifacts } from "./verify.mjs";
 
 const GENERATED_NOTICE = "<!-- atlas-workflow-register: generated; do not edit -->";
+export { GENERATED_NOTICE };
 
 const byId = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -41,6 +42,7 @@ export function renderRegister(doc, stateSha256) {
   lines.push(`- contractVersion: \`${doc.contractVersion}\``);
   lines.push(`- lastUpdatedAt: \`${doc.registry.lastUpdatedAt}\``);
   lines.push(`- lastUpdatedBy: \`${doc.registry.lastUpdatedBy}\``);
+  lines.push(`- revision: \`${doc.registry.revision}\``);
   lines.push("");
 
   lines.push("## Coordination");
@@ -58,6 +60,43 @@ export function renderRegister(doc, stateSha256) {
     lines.push(
       `| ${cell(stream.id)} | ${cell(stream.kind)} | ${cell(stream.state)} | ${cell(stream.riskTier)} | ${cell(stream.git.branch ?? "")} | ${cell(stream.nextAction ?? "")} |`,
     );
+  }
+  lines.push("");
+
+  lines.push("## Git identity");
+  lines.push("");
+  lines.push("| Stream | Worktree | Branch | Base | Candidate | Integration | Remote observation |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+  for (const stream of streams) {
+    const obs = stream.git.remoteObservation;
+    const obsCell =
+      obs === null
+        ? "_none_"
+        : `\`${cell(obs.ref)}@${cell(obs.sha)}\` (${cell(obs.kind)}, ${cell(obs.observedAt)})`;
+    lines.push(
+      `| ${cell(stream.id)} | ${cell(stream.git.worktree ?? "")} | ${cell(stream.git.branch ?? "")} | ${cell(stream.git.baseSha ?? "")} | ${cell(stream.git.candidateSha ?? "")} | ${cell(stream.git.integrationSha ?? "")} | ${obsCell} |`,
+    );
+  }
+  lines.push("");
+
+  lines.push("## Leases");
+  lines.push("");
+  lines.push("| Id | Stream | Role | State | Worktree | Session | Revision | Updated | Expires |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const lease of [...doc.leases].sort((a, b) => byId(a.id, b.id))) {
+    lines.push(
+      `| ${cell(lease.id)} | ${cell(lease.streamId)} | ${cell(lease.role)} | ${cell(lease.state)} | ${cell(lease.worktree ?? "")} | ${cell(lease.sessionId ?? "")} | ${lease.revision} | ${cell(lease.updatedAt)} | ${cell(lease.expiresAt ?? "")} |`,
+    );
+  }
+  lines.push("");
+
+  lines.push("## Closure receipts");
+  lines.push("");
+  lines.push("| Stream | Receipt path | SHA-256 |");
+  lines.push("| --- | --- | --- |");
+  for (const stream of streams) {
+    const receipt = stream.closure ? stream.closure.receipt : null;
+    lines.push(`| ${cell(stream.id)} | \`${cell(receipt ? receipt.path : "")}\` | \`${cell(receipt ? receipt.sha256 : "")}\` |`);
   }
   lines.push("");
 

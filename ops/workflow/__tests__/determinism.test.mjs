@@ -6,8 +6,7 @@ import {
   VERIFY_CLI,
   RENDER_CLI,
   SCHEMA_FILE,
-  createTempRepo,
-  cleanupRepo,
+  getSharedRepo,
   fixtureRaw,
   repoSubstitutions,
   substitute,
@@ -21,8 +20,7 @@ function ordinaryState(repo, name = "state.json") {
 }
 
 test("verify stdout is byte-identical across two runs on identical input", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = ordinaryState(repo);
 
   const first = runCli(VERIFY_CLI, ["--state", statePath], { cwd: repo.dir });
@@ -33,8 +31,7 @@ test("verify stdout is byte-identical across two runs on identical input", (t) =
 });
 
 test("render output is byte-identical across two runs", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = ordinaryState(repo);
   const outA = path.join(repo.dir, "out-a.md");
   const outB = path.join(repo.dir, "out-b.md");
@@ -48,8 +45,7 @@ test("render output is byte-identical across two runs", (t) => {
 });
 
 test("render output is independent of the state file path", (t) => {
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const shared = substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo));
   const firstState = writeState(repo, "path-one.json", shared);
   const secondState = writeState(repo, "nested-path-two.json", shared);
@@ -81,8 +77,7 @@ test("a nondeterministic renderer mutant is detected by the determinism assertio
   assert.ok(source.includes(marker), "mutant anchor must exist");
   fs.writeFileSync(tree.libRender, source.replace(marker, mutant));
 
-  const repo = createTempRepo();
-  t.after(() => cleanupRepo(repo.dir));
+  const repo = getSharedRepo();
   const statePath = ordinaryState(repo);
   const outA = path.join(repo.dir, "mutant-a.md");
   const outB = path.join(repo.dir, "mutant-b.md");

@@ -1,12 +1,12 @@
 {
-  "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:49:00+08:00", "lastUpdatedBy": "fixture" },
+  "contractVersion": "1.1.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T10:49:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
   "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
   "streams": [{
     "id": "RC-1", "kind": "CYCLE", "objective": "COMPLETE with a missing closure receipt.", "riskTier": "MEDIUM",
     "state": "COMPLETE", "stateUpdatedAt": "2026-09-14T10:49:00+08:00", "nextAction": null,
     "awaited": [], "running": [],
-    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
     "owners": { "planner": { "sessionId": null, "status": "NONE", "writable": false }, "executor": { "sessionId": null, "status": "NONE", "writable": false }, "qa": { "sessionId": null, "status": "NONE", "writable": false }, "auditor": { "sessionId": null, "status": "NONE", "writable": false } },
     "gates": { "total": 5, "passed": 5, "failed": 0, "blocked": 0, "unperformed": 0 },
     "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "sess-qa-1", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
@@ -17,5 +17,6 @@
     "closure": { "receipt": { "path": "missing-receipt.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
     "sessionRouting": { "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }, "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" } }
   }],
+  "leases": [],
   "browserCustody": { "profiles": [], "logins": [] }
 }

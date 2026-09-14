@@ -4,3 +4,5 @@
 ops/workflow/** text eol=lf
 docs/plans/** text eol=lf
 docs/handoffs/** text eol=lf
+# Project agent prompts are read verbatim by OpenCode; keep them LF-stable too.
+.opencode/agents/** text eol=lf

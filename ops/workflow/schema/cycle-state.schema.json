@@ -5,16 +5,17 @@
   "description": "Authoritative machine-readable delivery-cycle state contract.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contractVersion", "registry", "coordination", "streams", "browserCustody"],
+  "required": ["contractVersion", "registry", "coordination", "streams", "leases", "browserCustody"],
   "properties": {
-    "contractVersion": { "const": "1.0.0" },
+    "contractVersion": { "const": "1.1.0" },
     "registry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lastUpdatedAt", "lastUpdatedBy"],
+      "required": ["lastUpdatedAt", "lastUpdatedBy", "revision"],
       "properties": {
         "lastUpdatedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$" },
-        "lastUpdatedBy": { "type": "string", "minLength": 1 }
+        "lastUpdatedBy": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 1 }
       }
     },
     "coordination": {
@@ -28,6 +29,7 @@
       }
     },
     "streams": { "type": "array", "items": { "$ref": "#/$defs/stream" } },
+    "leases": { "type": "array", "items": { "$ref": "#/$defs/lease" } },
     "browserCustody": {
       "type": "object",
       "additionalProperties": false,
@@ -77,15 +79,42 @@
     "git": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["worktree", "branch", "baseSha", "candidateSha", "integrationSha", "remoteSha", "changedPaths"],
+      "required": ["worktree", "branch", "baseSha", "candidateSha", "integrationSha", "changedPaths", "remoteObservation"],
       "properties": {
         "worktree": { "type": ["string", "null"], "minLength": 1 },
         "branch": { "type": ["string", "null"], "minLength": 1 },
         "baseSha": { "$ref": "#/$defs/sha40" },
         "candidateSha": { "$ref": "#/$defs/sha40" },
         "integrationSha": { "$ref": "#/$defs/sha40" },
-        "remoteSha": { "$ref": "#/$defs/sha40" },
-        "changedPaths": { "type": "array", "items": { "$ref": "#/$defs/repoPath" } }
+        "changedPaths": { "type": "array", "items": { "$ref": "#/$defs/repoPath" } },
+        "remoteObservation": { "$ref": "#/$defs/remoteObservation" }
+      }
+    },
+    "remoteObservation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["ref", "sha", "observedAt", "kind"],
+      "properties": {
+        "ref": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._/\\-]+$" },
+        "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "observedAt": { "$ref": "#/$defs/isoRequired" },
+        "kind": { "enum": ["LOCAL_REF", "REMOTE_TRACKING_REF"] }
+      }
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "streamId", "worktree", "role", "sessionId", "state", "revision", "updatedAt", "expiresAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "streamId": { "type": "string", "minLength": 1 },
+        "worktree": { "type": ["string", "null"], "minLength": 1 },
+        "role": { "enum": ["planner", "executor", "qa", "auditor"] },
+        "sessionId": { "type": ["string", "null"] },
+        "state": { "enum": ["ACTIVE", "RETURNED", "IDLE", "ERROR", "STALE_UNCONFIRMED"] },
+        "revision": { "type": "integer", "minimum": 1 },
+        "updatedAt": { "$ref": "#/$defs/isoRequired" },
+        "expiresAt": { "$ref": "#/$defs/iso" }
       }
     },
     "gates": {

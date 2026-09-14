@@ -1,6 +1,6 @@
 {
-  "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:15:00+08:00", "lastUpdatedBy": "fixture" },
+  "contractVersion": "1.1.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T10:15:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
   "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
   "streams": [
     {
@@ -13,7 +13,7 @@
       "nextAction": "Continue.",
       "awaited": [],
       "running": ["executor running"],
-      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
       "owners": {
         "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
         "executor": { "sessionId": null, "status": "NONE", "writable": false },
@@ -41,5 +41,6 @@
       }
     }
   ],
+  "leases": [],
   "browserCustody": { "profiles": [], "logins": [] }
 }
