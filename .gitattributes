@@ -1,0 +1,6 @@
+# Hash-pinned workflow artifacts must be checkout-stable across platforms (WF-C01).
+# Pins in docs/plans/atlas-delivery-cycles.json are raw LF byte SHA-256 values;
+# any path that can be hash-pinned must be forced to LF on checkout.
+ops/workflow/** text eol=lf
+docs/plans/** text eol=lf
+docs/handoffs/** text eol=lf

@@ -1,0 +1,21 @@
+{
+  "contractVersion": "1.0.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T10:50:00+08:00", "lastUpdatedBy": "fixture" },
+  "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
+  "streams": [{
+    "id": "RS-1", "kind": "CYCLE", "objective": "COMPLETE whose receipt attests stale facts.", "riskTier": "MEDIUM",
+    "state": "COMPLETE", "stateUpdatedAt": "2026-09-14T10:50:00+08:00", "nextAction": null,
+    "awaited": [], "running": [],
+    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+    "owners": { "planner": { "sessionId": null, "status": "NONE", "writable": false }, "executor": { "sessionId": null, "status": "NONE", "writable": false }, "qa": { "sessionId": null, "status": "NONE", "writable": false }, "auditor": { "sessionId": null, "status": "NONE", "writable": false } },
+    "gates": { "total": 5, "passed": 5, "failed": 0, "blocked": 0, "unperformed": 0 },
+    "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "sess-qa-1", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+    "corrections": [], "successors": [], "requires": [],
+    "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+    "approval": { "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null, "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null },
+    "observations": [], "artifacts": [],
+    "closure": { "receipt": { "path": "receipt-stale.json", "sha256": "{{RECEIPT_SHA}}" } },
+    "sessionRouting": { "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }, "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" } }
+  }],
+  "browserCustody": { "profiles": [], "logins": [] }
+}
