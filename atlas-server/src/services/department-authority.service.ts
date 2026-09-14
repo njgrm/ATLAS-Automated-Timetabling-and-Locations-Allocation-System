@@ -86,6 +86,12 @@ export interface DepartmentAuthorityPreview {
 	changes: DepartmentAuthorityChange[];
 	sourceRevision: DepartmentAuthoritySourceRevision;
 	fingerprint: string;
+	/**
+	 * TT-TL-MODULES-C04R1 (F3): the exact server-issued confirmation text the
+	 * apply contract requires. The client must render and require this value;
+	 * it must never re-declare it locally.
+	 */
+	confirmationText: string;
 }
 
 export interface DepartmentAuthorityRollbackRow {
@@ -322,7 +328,7 @@ export async function previewDepartmentAuthority(
 	]);
 	const changes = classifyChanges(aliases, labels, existing.aliases, existing.labels);
 	const fingerprint = await buildDepartmentAuthorityFingerprint(schoolId, aliases, labels, sourceRevision);
-	return { schoolId, aliases, labels, changes, sourceRevision, fingerprint };
+	return { schoolId, aliases, labels, changes, sourceRevision, fingerprint, confirmationText: DEPARTMENT_AUTHORITY_APPLY_CONFIRMATION };
 }
 
 export interface ApplyDepartmentAuthorityInput {

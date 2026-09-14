@@ -1,4 +1,5 @@
 import { getDataContext } from '../lib/data-context.js';
+import { canonicalHash } from '../lib/canonical-json.js';
 import { Prisma } from '@prisma/client';
 import { type ProgramType, type SectionFetchResult } from './section-adapter.js';
 import { fetchSectionsForRuntimeControls } from './section.service.js';
@@ -3450,6 +3451,352 @@ export async function deleteTeachingLoadCapabilityOverride(
   });
 
   return listTeachingLoadCapabilityOverrides(input.schoolId, input.schoolYearId);
+}
+
+/* -------------------------------------------------------------------------- *
+ * TT-TL-MODULES-C04R1 (F2) — bounded capability-override preview/apply.
+ *
+ * The legacy direct PUT/DELETE mutation routes are retired with a typed 410.
+ * The remaining capability-override mutation contract mirrors the canonical
+ * department-authority flow: strict positive parsing plus actor-school/year
+ * authority before any service dispatch, a read-only preview that returns an
+ * exact fingerprint and the server-issued confirmation text, and a Serializable
+ * apply that revalidates the source revision and fingerprint inside the
+ * transaction before writing exactly one policy config + one audit row.
+ * -------------------------------------------------------------------------- */
+
+export const CAPABILITY_OVERRIDE_APPLY_CONFIRMATION = 'APPLY CAPABILITY OVERRIDE';
+export const CAPABILITY_OVERRIDE_DIRECT_MUTATION_RETIRED = 'CAPABILITY_OVERRIDE_DIRECT_MUTATION_RETIRED';
+
+export interface CapabilityOverrideSourceRevision {
+  schoolId: number;
+  schoolYearId: number;
+  policyUpdatedAt: string | null;
+  overrideSetHash: string;
+}
+
+export interface CapabilityOverrideMutation {
+  action: 'SET' | 'REMOVE';
+  facultyId: number;
+  subjectCode: string | null;
+  specializationCode: string | null;
+  specializationLabel: string | null;
+  note: string | null;
+}
+
+export interface CapabilityOverrideChange {
+  action: 'create' | 'update' | 'remove' | 'unchanged';
+  facultyId: number;
+  subjectCode: string | null;
+  specializationCode: string | null;
+}
+
+export interface CapabilityOverridePreview {
+  schoolId: number;
+  schoolYearId: number;
+  mutation: CapabilityOverrideMutation;
+  change: CapabilityOverrideChange;
+  overrides: TeachingLoadCapabilityOverride[];
+  sourceRevision: CapabilityOverrideSourceRevision;
+  fingerprint: string;
+  confirmationText: string;
+}
+
+export interface CapabilityOverrideApplyResult {
+  schoolId: number;
+  schoolYearId: number;
+  change: CapabilityOverrideChange;
+  overrides: TeachingLoadCapabilityOverride[];
+  fingerprint: string;
+  replayed: boolean;
+  revalidatedInTransaction: boolean;
+}
+
+type CapabilityOverrideClient = {
+  enrollProSchoolYearMirror: TeachingLoadWriteAuthorityClient['enrollProSchoolYearMirror'];
+  schedulingPolicy: {
+    findUnique(args: unknown): Promise<{ updatedAt: Date; constraintConfig: unknown } | null>;
+    update(args: unknown): Promise<unknown>;
+    create(args: unknown): Promise<unknown>;
+  };
+  auditLog: { create(args: unknown): Promise<unknown> };
+};
+
+function capabilityOverrideError(statusCode: number, code: string, message: string) {
+  const error = new Error(message) as Error & { statusCode: number; code: string };
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
+function normalizeCapabilityOverrideMutation(raw: unknown): CapabilityOverrideMutation {
+  const record = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const action = record.action === 'REMOVE' ? 'REMOVE' : record.action === 'SET' ? 'SET' : null;
+  if (!action) throw capabilityOverrideError(400, 'INVALID_CAPABILITY_OVERRIDE', 'action must be SET or REMOVE.');
+  const facultyId = Number(record.facultyId);
+  if (!Number.isInteger(facultyId) || facultyId <= 0) {
+    throw capabilityOverrideError(400, 'INVALID_CAPABILITY_OVERRIDE', 'facultyId must be a positive integer.');
+  }
+  return {
+    action,
+    facultyId,
+    subjectCode: normalizeOverrideSubjectCode(typeof record.subjectCode === 'string' ? record.subjectCode : null),
+    specializationCode: normalizeSpecializationCode(typeof record.specializationCode === 'string' ? record.specializationCode : null),
+    specializationLabel: normalizeSpecializationLabel(typeof record.specializationLabel === 'string' ? record.specializationLabel : null),
+    note: normalizeSpecializationLabel(typeof record.note === 'string' ? record.note : null),
+  };
+}
+
+async function computeCapabilityOverrideSetHash(overrides: TeachingLoadCapabilityOverride[]): Promise<string> {
+  return canonicalHash({
+    overrides: [...overrides]
+      .map((entry) => ({
+        facultyId: entry.facultyId,
+        subjectCode: entry.subjectCode ?? null,
+        specializationCode: entry.specializationCode ?? null,
+        specializationLabel: entry.specializationLabel ?? null,
+        note: entry.note ?? null,
+      }))
+      .sort((left, right) => left.facultyId - right.facultyId
+        || String(left.subjectCode).localeCompare(String(right.subjectCode))
+        || String(left.specializationCode).localeCompare(String(right.specializationCode))),
+  });
+}
+
+async function readCapabilityOverrideSourceRevision(
+  schoolId: number,
+  schoolYearId: number,
+  client?: CapabilityOverrideClient,
+): Promise<CapabilityOverrideSourceRevision> {
+  const target = client ?? (db() as unknown as CapabilityOverrideClient);
+  const policy = await target.schedulingPolicy.findUnique({
+    where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+    select: { updatedAt: true, constraintConfig: true },
+  });
+  const overrides = getTeachingLoadCapabilityOverridesFromConfig((policy?.constraintConfig ?? null) as Prisma.JsonValue | null);
+  return {
+    schoolId,
+    schoolYearId,
+    policyUpdatedAt: policy?.updatedAt ? policy.updatedAt.toISOString() : null,
+    overrideSetHash: await computeCapabilityOverrideSetHash(overrides),
+  };
+}
+
+async function buildCapabilityOverrideFingerprint(
+  schoolId: number,
+  schoolYearId: number,
+  mutation: CapabilityOverrideMutation,
+  sourceRevision: CapabilityOverrideSourceRevision,
+): Promise<string> {
+  return canonicalHash({
+    schemaVersion: 'TL-C04R1.1',
+    schoolId,
+    schoolYearId,
+    mutation,
+    sourceRevision,
+  });
+}
+
+function capabilityOverrideMatchesMutation(
+  entry: TeachingLoadCapabilityOverride,
+  mutation: CapabilityOverrideMutation,
+): boolean {
+  return entry.facultyId === mutation.facultyId
+    && (entry.subjectCode ?? null) === (mutation.subjectCode ?? null)
+    && (entry.specializationCode ?? null) === (mutation.specializationCode ?? null);
+}
+
+function classifyCapabilityOverrideChange(
+  mutation: CapabilityOverrideMutation,
+  overrides: TeachingLoadCapabilityOverride[],
+): CapabilityOverrideChange {
+  const existing = overrides.find((entry) => capabilityOverrideMatchesMutation(entry, mutation));
+  const base = {
+    facultyId: mutation.facultyId,
+    subjectCode: mutation.subjectCode,
+    specializationCode: mutation.specializationCode,
+  };
+  if (mutation.action === 'REMOVE') {
+    return { action: existing ? 'remove' : 'unchanged', ...base };
+  }
+  if (!existing) return { action: 'create', ...base };
+  const samePayload = (existing.specializationLabel ?? null) === (mutation.specializationLabel ?? null)
+    && (existing.note ?? null) === (mutation.note ?? null);
+  return { action: samePayload ? 'unchanged' : 'update', ...base };
+}
+
+function applyCapabilityOverrideMutation(
+  mutation: CapabilityOverrideMutation,
+  overrides: TeachingLoadCapabilityOverride[],
+  actorId: number,
+): TeachingLoadCapabilityOverride[] {
+  const remaining = overrides.filter((entry) => !capabilityOverrideMatchesMutation(entry, mutation));
+  if (mutation.action === 'REMOVE') return remaining;
+  return [
+    ...remaining,
+    {
+      facultyId: mutation.facultyId,
+      subjectCode: mutation.subjectCode,
+      specializationCode: mutation.specializationCode,
+      specializationLabel: mutation.specializationLabel,
+      approvedBy: actorId,
+      approvedAt: new Date().toISOString(),
+      note: mutation.note,
+    },
+  ];
+}
+
+function capabilityOverrideRevisionsEqual(
+  left: CapabilityOverrideSourceRevision | null | undefined,
+  right: unknown,
+): boolean {
+  if (!left || !right || typeof right !== 'object' || Array.isArray(right)) return false;
+  const record = right as Record<string, unknown>;
+  return record.schoolId === left.schoolId
+    && record.schoolYearId === left.schoolYearId
+    && record.policyUpdatedAt === left.policyUpdatedAt
+    && record.overrideSetHash === left.overrideSetHash;
+}
+
+/**
+ * Read-only, side-effect-free preview. Dispatches nothing and writes nothing.
+ * Requires the actor school and a valid active non-archived school year before
+ * reading anything.
+ */
+export async function previewCapabilityOverride(input: {
+  actorSchoolId: number | null | undefined;
+  schoolId: number;
+  schoolYearId: number;
+  mutation: unknown;
+}): Promise<CapabilityOverridePreview> {
+  await assertTeachingLoadWriteAuthority({
+    schoolId: input.schoolId,
+    schoolYearId: input.schoolYearId,
+    actorSchoolId: input.actorSchoolId ?? null,
+  });
+  const mutation = normalizeCapabilityOverrideMutation(input.mutation);
+  const [sourceRevision, policy] = await Promise.all([
+    readCapabilityOverrideSourceRevision(input.schoolId, input.schoolYearId),
+    db().schedulingPolicy.findUnique({
+      where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
+      select: { constraintConfig: true },
+    }),
+  ]);
+  const overrides = getTeachingLoadCapabilityOverridesFromConfig((policy?.constraintConfig ?? null) as Prisma.JsonValue | null);
+  const change = classifyCapabilityOverrideChange(mutation, overrides);
+  const fingerprint = await buildCapabilityOverrideFingerprint(input.schoolId, input.schoolYearId, mutation, sourceRevision);
+  return {
+    schoolId: input.schoolId,
+    schoolYearId: input.schoolYearId,
+    mutation,
+    change,
+    overrides,
+    sourceRevision,
+    fingerprint,
+    confirmationText: CAPABILITY_OVERRIDE_APPLY_CONFIRMATION,
+  };
+}
+
+/**
+ * Fingerprinted, source-revision-bound, exactly-confirmed apply. Revalidates the
+ * complete source revision and fingerprint through the transaction client and
+ * writes exactly one policy config plus one audit row. Replay is zero-write.
+ */
+export async function applyCapabilityOverride(input: {
+  actorSchoolId: number | null | undefined;
+  actorId: number;
+  schoolId: number;
+  schoolYearId: number;
+  mutation: unknown;
+  expectedFingerprint: unknown;
+  expectedSourceRevision: unknown;
+  confirmationText: unknown;
+}): Promise<CapabilityOverrideApplyResult> {
+  await assertTeachingLoadWriteAuthority({
+    schoolId: input.schoolId,
+    schoolYearId: input.schoolYearId,
+    actorSchoolId: input.actorSchoolId ?? null,
+  });
+  if (input.confirmationText !== CAPABILITY_OVERRIDE_APPLY_CONFIRMATION) {
+    throw capabilityOverrideError(400, 'CONFIRMATION_REQUIRED', `confirmationText="${CAPABILITY_OVERRIDE_APPLY_CONFIRMATION}" is required.`);
+  }
+  const mutation = normalizeCapabilityOverrideMutation(input.mutation);
+
+  try {
+    return await db().$transaction(async (tx) => {
+      const client = tx as unknown as CapabilityOverrideClient;
+      const txRevision = await readCapabilityOverrideSourceRevision(input.schoolId, input.schoolYearId, client);
+      if (!capabilityOverrideRevisionsEqual(txRevision, input.expectedSourceRevision)) {
+        throw capabilityOverrideError(409, 'CAPABILITY_OVERRIDE_SOURCE_DRIFT', 'Capability-override inputs changed after preview. Nothing was saved; preview again.');
+      }
+      const txFingerprint = await buildCapabilityOverrideFingerprint(input.schoolId, input.schoolYearId, mutation, txRevision);
+      if (typeof input.expectedFingerprint !== 'string' || input.expectedFingerprint !== txFingerprint) {
+        throw capabilityOverrideError(409, 'FINGERPRINT_MISMATCH', 'The capability-override preview fingerprint does not match the current source. Preview again.');
+      }
+      const policy = await client.schedulingPolicy.findUnique({
+        where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
+        select: { constraintConfig: true },
+      });
+      const current = getTeachingLoadCapabilityOverridesFromConfig((policy?.constraintConfig ?? null) as Prisma.JsonValue | null);
+      const change = classifyCapabilityOverrideChange(mutation, current);
+      if (change.action === 'unchanged') {
+        return {
+          schoolId: input.schoolId,
+          schoolYearId: input.schoolYearId,
+          change,
+          overrides: current,
+          fingerprint: txFingerprint,
+          replayed: true,
+          revalidatedInTransaction: true,
+        };
+      }
+      const nextOverrides = applyCapabilityOverrideMutation(mutation, current, input.actorId);
+      const nextConfig = buildConstraintConfigWithTeachingLoadOverrides(
+        (policy?.constraintConfig ?? null) as Prisma.JsonValue | null,
+        nextOverrides,
+      );
+      if (policy) {
+        await client.schedulingPolicy.update({
+          where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
+          data: { constraintConfig: nextConfig },
+        });
+      } else {
+        await client.schedulingPolicy.create({
+          data: { schoolId: input.schoolId, schoolYearId: input.schoolYearId, constraintConfig: nextConfig },
+        });
+      }
+      await client.auditLog.create({
+        data: {
+          schoolId: input.schoolId,
+          schoolYearId: input.schoolYearId,
+          action: 'CAPABILITY_OVERRIDE_APPLIED',
+          actorId: input.actorId,
+          targetIds: [mutation.facultyId],
+          metadata: {
+            changeAction: change.action,
+            facultyId: mutation.facultyId,
+            subjectCode: mutation.subjectCode,
+            specializationCode: mutation.specializationCode,
+            confirmationText: CAPABILITY_OVERRIDE_APPLY_CONFIRMATION,
+          } as object,
+        },
+      });
+      return {
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        change,
+        overrides: nextOverrides,
+        fingerprint: txFingerprint,
+        replayed: false,
+        revalidatedInTransaction: true,
+      };
+    }, { isolationLevel: 'Serializable' });
+  } catch (error: any) {
+    if (error?.code === 'P2034') {
+      throw capabilityOverrideError(409, 'CAPABILITY_OVERRIDE_CONFLICT', 'A concurrent capability-override change occurred. Nothing was saved; preview again.');
+    }
+    throw error;
+  }
 }
 
 export async function previewOrApplySpecialProgramRedistribution(
