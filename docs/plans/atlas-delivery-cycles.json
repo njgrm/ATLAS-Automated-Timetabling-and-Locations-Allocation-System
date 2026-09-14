@@ -1,6 +1,6 @@
 {
   "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T19:36:00+08:00", "lastUpdatedBy": "primary-planner" },
+  "registry": { "lastUpdatedAt": "2026-09-14T19:40:30+08:00", "lastUpdatedBy": "primary-planner" },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
@@ -13,7 +13,7 @@
       "objective": "Introduce the repository-owned machine-readable delivery-cycle state contract, a fail-closed verifier, a deterministic Markdown register renderer, and regression fixtures.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-14T19:36:00+08:00",
+      "stateUpdatedAt": "2026-09-14T19:40:30+08:00",
       "nextAction": null,
       "awaited": [],
       "running": [],
@@ -23,7 +23,7 @@
         "baseSha": "29284ac6218b989ab860cde0d36266eabf26395b",
         "candidateSha": "6b2cb7f1c3af0cc8b3f39eeff49c595f28138ef5",
         "integrationSha": "4fd18601e19f16c669f4708d159d55427460a34f",
-        "remoteSha": null,
+        "remoteSha": "bd32369a015a4098da26a9d72463e87caeee569b",
         "changedPaths": [
           ".gitattributes",
           "docs/handoffs/wf-c01-executor.md",
