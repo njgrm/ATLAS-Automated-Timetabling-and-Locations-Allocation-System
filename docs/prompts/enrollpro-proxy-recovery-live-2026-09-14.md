@@ -10,10 +10,10 @@ primary planner after source integration of `ENROLLPRO-PROXY-RECOVERY-C01`.
 
 Canonical directive: tracked `origin/main:AGENTS.md` (identical to the local root
 copy), LF-normalized SHA-256
-`F4F86185F2A0B4D78B50E8375F72E35B9F6E8A788A6F558952C2B29BE174CE64` (verified
-2026-09-14 after the directive advanced twice mid-cycle; the source prompt's
-preparation-time pin is preserved there as historical record — re-read the root
-file at execution and carry the then-current hash in every handoff).
+`CFA7BFABF3B05A9FEDC2FC98B632A3A6A3823C5E7E68E0F10D92594D8AB1E7E4` (verified
+2026-09-14 at `origin/main` `47582013`; the directive advanced during the cycle —
+re-read the root file at execution and carry the then-current hash in every
+handoff).
 
 ## 1. Objective
 
@@ -41,7 +41,12 @@ generation, or publication action.
 
 ## 3. Prepared-time live snapshot (read-only, 2026-09-14 ~13:30 +08)
 
-Re-verify every value at execution preflight; abort if any identity changed.
+Every value below is a preparation-time observation and a revalidation input,
+not an execution assumption: re-probe each value at execution preflight,
+re-capture the live incumbent identity before any mutation, and STOP and report
+if the live identity is inconsistent with this packet's binding (release, env
+file, task ownership/action, or host reachability) instead of silently adopting
+a drifted replacement.
 
 - Listeners: `5001 → PID 19448`, `5174 → PID 10880`, both children of
   `node.exe` PID 3132 (the resident supervisor).
@@ -68,6 +73,43 @@ Re-verify every value at execution preflight; abort if any identity changed.
   `\ATLAS Daily Backup` exists and is unrelated.
 
 ## 4. Exact switch set (nothing else may change)
+
+**Launch ownership (durable resident owner — mandatory; directive
+`AGENTS.md` §Mechanical Cycle Closure And Runtime Launch Ownership).** The
+replacement resident supervisor MUST be launched by the registered Windows
+task — never as a child of an attached executor shell, terminal, or temporary
+wrapper. The same task is the rollback launch owner:
+
+```yaml
+launchOwner:
+  type: WINDOWS_SCHEDULED_TASK
+  taskName: ATLAS-Runtime-Supervisor
+  principal: SYSTEM
+
+launchMechanism:
+  command: schtasks /run /tn "ATLAS-Runtime-Supervisor"
+  requirement: task action and working directory point to release 54dce67b
+
+rollbackLaunchOwner:
+  type: WINDOWS_SCHEDULED_TASK
+  taskName: ATLAS-Runtime-Supervisor
+  principal: SYSTEM
+
+rollbackLaunchMechanism:
+  command: schtasks /run /tn "ATLAS-Runtime-Supervisor"
+  requirement: task action and working directory restored to release 3d916b26
+```
+
+- The task definition (principal, trigger/delay, multiple-instances policy,
+  action, working directory) is captured at preflight with the rights this
+  approval grants, and is a revalidation input: if the captured incumbent
+  definition is inconsistent with §3/§4.4, STOP and report before re-pointing.
+- Preserved registration properties: principal `SYSTEM`, trigger `ONSTART`,
+  delay `PT0S`, multiple-instances policy `IgnoreNew`; only the action and
+  working directory change to the new release.
+- The executor MUST NOT invoke `<newRelease>\ops\runtime\cli.mjs start` from its
+  own shell. `schtasks /run /tn "ATLAS-Runtime-Supervisor"` is the only
+  authorized start invocation for the forward path and for rollback.
 
 1. **Environment backup.** Copy `D:\ATLAS-runtime-config\atlas-server.env` to an
    operator-only backup path outside every Git worktree (record absolute path,
@@ -102,23 +144,33 @@ Re-verify every value at execution preflight; abort if any identity changed.
 4. **Supervisor boundary re-point.** Update the machine-level
    `ATLAS_RUNTIME_SOURCE_DIR` to the new release directory and
    `ATLAS_RUNTIME_RELEASE_SHA` to `54dce67b…` (the same scopes currently used),
-   and re-point the `ATLAS-Runtime-Supervisor` task action to the new release
-   directory if it hard-codes the old path. Keep the task registration otherwise
-   unchanged (ONSTART, `PT0S`, SYSTEM, IgnoreNew) and keep
-   `ATLAS_RUNTIME_ENV_FILE=D:\ATLAS-runtime-config\atlas-server.env` and the
-   existing log-directory setting. Elevation is expected for this step only.
-5. **Restart only supervisor-owned 5001/5174 (quiesce sequence).**
-   1. record incumbent identity (supervisor PID/tree, children, state file);
+   and re-point the `ATLAS-Runtime-Supervisor` task action **and working
+   directory** to `D:\ATLAS-runtime-supervised-54dce67b-20260914` (both must
+   name the new release; the task is the durable launch owner). Keep the task
+   registration otherwise unchanged (ONSTART, `PT0S`, SYSTEM, IgnoreNew) and
+   keep `ATLAS_RUNTIME_ENV_FILE=D:\ATLAS-runtime-config\atlas-server.env` and
+   the existing log-directory setting. Elevation is expected for this step and
+   for the task query/run in step 5.
+5. **Restart only supervisor-owned 5001/5174 (quiesce + durable relaunch).**
+   1. record incumbent identity (supervisor PID/tree, children, state file) —
+      live revalidation, not assumption;
    2. `node <oldRelease>\ops\runtime\cli.mjs stop` (kills only owned PIDs);
    3. terminate the resident supervisor process tree (documented quiesce
       correction: an out-of-process `stop` cannot durably quiesce the resident
       supervisor) and wait at least 10 seconds for port release;
    4. confirm 5001/5174 have no listener; if any unknown listener remains, STOP
       and report (never broad-kill);
-   5. `node <newRelease>\ops\runtime\cli.mjs start` with the updated machine
-      environment; the new launch gate requires `ENROLLPRO_PROXY_ORIGIN` — if it
-      fails closed with `ENROLLPRO_PROXY_ORIGIN_MISSING`, do not bypass it; fix
-      the environment or roll back.
+   5. re-capture the re-pointed task definition as evidence (action + working
+      directory + preserved properties), then launch the replacement resident
+      supervisor through the durable owner:
+      `schtasks /run /tn "ATLAS-Runtime-Supervisor"`. The new launch gate
+      requires `ENROLLPRO_PROXY_ORIGIN`; if the task-launched supervisor fails
+      closed with `ENROLLPRO_PROXY_ORIGIN_MISSING`, do not bypass it: fix the
+      environment or roll back. The launched supervisor must not be a descendant
+      of the invoking executor shell;
+   6. prove durable ownership and survival per §6 rows 12–13: exactly one child
+      per port 5001/5174 matching supervisor state, health/readiness 200, and
+      the same supervisor PID on a later re-probe from a new shell.
 6. **Keep `ROLLOVER_AUTO_SYNC_ENABLED=false`** (contract invariant, unchanged);
    do not trigger rollover automation.
 
@@ -161,16 +213,39 @@ other Windows task, and any repository commit/push beyond this prepared packet.
     by the committed client tests (23/23); the rendered authenticated
     confirmation belongs to a later login-authorized session and is NOT part of
     this packet.
+12. Durable launch ownership: the task definition captured at execution shows
+    principal `SYSTEM`, trigger `ONSTART` (`PT0S`), multiple-instances policy
+    `IgnoreNew`, and task action + working directory pointing to
+    `D:\ATLAS-runtime-supervised-54dce67b-20260914`; the resident supervisor
+    owning 5001/5174 was started via `schtasks /run /tn
+    "ATLAS-Runtime-Supervisor"` and is not a descendant of the invoking executor
+    shell.
+13. Post-shell survival: after the invoking shell/session has returned, a
+    re-probe from a later shell shows the same supervisor PID owning 5001/5174
+    with `GET /api/v1/health` 200 and `GET /api/v1/health/ready` 200.
 
-## 7. Rollback (per stage)
+## 7. Rollback (per stage, symmetric with §4)
 
 - Environment stage: restore the section-4.1 backup file byte-for-byte.
-- Release/restart stage: stop the new release with its own `cli.mjs stop`,
-  quiesce its supervisor tree, restore the backup environment file, re-point
-  `ATLAS_RUNTIME_SOURCE_DIR`/`ATLAS_RUNTIME_RELEASE_SHA` (and the task action)
-  back to `D:\ATLAS-runtime-supervised-3d916b26-20260912` /
-  `3d916b261d6a2db71b153558ac8c2d151e2fccd0`, and start the prior release; then
-  re-verify the section-3 health probes.
+- Release/restart stage (uses the same durable owner and launch mechanism as
+  the forward path):
+  1. quiesce the new-release supervisor exactly as in §4.5 (owned `cli.mjs`
+     stop → resident tree termination → confirm 5001/5174 have no listener;
+     never broad-kill);
+  2. restore the section-4.1 environment backup byte-for-byte;
+  3. restore machine source/release variables `ATLAS_RUNTIME_SOURCE_DIR` and
+     `ATLAS_RUNTIME_RELEASE_SHA` to the incumbent values recorded at preflight;
+  4. re-point the `ATLAS-Runtime-Supervisor` task action **and working
+     directory** back to `D:\ATLAS-runtime-supervised-3d916b26-20260912`;
+  5. relaunch through the durable owner: `schtasks /run /tn
+     "ATLAS-Runtime-Supervisor"` (elevation as needed; never an attached
+     `cli.mjs start`);
+  6. prove task identity (principal/trigger/delay/instances + action/working
+     directory restored), listener ownership (exactly one child per port
+     5001/5174, matching supervisor state), health and readiness
+     (`GET /api/v1/health` 200, `GET /api/v1/health/ready` 200,
+     `GET /__host/live` 200), and parity of the re-pointed task record with the
+     preflight capture.
 - Deeper fallbacks remain documented (supervised `9d293879`, non-supervised
   `d44f29e0` manual) but are not part of this packet's first-line rollback.
 - Record honestly: rollback restores service continuity even though the old
@@ -186,33 +261,45 @@ other Windows task, and any repository commit/push beyond this prepared packet.
 > `ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api` in that file; build
 > the client with `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` and
 > install release `54dce67b8392cbce09aa810813c37f9c87a67159` at
-> `D:\ATLAS-runtime-supervised-54dce67b-20260914` and re-point
+> `D:\ATLAS-runtime-supervised-54dce67b-20260914`; re-point
 > `ATLAS_RUNTIME_SOURCE_DIR`/`ATLAS_RUNTIME_RELEASE_SHA` and the
-> `ATLAS-Runtime-Supervisor` task action to it; stop and restart only the
-> supervisor-owned ATLAS processes on 5001/5174 using the registered supervisor
-> boundary (incumbent at preflight: supervisor PID 3132, server 19448, host
-> 10880, release `3d916b26`, as re-verified at execution preflight); run the
-> packet's acceptance matrix (local/Tailnet health and readiness 200, public
-> `/enrollpro-api/settings/public` 200 with direct-upstream parity,
-> `/enrollpro-uploads` non-502, SPA/API continuity, companion-navigation build
-> parity (configured EnrollPro origin present in the served bundle, retired raw
-> IPs absent), one owner per port,
-> bounded/redacted logs, zero database delta, no login); and on any mandatory
-> failure roll back by restoring the environment backup and restarting prior
-> release `3d916b26`. Excluded: port 5175, unrelated processes, Tailscale Serve,
+> `ATLAS-Runtime-Supervisor` task action and working directory to it; quiesce
+> only the supervisor-owned ATLAS processes on 5001/5174 and relaunch the
+> replacement resident supervisor only through the registered SYSTEM task via
+> `schtasks /run /tn "ATLAS-Runtime-Supervisor"`, preserving ONSTART, `PT0S`,
+> IgnoreNew (incumbent at preflight: supervisor PID 3132, server 19448, host
+> 10880, release `3d916b26`, as re-verified and re-captured at execution
+> preflight); run the packet's acceptance matrix (local/Tailnet health and
+> readiness 200, public `/enrollpro-api/settings/public` 200 with
+> direct-upstream parity, `/enrollpro-uploads` non-502, SPA/API continuity,
+> companion-navigation build parity (configured EnrollPro origin present in the
+> served bundle, retired raw IPs absent), one owner per port, task
+> identity/durable-launch/post-shell-survival proof, bounded/redacted logs, zero
+> database delta, no login); and on any mandatory failure roll back
+> symmetrically by quiescing the new release, restoring the environment backup,
+> restoring the machine source/release variables, re-pointing the
+> `ATLAS-Runtime-Supervisor` task action and working directory to
+> `D:\ATLAS-runtime-supervised-3d916b26-20260912`, relaunching through the same
+> registered task, and re-proving task identity, listener ownership, health, and
+> readiness. Excluded: port 5175, unrelated processes, Tailscale Serve,
 > companion runtimes, database/migrations/data, term-cache, Teaching Load,
 > generation, publication, login, and every other environment key. No database
 > write is expected; the only authorized mutations are the two environment keys,
-> the release install/re-point, and the supervised 5001/5174 restart.
+> the release install/re-point, the task action/working-directory re-point, and
+> the supervised 5001/5174 restart through the registered task.
 
 ## 9. Execution record required
 
-Return: preflight re-probe results and exact incumbent identity; backup path +
-size + SHA-256; the two key changes (names only); release dir + `rev-parse HEAD`
-+ build results (including the exact client build invocation with
-`VITE_ENROLLPRO_URL` and the canonical directive hash the executor read);
-task re-point record; quiesce/start transcript (bounded);
+Return: preflight re-probe results and exact incumbent identity; the preflight
+task-definition capture and the post-re-point capture (principal, trigger/delay,
+multiple-instances policy, action, working directory); backup path + size +
+SHA-256; the two key changes (names only); release dir + `rev-parse HEAD` +
+build results (including the exact client build invocation with
+`VITE_ENROLLPRO_URL` and the canonical directive hash the executor read); the
+`schtasks /run /tn "ATLAS-Runtime-Supervisor"` invocation and parentage proof
+for the task-launched resident supervisor; quiesce/start transcript (bounded);
 acceptance matrix with per-row PASS/FAIL and raw status codes; DB before/after
-counts; rollback record if used; explicit statement that no excluded action
-occurred; and the final live identity (supervisor PID, children PIDs,
-releaseSha, state).
+counts; rollback record if used (including the symmetric task re-point and the
+re-proved task identity, listener ownership, health, and readiness); explicit
+statement that no excluded action occurred; and the final live identity
+(supervisor PID, children PIDs, releaseSha, state).
