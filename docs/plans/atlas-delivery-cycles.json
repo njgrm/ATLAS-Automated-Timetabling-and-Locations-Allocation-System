@@ -1,10 +1,14 @@
 {
   "contractVersion": "1.1.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T21:30:00+08:00", "lastUpdatedBy": "atlas-executor", "revision": 1 },
+  "registry": {
+    "lastUpdatedAt": "2026-09-14T16:07:05.537Z",
+    "lastUpdatedBy": "primary-planner",
+    "revision": 5
+  },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "WF-C02",
-    "globalNextAction": "WF-C02 Lane A executor returns REVIEW_REQUIRED over base 84dd537b; planner records the candidate, QA result, integration, audit, receipt, and remote observation through the atomic transition CLI."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "WF-C02 integrated; awaiting Wave Completion Audit; WF-C03 dispatch follows."
   },
   "streams": [
     {
@@ -23,7 +27,12 @@
         "baseSha": "29284ac6218b989ab860cde0d36266eabf26395b",
         "candidateSha": "6b2cb7f1c3af0cc8b3f39eeff49c595f28138ef5",
         "integrationSha": "4fd18601e19f16c669f4708d159d55427460a34f",
-        "remoteObservation": { "ref": "refs/remotes/origin/main", "sha": "bd32369a015a4098da26a9d72463e87caeee569b", "observedAt": "2026-09-14T19:40:50+08:00", "kind": "REMOTE_TRACKING_REF" },
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "bd32369a015a4098da26a9d72463e87caeee569b",
+          "observedAt": "2026-09-14T19:40:50+08:00",
+          "kind": "REMOTE_TRACKING_REF"
+        },
         "changedPaths": [
           ".gitattributes",
           "docs/handoffs/wf-c01-executor.md",
@@ -76,13 +85,41 @@
         ]
       },
       "owners": {
-        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
-        "executor": { "sessionId": "ses_f60d597c3ffewjfwlh93OH31qO", "status": "RETURNED", "writable": false },
-        "qa": { "sessionId": "ses_f607299e6ffeZkGs0fgBELDS5C", "status": "RETURNED", "writable": false },
-        "auditor": { "sessionId": "ses_f6061f82effeG93vM9t2z7iqjB", "status": "RETURNED", "writable": false }
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": "ses_f60d597c3ffewjfwlh93OH31qO",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "ses_f607299e6ffeZkGs0fgBELDS5C",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": "ses_f6061f82effeG93vM9t2z7iqjB",
+          "status": "RETURNED",
+          "writable": false
+        }
       },
-      "gates": { "total": 23, "passed": 23, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C", "auditorVerdict": "AUDIT_CLEAR", "auditorSessionId": "ses_f6061f82effeG93vM9t2z7iqjB", "auditRequired": true },
+      "gates": {
+        "total": 23,
+        "passed": 23,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f6061f82effeG93vM9t2z7iqjB",
+        "auditRequired": true
+      },
       "corrections": [
         {
           "round": 1,
@@ -106,26 +143,73 @@
         }
       ],
       "successors": [
-        { "streamId": "WF-C02", "unlocked": true, "reason": "Dependency satisfied: WF-C01 is COMPLETE with ACCEPT_READY + AUDIT_CLEAR + a minted receipt; dispatch requires a new operator-activated cycle." },
-        { "streamId": "WF-EVAL-C01", "unlocked": true, "reason": "Dependency satisfied: WF-C01 is COMPLETE and its contract is available as the evaluation baseline; dispatch requires a new operator-activated cycle." }
+        {
+          "streamId": "WF-C02",
+          "unlocked": true,
+          "reason": "Dependency satisfied: WF-C01 is COMPLETE with ACCEPT_READY + AUDIT_CLEAR + a minted receipt; dispatch requires a new operator-activated cycle."
+        },
+        {
+          "streamId": "WF-EVAL-C01",
+          "unlocked": true,
+          "reason": "Dependency satisfied: WF-C01 is COMPLETE and its contract is available as the evaluation baseline; dispatch requires a new operator-activated cycle."
+        }
       ],
       "requires": [],
-      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
       "approval": {
-        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [
-        { "path": "ops/workflow/schema/cycle-state.schema.json", "sha256": "2a1ba1b1586da4dc64d26b82044e19173a718f7eea93392d54ae470d0e4bc5bd" },
-        { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "a259fa31804b30c519b64166ee11554bc040786751274bf3d2e0dac274bff43b" }
+        {
+          "path": "ops/workflow/schema/cycle-state.schema.json",
+          "sha256": "2a1ba1b1586da4dc64d26b82044e19173a718f7eea93392d54ae470d0e4bc5bd"
+        },
+        {
+          "path": "docs/handoffs/wf-c01-executor.md",
+          "sha256": "a259fa31804b30c519b64166ee11554bc040786751274bf3d2e0dac274bff43b"
+        }
       ],
-      "closure": { "receipt": { "path": "docs/plans/receipts/wf-c01.receipt.json", "sha256": "30e62324626fe0a4f99c205160c837cd047a356f403a9c049a2f2e7c4d655c97" } },
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/wf-c01.receipt.json",
+          "sha256": "30e62324626fe0a4f99c205160c837cd047a356f403a9c049a2f2e7c4d655c97"
+        }
+      },
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns this cycle's continuity, integration and closure updates" },
-        "executor": { "decision": "EXISTING", "sessionId": "ses_f60d597c3ffewjfwlh93OH31qO", "reason": "bounded corrections within this packet return to the same executor session" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "each candidate requires a fresh independent QA context" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "wave completion audit requires a fresh adversarial context" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owns this cycle's continuity, integration and closure updates"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": "ses_f60d597c3ffewjfwlh93OH31qO",
+          "reason": "bounded corrections within this packet return to the same executor session"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "each candidate requires a fresh independent QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "wave completion audit requires a fresh adversarial context"
+        }
       }
     },
     {
@@ -133,38 +217,172 @@
       "kind": "CYCLE",
       "objective": "Make the WF-C01 workflow foundation operational: non-self-referential closure identity, atomic validated state transitions, real active-work leases, four least-privilege OpenCode roles, verified compaction, and a fast regression suite.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-14T21:30:00+08:00",
-      "nextAction": "Executor commits the bounded candidate on work/workflow-hardening-c02 and returns REVIEW_REQUIRED; the planner then records the candidate, QA result, integration, audit, receipt, and remote observation through the atomic transition CLI.",
-      "awaited": [],
-      "running": ["executor implementation session on work/workflow-hardening-c02"],
-      "git": { "worktree": "E:\\ATLAS-worktrees\\workflow-hardening-c02", "branch": "work/workflow-hardening-c02", "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c", "candidateSha": null, "integrationSha": null, "changedPaths": [], "remoteObservation": null },
-      "owners": {
-        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
-        "executor": { "sessionId": null, "status": "ACTIVE", "writable": true },
-        "qa": { "sessionId": null, "status": "NONE", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-14T16:07:05.537Z",
+      "nextAction": "Wave Completion Auditor reviews the integrated tree.",
+      "awaited": [
+        "fresh Wave Completion Auditor"
+      ],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/workflow-hardening-c02",
+        "branch": "work/workflow-hardening-c02",
+        "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c",
+        "candidateSha": "5d902bf42cf009ca28034ed30b7877b8505fca24",
+        "integrationSha": "386fdaf1614384da3eecf5d62364ae0c3318c7b0",
+        "changedPaths": [
+          ".gitattributes",
+          ".opencode/agents/atlas-executor.md",
+          ".opencode/agents/atlas-planner.md",
+          ".opencode/agents/atlas-qa.md",
+          ".opencode/agents/atlas-wave-auditor.md",
+          "docs/handoffs/wf-c02-executor.md",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "opencode.json",
+          "ops/workflow/README.md",
+          "ops/workflow/__fixtures__/fail-accept-ready-blocked.json",
+          "ops/workflow/__fixtures__/fail-candidate-unknown.json",
+          "ops/workflow/__fixtures__/fail-changed-paths-extra.json",
+          "ops/workflow/__fixtures__/fail-changed-paths.json",
+          "ops/workflow/__fixtures__/fail-complete-stale-corrections.json",
+          "ops/workflow/__fixtures__/fail-custody-overlap.json",
+          "ops/workflow/__fixtures__/fail-dependency-not-satisfied.json",
+          "ops/workflow/__fixtures__/fail-duplicate-writable.json",
+          "ops/workflow/__fixtures__/fail-external-with-safe-work.json",
+          "ops/workflow/__fixtures__/fail-gates-arithmetic.json",
+          "ops/workflow/__fixtures__/fail-high-boundary-exceeded.json",
+          "ops/workflow/__fixtures__/fail-high-expired-dependency.json",
+          "ops/workflow/__fixtures__/fail-high-unreachable-dependency.json",
+          "ops/workflow/__fixtures__/fail-high-without-approval.json",
+          "ops/workflow/__fixtures__/fail-missing-next-action.json",
+          "ops/workflow/__fixtures__/fail-receipt-missing.json",
+          "ops/workflow/__fixtures__/fail-receipt-stale.json",
+          "ops/workflow/__fixtures__/fail-stale-candidate.json",
+          "ops/workflow/__fixtures__/fail-successor-unlocked.json",
+          "ops/workflow/__fixtures__/fail-unauthorized-login.json",
+          "ops/workflow/__fixtures__/fail-unknown-requires.json",
+          "ops/workflow/__fixtures__/pass-audited-wave.json",
+          "ops/workflow/__fixtures__/pass-high-prepared.json",
+          "ops/workflow/__fixtures__/pass-ordinary.json",
+          "ops/workflow/__tests__/artifact-portability.test.mjs",
+          "ops/workflow/__tests__/checkpoint.test.mjs",
+          "ops/workflow/__tests__/cli.test.mjs",
+          "ops/workflow/__tests__/coverage.test.mjs",
+          "ops/workflow/__tests__/determinism.test.mjs",
+          "ops/workflow/__tests__/fixtures.test.mjs",
+          "ops/workflow/__tests__/harness.mjs",
+          "ops/workflow/__tests__/identity.test.mjs",
+          "ops/workflow/__tests__/leases.test.mjs",
+          "ops/workflow/__tests__/lock.test.mjs",
+          "ops/workflow/__tests__/roles.test.mjs",
+          "ops/workflow/__tests__/schema.test.mjs",
+          "ops/workflow/__tests__/seed.test.mjs",
+          "ops/workflow/__tests__/transition.test.mjs",
+          "ops/workflow/checkpoint.mjs",
+          "ops/workflow/lib/checkpoint.mjs",
+          "ops/workflow/lib/git.mjs",
+          "ops/workflow/lib/lock.mjs",
+          "ops/workflow/lib/migrate.mjs",
+          "ops/workflow/lib/receipt.mjs",
+          "ops/workflow/lib/render.mjs",
+          "ops/workflow/lib/transition.mjs",
+          "ops/workflow/lib/util.mjs",
+          "ops/workflow/lib/verify.mjs",
+          "ops/workflow/render-register.mjs",
+          "ops/workflow/schema/cycle-state.schema.json",
+          "ops/workflow/transition.mjs",
+          "ops/workflow/verify-cycle.mjs",
+          "package.json"
+        ],
+        "remoteObservation": null
       },
-      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": "ses_f5fe37cdbffeGhH6eUAxN5lrV1",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "ses_f5f5b04c0ffe6tyQ48Lt7QKRDz",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 15,
+        "passed": 15,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5f5b04c0ffe6tyQ48Lt7QKRDz",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true
+      },
       "corrections": [],
       "successors": [
-        { "streamId": "WF-C03", "unlocked": false, "reason": "Serialized after WF-C02: locked until WF-C02 is accepted, integrated, and wave-audited." }
+        {
+          "streamId": "WF-C03",
+          "unlocked": false,
+          "reason": "Serialized after WF-C02: locked until WF-C02 is accepted, integrated, and wave-audited."
+        }
       ],
       "requires": [],
-      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
       "approval": {
-        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [],
       "closure": null,
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns this lane's verification, integration, and closure" },
-        "executor": { "decision": "EXISTING", "sessionId": null, "reason": "the lane executor session is recorded by the planner after the candidate return" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "each candidate requires a fresh independent QA context" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "the serialized wave requires a fresh adversarial audit after integration" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owns this lane's verification, integration, and closure"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the lane executor session is recorded by the planner after the candidate return"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "each candidate requires a fresh independent QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the serialized wave requires a fresh adversarial audit after integration"
+        }
       }
     },
     {
@@ -175,7 +393,10 @@
       "state": "EXTERNALLY_BLOCKED",
       "stateUpdatedAt": "2026-09-14T16:30:00+08:00",
       "nextAction": "Await operator decision; re-verify EnrollPro reachability at execution preflight before any attempt.",
-      "awaited": ["Revised exact HIGH approval (currently NOT GRANTED)", "EnrollPro host reachability"],
+      "awaited": [
+        "Revised exact HIGH approval (currently NOT GRANTED)",
+        "EnrollPro host reachability"
+      ],
       "running": [],
       "git": {
         "worktree": null,
@@ -183,7 +404,12 @@
         "baseSha": "d61c38d0f9d38a2bc89ee233164d1dc843b74cc8",
         "candidateSha": "54dce67b8392cbce09aa810813c37f9c87a67159",
         "integrationSha": "bc61ecd58fd4e5caaa5bdde43496b13032221354",
-        "remoteObservation": { "ref": "refs/remotes/origin/main", "sha": "29284ac6218b989ab860cde0d36266eabf26395b", "observedAt": "2026-09-14T17:28:55+08:00", "kind": "REMOTE_TRACKING_REF" },
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "29284ac6218b989ab860cde0d36266eabf26395b",
+          "observedAt": "2026-09-14T17:28:55+08:00",
+          "kind": "REMOTE_TRACKING_REF"
+        },
         "changedPaths": [
           "atlas-client/.env.example",
           "atlas-client/src/components/AppShell.tsx",
@@ -213,13 +439,41 @@
         ]
       },
       "owners": {
-        "planner": { "sessionId": null, "status": "NONE", "writable": false },
-        "executor": { "sessionId": null, "status": "NONE", "writable": false },
-        "qa": { "sessionId": null, "status": "NONE", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
       },
-      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true
+      },
       "corrections": [],
       "successors": [],
       "requires": [],
@@ -230,9 +484,17 @@
         "safeWorkItems": []
       },
       "approval": {
-        "required": true, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [],
-        "requiredObservationIds": ["obs-enrollpro-reachability"], "execution": null
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [
+          "obs-enrollpro-reachability"
+        ],
+        "execution": null
       },
       "observations": [
         {
@@ -247,10 +509,26 @@
       "artifacts": [],
       "closure": null,
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns the approval packet and sequencing" },
-        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "future execution packet runs in a fresh executor context" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "pre-action acceptance requires a fresh QA context" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "high-risk live action requires a fresh adversarial audit" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owns the approval packet and sequencing"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "future execution packet runs in a fresh executor context"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "pre-action acceptance requires a fresh QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "high-risk live action requires a fresh adversarial audit"
+        }
       }
     },
     {
@@ -269,7 +547,12 @@
         "baseSha": "7f1fc7f6ad11abacb195d3848eb10b9484298121",
         "candidateSha": "0553bba0267f0d361c63050a7be27720dbfb4abb",
         "integrationSha": "9732658db4559c32795be5451f295e8bc60e5258",
-        "remoteObservation": { "ref": "refs/remotes/origin/main", "sha": "58ec0853dc0a8823cc6c34cd03b61e940b14b7b2", "observedAt": "2026-09-14T21:08:43+08:00", "kind": "REMOTE_TRACKING_REF" },
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "58ec0853dc0a8823cc6c34cd03b61e940b14b7b2",
+          "observedAt": "2026-09-14T21:08:43+08:00",
+          "kind": "REMOTE_TRACKING_REF"
+        },
         "changedPaths": [
           "atlas-client/src/components/timetable/ScheduleReviewWorkspaceDialogs.tsx",
           "atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx",
@@ -294,13 +577,41 @@
         ]
       },
       "owners": {
-        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
-        "executor": { "sessionId": "ses_f6087994dffe5zEwP2HMEyjCzy", "status": "RETURNED", "writable": false },
-        "qa": { "sessionId": "ses_f6030850affeiZPOm2tfO9G3En", "status": "RETURNED", "writable": false },
-        "auditor": { "sessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj", "status": "RETURNED", "writable": false }
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": "ses_f6087994dffe5zEwP2HMEyjCzy",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "ses_f6030850affeiZPOm2tfO9G3En",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj",
+          "status": "RETURNED",
+          "writable": false
+        }
       },
-      "gates": { "total": 14, "passed": 14, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En", "auditorVerdict": "AUDIT_CLEAR", "auditorSessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj", "auditRequired": true },
+      "gates": {
+        "total": 14,
+        "passed": 14,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj",
+        "auditRequired": true
+      },
       "corrections": [
         {
           "round": 1,
@@ -315,19 +626,52 @@
       ],
       "successors": [],
       "requires": [],
-      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
       "approval": {
-        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [],
-      "closure": { "receipt": { "path": "docs/plans/receipts/tt-source-freshness-c04.receipt.json", "sha256": "48dacd627ae2c96cdfd37188a4e536ffeba3b3bc5817cb18fa67cf8f09fd24a4" } },
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/tt-source-freshness-c04.receipt.json",
+          "sha256": "48dacd627ae2c96cdfd37188a4e536ffeba3b3bc5817cb18fa67cf8f09fd24a4"
+        }
+      },
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owned the cycle, packet, integration, and closure" },
-        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "the initial executor hit its step limit mid-commit; the bounded correction ran fresh on the same worktree lineage (main ses_f6087994dffe5zEwP2HMEyjCzy, correction ses_f603c1ce6ffej42VwzS6INx01G)" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "each candidate requires a fresh independent QA context" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "wave completion audit requires a fresh adversarial context" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owned the cycle, packet, integration, and closure"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the initial executor hit its step limit mid-commit; the bounded correction ran fresh on the same worktree lineage (main ses_f6087994dffe5zEwP2HMEyjCzy, correction ses_f603c1ce6ffej42VwzS6INx01G)"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "each candidate requires a fresh independent QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "wave completion audit requires a fresh adversarial context"
+        }
       }
     },
     {
@@ -338,17 +682,56 @@
       "state": "BLOCKED",
       "stateUpdatedAt": "2026-09-14T16:00:00+08:00",
       "nextAction": "Remain locked; no fingerprinted generation preview or approval is authorized.",
-      "awaited": ["Approved term-cache catch-up + zero-hard-blocker readiness diagnostic", "Explicit generation approval"],
+      "awaited": [
+        "Approved term-cache catch-up + zero-hard-blocker readiness diagnostic",
+        "Explicit generation approval"
+      ],
       "running": [],
-      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
-      "owners": {
-        "planner": { "sessionId": null, "status": "NONE", "writable": false },
-        "executor": { "sessionId": null, "status": "NONE", "writable": false },
-        "qa": { "sessionId": null, "status": "NONE", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
       },
-      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false
+      },
       "corrections": [],
       "successors": [],
       "requires": [],
@@ -359,17 +742,40 @@
         "safeWorkItems": []
       },
       "approval": {
-        "required": true, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [],
       "closure": null,
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns the generation approval package" },
-        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "no executor session exists for this stream yet" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "generation preview requires a fresh independent QA context" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "generation mutation requires a fresh adversarial audit" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owns the generation approval package"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no executor session exists for this stream yet"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "generation preview requires a fresh independent QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "generation mutation requires a fresh adversarial audit"
+        }
       }
     },
     {
@@ -380,20 +786,61 @@
       "state": "BLOCKED",
       "stateUpdatedAt": "2026-09-14T16:00:00+08:00",
       "nextAction": "Remain locked until an accepted, zero-hard-blocker generation run exists.",
-      "awaited": ["Completed accepted current-year run", "Publication preview + explicit HIGH approval"],
+      "awaited": [
+        "Completed accepted current-year run",
+        "Publication preview + explicit HIGH approval"
+      ],
       "running": [],
-      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
-      "owners": {
-        "planner": { "sessionId": null, "status": "NONE", "writable": false },
-        "executor": { "sessionId": null, "status": "NONE", "writable": false },
-        "qa": { "sessionId": null, "status": "NONE", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
       },
-      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false
+      },
       "corrections": [],
       "successors": [],
-      "requires": ["LIVE-GENERATION"],
+      "requires": [
+        "LIVE-GENERATION"
+      ],
       "blocker": {
         "kind": "DEPENDENCY",
         "detail": "No completed current-year run with zero hard violations; publication preview and approval outstanding.",
@@ -401,23 +848,51 @@
         "safeWorkItems": []
       },
       "approval": {
-        "required": true, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [],
       "closure": null,
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns the publication approval package" },
-        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "no executor session exists for this stream yet" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "publication preview requires a fresh independent QA context" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "publication mutation requires a fresh adversarial audit" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owns the publication approval package"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no executor session exists for this stream yet"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "publication preview requires a fresh independent QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "publication mutation requires a fresh adversarial audit"
+        }
       }
     }
   ],
   "leases": [],
   "browserCustody": {
-    "profiles": [{ "profilePath": "C:\\Users\\njgro\\.config\\opencode\\playwright-profile", "custody": [] }],
+    "profiles": [
+      {
+        "profilePath": "C:\\Users\\njgro\\.config\\opencode\\playwright-profile",
+        "custody": []
+      }
+    ],
     "logins": []
   }
 }
