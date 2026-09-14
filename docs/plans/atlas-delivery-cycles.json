@@ -1,10 +1,10 @@
 {
   "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T18:21:00+08:00", "lastUpdatedBy": "primary-planner" },
+  "registry": { "lastUpdatedAt": "2026-09-14T19:09:00+08:00", "lastUpdatedBy": "primary-planner" },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
     "activeCycleId": "WF-C01",
-    "globalNextAction": "Run the fresh Wave Completion Auditor against integration merge e617647d; then apply the docs-only closure (state COMPLETE + receipt) and push."
+    "globalNextAction": "Run the fresh Wave Completion Auditor against integration merge 4fd18601; then apply the docs-only closure (state COMPLETE + receipt) and push."
   },
   "streams": [
     {
@@ -13,17 +13,17 @@
       "objective": "Introduce the repository-owned machine-readable delivery-cycle state contract, a fail-closed verifier, a deterministic Markdown register renderer, and regression fixtures.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATION_READY",
-      "stateUpdatedAt": "2026-09-14T18:21:00+08:00",
-      "nextAction": "Run the fresh Wave Completion Auditor against integration merge e617647d; then apply the docs-only closure (state COMPLETE + receipt).",
+      "stateUpdatedAt": "2026-09-14T19:09:00+08:00",
+      "nextAction": "Run the fresh Wave Completion Auditor against integration merge 4fd18601; then apply the docs-only closure (state COMPLETE + receipt).",
       "awaited": ["Wave Completion Auditor verdict (fresh adversarial context)"],
       "running": [],
       "git": {
         "worktree": "D:\\ATLAS-worktrees\\workflow-foundation-wfc01",
         "branch": "work/workflow-foundation-wfc01",
         "baseSha": "29284ac6218b989ab860cde0d36266eabf26395b",
-        "candidateSha": "bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275",
-        "integrationSha": "e617647dbaf1050520d3a8d5159a0cc9d1cb74ab",
-        "remoteSha": "e617647dbaf1050520d3a8d5159a0cc9d1cb74ab",
+        "candidateSha": "6b2cb7f1c3af0cc8b3f39eeff49c595f28138ef5",
+        "integrationSha": "4fd18601e19f16c669f4708d159d55427460a34f",
+        "remoteSha": null,
         "changedPaths": [
           ".gitattributes",
           "docs/handoffs/wf-c01-executor.md",
@@ -81,8 +81,8 @@
         "qa": { "sessionId": "ses_f609c69e3ffeBW5SDmOoUA4QCf", "status": "RETURNED", "writable": false },
         "auditor": { "sessionId": null, "status": "NONE", "writable": false }
       },
-      "gates": { "total": 22, "passed": 22, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f609c69e3ffeBW5SDmOoUA4QCf", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "gates": { "total": 23, "passed": 23, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
       "corrections": [
         {
           "round": 1,
@@ -91,6 +91,16 @@
           "reason": "Artifact/closure pins were not checkout-stable under core.autocrlf=true; R1 adds the .gitattributes LF policy, a load-bearing materialization regression, README pin documentation, and an additive handoff re-pin.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f609c69e3ffeBW5SDmOoUA4QCf",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 2,
+          "baseSha": "29284ac6218b989ab860cde0d36266eabf26395b",
+          "candidateSha": "6b2cb7f1c3af0cc8b3f39eeff49c595f28138ef5",
+          "reason": "Wave-audit B1: the committed seed test asserted candidateSha === null, which the register recording legitimately violates at INTEGRATION_READY; R2 makes the invariant drift-proof (null-or-40-hex with negative controls) and reconciles the handoff lifecycle wording.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
