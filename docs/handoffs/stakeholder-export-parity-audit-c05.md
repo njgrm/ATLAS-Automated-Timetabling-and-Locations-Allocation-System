@@ -10,9 +10,14 @@ and source audit; operator-activated `CYCLE ON`)
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`
 **Worktree/branch:** `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05`
 / `audit/stakeholder-export-parity-c05`
-**Docs candidate:** `5eb146640b367d128f08da12a8b18b459550656a` (6 files: audit,
-contract, correction packet, three lane reports) — this handoff is a follow-up
-commit on the same branch; the completion auditor reviews the branch tip.
+**Docs candidate:** revision r2 — round-1 candidate `5eb14664` (6 files), round-1 remedy commit `9d2c2527` (G13 + packet T10/M23 + evidence-index fixes + preserved r1 capsule), plus this r2 handoff commit; the closing wave auditor reviews the final branch tip.
+**Correction history (this cycle):** round 1 — fresh auditor
+`ses_f5f80ea3dffeiRaYCNpIzKs8nM` returned `CORRECTION_REQUIRED`
+(16/15/0/1; F2 material: contract §7.11 declared ABSENT but mapped to no
+gap/packet row; F3/F4 evidence-index nits). Deterministic docs-only remedy
+applied at `9d2c2527`; fresh re-audit commissioned for the r2 tip. Capsules:
+`docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r1.md`
+(preserved) and `...-r2.md` (closing).
 
 ## Verdict
 
@@ -41,9 +46,10 @@ claims; **G11** room read write-on-read. Full evidence with file:line:
 - Lane A (artifacts/rendering): `ses_f5fba15cdffel6pC0kTWSfsQGZ`
 - Lane B (production paths): `ses_f5fb9f4b7ffeVgfh6jqVy13qvJ`
 - Lane C (adversarial parity): `ses_f5fb9ca2fffeNDJFpZTDty9TBv`
-- Completion auditor: recorded in the follow-up capsule
-  `docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit.md`
-  (16 mandatory rows; `AUDIT_CLEAR` requires 16/16/0/0).
+- Wave Completion Auditor round 1: `ses_f5f80ea3dffeiRaYCNpIzKs8nM`
+  (`CORRECTION_REQUIRED` 16/15/0/1; capsule r1 preserved).
+- Wave Completion Auditor round 2: recorded in the r2 capsule
+  (`.../wave-completion-audit-r2.md`; `AUDIT_CLEAR` requires 16/16/0/0).
 
 ## Evidence and method
 
