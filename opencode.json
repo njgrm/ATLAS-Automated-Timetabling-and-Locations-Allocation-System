@@ -5,6 +5,7 @@
       "*": "ask",
       "D:/ATLAS/**": "allow",
       "D:/ATLAS-worktrees/**": "allow",
+      "E:/ATLAS-worktrees/**": "allow",
       "D:/ATLAS-database-recovery/**": "allow",
       "D:/EnrollPro/**": "allow",
       "D:/AIMS/**": "allow",
@@ -19,6 +20,7 @@
     "edit": {
       "D:/ATLAS/**": "allow",
       "D:/ATLAS-worktrees/**": "allow",
+      "E:/ATLAS-worktrees/**": "allow",
       "D:/ATLAS-database-recovery/**": "deny",
       "D:/EnrollPro/**": "deny",
       "D:/AIMS/**": "deny",

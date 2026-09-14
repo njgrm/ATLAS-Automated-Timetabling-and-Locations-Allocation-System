@@ -5193,3 +5193,27 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 - None. Future handoffs must name `E:/ATLAS-worktrees/<stream>` unless the
   operator explicitly changes the storage decision.
+## [2026-09-14] — WF-C02 and WF-C03 Serialized Handoff
+
+### Added
+- Added a single planner-led, serialized WF-C02→WF-C03 wave covering atomic
+  workflow transitions, non-self-referential closure identity, OpenCode role
+  boundaries, verified compaction, local session heartbeats, and exclusive
+  browser-custody leases.
+- Added explicit E-drive OpenCode read/edit authority so new ATLAS worktrees can
+  be created under `E:/ATLAS-worktrees` without permission stalls.
+
+### Changed
+- Required C02 to integrate and pass fresh QA plus wave audit before C03 starts.
+- Required the workflow status layer to detect the real failure mode where an
+  active dirty worktree is still registered as `PLANNED` with no running owner.
+
+### Decisions Made
+- `TT-SOURCE-FRESHNESS-C04` may continue independently in its existing D-drive
+  worktree; the workflow wave owns no Timetable product files.
+- Monitoring and browser custody remain observational controls and never grant
+  execution, login, HIGH-action, or mutation authority.
+
+### Open Questions
+- None for dispatch; installed OpenCode config/debug output decides the exact
+  supported compaction keys and reviewer variant, with fallbacks disclosed.
