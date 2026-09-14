@@ -10,7 +10,7 @@ and source audit; operator-activated `CYCLE ON`)
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`
 **Worktree/branch:** `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05`
 / `audit/stakeholder-export-parity-c05`
-**Docs candidate:** revision r2 — round-1 candidate `5eb14664` (6 files), round-1 remedy commit `9d2c2527` (G13 + packet T10/M23 + evidence-index fixes + preserved r1 capsule), plus this r2 handoff commit; the closing wave auditor reviews the final branch tip.
+**Docs candidate:** revision r2 — round-1 candidate `5eb14664` (6 files), round-1 remedy commit `9d2c2527` (G13 + packet T10/M23 + evidence-index fixes + preserved r1 capsule), r2 handoff commit `18a2111f`, and the closing commit carrying the r2 `AUDIT_CLEAR` capsule plus the D1 docs-only reconciliation (final tip recorded in the cycle return).
 **Correction history (this cycle):** round 1 — fresh auditor
 `ses_f5f80ea3dffeiRaYCNpIzKs8nM` returned `CORRECTION_REQUIRED`
 (16/15/0/1; F2 material: contract §7.11 declared ABSENT but mapped to no
@@ -48,8 +48,11 @@ claims; **G11** room read write-on-read. Full evidence with file:line:
 - Lane C (adversarial parity): `ses_f5fb9ca2fffeNDJFpZTDty9TBv`
 - Wave Completion Auditor round 1: `ses_f5f80ea3dffeiRaYCNpIzKs8nM`
   (`CORRECTION_REQUIRED` 16/15/0/1; capsule r1 preserved).
-- Wave Completion Auditor round 2: recorded in the r2 capsule
-  (`.../wave-completion-audit-r2.md`; `AUDIT_CLEAR` requires 16/16/0/0).
+- Wave Completion Auditor round 2: `ses_f5f79a147ffetEvj5WmLjLcowP`
+  (`AUDIT_CLEAR` 16/16/0/0; capsule r2 closing).
+- D1 (NON_BLOCKING, reconciled): the canonical round-1 id is the with-`Y`
+  string above (recorded at return time in the r1 capsule/handoff); the
+  variant without `Y` was a prompt-restatement typo. No content depends on it.
 
 ## Evidence and method
 
