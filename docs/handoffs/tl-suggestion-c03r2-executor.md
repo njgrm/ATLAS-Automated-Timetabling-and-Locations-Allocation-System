@@ -20,6 +20,7 @@ or canonical authority is missing or changed.
 - `atlas-server/src/services/teaching-load-suggestion-proposal.service.ts` (tx-client revision binding)
 - `atlas-server/src/__tests__/teaching-load-suggestion-derived-demand-c03r2.test.ts` (new)
 - `atlas-server/src/__tests__/teaching-load-suggestion-authority-c03.test.ts` (additive fixture)
+- `atlas-server/src/__tests__/teaching-load-suggestion-authority.test.ts` (additive disposable-PostgreSQL fixture correction)
 - `atlas-server/src/__tests__/teaching-load-suggestion-apply-parity.test.ts` (additive fixture/dependency)
 - `atlas-server/src/__tests__/teaching-load-write-authority.test.ts` (additive fixture/dependency)
 - `docs/handoffs/tl-suggestion-c03r2-executor.md` (this handoff)
@@ -205,3 +206,55 @@ ownership/FacultySubject/cycle/audit writes.
 Source and focused tests only. No push, merge, rebase, amend, migration, live
 database write, generation, publication, deployment, login, or shared-runtime
 action was performed.
+
+## Correction 4 — make preliminary stale-ownership handling zero-write (C03R3 additive)
+
+Wave-completion review found that `previewOrApplyOverCapRebalance` called
+`previewOrApplyStaleOwnershipReconcile` with `previewOnly: !apply` before its
+later Serializable transaction. An apply could therefore commit stale-row
+deletion, `FacultySubject` update/deletion, and `TeachingLoadCycle` refresh,
+then discover a changed canonical revision and return
+`TEACHING_LOAD_REBALANCE_STALE` after those earlier writes.
+
+The preliminary reconcile is now always preview-only. If an apply observes one
+or more stale current-year ownership pairs, it fails with HTTP 409 code
+`TEACHING_LOAD_STALE_OWNERSHIP_RECONCILIATION_REQUIRED` before opening the
+rebalance transaction. The separate reconciliation endpoint remains the only
+place that applies stale-ownership cleanup; positive over-cap apply still uses
+the explicit `{ isolationLevel: 'Serializable' }` transaction.
+
+| C03R3 requirement | Production path | Negative control | Verification | Status |
+|---|---|---|---|---|
+| Preliminary stale-ownership handling cannot write before freshness revalidation | `previewOrApplyOverCapRebalance` → preview-only `previewOrApplyStaleOwnershipReconcile` → typed 409 before `$transaction` | Run the real stale reconcile in apply mode first, then trigger the transaction-only canonical revision change | C03R2 E5; byte comparisons across ownership, `FacultySubject`, cycle, audit, and notification buffer | PASS |
+| Positive over-cap apply retains explicit Serializable isolation | `previewOrApplyOverCapRebalance` apply `$transaction` | Observe the transaction options on both matching and stale canonical revisions | C03R2 E4 | PASS |
+
+Load-bearing E5 coverage creates both stale ownership and a transaction-only
+canonical disposition interleave, invokes the real over-cap apply service, and
+asserts the typed reconciliation-required failure plus byte-identical ownership,
+`FacultySubject`, `TeachingLoadCycle`, audit, and production notification-buffer
+state.
+It also asserts that no apply transaction starts. Its negative control runs the
+real apply-capable stale reconcile first (the pre-fix preliminary behavior),
+then reaches `TEACHING_LOAD_REBALANCE_STALE`; the protected byte-identity check
+fails because reconciliation writes already committed.
+
+### C03R3 focused evidence
+
+- C03R2 derived-demand/atomicity suite: `109/109` (includes positive
+  Serializable option observation, the E5 zero-write gate, the pre-fix mutant,
+  and its own disposable PostgreSQL isolation/apply checks).
+- C03 authority: `64/64`.
+- Apply parity: `34/34`.
+- Distribution plan: `13/13`.
+- Effective workload policy: `56/56`.
+- Write authority: suite `PASS` (the suite does not publish an assertion count).
+- Omitted C03R2 DB authority suite now inventoried above and rerun: `61/61`
+  against disposable database `atlas_restore_drill_20260914_c03r30f7097ca`;
+  the configured shared database `atlas_recovery_clean_rebuild_20260905` was
+  read only, and the disposable database was dropped with residue count `0`.
+
+No live/shared database write, migration/schema apply, deployment, login,
+shared runtime, Teaching Load apply, generation, publication, or external
+repository action was performed. The only database mutations were in uniquely
+named disposable databases created by the existing isolated fixtures and
+dropped with zero residue.
