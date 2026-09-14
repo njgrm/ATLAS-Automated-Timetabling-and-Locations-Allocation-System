@@ -54,6 +54,29 @@ On failure the receipt file is never created or modified. Stream selection:
 `--stream <id>`, else exactly one `COMPLETE` stream, else exactly one stream with
 `review.qaVerdict === "ACCEPT_READY"`, else `RECEIPT_STREAM_AMBIGUOUS`.
 
+## Byte-pinned artifacts and line endings
+
+Artifact pins (`streams[].artifacts[].sha256`) and closure receipt pins
+(`streams[].closure.receipt.sha256`) are **raw byte SHA-256 values of the LF
+form** of the file. They are verified against the working-tree bytes, so a
+checkout that rewrites LF to CRLF would invalidate every pin.
+
+The repository root `.gitattributes` therefore forces `eol=lf` for the pinned
+classes:
+
+```
+ops/workflow/** text eol=lf
+docs/plans/** text eol=lf
+docs/handoffs/** text eol=lf
+```
+
+Any future pinned artifact must live under one of these LF-enforced paths, or
+the policy must be extended in the same change. The
+`__tests__/artifact-portability.test.mjs` control materializes every pinned
+artifact through a real `core.autocrlf=true` Git checkout and fails if a pin
+does not survive, and it includes a mutant flow that reproduces the CRLF defect
+when the `.gitattributes` rules are absent.
+
 ## Renderer
 
 The renderer runs the same validation engine first. On invalid state it exits
