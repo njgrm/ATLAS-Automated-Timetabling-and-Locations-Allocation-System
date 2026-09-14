@@ -32,7 +32,17 @@ test("the committed generated register matches the renderer output byte-for-byte
   assert.ok(text.includes("generated; do not edit"), "generated register must carry the do-not-edit notice");
 });
 
-test("the seed declares the five expected streams and keeps candidateSha null", () => {
+// A stream either has no candidate yet (null) or carries a committed
+// 40-hex lowercase SHA. The planner records candidate/integration SHAs when
+// the register advances to INTEGRATION_READY/COMPLETE, so an exact-null
+// assertion would over-constrain the intended lifecycle (wave-audit B1).
+const CANDIDATE_SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+function isNullOrCommittedSha(value) {
+  return value === null || CANDIDATE_SHA_PATTERN.test(value);
+}
+
+test("the seed declares the five expected streams with null-or-committed candidate SHAs", () => {
   const doc = JSON.parse(fs.readFileSync(STATE, "utf8"));
   assert.deepEqual(
     doc.streams.map((s) => s.id).sort(),
@@ -41,10 +51,27 @@ test("the seed declares the five expected streams and keeps candidateSha null", 
   for (const stream of doc.streams) {
     if (stream.id === "ENROLLPRO-PROXY-RECOVERY-LIVE") {
       assert.equal(stream.git.candidateSha, "54dce67b8392cbce09aa810813c37f9c87a67159");
-    } else {
-      assert.equal(stream.git.candidateSha, null);
+      continue;
     }
+    assert.ok(
+      isNullOrCommittedSha(stream.git.candidateSha),
+      `${stream.id} candidateSha must be null or a 40-hex lowercase SHA, got ${JSON.stringify(stream.git.candidateSha)}`,
+    );
   }
+
+  // Negative controls: the predicate must reject malformed values, otherwise
+  // the invariant above would be vacuous.
+  for (const malformed of [
+    "not-a-sha",
+    "bcee9d0d92f43a55db4cbfa3a0a6306dd57d327", // 39 hex
+    "BCEE9D0D92F43A55DB4CBFA3A0A6306DD57D3275", // uppercase
+    "",
+    123,
+  ]) {
+    assert.equal(isNullOrCommittedSha(malformed), false, `predicate must reject ${JSON.stringify(malformed)}`);
+  }
+  assert.equal(isNullOrCommittedSha(null), true);
+  assert.equal(isNullOrCommittedSha("bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275"), true);
 });
 
 test("the generated register is a distinct file from the historical prose register", () => {
