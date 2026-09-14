@@ -1,4 +1,5 @@
 import { createProductionHost, assertProductionArtifact } from './lib/production-host.mjs';
+import { normalizeEnrollProOrigin } from './lib/enrollpro-origin.mjs';
 
 /**
  * Production host entry point.
@@ -22,7 +23,22 @@ function requireEnv(name) {
 
 const staticRoot = requireEnv('ATLAS_HOST_STATIC_ROOT');
 const apiTarget = requireEnv('ATLAS_HOST_API_TARGET');
-const enrollProTarget = process.env.ATLAS_HOST_ENROLLPRO_TARGET || apiTarget;
+// The EnrollPro proxy origin is explicit: it is never silently inherited from
+// the ATLAS API target. A blank value is a missing-variable failure (exit 2,
+// naming the variable); a present-but-invalid value fails closed with a bounded
+// message before the host binds its port or serves any request.
+const rawEnrollProTarget = requireEnv('ATLAS_HOST_ENROLLPRO_TARGET');
+let enrollProTarget;
+try {
+	enrollProTarget = normalizeEnrollProOrigin(rawEnrollProTarget, { label: 'ATLAS_HOST_ENROLLPRO_TARGET' });
+} catch (error) {
+	console.error(`[atlas-host] Invalid ATLAS_HOST_ENROLLPRO_TARGET: ${error instanceof Error ? error.message : String(error)}`);
+	process.exit(2);
+}
+if (!enrollProTarget) {
+	console.error('[atlas-host] Missing required environment variable ATLAS_HOST_ENROLLPRO_TARGET.');
+	process.exit(2);
+}
 const port = Number(requireEnv('ATLAS_HOST_PORT'));
 if (!Number.isInteger(port) || port <= 0 || port > 65535) {
 	console.error('[atlas-host] ATLAS_HOST_PORT must be a valid port number.');
@@ -36,7 +52,13 @@ try {
 	process.exit(3);
 }
 
-const host = createProductionHost({ staticRoot, apiTarget, enrollProTarget, assertArtifact: false });
+let host;
+try {
+	host = createProductionHost({ staticRoot, apiTarget, enrollProTarget, assertArtifact: false });
+} catch (error) {
+	console.error(`[atlas-host] ${error instanceof Error ? error.message : String(error)}`);
+	process.exit(2);
+}
 
 host
 	.listen(port)

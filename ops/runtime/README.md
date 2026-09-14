@@ -29,7 +29,35 @@ the repository, never printed):
 | `ATLAS_RUNTIME_SOURCE_DIR` | Absolute durable deployed source directory. |
 | `ATLAS_RUNTIME_RELEASE_SHA` | Exact installed HEAD; must equal `git -C <sourceDir> rev-parse HEAD` and must descend from the reviewed `productPin`. |
 | `ATLAS_RUNTIME_LOG_DIR` | Optional absolute log directory; defaults to `<source>/ops/runtime/logs`. |
-| `ENROLLPRO_PROXY_ORIGIN` | Optional EnrollPro origin for `/enrollpro-api` and `/enrollpro-uploads`; defaults to `http://127.0.0.1:5000`. |
+| `ENROLLPRO_PROXY_ORIGIN` | EnrollPro origin for `/enrollpro-api` and `/enrollpro-uploads`. **Required for a supervised production launch.** |
+
+### EnrollPro proxy origin (`ENROLLPRO_PROXY_ORIGIN`)
+
+- **Required for `start`/`rollback`.** The launch gate fails closed with the
+  typed code `ENROLLPRO_PROXY_ORIGIN_MISSING` before constructing or spawning
+  any child when neither the durable env file nor the inherited environment
+  supplies the value. `stop` and `status` stay usable without it.
+- **Durable file wins.** A value in `ATLAS_RUNTIME_ENV_FILE` (`envValues`)
+  overrides a conflicting inherited process value; pinned invariants are
+  unaffected.
+- **Origin format.** Only a normalized absolute `http(s)` origin is accepted:
+  credentials, any path, query strings, fragments, non-`http(s)` schemes, and
+  unparseable values are rejected with the typed code
+  `ENROLLPRO_PROXY_ORIGIN_INVALID` (before any child spawn). A single trailing
+  slash normalizes to the same origin. Blank values are treated as missing.
+- **Development fallback only.** Outside the launch gate the reviewed
+  `upstream.defaultEnrollProOrigin` (`http://127.0.0.1:5000`) is used so local
+  development remains usable; it is never accepted as supervised production
+  configuration.
+- **Degraded behavior.** An unreachable EnrollPro upstream returns a bounded
+  `502 {"code":"UPSTREAM_UNREACHABLE"}` for that proxied request only. ATLAS
+  liveness (`/__host/live`), dependency readiness (`/__host/ready`, backed by
+  `/api/v1/health/ready`), `/api` proxying, and the SPA fallback stay available:
+  EnrollPro availability is **not** a prerequisite for ATLAS readiness.
+
+The production host (`ops/runtime/host.mjs`) requires `ATLAS_HOST_ENROLLPRO_TARGET`
+to be a valid normalized `http(s)` origin; it is never silently inherited from
+`ATLAS_HOST_API_TARGET`.
 
 The reviewed `productPin` is an **ancestor milestone**, not an equality target.
 A commit cannot contain its own SHA, so the pin cannot be the same commit that

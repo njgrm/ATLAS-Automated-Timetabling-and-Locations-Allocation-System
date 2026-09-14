@@ -1,4 +1,4 @@
-import { ExternalLink, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,6 +6,7 @@ import { getBackHref } from '@/lib/bridge';
 import { Button } from '@/ui/button';
 import { Separator } from '@/ui/separator';
 
+import { BackToEnrollProLink } from './BackToEnrollProLink';
 import { IntegratedSystems } from './IntegratedSystems';
 import type { NavItemDef } from './navigation';
 
@@ -27,6 +28,7 @@ export function MobileNavigationDrawer({
 	privilegedStaff = false,
 }: MobileNavigationDrawerProps) {
 	const navigate = useNavigate();
+	const backHref = getBackHref();
 
 	return (
 		<AnimatePresence initial={false}>
@@ -74,12 +76,11 @@ export function MobileNavigationDrawer({
 								</div>
 							</div>
 							<Separator className='my-2' />
-							<Button asChild variant='ghost' className='h-11 w-full justify-start text-sm text-muted-foreground'>
-								<a href={getBackHref()}>
-									<ExternalLink className='mr-2 size-4' />
-									Back to EnrollPro
-								</a>
-							</Button>
+							{backHref && (
+								<Button asChild variant='ghost' className='h-11 w-full justify-start text-sm text-muted-foreground'>
+									<BackToEnrollProLink href={backHref} className='flex items-center gap-2' />
+								</Button>
+							)}
 							<Button variant='ghost' className='h-11 w-full justify-start text-sm text-destructive' onClick={onLogout}>
 								<LogOut className='mr-2 size-4' />
 								Sign out

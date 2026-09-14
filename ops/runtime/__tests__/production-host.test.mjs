@@ -24,26 +24,45 @@ function listen(server) {
 function startFakeApi() {
 	const seen = [];
 	const server = createServer((req, res) => {
-		seen.push({ url: req.url, method: req.method });
-		if (req.url === '/api/v1/health/ready') {
+		const chunks = [];
+		req.on('data', (chunk) => chunks.push(chunk));
+		req.on('end', () => {
+			const body = Buffer.concat(chunks).toString('utf8');
+			seen.push({ url: req.url, method: req.method, body });
+			if (req.url === '/api/v1/health/ready') {
+				res.writeHead(200, { 'content-type': 'application/json' });
+				res.end('{"status":"ready"}');
+				return;
+			}
+			if (req.url?.startsWith('/api/v1/events')) {
+				res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+				res.write('data: hello\n\n');
+				setTimeout(() => res.end(), 30);
+				return;
+			}
+			if (req.url === '/api/teapot') {
+				res.writeHead(418, { 'content-type': 'application/json' });
+				res.end(JSON.stringify({ code: 'TEAPOT', path: req.url }));
+				return;
+			}
 			res.writeHead(200, { 'content-type': 'application/json' });
-			res.end('{"status":"ready"}');
-			return;
-		}
-		if (req.url?.startsWith('/api/v1/events')) {
-			res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
-			res.write('data: hello\n\n');
-			setTimeout(() => res.end(), 30);
-			return;
-		}
-		res.writeHead(200, { 'content-type': 'application/json' });
-		res.end(JSON.stringify({ path: req.url, method: req.method, xff: req.headers['x-forwarded-for'] ?? null }));
+			res.end(JSON.stringify({ path: req.url, method: req.method, body, xff: req.headers['x-forwarded-for'] ?? null }));
+		});
 	});
 	server.on('upgrade', (req, socket) => {
 		socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
 		socket.end('pong');
 	});
 	return { server, seen };
+}
+
+/** A port that is bound and then released, so connections are refused. */
+async function closedPort() {
+	const probe = createServer();
+	await new Promise((resolvePromise) => probe.listen(0, '127.0.0.1', resolvePromise));
+	const port = probe.address().port;
+	await new Promise((resolvePromise) => probe.close(resolvePromise));
+	return port;
 }
 
 function rawUpgrade(port, path) {
@@ -124,6 +143,102 @@ test('production host rewrites /enrollpro-api and /enrollpro-uploads proxy paths
 		assert.ok(enrollPro.seen.some((entry) => entry.url === '/api/settings'));
 		assert.ok(enrollPro.seen.some((entry) => entry.url === '/uploads/logo.png'));
 		assert.ok(api.seen.some((entry) => entry.url === '/api/v1/echo'));
+	} finally {
+		await host.close();
+		api.server.close();
+		enrollPro.server.close();
+		rmSync(staticRoot, { recursive: true, force: true });
+	}
+});
+
+test('production host preserves proxy query strings and POST method/body parity', async () => {
+	const staticRoot = makeStaticRoot();
+	const api = startFakeApi();
+	const apiPort = await listen(api.server);
+	const enrollPro = startFakeApi();
+	const enrollProPort = await listen(enrollPro.server);
+	const host = createProductionHost({ staticRoot, apiTarget: `http://127.0.0.1:${apiPort}`, enrollProTarget: `http://127.0.0.1:${enrollProPort}`, probeApiReadiness: async () => ({ ok: true, status: 200 }) });
+	const hostPort = await listen(host.server);
+	try {
+		const query = await fetch(`http://127.0.0.1:${hostPort}/enrollpro-api/settings/public?schoolId=9&year=2030-2031`);
+		assert.equal(query.status, 200);
+		assert.equal((await query.json()).path, '/api/settings/public?schoolId=9&year=2030-2031');
+		assert.ok(enrollPro.seen.some((entry) => entry.url === '/api/settings/public?schoolId=9&year=2030-2031'));
+
+		const postBody = JSON.stringify({ hello: 'world' });
+		const post = await fetch(`http://127.0.0.1:${hostPort}/enrollpro-api/echo?trace=1`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: postBody });
+		assert.equal(post.status, 200);
+		const echoed = await post.json();
+		assert.equal(echoed.method, 'POST');
+		assert.equal(echoed.path, '/api/echo?trace=1');
+		assert.equal(echoed.body, postBody);
+	} finally {
+		await host.close();
+		api.server.close();
+		enrollPro.server.close();
+		rmSync(staticRoot, { recursive: true, force: true });
+	}
+});
+
+test('production host passes a non-2xx upstream status and body through unchanged', async () => {
+	const staticRoot = makeStaticRoot();
+	const api = startFakeApi();
+	const apiPort = await listen(api.server);
+	const enrollPro = startFakeApi();
+	const enrollProPort = await listen(enrollPro.server);
+	const host = createProductionHost({ staticRoot, apiTarget: `http://127.0.0.1:${apiPort}`, enrollProTarget: `http://127.0.0.1:${enrollProPort}`, probeApiReadiness: async () => ({ ok: true, status: 200 }) });
+	const hostPort = await listen(host.server);
+	try {
+		const response = await fetch(`http://127.0.0.1:${hostPort}/enrollpro-api/teapot`);
+		assert.equal(response.status, 418);
+		assert.deepEqual(await response.json(), { code: 'TEAPOT', path: '/api/teapot' });
+	} finally {
+		await host.close();
+		api.server.close();
+		enrollPro.server.close();
+		rmSync(staticRoot, { recursive: true, force: true });
+	}
+});
+
+test('an unreachable EnrollPro upstream yields a bounded 502 while ATLAS stays fully available', async () => {
+	const staticRoot = makeStaticRoot();
+	const api = startFakeApi();
+	const apiPort = await listen(api.server);
+	const deadEnrollProPort = await closedPort();
+	const host = createProductionHost({ staticRoot, apiTarget: `http://127.0.0.1:${apiPort}`, enrollProTarget: `http://127.0.0.1:${deadEnrollProPort}`, probeApiReadiness: async () => ({ ok: true, status: 200 }) });
+	const hostPort = await listen(host.server);
+	try {
+		const proxied = await fetch(`http://127.0.0.1:${hostPort}/enrollpro-api/settings/public`);
+		assert.equal(proxied.status, 502);
+		const body = await proxied.json();
+		assert.equal(body.code, 'UPSTREAM_UNREACHABLE');
+
+		// EnrollPro availability is NOT a prerequisite for ATLAS liveness,
+		// ATLAS proxying, or the SPA fallback.
+		assert.equal((await fetch(`http://127.0.0.1:${hostPort}/__host/live`)).status, 200);
+		assert.equal((await fetch(`http://127.0.0.1:${hostPort}/api/v1/health/ready`)).status, 200);
+		const spa = await fetch(`http://127.0.0.1:${hostPort}/dashboard`);
+		assert.equal(spa.status, 200);
+		assert.match(await spa.text(), /id="root"/);
+	} finally {
+		await host.close();
+		api.server.close();
+		rmSync(staticRoot, { recursive: true, force: true });
+	}
+});
+
+test('production host tunnels a WebSocket upgrade on an /enrollpro-api path to the EnrollPro upstream', async () => {
+	const staticRoot = makeStaticRoot();
+	const api = startFakeApi();
+	const apiPort = await listen(api.server);
+	const enrollPro = startFakeApi();
+	const enrollProPort = await listen(enrollPro.server);
+	const host = createProductionHost({ staticRoot, apiTarget: `http://127.0.0.1:${apiPort}`, enrollProTarget: `http://127.0.0.1:${enrollProPort}`, probeApiReadiness: async () => ({ ok: true, status: 200 }) });
+	const hostPort = await listen(host.server);
+	try {
+		const response = await rawUpgrade(hostPort, '/enrollpro-api/collaboration/ws');
+		assert.match(response, /^HTTP\/1\.1 101/);
+		assert.match(response, /pong/);
 	} finally {
 		await host.close();
 		api.server.close();

@@ -4,6 +4,10 @@
  * Hub model only (guide §3.3): the only companion link ATLAS may enable is
  * EnrollPro. AIMS/SMART/MRF have no direct authenticated launch and must stay
  * plain text. No raw companion dashboard URL is ever rendered.
+ *
+ * Companion URL resolution is centralized in `lib/companion-config.ts` and is
+ * fail-closed: when `VITE_ENROLLPRO_URL` is not configured the reverse-SSO
+ * start URL is `null` and the EnrollPro row renders as disabled plain text.
  */
 
 export type IntegratedSystemKey = 'AIMS' | 'SMART' | 'ATLAS' | 'MRF' | 'ENROLLPRO';
@@ -19,31 +23,7 @@ export type IntegratedSystemItem = {
 	disabledReason?: string;
 };
 
-const DEFAULT_ENROLLPRO_URL = 'http://100.88.55.125:5173';
-const REVERSE_START_PATH = '/api/auth/companion-sso/atlas/reverse/start';
-
-function viteEnv(): Record<string, string | undefined> {
-	// `import.meta.env` exists under Vite and is undefined under the Node test
-	// runner, so guard the access rather than assuming a bundler.
-	try {
-		return ((import.meta as unknown as { env?: Record<string, string | undefined> }).env) ?? {};
-	} catch {
-		return {};
-	}
-}
-
-/**
- * The EnrollPro reverse-SSO start URL. Prefers the explicit
- * `VITE_ENROLLPRO_SSO_START_URL`; otherwise derives it from
- * `VITE_ENROLLPRO_URL` (falling back to the configured Tailnet origin) plus the
- * canonical reverse path. This is the ONLY companion URL the sidebar may emit.
- */
-export function resolveEnrollProReverseStartUrl(env: Record<string, string | undefined> = viteEnv()): string {
-	const explicit = env.VITE_ENROLLPRO_SSO_START_URL?.trim();
-	if (explicit) return explicit;
-	const base = (env.VITE_ENROLLPRO_URL?.trim() || DEFAULT_ENROLLPRO_URL).replace(/\/+$/, '');
-	return `${base}${REVERSE_START_PATH}`;
-}
+export { resolveEnrollProReverseStartUrl } from './companion-config';
 
 /** `ADMIN`/`USER`/`TEACHER` rows are not a concern here — only privileged staff. */
 export function canUseEnrollProReverseSso(role: string | null | undefined): boolean {
