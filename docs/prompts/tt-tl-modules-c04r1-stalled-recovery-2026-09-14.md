@@ -28,6 +28,12 @@ boundary in that packet remain mandatory.
 - The worktree is **dirty by interrupted execution**, not a frozen candidate:
   eight tracked client files are modified and three client files are untracked.
   `git diff --check` is clean, but no final tests or commit bind these bytes.
+- Recovery manifest aggregate at capture: SHA-256
+  `A5B73F3FC029A0C09545BBB265AAE5CC29A5407120089B2F86F973480584F99A`,
+  computed from sorted `relative-path<TAB>file-SHA-256` rows for the eleven paths
+  below with one terminal LF. Recompute before adoption. A mismatch means the
+  residual changed after capture and requires a fresh attribution check; it is
+  not permission to discard either version.
 
 Interrupted residual paths, exactly:
 
