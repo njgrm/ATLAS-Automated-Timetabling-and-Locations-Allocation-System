@@ -1,16 +1,20 @@
-# Handoff — `term-cache-apply-packet-c01` (frozen docs candidate, re-audit pending)
+# Handoff — `term-cache-apply-packet-c01` (frozen docs candidate, round-6 re-audit pending)
 
-**Status: corrections applied; round-5 re-audit of this corrected tip is pending
-at this commit — its capsule is committed in the following commit.**
+**Status: round-5 corrections applied; round-6 re-audit of this corrected tip is
+pending at this commit — its capsule is committed in the following commit.**
 
-- **Verdict so far:** the originally frozen packet `4a600784` was
-  `AUDIT_CLEAR` (14/14/0/0, rounds 1–4). The head planner then returned
-  `CORRECTION_REQUIRED` (7 deterministic items) on 2026-09-14; the corrections
-  are applied in the packet commit `f75685176ec9ff83af9e43cf9f9cbace4a921dca`
-  and this handoff commit. A fresh round-5 auditor re-reviews the corrected tip
-  on a 16-row matrix (14 prior rows + implicit ORM-managed mutations +
-  executable rollback completeness); its result is committed next as
-  `docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r5.md`.
+- **Verdict so far:** the original packet `4a600784` was `AUDIT_CLEAR`
+  (14/14/0/0, rounds 1–4). The head planner then returned `CORRECTION_REQUIRED`
+  (7 deterministic items); those were applied in `f7568517` (packet) and
+  `3360d8e5` (handoff). Round 5 over `3360d8e5` returned
+  `CORRECTION_REQUIRED` 16/14/0/0 (F1: §9 `TIMESTAMPTZ` literals cannot
+  match/assign the live `TIMESTAMP(3)` columns under `Asia/Kuala_Lumpur`
+  session TZ; F2: the login delta omitted the engine-managed
+  `atlas_auth_accounts.updated_at` advance). Both are fixed in the packet
+  commit `b8ab861ceb21385a040d48d7b106efbd57e0b7df` and this handoff commit.
+  A fresh round-6 auditor re-reviews this corrected tip on the 16-row matrix;
+  its result is committed next as
+  `docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r6.md`.
 - **No live action occurred:** no login, no browser, no apply, no database
   write, no deployment, no runtime/env/task change. **NOT GRANTED** — no
   approval requested or received.
@@ -32,7 +36,8 @@ at this commit — its capsule is committed in the following commit.**
 5. `docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r3.md`
 6. `docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r4.md`
 7. `docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r5.md`
-   (committed only after the round-5 audit returns)
+8. `docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r6.md`
+   (committed only after the round-6 audit returns)
 
 ## Head-planner correction (2026-09-14) — applied items
 
@@ -53,6 +58,23 @@ at this commit — its capsule is committed in the following commit.**
    `wave-completion-audit.md`, previously omitted from the chat report).
 7. Fresh round-5 auditor commissioned over the corrected tip with a
    **16/16/0/0** requirement.
+
+## Round-5 outcome and fixes (2026-09-14)
+
+Round 5 (`ses_f5f56f653ffeKavb9vAZqRC3k2`) returned `CORRECTION_REQUIRED`
+16/14/0/0 — rows 12 and 16 failed; both fixes are in `b8ab861c`:
+
+- **F1:** §9 now pins `SET LOCAL TIME ZONE 'UTC'` immediately after `BEGIN;` and
+  uses naive UTC `TIMESTAMP` literals; `${PRE_APPLY_UPDATED_AT}` =
+  `2026-09-10 11:18:14.634`; `${POST_APPLY_CACHED_AT}` is bound from the §8
+  `term_contract_cached_at::text` read-back (must equal the response `cachedAt`
+  converted from ISO-UTC).
+- **F2:** the login delta now declares the engine-managed
+  `atlas_auth_accounts.updated_at` advance; actor 46 pre-action
+  `updated_at = 2026-09-14T09:27:58.562Z` is bound in §2/§3; §1/§5/§8.3/§12
+  updated.
+- **F3:** the historical capture baseline lacked actor `updated_at` — folded
+  into the F2 fix (the packet now carries the bound value).
 
 ## Fresh revalidated identities (read-only, 2026-09-14 ~16:01 UTC)
 
