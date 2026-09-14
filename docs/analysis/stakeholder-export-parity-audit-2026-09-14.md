@@ -27,15 +27,28 @@ placeholder; no load-block component; `Total Teaching Load` excludes ARAL);
 D-A removed from the open decisions; ARAL observations in beneficiary files
 classified as historical content overridden by the current decision;
 analysis/contract/packet/handoff updated; prior audit capsules preserved.
+**Revision r4 (2026-09-14):** C05R4 truth correction — removed contradictory
+current-state ARAL claims; the teacher DOCX is now explicitly classified
+PARTIAL/NONCOMPLIANT for ARAL absence until successor T6/M10 removes the
+emitted `ARAL Program` load row; every current-state statement is separated
+from operator-required behavior and successor work; the settled operator
+contract is unchanged and D-A remains closed.
 
 ## 0. Verdict summary
 
 ATLAS has three genuinely wired, actor-scoped, zero-write official export routes
 (summary workbook, class program, teacher program) sharing one per-term entry
-source with correctly enforced ARAL absence, HG exclusion, AP, and Flag
-semantics and a client contract that binds
-every official download to one selected term. **The beneficiary-ready claim is
-NOT met.** Confirmed blocking and material defects:
+source. Current-state semantics are output-specific and must be read precisely:
+the workbook entry filter excludes ARAL/HG from class/summary cells
+(`workbook-export.service.ts:297`), teacher-program schedule rows exclude them
+(`teacher-program-export.service.ts:283-286`), and the matrix filters them
+(`class-program-matrix.service.ts:281-283`); HG exclusion and the Flag/HGP
+Monday-only overlay are implemented and AP is ordinary. However the teacher
+DOCX remains **NONCOMPLIANT for ARAL absence** — it still emits an
+`ARAL Program` load row (`docx-export.service.ts:297-303`) until successor
+T6/M10 removes it. A client contract binds every official download to one
+selected term. **The beneficiary-ready claim is NOT met.** Confirmed blocking
+and material defects:
 
 | # | Finding | Class |
 |---|---|---|
@@ -50,7 +63,7 @@ NOT met.** Confirmed blocking and material defects:
 | G9 | DNO template catalog is a single-school default seed; editing surface/authority unstated | DECISION_REQUIRED (D-F) |
 | G10 | Committed docs contain three false/stale parity claims | MATERIAL (docs-only) |
 | G11 | Room read path performs writes via `getOrCreatePolicy` (create/normalize/DDL) | MATERIAL |
-| G12 | Historical beneficiary artifacts show ARAL rows/minute conventions (DNO “ARAL-Reading”; SPEC “ARAL 0 min”; 2025–2026 “60 min”; SUMMARY “ARAL 1/2”) — observed historical content overridden by the operator-resolved ARAL absence; remaining conventions: class-program family, period/shift, learner counts | DECISION_REQUIRED (D-C, D-D, D-E); ARAL itself resolved |
+| G12 | ARAL authority: the operator-required absence is only partially implemented — workbook/matrix filters exclude ARAL from cells/rows, but the teacher DOCX still emits an `ARAL Program` load row (`docx-export.service.ts:297-303`), so **teacher output is PARTIAL/NONCOMPLIANT** until successor T6/M10; historical artifacts show ARAL rows/minute conventions now overridden; remaining conventions: class-program family, period/shift, learner counts | MATERIAL (teacher ARAL absence); DECISION_REQUIRED (D-C, D-D, D-E) |
 | G13 | Draft/review official outputs carry no publication-state marker; a draft export is indistinguishable from a published one (contract §7.11) | MATERIAL |
 
 **Classification vs the six categories:** no output type is
@@ -156,7 +169,7 @@ question_prompt 5 pp (1 sampled); all three SY2026-2027 root images inspected.
 | Flag/HGP | Monday-only overlay sharing the Tue–Fri period | Not present | Monday-only overlay implemented (policy-driven) |
 | AP | Ordinary row | ARAL PAN ordinary subject | Ordinary (ARAL PAN unaffected) |
 | HG standalone row | None | None | Excluded |
-| ARAL Program row | “ARAL-Reading English/Filipino/Math” 60 min row (Mon–Thu) with Friday “TLE *45 min only”; totals 420/405 and 510/495 — **historical observed content; overridden by the operator-resolved ARAL absence** | Not present | Excluded from cells; must remain absent from room/summary outputs and contain no placeholder (packet T4/T7/M8) |
+| ARAL Program row | “ARAL-Reading English/Filipino/Math” 60 min row (Mon–Thu) with Friday “TLE *45 min only”; totals 420/405 and 510/495 — **historical observed content; overridden by the operator-resolved ARAL absence** | Not present | Excluded from class/summary cells (`workbook-export.service.ts:297`); teacher DOCX load row still emitted — see §4.2; room/summary/placeholder absence plus the teacher load-row removal are successor requirements (packet T4/T6/T7/M8/M10) |
 | Totals row | Present (“Total minutes per day”) | Absent | Absent |
 | Adviser | Present | Present (row) | Adviser in SUMMARY only |
 | Approval areas | Prepared/Reviewed/Recommending/Approved (4) | Signature page (10 signatures) | Absent |
@@ -172,7 +185,7 @@ question_prompt 5 pp (1 sampled); all three SY2026-2027 root images inspected.
 | Day representation | “Monday to Friday” compaction | Same | Same compaction implemented |
 | Photo | Picture box | Picture box | Absent (no placeholder box) |
 | Profile block | Name/Position/Bachelor’s/Post-grad | Same | Present (Name/Position/degrees) |
-| Load block | Class Advising / Actual / **ARAL (0 min)** / Total — observed template content; **overridden: no ARAL component in ATLAS outputs** | ARAL 60 min (2025–2026, historical) | Present incl. Ancillary row; **no ARAL component**; `Total = advisory + actual + ancillary` (packet T6/M10; current builder still emits an `ARAL Program` row at `docx-export.service.ts:297-303` — removal required) |
+| Load block | Class Advising / Actual / **ARAL (0 min)** / Total — observed template content; **overridden: ATLAS outputs must carry no ARAL component** | ARAL 60 min (2025–2026, historical) | Present incl. Ancillary row; **PARTIAL/NONCOMPLIANT for ARAL absence** — the current builder still emits an `ARAL Program` load row (`docx-export.service.ts:297-303`); the no-ARAL load block with `Total = advisory + actual + ancillary` is the operator-required successor behavior (packet T6/M10), not current state |
 | Daily totals | “315 mins. (Monday–Friday)” + HGP note | “285 mins…” | Per-day table (Day × min) — different shape |
 | Ancillary | Time-slotted rows in schedule | Time-slotted rows | Weekly “Credited Non-Teaching Work” table |
 | Signatures | Teacher/School Head/PSDS/CID/ASDS (names printed) | Same | Roles present; names blank placeholders (configurable) |
@@ -333,14 +346,19 @@ Correct and must not be rewritten: Flag/HGP Monday-only overlay
 (`workbook-export.service.ts:75-80,604-613`), HG exclusion from cells and
 teacher rows (`:297`, `teacher-program-export.service.ts:283-286`,
 `class-program-matrix.service.ts:281-283`), AP ordinary, per-term demand
-5/term, no T1 coercion. **ARAL Program is operator-resolved as absent from
-class, teacher, room, and summary exports** — no demand, credit, cell, row,
-label, or empty placeholder. ARAL rows/minutes observed in beneficiary files
-(DNO “ARAL-Reading”, the SPEC template’s “ARAL 0 min” row, 2025–2026 “ARAL
-Program 60 min”, the reference workbook’s “ARAL 1/2” rows) are historical
-observed content overridden by this decision (packet T4/T6/T7/M8); the current
-teacher builder still emits an `ARAL Program` load row
-(`docx-export.service.ts:297-303`) whose removal is required by T6/M10.
+5/term, no T1 coercion. **Operator requirement:** ARAL Program must be absent
+from class, teacher, room, and summary exports — no demand, credit, cell, row,
+label, or empty placeholder. **Current state (verified):** the workbook entry
+filter excludes ARAL from class/summary cells (`workbook-export.service.ts:297`),
+teacher-program schedule rows exclude it (`teacher-program-export.service.ts:283-286`),
+and the matrix filters it (`class-program-matrix.service.ts:281-283`); the
+teacher DOCX is **NONCOMPLIANT** because it still emits an `ARAL Program` load
+row (`docx-export.service.ts:297-303`); the official room export does not exist
+yet. **Successor work:** T6/M10 remove the emitted load row; T4/T7/M8 enforce
+absence across the remaining outputs. ARAL rows/minutes observed in beneficiary
+files (DNO “ARAL-Reading”, the SPEC template’s “ARAL 0 min” row, 2025–2026
+“ARAL Program 60 min”, the reference workbook’s “ARAL 1/2” rows) are historical
+observed content overridden by this decision.
 Remaining open conventions: class-program family (D-C), period/shift
 canonicalization (D-D), learner-count source (D-E). Latent: teacher-program
 break rows lack the Flag→Monday day fallback used by the workbook
@@ -359,7 +377,8 @@ Corrected by packet T10 / M23. (Added in r2 after wave-audit finding F2.)
 ## 8. Missing source behavior vs unverified live behavior
 
 **Missing/incorrect source behavior (correctable now, no live dependency):**
-G1, G2, G3, G4, G5, G6, G7, G8, G11, G10 (docs).
+G1, G2, G3, G4, G5, G6, G7, G8, G10 (docs), G11, G12 (teacher-DOCX `ARAL
+Program` load row), G13.
 
 **Unverified live behavior (explicitly NOT claimed by this audit):**
 - Actual ATLAS-generated files from a real current-year run (no live run access
@@ -407,8 +426,10 @@ separately gated HIGH actions. None of those were touched by this audit.
 deliverable set does not include editing pre-existing docs).
 
 **Preserve (must not be rewritten):** per-term demand 5/term + rotation
-isolation tests; no implicit T1 coercion; HG exclusion; ARAL Program absent
-from every output (no demand, credit, cell, row, label, or placeholder);
+isolation tests; no implicit T1 coercion; HG exclusion; the operator-required
+ARAL absence across every output (no demand, credit, cell, row, label, or
+placeholder; existing workbook/matrix exclusion enforcement preserved; teacher
+DOCX compliance pending successor T6/M10);
 AP ordinary; Flag Monday-only overlay with Tue–Fri teachable; actor-school
 scope with zero dispatch; client term-bound requests, all-term disable, visible
 retryable errors, single-flight; export services read-only; published workbook

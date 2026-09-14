@@ -10,7 +10,7 @@ and source audit; operator-activated `CYCLE ON`)
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`
 **Worktree/branch:** `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05`
 / `audit/stakeholder-export-parity-c05`
-**Docs candidate:** revision r3 — r1 candidate `5eb14664`, r1 remedy `9d2c2527`, r2 capsule/D1 closing `9eb91426` + `d39f6064`, r3 operator-correction `8da80464`, plus the r3 closing commit (r3 `AUDIT_CLEAR` capsule + this update; final tip recorded in the cycle return). Prior capsules preserved.
+**Docs candidate:** revision r4 — r3 chain (`8da80464` + `e02ba41e`) plus the r4 truth-correction commit (this revision; final tip recorded in the cycle return). Prior capsules preserved.
 **Correction history (this cycle):** round 1 — fresh auditor
 `ses_f5f80ea3dffeiRaYCNpIzKs8nM` returned `CORRECTION_REQUIRED`
 (16/15/0/1; F2 material: contract §7.11 declared ABSENT but mapped to no
@@ -29,13 +29,29 @@ verified every ARAL/AP occurrence across the final docs and successor packet —
 `ses_f5f55ef56ffeWQtq1twsXgHmvi` returned `AUDIT_CLEAR` 16/16/0/0 (zero ARAL
 violations; capsule r3 closing). The r2 capsule is retained as historical
 evidence and is superseded for closure purposes by this r3 record.
+**Round 4 (C05R4 truth correction, 2026-09-14):** operator-issued
+`CORRECTION_REQUIRED` for contradictory current-state ARAL claims — the
+analysis and this handoff no longer claim “correctly enforced ARAL absence”;
+the teacher DOCX is classified **PARTIAL/NONCOMPLIANT for ARAL absence** until
+successor T6/M10 removes the emitted `ARAL Program` load row; operator-required
+behavior, verified current state, and successor work are now separated across
+the four primary documents; the settled operator contract is unchanged and D-A
+remains closed; a targeted r4 audit verifies zero contradictory current-state
+claims (result recorded in capsule r4).
 
 ## Verdict
 
 Beneficiary-export parity is **PARTIAL** — not ready. The audit confirmed three
 genuinely wired, actor-scoped, zero-write official export routes
-(summary/class/teacher) with correctly enforced ARAL absence, HG exclusion, AP,
-and Flag semantics, and confirmed
+(summary/class/teacher). Current-state ARAL handling is output-specific: the
+workbook entry filter excludes ARAL/HG from class/summary cells
+(`workbook-export.service.ts:297`), teacher-program schedule rows exclude them
+(`teacher-program-export.service.ts:283-286`), and the matrix filters them
+(`class-program-matrix.service.ts:281-283`); HG exclusion, the Flag/HGP
+Monday-only overlay, and ordinary AP are implemented. However the teacher DOCX
+is **NONCOMPLIANT for ARAL absence** — it still emits an `ARAL Program` load row
+(`docx-export.service.ts:297-303`) until successor T6/M10 removes it; the room
+program export does not exist yet. The audit also confirmed
 these blocking/material gaps: **G1** server all-term fail-open;
 **G2** published teacher-program term loss + missing run binding; **G3**
 class-program template-parity layout; **G4** room program export absent; **G5**
@@ -51,7 +67,7 @@ claims; **G11** room read write-on-read. Full evidence with file:line:
 3. `docs/prompts/beneficiary-export-parity-one-shot-c05-2026-09-14.md`
 4. This handoff.
 5. `docs/reviews/stakeholder-export-parity-audit-c05/lane-{a,b,c}.md`
-   (raw lane evidence) + the wave audit capsule to follow.
+   (raw lane evidence) + the wave audit capsules r1–r3 (r4 to follow).
 
 ## Lane and auditor provenance
 
