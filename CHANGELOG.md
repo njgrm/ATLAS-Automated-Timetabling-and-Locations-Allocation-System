@@ -1,5 +1,44 @@
 # Changelog
 
+## [2026-09-14] — EnrollPro Proxy Recovery Source Correction
+
+### Added
+- `ops/runtime/lib/enrollpro-origin.mjs`: one shared normalizer/resolver for the supervised
+  EnrollPro origin (`ENROLLPRO_PROXY_ORIGIN`), reused by the supervisor target builder, the
+  production-host entry point, and the host library.
+- Fail-closed client companion configuration (`atlas-client/src/lib/companion-config.ts`) and a
+  rendered `BackToEnrollProLink` component shared by the desktop sidebar and mobile drawer.
+- Prepared HIGH live-recovery packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`
+  (release `54dce67b`, two-key durable environment change, supervised restart, acceptance matrix,
+  rollback; approval NOT GRANTED).
+
+### Changed
+- `buildTargets` resolves the EnrollPro origin from the composed child environment so a durable
+  operator value overrides a conflicting inherited process value (previously the raw inherited
+  `env` was read and the localhost default silently used).
+- CLI `start`/`rollback` require an explicit origin and fail closed with typed
+  `ENROLLPRO_PROXY_ORIGIN_MISSING`/`ENROLLPRO_PROXY_ORIGIN_INVALID` before any child spawn;
+  `stop`/`status` remain usable; the dev default applies only outside the launch gate.
+- `ops/runtime/host.mjs` requires and validates `ATLAS_HOST_ENROLLPRO_TARGET` (no `|| apiTarget`
+  fallback); an unreachable EnrollPro upstream returns a bounded 502 while ATLAS health, readiness,
+  `/api`, and the SPA fallback stay available.
+- Companion navigation derives from `VITE_ENROLLPRO_URL` only and fails closed (no link) when
+  unresolved; the bridge-logout redirect targets `${base}/personnel/login`; retired raw-IP
+  fallbacks (`100.88.55.125`, `100.120.169.123:5002`) were removed from runtime examples and the
+  unreferenced `atlas-server/test-tailscale.mjs`/`test-secret.mjs` probes were deleted.
+
+### Decisions Made
+- The durable environment file (`ATLAS_RUNTIME_ENV_FILE`) wins over inherited process values;
+  pinned invariants are unaffected. A supervised production launch without an explicit origin
+  stops before listener replacement/spawn.
+- `atlas-server/src/app.ts` CORS defaults and `atlas-client/qa-artifacts/**` are explicitly out of
+  scope (not fallback code of this contract).
+- The live environment change, release install, and supervised 5001/5174 restart remain a separate
+  HIGH action; this cycle integrated source only.
+
+### Open Questions
+- None for source. The live recovery awaits the section-8 approval sentence after the wave audit.
+
 ## [2026-09-14] — Timetable Teaching Load Modules C04R1 Planning
 
 ### Added

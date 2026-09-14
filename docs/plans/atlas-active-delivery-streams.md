@@ -16,6 +16,20 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
+- Cycle recovery: `enrollpro-proxy-recovery-20260914` (`INTEGRATED_AUDIT_PENDING`)
+  activated 2026-09-14 (Asia/Manila) by the operator (`CYCLE ON`) for the packet
+  `docs/prompts/enrollpro-proxy-recovery-c01-2026-09-14.md`. Executor (resumed
+  after one transport failure) candidate `54dce67b8392cbce09aa810813c37f9c87a67159`
+  on base `d61c38d0` (25 paths); fresh QA `ses_f61b68675ffeBSr746jvBqOGXN`
+  `ACCEPT_READY` 14/14/0/0 (independent failing-first at base and a load-bearing
+  `baseEnv→env` mutant, byte-restored); integrated by merge `bc61ecd5` over
+  `24567e21` with a clean auto-union (no conflicts; candidate 25 paths + main's
+  2 docs paths). Combined gates on the merged tree: runtime 74/74, client 23/23,
+  client tsc+build, server build, `git diff --check`. The prepared HIGH packet
+  `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md` binds release
+  `54dce67b` and the two-key durable environment change; its approval is NOT
+  GRANTED pending the wave audit. No live env/process/port/database/task/
+  companion mutation occurred in this cycle.
 - Cycle recovery: `tl-suggestion-c03r3-20260914` (`COMPLETE`) closed
   2026-09-14 Asia/Manila. C03R3 correction `83415bd9` (base `c46cb06f`) passed
   fresh independent QA `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY`
@@ -449,6 +463,8 @@ hard blockers before separately approving publication.
 | TT-TL-AUTHORITY-GUARD-C04 | Close the server-side actor-school/year, qualification, source-snapshot, phantom reconciliation, annual CAS, and strict-publication gaps before exposing Timetable Teaching Load modules | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 11/11 | MEDIUM server source; HIGH write-authority implications | `work/tt-tl-authority-guard-c04`; base `e3882ca0`; candidate `7b31c592`; integration `6d244d5e` | None in source; live writes remain separately gated | Fresh QA `ses_f64d2ef8cffeRcQvFw74SsLLZA` `ACCEPT_READY` 16/16/0/0 (mounted authority matrix with zero dispatch/writes; typed stale snapshot/CAS; phantom reconciliation apply retired; strict predicate; disposable-PostgreSQL 46/46 with zero residue); combined integration gates green | Wave Completion Audit is the only remaining step; later S3 consumes these guarded APIs and must not duplicate them |
 | TT-TL-MODULES-C04 | Focused TL owner/departure/redistribution/qualification/availability/setup-drift modules with canonical authority and route guards; strict TL-repair publication predicate | `PLANNED` (packet ready; wave audit cleared) | MEDIUM source; HIGH write guards | Packet `docs/prompts/timetable-teaching-load-modules-one-shot-c04-2026-09-13.md`; worktree not created | Wave audit cleared; class 5 remains blocked on decision D1 | Authored from findings B-01/B-07/B-15/CP-8 and the CP-2 server half; consumes the guarded APIs from S3 | Dispatch a fresh executor from `92c14f95` for the non-D1 modules; keep class 5 deferred until D1; verify (not duplicate) the shared strict-predicate helper |
 | TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `PLANNED` (registered successor; scope in contract §7 plus wave-audit F1/F3) | MEDIUM server source; HIGH generation | No packet yet; scope defined in the contract | Wave audit cleared; coordinates with TT-TL-MODULES-C04 (TL repair binding) | Findings B-03/B-04/B-06(server)/B-09/B-13(server)/B-11(server remainder); binding pattern at `timetable-sync-setup.service.ts:689-731`; wave-audit F3 (`blockingHardViolationCount` dropped by post-generation summary merges at `manual-edit.service.ts:696-724`) and F1 (stale `/campus-rooms` href at `simplePublishReadiness.ts:66-67`) | Author the packet from `92c14f95`; verify (not duplicate) the shared strict-predicate helper |
+| ENROLLPRO-PROXY-RECOVERY-C01 | Make the supervised production host consume one explicit durable HTTPS EnrollPro origin, fail closed on invalid configuration, keep degraded ATLAS operation, and remove stale raw-IP companion fallbacks | `INTEGRATED` — wave audit pending | MEDIUM source/test; live env + supervised restart stays HIGH | `work/enrollpro-proxy-recovery-c01`; base `d61c38d0`; candidate `54dce67b`; merge `bc61ecd5` on `origin/main` | Live recovery remains separately gated HIGH (packet prepared) | Fresh QA `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 (independent failing-first at base + load-bearing `baseEnv→env` mutant restored byte-exact); combined merged-tree gates green (runtime 74/74, client 23/23, client tsc/build, server build, diff-check) | Closed in source; request the prepared HIGH approval only after the wave audit; do not execute the live packet without it |
+| ENROLLPRO-PROXY-RECOVERY-LIVE | Set the durable EnrollPro origin + install release `54dce67b` and restart supervisor-owned 5001/5174 | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime env change + install/restart | Packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`; release `54dce67b` (descends from reviewed pin `d44f29e0`); incumbent `3d916b26` retained for rollback | Exact operator approval NOT GRANTED; wave audit pending | Prepared-time snapshot: listeners 5001→19448 / 5174→10880 under supervisor 3132; supervisor state `running` release `3d916b26`; durable env `D:\ATLAS-runtime-config\atlas-server.env` has `ENROLLPRO_API` and no `ENROLLPRO_PROXY_ORIGIN`; proxy `/enrollpro-api/settings/public` 502 vs direct EnrollPro 200 | After `AUDIT_CLEAR` and capsule commit, present the exact approval sentence; do not execute |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
 
@@ -556,6 +572,13 @@ hard blockers before separately approving publication.
     blocked on the offline EnrollPro host), Teaching Load apply, generation,
     publication, deployment, and migration remain separately gated HIGH actions
     and are not authorized by this cycle.
+13. `ENROLLPRO-PROXY-RECOVERY-C01` is integrated at `54dce67b` (merge
+    `bc61ecd5`); `ENROLLPRO-PROXY-RECOVERY-LIVE` is prepared but NOT approved
+    (packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`). After
+    the wave audit clears the packet, request the exact HIGH approval; on
+    approval, execute the packet, verify its acceptance matrix, and then resume
+    the EnrollPro-dependent rows (term-cache re-capture once the EnrollPro entry
+    point is reachable). Generation and publication remain locked.
 
 ## Safe parallel work now
 
@@ -605,6 +628,14 @@ hard blockers before separately approving publication.
    or service, or alter the shared 5001/5174 runtime. The term-cache
    catch-up capture is externally blocked on the offline EnrollPro host (the
    2026-09-13 login is consumed); its apply stays separate and unbound.
+- `ENROLLPRO-PROXY-RECOVERY-C01` is integrated at `54dce67b`; its live
+  environment/install/restart packet is prepared and NOT approved. Until the
+  exact approval is granted, no lane may touch
+  `D:\ATLAS-runtime-config\atlas-server.env`, the supervisor task, or ports
+  5001/5174. A concurrent C04R1 correction lane is observed on `origin/main`
+  (`4a3d48a3`, `24567e21`, docs-only; see `CHANGELOG.md`); its ownership remains
+  with that stream and it shares no file scope with this cycle beyond the
+  changelog union.
 - Shared `CHANGELOG.md`, runtime source maps, and this register belong to the
   integration owner; executor documentation overlap is resolved at integration.
 
@@ -735,6 +766,11 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   term-cache catch-up re-capture (externally blocked on the offline EnrollPro
   host; fresh one-login authorization needed; its apply remains a separate HIGH
   action).
+- `ENROLLPRO-PROXY-RECOVERY-C01`: no executor or QA return remains (candidate
+  `54dce67b`, fresh QA `ACCEPT_READY` 14/14/0/0); the Wave Completion Audit is
+  in flight. The next operator decision is the prepared HIGH live-recovery
+  approval and it is NOT GRANTED (exact sentence in
+  `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md` §8).
 - Observation backlog (non-blocking, no new executor stream authorized): the
   non-listed runtime mutation routes still default `parseSchoolId` to school 1
   (`atlas-server/src/routes/runtime.router.ts:26-32` and its mutation call
