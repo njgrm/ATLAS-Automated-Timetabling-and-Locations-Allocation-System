@@ -14,7 +14,10 @@ Canonical directive: read `D:/ATLAS/AGENTS.md` directly. Its LF-normalized
 SHA-256 at preparation time is
 `4A501E7B0E90CD6D8AE8523DEF8B1B6EF932A7ADEC3FC0DF796C20192DBE5007`.
 If the hash has changed, re-read the root directive and carry the new hash in
-the executor and QA handoffs; the root copy wins.
+the executor and QA handoffs; the root copy wins. (Advanced 2026-09-14
+12:32 +08 to `4949c91b5a53a571c5c56c2fcbcee8c763712ceb838d4d8d8f8e50ccc8ee76b8`;
+the current hash is carried in the prepared live packet
+`docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`.)
 
 ## 1. Verified defect and current boundary
 

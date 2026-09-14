@@ -9,8 +9,11 @@ process restart on ports 5001/5174.** Prepared 2026-09-14 (Asia/Manila) by the
 primary planner after source integration of `ENROLLPRO-PROXY-RECOVERY-C01`.
 
 Canonical directive: `D:/ATLAS/AGENTS.md`, LF-normalized SHA-256
-`4A501E7B0E90CD6D8AE8523DEF8B1B6EF932A7ADEC3FC0DF796C20192DBE5007` (read the
-root file directly; the tracked worktree copies are stale where they differ).
+`4949c91b5a53a571c5c56c2fcbcee8c763712ceb838d4d8d8f8e50ccc8ee76b8` (recomputed
+at this packet correction 2026-09-14 after the root directive advanced mid-cycle
+from `4A501E7B…DBE5007` at 12:32 +08; the source prompt's preparation-time pin
+is preserved there as historical record — read the root file directly and carry
+this current hash in every execution handoff).
 
 ## 1. Objective
 
@@ -83,10 +86,18 @@ Re-verify every value at execution preflight; abort if any identity changed.
 3. **Release install.** Create/verify the release directory
    `D:\ATLAS-runtime-supervised-54dce67b-20260914` containing a clean checkout of
    the exact release `54dce67b` with built artifacts:
-   `atlas-server/dist` (from `npm run build` = `tsc`) and `atlas-client/dist`
-   (from `npm run build` = `vite build`; a Vite dev/HMR tree is rejected by
-   `assertProductionArtifact`). Never install unbuilt or dev output. Do not
-   modify the incumbent release directory
+   `atlas-server/dist` (from `npm run build` = `tsc`) and
+   `atlas-client/dist` (from `npm run build` = `vite build`; a Vite dev/HMR tree
+   is rejected by `assertProductionArtifact`). **The client build MUST be given
+   the explicit companion origin as a build-time input:
+   `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`** (Vite bakes it
+   into the bundle; machine/user env is empty and the candidate removed the
+   raw-IP defaults, so building without it would silently drop the reciprocal
+   "Back to EnrollPro" link and leave the Integrated Systems EnrollPro row
+   disabled). Never use a raw-IP or other school-specific value.
+   `VITE_ENROLLPRO_SSO_START_URL` is not required — the reverse start derives as
+   `${VITE_ENROLLPRO_URL}/api/auth/companion-sso/atlas/reverse/start`. Never
+   install unbuilt or dev output. Do not modify the incumbent release directory
    `D:\ATLAS-runtime-supervised-3d916b26-20260912`.
 4. **Supervisor boundary re-point.** Update the machine-level
    `ATLAS_RUNTIME_SOURCE_DIR` to the new release directory and
@@ -142,6 +153,14 @@ other Windows task, and any repository commit/push beyond this prepared packet.
    secrets; no unbounded console noise.
 10. Database delta: `audit_logs` count and `_prisma_migrations` count unchanged
     before vs after; no login occurred; no other write.
+11. Companion-navigation build parity (no login): the built client bundle served
+    by the host (resolve the JS asset referenced by `GET /`) must contain
+    `dev-jegs.buru-degree.ts.net` as the companion base and must contain neither
+    `100.88.55.125` nor `100.120.169.123`. The configured-base resolution
+    (`${base}/dashboard`, `${base}/personnel/login`, reverse start) is covered
+    by the committed client tests (23/23); the rendered authenticated
+    confirmation belongs to a later login-authorized session and is NOT part of
+    this packet.
 
 ## 7. Rollback (per stage)
 
@@ -165,7 +184,8 @@ other Windows task, and any repository commit/push beyond this prepared packet.
 > `D:\ATLAS-runtime-config\atlas-server.env` to an operator-only path; set
 > exactly `ENROLLPRO_PROXY_ORIGIN=https://dev-jegs.buru-degree.ts.net` and
 > `ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api` in that file; build
-> and install release `54dce67b8392cbce09aa810813c37f9c87a67159` at
+> the client with `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net` and
+> install release `54dce67b8392cbce09aa810813c37f9c87a67159` at
 > `D:\ATLAS-runtime-supervised-54dce67b-20260914` and re-point
 > `ATLAS_RUNTIME_SOURCE_DIR`/`ATLAS_RUNTIME_RELEASE_SHA` and the
 > `ATLAS-Runtime-Supervisor` task action to it; stop and restart only the
@@ -174,7 +194,9 @@ other Windows task, and any repository commit/push beyond this prepared packet.
 > 10880, release `3d916b26`, as re-verified at execution preflight); run the
 > packet's acceptance matrix (local/Tailnet health and readiness 200, public
 > `/enrollpro-api/settings/public` 200 with direct-upstream parity,
-> `/enrollpro-uploads` non-502, SPA/API continuity, one owner per port,
+> `/enrollpro-uploads` non-502, SPA/API continuity, companion-navigation build
+> parity (configured EnrollPro origin present in the served bundle, retired raw
+> IPs absent), one owner per port,
 > bounded/redacted logs, zero database delta, no login); and on any mandatory
 > failure roll back by restoring the environment backup and restarting prior
 > release `3d916b26`. Excluded: port 5175, unrelated processes, Tailscale Serve,
@@ -187,7 +209,9 @@ other Windows task, and any repository commit/push beyond this prepared packet.
 
 Return: preflight re-probe results and exact incumbent identity; backup path +
 size + SHA-256; the two key changes (names only); release dir + `rev-parse HEAD`
-+ build results; task re-point record; quiesce/start transcript (bounded);
++ build results (including the exact client build invocation with
+`VITE_ENROLLPRO_URL` and the canonical directive hash the executor read);
+task re-point record; quiesce/start transcript (bounded);
 acceptance matrix with per-row PASS/FAIL and raw status codes; DB before/after
 counts; rollback record if used; explicit statement that no excluded action
 occurred; and the final live identity (supervisor PID, children PIDs,

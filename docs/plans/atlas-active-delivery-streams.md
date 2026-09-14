@@ -28,8 +28,10 @@ hard blockers before separately approving publication.
   client tsc+build, server build, `git diff --check`. The prepared HIGH packet
   `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md` binds release
   `54dce67b` and the two-key durable environment change; its approval is NOT
-  GRANTED pending the wave audit. No live env/process/port/database/task/
-  companion mutation occurred in this cycle.
+  GRANTED pending the wave audit. No agent-initiated live env/process/port/
+  database/task/companion mutation occurred in this cycle (the running
+  supervisor/children PIDs and state-file timestamps changed only through the
+  2026-09-14 12:56 +08 unplanned OS reboot auto-start).
 - Cycle recovery: `tl-suggestion-c03r3-20260914` (`COMPLETE`) closed
   2026-09-14 Asia/Manila. C03R3 correction `83415bd9` (base `c46cb06f`) passed
   fresh independent QA `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY`
