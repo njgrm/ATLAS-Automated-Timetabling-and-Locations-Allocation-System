@@ -34,7 +34,7 @@ hard blockers before separately approving publication.
   `a51b62a2…`, fingerprint
   `d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81`,
   `confirmationText` `SAVE_TERM_AUTHORITY_1_9`, `zeroWrite:true`, cleanup
-  `/auth/me` 401 `NO_TOKEN` (candidate `9c19b772`). Fresh QA
+  `/auth/me` 401 `NO_TOKEN` (candidate `9c19b772`; integrated as `16e91fd8`). Fresh QA
   `ses_f60bc2230ffePHmYhV99tiOfTm` `ACCEPT_READY` 8/8/0/0 (independent
   fingerprint recomputation, fresh raw upstream parity, live DB
   before/after signatures, secret scan). No apply/rollover/TL/generation/
