@@ -690,9 +690,20 @@ hard blockers before separately approving publication.
     resume the EnrollPro-dependent rows (the term-cache capture is complete;
     only its separately gated apply remains). Generation
     and publication remain locked.
+14. WF-C01 (`workflow-foundation-wfc01`) is `INTEGRATION_READY` on the
+    integration boundary `e617647d` (register recording `aaf73d51` over
+    `be1a2d6f`; candidate `bcee9d0d`; base `29284ac6`). The fresh Wave
+    Completion Auditor verdict is the only outstanding gate; after
+    `AUDIT_CLEAR` the planner applies the docs-only closure (state `COMPLETE`
+    + machine receipt), pushes, and records the capsule. No live, HIGH,
+    database, runtime, or publication action is unlocked by this stream.
 
 ## Safe parallel work now
 
+- WF-C01 is `INTEGRATION_READY` with its wave audit pending on the
+  integration boundary (`e617647d`, register recording `aaf73d51`). Its
+  remaining work is planner-owned audit and closure recording and shares no
+  product file with any other stream; no live/HIGH action is unlocked.
 - The C04 authority wave is integrated and wave-audited `AUDIT_CLEAR`.
   `TT-TL-MODULES-C04` C04R1 correction is integrated at merge `eb60d78b` and
   its wave audit was re-verified and closed by the recovery cycle (r2
@@ -761,6 +772,9 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
 
 ## Awaited returns and decisions
 
+- `WF-C01`: awaiting only the fresh Wave Completion Auditor verdict over the
+  integrated tip (`e617647d`; register recording `aaf73d51`). No executor or
+  QA return remains; no operator decision is awaited for this cycle.
 - `tt-tl-modules-c04r1-recovery-20260914`: closed; no return remains. The
   recovery re-verified the docs correction (fresh QA
   `ses_f6113fbc6ffeqDNLqJBtZTW7fh` 7/7/0/0) and closed with fresh auditor
