@@ -363,10 +363,11 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 > — expected successful write being mirror `223` receiving the captured
 > ordered-term contract, `termContractCachedAt` becoming non-null, and exactly
 > one scoped `TERM_CACHE_SYNC_APPLIED` audit row — plus the authenticated
-> read-only acceptance GETs of §8.4 (TT-TL rows 4–5), and, only if that apply
-> commits but the mandatory post-write verification fails, the single §9
-> rollback restoring mirror 223 `termContractCache`/`termContractCachedAt` to
-> NULL/NULL while retaining the immutable audit row; (3) forbid every action in
+> read-only acceptance GETs of §8.4 (TT-TL rows 4–5); and authorize the live
+> executor to perform, only if that apply commits but the mandatory post-write
+> verification fails, the single §9 rollback restoring mirror 223
+> `termContractCache`/`termContractCachedAt` to NULL/NULL while retaining the
+> immutable audit row; (3) forbid every action in
 > §10 (no second login, no second apply or replay request, no
 > rollover/sync/archive, no Teaching Load action, no timetable
 > edit/sync/generation/publication, no migration/schema operation, no runtime
