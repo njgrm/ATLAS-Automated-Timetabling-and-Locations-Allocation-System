@@ -108,7 +108,7 @@
       "observations": [],
       "artifacts": [
         { "path": "ops/workflow/schema/cycle-state.schema.json", "sha256": "6125be928cc9eac70dcda86c76242105ce0107a72a9abc12ee2f9010e5128101" },
-        { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "f717c7f158549b549b6cfc6fad39d7f9e2e4e9acbc174306490ca96b2963c236" }
+        { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "a259fa31804b30c519b64166ee11554bc040786751274bf3d2e0dac274bff43b" }
       ],
       "closure": null,
       "sessionRouting": {
