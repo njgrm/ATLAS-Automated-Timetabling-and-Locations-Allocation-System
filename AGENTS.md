@@ -23,6 +23,54 @@ After **every output that changes code or files**, suggest a conventional-commit
 - Do not create temporary Python/Node/shell helper scripts whose purpose is to apply bulk text replacements.
 - If a scripted transformation is absolutely required, ask user approval first and remove the helper script immediately after completion.
 
+## Workspace Capacity And Worktree Lifecycle Rule
+
+`D:/ATLAS-worktrees` is temporary execution capacity, not a permanent archive.
+Git branches, commits, pushed review artifacts, and the living register preserve
+history; retaining every completed checkout and its dependency tree does not.
+
+- Before creating a worktree, installing dependencies, generating a large
+  fixture, or starting a build expected to consume substantial disk, record the
+  target volume's free space. On `D:`, warn at less than **25 GiB free** and
+  fail closed at less than **15 GiB free**. Below the hard floor, do not create
+  another full checkout or dependency tree; retire eligible historical
+  worktrees or obtain an explicit operator exception first. PostgreSQL also
+  uses `D:`, so database headroom is part of this safety gate.
+- Keep at most **12 active task worktrees** under `D:/ATLAS-worktrees` by
+  default. A larger parallel wave must name why each additional checkout is
+  simultaneously necessary and how it will be retired. Integration worktrees
+  count toward this limit and must not remain merely as historical evidence.
+- Every stream handoff must include a worktree disposition: `KEEP_ACTIVE`,
+  `RETIRE_AFTER_INTEGRATION`, or `PRESERVE_FOR_DECISION`. After a candidate is
+  integrated and pushed, the integration owner shall retire its clean inactive
+  candidate and integration worktrees in the same closure cycle unless a named
+  successor still owns them. The living register must name that owner and
+  retention reason; a terminal cycle without a disposition is incomplete.
+- Before retiring any worktree, refresh `origin/main` and record its exact path,
+  branch or detached state, HEAD, complete `git status --short`, ancestry or
+  tree-equivalence evidence, register references, and active-process/session
+  references. Preserve every dirty worktree, unintegrated candidate, active or
+  awaited stream, unresolved review candidate, and uncertain owner for a
+  planner decision.
+- Retire registered worktrees only with
+  `git worktree remove <exact-validated-path>` followed by `git worktree prune`.
+  Never use `--force`, raw recursive deletion, a glob, or a computed path that
+  has not been resolved and proven to be a direct child of
+  `D:/ATLAS-worktrees`. Worktree retirement never authorizes branch deletion.
+- Never retire or modify `D:/ATLAS`, Codex-managed worktrees under the user
+  profile, `D:/ATLAS-runtime-*`, `D:/ATLAS-runtime-config`, PostgreSQL storage,
+  companion repositories, `stakeholderFiles`, or preservation/backup
+  directories through a historical-worktree cleanup packet.
+- Do not duplicate `node_modules` casually across worktrees. Reuse an existing
+  dependency tree only when the lockfile identity is verified, the shared tree
+  is treated read-only, and the junction/symlink target is recorded. Never run
+  an install through a shared junction and never count or delete its target as
+  part of worktree retirement. If an isolated install is necessary, the disk
+  floor still applies and its cleanup owner must be named.
+- At planner startup and cycle closure, reconcile `git worktree list` with the
+  living register. Worktree existence alone never means a stream is running;
+  stale terminal worktrees are cleanup debt and must be queued immediately.
+
 ## External Subsystem Source Protection Rule
 
 - Only source files inside the ATLAS repository may be edited during ATLAS work.

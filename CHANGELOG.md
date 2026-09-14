@@ -5118,3 +5118,31 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
   explicitly, or is their displacement as non-demand records acceptable?
 - Deployment of the corrected sync remains a separate HIGH action with its own
   reviewed preview and explicit approval.
+## [2026-09-14] — Worktree Capacity And Retirement Workflow
+
+### Added
+- Added a guarded historical-worktree retirement packet with a per-path
+  eligibility manifest, fresh pre-action audit, bounded Git-native removal,
+  and fresh post-action verification.
+- Added permanent disk warning and hard-stop thresholds plus a default active
+  worktree budget to the tracked agent directive.
+
+### Changed
+- Made terminal-cycle worktree disposition and prompt cleanup ownership
+  mandatory so integrated candidate and integration checkouts do not accumulate
+  indefinitely.
+- Required dependency-tree reuse to be lockfile-verified and read-only, and
+  prohibited installs through shared junctions.
+
+### Decisions Made
+- Historical worktrees are temporary execution capacity; Git commits, branches,
+  review artifacts, and the living register are the durable evidence.
+- Cleanup may retire only registered, clean, merged, inactive direct children
+  of `D:/ATLAS-worktrees`, using non-forced `git worktree remove` after a fresh
+  manifest audit.
+- Dirty, unmerged, active, uncertain, runtime, backup, database, companion, and
+  Codex-managed paths remain preserved.
+
+### Open Questions
+- None for the bounded first-pass retirement cycle; ambiguous worktrees are
+  preserved for a later explicit decision.
