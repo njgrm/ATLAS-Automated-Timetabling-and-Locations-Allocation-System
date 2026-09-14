@@ -16,8 +16,8 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Cycle recovery: `workflow-foundation-wfc01` (`INTEGRATION_READY` — wave
-  audit pending) activated 2026-09-14 (Asia/Manila) by the operator
+- Cycle recovery: `workflow-foundation-wfc01` (`COMPLETE` — wave-audited and
+  receipt-pinned) activated 2026-09-14 (Asia/Manila) by the operator
   (`CYCLE ON`) for WF-C01: a repository-owned machine-readable delivery-cycle
   state contract, fail-closed verifier, deterministic Markdown register
   renderer, and hermetic regression fixtures. Executor
@@ -34,7 +34,12 @@ hard blockers before separately approving publication.
   verify exit 0, renderer output byte-identical). The machine register is
   `docs/plans/atlas-delivery-cycles.json` with its generated projection at
   `docs/plans/atlas-active-delivery-streams.generated.md`; the historical
-  prose register is preserved. No live/HIGH action was executed.
+  prose register is preserved. The fresh re-audit
+  `ses_f6061f82effeG93vM9t2z7iqjB` returned `AUDIT_CLEAR` 13/13/0/0; closure
+  applied with receipt
+  `docs/plans/receipts/wf-c01.receipt.json` (`30e62324…`) and state
+  `COMPLETE`, and coordination returned to `MANUAL`. No live/HIGH action was
+  executed.
 - Cycle recovery: `term-cache-catchup-preview-20260914` (`INTEGRATED` —
   capture complete; apply remains locked and unbound) activated 2026-09-14
   (Asia/Manila) by the operator (`CYCLE ON`) to resume
@@ -573,7 +578,7 @@ hard blockers before separately approving publication.
 | TT-SOURCE-FRESHNESS-C04 | Bind generation/quick-place/sync outputs to their read snapshots, surface ordered-term authority in run freshness, and carry quick-place/sync strict-predicate alignment | `PLANNED` (registered successor; scope in contract §7 plus wave-audit F1/F3) | MEDIUM server source; HIGH generation | No packet yet; scope defined in the contract | C04 authority wave audit cleared; coordinates with TT-TL-MODULES-C04 (TL repair binding) | Findings B-03/B-04/B-06(server)/B-09/B-13(server)/B-11(server remainder); binding pattern at `timetable-sync-setup.service.ts:689-731`; wave-audit F3 (`blockingHardViolationCount` dropped by post-generation summary merges at `manual-edit.service.ts:696-724`) and F1 (stale `/campus-rooms` href at `simplePublishReadiness.ts:66-67`) | Author the packet from `92c14f95`; verify (not duplicate) the shared strict-predicate helper; fold in the C04R1 dead-export removal and the capability-override `Serializable` assertion note |
 | ENROLLPRO-PROXY-RECOVERY-C01 | Make the supervised production host consume one explicit durable HTTPS EnrollPro origin, fail closed on invalid configuration, keep degraded ATLAS operation, and remove stale raw-IP companion fallbacks | `INTEGRATED` — wave-audit r2 closed (`AUDIT_CLEAR` 11/11/0/0; corrected packet audited at `b258357a`) | MEDIUM source/test; live env + supervised restart stays HIGH | `work/enrollpro-proxy-recovery-c01`; base `d61c38d0`; candidate `54dce67b`; merge `bc61ecd5` on `origin/main` | Live recovery remains separately gated HIGH (corrected packet audited; awaiting exact approval) | Fresh QA `ses_f61b68675ffeBSr746jvBqOGXN` `ACCEPT_READY` 14/14/0/0 (independent failing-first at base + load-bearing `baseEnv→env` mutant restored byte-exact); combined merged-tree gates green (runtime 74/74, client 23/23, client tsc/build, server build, diff-check) | Source closed; return the revised exact HIGH approval (NOT GRANTED); do not execute the live packet without it |
 | ENROLLPRO-PROXY-RECOVERY-LIVE | Set the durable EnrollPro origin + install release `54dce67b` and restart supervisor-owned 5001/5174 | `HIGH_APPROVAL_REQUIRED` | HIGH shared-runtime env change + install/restart | Packet `docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`; release `54dce67b` (descends from reviewed pin `d44f29e0`); incumbent `3d916b26` retained for rollback | Exact operator approval NOT GRANTED; corrected packet audited at `b258357a` (r2 `AUDIT_CLEAR`; carry the r2 execution-preflight notes); product/test bytes unchanged | Prepared-time snapshot: listeners 5001→19448 / 5174→10880 under supervisor 3132; supervisor state `running` release `3d916b26`; durable env `D:\ATLAS-runtime-config\atlas-server.env` has `ENROLLPRO_API` and no `ENROLLPRO_PROXY_ORIGIN`; proxy `/enrollpro-api/settings/public` 502 vs direct EnrollPro 200 | Return the revised exact approval sentence (NOT GRANTED); do not execute |
-| WF-C01 | Machine-readable delivery-cycle state contract, fail-closed verifier, deterministic Markdown register renderer, and hermetic regression fixtures (3 positive + 21 negative fixtures, 60 tests) | `INTEGRATION_READY` — re-audit pending | MEDIUM | `work/workflow-foundation-wfc01`; `29284ac6...6b2cb7f1`; merge `4fd18601` on `3d013421` | None in source; re-audit pending | First wave audit returned `CORRECTION_REQUIRED` (B1/B2); bounded R2 correction plus fresh QA `ses_f607299e6ffeZkGs0fgBELDS5C` `ACCEPT_READY` 23/23/0/0; R1 pins stable under `core.autocrlf=true`; merged-tree gates green | Run the fresh Wave Completion Auditor against `4fd18601`, then apply the docs-only closure and push |
+| WF-C01 | Machine-readable delivery-cycle state contract, fail-closed verifier, deterministic Markdown register renderer, and hermetic regression fixtures (3 positive + 21 negative fixtures, 60 tests) | `COMPLETE` — wave-audited, receipt-pinned | MEDIUM | `work/workflow-foundation-wfc01`; `29284ac6...6b2cb7f1`; merge `4fd18601` on `3d013421`; closure record | None | QA `ACCEPT_READY` 23/23/0/0; re-audit `ses_f6061f82effeG93vM9t2z7iqjB` `AUDIT_CLEAR` 13/13/0/0; receipt `docs/plans/receipts/wf-c01.receipt.json` (`30e62324…`); capsule `docs/reviews/workflow-foundation-wfc01/wave-completion-audit.md` | Closed; no return remains |
 | LIVE-GENERATION | Generate one current-year schedule and reach zero hard violations/unresolved sessions | `BLOCKED` | HIGH | Not started | GEN-C02 zero-hard-blocker preview and explicit approval | No current authorization | Prepare fingerprinted preview, independent QA, then request explicit generation approval |
 | LIVE-PUBLICATION | Publish the accepted zero-hard-blocker schedule | `BLOCKED` | HIGH | Publication authority source is integrated on `origin/main` | Completed current-year run with zero hard violations, fresh publication preview, independent QA, explicit approval | PUB-C01R3 source is integrated; no publication authorized | Begin only after successful generation and review closure |
 
@@ -693,20 +698,20 @@ hard blockers before separately approving publication.
     resume the EnrollPro-dependent rows (the term-cache capture is complete;
     only its separately gated apply remains). Generation
     and publication remain locked.
-14. WF-C01 (`workflow-foundation-wfc01`) is `INTEGRATION_READY` on the
-    integration boundary `4fd18601` (over `3d013421`; candidate `6b2cb7f1`;
-    base `29284ac6`). A fresh Wave Completion Auditor verdict is the only
-    outstanding gate; after `AUDIT_CLEAR` the planner applies the docs-only
-    closure (state `COMPLETE` + machine receipt), pushes, and records the
-    capsule. No live, HIGH, database, runtime, or publication action is
-    unlocked by this stream.
+14. WF-C01 (`workflow-foundation-wfc01`) closed `COMPLETE` on the integration
+    boundary `4fd18601` (over `3d013421`; candidate `6b2cb7f1`; base
+    `29284ac6`) with `AUDIT_CLEAR` 13/13/0/0 and receipt
+    `docs/plans/receipts/wf-c01.receipt.json` (`30e62324…`); the capsule is
+    `docs/reviews/workflow-foundation-wfc01/wave-completion-audit.md`. WF-C02
+    and WF-EVAL-C01 dependency gates are satisfied; dispatch requires a new
+    operator-activated cycle. No live, HIGH, database, runtime, or publication
+    action is unlocked by this stream.
 
 ## Safe parallel work now
 
-- WF-C01 is `INTEGRATION_READY` with its re-audit pending on the
-  integration boundary (`4fd18601`). Its remaining work is planner-owned
-  audit and closure recording and shares no product file with any other
-  stream; no live/HIGH action is unlocked.
+- WF-C01 is `COMPLETE` (audit `AUDIT_CLEAR` 13/13; receipt `30e62324…`) and
+  its two cycle worktrees are retired in this closure cycle per the capacity
+  rule. No WF-C01 work remains; no live/HIGH action is unlocked.
 - The C04 authority wave is integrated and wave-audited `AUDIT_CLEAR`.
   `TT-TL-MODULES-C04` C04R1 correction is integrated at merge `eb60d78b` and
   its wave audit was re-verified and closed by the recovery cycle (r2
@@ -775,9 +780,11 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
 
 ## Awaited returns and decisions
 
-- `WF-C01`: awaiting only the fresh Wave Completion Auditor verdict over the
-  integrated tip (`4fd18601`). No executor or QA return remains; no operator
-  decision is awaited for this cycle.
+- `WF-C01`: closed; no return remains. Closure receipt
+  `docs/plans/receipts/wf-c01.receipt.json` (`30e62324…`); capsule at
+  `docs/reviews/workflow-foundation-wfc01/wave-completion-audit.md`.
+  Successor dispatch (WF-C02 / WF-EVAL-C01) requires a new
+  operator-activated cycle.
 - `tt-tl-modules-c04r1-recovery-20260914`: closed; no return remains. The
   recovery re-verified the docs correction (fresh QA
   `ses_f6113fbc6ffeqDNLqJBtZTW7fh` 7/7/0/0) and closed with fresh auditor

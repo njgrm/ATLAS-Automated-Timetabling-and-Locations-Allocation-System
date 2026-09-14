@@ -1,10 +1,10 @@
 {
   "contractVersion": "1.0.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T19:09:00+08:00", "lastUpdatedBy": "primary-planner" },
+  "registry": { "lastUpdatedAt": "2026-09-14T19:36:00+08:00", "lastUpdatedBy": "primary-planner" },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "WF-C01",
-    "globalNextAction": "Run the fresh Wave Completion Auditor against integration merge 4fd18601; then apply the docs-only closure (state COMPLETE + receipt) and push."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "Dispatch the next operator-activated cycle (TT-SOURCE-FRESHNESS-C04 packet authoring and/or WF-C02 or WF-EVAL-C01); all live/HIGH actions remain locked."
   },
   "streams": [
     {
@@ -12,10 +12,10 @@
       "kind": "CYCLE",
       "objective": "Introduce the repository-owned machine-readable delivery-cycle state contract, a fail-closed verifier, a deterministic Markdown register renderer, and regression fixtures.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATION_READY",
-      "stateUpdatedAt": "2026-09-14T19:09:00+08:00",
-      "nextAction": "Run the fresh Wave Completion Auditor against integration merge 4fd18601; then apply the docs-only closure (state COMPLETE + receipt).",
-      "awaited": ["Wave Completion Auditor verdict (fresh adversarial context)"],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-14T19:36:00+08:00",
+      "nextAction": null,
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "D:\\ATLAS-worktrees\\workflow-foundation-wfc01",
@@ -76,13 +76,13 @@
         ]
       },
       "owners": {
-        "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
+        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
         "executor": { "sessionId": "ses_f60d597c3ffewjfwlh93OH31qO", "status": "RETURNED", "writable": false },
-        "qa": { "sessionId": "ses_f609c69e3ffeBW5SDmOoUA4QCf", "status": "RETURNED", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+        "qa": { "sessionId": "ses_f607299e6ffeZkGs0fgBELDS5C", "status": "RETURNED", "writable": false },
+        "auditor": { "sessionId": "ses_f6061f82effeG93vM9t2z7iqjB", "status": "RETURNED", "writable": false }
       },
       "gates": { "total": 23, "passed": 23, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C", "auditorVerdict": "AUDIT_CLEAR", "auditorSessionId": "ses_f6061f82effeG93vM9t2z7iqjB", "auditRequired": true },
       "corrections": [
         {
           "round": 1,
@@ -101,13 +101,13 @@
           "reason": "Wave-audit B1: the committed seed test asserted candidateSha === null, which the register recording legitimately violates at INTEGRATION_READY; R2 makes the invariant drift-proof (null-or-40-hex with negative controls) and reconciles the handoff lifecycle wording.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f6061f82effeG93vM9t2z7iqjB"
         }
       ],
       "successors": [
-        { "streamId": "WF-C02", "unlocked": false, "reason": "Locked until WF-C01 reaches INTEGRATED with ACCEPT_READY + AUDIT_CLEAR." },
-        { "streamId": "WF-EVAL-C01", "unlocked": false, "reason": "Locked until WF-C01 is COMPLETE and its contract is available as the baseline for evaluation work." }
+        { "streamId": "WF-C02", "unlocked": true, "reason": "Dependency satisfied: WF-C01 is COMPLETE with ACCEPT_READY + AUDIT_CLEAR + a minted receipt; dispatch requires a new operator-activated cycle." },
+        { "streamId": "WF-EVAL-C01", "unlocked": true, "reason": "Dependency satisfied: WF-C01 is COMPLETE and its contract is available as the evaluation baseline; dispatch requires a new operator-activated cycle." }
       ],
       "requires": [],
       "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
@@ -120,7 +120,7 @@
         { "path": "ops/workflow/schema/cycle-state.schema.json", "sha256": "6125be928cc9eac70dcda86c76242105ce0107a72a9abc12ee2f9010e5128101" },
         { "path": "docs/handoffs/wf-c01-executor.md", "sha256": "a259fa31804b30c519b64166ee11554bc040786751274bf3d2e0dac274bff43b" }
       ],
-      "closure": null,
+      "closure": { "receipt": { "path": "docs/plans/receipts/wf-c01.receipt.json", "sha256": "30e62324626fe0a4f99c205160c837cd047a356f403a9c049a2f2e7c4d655c97" } },
       "sessionRouting": {
         "planner": { "decision": "EXISTING", "sessionId": null, "reason": "primary planner owns this cycle's continuity, integration and closure updates" },
         "executor": { "decision": "EXISTING", "sessionId": "ses_f60d597c3ffewjfwlh93OH31qO", "reason": "bounded corrections within this packet return to the same executor session" },

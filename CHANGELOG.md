@@ -1,5 +1,31 @@
 # Changelog
 
+## [2026-09-14] — WF-C01 Delivery-Cycle State Contract And Wave Closure
+
+### Added
+- `ops/workflow/**`: machine-readable cycle-state schema, fail-closed verifier
+  (`workflow:verify`), deterministic register renderer (`workflow:render`),
+  24 fixtures (3 positive / 21 negative), 60 hermetic Node-builtin tests
+  (`workflow:test`), and an artifact-portability regression with a CRLF mutant.
+- `docs/plans/atlas-delivery-cycles.json`: authoritative machine register,
+  seeded with WF-C01 and four active streams; generated projection
+  `docs/plans/atlas-active-delivery-streams.generated.md`.
+- Root `.gitattributes` LF policy for hash-pinned artifact classes; closure
+  receipt `docs/plans/receipts/wf-c01.receipt.json` (`30e62324…`).
+
+### Changed
+- WF-C01 verified `COMPLETE`: QA `ACCEPT_READY` 23/23/0/0 and Wave Completion
+  Audit `AUDIT_CLEAR` 13/13/0/0 after two bounded corrections (R1
+  checkout-stable pins; R2 drift-proof seed invariant, both from audit
+  findings); no HIGH/live action was executed.
+
+### Decisions Made
+- Raw SHA-256 artifact pins are checkout-stable only under an enforced LF
+  policy; pins remain raw LF byte hashes and `remoteSha` is recorded only after
+  a verified push.
+- WF-C02 / WF-EVAL-C01 dependency gates are satisfied; dispatch requires a new
+  operator-activated cycle. All live/HIGH actions remain locked.
+
 ## [2026-09-14] — Agent Directive Tracking And Stalled-Cycle Recovery
 
 ### Added

@@ -1,0 +1,31 @@
+{
+  "receiptVersion": "1.0.0",
+  "generatedAt": "2026-09-14T11:30:30.702Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "4318c5af6c55c1adae78dc909489fffce448c21d3337eb2b1ed5800ab96b253a",
+  "status": "ok",
+  "streamId": "WF-C01",
+  "verified": {
+    "candidateSha": "6b2cb7f1c3af0cc8b3f39eeff49c595f28138ef5",
+    "integrationSha": "4fd18601e19f16c669f4708d159d55427460a34f",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 23,
+      "passed": 23,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "artifacts": [
+      {
+        "path": "ops/workflow/schema/cycle-state.schema.json",
+        "sha256": "6125be928cc9eac70dcda86c76242105ce0107a72a9abc12ee2f9010e5128101"
+      },
+      {
+        "path": "docs/handoffs/wf-c01-executor.md",
+        "sha256": "a259fa31804b30c519b64166ee11554bc040786751274bf3d2e0dac274bff43b"
+      }
+    ]
+  }
+}
