@@ -1756,6 +1756,41 @@ QA, integrate it, and run one fresh Wave Completion Auditor against the changed
 final tree. Escalate to the operator after two substantive auditor-triggered
 correction rounds instead of growing an unbounded review stack.
 
+#### Mechanical Cycle Closure And Runtime Launch Ownership
+
+The following invariants are absolute and must be checked mechanically by the
+primary planner before closing a cycle or presenting a `HIGH` approval sentence:
+
+1. If the latest Wave Completion Auditor verdict is not exactly `AUDIT_CLEAR`,
+   the cycle state must not be `COMPLETE`, and no successor `HIGH` approval
+   request may be presented as ready. A docs-only correction after
+   `CORRECTION_REQUIRED` or `PLANNER_DECISION_REQUIRED` does not qualify for the
+   `AUDIT_CLEAR` documentation shortcut above; it still requires the prescribed
+   bounded correction, fresh QA, integration, and fresh Wave Completion Auditor
+   loop unless a genuine operator decision changes the governing contract.
+2. The auditor verdict, reviewed final SHA, mandatory tally, and register state
+   must describe the same immutable tree. A later correction commit invalidates
+   an earlier `AUDIT_CLEAR` for closure purposes unless the exception above
+   explicitly applies. A mandatory tally with any failed, blocked, or
+   unperformed row can never support `AUDIT_CLEAR` or `COMPLETE`.
+3. Every `HIGH` shared-runtime install, replacement, restart, or rollback packet
+   must name `launchOwner`, `launchMechanism`, `rollbackLaunchOwner`, and
+   `rollbackLaunchMechanism`. It must distinguish the durable resident owner
+   from the executor shell that invokes it. Starting a long-lived runtime as a
+   child of an attached agent command, terminal, or temporary wrapper is not a
+   durable launch mechanism.
+4. When a registered Windows task is the runtime owner, the packet must name the
+   exact task, principal, action, working directory, invocation used to start it,
+   and preserved registration properties. Acceptance must prove that the
+   task-launched resident process owns the expected children and listeners and
+   remains healthy after the invoking executor shell exits. Rollback must use an
+   equally explicit durable owner and launch mechanism rather than an attached
+   fallback process.
+5. The planned machine-readable cycle verifier must fail closed on any violation
+   of items 1-4. Until that verifier exists, the primary planner and Wave
+   Completion Auditor must report these checks explicitly in their compact
+   capsules.
+
 ### Planner/QA Continuity And Next-Action Rule
 
 Every planner/QA acceptance, rejection, or status response must close the loop
