@@ -101,15 +101,29 @@ stream -> render -> verify rendered bytes -> optionally mint/pin the closure
 receipt -> atomic replace`
 
 Named transitions: `record-executor-return`, `record-correction`,
-`record-qa-result`, `record-integration`, `record-audit`, `close-cycle`,
-`record-remote-observation`, `lease-update`. The planner closure sequence is:
+`record-qa-result`, `coordination-update`, `record-integration`, `record-audit`,
+`close-cycle`, `record-remote-observation`, `lease-update`. The planner closure
+sequence is:
 
 1. `record-executor-return` (derives `changedPaths` from `git diff base...candidate`)
 2. `record-qa-result` (`--qa-verdict`, `--qa-session`, `--gates total/passed/failed/blocked/unperformed`)
-3. `record-integration` (`--integration`)
-4. `record-audit` (`--auditor-verdict`, `--auditor-session`)
-5. `close-cycle` (`--receipt`) — mints and pins the closure receipt
-6. `record-remote-observation` (`--ref`, `--observed-sha`) — a snapshot, terminal
+3. `coordination-update --mode MANUAL` — **required while the closing stream is the
+   active cycle.** If `coordination.activeCycleId` still names the closing stream
+   when it moves to `INTEGRATED`/`COMPLETE`, that stream becomes terminal and the
+   candidate document is rejected with `ACTIVE_CYCLE_TERMINAL`. Move coordination
+   off the closing stream immediately before integration.
+4. `record-integration` (`--integration`)
+5. `record-audit` (`--auditor-verdict`, `--auditor-session`)
+6. `close-cycle` (`--receipt`) — mints and pins the closure receipt
+7. `record-remote-observation` (`--ref`, `--observed-sha`) — a snapshot, terminal
+
+`coordination-update` is document-scoped (no `--stream` required) and takes
+`--mode MANUAL|CYCLE_ACTIVE`, `--active-cycle-id <stream-id|null>`, and
+`--global-next-action <text|null>`. `MANUAL` forces a null active cycle and
+rejects an explicitly non-null id; `CYCLE_ACTIVE` requires a defined,
+non-terminal target stream and a non-empty global next action. It runs through
+the same lock, CAS, staging, render, verification, and atomic-replace pipeline,
+so a rejected update leaves state, render, and receipt byte-identical.
 
 Failure atomicity: on invalid input, stale revision, invalid transition,
 ambiguous stream, failed render, failed receipt, or lock contention the command

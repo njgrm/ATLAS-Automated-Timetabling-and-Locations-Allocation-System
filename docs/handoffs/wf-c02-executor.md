@@ -6,8 +6,9 @@
 - Branch: `work/workflow-hardening-c02`
 - Base SHA: `84dd537bb2a2c045b8518c35b3a5372142e0080c` (= refreshed `origin/main` at dispatch)
 - Candidate: bounded additive commits on the branch (the product/test candidate,
-  a test-value hygiene commit, and the R1 lock correction with its tests). A file
-  cannot contain its own commit SHA; the planner/QA resolve the tip with
+  a test-value hygiene commit, the R1 lock correction, and the R2
+  coordination-deadlock correction with their tests). A file cannot contain its
+  own commit SHA; the planner/QA resolve the tip with
   `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`.
 - Directive: worktree `AGENTS.md`, LF-normalized SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (unchanged).
 - Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, credential, or HIGH action).
@@ -100,6 +101,7 @@ any other script.
 | A2-5 | Lock publication is atomic; unreadable/ownerless locks are never reclaimed | `lib/lock.mjs` (temp + `linkSync`, `classifyLock`) | empty, malformed, ownerless, and stray-temp lock files | `lock.test.mjs` (9); `transition.test.mjs` empty-lock case | PASS |
 | COV-1 | Committed candidateSha→integrationSha ancestry negative control | `lib/verify.mjs` `GIT_ANCESTRY` | candidate not an ancestor of the declared integration commit | `coverage.test.mjs` GIT_ANCESTRY case | PASS |
 | COV-2 | Committed `lease-update` red/green control | `lib/transition.mjs` `lease-update` | bogus state, bogus role, cross-stream lease | `transition.test.mjs` lease-update case | PASS |
+| COORD-1 | Document-scoped `coordination-update`; the active cycle can move off a closing stream so the closure sequence is executable | `lib/transition.mjs` `coordination-update` + `scope: "document"`; `lib/verify.mjs` `TERMINAL_STATES` | MANUAL+non-null id, CYCLE_ACTIVE unknown/terminal id, cleared next action, stale revision | `transition.test.mjs` R2-T1…T4 | PASS |
 | A3-1 | Dirty worktree + live lease + PLANNED/running[] fails | `lib/verify.mjs` lease rules; `lib/git.mjs` `worktreeStatusPorcelain` | TT-SOURCE-FRESHNESS-C04 shape | `leases.test.mjs` first case | PASS |
 | A3-2 | Directory existence alone is not activity | `lib/verify.mjs` | clean worktree, no lease | `leases.test.mjs` "a clean worktree with no lease …" | PASS |
 | A3-3 | Expiry never grants cleanup/replacement authority | lease rule + `lease-update` transition | expired `ACTIVE` lease | `leases.test.mjs` "an expired-but-unconfirmed ACTIVE lease …" | PASS |
@@ -114,7 +116,7 @@ any other script.
 
 ## Decisive gate outputs
 
-- `npm run workflow:test` (after R1): `tests 139 / pass 139 / fail 0 / cancelled 0 / skipped 0 / todo 0`; full-suite `duration_ms` 19.93–26.64 s and wall 20.65–27.88 s across repeated runs of the same tree bytes (the committed-tree re-run measured 19.93 s / 20.65 s).
+- `npm run workflow:test` (after R2): `tests 143 / pass 143 / fail 0 / cancelled 0 / skipped 0 / todo 0`; full-suite `duration_ms 28076.02`, wall `28755 ms`. (Pre-R2 the suite was 139 tests / ~20–27 s; the four R2 controls add the coordination coverage and its end-to-end CLI verification.)
 - Before (WF-C01 tip, same host): `npm run workflow:test` wall `82562 ms` (60 tests).
 - Fixture/semantic suite (`fixtures.test.mjs`): `duration_ms 2008 ms` (target < 20000 ms).
 - `npm run workflow:verify -- --state docs/plans/atlas-delivery-cycles.json`: exit 0, `status ok`, `errors []`, 6 streams.
@@ -230,6 +232,54 @@ publication could create, and QA already reproduced the two-`ok` race.
 README documents the atomic publication, the stray-temp disposition, the
 fail-closed `LOCK_UNREADABLE` behavior, and the manual recovery instruction for a
 proven-crashed unreadable lock.
+
+## R2 correction (F2 — active-cycle closure deadlock; planner-reproduced)
+
+**Defect (blocking).** The documented closure sequence could not execute for the
+active cycle. `lib/transition.mjs` re-runs the full verifier on the candidate
+document before publishing; when `coordination.activeCycleId` named the closing
+stream, that stream's move to `INTEGRATED`/`COMPLETE` made the active cycle
+terminal and the candidate was rejected with `ACTIVE_CYCLE_TERMINAL`
+(`lib/verify.mjs`, `TERMINAL_STATES`). No transition could change
+`coordination`, so the sequence deadlocked. Reproduction: `record-executor-return`
+→ ok, `record-qa-result` → ok, `record-integration` → `fail
+TRANSITION_RESULT_INVALID: ACTIVE_CYCLE_TERMINAL: active cycle ORD-1 is terminal
+(INTEGRATED)`, `coordination-update` → `TRANSITION_UNKNOWN`.
+
+**Fix (bounded; existing pipeline/lock/CAS unchanged).**
+
+- New document-scoped transition `coordination-update` in
+  `ops/workflow/lib/transition.mjs` with `--mode MANUAL|CYCLE_ACTIVE`,
+  `--active-cycle-id <stream-id|null>`, `--global-next-action <text|null>`.
+  `MANUAL` forces a null active cycle and rejects an explicitly non-null id;
+  `CYCLE_ACTIVE` requires a defined, non-terminal target stream and a non-empty
+  global next action (typed `TRANSITION_COORDINATION_*` rejections).
+- `runTransition` now supports `spec.scope === "document"`: no stream target and
+  no stream-bound state/awaited/running/nextAction post-processing, while the
+  lock, CAS, staging, render, verification, and atomic-replace path is unchanged.
+- `lib/verify.mjs` exports `TERMINAL_STATES` for the transition's explicit
+  fail-closed check (the verifier still owns unknown/terminal/empty-awaited
+  detection and surfaces the first error).
+- README lists `coordination-update` and corrects the closure sequence: the
+  coordination step belongs immediately before `record-integration`.
+
+**New controls (failing-first).**
+
+| Control | Where | Result |
+| --- | --- | --- |
+| R2-T1 a CYCLE_ACTIVE stream cannot `record-integration` until coordination moves; the blocked transition is typed and byte-identical; the move unblocks it | `transition.test.mjs` | PASS |
+| R2-T2 full closure on a CYCLE_ACTIVE stream: return → qa → `coordination-update --mode MANUAL` → integration → audit → `close-cycle` (receipt minted + pinned) → observation, with `verify-cycle` exit 0 at every published revision and the pinned receipt validating at the final state | `transition.test.mjs` | PASS |
+| R2-T3 negatives: MANUAL+non-null id, CYCLE_ACTIVE+unknown id, CYCLE_ACTIVE+terminal id, CYCLE_ACTIVE with a cleared global next action, stale revision — each typed with byte-identical state/render and zero lock residue | `transition.test.mjs` | PASS |
+| R2-T4 `MANUAL → CYCLE_ACTIVE → MANUAL` round-trip, revision +1 each, verifier-clean | `transition.test.mjs` | PASS |
+
+**Failing-first proof** (disposable copy of `ops/workflow` with only
+`lib/transition.mjs` reverted to the pre-R2 tip `52411970`; the worktree was never
+reverted). The committed R2 controls were run against it:
+
+| Tree | R2-T1 | R2-T2 |
+| --- | --- | --- |
+| pre-R2 `lib/transition.mjs` | ✖ fail | ✖ fail (`0/2` pass) |
+| corrected | ✔ pass | ✔ pass (`2/2` pass) |
 
 ## Known risks (all NON_BLOCKING for this packet)
 

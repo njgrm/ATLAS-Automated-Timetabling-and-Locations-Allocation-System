@@ -11,7 +11,7 @@
 // state document, the rendered register, or any receipt file.
 import fs from "node:fs";
 import path from "node:path";
-import { verifyStateDocument } from "./verify.mjs";
+import { verifyStateDocument, TERMINAL_STATES } from "./verify.mjs";
 import { renderRegister, GENERATED_NOTICE } from "./render.mjs";
 import { sha256Hex, stageFileSync, commitStagedSync, discardStagedSync } from "./util.mjs";
 import { resolveRepoRoot, createGitMemo } from "./git.mjs";
@@ -268,8 +268,72 @@ export const TRANSITIONS = {
     },
   },
 
-  "lease-update": {
+  "coordination-update": {
+    scope: "document",
     from: null,
+    optional: ["mode", "active-cycle-id", "global-next-action"],
+    required: ["mode"],
+    apply(ctx) {
+      const { doc, flags } = ctx;
+      const mode = flags.mode;
+      if (!["MANUAL", "CYCLE_ACTIVE"].includes(mode)) {
+        throw new TransitionError("TRANSITION_MODE_INVALID", `--mode must be MANUAL or CYCLE_ACTIVE, got "${mode}"`, "$.mode");
+      }
+      const normalize = (value) => (value === undefined || value === "" || value === "null" ? null : value);
+      const requestedCycleId = normalize(flags["active-cycle-id"]);
+      const globalNextAction =
+        flags["global-next-action"] === undefined ? doc.coordination.globalNextAction : normalize(flags["global-next-action"]);
+
+      if (mode === "MANUAL") {
+        // MANUAL forces a null active cycle; an explicitly non-null id is a
+        // caller error rather than a silent overwrite.
+        if (requestedCycleId !== null) {
+          throw new TransitionError(
+            "TRANSITION_COORDINATION_INVALID",
+            "MANUAL coordination requires --active-cycle-id null",
+            "$.coordination.activeCycleId",
+          );
+        }
+        doc.coordination = { mode: "MANUAL", activeCycleId: null, globalNextAction };
+        return { state: undefined, defaults: null };
+      }
+
+      if (requestedCycleId === null) {
+        throw new TransitionError(
+          "TRANSITION_COORDINATION_INVALID",
+          "CYCLE_ACTIVE requires --active-cycle-id <stream-id>",
+          "$.coordination.activeCycleId",
+        );
+      }
+      const activeCycleId = requestedCycleId;
+      const target = doc.streams.find((s) => s.id === activeCycleId);
+      if (!target) {
+        throw new TransitionError(
+          "TRANSITION_COORDINATION_UNKNOWN_CYCLE",
+          `active cycle "${activeCycleId}" is not a defined stream`,
+          "$.coordination.activeCycleId",
+        );
+      }
+      if (TERMINAL_STATES.has(target.state)) {
+        throw new TransitionError(
+          "TRANSITION_COORDINATION_TERMINAL",
+          `active cycle "${activeCycleId}" is terminal (${target.state})`,
+          "$.coordination.activeCycleId",
+        );
+      }
+      if (!nonEmpty(globalNextAction)) {
+        throw new TransitionError(
+          "TRANSITION_COORDINATION_NEXT_ACTION_REQUIRED",
+          "CYCLE_ACTIVE requires a non-empty --global-next-action",
+          "$.coordination.globalNextAction",
+        );
+      }
+      doc.coordination = { mode: "CYCLE_ACTIVE", activeCycleId, globalNextAction };
+      return { state: undefined, defaults: null };
+    },
+  },
+
+  "lease-update": {    from: null,
     optional: ["lease-id", "lease-state", "lease-role", "lease-session", "lease-worktree", "lease-expires", "next-action", "awaited", "running"],
     required: ["lease-id", "lease-state", "lease-role"],
     apply(ctx) {
@@ -399,37 +463,43 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       );
     }
 
-    // Stream selection: explicit --stream, else unique stream in an eligible state.
-    let stream;
-    if (nonEmpty(streamId)) {
-      stream = doc.streams.find((s) => s.id === streamId);
-      if (!stream) throw new TransitionError("TRANSITION_STREAM_UNKNOWN", `stream ${streamId} is not defined in the state document`, "$.stream");
-    } else {
-      const eligible = doc.streams.filter((s) => !spec.from || spec.from.includes(s.state));
-      if (eligible.length === 0) throw new TransitionError("TRANSITION_STREAM_UNKNOWN", `no stream is in an eligible state for ${transitionName}`, "$.stream");
-      if (eligible.length > 1) throw new TransitionError("TRANSITION_STREAM_AMBIGUOUS", `${eligible.length} streams are eligible for ${transitionName}; pass --stream`, "$.stream");
-      stream = eligible[0];
-    }
+    // Stream selection: explicit --stream, else unique stream in an eligible
+    // state. Document-scoped transitions mutate top-level coordination and take
+    // no stream target.
+    const documentScoped = spec.scope === "document";
+    let stream = null;
+    if (!documentScoped) {
+      if (nonEmpty(streamId)) {
+        stream = doc.streams.find((s) => s.id === streamId);
+        if (!stream) throw new TransitionError("TRANSITION_STREAM_UNKNOWN", `stream ${streamId} is not defined in the state document`, "$.stream");
+      } else {
+        const eligible = doc.streams.filter((s) => !spec.from || spec.from.includes(s.state));
+        if (eligible.length === 0) throw new TransitionError("TRANSITION_STREAM_UNKNOWN", `no stream is in an eligible state for ${transitionName}`, "$.stream");
+        if (eligible.length > 1) throw new TransitionError("TRANSITION_STREAM_AMBIGUOUS", `${eligible.length} streams are eligible for ${transitionName}; pass --stream`, "$.stream");
+        stream = eligible[0];
+      }
 
-    if (spec.from && !spec.from.includes(stream.state)) {
-      throw new TransitionError("TRANSITION_INVALID_STATE", `stream ${stream.id} is ${stream.state}; ${transitionName} requires one of ${spec.from.join(", ")}`, "$.state");
+      if (spec.from && !spec.from.includes(stream.state)) {
+        throw new TransitionError("TRANSITION_INVALID_STATE", `stream ${stream.id} is ${stream.state}; ${transitionName} requires one of ${spec.from.join(", ")}`, "$.state");
+      }
     }
 
     const candidate = cloneDoc(doc);
-    const candidateStream = candidate.streams.find((s) => s.id === stream.id);
+    const candidateStream = documentScoped ? null : candidate.streams.find((s) => s.id === stream.id);
     const ctx = { doc: candidate, stream: candidateStream, flags, repoRoot, git, nowIso, statePath: stateAbs };
     const outcome = spec.apply(ctx) || {};
 
-    if (outcome.state !== undefined && outcome.state !== null) {
-      candidateStream.state = outcome.state;
-    }
-    candidateStream.stateUpdatedAt = nowIso;
-    if (outcome.defaults) applyAwaitedRunning(candidateStream, flags, outcome.defaults);
-    else applyAwaitedRunning(candidateStream, flags, null);
+    if (!documentScoped) {
+      if (outcome.state !== undefined && outcome.state !== null) {
+        candidateStream.state = outcome.state;
+      }
+      candidateStream.stateUpdatedAt = nowIso;
+      applyAwaitedRunning(candidateStream, flags, outcome.defaults || null);
 
-    if (nonEmpty(flags["next-action"])) candidateStream.nextAction = flags["next-action"];
-    else if (["PLANNED", "RUNNING", "REVIEW_REQUIRED", "CORRECTION_REQUIRED", "ACCEPT_READY", "INTEGRATION_READY", "DECISION_REQUIRED", "HIGH_APPROVAL_REQUIRED", "BLOCKED", "EXTERNALLY_BLOCKED"].includes(candidateStream.state) && !nonEmpty(candidateStream.nextAction)) {
-      throw new TransitionError("TRANSITION_NEXT_ACTION_REQUIRED", `state ${candidateStream.state} requires a non-empty --next-action`, "$.nextAction");
+      if (nonEmpty(flags["next-action"])) candidateStream.nextAction = flags["next-action"];
+      else if (["PLANNED", "RUNNING", "REVIEW_REQUIRED", "CORRECTION_REQUIRED", "ACCEPT_READY", "INTEGRATION_READY", "DECISION_REQUIRED", "HIGH_APPROVAL_REQUIRED", "BLOCKED", "EXTERNALLY_BLOCKED"].includes(candidateStream.state) && !nonEmpty(candidateStream.nextAction)) {
+        throw new TransitionError("TRANSITION_NEXT_ACTION_REQUIRED", `state ${candidateStream.state} requires a non-empty --next-action`, "$.nextAction");
+      }
     }
 
     candidate.registry.revision = expectRevision + 1;
@@ -441,7 +511,7 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
     let receiptBytes = null;
     let receiptPath = null;
     let receiptPin = null;
-    if (outcome.mintReceiptPath) {
+    if (outcome.mintReceiptPath && candidateStream) {
       receiptPath = path.resolve(repoRoot || stateDir, outcome.mintReceiptPath.split("/").join(path.sep));
       const prePinBytes = Buffer.from(`${JSON.stringify(candidate, null, 2)}\n`, "utf8");
       const receipt = buildReceipt(candidateStream, statePath, prePinBytes);
@@ -496,23 +566,24 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
     const artifacts = [{ path: renderRel, sha256: sha256Hex(Buffer.from(markdown, "utf8")) }];
     if (receiptPin) artifacts.push({ path: receiptPin.path, sha256: receiptPin.sha256 });
 
-    return report(
-      "ok",
-      {
-        ...baseSummary,
-        streamId: stream.id,
-        fromState: stream.state,
-        toState: candidateStream.state,
-        revision: candidate.registry.revision,
-        stateSha256: sha256Hex(nextBytes),
-        renderPath: renderRel,
-        receiptPath: receiptPin ? receiptPin.path : null,
-        lockPath: lock.lockPath,
-      },
-      [],
-      artifacts,
-      [{ streamId: candidateStream.id, nextAction: candidateStream.nextAction }],
-    );
+    const summary = {
+      ...baseSummary,
+      revision: candidate.registry.revision,
+      stateSha256: sha256Hex(nextBytes),
+      renderPath: renderRel,
+      receiptPath: receiptPin ? receiptPin.path : null,
+      lockPath: lock.lockPath,
+    };
+    let nextActions = [];
+    if (candidateStream) {
+      summary.streamId = candidateStream.id;
+      summary.fromState = stream.state;
+      summary.toState = candidateStream.state;
+      nextActions = [{ streamId: candidateStream.id, nextAction: candidateStream.nextAction }];
+    } else {
+      summary.coordination = candidate.coordination;
+    }
+    return report("ok", summary, [], artifacts, nextActions);
   } catch (err) {
     const code = err instanceof TransitionError ? err.code : "TRANSITION_INTERNAL_ERROR";
     const errPath = err instanceof TransitionError ? err.path : "$";

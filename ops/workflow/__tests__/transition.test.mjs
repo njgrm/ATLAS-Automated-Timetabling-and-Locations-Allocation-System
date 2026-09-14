@@ -54,6 +54,15 @@ function baseDoc(repo) {
   });
 }
 
+// A document whose coordination is CYCLE_ACTIVE on ORD-1, as the real register
+// is while a lane is executing.
+function cycleDoc(repo, mutate) {
+  const doc = baseDoc(repo);
+  doc.coordination = { mode: "CYCLE_ACTIVE", activeCycleId: "ORD-1", globalNextAction: "advance the cycle" };
+  if (mutate) mutate(doc);
+  return doc;
+}
+
 function inProcess(statePath, transitionName, flags) {
   return runTransition({ statePath, transitionName, flags, gitMemo: memo });
 }
@@ -405,6 +414,121 @@ test("lease-update records a valid lease change and rejects invalid input", () =
   const secondPath = writeStateDoc(repo, "state-lease-two.json", twoStreams);
   const mismatch = inProcess(secondPath, "lease-update", { stream: "ORD-2", "expect-revision": String(twoStreams.registry.revision), "lease-id": "L1", "lease-state": "IDLE", "lease-role": "executor" });
   assert.deepEqual(reportCodes(mismatch), ["TRANSITION_LEASE_STREAM_MISMATCH"]);
+});
+
+test("R2-T1 a CYCLE_ACTIVE stream cannot record-integration until coordination moves", () => {
+  const repo = getSharedRepo();
+  const statePath = writeStateDoc(repo, "state-r2t1.json", cycleDoc(repo));
+  const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
+
+  assert.equal(inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha }).status, "ok");
+  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t1-qa", gates: "13/13/0/0/0" }).status, "ok");
+
+  const stateBefore = fs.readFileSync(statePath);
+  const renderBefore = readOrNull(renderPath);
+  const deadlocked = inProcess(statePath, "record-integration", { stream: "ORD-1", "expect-revision": "3", integration: repo.integrationSha });
+  assert.equal(deadlocked.status, "fail");
+  assert.deepEqual(reportCodes(deadlocked), ["TRANSITION_RESULT_INVALID"]);
+  assert.match(deadlocked.errors[0].message, /ACTIVE_CYCLE_TERMINAL/);
+  assert.deepEqual(fs.readFileSync(statePath), stateBefore, "the blocked transition must not mutate state");
+  assert.deepEqual(readOrNull(renderPath), renderBefore, "the blocked transition must not mutate the render");
+
+  // The deadlock is unblocked only by an explicit coordination move.
+  const moved = inProcess(statePath, "coordination-update", { "expect-revision": "3", mode: "MANUAL" });
+  assert.equal(moved.status, "ok", JSON.stringify(moved.errors));
+  const integrated = inProcess(statePath, "record-integration", { stream: "ORD-1", "expect-revision": "4", integration: repo.integrationSha });
+  assert.equal(integrated.status, "ok", JSON.stringify(integrated.errors));
+});
+
+test("R2-T2 a CYCLE_ACTIVE stream closes end-to-end once coordination moves", () => {
+  const repo = getSharedRepo();
+  const statePath = writeStateDoc(repo, "state-r2t2.json", cycleDoc(repo));
+  const receiptPath = path.join(repo.dir, "docs", "plans", "receipts", "cycle-r2t2.json");
+  const verified = () => runCli(VERIFY_CLI, ["--state", statePath], { cwd: repo.dir });
+
+  assert.equal(verified().status, 0, "initial CYCLE_ACTIVE document must verify");
+  assert.equal(inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha }).status, "ok");
+  assert.equal(verified().status, 0);
+  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t2-qa", gates: "13/13/0/0/0" }).status, "ok");
+  assert.equal(verified().status, 0);
+  assert.equal(inProcess(statePath, "coordination-update", { "expect-revision": "3", mode: "MANUAL" }).status, "ok");
+  assert.equal(verified().status, 0);
+  assert.equal(inProcess(statePath, "record-integration", { stream: "ORD-1", "expect-revision": "4", integration: repo.integrationSha }).status, "ok");
+  assert.equal(verified().status, 0);
+  assert.equal(inProcess(statePath, "record-audit", { stream: "ORD-1", "expect-revision": "5", "auditor-verdict": "AUDIT_CLEAR", "auditor-session": "ses-r2t2-audit" }).status, "ok");
+  assert.equal(verified().status, 0);
+
+  const closed = inProcess(statePath, "close-cycle", { stream: "ORD-1", "expect-revision": "6", receipt: "docs/plans/receipts/cycle-r2t2.json" });
+  assert.equal(closed.status, "ok", JSON.stringify(closed.errors));
+  assert.ok(fs.existsSync(receiptPath), "the closure receipt must be minted");
+  const afterClose = verified();
+  assert.equal(afterClose.status, 0, afterClose.stdout);
+  assert.deepEqual(afterClose.json.errors, [], "the minted receipt must validate against the COMPLETE state");
+
+  assert.equal(inProcess(statePath, "record-remote-observation", { stream: "ORD-1", "expect-revision": "7", ref: "refs/remotes/origin/main", "observed-sha": repo.integrationSha }).status, "ok");
+  const final = verified();
+  assert.equal(final.status, 0, final.stdout);
+  assert.deepEqual(final.json.errors, [], "the pinned receipt must still validate after the observation");
+  const doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(doc.streams[0].state, "COMPLETE");
+  assert.equal(doc.streams[0].closure.receipt.path, "docs/plans/receipts/cycle-r2t2.json");
+});
+
+test("R2-T3 coordination-update rejects invalid requests without mutating", () => {
+  const repo = getSharedRepo();
+  const doc = cycleDoc(repo, (d) => {
+    const closed = JSON.parse(JSON.stringify(d.streams[0]));
+    closed.id = "CLOSED-1";
+    closed.state = "CLOSED";
+    closed.nextAction = null;
+    closed.running = [];
+    closed.awaited = [];
+    d.streams.push(closed);
+  });
+  const statePath = writeStateDoc(repo, "state-r2t3.json", doc);
+  const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
+  const lockPath = lockPathFor(repo.dir);
+
+  const assertNoMutation = (flags, code) => {
+    const stateBefore = fs.readFileSync(statePath);
+    const renderBefore = readOrNull(renderPath);
+    const result = inProcess(statePath, "coordination-update", flags);
+    assert.equal(result.status, "fail", JSON.stringify(result.errors));
+    assert.deepEqual(reportCodes(result), [code]);
+    assert.deepEqual(fs.readFileSync(statePath), stateBefore, `${code} must not mutate state`);
+    assert.deepEqual(readOrNull(renderPath), renderBefore, `${code} must not mutate the render`);
+  };
+
+  assertNoMutation({ "expect-revision": "1", mode: "MANUAL", "active-cycle-id": "ORD-1" }, "TRANSITION_COORDINATION_INVALID");
+  assertNoMutation({ "expect-revision": "1", mode: "CYCLE_ACTIVE", "active-cycle-id": "NOPE", "global-next-action": "x" }, "TRANSITION_COORDINATION_UNKNOWN_CYCLE");
+  assertNoMutation({ "expect-revision": "1", mode: "CYCLE_ACTIVE", "active-cycle-id": "CLOSED-1", "global-next-action": "x" }, "TRANSITION_COORDINATION_TERMINAL");
+  assertNoMutation({ "expect-revision": "1", mode: "CYCLE_ACTIVE", "active-cycle-id": "ORD-1", "global-next-action": "" }, "TRANSITION_COORDINATION_NEXT_ACTION_REQUIRED");
+  assertNoMutation({ "expect-revision": "99", mode: "MANUAL" }, "TRANSITION_STALE_REVISION");
+
+  assert.equal(fs.existsSync(lockPath), false, "no lock residue after failures");
+  assert.deepEqual(walk(repo.dir, (name) => name.includes(".tmp") || name.includes(".stage")), []);
+});
+
+test("R2-T4 coordination-update round-trips between MANUAL and CYCLE_ACTIVE", () => {
+  const repo = getSharedRepo();
+  const statePath = writeStateDoc(repo, "state-r2t4.json", cycleDoc(repo));
+
+  const toManual = inProcess(statePath, "coordination-update", { "expect-revision": "1", mode: "MANUAL" });
+  assert.equal(toManual.status, "ok", JSON.stringify(toManual.errors));
+  let doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(doc.coordination.mode, "MANUAL");
+  assert.equal(doc.coordination.activeCycleId, null);
+  assert.equal(doc.registry.revision, 2);
+  assert.equal(verifyInProcess(statePath).ok, true);
+
+  const toCycle = inProcess(statePath, "coordination-update", { "expect-revision": "2", mode: "CYCLE_ACTIVE", "active-cycle-id": "ORD-1", "global-next-action": "resume the cycle" });
+  assert.equal(toCycle.status, "ok", JSON.stringify(toCycle.errors));
+  doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(doc.coordination.mode, "CYCLE_ACTIVE");
+  assert.equal(doc.coordination.activeCycleId, "ORD-1");
+  assert.equal(doc.coordination.globalNextAction, "resume the cycle");
+  assert.equal(doc.registry.revision, 3);
+  assert.equal(verifyInProcess(statePath).ok, true);
 });
 
 test("usage errors exit 2 and an unknown transition exits 1", () => {
