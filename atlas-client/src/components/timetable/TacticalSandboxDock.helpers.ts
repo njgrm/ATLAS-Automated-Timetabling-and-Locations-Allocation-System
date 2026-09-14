@@ -198,6 +198,342 @@ export function formatSlot(entry: ScheduledEntry, formatTimeValue: (value: strin
 	return `${entry.day} ${formatTimeValue(entry.startTime)}-${formatTimeValue(entry.endTime)}`;
 }
 
+/* ------------------------------------------------------------------------- *
+ * TT-TL-MODULES-C04 — focused Teaching Load mini-module helpers.
+ *
+ * These are pure, testable controls for the non-D1 modules reachable from the
+ * Simple-first Timetable workspace. They never duplicate the canonical Teaching
+ * Load editor or invent server authority: every one either builds a request the
+ * canonical endpoint already accepts, gates a dispatch, or maps a canonical
+ * typed refusal to truthful operator copy.
+ * ------------------------------------------------------------------------- */
+
+/** Class 5 (availability) is deferred on decision D1; no availability authority
+ * exists to consume, so owned surfaces must state that plainly instead of
+ * inventing a repair. */
+export const AVAILABILITY_MODULE_DEFERRED_COPY =
+	'Availability-driven moves are deferred: ATLAS has no persisted faculty availability authority yet, so no availability repair is offered here.';
+
+/** Server-issued department-authority confirmation phrase. The operator must
+ * type the phrase the server preview advertises; the client never invents it. */
+export const DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE = 'APPLY DEPARTMENT AUTHORITY';
+
+/**
+ * R8(d): the scope identity every bound repair state is keyed to. When the
+ * school, year, or run changes, consumers must clear their staged/preview/
+ * module state before any action can dispatch.
+ */
+export function workspaceScopeKey(scope: {
+	schoolId: number | null | undefined;
+	schoolYearId: number | null | undefined;
+	runId: number | null | undefined;
+}): string {
+	return `${scope.schoolId ?? 'none'}:${scope.schoolYearId ?? 'none'}:${scope.runId ?? 'none'}`;
+}
+
+export type AbsenceWindow = {
+	startDate: string;
+	endDate: string;
+	untilFurtherNotice: boolean;
+};
+
+export function createEmptyAbsenceWindow(): AbsenceWindow {
+	return { startDate: '', endDate: '', untilFurtherNotice: false };
+}
+
+function isValidDateOnly(value: string): boolean {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return false;
+	return !Number.isNaN(new Date(`${value.trim()}T00:00:00Z`).getTime());
+}
+
+/**
+ * Validates the operator-supplied absence window before any preview/save. The
+ * window is operator context and revision metadata, not a new server field, so
+ * validation stays client-side and explicit.
+ */
+export function validateAbsenceWindow(window: AbsenceWindow): string | null {
+	if (!isValidDateOnly(window.startDate)) {
+		return 'Choose the first date this teacher is unavailable.';
+	}
+	if (window.untilFurtherNotice) {
+		if (window.endDate.trim()) {
+			return 'Clear the end date or uncheck "Until further notice" so the window has one meaning.';
+		}
+		return null;
+	}
+	if (!isValidDateOnly(window.endDate)) {
+		return 'Choose an end date, or mark the absence as "until further notice".';
+	}
+	const start = Date.parse(`${window.startDate.trim()}T00:00:00Z`);
+	const end = Date.parse(`${window.endDate.trim()}T00:00:00Z`);
+	if (end < start) {
+		return 'The absence end date cannot be earlier than its start date.';
+	}
+	return null;
+}
+
+/** Compact, operator-facing rendering of the validated window. */
+export function describeAbsenceWindow(window: AbsenceWindow): string {
+	if (!isValidDateOnly(window.startDate)) return 'No absence window set yet.';
+	if (window.untilFurtherNotice) return `Unavailable from ${window.startDate.trim()} until further notice.`;
+	if (!isValidDateOnly(window.endDate)) return `Unavailable from ${window.startDate.trim()}.`;
+	return `Unavailable ${window.startDate.trim()} to ${window.endDate.trim()}.`;
+}
+
+/** The revision effective date may not precede the absence start. */
+export function absenceWindowRevisionDateError(window: AbsenceWindow, effectiveDate: string): string | null {
+	const base = revisionDateError(effectiveDate);
+	if (base) return base;
+	if (!isValidDateOnly(window.startDate)) return null;
+	const effective = Date.parse(`${effectiveDate.trim()}T00:00:00Z`);
+	const start = Date.parse(`${window.startDate.trim()}T00:00:00Z`);
+	if (effective < start) {
+		return `Choose an effective date on or after ${window.startDate.trim()}, when this teacher becomes unavailable.`;
+	}
+	return null;
+}
+
+/**
+ * Canonical typed refusals a Timetable Teaching Load repair can return, mapped
+ * to truthful inline copy. Unknown codes fall through to the server message so
+ * nothing is silently swallowed.
+ */
+const CANONICAL_REFUSAL_COPY: Record<string, string> = {
+	TEACHING_LOAD_QUALIFICATION_MISSING:
+		'The selected teacher is not qualified for this subject through department, program, or specialization authority. Choose a qualified receiver, or grant authority first.',
+	TEACHING_LOAD_REPAIR_STALE:
+		'A covered setup input changed after this repair was reviewed. Nothing was saved; refresh the timetable and preview again.',
+	FACULTY_VERSION_CONFLICT:
+		'Teaching Load changed while this repair was staged. Nothing was saved; refresh the teacher record and review again.',
+	RUN_ALREADY_PUBLISHED:
+		'This schedule is already published. Create an effective-date revision instead of rewriting Teaching Load.',
+	HARD_VIOLATION_BLOCK:
+		'The repair would create a hard timetable conflict. Nothing was saved; change the receiver or placement and review again.',
+	SOFT_OVERRIDE_REQUIRED:
+		'The repair carries warnings that must be acknowledged before saving.',
+	VERSION_CONFLICT:
+		'This timetable changed while the repair was staged. Nothing was saved; refresh and review again.',
+	COHORT_REPAIR_UNSUPPORTED:
+		'This class is part of a grouped or special-program coverage block. Use section coverage repair before changing Teaching Load from the timetable.',
+};
+
+export type CanonicalRefusal = { code: string; message: string };
+
+export function refusalCopy(code: string | null | undefined, fallbackMessage?: string | null): string {
+	if (code && CANONICAL_REFUSAL_COPY[code]) return CANONICAL_REFUSAL_COPY[code];
+	if (fallbackMessage && fallbackMessage.trim()) return fallbackMessage;
+	return 'ATLAS refused the repair. Nothing was saved.';
+}
+
+/** Extract the canonical typed refusal from an axios-shaped error. */
+export function canonicalRefusalFromError(error: unknown): CanonicalRefusal {
+	const response = (error as { response?: { data?: { code?: unknown; message?: unknown } } })?.response?.data;
+	const code = typeof response?.code === 'string' ? response.code : null;
+	const message = typeof response?.message === 'string' ? response.message : null;
+	return { code: code ?? 'UNKNOWN', message: refusalCopy(code, message) };
+}
+
+/* ------------------------------------------------------------------------- *
+ * Overload / underload redistribution summary.
+ * The Teaching Load page stays the canonical home; the Timetable card is
+ * read-only and must never dispatch an apply.
+ * ------------------------------------------------------------------------- */
+
+export type RedistributionRequest = {
+	schoolId: number;
+	schoolYearId: number;
+	previewOnly: true;
+};
+
+export type RedistributionSummary = {
+	overCapCount: number;
+	proposedMoveCount: number;
+	movesApplied: number;
+	sectionsResolved: number;
+	evaluated: boolean;
+	candidateRejectionCount: number;
+	derivedDemandRevision: string | null;
+};
+
+export type ReadinessSummary = {
+	ready: boolean;
+	demandCount: number;
+	ownedDemandCount: number;
+	unresolvedDemandCount: number;
+	blockerCodes: string[];
+};
+
+/**
+ * A dispatch is allowed only when the authenticated scope is fully resolved.
+ * Missing school/year must dispatch ZERO requests rather than defaulting to a
+ * pilot school or year.
+ */
+export function redistributeDispatchAllowed(scope: { schoolId: number | null | undefined; schoolYearId: number | null | undefined }): boolean {
+	return Number.isInteger(scope.schoolId) && (scope.schoolId ?? 0) > 0
+		&& Number.isInteger(scope.schoolYearId) && (scope.schoolYearId ?? 0) > 0;
+}
+
+/**
+ * Builds the canonical read-only redistribution preview request. It can only
+ * ever emit `previewOnly: true`; there is no apply variant.
+ */
+export function buildRedistributionRequest(
+	scope: { schoolId: number | null | undefined; schoolYearId: number | null | undefined },
+): RedistributionRequest | null {
+	if (!redistributeDispatchAllowed(scope)) return null;
+	return { schoolId: scope.schoolId as number, schoolYearId: scope.schoolYearId as number, previewOnly: true };
+}
+
+export function summarizeRedistribution(payload: unknown): RedistributionSummary | null {
+	if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+	const record = payload as Record<string, unknown>;
+	const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
+	return {
+		overCapCount: count(record.overCapFaculty),
+		proposedMoveCount: count(record.proposedMoves),
+		movesApplied: typeof record.movesApplied === 'number' ? record.movesApplied : 0,
+		sectionsResolved: typeof record.sectionsResolved === 'number' ? record.sectionsResolved : 0,
+		evaluated: record.evaluated === true,
+		candidateRejectionCount: count(record.candidateRejections),
+		derivedDemandRevision: typeof record.derivedDemandRevision === 'string' ? record.derivedDemandRevision : null,
+	};
+}
+
+export function summarizeReadiness(payload: unknown): ReadinessSummary | null {
+	if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+	const record = payload as Record<string, unknown>;
+	const blockers = Array.isArray(record.blockers)
+		? record.blockers.flatMap((entry) => {
+			if (!entry || typeof entry !== 'object') return [];
+			const code = (entry as Record<string, unknown>).code;
+			return typeof code === 'string' ? [code] : [];
+		})
+		: [];
+	return {
+		ready: record.ready === true,
+		demandCount: typeof record.demandCount === 'number' ? record.demandCount : 0,
+		ownedDemandCount: typeof record.ownedDemandCount === 'number' ? record.ownedDemandCount : 0,
+		unresolvedDemandCount: typeof record.unresolvedDemandCount === 'number' ? record.unresolvedDemandCount : 0,
+		blockerCodes: blockers,
+	};
+}
+
+/**
+ * Truthful one-line status for the redistribution card, derived only from the
+ * canonical read-only response. Never recomputes load authority client-side.
+ */
+export function describeRedistributionStatus(summary: RedistributionSummary | null, readiness: ReadinessSummary | null): string {
+	if (!summary && !readiness) return 'Redistribution summary unavailable for this school year.';
+	const parts: string[] = [];
+	if (summary) {
+		if (!summary.evaluated) parts.push('No persisted workload policy was resolved, so redistribution was not evaluated.');
+		else {
+			parts.push(`${summary.overCapCount} over cap`);
+			parts.push(`${summary.proposedMoveCount} proposed move${summary.proposedMoveCount === 1 ? '' : 's'}`);
+		}
+		if (summary.candidateRejectionCount > 0) parts.push(`${summary.candidateRejectionCount} candidate rejection${summary.candidateRejectionCount === 1 ? '' : 's'}`);
+	}
+	if (readiness) {
+		parts.push(`${readiness.ownedDemandCount}/${readiness.demandCount} demanded pairs owned`);
+		if (readiness.unresolvedDemandCount > 0) parts.push(`${readiness.unresolvedDemandCount} unresolved`);
+	}
+	return parts.join(' · ');
+}
+
+export const REDISTRIBUTION_HOME_HREF = '/teaching-load';
+
+/* ------------------------------------------------------------------------- *
+ * Qualification / department / program authority module.
+ * Preview is read-only; apply is blocked until the server issues a
+ * fingerprint. The confirmation phrase is the server's, never invented here.
+ * ------------------------------------------------------------------------- */
+
+export type QualificationNodeInput = { key: string; value: string };
+
+export type QualificationPreviewState = {
+	/** The server-issued fingerprint; null before any successful preview. */
+	fingerprint: string | null;
+	expectedSourceRevision: unknown;
+	conflicts: number;
+	creates: number;
+};
+
+export type DepartmentAuthorityPreviewPayload = {
+	schoolId: number;
+	aliases: QualificationNodeInput[];
+	labels: QualificationNodeInput[];
+};
+
+export type DepartmentAuthorityApplyPayload = DepartmentAuthorityPreviewPayload & {
+	expectedFingerprint: string;
+	expectedSourceRevision: unknown;
+	confirmationText: string;
+};
+
+export function buildQualificationPreviewPayload(
+	scope: { schoolId: number | null | undefined },
+	aliases: QualificationNodeInput[],
+	labels: QualificationNodeInput[],
+): DepartmentAuthorityPreviewPayload | null {
+	if (!Number.isInteger(scope.schoolId) || (scope.schoolId ?? 0) <= 0) return null;
+	return {
+		schoolId: scope.schoolId as number,
+		aliases: aliases.filter((entry) => entry.key.trim() !== '' || entry.value.trim() !== ''),
+		labels: labels.filter((entry) => entry.key.trim() !== '' || entry.value.trim() !== ''),
+	};
+}
+
+/**
+ * Apply requires the server-issued fingerprint from a successful preview, the
+ * exact confirmation phrase the server advertises, and the preview's source
+ * revision. Anything less returns null and dispatches nothing.
+ */
+export function buildQualificationApplyPayload(
+	scope: { schoolId: number | null | undefined },
+	aliases: QualificationNodeInput[],
+	labels: QualificationNodeInput[],
+	preview: QualificationPreviewState | null,
+	confirmationText: string,
+): DepartmentAuthorityApplyPayload | null {
+	const base = buildQualificationPreviewPayload(scope, aliases, labels);
+	if (!base) return null;
+	if (!preview?.fingerprint) return null;
+	if (confirmationText !== DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE) return null;
+	return {
+		...base,
+		expectedFingerprint: preview.fingerprint,
+		expectedSourceRevision: preview.expectedSourceRevision ?? null,
+		confirmationText,
+	};
+}
+
+export function qualificationApplyEnabled(preview: QualificationPreviewState | null): boolean {
+	return Boolean(preview?.fingerprint);
+}
+
+/** Canonical typed qualification/department-authority refusals -> truthful copy. */
+const QUALIFICATION_REFUSAL_COPY: Record<string, string> = {
+	FINGERPRINT_REQUIRED: 'Preview this qualification change first; the server must issue the fingerprint that authorizes apply.',
+	CONFIRMATION_REQUIRED: `Type the exact confirmation phrase "${DEPARTMENT_AUTHORITY_CONFIRMATION_PHRASE}" to apply.`,
+	SOURCE_DRIFT: 'Department authority changed since the preview. Nothing was saved; preview again.',
+	ACTOR_SCHOOL_REQUIRED: 'An authenticated operator school is required for this qualification change.',
+	SCHOOL_MISMATCH: 'This qualification change belongs to a different school than your account.',
+	INVALID_DEPARTMENT_AUTHORITY: 'Fix the highlighted alias or label before applying.',
+};
+
+export function qualificationRefusalCopy(code: string | null | undefined, fallbackMessage?: string | null): string {
+	if (code && QUALIFICATION_REFUSAL_COPY[code]) return QUALIFICATION_REFUSAL_COPY[code];
+	if (fallbackMessage && fallbackMessage.trim()) return fallbackMessage;
+	return 'ATLAS refused the qualification change. Nothing was saved.';
+}
+
+export function buildQualificationNodes(rows: Array<{ key: string; value: string }>): QualificationNodeInput[] {
+	return rows
+		.map((row) => ({ key: row.key.trim(), value: row.value.trim() }))
+		.filter((row) => row.key !== '' && row.value !== '');
+}
+
+
 export function buildRevisionPayloadChange(change: { entry: ScheduledEntry; targetFacultyId: number }) {
 	const previous = {
 		facultyId: change.entry.facultyId,
