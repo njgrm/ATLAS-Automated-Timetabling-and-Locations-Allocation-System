@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "atlas.workflow.cycle-state.schema.json",
+  "title": "ATLAS Delivery Cycle State",
+  "description": "Authoritative machine-readable delivery-cycle state contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "registry", "coordination", "streams", "browserCustody"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lastUpdatedAt", "lastUpdatedBy"],
+      "properties": {
+        "lastUpdatedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$" },
+        "lastUpdatedBy": { "type": "string", "minLength": 1 }
+      }
+    },
+    "coordination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "activeCycleId", "globalNextAction"],
+      "properties": {
+        "mode": { "enum": ["MANUAL", "CYCLE_ACTIVE"] },
+        "activeCycleId": { "type": ["string", "null"] },
+        "globalNextAction": { "type": ["string", "null"] }
+      }
+    },
+    "streams": { "type": "array", "items": { "$ref": "#/$defs/stream" } },
+    "browserCustody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profiles", "logins"],
+      "properties": {
+        "profiles": { "type": "array", "items": { "$ref": "#/$defs/profile" } },
+        "logins": { "type": "array", "items": { "$ref": "#/$defs/login" } }
+      }
+    }
+  },
+  "$defs": {
+    "iso": {
+      "type": ["string", "null"],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "isoRequired": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "sha40": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._\\-/]+$"
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "status", "writable"],
+      "properties": {
+        "sessionId": { "type": ["string", "null"] },
+        "status": { "enum": ["ACTIVE", "IDLE", "RETURNED", "NONE"] },
+        "writable": { "type": "boolean" }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "sessionId", "reason"],
+      "properties": {
+        "decision": { "enum": ["EXISTING", "FRESH_REQUIRED"] },
+        "sessionId": { "type": ["string", "null"] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worktree", "branch", "baseSha", "candidateSha", "integrationSha", "remoteSha", "changedPaths"],
+      "properties": {
+        "worktree": { "type": ["string", "null"], "minLength": 1 },
+        "branch": { "type": ["string", "null"], "minLength": 1 },
+        "baseSha": { "$ref": "#/$defs/sha40" },
+        "candidateSha": { "$ref": "#/$defs/sha40" },
+        "integrationSha": { "$ref": "#/$defs/sha40" },
+        "remoteSha": { "$ref": "#/$defs/sha40" },
+        "changedPaths": { "type": "array", "items": { "$ref": "#/$defs/repoPath" } }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "blocked", "unperformed"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "unperformed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["qaVerdict", "qaSessionId", "auditorVerdict", "auditorSessionId", "auditRequired"],
+      "properties": {
+        "qaVerdict": { "enum": ["ACCEPT_READY", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED", null] },
+        "qaSessionId": { "type": ["string", "null"] },
+        "auditorVerdict": { "enum": ["AUDIT_CLEAR", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED", null] },
+        "auditorSessionId": { "type": ["string", "null"] },
+        "auditRequired": { "type": "boolean" }
+      }
+    },
+    "correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round", "baseSha", "candidateSha", "reason", "qaVerdict", "qaSessionId", "auditorVerdict", "auditorSessionId"],
+      "properties": {
+        "round": { "type": "integer", "minimum": 1 },
+        "baseSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "candidateSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "reason": { "type": "string", "minLength": 1 },
+        "qaVerdict": { "type": ["string", "null"] },
+        "qaSessionId": { "type": ["string", "null"] },
+        "auditorVerdict": { "type": ["string", "null"] },
+        "auditorSessionId": { "type": ["string", "null"] }
+      }
+    },
+    "successor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streamId", "unlocked", "reason"],
+      "properties": {
+        "streamId": { "type": "string", "minLength": 1 },
+        "unlocked": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "detail", "safeWorkRemaining", "safeWorkItems"],
+      "properties": {
+        "kind": { "enum": ["NONE", "EXTERNAL", "DEPENDENCY", "APPROVAL", "INTERNAL"] },
+        "detail": { "type": "string" },
+        "safeWorkRemaining": { "type": "boolean" },
+        "safeWorkItems": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "approvalExecution": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["performed", "actionsPerformed", "evidence"],
+      "properties": {
+        "performed": { "type": "boolean" },
+        "actionsPerformed": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": ["string", "null"] }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "presentedReady", "granted", "operatorIdentity", "approvedAt", "boundary", "approvedActions", "requiredObservationIds", "execution"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "presentedReady": { "type": "boolean" },
+        "granted": { "type": "boolean" },
+        "operatorIdentity": { "type": ["string", "null"] },
+        "approvedAt": { "$ref": "#/$defs/iso" },
+        "boundary": { "type": ["string", "null"] },
+        "approvedActions": { "type": "array", "items": { "type": "string" } },
+        "requiredObservationIds": { "type": "array", "items": { "type": "string" } },
+        "execution": { "$ref": "#/$defs/approvalExecution" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target", "checkedAt", "status", "expiresAt", "detail"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "target": { "type": "string" },
+        "checkedAt": { "$ref": "#/$defs/isoRequired" },
+        "status": { "enum": ["PASS", "FAIL", "BLOCKED", "UNKNOWN"] },
+        "expiresAt": { "$ref": "#/$defs/iso" },
+        "detail": { "type": "string" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "closure": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["receipt"],
+      "properties": {
+        "receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {
+            "path": { "$ref": "#/$defs/repoPath" },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
+    "sessionRouting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planner", "executor", "qa", "auditor"],
+      "properties": {
+        "planner": { "$ref": "#/$defs/routing" },
+        "executor": { "$ref": "#/$defs/routing" },
+        "qa": { "$ref": "#/$defs/routing" },
+        "auditor": { "$ref": "#/$defs/routing" }
+      }
+    },
+    "owners": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planner", "executor", "qa", "auditor"],
+      "properties": {
+        "planner": { "$ref": "#/$defs/owner" },
+        "executor": { "$ref": "#/$defs/owner" },
+        "qa": { "$ref": "#/$defs/owner" },
+        "auditor": { "$ref": "#/$defs/owner" }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "kind", "objective", "riskTier", "state", "stateUpdatedAt", "nextAction",
+        "awaited", "running", "git", "owners", "gates", "review", "corrections",
+        "successors", "requires", "blocker", "approval", "observations", "artifacts",
+        "closure", "sessionRouting"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["CYCLE", "STREAM"] },
+        "objective": { "type": "string", "minLength": 1 },
+        "riskTier": { "enum": ["LOW", "MEDIUM", "HIGH"] },
+        "state": {
+          "enum": [
+            "PLANNED", "RUNNING", "REVIEW_REQUIRED", "CORRECTION_REQUIRED", "ACCEPT_READY",
+            "INTEGRATION_READY", "INTEGRATED", "DECISION_REQUIRED", "HIGH_APPROVAL_REQUIRED",
+            "BLOCKED", "EXTERNALLY_BLOCKED", "SUPERSEDED", "CLOSED", "COMPLETE"
+          ]
+        },
+        "stateUpdatedAt": { "$ref": "#/$defs/isoRequired" },
+        "nextAction": { "type": ["string", "null"] },
+        "awaited": { "type": "array", "items": { "type": "string" } },
+        "running": { "type": "array", "items": { "type": "string" } },
+        "git": { "$ref": "#/$defs/git" },
+        "owners": { "$ref": "#/$defs/owners" },
+        "gates": { "$ref": "#/$defs/gates" },
+        "review": { "$ref": "#/$defs/review" },
+        "corrections": { "type": "array", "items": { "$ref": "#/$defs/correction" } },
+        "successors": { "type": "array", "items": { "$ref": "#/$defs/successor" } },
+        "requires": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "blocker": { "$ref": "#/$defs/blocker" },
+        "approval": { "$ref": "#/$defs/approval" },
+        "observations": { "type": "array", "items": { "$ref": "#/$defs/observation" } },
+        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+        "closure": { "$ref": "#/$defs/closure" },
+        "sessionRouting": { "$ref": "#/$defs/sessionRouting" }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profilePath", "custody"],
+      "properties": {
+        "profilePath": { "type": "string", "minLength": 1 },
+        "custody": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["owner", "status", "startedAt", "endedAt"],
+            "properties": {
+              "owner": { "type": "string" },
+              "status": { "enum": ["ACTIVE", "RELEASED"] },
+              "startedAt": { "$ref": "#/$defs/iso" },
+              "endedAt": { "$ref": "#/$defs/iso" }
+            }
+          }
+        }
+      }
+    },
+    "login": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "owner", "profilePath", "performed", "performedAt", "authorization", "evidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string" },
+        "profilePath": { "type": "string" },
+        "performed": { "type": "boolean" },
+        "performedAt": { "$ref": "#/$defs/iso" },
+        "authorization": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["operatorIdentity", "approvedAt", "expectedAuditDelta"],
+          "properties": {
+            "operatorIdentity": { "type": "string" },
+            "approvedAt": { "$ref": "#/$defs/isoRequired" },
+            "expectedAuditDelta": { "type": "string" }
+          }
+        },
+        "evidence": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
