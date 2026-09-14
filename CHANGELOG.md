@@ -5249,3 +5249,21 @@ Executed the day-shape recovery sequence (surgical core of Prompts 03/05/06 per 
 ### Open Questions
 - None for dispatch; installed OpenCode config/debug output decides the exact
   supported compaction keys and reviewer variant, with fallbacks disclosed.
+
+## [2026-09-14] — OpenCode E-Drive Access
+
+### Added
+- Granted OpenCode project sessions external-directory and edit access across
+  `E:/**`, replacing the narrower `E:/ATLAS-worktrees/**` allowance.
+
+### Changed
+- Future E-drive worktrees can now create and manage supporting files without
+  repeated external-directory permission prompts.
+
+### Decisions Made
+- The operator explicitly authorized full E-drive workspace access because E
+  contains no protected ATLAS runtime or database boundary.
+- Existing global credential read denials remain in force.
+
+### Open Questions
+- None.
