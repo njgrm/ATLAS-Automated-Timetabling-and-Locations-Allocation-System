@@ -2,10 +2,19 @@
 // Exclusive repository-common-dir lock for atomic state transitions.
 //
 // The lock lives in the Git common directory so every linked worktree of the
-// same repository serializes through one file. Acquisition is O_EXCL; a lock is
-// reclaimed ONLY after proving that its recorded owner process is absent. A lock
-// is never deleted merely because it is old, and a lock owned by a live process
-// (including another agent's session) always produces a typed contention error.
+// same repository serializes through one file.
+//
+// Publication is atomic: the complete owner record is written to a unique
+// sibling temp file and published with a no-overwrite hard link (`linkSync`,
+// which fails with EEXIST while the lock is held). A visible lock therefore
+// always carries a complete owner record; this tool can never create a visible
+// empty or partial lock.
+//
+// Reclaim is fail-closed: a lock is removed ONLY when a readable record names a
+// positive integer `ownerPid` whose process is provably absent. An unreadable,
+// empty, malformed, or ownerless lock is never deleted — it is reported as
+// `LOCK_UNREADABLE` after the bounded inspection window so that removing it
+// requires a human to prove the owner is gone.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -48,6 +57,47 @@ export function readLockRecord(lockPath) {
 }
 
 /**
+ * Classify the current lock file.
+ *
+ *   GONE     — the path does not exist (or vanished); nothing to reclaim
+ *   LIVE     — a readable record with a live positive ownerPid
+ *   ABSENT   — a readable record with a positive ownerPid whose process is gone
+ *   UNPROVEN — unreadable, empty, malformed, or ownerless: never reclaimable
+ *
+ * Only ABSENT authorizes reclaim.
+ */
+export function classifyLock(lockPath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(lockPath, "utf8");
+  } catch (err) {
+    if (err && err.code === "ENOENT") return { kind: "GONE", reason: "lock disappeared", owner: null };
+    return { kind: "UNPROVEN", reason: `lock is unreadable (${(err && err.code) || "unknown error"})`, owner: null };
+  }
+  let record;
+  try {
+    record = JSON.parse(raw);
+  } catch {
+    return { kind: "UNPROVEN", reason: raw.trim().length === 0 ? "lock is empty" : "lock record is malformed JSON", owner: null };
+  }
+  if (record === null || typeof record !== "object" || Array.isArray(record) || !Number.isInteger(record.ownerPid) || record.ownerPid <= 0) {
+    return { kind: "UNPROVEN", reason: "lock record has no integer ownerPid > 0", owner: record && typeof record === "object" && !Array.isArray(record) ? record : null };
+  }
+  if (processAlive(record.ownerPid)) return { kind: "LIVE", reason: `held by live pid ${record.ownerPid}`, owner: record };
+  return { kind: "ABSENT", reason: `owner pid ${record.ownerPid} is provably absent`, owner: record };
+}
+
+// Stage a complete record beside the lock path. The temp is never a lock.
+function writeTempRecord(lockPath, record, attempt) {
+  const dir = path.dirname(lockPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const suffix = Math.random().toString(16).slice(2, 10);
+  const tempPath = path.join(dir, `${path.basename(lockPath)}.${process.pid}.${Date.now()}.${attempt}.${suffix}.tmp`);
+  fs.writeFileSync(tempPath, `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
+  return tempPath;
+}
+
+/**
  * Acquire the exclusive lock.
  * Returns { ok: true, lockPath, record, reclaimed } on success or
  * { ok: false, code, message, lockPath, owner? } on contention/failure.
@@ -72,47 +122,75 @@ export function acquireLock({
   };
   let reclaimed = false;
   for (let attempt = 0; attempt <= maxInspect; attempt += 1) {
+    let tempPath;
     try {
-      const fd = fs.openSync(lockPath, "wx");
-      fs.writeSync(fd, `${JSON.stringify(record, null, 2)}\n`);
-      fs.closeSync(fd);
-      return { ok: true, lockPath, record, reclaimed };
+      tempPath = writeTempRecord(lockPath, record, attempt);
+    } catch (err) {
+      return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: `could not stage a lock record beside ${lockPath}: ${err.message}`, lockPath };
+    }
+    let linked = false;
+    try {
+      fs.linkSync(tempPath, lockPath);
+      linked = true;
     } catch (err) {
       if (err.code !== "EEXIST") {
-        return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: err.message, lockPath };
-      }
-      const existing = readLockRecord(lockPath);
-      // Proof of absence, not age, is what authorizes reclaim.
-      if (!existing || existing.ownerPid === undefined || !processAlive(existing.ownerPid)) {
         try {
-          fs.unlinkSync(lockPath);
-          reclaimed = true;
+          fs.unlinkSync(tempPath);
         } catch {
-          /* another writer won the reclaim race; retry below */
+          /* best effort */
         }
-        continue;
+        return { ok: false, code: "LOCK_ACQUIRE_FAILED", message: `could not publish lock ${lockPath}: ${err.message}`, lockPath };
       }
-      if (attempt < maxInspect) {
-        sleepSync(backoffMs);
-        continue;
+    }
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      /* a stray temp is never a lock; a crashed publisher may leave one behind */
+    }
+    if (linked) return { ok: true, lockPath, record, reclaimed };
+
+    // EEXIST: inspect the holder before doing anything destructive.
+    const verdict = classifyLock(lockPath);
+    if (verdict.kind === "ABSENT") {
+      try {
+        fs.unlinkSync(lockPath);
+        reclaimed = true;
+      } catch {
+        /* another writer won the reclaim race; retry below */
       }
+      continue;
+    }
+    if (verdict.kind === "GONE") continue;
+    if (attempt < maxInspect) {
+      sleepSync(backoffMs);
+      continue;
+    }
+    if (verdict.kind === "LIVE") {
       return {
         ok: false,
         code: "LOCK_CONTENTION",
-        message: `lock ${lockPath} is held by live pid ${existing.ownerPid} (${existing.transition || "unknown transition"})`,
+        message: `lock ${lockPath} is held by live pid ${verdict.owner.ownerPid} (${verdict.owner.transition || "unknown transition"})`,
         lockPath,
-        owner: existing,
+        owner: verdict.owner,
       };
     }
+    return {
+      ok: false,
+      code: "LOCK_UNREADABLE",
+      message: `lock ${lockPath} is not a complete owner record (${verdict.reason}); refusing to reclaim without proof the owner is absent`,
+      lockPath,
+      owner: verdict.owner,
+    };
   }
   return { ok: false, code: "LOCK_CONTENTION", message: `lock ${lockPath} could not be acquired within the bounded inspection window`, lockPath };
 }
 
-// Release only a lock this process owns. Never removes another owner's lock.
+// Release only a lock this process provably owns. An unreadable or foreign
+// record is never deleted.
 export function releaseLock(lock) {
   if (!lock || !lock.ok || !lock.lockPath) return;
-  const existing = readLockRecord(lock.lockPath);
-  if (existing && existing.ownerPid !== process.pid) return;
+  const verdict = classifyLock(lock.lockPath);
+  if (verdict.kind !== "LIVE" || !verdict.owner || verdict.owner.ownerPid !== process.pid) return;
   try {
     fs.unlinkSync(lock.lockPath);
   } catch {
@@ -122,7 +200,13 @@ export function releaseLock(lock) {
 
 export function inspectLock(repoRoot) {
   const lockPath = lockPathFor(repoRoot);
-  if (!fs.existsSync(lockPath)) return { held: false, lockPath, owner: null, ownerAlive: false };
-  const owner = readLockRecord(lockPath);
-  return { held: true, lockPath, owner, ownerAlive: !!(owner && processAlive(owner.ownerPid)) };
+  const verdict = classifyLock(lockPath);
+  if (verdict.kind === "GONE") return { held: false, lockPath, owner: null, ownerAlive: false, unreadable: false };
+  return {
+    held: true,
+    lockPath,
+    owner: verdict.owner,
+    ownerAlive: verdict.kind === "LIVE",
+    unreadable: verdict.kind === "UNPROVEN",
+  };
 }

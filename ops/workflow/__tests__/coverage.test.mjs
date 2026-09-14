@@ -53,6 +53,25 @@ const CASES = [
     },
   },
   {
+    code: "GIT_ANCESTRY",
+    mutate: (d, repo) => {
+      // base -> candidate is valid, but the candidate is not an ancestor of the
+      // declared integration commit.
+      d.streams[0].git.baseSha = repo.baseSha;
+      d.streams[0].git.candidateSha = repo.candidateSha;
+      d.streams[0].git.integrationSha = repo.otherSha;
+      d.streams[0].git.changedPaths = ["candidate.txt"];
+    },
+  },
+  {
+    code: "GIT_SHA_UNKNOWN",
+    mutate: (d, repo) => {
+      d.streams[0].git.baseSha = repo.baseSha;
+      d.streams[0].git.candidateSha = "0".repeat(40);
+      d.streams[0].git.changedPaths = ["candidate.txt"];
+    },
+  },
+  {
     code: "COMPLETE_MISSING_QA",
     mutate: (d) => {
       d.streams[0].state = "COMPLETE";

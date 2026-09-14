@@ -121,11 +121,24 @@ present. `ATLAS_WORKFLOW_FAULT` (`STAGE_STATE`, `STAGE_RENDER`,
 `ATLAS_WORKFLOW_LOCK_HOLD_MS` exist only for deterministic tests.
 
 Locking: the lock lives in `git rev-parse --git-common-dir` so every linked
-worktree serializes through one file. Acquisition is `O_EXCL`; a lock is
-reclaimed only after proving its recorded owner pid is absent, never merely
-because it is old. Two concurrent writers produce exactly one committed
-transition and one typed loser (`LOCK_CONTENTION` or
-`TRANSITION_STALE_REVISION`) with zero partial files.
+worktree serializes through one file. Publication is atomic — the complete owner
+record is written to a unique sibling temp file and published with a
+no-overwrite hard link (`fs.linkSync`, `EEXIST` while held) — so a visible lock
+always carries a complete owner record and this tool cannot create an empty or
+partial lock. A crashed publisher may leave a stray `<lock>.*.tmp` beside the
+lock; a temp file is never treated as a lock and is not managed by this tool.
+
+Reclaim is fail-closed: a lock is deleted only when a readable record names a
+positive integer `ownerPid` whose process is provably absent, never merely
+because it is old. Unreadable, empty, malformed, or ownerless locks are reported
+as `LOCK_UNREADABLE` after the bounded inspection window with zero mutation. Two
+or more concurrent writers produce exactly one committed transition and typed
+losers (`LOCK_CONTENTION` or `TRANSITION_STALE_REVISION`) with zero partial files.
+
+Recovery for a manually proven-crashed unreadable lock: read the lock file,
+confirm it carries no live `ownerPid` (and that no process is still running the
+transition), then remove that one file by hand and re-run; never delete it merely
+because it is old, and never delete a lock owned by a live process.
 
 ## Compaction checkpoint (A5)
 

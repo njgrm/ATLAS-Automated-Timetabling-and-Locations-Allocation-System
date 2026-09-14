@@ -5,11 +5,10 @@
 - Worktree: `E:\ATLAS-worktrees\workflow-hardening-c02`
 - Branch: `work/workflow-hardening-c02`
 - Base SHA: `84dd537bb2a2c045b8518c35b3a5372142e0080c` (= refreshed `origin/main` at dispatch)
-- Candidate: bounded additive commits on the branch (the product/test candidate
-  plus a final test-value hygiene commit). A file cannot contain its own commit
-  SHA; the planner/QA resolve the tip with
-  `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`. The
-  `base...candidate` path set is unchanged by the hygiene commit.
+- Candidate: bounded additive commits on the branch (the product/test candidate,
+  a test-value hygiene commit, and the R1 lock correction with its tests). A file
+  cannot contain its own commit SHA; the planner/QA resolve the tip with
+  `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`.
 - Directive: worktree `AGENTS.md`, LF-normalized SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (unchanged).
 - Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, credential, or HIGH action).
 - Verdict: `REVIEW_REQUIRED`
@@ -59,6 +58,7 @@ ops/workflow/__tests__/fixtures.test.mjs
 ops/workflow/__tests__/harness.mjs
 ops/workflow/__tests__/identity.test.mjs
 ops/workflow/__tests__/leases.test.mjs
+ops/workflow/__tests__/lock.test.mjs
 ops/workflow/__tests__/roles.test.mjs
 ops/workflow/__tests__/schema.test.mjs
 ops/workflow/__tests__/seed.test.mjs
@@ -96,7 +96,10 @@ any other script.
 | A2-1 | One atomic named-transition CLI | `ops/workflow/transition.mjs` + `lib/transition.mjs` + `lib/lock.mjs` | stale CAS, invalid transition, ambiguous stream, lock contention, mid-write faults | `transition.test.mjs` (9 cases) | PASS |
 | A2-2 | One committed writer + one typed loser, zero partial files | `lib/lock.mjs` + `lib/transition.mjs` | two concurrent processes | `transition.test.mjs` "two concurrent writers …" | PASS |
 | A2-3 | Byte-identical before/after on every failure | staging + rename in `lib/transition.mjs` | `STAGE_STATE`, `STAGE_RENDER`, `VERIFY_RENDERED` faults | `transition.test.mjs` "a mid-write failure …" | PASS |
-| A2-4 | Crash recovery reclaims a provably-absent owner and never deletes a live lock | `lib/lock.mjs` `processAlive` | dead pid vs live pid | `transition.test.mjs` live/absent lock cases | PASS |
+| A2-4 | Crash recovery reclaims a provably-absent owner and never deletes a live lock | `lib/lock.mjs` `processAlive` | dead pid vs live pid | `transition.test.mjs` live/absent lock cases; `lock.test.mjs` | PASS |
+| A2-5 | Lock publication is atomic; unreadable/ownerless locks are never reclaimed | `lib/lock.mjs` (temp + `linkSync`, `classifyLock`) | empty, malformed, ownerless, and stray-temp lock files | `lock.test.mjs` (9); `transition.test.mjs` empty-lock case | PASS |
+| COV-1 | Committed candidateSha→integrationSha ancestry negative control | `lib/verify.mjs` `GIT_ANCESTRY` | candidate not an ancestor of the declared integration commit | `coverage.test.mjs` GIT_ANCESTRY case | PASS |
+| COV-2 | Committed `lease-update` red/green control | `lib/transition.mjs` `lease-update` | bogus state, bogus role, cross-stream lease | `transition.test.mjs` lease-update case | PASS |
 | A3-1 | Dirty worktree + live lease + PLANNED/running[] fails | `lib/verify.mjs` lease rules; `lib/git.mjs` `worktreeStatusPorcelain` | TT-SOURCE-FRESHNESS-C04 shape | `leases.test.mjs` first case | PASS |
 | A3-2 | Directory existence alone is not activity | `lib/verify.mjs` | clean worktree, no lease | `leases.test.mjs` "a clean worktree with no lease …" | PASS |
 | A3-3 | Expiry never grants cleanup/replacement authority | lease rule + `lease-update` transition | expired `ACTIVE` lease | `leases.test.mjs` "an expired-but-unconfirmed ACTIVE lease …" | PASS |
@@ -111,7 +114,7 @@ any other script.
 
 ## Decisive gate outputs
 
-- `npm run workflow:test`: `tests 126 / pass 126 / fail 0 / cancelled 0 / skipped 0 / todo 0`; last full-suite `duration_ms 28936.87`, wall `29942 ms`.
+- `npm run workflow:test`: `tests 139 / pass 139 / fail 0 / cancelled 0 / skipped 0 / todo 0`; last full-suite `duration_ms 26641.61`, wall `27875 ms` (after R1).
 - Before (WF-C01 tip, same host): `npm run workflow:test` wall `82562 ms` (60 tests).
 - Fixture/semantic suite (`fixtures.test.mjs`): `duration_ms 2008 ms` (target < 20000 ms).
 - `npm run workflow:verify -- --state docs/plans/atlas-delivery-cycles.json`: exit 0, `status ok`, `errors []`, 6 streams.
@@ -169,6 +172,65 @@ predicate is a shape check). `GIT_DIFF_FAILED` and unused schema keywords
 (`SCHEMA_MAXIMUM`, `SCHEMA_MIN_ITEMS`, `SCHEMA_MAX_LENGTH`) remain defensive and
 unreachable with the shipped contract.
 
+## R1 correction (F1 — lock publication and reclaim; QA `CORRECTION_REQUIRED` 10/9/0/0)
+
+**Defect (blocking).** `lib/lock.mjs` reclaimed (deleted) a lock whenever its
+record was unreadable, ownerless, or named a non-live pid. Because publication was
+non-atomic (`openSync(path,"wx")` created a visible empty lock before the record
+was written), a live holder in that creation gap presented an unreadable record
+and was treated as absent; the sibling `releaseLock` also unlinked when the record
+was unreadable. QA reproduced a transition succeeding while deleting a live
+holder's lock and a concurrent race yielding two `ok` results.
+
+**Fix (bounded; lock API unchanged).**
+
+- Publication is atomic: the complete owner record is staged in a unique sibling
+  temp and published with `fs.linkSync(temp, lockPath)` (throws `EEXIST` while
+  held; same directory, so no cross-device issue), then the temp is unlinked on
+  every path. A visible lock always carries a complete record; this tool can no
+  longer create an empty or partial lock. A crashed publisher may leave a stray
+  `*.tmp` that is never treated as a lock (`ops/workflow/lib/lock.mjs` `writeTempRecord:91`, `acquireLock:105`).
+- Fail-closed reclaim: `classifyLock` (`ops/workflow/lib/lock.mjs:69`) replaces
+  the fail-open test. Reclaim happens only when a readable record carries an
+  integer `ownerPid > 0` that is provably absent. Unreadable, empty, malformed, or
+  ownerless locks are retried within the bounded window and then returned as the
+  new typed `LOCK_UNREADABLE` error with zero mutation.
+- `releaseLock` (`ops/workflow/lib/lock.mjs:190`) unlinks only when a readable
+  record's `ownerPid` is this process; unreadable and foreign records are never
+  deleted. `inspectLock` reports `unreadable` consistently.
+- `lib/transition.mjs` `lease-update` now honors `--lease-session` on lease
+  creation (found while writing the required lease control).
+
+**New/updated controls.**
+
+| Control | Where | Result |
+| --- | --- | --- |
+| T1 empty live lock is never reclaimed: typed rejection, byte-identical state/render, lock preserved with its exact bytes | `transition.test.mjs` "a live external process holding an EMPTY lock …" | PASS |
+| T2 three concurrent writers → exactly one commit, typed losers only (`LOCK_CONTENTION`/`TRANSITION_STALE_REVISION`), revision +1, no partial files | `transition.test.mjs` "three concurrent writers …" | PASS |
+| T3 provably-absent owner is reclaimed with `reclaimed: true` | `lock.test.mjs`; `transition.test.mjs` absent-lock case | PASS |
+| T4 `releaseLock` never deletes an unreadable or foreign lock | `lock.test.mjs` "releaseLock deletes only this process's own readable record" | PASS |
+| Atomic publication, stray temp, `classifyLock`, `inspectLock` semantics | `lock.test.mjs` (9 tests) | PASS |
+| `candidateSha → integrationSha` ancestry negative control | `coverage.test.mjs` GIT_ANCESTRY | PASS |
+| `lease-update` valid change + typed invalid rejections (state, role, cross-stream) | `transition.test.mjs` lease-update case | PASS |
+
+**Failing-first proof** (disposable copy of `ops/workflow` with only
+`lib/lock.mjs` reverted to `HEAD`; the worktree was never reverted).
+
+| Lock under test | status | error code | empty lock after | revision after |
+| --- | --- | --- | --- | --- |
+| pre-correction (`HEAD`) | `ok` | — | deleted | 2 |
+| corrected | `fail` | `LOCK_UNREADABLE` | preserved | 1 |
+
+The first row proves T1 fails against the pre-correction behavior. A 6×6
+concurrent-writer probe against the pre-correction lock did not reproduce the
+two-`ok` race on this host (the non-atomic window is sub-millisecond); T2 is the
+strict regression control that rejects the `LOCK_UNREADABLE` loser outcome the old
+publication could create, and QA already reproduced the two-`ok` race.
+
+README documents the atomic publication, the stray-temp disposition, the
+fail-closed `LOCK_UNREADABLE` behavior, and the manual recovery instruction for a
+proven-crashed unreadable lock.
+
 ## Known risks (all NON_BLOCKING for this packet)
 
 1. The candidate cannot embed its own commit SHA; the planner/QA resolve the tip
@@ -192,6 +254,10 @@ unreachable with the shipped contract.
    `.opencode/package-lock.json`, and `.opencode/.gitignore` when its debug
    commands resolved the plugin; that `.gitignore` self-ignores those artifacts,
    and only `.opencode/agents/*.md` are committed.
+8. An unreadable/ownerless lock now fails closed as `LOCK_UNREADABLE` and needs a
+   human to prove no owner exists before removal; the README gives the exact
+   recovery step. This is intentional (never delete a lock without proof) but it
+   means an externally corrupted lock blocks transitions until cleared.
 
 ## Zero-mutation statement
 

@@ -285,7 +285,17 @@ export const TRANSITIONS = {
       const id = flags["lease-id"];
       let lease = doc.leases.find((l) => l.id === id);
       if (!lease) {
-        lease = { id, streamId: stream.id, worktree: flags["lease-worktree"] || stream.git.worktree || null, role, sessionId: null, state, revision: 1, updatedAt: nowIso, expiresAt: flags["lease-expires"] || null };
+        lease = {
+          id,
+          streamId: stream.id,
+          worktree: flags["lease-worktree"] || stream.git.worktree || null,
+          role,
+          sessionId: flags["lease-session"] !== undefined ? flags["lease-session"] : null,
+          state,
+          revision: 1,
+          updatedAt: nowIso,
+          expiresAt: flags["lease-expires"] || null,
+        };
         doc.leases.push(lease);
         return { state: undefined, defaults: null };
       }

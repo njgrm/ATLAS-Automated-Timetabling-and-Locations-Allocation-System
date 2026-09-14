@@ -256,6 +256,30 @@ test("a live lock produces typed contention and no writes", () => {
   }
 });
 
+test("a live external process holding an EMPTY lock is never reclaimed", () => {
+  const repo = createTempRepo();
+  try {
+    const statePath = writeStateDoc(repo, "state.json", baseDoc(repo));
+    const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
+    const stateBefore = fs.readFileSync(statePath);
+    const renderBefore = readOrNull(renderPath);
+    const lockPath = path.join(repo.dir, ".git", "atlas-workflow.lock");
+    // The exact artifact a pre-correction writer could publish during its
+    // non-atomic creation gap: a visible lock with no owner record.
+    fs.writeFileSync(lockPath, "");
+
+    const result = inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha });
+    assert.equal(result.status, "fail");
+    assert.deepEqual(reportCodes(result), ["LOCK_UNREADABLE"]);
+    assert.deepEqual(fs.readFileSync(statePath), stateBefore, "no state mutation");
+    assert.deepEqual(readOrNull(renderPath), renderBefore, "no render mutation");
+    assert.equal(fs.existsSync(lockPath), true, "the empty lock must survive");
+    assert.equal(fs.readFileSync(lockPath, "utf8"), "", "and keep its exact bytes");
+  } finally {
+    cleanupRepo(repo.dir);
+  }
+});
+
 test("a lock whose owning process is provably absent is reclaimed", () => {
   const repo = getSharedRepo();
   const statePath = writeStateDoc(repo, "state-absent-lock.json", baseDoc(repo));
@@ -303,7 +327,7 @@ test("a mid-write failure leaves state, render, and receipt byte-identical", () 
   }
 });
 
-test("two concurrent writers produce exactly one commit and one typed loser", async () => {
+test("three concurrent writers produce exactly one commit and typed losers", async () => {
   const repo = createTempRepo();
   try {
     const statePath = writeStateDoc(repo, "state.json", baseDoc(repo));
@@ -314,20 +338,25 @@ test("two concurrent writers produce exactly one commit and one typed loser", as
       "--base", repo.baseSha,
       "--candidate", repo.candidateSha,
     ];
-    const [a, b] = await Promise.all([
+    const writers = await Promise.all([
+      spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "700" }),
       spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "700" }),
       spawnTransition(statePath, args, { ATLAS_WORKFLOW_LOCK_HOLD_MS: "700" }),
     ]);
-    const results = [a, b];
-    const winners = results.filter((r) => r.json && r.json.status === "ok");
-    const losers = results.filter((r) => r.json && r.json.status === "fail");
-    assert.equal(winners.length, 1, JSON.stringify(results.map((r) => r.out)));
-    assert.equal(losers.length, 1, JSON.stringify(results.map((r) => r.out)));
-    const loserCodes = (losers[0].json.errors || []).map((e) => e.code);
-    assert.ok(
-      loserCodes.includes("LOCK_CONTENTION") || loserCodes.includes("TRANSITION_STALE_REVISION"),
-      `loser must carry a typed error, got ${JSON.stringify(loserCodes)}`,
-    );
+    const winners = writers.filter((r) => r.json && r.json.status === "ok");
+    const losers = writers.filter((r) => r.json && r.json.status === "fail");
+    assert.equal(winners.length, 1, JSON.stringify(writers.map((r) => r.out)));
+    assert.equal(losers.length, 2, JSON.stringify(writers.map((r) => r.out)));
+    for (const loser of losers) {
+      const loserCodes = (loser.json.errors || []).map((e) => e.code);
+      // A loser may only ever observe a complete live record or a stale
+      // revision. An unreadable/partial lock is impossible under atomic
+      // publication, so it is deliberately not an accepted loser outcome.
+      assert.ok(
+        loserCodes.includes("LOCK_CONTENTION") || loserCodes.includes("TRANSITION_STALE_REVISION"),
+        `loser must carry a typed contention/CAS error, got ${JSON.stringify(loserCodes)}`,
+      );
+    }
 
     const doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
     assert.equal(doc.registry.revision, 2, "exactly one transition may commit");
@@ -336,6 +365,46 @@ test("two concurrent writers produce exactly one commit and one typed loser", as
   } finally {
     cleanupRepo(repo.dir);
   }
+});
+
+test("lease-update records a valid lease change and rejects invalid input", () => {
+  const repo = getSharedRepo();
+  const statePath = writeStateDoc(repo, "state-lease.json", baseDoc(repo));
+
+  const created = inProcess(statePath, "lease-update", { stream: "ORD-1", "expect-revision": "1", "lease-id": "L1", "lease-state": "ACTIVE", "lease-role": "executor", "lease-session": "s1" });
+  assert.equal(created.status, "ok", JSON.stringify(created.errors));
+  let doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(doc.leases.length, 1);
+  assert.equal(doc.leases[0].streamId, "ORD-1");
+  assert.equal(doc.leases[0].state, "ACTIVE");
+  assert.equal(doc.leases[0].sessionId, "s1");
+  assert.equal(doc.leases[0].revision, 1);
+  assert.equal(doc.registry.revision, 2);
+
+  const moved = inProcess(statePath, "lease-update", { stream: "ORD-1", "expect-revision": "2", "lease-id": "L1", "lease-state": "STALE_UNCONFIRMED", "lease-role": "executor" });
+  assert.equal(moved.status, "ok", JSON.stringify(moved.errors));
+  doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(doc.leases[0].state, "STALE_UNCONFIRMED");
+  assert.equal(doc.leases[0].revision, 2);
+  assert.equal(doc.registry.revision, 3);
+
+  const beforeInvalid = fs.readFileSync(statePath);
+  const badState = inProcess(statePath, "lease-update", { stream: "ORD-1", "expect-revision": "3", "lease-id": "L1", "lease-state": "BOGUS", "lease-role": "executor" });
+  assert.equal(badState.status, "fail");
+  assert.deepEqual(reportCodes(badState), ["TRANSITION_LEASE_STATE_INVALID"]);
+  assert.deepEqual(fs.readFileSync(statePath), beforeInvalid, "an invalid lease state must not mutate state");
+
+  const badRole = inProcess(statePath, "lease-update", { stream: "ORD-1", "expect-revision": "3", "lease-id": "L1", "lease-state": "IDLE", "lease-role": "root" });
+  assert.deepEqual(reportCodes(badRole), ["TRANSITION_LEASE_ROLE_INVALID"]);
+
+  // A lease owned by another stream cannot be updated through this stream.
+  const twoStreams = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  const second = JSON.parse(JSON.stringify(twoStreams.streams[0]));
+  second.id = "ORD-2";
+  twoStreams.streams.push(second);
+  const secondPath = writeStateDoc(repo, "state-lease-two.json", twoStreams);
+  const mismatch = inProcess(secondPath, "lease-update", { stream: "ORD-2", "expect-revision": String(twoStreams.registry.revision), "lease-id": "L1", "lease-state": "IDLE", "lease-role": "executor" });
+  assert.deepEqual(reportCodes(mismatch), ["TRANSITION_LEASE_STREAM_MISMATCH"]);
 });
 
 test("usage errors exit 2 and an unknown transition exits 1", () => {
