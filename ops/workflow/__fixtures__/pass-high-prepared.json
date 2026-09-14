@@ -1,0 +1,47 @@
+{
+  "contractVersion": "1.0.0",
+  "registry": { "lastUpdatedAt": "2026-09-14T10:10:00+08:00", "lastUpdatedBy": "fixture" },
+  "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
+  "streams": [
+    {
+      "id": "HIGH-1",
+      "kind": "STREAM",
+      "objective": "HIGH packet prepared but not yet approved.",
+      "riskTier": "HIGH",
+      "state": "HIGH_APPROVAL_REQUIRED",
+      "stateUpdatedAt": "2026-09-14T10:10:00+08:00",
+      "nextAction": "Await the operator's exact approval sentence.",
+      "awaited": ["operator approval"],
+      "running": [],
+      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteSha": null, "changedPaths": [] },
+      "owners": {
+        "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
+        "executor": { "sessionId": null, "status": "NONE", "writable": false },
+        "qa": { "sessionId": null, "status": "NONE", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": true },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": { "kind": "APPROVAL", "detail": "Exact HIGH approval not yet returned.", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "approval": {
+        "required": true, "presentedReady": true, "granted": false, "operatorIdentity": null,
+        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": ["obs-enrollpro-reach"], "execution": null
+      },
+      "observations": [
+        { "id": "obs-enrollpro-reach", "target": "EnrollPro host", "checkedAt": "2026-09-14T10:09:00+08:00", "status": "PASS", "expiresAt": "2099-01-01T00:00:00Z", "detail": "reachable" }
+      ],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture planner routing" },
+        "executor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture executor routing" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture QA routing" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture auditor routing" }
+      }
+    }
+  ],
+  "browserCustody": { "profiles": [], "logins": [] }
+}

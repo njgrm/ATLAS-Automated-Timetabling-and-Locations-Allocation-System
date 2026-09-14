@@ -245,8 +245,10 @@ export function verifyStateDocument(statePath, options = {}) {
               push("GIT_DIFF_FAILED", `git diff ${g.baseSha}...${g.candidateSha} failed`, `${sp}.git`);
             } else {
               const declared = g.changedPaths;
-              const missing = setDiff(declared, actual);
-              const extra = setDiff(actual, declared);
+              // missing = actually changed but absent from the declaration;
+              // extra   = declared but not actually changed.
+              const missing = setDiff(actual, declared);
+              const extra = setDiff(declared, actual);
               if (missing.length > 0 || extra.length > 0) {
                 push(
                   "CHANGED_PATHS_MISMATCH",
