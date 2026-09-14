@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-14T18:02:40.169Z",
+    "lastUpdatedAt": "2026-09-15T04:20:08+08:00",
     "lastUpdatedBy": "primary-planner",
-    "revision": 10
+    "revision": 11
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "WF-C02 COMPLETE with pinned receipt and AUDIT_CLEAR; WF-C03 (Lane B) dispatch follows from the refreshed origin/main tip."
+    "globalNextAction": "Obtain the exact ENROLLPRO-PROXY-RECOVERY-LIVE approval and execute that supervised recovery first; then revalidate and request the separately fingerprinted TERM-CACHE-CATCHUP-APPLY approval. WF-C03 remains safe ordinary parallel work."
   },
   "streams": [
     {
@@ -410,12 +410,11 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "EXTERNALLY_BLOCKED",
-      "stateUpdatedAt": "2026-09-14T16:30:00+08:00",
-      "nextAction": "Await operator decision; re-verify EnrollPro reachability at execution preflight before any attempt.",
+      "state": "HIGH_APPROVAL_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T04:20:08+08:00",
+      "nextAction": "Obtain the packet's exact operator approval; re-verify EnrollPro reachability and runtime identity at execution preflight before any mutation.",
       "awaited": [
-        "Revised exact HIGH approval (currently NOT GRANTED)",
-        "EnrollPro host reachability"
+        "Revised exact HIGH approval (currently NOT GRANTED)"
       ],
       "running": [],
       "git": {
@@ -498,8 +497,8 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "EXTERNAL",
-        "detail": "EnrollPro host dev-jegs / 100.120.169.123:5002 unreachable as of 2026-09-14 (DNS resolves; TCP connect fails; HTTP 000). Live env/install/restart packet also NOT approved.",
+        "kind": "NONE",
+        "detail": "",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
@@ -520,10 +519,10 @@
         {
           "id": "obs-enrollpro-reachability",
           "target": "EnrollPro dev-jegs (100.120.169.123:5002)",
-          "checkedAt": "2026-09-14T16:30:00+08:00",
-          "status": "FAIL",
-          "expiresAt": "2026-09-15T00:00:00+08:00",
-          "detail": "Read-only probe: TCP connect failed; HTTPS 000; host currently unreachable."
+          "checkedAt": "2026-09-15T04:20:08+08:00",
+          "status": "PASS",
+          "expiresAt": "2026-09-15T04:50:08+08:00",
+          "detail": "Read-only probe: current EnrollPro HTTPS public settings returned 200; ATLAS remains healthy while its existing /enrollpro-api/settings/public proxy returns 502, which is the prepared recovery target."
         }
       ],
       "artifacts": [],
@@ -548,6 +547,135 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "high-risk live action requires a fresh adversarial audit"
+        }
+      }
+    },
+    {
+      "id": "TERM-CACHE-CATCHUP-APPLY",
+      "kind": "STREAM",
+      "objective": "Persist the reviewed EnrollPro ordered-term contract for school 1 and school year 9 through the guarded live term-authority apply endpoint.",
+      "riskTier": "HIGH",
+      "state": "HIGH_APPROVAL_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T04:20:08+08:00",
+      "nextAction": "After ENROLLPRO-PROXY-RECOVERY-LIVE completes, re-run the packet's read-only preflight and obtain the exact section-12 operator approval before any login or write.",
+      "awaited": [
+        "Completion of the separately gated EnrollPro proxy recovery",
+        "Exact fingerprinted HIGH approval from the operator"
+      ],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": "integration/term-cache-apply-packet-c01-20260915",
+        "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c",
+        "candidateSha": "71981946e4b0cc5ec745eecd58726093d179bba0",
+        "integrationSha": "34aaccc4f1dbbb70796ae400f4a5a708d824863b",
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "34aaccc4f1dbbb70796ae400f4a5a708d824863b",
+          "observedAt": "2026-09-15T04:18:00+08:00",
+          "kind": "REMOTE_TRACKING_REF"
+        },
+        "changedPaths": [
+          "docs/handoffs/term-cache-catchup-apply-packet-c01.md",
+          "docs/prompts/term-cache-catchup-apply-2026-09-14.md",
+          "docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r2.md",
+          "docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r3.md",
+          "docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r4.md",
+          "docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r5.md",
+          "docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit-r6.md",
+          "docs/reviews/term-cache-catchup-apply-preaction-20260914/wave-completion-audit.md"
+        ]
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": "ses_f5f4a3a0dffeHzUy3g2mM1rlqD",
+          "status": "RETURNED",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 16,
+        "passed": 16,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5f4a3a0dffeHzUy3g2mM1rlqD",
+        "auditRequired": true
+      },
+      "corrections": [],
+      "successors": [
+        {
+          "streamId": "LIVE-GENERATION",
+          "unlocked": false,
+          "reason": "Live generation remains locked until this apply completes and the canonical zero-hard-blocker readiness diagnostic passes."
+        }
+      ],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [
+          "one bounded local QA login",
+          "one guarded term-authority apply for school 1 and school year 9",
+          "read-only post-apply TT/TL acceptance",
+          "guarded rollback only after a committed apply fails mandatory verification"
+        ],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "head planner owns the integrated approval packet and sequencing"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the eventual HIGH execution requires a fresh bounded executor"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the one-login live action requires a fresh QA/session custodian"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the post-action HIGH audit must use a fresh independent context"
         }
       }
     },
@@ -754,10 +882,12 @@
       },
       "corrections": [],
       "successors": [],
-      "requires": [],
+      "requires": [
+        "TERM-CACHE-CATCHUP-APPLY"
+      ],
       "blocker": {
         "kind": "DEPENDENCY",
-        "detail": "Requires the term-cache catch-up apply (EnrollPro currently unreachable) and a canonical zero-hard-blocker readiness diagnostic before any fingerprinted preview and explicit HIGH approval.",
+        "detail": "Requires the term-cache catch-up apply and a canonical zero-hard-blocker readiness diagnostic before any fingerprinted preview and explicit HIGH approval.",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
