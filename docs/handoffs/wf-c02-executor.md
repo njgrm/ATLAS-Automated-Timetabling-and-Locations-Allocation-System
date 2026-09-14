@@ -5,9 +5,11 @@
 - Worktree: `E:\ATLAS-worktrees\workflow-hardening-c02`
 - Branch: `work/workflow-hardening-c02`
 - Base SHA: `84dd537bb2a2c045b8518c35b3a5372142e0080c` (= refreshed `origin/main` at dispatch)
-- Candidate: a single bounded commit on the branch. A file cannot contain its own
-  commit SHA; the planner/QA resolve it with
-  `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`.
+- Candidate: bounded additive commits on the branch (the product/test candidate
+  plus a final test-value hygiene commit). A file cannot contain its own commit
+  SHA; the planner/QA resolve the tip with
+  `git -C E:\ATLAS-worktrees\workflow-hardening-c02 rev-parse HEAD`. The
+  `base...candidate` path set is unchanged by the hygiene commit.
 - Directive: worktree `AGENTS.md`, LF-normalized SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (unchanged).
 - Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, credential, or HIGH action).
 - Verdict: `REVIEW_REQUIRED`
@@ -102,7 +104,7 @@ any other script.
 | A4-2 | Least-privilege, fail-closed permission matrix; no self-promotion | agent frontmatter `permission` | wrong path, wrong task target, push/merge | `roles.test.mjs` matrix cases | PASS |
 | A4-3 | Existing delegate faces preserved | global `atlas-executor-delegate` / `atlas-qa-delegate` | — | `roles.test.mjs` "existing delegate faces are preserved" | PASS |
 | A5-1 | Automatic compaction + pruning configured and resolvable | project `opencode.json` | — | `roles.test.mjs` compaction case; `opencode debug config --pure` | PASS |
-| A5-2 | Minimal, redacted, size-bounded checkpoint | `lib/checkpoint.mjs` + `ops/workflow/checkpoint.mjs` | secret-shaped values, oversize, unknown keys | `checkpoint.test.mjs` (10 cases) | PASS |
+| A5-2 | Minimal, redacted, size-bounded checkpoint | `lib/checkpoint.mjs` + `ops/workflow/checkpoint.mjs` | secret-shaped values, oversize, unknown keys | `checkpoint.test.mjs` (9 cases) | PASS |
 | A6-1 | Fixture harness no longer spawns a Node/Git repo per assertion | `__tests__/harness.mjs`, `fixtures.test.mjs` | one true CLI process test and the real Git checkout controls preserved | `npm run workflow:test`; `cli.test.mjs`; `artifact-portability.test.mjs` | PASS |
 | A6-2 | Suite meets the time budget | harness + `lib/git.mjs` memo | — | before/after wall times below | PASS |
 | R2 | Every deterministic verifier code is reachable | `lib/verify.mjs`, `lib/schema.mjs` | table-driven mutations | `coverage.test.mjs` (27 cases) | PASS |

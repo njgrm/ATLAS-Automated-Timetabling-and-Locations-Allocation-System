@@ -53,12 +53,12 @@ test("a checkpoint round-trips through its serialized form", () => {
 
 test("credential-shaped values are rejected", () => {
   const cases = [
-    { field: "nextAtomicAction", value: "use sk-abcdefghijklmnopqrstuvwxyz123456" },
-    { field: "nextAtomicAction", value: "Authorization: Bearer abcdefghijklmnopqrstuvwx" },
+    { field: "nextAtomicAction", value: "use sk-TESTONLYnotarealkey0001" },
+    { field: "nextAtomicAction", value: "Authorization: Bearer TESTONLYnotarealtoken1" },
     { field: "nextAtomicAction", value: "-----BEGIN PRIVATE KEY-----" },
-    { field: "nextAtomicAction", value: "password=correct-horse-battery" },
-    { field: "nextAtomicAction", value: "api_key: abcd1234" },
-    { field: "nextAtomicAction", value: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghij" },
+    { field: "nextAtomicAction", value: "password=TESTONLYnotarealpassword" },
+    { field: "nextAtomicAction", value: "api_key: TESTONLYnotarealvalue" },
+    { field: "nextAtomicAction", value: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.TESTONLYnotarealsig" },
   ];
   for (const { field, value } of cases) {
     assert.throws(
@@ -130,7 +130,7 @@ test("the checkpoint CLI is a reachable production surface", () => {
   assert.equal(checkpoint.role, "executor");
   assert.deepEqual(checkpoint.forbiddenBoundaries, ["atlas-server/**", "databases"]);
 
-  const rejected = runCli(CHECKPOINT_CLI, ["--state", fixture, "--stream", "ORD-1", "--last-gate", "password=correct-horse"], { cwd: REPO_ROOT });
+  const rejected = runCli(CHECKPOINT_CLI, ["--state", fixture, "--stream", "ORD-1", "--last-gate", "password=TESTONLYnotarealpassword"], { cwd: REPO_ROOT });
   assert.equal(rejected.status, 1);
   assert.deepEqual(
     rejected.json.errors.map((e) => e.code),
