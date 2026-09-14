@@ -17,6 +17,7 @@
 ## Changed paths (base...candidate)
 
 ```
+.gitattributes
 .opencode/agents/atlas-executor.md
 .opencode/agents/atlas-planner.md
 .opencode/agents/atlas-qa.md
