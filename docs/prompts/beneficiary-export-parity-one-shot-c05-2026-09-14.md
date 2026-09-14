@@ -181,6 +181,14 @@ identify type + school-year label + term (+ entity where applicable), e.g.
 `room-program-<room|ALL>-SY2026-2027-term1.xlsx` (sanitized). Keep client and
 server identical.
 
+**T10. Publication-state marker (G13).** Every official output (summary, class,
+teacher, room) must identify its publication state from the run’s persisted
+publication data: a non-published output renders an explicit
+`NOT PUBLISHED — DRAFT/REVIEW` marker (workbook header area and DOCX banner
+area); a published output renders `PUBLISHED` with the revision identity
+available from the run summary. No schema change; use existing run summary
+fields.
+
 ### W3 — Controls and tests (P2, mandatory)
 
 Replace weak/tautological controls (audit G8) with the mandatory matrix in §4.
@@ -191,7 +199,7 @@ removal without replacement coverage).
 ### W4 — Documentation corrections (bounded, G10)
 
 Fix the three stale/false claims (paths in §2) to match verified behavior after
-T1–T9: shared selected-term parity for room/teacher/exports must now be true;
+T1–T10: shared selected-term parity for room/teacher/exports must now be true;
 `TERM_FILTER_NOT_READY` semantics description corrected; the stale “default
 downloads are all-term” closure annotated as superseded by this stream. Touch
 no other docs.
@@ -226,6 +234,7 @@ not PASS.
 | M20 | Docs corrections | Three claims corrected; `git diff --check` clean | Diff assertion |
 | M21 | Test preservation | No assertion removals without documented adjudicated replacement | Inventory check |
 | M22 | Real builder artifacts | Deterministic fixture → real builders produce DOCX/XLSX in temp; extraction checks exact values both directions | Helper-only test cannot satisfy this row |
+| M23 | Publication-state marker | Draft fixture export shows the explicit not-published marker; published fixture shows the published marker | Remove the marker → fails (contract §7.11 / G13) |
 
 **Fixture requirements (deterministic):** three ordered terms; ≥1 ordinary
 five-session subject; ≥1 rotation family with per-term subject/teacher/room

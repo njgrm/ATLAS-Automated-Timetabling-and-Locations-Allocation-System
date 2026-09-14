@@ -17,6 +17,10 @@ plus temp renders under `%TEMP%/opencode/stakeholder-export-parity-c05/`
 (`lane-a/`, `lane-b/`, `lane-c/`, `planner/`)
 **Correction packet:** `docs/prompts/beneficiary-export-parity-one-shot-c05-2026-09-14.md`
 **Output contract:** `docs/reference/atlas-beneficiary-output-contract.md`
+**Revision:** r2 (2026-09-14) — wave-audit F2 remedy applied (G13 added to
+§0/§6/§7/§9 and to packet T10/M23); F3/F4 evidence-index corrections. Revision
+r1 was frozen at `5eb14664`; audit round-1 verdict preserved at
+`docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r1.md`.
 
 ## 0. Verdict summary
 
@@ -40,6 +44,7 @@ NOT met.** Confirmed blocking and material defects:
 | G10 | Committed docs contain three false/stale parity claims | MATERIAL (docs-only) |
 | G11 | Room read path performs writes via `getOrCreatePolicy` (create/normalize/DDL) | MATERIAL |
 | G12 | Beneficiary artifacts show ARAL rows / minutes conventions that conflict with decision 6 wording; placeholder/period-config questions | DECISION_REQUIRED (D-A, D-C, D-D, D-E) |
+| G13 | Draft/review official outputs carry no publication-state marker; a draft export is indistinguishable from a published one (contract §7.11) | MATERIAL |
 
 **Classification vs the six categories:** no output type is
 `PROVEN_COMPLETE`; class program/teacher program/summary are `PARTIAL`; room
@@ -111,11 +116,14 @@ by planner evidence; the renderer is available for DOCX.**
 | root-reference/Teachers-PROGRAM.docx (H) | 1 | 1 |
 | root-reference/CLASS-PROGRAM-v2.docx (H) | 1 | 1 |
 
-Evidence: `%TEMP%/opencode/stakeholder-export-parity-c05/planner/pdf/*.pdf`,
-`.../planner/png/*.png`, plus the DNO page PNGs at the temp root.
+Evidence: `%TEMP%/opencode/stakeholder-export-parity-c05/planner/pdf/`
+(4 PDFs: aral-prog, spec-afternoon, root-teacher-program, class-program-v2),
+`.../planner/png/` (8 PNGs), plus the DNO render `dno-copy.pdf` (4 pp) and
+`test-page-1..4.png` at the temp root.
 
-**XLSX (Lane A).** 38/38 relevant sheets converted to per-sheet PDF and then to
-272 PNGs (`lane-a/xlsx-pdf/`, `lane-a/pdf-png/`). Visual inspection coverage:
+**XLSX (Lane A).** 38/38 relevant sheets converted to per-sheet PDF
+(`lane-a/xlsx-pdf/`, 39 PDFs including one non-sheet probe) and rasterized to
+272 PNGs (`lane-a/pdf-png/`, including 9 probe artifacts). Visual inspection coverage:
 SUMMARY workbook 7/10 sheets (SUMMARY, SUMMARY(2), SCIENCE, MATH, MAPEH,
 ESPGMRC, TLE), 40-minutes 4/39 pp, CLASS-PROGRAM-2025-2026 1 sheet, quarter-3
 1 sheet. Structural extraction was complete for all sheets (merged ranges,
@@ -218,7 +226,7 @@ to `null`; menu disabled), so this is a server-boundary fail-open.
 | 8 | Rotating teacher/room changes propagate to every output | PARTIAL | Shared draft entries; published teacher resolver diverges |
 | 9 | Revision-effective edits appear in every export | PARTIAL | Workbook + matrix use `resolvePublishedRun`; teacher uses a different resolver; matrix/teacher identity rules differ |
 | 10 | Published output uses authoritative published revision | PARTIAL | Workbook binds `published.source.runId === runId` (`workbook-export.service.ts:195-199`); matrix returns 404/empty (`class-program-matrix.service.ts:140-143`); teacher export performs **no runId binding** (`teacher-program-export.service.ts:227-232`) |
-| 11 | Draft/review outputs identify not published | ABSENT | No publication-state label in any builder (grep: no NOT_PUBLISHED/print marker in export services); workbook meta has run id only |
+| 11 | Draft/review outputs identify not published | ABSENT → **G13** | No publication-state label in any builder (grep: no NOT_PUBLISHED/publication marker in the export services); workbook meta has run id only (`workbook-export.service.ts:364-382`); carried as G13 (§7) and packet T10/M23 |
 | 12 | Missing identity/term/run/faculty/room/source authority fails closed | PARTIAL | 404/422/409/501 lanes exist; absent term does not fail (G1); matrix empty-200 (G7) |
 
 ## 7. Confirmed gaps (file:line evidence)
@@ -323,6 +331,16 @@ learner-count source (D-E). Latent: teacher-program break rows lack the
 Flag→Monday day fallback used by the workbook
 (`teacher-program-export.service.ts:320-336`) — included in the packet.
 
+**G13 — Draft/review outputs carry no publication-state marker. MATERIAL.**
+Contract §7.11 requires non-published outputs to identify that they are not
+published; no builder emits such a marker (grep across
+`workbook-export.service.ts`, `docx-export.service.ts`,
+`teacher-program-export.service.ts`: no `NOT_PUBLISHED`/publication label). The
+workbook meta rows carry a `Run:` id only (`workbook-export.service.ts:364-382`),
+and the run gate admits any COMPLETED run (`loadExportContext:181-183`).
+A review-state export is therefore indistinguishable from a published one.
+Corrected by packet T10 / M23. (Added in r2 after wave-audit finding F2.)
+
 ## 8. Missing source behavior vs unverified live behavior
 
 **Missing/incorrect source behavior (correctable now, no live dependency):**
@@ -366,6 +384,9 @@ separately gated HIGH actions. None of those were touched by this audit.
 8. G7 — matrix semantics parity.
 9. G8 — replace weak controls with real-builder/mounted/parity controls (the
    packet lists the mandatory matrix).
+10. G13 — publication-state marker on every official output (draft/review vs
+    published), driven by the run’s persisted publication state; covered by
+    packet T10/M23.
 
 **Docs:** G10 corrections are carried in the successor packet (this audit’s
 deliverable set does not include editing pre-existing docs).
@@ -416,8 +437,10 @@ binding; zero-write instrumentation in `tt-output-c03r-route.test.ts`.
   (+ `%TEMP%/opencode/stakeholder-export-parity-c05/lane-a/`).
 - Lane B report: `.../lane-b.md` (+ `.../lane-b/`).
 - Lane C report: `.../lane-c.md` (+ `.../lane-c/`).
-- Planner renders/commands: `%TEMP%/opencode/stakeholder-export-parity-c05/planner/`
-  (5 PDFs, 12 PNGs, all-pages visual inspection).
+- Planner renders/commands: `%TEMP%/opencode/stakeholder-export-parity-c05/`
+  — `planner/pdf/` (4 PDFs), `planner/png/` (8 PNGs), plus the DNO render at
+  the temp root (`dno-copy.pdf`, `test-page-1..4.png`); all 12 rendered pages
+  were visually inspected.
 - Key commands: `git -C D:/ATLAS fetch origin --prune`; `git rev-parse
   origin/main` → `84dd537b…`; directive hash via LF-normalized SHA-256;
   Word/Excel COM renders; Windows.Data.Pdf rasterization; `git grep` source
