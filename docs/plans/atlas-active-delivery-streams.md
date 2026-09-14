@@ -16,18 +16,15 @@ hard blockers before separately approving publication.
 
 ## Current coordination snapshot
 
-- Cycle recovery: `tl-suggestion-c03r3-20260914` (`INTEGRATED_AUDIT_PENDING`)
-  updated 2026-09-14 Asia/Manila. C03R3 correction `83415bd9` (base `c46cb06f`,
-  exactly three paths) passed fresh independent QA
-  `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY` 11/11/0/0 (preview-only
-  preliminary reconcile; typed 409 before the Serializable transaction; E5
-  byte-identical zero-write state with the pre-fix mutant; E4 positive
-  Serializable; adversarial stale-preview trace clean) and was integrated by
-  merge `8cabdc92` on `origin/main` with merged-tree gates green (server
-  tsc/build; 109/109, 64/64, 34/34, 13/13; `git diff --check`). One
-  post-integration wave audit remains. No deployment, login, live/shared
-  database write, Teaching Load apply, generation, publication, migration, or
-  companion action occurred.
+- Cycle recovery: `tl-suggestion-c03r3-20260914` (`COMPLETE`) closed
+  2026-09-14 Asia/Manila. C03R3 correction `83415bd9` (base `c46cb06f`) passed
+  fresh independent QA `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY`
+  11/11/0/0, was integrated by merge `8cabdc92`, and the post-integration Wave
+  Completion Auditor (`ses_f6201ff92ffevKrFSF8sRV3o2Y`) returned `AUDIT_CLEAR`
+  7/7/0/0 with capsule
+  `docs/reviews/tl-suggestion-c03r3-20260914/wave-completion-audit.md`. No
+  deployment, login, live/shared database write, Teaching Load apply,
+  generation, publication, migration, or companion action occurred.
 - Cycle recovery: `tt-c04-authority-wave-20260913` (`COMPLETE`)
   activated 2026-09-13 (Asia/Manila) by the operator (`CYCLE ON`) for three
   parallel source lanes from `origin/main` `e3882ca0`: S1
@@ -431,7 +428,7 @@ hard blockers before separately approving publication.
 | TL-UX-C01R2 | Correct the integrated Teaching Load suggestion apply authority | `INTEGRATED` | HIGH write/concurrency guards | `work/teaching-load-ux-c01r2`; `ec7d54ed...52224ce3`; integration `1d9a06ec` | Live suggestion apply remains a separate HIGH action | Primary planner reproduced 61/61 disposable-PostgreSQL authority, 13/13 distribution, write-authority and 56/56 policy suites; combined type/build gates passed | Closed in source; do not invoke suggestion apply without its own reviewed preview and explicit approval |
 | TL-AUTHORITY-DIAGNOSTIC-C02 | Expose read-only Teaching Load authority diagnostics, zero-load faculty, adviser blockers, and HG exclusion | `INTEGRATED` | MEDIUM source; HIGH Teaching Load mutation | `work/tl-authority-diagnostic-c02`; `8f48a2fe...7cc6f587`; integration `b716e96f` | Suggestion/apply and carry-forward remain separately gated | Fresh QA accepted the scoped system-token/JWT authority correction; hermetic reconciliation 83/83, route authority/zero-write probes passed; the pre-existing R5 replay/null-fixture failure reproduced on base and candidate; fixture residue was removed and verified absent | Closed in source; use diagnostics before any Teaching Load apply preview; no write action is authorized by this lane |
 | TL-SUGGESTION-C03R | Unify suggestion and over-cap qualification with persisted policy, include qualified zero-load faculty, expose typed rejection reasons, and scope every preview/report | `INTEGRATED` (wave-audited `AUDIT_CLEAR` 6/6/0/0) | MEDIUM cross-layer source; HIGH future apply | `work/tl-suggestion-c03`; base `4e5ef1f6`; reviewed candidate `6eb3a3b0`; integration merge `027b3f65` on `486bf8c7`; integrated onto `origin/main` via `bbd6b0df` | None in source; live suggestion apply remains separately gated HIGH | Fresh QA on the integrated tree `ses_f65804431ffefia10Eep6r4Zsd` `ACCEPT_READY` 15/15/0/0 (exact 12-path attribution; clean `types.ts` auto-union with no hunk lost; authority 64/64; apply parity 34/34 incl. TOCTOU/program-scope stale zero-write; distribution 13/13; workload policy 56/56; diagnostics client 7/7; disposable-PG authority 61/61; server/client tsc+build); merged-tree combined gates green | Closed in source; do not invoke suggestion/apply without its own reviewed preview and explicit HIGH approval; deployment remains a separate reviewed HIGH action |
-| TL-SUGGESTION-C03R2 | Make canonical derived demand the sole current-year pair authority for Teaching Load suggestions, staffing need, over-cap redistribution, and apply-time revalidation | `INTEGRATED` (correction integrated; post-integration wave audit pending) | MEDIUM cross-layer source; HIGH future apply | Integrated candidate `bcb53822` at merge `020fbe85`; correction `work/tl-suggestion-c03r3-atomicity` `c46cb06f...83415bd9`; merge `8cabdc92` on `origin/main` | Deployment and every live suggestion/over-cap apply remain locked behind separate reviewed previews and explicit HIGH approval | Correction QA `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY` 11/11/0/0; merged-tree gates server tsc/build + 109/109 + 64/64 + 34/34 + 13/13 green | Run the one fresh post-integration wave audit; no correction round required |
+| TL-SUGGESTION-C03R2 | Make canonical derived demand the sole current-year pair authority for Teaching Load suggestions, staffing need, over-cap redistribution, and apply-time revalidation | `INTEGRATED` — wave-audited `AUDIT_CLEAR` 7/7/0/0 | MEDIUM cross-layer source; HIGH future apply | Integrated candidate `bcb53822` at merge `020fbe85`; correction `work/tl-suggestion-c03r3-atomicity` `c46cb06f...83415bd9`; merge `8cabdc92` on `origin/main` | Deployment and every live suggestion/over-cap apply remain locked behind separate reviewed previews and explicit HIGH approval | Correction QA `ses_f620cc00effeR5EV2RxV3fFWGB` `ACCEPT_READY` 11/11/0/0; merged-tree gates server tsc/build + 109/109 + 64/64 + 34/34 + 13/13 green; post-integration wave audit `ses_f6201ff92ffevKrFSF8sRV3o2Y` `AUDIT_CLEAR` 7/7/0/0 (non-blocking residual: a faculty marked stale between the 409 gate and the Serializable commit is not separately aborted) | Closed in source and wave-audited; keep every live suggestion/over-cap apply, deployment, generation, and publication locked behind separate reviewed previews and explicit HIGH approval |
 | TT-UX01 | Make Simple Timetable a guided, complete routine scheduling workspace while keeping expert administration in Advanced | `INTEGRATED` | MEDIUM UI with HIGH interaction guardrails | `work/timetable-ux-01`; `aab8fb00...b0f607bb`; merged at `a0ca05e5` | None | Primary planner reproduced 58/58 focused, 179/179 full client suite, TypeScript, candidate-to-main source parity, and clean integration diff | Closed; one-click clean placement + prominent Undo is accepted for now. Plan narrow Advanced Requests and duplicate-publish cleanup later |
 | TT-SHAPE-DIAGNOSTIC-C02 | Bind timetable readiness to the 2026-2027 stakeholder shape policy and canonical section/teacher/room output projections | `INTEGRATED` | MEDIUM source; HIGH generation | `work/tt-shape-diagnostic-c02`; `8f48a2fe...ddbdaced`; integration `e83d25d5` | Live generation remains separately gated | Exact-range advisory coverage is carried by the committed 13-test C02 suite (the older committed advisory text is stale, per the wave audit); C02 13/13, stakeholder matrix 12/12, canonical readiness 14/14, real preflight/readiness zero-write mutants, server tsc/build and diff-check passed | Closed in source; use the diagnostic in the fingerprinted generation preview; do not generate or publish from this lane |
 | TT-OUTPUT-C03R | Preserve weekday and term identity through the scheduler, main grid, section/teacher/room projections, and beneficiary class-program exports | `INTEGRATED` (candidate content carried onto `origin/main` by the TT-OUTPUT-C03R3 merge `3c2fc2bd`) | MEDIUM cross-layer source; HIGH future generation/publication | `work/tt-output-c03`; base `4e5ef1f6`; candidate `4f596af0`; capsule `docs/handoffs/tt-output-c03r-planner-result.md` | None in source | Fresh QA round 2 `ses_f69d7bda1ffeaHjNVOffKHo48U` `ACCEPT_READY` 14/14/0/0 on `4e5ef1f6..4f596af0`; the two post-capsule commits are covered by the C03R3 exact-range QA (see the C03R3 row) | Closed in source; live per-term output verification belongs to the bounded runtime deployment and its separately approved term-cache catch-up |
@@ -534,10 +531,11 @@ hard blockers before separately approving publication.
    and the new source is NOT deployed — runtime deployment remains a separate
    HIGH approval. `TL-SUGGESTION-C03R2` is integrated at merge
     `020fbe85`; the C03R3 correction (`c46cb06f...83415bd9`) is integrated at
-    merge `8cabdc92` after fresh QA 11/11/0/0, with one post-integration wave
-    audit remaining before cycle closure. Deployment and every live Teaching
-    Load apply stay locked behind separate reviewed previews and explicit HIGH
-    approvals.
+    merge `8cabdc92` after fresh QA 11/11/0/0; the post-integration wave audit
+    returned `AUDIT_CLEAR` 7/7/0/0 (task `ses_f6201ff92ffevKrFSF8sRV3o2Y`;
+    capsule `docs/reviews/tl-suggestion-c03r3-20260914/wave-completion-audit.md`).
+    Deployment and every live Teaching Load apply stay locked behind separate
+    reviewed previews and explicit HIGH approvals.
 10. `tt-dynamic-audit-c04` is closed and pushed. The C04 authority wave — S1
     `TT-DYNAMIC-WORKSPACE-C04` (`2ebb0b17`), S2 `TT-WARNING-AUTHORITY-C04`
     (`d9b1cd4a`), and S3 `TT-TL-AUTHORITY-GUARD-C04` (`7b31c592`) — is
@@ -594,7 +592,7 @@ hard blockers before separately approving publication.
   verified on the integrated tree. Its canonical-demand successor
   `TL-SUGGESTION-C03R2` is integrated at merge `020fbe85`; the C03R3 correction
   (`83415bd9`, merge `8cabdc92`) is integrated after fresh QA `ACCEPT_READY`
-  11/11/0/0, with one post-integration wave audit remaining. No live apply is
+  11/11/0/0, and wave-audited `AUDIT_CLEAR` 7/7/0/0. No live apply is
   authorized.
   The companion-SSO lane (`COMPANION-SSO-C01`)
   is integrated in source at merge `c989f03d`. No lane may touch the shared
@@ -698,8 +696,8 @@ Shared-runtime listener changes beyond the supervisor packet remain locked.
   fresh QA `ACCEPT_READY` 15/15/0/0 on the integrated tree. Its successor
   `TL-SUGGESTION-C03R2` is integrated at merge `020fbe85`; its C03R3 correction
   (`83415bd9` → merge `8cabdc92`) passed fresh QA 11/11/0/0 and merged-tree
-  gates. Only the post-integration wave audit return for the correction is
-  awaited.
+  gates. The post-integration wave audit returned `AUDIT_CLEAR` 7/7/0/0
+  (`ses_f6201ff92ffevKrFSF8sRV3o2Y`); no return remains for this cycle.
 - `TT-TL-AUTHORITY-GUARD-C04`: no executor or QA return remains; candidate
   `7b31c592` passed fresh QA `ACCEPT_READY` 16/16/0/0 and is integrated at
   merge tip `6d244d5e`. `TT-DYNAMIC-WORKSPACE-C04` and
