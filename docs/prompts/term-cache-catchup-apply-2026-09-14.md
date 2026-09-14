@@ -264,15 +264,23 @@ Database (verify in §8):
    snapshot; see the `TT-TL-RUNTIME-ACCEPTANCE` register row):
    - Row 4: `GET /api/v1/generation/1/9/readiness/diagnostic` (privileged JWT,
      actor school 1). Pass condition: HTTP 200 structured diagnostic in which
-     the previous `TERM_STRUCTURE_UNAVAILABLE` / `DERIVED_DEMAND_BLOCKED`
-     condition caused by the missing term cache no longer occurs; the persisted
-     TRIMESTER T1/T2/T3 authority is resolved. Every remaining typed blocker
-     must be reported honestly; a still-blocked row keeps TT-TL acceptance
-     `ACCEPTANCE_INCOMPLETE` with the new truthful blocker list.
+     the missing-persisted-term-snapshot condition
+     (`TERM_STRUCTURE_UNAVAILABLE` / `DERIVED_DEMAND_BLOCKED`, previously
+     caused by the absent cache) no longer occurs, and the persisted TRIMESTER
+     T1/T2/T3 authority resolves for the diagnostic. Every remaining typed
+     blocker must be reported honestly; a still-blocked row keeps TT-TL
+     acceptance `ACCEPTANCE_INCOMPLETE` with the new truthful blocker list.
    - Row 5: `GET /api/v1/dashboard/readiness-summary` (privileged read; JWT or
-     scoped system token). Pass condition: `termStructure` is no longer `null`
-     and carries the persisted TRIMESTER T1/T2/T3 (revision `a51b62a2…`).
-     Report remaining readiness blockers honestly.
+     scoped system token). Pass condition: the missing-snapshot blocker
+     (`TERM_STRUCTURE_UNAVAILABLE`, "no persisted verified EnrollPro term
+     snapshot", `derived-demand.service.ts:1042-1046`) no longer appears for
+     the active year; when derived demand is otherwise resolvable,
+     `derivedDemand.revision` equals `a51b62a2…` and
+     `derivedDemand.termStructure` carries the persisted TRIMESTER T1/T2/T3.
+     If other derived-demand blockers remain, the response is
+     `available:true, ready:false` with `termStructure`/`revision` possibly
+     null — record those blockers truthfully as still-blocked; never report a
+     row as passing on a missing snapshot.
 5. **Canonical readiness diagnostic, read-only.** Same call as row 4; record
    the complete typed blocker list. **Do not generate and do not publish.**
 6. **Custodian cleanup.** Log out; assert `GET /api/v1/auth/me` without an
@@ -347,12 +355,13 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 > exactly ONE fresh local browser login at `https://njgrm.buru-degree.ts.net`
 > for the named QA/session custodian (expected delta: exactly one
 > `LOCAL_LOGIN_SUCCESS` audit row plus that actor's `last_login_at`, and no
-> other authentication side effect), whose only authenticated action is the
-> single `POST /api/v1/runtime/term-authority/apply` with
+> other authentication side effect), whose authenticated actions are exactly
+> the single `POST /api/v1/runtime/term-authority/apply` with
 > `{"schoolId":1,"confirmationText":"SAVE_TERM_AUTHORITY_1_9","fingerprint":"d4cd7cc4466eb3390c802934204fca2fe01b8f80782478c7a6927b3041633f81"}`
 > — expected successful write being mirror `223` receiving the captured
 > ordered-term contract, `termContractCachedAt` becoming non-null, and exactly
-> one scoped `TERM_CACHE_SYNC_APPLIED` audit row — and, only if that apply
+> one scoped `TERM_CACHE_SYNC_APPLIED` audit row — plus the authenticated
+> read-only acceptance GETs of §8.4 (TT-TL rows 4–5), and, only if that apply
 > commits but the mandatory post-write verification fails, the single §9
 > rollback restoring mirror 223 `termContractCache`/`termContractCachedAt` to
 > NULL/NULL while retaining the immutable audit row; (3) forbid every action in
