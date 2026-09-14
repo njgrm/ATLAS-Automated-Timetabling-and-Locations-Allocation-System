@@ -11,7 +11,7 @@ forbidden.
 
 Canonical directive: read `D:/ATLAS/AGENTS.md` directly. LF-normalized SHA-256
 at correction authoring:
-`4A501E7B0E90CD6D8AE8523DEF8B1B6EF932A7ADEC3FC0DF796C20192DBE5007`.
+`4949C91B5A53A571C5C56C2FCBCEE8C763712CEB838D4D8D8F8E50CCC8EE76B8`.
 The candidate handoff's `0F6612BA...` hash reflected an earlier root revision;
 the root file now wins. Do not overwrite the tracked worktree-local copy if
 that would dirty the frozen worktree.
@@ -158,6 +158,12 @@ Return `REVIEW_REQUIRED` with:
 Do not integrate or push. The EnrollPro proxy recovery stream is parallel and
 owns runtime/AppShell companion files; stop and return a conflict finding if it
 touches any C04R1 path before this candidate freezes.
+
+PLANNER_SESSION_ROUTE: EXISTING TT-TL-MODULES-C04 planner chat
+EXECUTOR_SESSION_ROUTE: EXISTING active C04 executor when available; otherwise
+fresh executor with this complete packet and immutable recovery boundary
+QA_SESSION_ROUTE: FRESH_REQUIRED corrected frozen candidate requires independent
+review
 
 Suggested commit:
 
