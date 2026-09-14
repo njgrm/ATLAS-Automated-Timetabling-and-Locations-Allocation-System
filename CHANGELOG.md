@@ -1,5 +1,27 @@
 # Changelog
 
+## [2026-09-14] — EnrollPro Proxy Recovery Planning
+
+### Added
+- Added a bounded source-correction cycle for the supervised ATLAS EnrollPro
+  proxy and a separately gated live-recovery packet requirement.
+
+### Changed
+- Recorded that the live EnrollPro HTTPS endpoints are reachable while the
+  ATLAS `/enrollpro-api` bridge returns 502 because the supervised host lacks a
+  durable proxy origin and resolves the target from the wrong environment
+  layer.
+
+### Decisions Made
+- Source correction and verification may proceed as an ordinary MEDIUM cycle.
+- Durable environment edits and supervisor restart remain a separate HIGH
+  action; no login or database mutation is needed for the public proxy repair.
+
+### Open Questions
+- None for source planning. The later live packet must bind its accepted
+  release SHA, exact runtime identity, environment backup, and rollback before
+  approval.
+
 ## [2026-09-14] — Dynamic Timetable Planning Memory
 
 ### Added
