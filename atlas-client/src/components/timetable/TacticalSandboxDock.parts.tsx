@@ -21,6 +21,7 @@ import {
 	formatHours,
 	qualificationApplyEnabled,
 	REDISTRIBUTION_HOME_HREF,
+	redistributeDispatchAllowed,
 	reviewStatusCopy,
 	type CapabilityOverrideDraft,
 	type CapabilityOverridePreviewState,
@@ -28,6 +29,7 @@ import {
 	type ReadinessSummary,
 	type RedistributionSummary,
 } from './TacticalSandboxDock.helpers';
+import type { TeachingLoadModules } from './TacticalSandboxDock.useTeachingLoadModules';
 
 export type Candidate = {
 	faculty: FacultyMirror;
@@ -720,6 +722,79 @@ export function TeacherCandidateCard({ candidate, showWorkloadDetails, onApply }
 					</div>
 				</div>
 			) : null}
+		</div>
+	);
+}
+
+/**
+ * TT-TL-MODULES-C04R1 (F5) — the focused Teaching Load mini-module section.
+ *
+ * Extracted verbatim from `TacticalSandboxDock.tsx` so the dock stays well under
+ * the mandatory 1000-physical-line limit. Behavior is unchanged: the
+ * redistribution card is read-only, and the qualification/capability modules
+ * apply only through the server-issued fingerprint and confirmation.
+ */
+export function TeachingLoadModulesSection({
+	schoolId,
+	schoolYearId,
+	activeContextEntry,
+	sectionLabel,
+	subjectLabel,
+	facultyLabel,
+	modules,
+}: {
+	schoolId: number;
+	schoolYearId: number | null;
+	activeContextEntry: ScheduledEntry | null;
+	sectionLabel: (id: number) => string;
+	subjectLabel: (id: number) => string;
+	facultyLabel: (id: number) => string;
+	modules: TeachingLoadModules;
+}) {
+	return (
+		<div className="shrink-0 space-y-2 border-t border-border/70 pt-3">
+			<RedistributionSummaryCard
+				data={{ summary: modules.redistributionSummary, readiness: modules.redistributionReadiness }}
+				loading={modules.redistributionLoading}
+				error={modules.redistributionError}
+				candidate={redistributeDispatchAllowed({ schoolId, schoolYearId })}
+				onPreview={() => void modules.triggerRedistributionPreview()}
+			/>
+			<QualificationAuthorityModule
+				open={modules.qualificationOpen}
+				onOpenChange={modules.setQualificationOpen}
+				contextLabel={activeContextEntry ? sectionLabel(activeContextEntry.sectionId) : 'No selected class'}
+				subjectLabel={activeContextEntry ? subjectLabel(activeContextEntry.subjectId) : 'Select a class or session first'}
+				aliasRows={modules.qualificationAliases}
+				labelRows={modules.qualificationLabels}
+				onAliasChange={modules.setQualificationAliases}
+				onLabelChange={modules.setQualificationLabels}
+				preview={modules.qualificationPreview}
+				previewing={modules.qualificationPreviewing}
+				applying={modules.qualificationApplying}
+				confirmationText={modules.qualificationConfirmation}
+				onConfirmationChange={modules.setQualificationConfirmation}
+				status={modules.qualificationStatus}
+				error={modules.qualificationError}
+				onPreview={() => void modules.previewQualificationAuthority()}
+				onApply={() => void modules.applyQualificationAuthority()}
+			/>
+			<CapabilityOverrideModule
+				targetLabel={activeContextEntry?.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No selected teacher'}
+				candidate={Boolean(activeContextEntry?.facultyId) && Number.isInteger(schoolYearId)}
+				draft={modules.capabilityDraft}
+				onDraftChange={modules.setCapabilityDraft}
+				preview={modules.capabilityPreview}
+				previewing={modules.capabilityPreviewing}
+				applying={modules.capabilityApplying}
+				confirmationText={modules.capabilityConfirmation}
+				onConfirmationChange={modules.setCapabilityConfirmation}
+				status={modules.capabilityStatus}
+				error={modules.capabilityError}
+				onPreview={() => void modules.previewCapabilityOverride(activeContextEntry?.facultyId ?? null)}
+				onApply={() => void modules.applyCapabilityOverride(activeContextEntry?.facultyId ?? null)}
+			/>
+			<AvailabilityDeferredNotice />
 		</div>
 	);
 }

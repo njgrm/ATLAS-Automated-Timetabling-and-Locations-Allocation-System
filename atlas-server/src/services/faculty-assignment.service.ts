@@ -3365,8 +3365,14 @@ export async function listTeachingLoadCapabilityOverrides(
   schoolId: number,
   schoolYearId: number,
 ): Promise<TeachingLoadCapabilityOverride[]> {
-  const policy = await getOrCreatePolicy(schoolId, schoolYearId);
-  const overrides = getTeachingLoadCapabilityOverridesFromConfig(policy.constraintConfig as Prisma.JsonValue | null);
+  // F2: this is a read route. It must not lazily create a scheduling policy (a
+  // `getOrCreatePolicy` write on a GET path). A missing policy means no stored
+  // overrides; the read stays zero-write.
+  const policy = await db().schedulingPolicy.findUnique({
+    where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+    select: { constraintConfig: true },
+  });
+  const overrides = getTeachingLoadCapabilityOverridesFromConfig((policy?.constraintConfig ?? null) as Prisma.JsonValue | null);
   return [...overrides].sort((left, right) => {
     if (left.facultyId !== right.facultyId) {
       return left.facultyId - right.facultyId;

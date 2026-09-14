@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 
 import { SimpleDriftBanner } from '../../components/timetable/simple/SimpleDriftBanner';
-import { TeacherDepartureRecoverySheet } from '../../components/timetable/TeacherDepartureRecoverySheet';
+import { TeacherDepartureRecoverySheetBody } from '../../components/timetable/TeacherDepartureRecoverySheet';
+import { Sheet } from '../../ui/sheet';
 import { deriveTimetableCapabilities } from '../timetable-capabilities';
 import type { DraftReport, FacultyMirror, GenerationInputComparison, TeachingLoadRepairPreviewResult } from '../../types';
 
@@ -103,9 +104,15 @@ test('F4 loose-predicate mutant: retained markers alone never hide the sync rout
  * ------------------------------------------------------------------ */
 
 function renderDepartureSheet(isPublished: boolean) {
+	// F1: render the real, portal-free sheet interior. Radix `SheetContent`
+	// renders through a client portal, which `renderToStaticMarkup` cannot emit;
+	// the exported body is the same production content the mounted sheet renders.
+	// `Sheet` is the Radix Dialog root that supplies the title/description context
+	// only — it mounts no portal.
 	return renderToStaticMarkup(
 		createElement(MemoryRouter, null,
-			createElement(TeacherDepartureRecoverySheet, {
+			createElement(Sheet, { open: true, onOpenChange: () => {} },
+			createElement(TeacherDepartureRecoverySheetBody, {
 				open: true,
 				onOpenChange: () => {},
 				initialFacultyId: null,
@@ -122,6 +129,7 @@ function renderDepartureSheet(isPublished: boolean) {
 				schoolYearId: 9,
 				runId: 42,
 			}),
+			),
 		),
 	);
 }
@@ -142,13 +150,20 @@ test('F1 unpublished departure repair captures no ephemeral absence dates', () =
 
 test('F1 published departure repair cannot imply an end-date reversion', () => {
 	const markup = renderDepartureSheet(true);
+	// No window, no date input, no end-date reversion affordance anywhere.
 	assert.doesNotMatch(markup, /until further notice/i);
 	assert.doesNotMatch(markup, /Unavailable until/i);
+	assert.doesNotMatch(markup, /Absence window/i);
 	assert.doesNotMatch(markup, /type="date"/);
-	// The revision path is present and the effective date is the only authority.
-	assert.match(markup, /teacher-departure-review-revision-button/);
-	assert.match(markup, /effective-dated revision/i);
+	// The rendered published truth states the effective date is the only
+	// temporal authority, and the rendered save reason routes to a revision.
 	assert.match(markup, /sole temporal authority/i);
+	assert.match(markup, /Published schedules require an effective-date revision/);
+	// The direct Teaching Load save affordance is never rendered for a published
+	// run; the step gate keeps the revision path (`Review revision`) as the next
+	// enabled action, whose source contract the C04R1 contract suite covers.
+	assert.doesNotMatch(markup, /teacher-departure-save-button/);
+	assert.match(markup, /effective-dated revision/i);
 });
 
 test('F1 absence-window mutant: the false authority is not present anywhere in the sheet source', () => {

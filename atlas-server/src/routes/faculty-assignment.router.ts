@@ -44,6 +44,26 @@ function rejectSchoolScopeConflict(req: Request, schoolId: number, res: Response
 	return false;
 }
 
+/**
+ * F2: capability-override routes are operator-JWT-only and must fail closed when
+ * the authenticated actor has no school. `rejectSchoolScopeConflict` is
+ * deliberately permissive for the documented integration-token read surface, so
+ * this stricter guard is required here: a missing actor school is a rejection,
+ * never an implicit cross-school read or write.
+ */
+function rejectCapabilityOverrideScope(req: Request, schoolId: number, res: Response): boolean {
+	const actorSchoolId = actorSchoolIdOf(req);
+	if (actorSchoolId == null) {
+		res.status(403).json({ code: 'ACTOR_SCHOOL_REQUIRED', message: 'The authenticated actor must have an assigned school.' });
+		return true;
+	}
+	if (actorSchoolId !== schoolId) {
+		res.status(403).json({ code: 'SCHOOL_MISMATCH', message: 'Request school does not match the authenticated actor school.' });
+		return true;
+	}
+	return false;
+}
+
 // Auth: GET /faculty-assignments/department-authority?schoolId=X
 // Deliberately documented integration-token read surface: strictly read-only.
 // School scope is enforced by the service read (single-school queries) and
@@ -772,7 +792,7 @@ router.get('/capability-overrides', authenticate, requirePrivilegedRole, async (
 	try {
 		const scope = parseCapabilityOverrideScope(req.query.schoolId, req.query.schoolYearId, res);
 		if (!scope) return;
-		if (rejectSchoolScopeConflict(req, scope.schoolId, res)) return;
+		if (rejectCapabilityOverrideScope(req, scope.schoolId, res)) return;
 		const overrides = await assignmentService.listTeachingLoadCapabilityOverrides(scope.schoolId, scope.schoolYearId);
 		res.json({ overrides });
 	} catch (err) {
@@ -787,7 +807,7 @@ router.post('/capability-overrides/preview', authenticate, requirePrivilegedRole
 	try {
 		const scope = parseCapabilityOverrideScope(req.body?.schoolId, req.body?.schoolYearId, res);
 		if (!scope) return;
-		if (rejectSchoolScopeConflict(req, scope.schoolId, res)) return;
+		if (rejectCapabilityOverrideScope(req, scope.schoolId, res)) return;
 		res.json(await assignmentService.previewCapabilityOverride({
 			actorSchoolId: actorSchoolIdOf(req),
 			schoolId: scope.schoolId,
@@ -804,7 +824,7 @@ router.post('/capability-overrides/apply', authenticate, requirePrivilegedRole, 
 	try {
 		const scope = parseCapabilityOverrideScope(req.body?.schoolId, req.body?.schoolYearId, res);
 		if (!scope) return;
-		if (rejectSchoolScopeConflict(req, scope.schoolId, res)) return;
+		if (rejectCapabilityOverrideScope(req, scope.schoolId, res)) return;
 		res.json(await assignmentService.applyCapabilityOverride({
 			actorSchoolId: actorSchoolIdOf(req),
 			actorId: req.user?.userId ?? 0,

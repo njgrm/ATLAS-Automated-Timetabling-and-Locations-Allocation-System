@@ -40,7 +40,6 @@ import {
 	previewErrorCopy,
 	projectedTeachingHoursForFaculty,
 	qualificationRefusalCopy,
-	redistributeDispatchAllowed,
 	revisionDateError,
 	reviewStatusCopy,
 	summarizeReadiness,
@@ -52,13 +51,10 @@ import {
 	type RedistributionSummary,
 } from './TacticalSandboxDock.helpers';
 import {
-	AvailabilityDeferredNotice,
-	CapabilityOverrideModule,
 	OwnerSourceMismatchNotice,
-	QualificationAuthorityModule,
-	RedistributionSummaryCard,
 	StagedRepairReview,
 	TeacherCandidateList,
+	TeachingLoadModulesSection,
 	type Candidate,
 	type ReviewStep,
 } from './TacticalSandboxDock.parts';
@@ -833,51 +829,18 @@ export function TacticalSandboxDock({
 				) : null}
 
 				{/* R3/R4/R7 — focused Teaching Load mini-modules. All three are
-				    read-only or fingerprinted and never become a second editor. */}
-				<div className="shrink-0 space-y-2 border-t border-border/70 pt-3">
-					<RedistributionSummaryCard
-						data={{ summary: modules.redistributionSummary, readiness: modules.redistributionReadiness }}
-						loading={modules.redistributionLoading}
-						error={modules.redistributionError}
-						candidate={redistributeDispatchAllowed({ schoolId, schoolYearId })}
-						onPreview={() => void modules.triggerRedistributionPreview()}
-					/>
-					<QualificationAuthorityModule
-						open={modules.qualificationOpen}
-						onOpenChange={modules.setQualificationOpen}
-						contextLabel={activeContextEntry ? sectionLabel(activeContextEntry.sectionId) : 'No selected class'}
-						subjectLabel={activeContextEntry ? subjectLabel(activeContextEntry.subjectId) : 'Select a class or session first'}
-						aliasRows={modules.qualificationAliases}
-						labelRows={modules.qualificationLabels}
-						onAliasChange={modules.setQualificationAliases}
-						onLabelChange={modules.setQualificationLabels}
-						preview={modules.qualificationPreview}
-						previewing={modules.qualificationPreviewing}
-						applying={modules.qualificationApplying}
-						confirmationText={modules.qualificationConfirmation}
-						onConfirmationChange={modules.setQualificationConfirmation}
-						status={modules.qualificationStatus}
-						error={modules.qualificationError}
-						onPreview={() => void modules.previewQualificationAuthority()}
-						onApply={() => void modules.applyQualificationAuthority()}
-					/>
-					<CapabilityOverrideModule
-						targetLabel={activeContextEntry?.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No selected teacher'}
-						candidate={Boolean(activeContextEntry?.facultyId) && Number.isInteger(schoolYearId)}
-						draft={modules.capabilityDraft}
-						onDraftChange={modules.setCapabilityDraft}
-						preview={modules.capabilityPreview}
-						previewing={modules.capabilityPreviewing}
-						applying={modules.capabilityApplying}
-						confirmationText={modules.capabilityConfirmation}
-						onConfirmationChange={modules.setCapabilityConfirmation}
-						status={modules.capabilityStatus}
-						error={modules.capabilityError}
-						onPreview={() => void modules.previewCapabilityOverride(activeContextEntry?.facultyId ?? null)}
-						onApply={() => void modules.applyCapabilityOverride(activeContextEntry?.facultyId ?? null)}
-					/>
-					<AvailabilityDeferredNotice />
-				</div>
+				    read-only or fingerprinted and never become a second editor.
+				    F5: the section is extracted so this presenter stays under the
+				    mandatory physical-line limit. */}
+				<TeachingLoadModulesSection
+					schoolId={schoolId}
+					schoolYearId={schoolYearId}
+					activeContextEntry={activeContextEntry}
+					sectionLabel={sectionLabel}
+					subjectLabel={subjectLabel}
+					facultyLabel={facultyLabel}
+					modules={modules}
+				/>
 
 				<SheetFooter className="shrink-0 gap-2 border-t border-border/70 pt-3 sm:space-x-0">
 					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setUnassignedTargetFacultyId(null); setSelectedPlacementProposal(null); setBatchPreview(null); setBatchPreviewError(null); setBulkEntryIds(new Set()); }} disabled={!hasStagedChanges} className="gap-1.5">

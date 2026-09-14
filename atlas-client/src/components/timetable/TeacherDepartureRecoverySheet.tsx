@@ -170,7 +170,17 @@ function buildRepairChanges(groups: AffectedGroup[], replacementByGroup: Record<
 	return changes;
 }
 
-export function TeacherDepartureRecoverySheet({
+/**
+ * TT-TL-MODULES-C04R1 (F1) — portal-free sheet interior.
+ *
+ * The sheet body is exported separately from the Radix `Sheet`/`SheetContent`
+ * portal wrapper so the rendered-component harness can exercise the real
+ * production content (the truthful departure copy, the preview result, and the
+ * absence-window-free controls) without a DOM portal. Behavior is unchanged:
+ * the mounted `TeacherDepartureRecoverySheet` renders this body inside the
+ * portal exactly as before.
+ */
+export function TeacherDepartureRecoverySheetBody({
 	open,
 	onOpenChange,
 	initialFacultyId,
@@ -476,13 +486,8 @@ export function TeacherDepartureRecoverySheet({
 	};
 
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent
-				side="right"
-				className="isolate flex h-full w-[92vw] max-w-none flex-col gap-3 overflow-hidden bg-background p-4 text-foreground shadow-2xl sm:w-[34rem] sm:max-w-[34rem]"
-				data-testid="teacher-departure-recovery-sheet"
-			>
-				<SheetHeader className="space-y-1 pr-8 text-left">
+		<>
+		<SheetHeader className="space-y-1 pr-8 text-left">
 					<SheetTitle className="flex items-center gap-2 text-base">
 						<UserRoundX className="size-4 text-primary" aria-hidden="true" />
 						Teacher leaving
@@ -784,6 +789,22 @@ export function TeacherDepartureRecoverySheet({
 					sectionLabel={sectionLabel}
 					facultyLabel={facultyLabel}
 				/>
+		</>
+	);
+}
+
+/**
+ * The mounted sheet wrapper: the Radix portal plus the real interior body.
+ */
+export function TeacherDepartureRecoverySheet(props: TeacherDepartureRecoverySheetProps) {
+	return (
+		<Sheet open={props.open} onOpenChange={props.onOpenChange}>
+			<SheetContent
+				side="right"
+				className="isolate flex h-full w-[92vw] max-w-none flex-col gap-3 overflow-hidden bg-background p-4 text-foreground shadow-2xl sm:w-[34rem] sm:max-w-[34rem]"
+				data-testid="teacher-departure-recovery-sheet"
+			>
+				<TeacherDepartureRecoverySheetBody {...props} />
 			</SheetContent>
 		</Sheet>
 	);
