@@ -5,9 +5,10 @@
 - Worktree: `D:\ATLAS-worktrees\workflow-foundation-wfc01`
 - Branch: `work/workflow-foundation-wfc01`
 - Base SHA: `29284ac6218b989ab860cde0d36266eabf26395b` (= refreshed `origin/main` at dispatch)
-- Candidate product/test tip SHA: `08f8d0d0f8a598935115803c4f979abb510d961e` (every product, test, fixture, README, `package.json`, renderer, and `.gitattributes` change; includes the R1 portability correction)
+- Candidate product/test tip SHA: `42f41a21e58e7443b7314963fb9109a2a2aacb8f` (every product, test, fixture, README, `package.json`, renderer, and `.gitattributes` change; includes the R1 portability correction and the R2 candidate-SHA invariant correction)
 - Candidate branch tip: the commit that carries this handoff, the seed document, and the generated register. A file cannot contain its own commit SHA, so the branch tip is resolved with
-  `git -C D:\ATLAS-worktrees\workflow-foundation-wfc01 rev-parse HEAD`; the planner/QA records that SHA as the candidate SHA. The seed deliberately keeps `git.candidateSha` null for WF-C01. Commits above the product/test tip are documentation-only (seed, generated register, handoff).
+  `git -C D:\ATLAS-worktrees\workflow-foundation-wfc01 rev-parse HEAD`; the planner/QA records that SHA as the candidate SHA. Commits above the product/test tip are documentation-only (seed, generated register, handoff).
+- Candidate SHA lifecycle: at candidate freeze the seed keeps `git.candidateSha` null for WF-C01; the planner records candidate/integration SHAs when the register advances to `INTEGRATION_READY`/`COMPLETE`, and `seed.test.mjs` accepts `null` or a 40-hex lowercase SHA for every stream except the externally pinned `ENROLLPRO-PROXY-RECOVERY-LIVE`.
 - Risk tier: MEDIUM (source + tests + docs; no live runtime, database, network, browser, or HIGH action)
 - Verdict: `REVIEW_REQUIRED`
 
@@ -136,9 +137,47 @@ handoff only after its R1 content was final, and
 `docs/plans/atlas-active-delivery-streams.generated.md` was regenerated after
 the seed edit.
 
+## R2 correction (additive; wave-auditor finding B1)
+
+**Defect.** `ops/workflow/__tests__/seed.test.mjs` asserted that every stream
+other than `ENROLLPRO-PROXY-RECOVERY-LIVE` has `git.candidateSha` strictly
+`null`. That over-constrained the intended lifecycle: the planner's register
+recording legitimately sets `WF-C01.git.candidateSha` when the register advances
+to `INTEGRATION_READY`/`COMPLETE`, so at the integrated tree the assertion at
+`seed.test.mjs:45` failed (`59/60` red). The handoff sentence "The seed
+deliberately keeps `git.candidateSha` null for WF-C01" was likewise only true at
+candidate freeze.
+
+**Fix.** The invariant is now drift-proof and load-bearing:
+`ENROLLPRO-PROXY-RECOVERY-LIVE` keeps its exact pinned SHA
+`54dce67b8392cbce09aa810813c37f9c87a67159`; every other stream must satisfy
+`candidateSha === null || /^[0-9a-f]{40}$/.test(candidateSha)`. The defining test
+gained inline negative controls (`"not-a-sha"`, a 39-hex string, an uppercase
+40-hex string, `""`, `123`) proving the predicate rejects malformed values, plus
+positive controls for `null` and a valid 40-hex SHA. No other assertion was
+weakened, and no separate test was added, so the suite count is unchanged at 60.
+
+**Failing-first / load-bearing control.** In a disposable copy under `C:` temp
+(`package.json`, `ops/workflow/**`, `docs/plans/**`, `docs/handoffs/**`,
+`.gitattributes`, `git init -b main`; the candidate-SHA test isolated with
+`--test-name-pattern="candidate"` because a minimal copy has no commit graph for
+the ENROLLPRO pins):
+
+| Case | WF-C01 `git.candidateSha` | Test file | Result |
+| --- | --- | --- | --- |
+| a | `bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275` | R2 (fixed) | exit 0 — 1 pass / 0 fail |
+| b | `"NOT-A-SHA"` | R2 (fixed) | exit 1 — 0 pass / 1 fail at `seed.test.mjs:56` (predicate assertion) |
+| c | `null` | R2 (fixed) | exit 0 — 1 pass / 0 fail |
+| d | `bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275` | pre-fix (committed at `bcee9d0d`) | exit 1 — 0 pass / 1 fail at `seed.test.mjs:45:14` (the audit failure line) |
+
+New tip: product/test `42f41a21e58e7443b7314963fb9109a2a2aacb8f`; the branch tip
+that carries this handoff is resolved with `git rev-parse HEAD`. The handoff was
+re-pinned in the seed after its R2 content was final, the schema pin is
+unchanged, and the generated register was regenerated after the seed edit.
+
 ## Known risks (all NON_BLOCKING for this packet)
 
-1. The handoff cannot embed its own commit SHA (self-reference); the branch tip is resolved with `git rev-parse HEAD`, and the seed keeps `git.candidateSha` null exactly as the packet requires.
+1. The handoff cannot embed its own commit SHA (self-reference); the branch tip is resolved with `git rev-parse HEAD`, and the seed keeps `git.candidateSha` null only at candidate freeze. Once the planner records a candidate SHA at `INTEGRATION_READY`/`COMPLETE`, the register and `seed.test.mjs` (null-or-40-hex) both accept it.
 2. `verified.artifacts` in a receipt is attested but not part of the staleness comparison; the compared set is `candidateSha`, `integrationSha`, `qaVerdict`, `auditorVerdict`, and `gates` as specified.
 3. `--stream` without `--receipt` is accepted and has no effect (no usage error is defined for that combination).
 4. When no Git repository is resolvable around the state file, artifact paths resolve against the state file's directory; this fallback is documented in `ops/workflow/README.md`.
