@@ -55,6 +55,33 @@ After **every output that changes code or files**, suggest a conventional-commit
 - Do not introduce extensionless relative imports in server code just because `tsc` accepts them.
 - Backend changes are not complete until Node can actually start the built server, not just type-check it.
 
+## Supervised Runtime And Log Probing Rule
+
+- The host runs an installed, auto-starting supervised runtime: scheduled task
+  `ATLAS-Runtime-Supervisor` (SYSTEM, at system startup) launches
+  `<sourceDir>/ops/runtime/cli.mjs`, which owns port `5001`
+  (`atlas-server/dist/server.js`) and port `5174` (production host serving
+  `atlas-client/dist`). `EADDRINUSE` on `5001` or "Port 5174 is in use, trying
+  another one" from a manual `npm run dev*` start is therefore expected
+  behavior, not a defect.
+- Both supervised children stream stdout/stderr into one supervisor log, so
+  server and client logs are probed from the same file:
+  `<sourceDir>/ops/runtime/logs/atlas-supervisor.log`, with durable state in
+  `supervisor-state.json` beside it. Live tail:
+  `Get-Content '<sourceDir>/ops/runtime/logs/atlas-supervisor.log' -Wait -Tail 50`.
+  Read-only status: `node ops/runtime/cli.mjs status` from `<sourceDir>`.
+- Resolve `<sourceDir>` from the task action/working directory
+  (`schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v`) or the
+  supervisor process command line; never assume a directory name or PIDs from
+  a previous session. Do not start, stop, or replace the supervisor or its
+  children outside an approved `HIGH` runtime packet.
+- `/api/v1/health` is liveness-only and does not prove database or route
+  readiness. Probe a database-backed read such as
+  `GET /api/v1/subjects?schoolId=<id>` together with the supervisor log.
+  Transient Prisma `P1001` ("Can't reach database server") entries and
+  Postgres client-abort messages may appear (for example during host antivirus
+  scans); confirm with the DB-backed read before reporting a database outage.
+
 ## Timetable Route Memory Rule
 
 - Treat latest-run timetable endpoints as memory-sensitive.
@@ -86,6 +113,20 @@ After **every output that changes code or files**, suggest a conventional-commit
 - `AGENTS.md` is the sole normative authority for executor workflow, QA roles,
   review gates, sub-agent use, integration, and safety rules. Maintain those
   rules here only.
+- `AGENTS.md` is a tracked repository directive. The version on current
+  `origin/main` is the distribution authority for every sibling
+  `D:/ATLAS-worktrees/*` checkout; `D:/ATLAS/AGENTS.md` is the canonical local
+  convenience copy only when its LF-normalized hash matches that tracked
+  version. Before dispatching or resuming an agent in an older worktree, the
+  planner must fetch `origin/main`, compare the worktree file with
+  `origin/main:AGENTS.md`, and record the current normalized-text SHA-256 in the
+  handoff. Line-ending-only differences are not drift. If updating a stale
+  worktree-local copy would dirty a frozen candidate, do not overwrite it:
+  require the executor and QA to read `origin/main:AGENTS.md` (or the verified
+  matching root copy) directly and embed changed mandatory rules verbatim in
+  the packet. A directive change is not operationally complete until it is
+  committed and pushed to `origin/main` and every active packet names the
+  current hash or embeds the changed rules.
 - `ATLAS_AGENT_KI.md` is an optional condensed domain and UX reference. Read it
   for product-context, UX, or runtime-sensitive work, but routine bounded
   commit-range QA may skip it. If it duplicates a workflow rule, this file
@@ -139,6 +180,13 @@ You are an expert product requirements architect and technical writer for this p
 ## Manual QA Login Protocol (Live Tailnet Environment)
 
 - **Primary Environment:** ALL testing, research, and validation MUST target the live Tailnet environment (`https://njgrm.buru-degree.ts.net`) by default.
+- **EnrollPro browser environment:** For an explicitly EnrollPro-owned or
+  ATLAS↔EnrollPro cross-app browser task, use the current EnrollPro Tailnet
+  entry point `https://dev-jegs.buru-degree.ts.net/personnel/login` and assert
+  `window.location.origin === "https://dev-jegs.buru-degree.ts.net"`. Do not
+  substitute the former raw Tailnet IP, an old EnrollPro hostname/path, or
+  localhost. This companion exception does not change the ATLAS browser origin
+  for ATLAS-owned routes.
 - **Tailscale Connectivity:** Ensure your testing tools (e.g., Playwright, curl, scripts) are configured to use the Tailnet hostname or IP (`100.88.55.125`).
 - **Required local process:**
   - ATLAS server/client running (typically via `npm run dev` in ATLAS workspace).
@@ -197,6 +245,12 @@ A model whose harness cannot load MCP servers can start the same server standalo
   Protocol above — never `localhost` unless a task explicitly requires it for an isolated check.
   `localhost` is not the real environment; testing there can mask deployment, proxy, and
   cross-service failures.
+- **Route companion browser work to its named origin.** EnrollPro-owned login,
+  personnel, or cross-app navigation evidence must begin at
+  `https://dev-jegs.buru-degree.ts.net/personnel/login` and assert the
+  EnrollPro origin. After a cross-app transition into ATLAS, assert the ATLAS
+  origin separately. Evidence from one origin never proves the other origin's
+  rendered or authenticated behavior.
 - **Browser-origin invariant:** every browser UX/UI, click-path, responsive, or authenticated
   runtime claim must execute with `window.location.origin === "https://njgrm.buru-degree.ts.net"`.
   A page opened at `http://localhost:*`, `http://127.0.0.1:*`, or a raw Tailnet IP is invalid
@@ -211,6 +265,23 @@ A model whose harness cannot load MCP servers can start the same server standalo
   origin without the explicit isolated-local exception.
 - **Authenticate** with the QA credentials in the Manual QA Login Protocol. Never write passwords
   into repo files, tests, docs, snapshots, or other artifacts.
+- **Treat login as an authorized mutation boundary.** A reusable authenticated
+  session may be consumed read-only, but performing a fresh login updates the
+  actor and normally creates a `LOCAL_LOGIN_SUCCESS` audit row. Before any
+  agent logs in, the active packet or operator authorization must explicitly
+  permit that login and name its expected database delta. If no reusable
+  session exists and no login is authorized, report
+  `EXTERNALLY_BLOCKED(AUTH_SESSION_REQUIRED)`; do not substitute localhost,
+  silently log in, or downgrade the protected browser rows.
+- **One controller per persistent browser profile.** The configured
+  `~/.config/opencode/playwright-profile` is shared state. Exactly one agent may
+  issue Playwright browser actions against it at a time, including navigation,
+  snapshots, login, responsive checks, and cleanup. Parallel source and
+  non-browser QA may continue, but browser roles must be serialized through an
+  explicit named custody handoff. Before taking control, the next role must
+  confirm the prior role has stopped issuing browser actions or has transferred
+  the exact open context. Never launch competing browser roles against this
+  profile.
 - **Read-only by default.** Navigation, snapshots, `browser_evaluate` reads, console/network
   inspection, and screenshots are safe. Do **not** submit forms that persist data or click
   Save/Apply/Generate/Publish/Delete, and do not otherwise mutate live ATLAS data unless the active
@@ -230,9 +301,10 @@ A model whose harness cannot load MCP servers can start the same server standalo
   authenticated context across executor and QA, the current owner shall keep
   that exact tab/context open until the next named role acknowledges custody;
   the final named owner performs logout/token cleanup and closes it. Without
-  that explicit custody plan, roles use independent contexts and the approval
-  must budget their logins separately. Never leave a persistent remembered JWT
-  behind as accidental cross-role state.
+  that explicit custody plan, roles use independent contexts **serially** (or
+  explicitly provisioned separate profiles) and the approval must budget their
+  logins separately. Never leave a persistent remembered JWT behind as
+  accidental cross-role state.
 
 ### Typical flow
 
@@ -566,6 +638,13 @@ At the beginning of a planning, review, correction, or integration turn:
    belong in the stream handoff/review, not repeated throughout the live
    register. This compactness is part of the consistency gate because duplicate
    prose invites stale state and wastes every later planner's context.
+7. The integration owner and Wave Completion Auditor must attach the literal
+   search result for the active stream name and every stream named by its next
+   action or dependency. Compare the stream-table state, recovery line, queue,
+   safe-parallel section, and awaited-return section mechanically. A statement
+   such as `register cross-section consistency read` is not evidence by itself.
+   A resolved blocker repeated in any one location, or a completed audit still
+   described as pending, prevents `AUDIT_CLEAR` until the text is reconciled.
 
 #### Planning standard
 
@@ -628,13 +707,14 @@ For every new stream or correction, the planner shall:
    enable a persistent "Remember me" token, or hand credentials between agents
    merely to avoid the declared login budget unless the packet explicitly
    authorizes that custody mechanism and cleanup.
-   An existing-session-only HIGH packet must also prove that the exact session
-   can survive the whole bounded action. Name the maximum action duration and a
-   safety margin, verify the authenticated actor/school and token expiry before
-   any mutation, and recheck immediately before the irreversible boundary. If
-   expiry is unavailable or the remaining lifetime is shorter than the declared
-   window, stop before mutation or obtain a separately authorized login/split
-   acceptance. A successful request at preflight time alone is not sufficient.
+   Before consuming any bounded login, fixture-write allowance, process outage,
+   or HIGH-action budget, run every available zero-cost prerequisite probe:
+   required upstream hosts and raw contracts must be reachable, the intended
+   runtime and database identity must match, required credentials must be
+   resolvable without displaying them, and the target route must be mounted.
+   If a prerequisite is unavailable, stop before consuming the scarce
+   authorization and return the external blocker. A downstream typed failure is
+   valuable fail-closed evidence, but it is not a substitute for this preflight.
 9. **Size one-shots by cohesion, not duration.** A one-shot may be large when
    all requirements converge on one shared production contract. Split it when
    independent UI, server authority, migration, runtime, or HIGH-action paths
@@ -696,6 +776,121 @@ For every new stream or correction, the planner shall:
     deploy-as-restore boundary; never describe a restore as a swap against a
     stale incumbent.
 
+#### Production-shape equivalence gate
+
+Green helper tests do not prove a production contract. This gate is mandatory
+whenever a change translates, filters, groups, defaults, persists, exports, or
+renders data produced by another ATLAS layer.
+
+1. Trace and name the complete shape chain:
+   `authoritative input -> producer -> persisted/runtime representation -> API
+   projection -> client state -> rendered/action/export consumer`. Inspect the
+   actual producer and every changed consumer; do not infer the representation
+   from a hand-written fixture or TypeScript type alone.
+2. A synthetic fixture is admissible only when a test first proves it is
+   field-for-field and semantically equivalent to output from the real producer,
+   or when the same acceptance is also exercised through the real producer and
+   production entry point. Invented fixtures with properties the producer never
+   emits cannot establish acceptance.
+3. Record the conservation invariant across the boundary: identities, counts,
+   ordering, grouping, scope, and totals that must survive. Fail the test on any
+   dropped, duplicated, defaulted, reassigned, or cross-scope item. A test that
+   merely applies the same projection twice is tautological, not parity proof.
+4. Treat `missing`, `unknown`, `all`, and a concrete value as separate states.
+   A consumer may not coerce missing scope to the first enum/term/year/school,
+   and may not treat an every-scope item as unresolved or absent, unless the
+   authoritative contract explicitly defines that behavior.
+5. The negative control must mutate the real production boundary that caused
+   the old defect. Source-text assertions, helper-only mutants, SSR attributes,
+   or unrelated future-compatible cases do not replace a failing production
+   path.
+6. If any committed assertion encodes behavior contradicted by the real
+   producer, persisted shape, stakeholder authority, or downstream contract,
+   the verdict is `CORRECTION_REQUIRED` even when every test, type-check, and
+   build is green. Never call such a discrepancy a non-blocking test limitation.
+7. Executor and QA handoffs for a shape-changing stream must include one compact
+   `production-shape parity` row naming the real producer, real consumer,
+   conservation totals, negative control, and result. QA must count this as a
+   mandatory gate; omission prevents `ACCEPT_READY`.
+8. A narrow changed-path list does not excuse a contradictory producer or
+   downstream consumer needed for the claimed outcome. QA shall report
+   `CORRECTION_REQUIRED` when the intended contract already determines the
+   bounded cross-layer repair, or `PLANNER_DECISION_REQUIRED` when correcting it
+   requires a new architecture, product decision, risk authority, or competing
+   stream boundary. It shall not accept a consumer-only patch that merely hides
+   an upstream shape defect.
+9. **Inventory every active shape writer before closure.** Search beyond the
+   changed-path list for every mounted route, visible client action, background
+   job, repair/sync service, importer, exporter, and publication path that can
+   create, rebuild, normalize, or persist the affected representation. Trace
+   callers by endpoint and persisted model as well as by helper name. Each
+   reachable writer must preserve the same identities, scopes, counts, and
+   freshness contract, or fail closed without writing.
+10. A reachable legacy writer is a blocking production defect, not a
+    non-blocking follow-up, when invoking it can undo the candidate's invariant
+    or make later reads appear complete incorrectly. It may be deferred only
+    when the route/action is removed, disabled, or demonstrably unreachable in
+    production, or when the product owner explicitly excludes that workflow.
+11. For every active mutation route found by this inventory, verify actor-school
+    equality and a concurrency/freshness guard independently from shape parity.
+    Correctly shaped output does not authorize a cross-school write or an
+    overwrite computed from a stale run. Mandatory controls shall prove zero
+    downstream dispatch on authority rejection and zero writes on stale-version
+    or stale-revision rejection.
+12. **Bind computed output to the same source snapshot that produced it.** When
+    entries, violations, diagnostics, summaries, or exports are computed before
+    the final transaction, capture a preflight fingerprint covering every input
+    actually consumed, including faculty, qualifications, rooms, shift windows,
+    policies, sections, subjects, ownership, and term authority as applicable.
+    Compare that fingerprint with a transaction-bound recomputation before the
+    write, or recompute the complete output inside the transaction. Never attach
+    a newly computed transaction snapshot to entries or diagnostics derived from
+    older data; doing so launders stale output into an apparently fresh run.
+    Include a deterministic interleave control that changes one non-demand
+    input such as a room, faculty qualification, or shift window and proves the
+    write fails closed with zero run/audit writes.
+
+##### Ordered-term timetable invariants
+
+For timetable, Teaching Load, generation, repair, export, and publication work,
+the current beneficiary contract is three ordered terms. Generic four-term
+support may be tested separately for future compatibility, but a Q4 test never
+substitutes for complete T1/T2/T3 acceptance.
+
+1. Every schedulable generated session shall carry an explicit positive term
+   identity from the verified ordered-term contract. Missing term identity is
+   unresolved authority; it must never silently become Term 1.
+2. An `ALL` or every-term subject shall contribute its full required weekly
+   session count independently in each applicable term. Its sessions must not
+   disappear from a selected term and must not be represented once then divided
+   among terms.
+3. A rotating family shall resolve the subject, teacher, room constraints, and
+   full weekly session count for each selected term. Rotation chooses the
+   term-specific member; it does not distribute one term's weekly sessions
+   across the academic year. A five-session subject therefore remains five
+   sessions in every applicable term, never a `2/2/1` split.
+4. Conflict identity is term-aware: the same resource and interval conflict
+   within one term, while otherwise identical placements in different terms do
+   not conflict. Unassigned lines, violations, locks, repairs, and audit/output
+   identity must retain the term.
+5. One selected term shall govern the interactive Section, Teacher, and Room
+   views; unresolved queues; violations; review/repair; manual placement and
+   swaps; official downloads; and published/public reads. These consumers shall
+   reconcile to one resolved per-term session source.
+6. When school, year, run, or selected term changes, the client shall clear or
+   revalidate all scope-bound selection, preview, swap, dialog, repair, error,
+   and undo state before another action can dispatch. A stale object from the
+   previous term must never remain actionable.
+7. Every visible download action shall surface its own failure and recovery
+   state. When `All terms` is not an authorized official-export scope, all
+   official export actions shall dispatch zero requests and explain that one
+   term must be selected.
+8. Mandatory production proof shall assemble representative ordinary and
+   rotating demand through the real derived-demand authority, run the real
+   scheduler, and verify exact per-term session totals and selected-term parity
+   across Section/Teacher/Room views plus each official export. Hand-crafted
+   entries with one convenient term per row are supplementary only.
+
 #### Executor handoff standard
 
 Every executor packet must name the objective, clean worktree and branch,
@@ -703,6 +898,13 @@ accepted base SHA, owned and forbidden paths, relevant source-of-truth files,
 known defects, required production paths, decisive tests, mutation boundary,
 and immutable handoff format. Executors must commit their bounded candidate and
 return `REVIEW_REQUIRED`; they do not self-approve, merge, or push.
+
+`Worktree clean` means the named worktree's complete `git status --short` is
+empty. Do not describe a worktree as clean merely because unrelated, ignored,
+directive, guide, or evidence files are excluded from the candidate. If such
+files exist, report `candidate range clean; worktree dirty` and list only their
+paths. Never say `all worktrees clean` without checking every worktree included
+by that statement; prefer naming the exact cycle-owned worktrees verified.
 
 Before editing, the executor shall turn the prompt into a compact trace table:
 `requirement -> production path -> negative control -> verification command`.
@@ -736,6 +938,13 @@ The planner must independently validate both layers:
    ancestor, the candidate exists, the complete range is correct, and every
    changed path is attributable. Inspect the production call path and reproduce
    enough decisive evidence to detect a misleading or incomplete handoff.
+   Before trusting `git status`, run `git update-index --refresh` (or an
+   equivalent full index refresh), then require both `git status --porcelain=v2`
+   and `git diff --quiet` to be clean. Record the resulting candidate SHA only
+   after the final source/test command. A passing command run from uncommitted
+   working-tree bytes is evidence for those bytes, not for the named commit.
+   QA must reject the candidate if the tested worktree differs from the named
+   SHA, even when the changed files were hidden by stale index metadata.
 2. Give QA the immutable range and governing acceptance criteria, not the full
    conversation. QA is evidence, not authority by assertion.
 3. After QA returns, verify that its verdict names the correct range, covers the
@@ -749,6 +958,12 @@ The planner must independently validate both layers:
    downstream consumers, helper-only tests, false UI claims, fail-open defaults,
    early writes before preflight, stale-data substitution, concurrency gaps,
    and success metrics achieved by bypassing the intended constraint.
+   When a write path claims `Serializable`, advisory locking, compare-and-swap,
+   or another concrete concurrency guarantee, inspect the exact production
+   transaction call and require a load-bearing control that observes the real
+   transaction option or database isolation level. Comments, transaction-client
+   re-reads, and tests that never inspect the transaction configuration do not
+   prove the claimed guarantee.
 5. If QA finds an in-scope defect, the planner writes or dispatches the smallest
    complete corrective packet. It must state the root cause, exact production
    paths, failing-first or mutant proof, preserved behavior, focused reruns,
@@ -769,20 +984,7 @@ The planner must independently validate both layers:
    mandatory production wiring or proof is still absent, stop issuing small
    patches: perform a root-cause audit, supersede the prompt with one coherent
    closure packet, and reconsider model/ownership/scope. Never continue an
-   unbounded review-fix loop by inertia. This budget limits remediation churn;
-   it never waives the final independent review required by the risk tier. If
-   the budget is exhausted after a material candidate or HIGH-packet change,
-   return `AUDIT_REQUIRED` or `PLANNER_DECISION_REQUIRED` and do not present an
-   approval sentence until a fresh reviewer validates the final immutable
-   boundary.
-10. **Retain custody of delegated lanes.** While a planner-owned executor, QA,
-    or auditor is still running, the planner shall keep the orchestration turn
-    open and use bounded waits or state checks until that role returns, needs
-    operator input, or is explicitly stopped. Do not send a terminal planner
-    response merely because an intermediate lane is quiet. If the harness or
-    usage limit ends a delegated turn, inspect its worktree immediately and
-    return a resume handoff that preserves committed and uncommitted work; do
-    not describe the lane as running or silently leave it idle.
+   unbounded review-fix loop by inertia.
 
 #### Acceptance, integration, and stopping conditions
 
@@ -817,13 +1019,6 @@ The planner must independently validate both layers:
   operational restart readiness.
   A planner may prepare their reviewed preview or handoff, but cannot execute
   them under ordinary integration authority.
-- Elevation belongs only to the exact machine-level HIGH action that requires
-  it. Ordinary source executors, planners, and QA shall run non-elevated so
-  their worktrees remain accessible to later roles. An elevated executor must
-  use a dedicated HIGH-action worktree and report its filesystem owner. Later
-  roles may use a per-command Git `safe.directory` override for that exact
-  verified path; they must not globally allowlist broad paths or change ACLs,
-  ownership, or repository trust settings unless separately authorized.
 - An `EPHEMERAL_DEPLOYMENT` is a temporary recovery state, not an acceptable
   operational endpoint. After an unexplained runtime loss or any restore that
   launches unmanaged PIDs, the planner must schedule a bounded
@@ -851,6 +1046,51 @@ The planner must independently validate both layers:
 - A planner may stop only for a genuine user/external decision, a failed safety
   gate, an unavailable required environment, or completion. Before stopping,
   complete every safe read-only/preparatory action still possible.
+
+#### Head-planner post-return gap audit
+
+This is a **primary-planner-only** duty. Do not add it to executor or delegated
+QA scope. After every terminal executor handoff, QA verdict, integrated-cycle
+report, Wave Completion Audit, or external-planner return, the primary planner
+shall perform one bounded gap audit before accepting the proposed next action.
+This is not another full QA pass and must reuse valid immutable-range evidence.
+
+1. Recheck the report's decisive Git/runtime facts and the shortest
+   load-bearing production-path control. Then compare the bounded verdict with
+   the larger product objective; an accepted diff is not proof that the domain
+   is end-to-end ready.
+2. For every claim such as `canonical`, `sole authority`, `unified`, `correct`,
+   `complete`, `ready`, or `closed`, enumerate sibling producers and consumers
+   outside the changed range. Search for legacy queries, duplicated demand or
+   policy builders, fallback constants, stale projections, and alternate write
+   paths. At least one upstream authority and one downstream consumer shall be
+   traced when they exist.
+3. Ask explicitly: what real defect could still make the claimed user outcome
+   false even though every prompt assertion passed? Record any discovered gap
+   as blocking, dependency-locked, or a ranked successor with an owner. Do not
+   retroactively invalidate a correctly scoped candidate merely because a
+   separate pre-existing gap exists; do prevent overclaiming and premature live
+   unlocks.
+4. Compare the proposed next action with the current dependency graph. Override
+   a report's coordination footer when a newly found authority gap, runtime
+   change, integration advance, or safer parallel lane changes the critical
+   path.
+5. For an audit or multi-packet wave, run an owner-coverage lint before freezing
+   the result: every material root-cause cluster and accepted finding shall map
+   to at least one numbered required outcome in a ready implementation packet,
+   an explicit product decision with an owner, or a registered successor with a
+   dependency and dispatch condition. A label such as `S2` is insufficient when
+   the S2 packet contains no load-bearing requirement for that finding.
+6. End the planner response with `Process improvement: none` or one concrete
+   improvement. Update this file only for a missing reusable cross-cycle rule;
+   update the active prompt for a packet-specific omission; update the domain
+   reference/register for a product-specific gap. Avoid directive churn and do
+   not duplicate the same rule across roles.
+7. Delegated QA and executors may report evidence-quality or process problems,
+   but they shall not edit directives, redesign the cycle, or perform this gap
+   audit. The Wave Completion Auditor remains the independent adversarial
+   reviewer; the primary planner remains accountable for learning from its
+   misses and choosing the correction or successor.
 
 #### Mandatory planner ending
 
@@ -1197,6 +1437,10 @@ The QA delegate is a bounded verifier, not a substitute planner:
    production callers and scope transitions. An imported helper or source-text
    assertion is insufficient proof that the rendered caller uses authenticated
    scope, clears stale state, and dispatches no request while scope is unresolved.
+   For any data-shape, term, filter, export, or projection change, apply the
+   mandatory **Production-shape equivalence gate** above even when the executor
+   prompt omits it. Trace the real producer through the changed consumer and
+   include the required parity row in the QA tally.
 4. **Return one evidence-backed verdict.** Use `ACCEPT_READY` when the ordinary
    candidate is ready for planner integration, `CORRECTION_REQUIRED` when an
    in-scope defect has a bounded remedy, or `PLANNER_DECISION_REQUIRED` when
@@ -1220,6 +1464,13 @@ The QA delegate is a bounded verifier, not a substitute planner:
    `ACCEPT_READY`, it must read `passed == total`, `blocked: 0`, and
    `unperformed: 0`; otherwise the verdict is invalid and control returns to the
    planner without integration.
+   A mandatory requirement remains mandatory even when its repair touches a
+   path outside the executor's self-declared ownership list. QA shall return
+   `CORRECTION_REQUIRED` when the governing contract already determines the
+   bounded repair, or `PLANNER_DECISION_REQUIRED` when file ownership, product
+   intent, authority, or risk must change. It shall never relabel that omission
+   `NON_BLOCKING`, `out of scope`, or a future follow-up merely to preserve an
+   acceptance verdict.
 5. **Do not edit or integrate by default.** QA is read-only unless the planner
    explicitly authorizes a narrow correction. QA never amends, rebases, merges,
    pushes, applies data, generates, publishes, or crosses another HIGH boundary.
@@ -1492,15 +1743,6 @@ documentation reconciliation, the planner may apply that docs-only delta,
 verify its exact diff, and record the final commit without commissioning another
 audit. Any product/test change or material packet-boundary change reopens the
 correction + fresh-QA + fresh-auditor loop.
-
-Independent review is bound to the exact immutable bytes and semantics it saw.
-A planner-authored change to a HIGH target, precondition, authority/session
-budget, rollback, acceptance matrix, stop condition, or approval sentence
-invalidates the prior pre-action verdict even when the edit is documentation
-only or deterministic. The correction-round budget cannot convert that stale
-verdict into approval readiness. After the budget is reached, stop with
-`AUDIT_REQUIRED` and commission one fresh reviewer of the final packet; do not
-create a recursive review of the reviewer.
 
 There is no recursive meta-review. `AUDIT_CLEAR` closes the cycle as `COMPLETE`.
 After `CORRECTION_REQUIRED`, use the same bounded executor correction plus fresh
@@ -2114,6 +2356,49 @@ The gate specification must be independent from the executor:
   planner/QA context for formal acceptance. Do not open a new executor session
   merely for an ordinary follow-up inside the same prompt.
 
+#### Planner Session Continuity And Corrective Handoff Routing
+
+- Every planner-owned correction packet shall end with exactly one routing line:
+  `PLANNER_SESSION_ROUTE: EXISTING <session-id or stable chat label>` or
+  `PLANNER_SESSION_ROUTE: FRESH_REQUIRED <reason>`. When the harness does not
+  expose a session identifier, use the user-visible chat label; never invent an
+  ID. Also state `EXECUTOR_SESSION_ROUTE` and `QA_SESSION_ROUTE` when execution
+  is delegated.
+- Route a bounded correction back to the **existing planner session** when it
+  preserves the same objective, stream ID, worktree/candidate lineage, risk
+  boundary, and integration owner. A changed verdict or newly found in-scope
+  defect is not by itself a reason to replace the planner. The existing planner
+  retains causal coordination, resumes the same executor for that prompt when
+  available, and commissions a fresh independent QA context for the corrected
+  frozen candidate.
+- A head-planner correction is a pinned acceptance-boundary override. The
+  receiving planner shall verify and execute it; it shall not reopen settled
+  product scope, defend its prior acceptance, silently waive a named blocker,
+  or integrate the prior candidate. If the receiving planner believes the
+  correction changes product intent, architecture, authority, or risk, it shall
+  return `PLANNER_DECISION_REQUIRED` with concrete evidence instead of
+  substituting its own plan.
+- Require a **fresh planner session** only when at least one condition is true:
+  the former planner is unavailable or its task transport is irrecoverable; its
+  context reset/compaction lost the immutable boundary and it cannot reconstruct
+  it from Git and the register; it crossed or repeatedly attempts to cross its
+  authority; it repeatedly downgrades pinned mandatory blockers; the objective,
+  stream ownership, worktree lineage, integration owner, or risk boundary has
+  materially changed; or the primary planner explicitly replaces the plan after
+  the two-material-correction limit. A fresh Wave Completion Auditor or QA is a
+  reviewer, not a replacement planner.
+- Never allow two planner sessions to control the same stream or writable
+  worktree concurrently. Before replacing a planner, stop or mark the old
+  planner terminal. Give the replacement a recovery packet naming current
+  `origin/main`, exact base/candidate/tip, worktree status, active directive
+  hash, register row, correction requirements, active/returned role IDs,
+  forbidden actions, and the single next action.
+- For a same-stream correction, the default route is therefore: **existing
+  planner -> existing executor for the active prompt -> fresh QA -> existing
+  planner -> primary planner/integration owner**. Do not make the user create a
+  new planner merely to relay a correction that the current planner can safely
+  own.
+
 #### Risk-Tiered Review Model
 
 - `LOW`: reversible source, test, UI, or documentation work with no authority or
@@ -2244,7 +2529,7 @@ Every frontend implementation must strictly adhere to the following ATLAS SMART-
 - **Strict DepEd Color Codes:** Grade-level indicators must map exactly to semantic colors: G7 = Green, G8 = Yellow, G9 = Red, G10 = Blue.
 - **Hover/Breakdowns:** Never use raw HTML `<details>` or `title` tags for extra information. Strictly use `shadcn/ui` based `<HoverCard>`, `<Tooltip>`, or `<Popover>`.
 - **Input Standardization:** Native HTML `<select>` and raw `<button className="...">` inputs are strictly prohibited. Always route forms and interactions through `@/ui/*` primitives.
-- **File Size & Component Extraction Rule (MANDATORY):** No single React component file shall exceed 1000 lines of code. If a file approaches this limit, implementation agents must stop feature work and immediately extract logical sub-components (for example: sidebars, modals, forms, grids) into a `components/` subdirectory before continuing.
+- **File Size & Component Extraction Rule (MANDATORY):** No single React component file shall exceed 1000 physical lines as reported by a whole-file line count. Blank lines and comments still count; nonblank/source-LOC measurements cannot waive this gate. If a file approaches this limit, implementation agents must stop feature work and immediately extract logical sub-components (for example: sidebars, modals, forms, grids) into a `components/` subdirectory before continuing.
 
 ---
 name: atlas-uiux-expert

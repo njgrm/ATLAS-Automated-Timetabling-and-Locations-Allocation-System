@@ -1,5 +1,27 @@
 # Changelog
 
+## [2026-09-14] — Agent Directive Tracking And Stalled-Cycle Recovery
+
+### Added
+- Fresh-session recovery packets for the interrupted TT-TL Modules C04R1
+  correction and the stalled EnrollPro proxy Wave Completion Audit.
+- Explicit recovery boundaries for adopting uncommitted work without reset and
+  for avoiding duplicate executor/QA work after source integration.
+
+### Changed
+- Promoted the sanitized `AGENTS.md` workflow directive to current tracked
+  `origin/main` authority so new worktrees and agents receive the same rules.
+
+### Decisions Made
+- TT-TL Modules C04R1 requires a fresh planner/executor and fresh QA because its
+  former session stopped with an uncommitted residual.
+- EnrollPro proxy recovery requires only a fresh Wave Completion Auditor; its
+  accepted and integrated source must not be re-executed.
+
+### Open Questions
+- None. The prepared EnrollPro live repair remains separately HIGH-gated and
+  unapproved.
+
 ## [2026-09-14] — EnrollPro Proxy Recovery Source Correction
 
 ### Added
