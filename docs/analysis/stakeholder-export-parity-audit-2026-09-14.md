@@ -9,7 +9,8 @@ and source audit)
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`
 (168,022 bytes; read directly from the frozen ref)
 **Audit worktree:** `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05`
-(branch `audit/stakeholder-export-parity-c05`; HEAD == `84dd537b`)
+(branch `audit/stakeholder-export-parity-c05`; audit-start HEAD `84dd537b`;
+later revision commits follow on the same branch)
 **Lane task IDs:** Lane A `ses_f5fba15cdffel6pC0kTWSfsQGZ`; Lane B
 `ses_f5fb9f4b7ffeVgfh6jqVy13qvJ`; Lane C `ses_f5fb9ca2fffeNDJFpZTDty9TBv`
 **Lane evidence:** `docs/reviews/stakeholder-export-parity-audit-c05/lane-{a,b,c}.md`
@@ -341,7 +342,7 @@ backfill UPDATEs). A passive reader already exists (`:1001+`) and should be
 used by read/export paths.
 
 **G12 — ARAL authority (operator-resolved) and remaining conventions.
-DECISION_REQUIRED (D-C, D-D, D-E).**
+MATERIAL (teacher ARAL absence) + DECISION_REQUIRED (D-C, D-D, D-E).**
 Correct and must not be rewritten: Flag/HGP Monday-only overlay
 (`workbook-export.service.ts:75-80,604-613`), HG exclusion from cells and
 teacher rows (`:297`, `teacher-program-export.service.ts:283-286`,

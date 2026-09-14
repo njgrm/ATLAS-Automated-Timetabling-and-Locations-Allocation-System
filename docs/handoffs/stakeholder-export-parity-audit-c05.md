@@ -10,7 +10,7 @@ and source audit; operator-activated `CYCLE ON`)
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`
 **Worktree/branch:** `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05`
 / `audit/stakeholder-export-parity-c05`
-**Docs candidate:** revision r4 — r3 chain (`8da80464` + `e02ba41e`) plus the r4 truth-correction commit (this revision; final tip recorded in the cycle return). Prior capsules preserved.
+**Docs candidate:** revision r4 — the r3 chain (`8da80464` + `e02ba41e`), the r4 truth-correction commit `043af549`, and the r4 closing commit (r4 `AUDIT_CLEAR` capsule + this update; final tip recorded in the cycle return). Prior capsules preserved.
 **Correction history (this cycle):** round 1 — fresh auditor
 `ses_f5f80ea3dffeiRaYCNpIzKs8nM` returned `CORRECTION_REQUIRED`
 (16/15/0/1; F2 material: contract §7.11 declared ABSENT but mapped to no
@@ -36,8 +36,16 @@ the teacher DOCX is classified **PARTIAL/NONCOMPLIANT for ARAL absence** until
 successor T6/M10 removes the emitted `ARAL Program` load row; operator-required
 behavior, verified current state, and successor work are now separated across
 the four primary documents; the settled operator contract is unchanged and D-A
-remains closed; a targeted r4 audit verifies zero contradictory current-state
-claims (result recorded in capsule r4).
+remains closed; a targeted r4 audit verified the correction —
+`ses_f5f2467ccffeacSoB58vwJJC5f` returned `AUDIT_CLEAR` 16/16/0/0 (zero
+contradictory current-state ARAL/AP claims; capsule r4 closing).
+**Base/remote note (F1):** the remote advanced beyond the audit base during the
+cycle (`84dd537b` → `5e1574733ac99a6b9964534fa825659d740f3922` re-verified at
+closure; the auditor observed `719947af` mid-round). The four audited export
+service files are byte-identical across that delta, so the audit conclusions
+hold at true head; integration must rebase/replay this docs candidate onto
+current `origin/main` (head-planner action; no rebase performed under the
+C05R4 instruction).
 
 ## Verdict
 
@@ -67,7 +75,7 @@ claims; **G11** room read write-on-read. Full evidence with file:line:
 3. `docs/prompts/beneficiary-export-parity-one-shot-c05-2026-09-14.md`
 4. This handoff.
 5. `docs/reviews/stakeholder-export-parity-audit-c05/lane-{a,b,c}.md`
-   (raw lane evidence) + the wave audit capsules r1–r3 (r4 to follow).
+   (raw lane evidence) + the wave audit capsules r1–r4.
 
 ## Lane and auditor provenance
 
@@ -81,6 +89,9 @@ claims; **G11** room read write-on-read. Full evidence with file:line:
 - Wave Completion Auditor round 3 (targeted ARAL/AP verification):
   `ses_f5f55ef56ffeWQtq1twsXgHmvi` (`AUDIT_CLEAR` 16/16/0/0; capsule r3
   closing; r2 capsule retained as historical, superseded for closure).
+- Wave Completion Auditor round 4 (targeted C05R4 truth-correction
+  verification): `ses_f5f2467ccffeacSoB58vwJJC5f` (`AUDIT_CLEAR` 16/16/0/0;
+  capsule r4 closing; zero contradictory current-state ARAL/AP claims).
 - D1 (NON_BLOCKING, reconciled): the canonical round-1 id is the with-`Y`
   string above (recorded at return time in the r1 capsule/handoff); the
   variant without `Y` was a prompt-restatement typo. No content depends on it.
