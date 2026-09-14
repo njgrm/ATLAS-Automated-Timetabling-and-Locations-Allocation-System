@@ -116,7 +116,7 @@ any other script.
 
 ## Decisive gate outputs
 
-- `npm run workflow:test` (after R2): `tests 143 / pass 143 / fail 0 / cancelled 0 / skipped 0 / todo 0`; full-suite `duration_ms 28076.02`, wall `28755 ms`. (Pre-R2 the suite was 139 tests / ~20–27 s; the four R2 controls add the coordination coverage and its end-to-end CLI verification.)
+- `npm run workflow:test` (after R2): `tests 143 / pass 143 / fail 0 / cancelled 0 / skipped 0 / todo 0`; full-suite `duration_ms` 28.1–38.2 s and wall 28.8–39.7 s across repeated runs of the same tree bytes (typical committed-tree runs measured 30.6–30.9 s duration / 31.3–31.8 s wall). Still inside the 45 s budget.
 - Before (WF-C01 tip, same host): `npm run workflow:test` wall `82562 ms` (60 tests).
 - Fixture/semantic suite (`fixtures.test.mjs`): `duration_ms 2008 ms` (target < 20000 ms).
 - `npm run workflow:verify -- --state docs/plans/atlas-delivery-cycles.json`: exit 0, `status ok`, `errors []`, 6 streams.
