@@ -2,8 +2,9 @@
 
 Repository-owned, machine-readable delivery-cycle state with a fail-closed
 verifier, a deterministic Markdown register renderer, atomic named state
-transitions, an exclusive-writer lock, and a bounded compaction checkpoint
-contract.
+transitions, an exclusive-writer lock, a bounded compaction checkpoint contract,
+local session observability with truthful liveness, and an exclusive browser
+custody lease.
 
 The JSON state document (`docs/plans/atlas-delivery-cycles.json`) is the
 authority for current cycle state. The generated register
@@ -20,6 +21,8 @@ npm run workflow:render    -- --state docs/plans/atlas-delivery-cycles.json --ou
 npm run workflow:render:check   # --check: no write, exit 1 on any drift
 npm run workflow:transition -- --transition <name> --state <path> --expect-revision <n> [flags]
 npm run workflow:checkpoint -- --state <path> --stream <id> [flags]
+npm run workflow:status    [-- --json] [--common-dir <path>] [--now <iso>]
+npm run workflow:custody   -- --op <operation> [flags]
 ```
 
 Direct CLI contract:
@@ -28,6 +31,8 @@ Direct CLI contract:
 - `node ops/workflow/render-register.mjs [--check] --state <path> --output <path>`
 - `node ops/workflow/transition.mjs --transition <name> --state <path> --expect-revision <n> [flags]`
 - `node ops/workflow/checkpoint.mjs --state <path> --stream <id> [flags]`
+- `node ops/workflow/status.mjs --state <path> [--json] [--common-dir <path>] [--now <iso>] [--active-window-ms <n>] [--profile <path>] [--notify-kind <kind>] [--notify-message <text>]`
+- `node ops/workflow/custody.mjs --op <acquire|renew|transfer-request|transfer-ack|release|recover|login|status> --state <path> [flags]`
 
 Exit codes: `0` ok, `1` state/transition failure, `2` usage error. `--stream`
 without `--receipt` is a usage error, not a silent no-op. There is never a
@@ -211,6 +216,147 @@ Task tool. The user can still invoke every role directly, and the existing
 `opencode debug config --pure` and `opencode debug agent <name>` are the
 verification surfaces used by `ops/workflow/__tests__/roles.test.mjs`.
 
+## Local observability, liveness, and notifications (B1/B2/B4/B5)
+
+The WF-C03 OpenCode plugin (`.opencode/plugins/atlas-observability.ts`) keeps
+compact, restart-safe session state for local monitoring. It is a **monitor, not
+an orchestrator**: it spawns nothing, sends nothing, approves nothing, retries
+nothing, and never navigates, logs in, or touches a browser.
+
+### Storage
+
+All state lives under the repository **Git common directory**, never inside a
+worktree and never as committed data:
+
+```
+<git-common-dir>/atlas-observability/
+  sessions/<session-id>.json      # one writer per session file
+  custody/<profile-key>.json      # one browser-custody lease per profile
+  notifications.json              # bounded local ring buffer
+  custody.lock, notifications.lock, *.tmp
+```
+
+`lib/observability.mjs` exposes the whole store; `lib/custody.mjs` the lease;
+`lib/liveness.mjs` the classification engine. `status.mjs` accepts
+`--common-dir <path>` so a caller can point the reader at another common dir
+(tests use a temp dir and never write the real one).
+
+### Bounded, redacted, atomic records
+
+A heartbeat record is a **closed allowlist** of identity and status fields:
+`schema`, `sessionId`, `role`, `stream`, `worktree`, `branch`, `head`, `leaseId`,
+`status`, `firstSeenAt`, `updatedAt`, `lastEventAt`, `lastEventType`,
+`lastAtomicAction`, `nextAction`, `processId`, `host`, `revision`, `transitions`,
+`expiresAt`. Unknown input keys are dropped by construction, so prompts,
+responses, transcripts, command output, diffs, environment contents, and browser
+storage cannot be stored — they have nowhere to go. Free-form text is passed
+through `lib/redact.mjs`, which collapses control characters and replaces
+credential-shaped substrings (`sk-…`, bearer tokens, PEM/private-key blocks,
+`ghp_…`, `AKIA…`, `xox…`, `password=`/`api_key=`/`token=` assignments, JWTs) with
+`[REDACTED:<name>]`. Records are capped at 8192 bytes with at most 24 sanitized
+transitions; the notification ring buffer keeps at most 50 entries.
+
+Publication is stage-then-rename. Temp names are unique per call (pid,
+millisecond, counter, random suffix) and the rename is retried on the bounded,
+transient Windows errors (`EPERM`/`EACCES`/`EBUSY`/`ENOENT`) that the lock module
+already treats as transient. A reader therefore observes either the previous
+complete record or the next complete record, never a partial one; a crash between
+stage and publish leaves the prior record intact and discards the staged bytes.
+
+### Subscribed events
+
+`session.created`, `session.updated`, `session.status`, `session.idle`,
+`session.error`, `session.compacted`, `session.deleted`, `permission.asked`,
+`permission.replied`. Permission and compaction events are recorded as sanitized
+`{at, type, status}` transitions only — a permission reply can never widen the
+active packet because no permission, pattern, response, or grant field exists in
+the record. The tool hook records the tool **name** as `lastAtomicAction` and
+never its arguments. Every hook body is guarded, so a plugin fault cannot throw
+into the OpenCode host.
+
+### Classification (`workflow:status`)
+
+`workflow:status` reconciles three independent evidence sources: local
+heartbeats, real Git worktree state (`git status --porcelain`, current HEAD), and
+the committed machine register (`streams[].owners`, `leases[]`, `running[]`,
+coordination). It **reads** the register through the production verify path and
+never writes it.
+
+| Classification | Meaning |
+| --- | --- |
+| `ACTIVE` | recorded process is alive and the last event is inside the active window |
+| `IDLE` | recorded process is alive but has gone quiet |
+| `RETURNED` | the session recorded its own terminal event (`session.deleted`) |
+| `ERROR` | the session recorded `session.error` or `ERROR` status |
+| `STALE_UNCONFIRMED` | process presence could not be confirmed, or custody expired |
+| `UNKNOWN` | no readable heartbeat for that session |
+
+Two rules are load-bearing. **Expiry is uncertainty, not death**: a missing
+process or an ancient heartbeat never yields `RETURNED`/`ERROR`, and uncertain
+custody is never treated as free. **A worktree directory is not activity**: the
+directory is reported as an observed artifact, but only a live recorded process
+plus a recent event makes a session `ACTIVE`. Output is one JSON object
+(`status`, `summary`, `nextActions`, `artifacts`, `errors`) with exit `0`/`1`/`2`;
+`--json` prints the same object, and a malformed `--now` or `--active-window-ms`
+is a usage error rather than a silent fallback. Recovery instructions and the
+exact observed artifacts (worktree path, HEAD, process id, pid liveness) are
+always included.
+
+### Notifications
+
+An optional `--notify-kind` appends one bounded local record announcing
+`RETURNED`, `ERROR`, `CUSTODY_CONFLICT`, or `DECISION_REQUIRED` to the ring
+buffer surfaced by `workflow:status`. The append is a local file write only; it
+starts no process, performs no network call, edits no product state, and grants
+no approval or retry authority. An unknown kind is a typed failure.
+
+## Browser custody lease (B3)
+
+`workflow:custody` serializes access to the shared persistent Playwright profile
+(`C:\Users\njgro\.config\opencode\playwright-profile` by default). It records and
+validates custody; it never drives the browser.
+
+Operations: `acquire`, `renew`, `transfer-request`, `transfer-ack`, `release`,
+`recover`, `login`, `status`. A lease binds session, role, stream, profile,
+origin (mandatory; the approved ATLAS origin is
+`https://njgrm.buru-degree.ts.net` and any other origin requires the explicit
+`--override-origin` flag, which still requires `https`), authorized login budget,
+expected audit delta, issued/renewed/expiry timestamps, cleanup owner, and a
+monotonic `revision`.
+
+Invariants:
+
+- Exactly one `ACTIVE` controller per profile; a second `acquire` fails with
+  `CUSTODY_HELD`.
+- **Expiry becomes `STALE_UNCONFIRMED`, never an automatically free lease.** An
+  expired lease still blocks `acquire`, cannot be renewed or transferred, and is
+  cleared only by a verified owner `release` (which must acknowledge complete
+  cleanup) or an explicit operator `recover` (`--confirm` plus operator identity
+  and reason).
+- Every mutation is revision-CAS guarded; a stale `--expected-revision`, a wrong
+  owner, an unauthorized/exhausted login budget, an incomplete cleanup, a wrong
+  origin, or a transfer without both owner acknowledgements fails with a typed
+  `CUSTODY_*` code and **mutates nothing**.
+- A transfer is two-step: the current owner requests it, and only the target may
+  acknowledge it, which moves the lease.
+- Lease mutations are serialized through an exclusive lock under the Git common
+  dir that reuses the state-transition lock's publish/reclaim/claim-mutex
+  semantics, so two concurrent acquires commit exactly one lease plus one typed
+  loser.
+
+`--now` and `--ttl-min` are validated: malformed values are usage errors, because
+they decide `ACTIVE` versus `STALE_UNCONFIRMED`.
+
+### Plugin discovery
+
+The plugin resolves from `.opencode/plugins/` in the installed OpenCode 1.18.21.
+`opencode debug config` (which, unlike `--pure`, loads external plugins) lists
+`file:///<repo>/.opencode/plugins/atlas-observability.ts` in `plugin` and
+`plugin_origins` with `scope: local`, and a probe plugin placed in a temp
+`.opencode/plugins/` is actually evaluated during config resolution (it wrote its
+startup marker). `__tests__/plugin-load.test.mjs` re-runs that resolution against
+the committed file.
+
 ## Byte-pinned artifacts and line endings
 
 Artifact pins (`streams[].artifacts[].sha256`) and closure receipt pins
@@ -256,7 +402,10 @@ preserved.
 On this host the fixture/semantic suite runs in about 2 seconds and the complete
 `npm run workflow:test` in well under the 45-second budget (the earlier
 per-assertion Node-process and per-assertion Git-repository harness measured
-about 82 seconds and spawned roughly 250 Git processes).
+about 82 seconds and spawned roughly 250 Git processes). The WF-C03 observability
+and custody suites added multi-process storms and one real `opencode debug config`
+resolution; the complete suite measured 21.6 seconds wall for 224 tests, against
+19.8 seconds for the 162 tests at the adopted base `3a1a1759`.
 
 ## WF-C01 residual disposition
 
