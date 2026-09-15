@@ -21,6 +21,9 @@ import {
   copyWorkflowToTemp,
   runCli,
   stateDocFromFixture,
+  getSharedRepo,
+  verifyInProcess,
+  writeStateDoc,
 } from "./harness.mjs";
 import {
   QA_VERDICTS,
@@ -99,6 +102,38 @@ test("every consumer constant covers its complete schema-declared domain", () =>
 
   // The schema file itself is untouched by the test-local patch (byte-exact).
   assert.deepEqual(fs.readFileSync(SCHEMA_FILE), schemaBytes, "the schema patch must never be written to disk");
+});
+
+// Domains the workflow does not enumerate as a consumer constant must still have
+// an explicit fail-closed default: an out-of-domain member is rejected by the
+// producer contract itself (SCHEMA_ENUM) before any consumer can silently
+// coerce it. This is the parity proof for stream states, blocker kinds, owner
+// statuses, and observation statuses.
+test("out-of-domain members with no consumer constant fail closed via the schema", () => {
+  const repo = getSharedRepo();
+  const cases = [
+    { domain: "stream.state", mutate: (d) => { d.streams[0].state = "BOGUS_STATE"; } },
+    { domain: "blocker.kind", mutate: (d) => { d.streams[0].blocker.kind = "BOGUS_BLOCKER"; } },
+    { domain: "owner.status", mutate: (d) => { d.streams[0].owners.planner.status = "BOGUS_STATUS"; } },
+    {
+      domain: "observation.status",
+      mutate: (d) => {
+        d.streams[0].observations = [
+          { id: "obs-1", target: "t", checkedAt: "2026-09-14T10:00:00+08:00", status: "BOGUS_OBS", expiresAt: null, detail: "" },
+        ];
+      },
+    },
+  ];
+  for (const testCase of cases) {
+    const doc = stateDocFromFixture("pass-ordinary.json", repo, testCase.mutate);
+    const statePath = writeStateDoc(repo, `conformance-${testCase.domain.replace(/\W+/g, "-")}.json`, doc);
+    const result = verifyInProcess(statePath);
+    assert.equal(result.ok, false, `${testCase.domain} must fail closed`);
+    assert.ok(
+      result.errors.some((error) => error.code === "SCHEMA_ENUM"),
+      `${testCase.domain} must be rejected by the producer contract, got ${JSON.stringify(result.errors.map((e) => e.code))}`,
+    );
+  }
 });
 
 test("every readiness class is reachable and derived only from gate classes", () => {
