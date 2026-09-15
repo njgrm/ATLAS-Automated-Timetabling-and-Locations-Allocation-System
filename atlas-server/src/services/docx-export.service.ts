@@ -1,8 +1,19 @@
 /**
  * Teacher Program DOCX Export Service
  *
- * Generates the official teacher-program Word document from ATLAS timetable data.
- * Uses the `docx` library for programmatic DOCX creation.
+ * BENEFICIARY-EXPORT-PARITY-C05R1 — reproduces the authoritative afternoon
+ * teacher-program form: portrait print setup with a decorative page border,
+ * DepEd/school identity header, centered government/region/division/district/
+ * school/title/SY block, the exact six-column schedule table
+ * (`Time | No. of min | Subject | Grade and section | Day | Bldg/Room #`),
+ * full-width merged break bands, `Monday to Friday` compaction, the
+ * teaching-load block (actual teaching + adviser credit only), the
+ * photo/profile block, and the signature/approval hierarchy.
+ *
+ * The generic `CREDITED NON-TEACHING WORK`, `PROFILE`, and `SIGNATORIES`
+ * report sections of the superseded builder are intentionally NOT emitted:
+ * the reference expresses those elements through its compact form layout, and
+ * ancillary work is an export-only projection with zero teaching-load effect.
  */
 
 import {
@@ -15,23 +26,29 @@ import {
 	TableCell,
 	WidthType,
 	AlignmentType,
-	HeadingLevel,
 	BorderStyle,
 	TextRun,
 	TableLayoutType,
 	VerticalAlign,
+	VerticalMergeType,
 	ShadingType,
+	Header,
+	Footer,
+	PageOrientation,
+	PageBorderDisplay,
+	PageBorderOffsetFrom,
 } from 'docx';
-import {
-	sortTeacherProgramWorkloadRows,
-	type TeacherProgramExportShape,
-	type TeacherProgramWorkloadRow,
-} from './teacher-program-export.service.js';
+import type { TeacherProgramExportShape } from './teacher-program-export.service.js';
 
 // ─── Constants ───
 
 const FONT_NAME = 'Arial Narrow';
 const FONT_SIZE = 18; // half-points (9pt)
+const SMALL_SIZE = 16; // 8pt
+const TITLE_SIZE = 26; // 13pt
+const SY_SIZE = 22; // 11pt
+
+const COLUMN_WIDTHS = { time: 1400, minutes: 900, subject: 2400, gradeSection: 2200, day: 1300, room: 1500 } as const;
 
 const BORDER_STYLE = {
 	top: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
@@ -40,65 +57,78 @@ const BORDER_STYLE = {
 	right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
 };
 
-const DAY_LABELS: Record<string, string> = {
-	MONDAY: 'Monday',
-	TUESDAY: 'Tuesday',
-	WEDNESDAY: 'Wednesday',
-	THURSDAY: 'Thursday',
-	FRIDAY: 'Friday',
-	WEEKLY: 'Weekly',
+const NO_BORDER = {
+	top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+	bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+	left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+	right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
 };
 
-const WEEKDAY_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+// ─── Cell helpers ───
 
-// ─── Helpers ───
-
-function cell(text: string, options?: {
+type CellOptions = {
 	width?: number;
 	bold?: boolean;
 	alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
 	span?: number;
-}): TableCell {
+	rowSpan?: number;
+	verticalMerge?: (typeof VerticalMergeType)[keyof typeof VerticalMergeType];
+	shading?: string;
+	borders?: typeof BORDER_STYLE;
+	size?: number;
+};
+
+function run(text: string, options?: { bold?: boolean; size?: number; italics?: boolean; color?: string }): TextRun {
+	return new TextRun({
+		text,
+		font: FONT_NAME,
+		size: options?.size ?? FONT_SIZE,
+		bold: options?.bold,
+		italics: options?.italics,
+		color: options?.color,
+	});
+}
+
+function cell(text: string, options?: CellOptions): TableCell {
+	const paragraphs = text.length > 0
+		? [new Paragraph({
+			children: [run(text, { bold: options?.bold, size: options?.size })],
+			alignment: options?.alignment ?? AlignmentType.LEFT,
+			spacing: { before: 0, after: 0 },
+		})]
+		: [new Paragraph({ children: [run('')], spacing: { before: 0, after: 0 } })];
 	return new TableCell({
 		width: options?.width ? { size: options.width, type: WidthType.DXA } : undefined,
-		children: [
-			new Paragraph({
-				children: [
-					new TextRun({
-						text,
-						font: FONT_NAME,
-						size: FONT_SIZE,
-						bold: options?.bold,
-					}),
-				],
-				alignment: options?.alignment ?? AlignmentType.LEFT,
-			}),
-		],
-		borders: BORDER_STYLE,
+		children: paragraphs,
+		borders: options?.borders ?? BORDER_STYLE,
 		columnSpan: options?.span,
+		rowSpan: options?.rowSpan,
+		verticalMerge: options?.verticalMerge,
+		shading: options?.shading ? { type: ShadingType.CLEAR, fill: options.shading } : undefined,
 		verticalAlign: VerticalAlign.CENTER,
 	});
 }
 
-function headerCell(text: string, width?: number): TableCell {
-	return new TableCell({
-		width: width ? { size: width, type: WidthType.DXA } : undefined,
+function headerCell(text: string, width: number): TableCell {
+	return cell(text, {
+		width,
+		bold: true,
+		alignment: AlignmentType.CENTER,
+		shading: 'D9E2F3',
+	});
+}
+
+/**
+ * A full-width merged break band: the configured break/event label spans
+ * Subject..Bldg/Room # while the time and duration stay in their columns.
+ */
+function mergedBandRow(label: string, timeSlot: string, minutes: number): TableRow {
+	return new TableRow({
 		children: [
-			new Paragraph({
-				children: [
-					new TextRun({
-						text,
-						font: FONT_NAME,
-						size: FONT_SIZE,
-						bold: true,
-					}),
-				],
-				alignment: AlignmentType.CENTER,
-			}),
+			cell(timeSlot, { width: COLUMN_WIDTHS.time, bold: true }),
+			cell(minutes > 0 ? String(minutes) : '', { width: COLUMN_WIDTHS.minutes }),
+			cell(label, { width: COLUMN_WIDTHS.subject + COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, bold: true, span: 4 }),
 		],
-		borders: BORDER_STYLE,
-		shading: { type: ShadingType.CLEAR, fill: 'D9E2F3' },
-		verticalAlign: VerticalAlign.CENTER,
 	});
 }
 
@@ -107,318 +137,154 @@ function headerCell(text: string, width?: number): TableCell {
 export async function generateTeacherProgramDocx(
 	shape: TeacherProgramExportShape,
 ): Promise<Buffer> {
-	const { teacher, schoolYear, branding, term, publication, notes, rows, summary } = shape;
+	const { teacher, schoolYear, branding, term, publication, notes, signatories, rows, summary } = shape;
 
-	// C05 T10/M23 — explicit publication state from persisted run data.
+	const identityLines = [
+		'Republic of the Philippines',
+		'Department of Education',
+		branding.regionLine,
+		branding.divisionLine,
+		branding.districtLine,
+		branding.schoolName,
+	].filter((line) => line.length > 0);
+
+	// ─── Header (repeats on continuation pages) ───
+	const headerIdentity = new Table({
+		rows: [new TableRow({
+			children: [
+				new TableCell({
+					width: { size: 1100, type: WidthType.DXA },
+					borders: BORDER_STYLE,
+					children: [
+						new Paragraph({ children: [run('LOGO', { bold: true, size: SMALL_SIZE })], alignment: AlignmentType.CENTER }),
+						new Paragraph({ children: [run('DepEd', { size: SMALL_SIZE })], alignment: AlignmentType.CENTER }),
+					],
+				}),
+				new TableCell({
+					width: { size: 7200, type: WidthType.DXA },
+					borders: NO_BORDER,
+					children: identityLines.map((line) => new Paragraph({
+						children: [run(line, { bold: line === identityLines[identityLines.length - 1] })],
+						alignment: AlignmentType.CENTER,
+						spacing: { before: 0, after: 0 },
+					})),
+				}),
+				new TableCell({
+					width: { size: 1100, type: WidthType.DXA },
+					borders: BORDER_STYLE,
+					children: [
+						new Paragraph({ children: [run('LOGO', { bold: true, size: SMALL_SIZE })], alignment: AlignmentType.CENTER }),
+						new Paragraph({ children: [run('School', { size: SMALL_SIZE })], alignment: AlignmentType.CENTER }),
+					],
+				}),
+			],
+		})],
+		width: { size: 100, type: WidthType.PERCENTAGE },
+		layout: TableLayoutType.FIXED,
+	});
+
+	// ─── Title Block ───
 	const publicationText = publication.isPublished
 		? `PUBLISHED${publication.revisionId != null ? ` — Revision ${publication.revisionId}` : ''}${publication.publishedAt ? ` (${publication.publishedAt.slice(0, 10)})` : ''}`
 		: 'NOT PUBLISHED — DRAFT/REVIEW';
 
-	function brandingLine(text: string): Paragraph {
-		return new Paragraph({
-			children: [
-				new TextRun({ text: text.length > 0 ? text : ' ', font: FONT_NAME, size: FONT_SIZE }),
-			],
-			alignment: AlignmentType.CENTER,
-			spacing: { after: 20 },
-		});
-	}
-
-	// C05 T6 — configurable branding block. Unset address lines render as
-	// blank-line placeholders; school identity is never invented.
-	const brandingParagraphs = [
-		brandingLine(branding.schoolName),
-		brandingLine(branding.regionLine || '________________________'),
-		brandingLine(branding.divisionLine || '________________________'),
-		brandingLine(branding.districtLine || '________________________'),
-	];
-
-	// ─── Title Block ───
-	const titleParagraphs = [
-		...brandingParagraphs,
+	const titleBlock: Paragraph[] = [
 		new Paragraph({
-			children: [
-				new TextRun({
-					text: publicationText,
-					font: FONT_NAME,
-					size: 20, // 10pt
-					bold: true,
-					color: publication.isPublished ? '1F7A1F' : 'B00020',
-				}),
-			],
+			children: [run("TEACHER'S PROGRAM", { bold: true, size: TITLE_SIZE })],
 			alignment: AlignmentType.CENTER,
-			spacing: { after: 120 },
+			spacing: { before: 0, after: 40 },
 		}),
 		new Paragraph({
-			children: [
-				new TextRun({
-					text: "TEACHER'S PROGRAM",
-					font: FONT_NAME,
-					size: 28, // 14pt
-					bold: true,
-				}),
-			],
+			children: [run(term.label ? `SY ${schoolYear.label} — ${term.label}` : `SY ${schoolYear.label}`, { bold: true, size: SY_SIZE })],
 			alignment: AlignmentType.CENTER,
-			spacing: { after: 100 },
+			spacing: { before: 0, after: 40 },
 		}),
 		new Paragraph({
-			children: [
-				new TextRun({
-					text: term.label ? `SY ${schoolYear.label} — ${term.label}` : `SY ${schoolYear.label}`,
-					font: FONT_NAME,
-					size: 24, // 12pt
-					bold: true,
-				}),
-			],
+			children: [run(publicationText, {
+				bold: true,
+				size: SMALL_SIZE,
+				color: publication.isPublished ? '1F7A1F' : 'B00020',
+			})],
 			alignment: AlignmentType.CENTER,
-			spacing: { after: 200 },
+			spacing: { before: 0, after: 80 },
 		}),
 	];
 
 	// ─── Schedule Table ───
 	const scheduleHeaderRow = new TableRow({
 		children: [
-			headerCell('Time', 1500),
-			headerCell('No. of min', 1000),
-			headerCell('Subject', 2000),
-			headerCell('Grade and section', 2000),
-			headerCell('Day', 1200),
-			headerCell('Bldg/Room #', 1500),
+			headerCell('Time', COLUMN_WIDTHS.time),
+			headerCell('No. of min', COLUMN_WIDTHS.minutes),
+			headerCell('Subject', COLUMN_WIDTHS.subject),
+			headerCell('Grade and section', COLUMN_WIDTHS.gradeSection),
+			headerCell('Day', COLUMN_WIDTHS.day),
+			headerCell('Bldg/Room #', COLUMN_WIDTHS.room),
 		],
 		tableHeader: true,
 	});
 
-	// Separate daily schedule rows from weekly credited work rows
-	const dailyRows = rows.filter(r => r.day !== 'WEEKLY');
-	const weeklyRows = rows.filter(r => r.day === 'WEEKLY');
-
-	// Weekday compaction: group identical teaching rows by timeSlot/label/gradeAndSection/room
-	// and render as "Monday to Friday" when all 5 weekdays are covered
-	function compactDayLabel(days: string[]): string {
-		const sorted = [...days].sort((a, b) => WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b));
-		if (sorted.length === 5 && sorted.every((d, i) => d === WEEKDAY_ORDER[i])) {
-			return 'Monday to Friday';
+	const scheduleDataRows = rows.map((row) => {
+		if (row.isEvent && row.kind === 'BREAK') {
+			return mergedBandRow(row.label, row.timeSlot, row.minutes);
 		}
-		return sorted.map(d => DAY_LABELS[d] ?? d).join(', ');
-	}
-
-	// Build compaction groups for teaching rows only
-	const teachingGroups = new Map<string, { row: typeof dailyRows[0]; days: string[] }>();
-	const breakRows: typeof dailyRows = [];
-	for (const row of dailyRows) {
-		if (row.kind === 'TEACHING') {
-			const key = [row.timeSlot, row.minutes, row.label, row.gradeAndSection ?? '', row.room ?? ''].join('|||');
-			const existing = teachingGroups.get(key);
-			if (existing) {
-				existing.days.push(row.day);
-			} else {
-				teachingGroups.set(key, { row, days: [row.day] });
-			}
-		} else {
-			breakRows.push(row);
-		}
-	}
-
-	// Build compacted teaching rows
-	const compactedTeaching = [...teachingGroups.values()].map(({ row, days }) => ({
-		...row,
-		_dayLabel: compactDayLabel(days),
-	})).sort((a, b) => {
-		const dayDiff = WEEKDAY_ORDER.indexOf(a.day) - WEEKDAY_ORDER.indexOf(b.day);
-		if (dayDiff !== 0) return dayDiff;
-		return a.timeSlot.localeCompare(b.timeSlot);
-	});
-
-	// Merge compacted teaching + breaks, sorted by original day order
-	// Reuse the production workload ordering so the printable artifact keeps
-	// numeric chronological order for formatted 12-hour labels (e.g. 7:30 AM
-	// before 1:00 PM). A lexical timeSlot sort would invert those rows.
-	const compactedAll = sortTeacherProgramWorkloadRows([...compactedTeaching, ...breakRows]);
-
-	const scheduleDataRows = compactedAll.map((row) => {
-		const isBreak = row.kind === 'BREAK';
-		const isSpecial = isBreak;
-		const dayLabel = ('_dayLabel' in row) ? (row as { _dayLabel: string })._dayLabel : (DAY_LABELS[row.day] ?? row.day);
-
 		return new TableRow({
 			children: [
-				cell(row.timeSlot || (isSpecial ? row.label : ''), {
-					width: 1500,
-					bold: isSpecial,
-				}),
-				cell(row.minutes > 0 ? String(row.minutes) : '', { width: 1000 }),
-				cell(row.label, {
-					width: 2000,
-					bold: isSpecial,
-				}),
-				cell(row.gradeAndSection ?? '', { width: 2000 }),
-				cell(dayLabel, { width: 1200 }),
-				cell(row.room ?? '', { width: 1500 }),
+				cell(row.timeSlot, { width: COLUMN_WIDTHS.time }),
+				cell(row.minutes > 0 ? String(row.minutes) : '', { width: COLUMN_WIDTHS.minutes, alignment: AlignmentType.CENTER }),
+				cell(row.label, { width: COLUMN_WIDTHS.subject, bold: row.kind === 'ANCILLARY' }),
+				cell(row.gradeAndSection ?? '', { width: COLUMN_WIDTHS.gradeSection }),
+				cell(row.dayLabel, { width: COLUMN_WIDTHS.day }),
+				cell(row.room ?? '', { width: COLUMN_WIDTHS.room }),
 			],
 		});
 	});
 
-	// Weekly credited work section (ancillary + advisory)
-	const creditedWorkHeaderRow = new TableRow({
+	// ─── Total minutes per day + load block (same table, template layout) ───
+	const weekdayTeachingTotal = summary.actualTeachingMinutes;
+	const totalMinutesRow = new TableRow({
 		children: [
-			headerCell('Credited Work', 1500),
-			headerCell('Minutes/Week', 1000),
-			headerCell('Type', 2000),
-			headerCell('Details', 2000),
-			headerCell('Frequency', 1200),
-			headerCell('Source', 1500),
-		],
-		tableHeader: true,
-	});
-
-	const creditedWorkRows = weeklyRows.map((row) => new TableRow({
-		children: [
-			cell(row.label, { width: 1500, bold: true }),
-			cell(String(row.minutes), { width: 1000 }),
-			cell(row.kind, { width: 2000 }),
-			cell(row.gradeAndSection ?? '', { width: 2000 }),
-			cell('Weekly', { width: 1200 }),
-			cell(row.source, { width: 1500 }),
-		],
-	}));
-
-	const scheduleTable = new Table({
-		rows: [scheduleHeaderRow, ...scheduleDataRows],
-		width: {
-			size: 100,
-			type: WidthType.PERCENTAGE,
-		},
-		layout: TableLayoutType.FIXED,
-	});
-
-	const creditedWorkTable = weeklyRows.length > 0
-		? new Table({
-			rows: [creditedWorkHeaderRow, ...creditedWorkRows],
-			width: { size: 100, type: WidthType.PERCENTAGE },
-			layout: TableLayoutType.FIXED,
-		})
-		: null;
-
-	// ─── Daily Total Minutes ───
-	const dailyOrder = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
-	const dailyTotalRows = dailyOrder.map((day) => {
-		const total = summary.dailyTotals[day] ?? 0;
-		return new TableRow({
-			children: [
-				cell(DAY_LABELS[day] ?? day, { width: 2000, bold: true }),
-				cell(`${total} min`, { width: 2000 }),
-			],
-		});
-	});
-
-	const dailyTotalTable = new Table({
-		rows: [
-			new TableRow({
-				children: [
-					headerCell('Day', 2000),
-					headerCell('Total Minutes', 2000),
-				],
-				tableHeader: true,
-			}),
-			...dailyTotalRows,
-		],
-		width: { size: 50, type: WidthType.PERCENTAGE },
-		layout: TableLayoutType.FIXED,
-	});
-
-	// C05 T6 — daily-total annotation convention: the reference documents state
-	// a single Monday–Friday total, with the HGP/PEACE note only when policy
-	// defines that window.
-	const weekdayTotal = dailyOrder.reduce((total, day) => total + (summary.dailyTotals[day] ?? 0), 0);
-	const hasAnyDaily = dailyOrder.some((day) => (summary.dailyTotals[day] ?? 0) > 0);
-	const dailyTotalNote = new Paragraph({
-		children: [
-			new TextRun({
-				text: hasAnyDaily
-					? `${weekdayTotal} mins. (Monday–Friday)${notes.hgpPeaceIncluded ? ' — Inclusive of HGP/PEACE Campaign (Monday)' : ''}`
-					: '',
-				font: FONT_NAME,
-				size: FONT_SIZE,
-				italics: true,
-			}),
-		],
-		spacing: { before: 80 },
-	});
-
-	// ─── Teaching Load Summary ───
-	const formatMin = (min: number) => {
-		const h = Math.floor(min / 60);
-		const m = min % 60;
-		return h > 0 ? `${h}h ${m}m` : `${m}m`;
-	};
-
-	const summaryRows = [
-		['Class Advising Duty', formatMin(summary.advisoryMinutes), summary.advisorySectionLabel ?? ''],
-		['Actual Teaching Load', formatMin(summary.actualTeachingMinutes), ''],
-		['Ancillary Work', formatMin(summary.ancillaryMinutes), summary.ancillaryLabels.join(', ') || ''],
-		['Total Teaching Load', formatMin(summary.totalTeachingLoad), ''],
-	];
-
-	const summaryTable = new Table({
-		rows: [
-			new TableRow({
-				children: [
-					headerCell('Teaching Load Summary', 3000),
-					headerCell('Duration', 2000),
-					headerCell('Details', 2000),
-				],
-				tableHeader: true,
-			}),
-			...summaryRows.map(([label, duration, details]) =>
-				new TableRow({
-					children: [
-						cell(label, { width: 3000, bold: label === 'Total Teaching Load' }),
-						cell(duration, { width: 2000, bold: label === 'Total Teaching Load' }),
-						cell(details, { width: 2000 }),
-					],
-				}),
+			cell('Total minutes per day', { width: COLUMN_WIDTHS.time, bold: true }),
+			cell('', { width: COLUMN_WIDTHS.minutes }),
+			cell(`${weekdayTeachingTotal} mins. (Monday-Friday)`, { width: COLUMN_WIDTHS.subject + COLUMN_WIDTHS.gradeSection, span: 2, alignment: AlignmentType.CENTER }),
+			cell(
+				notes.hgpPeaceIncluded ? '45 mins Inclusive of HGP/PEACE Campaign (Monday)' : '',
+				{ width: COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 2, alignment: AlignmentType.CENTER, size: SMALL_SIZE },
 			),
 		],
+	});
+
+	const minutesLabel = (value: number) => `${Math.max(0, Math.round(value))} mins`;
+	const loadRows: TableRow[] = [
+		new TableRow({
+			children: [
+				cell('Total Teaching Load', { width: COLUMN_WIDTHS.time, bold: true, verticalMerge: VerticalMergeType.RESTART }),
+				cell('Class Advising Duty', { width: COLUMN_WIDTHS.minutes + COLUMN_WIDTHS.subject, span: 2 }),
+				cell(minutesLabel(summary.advisoryMinutes), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3 }),
+			],
+		}),
+		new TableRow({
+			children: [
+				cell('', { width: COLUMN_WIDTHS.time, verticalMerge: VerticalMergeType.CONTINUE }),
+				cell('Actual Teaching Load', { width: COLUMN_WIDTHS.minutes + COLUMN_WIDTHS.subject, span: 2 }),
+				cell(minutesLabel(summary.actualTeachingMinutes), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3 }),
+			],
+		}),
+		new TableRow({
+			children: [
+				cell('', { width: COLUMN_WIDTHS.time, verticalMerge: VerticalMergeType.CONTINUE }),
+				cell('Total Teaching Load', { width: COLUMN_WIDTHS.minutes + COLUMN_WIDTHS.subject, span: 2, bold: true }),
+				cell(minutesLabel(summary.totalTeachingLoad), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3, bold: true }),
+			],
+		}),
+	];
+
+	const scheduleTable = new Table({
+		rows: [scheduleHeaderRow, ...scheduleDataRows, totalMinutesRow, ...loadRows],
 		width: { size: 100, type: WidthType.PERCENTAGE },
 		layout: TableLayoutType.FIXED,
 	});
 
-	// ─── Profile Block ───
-	const profileTable = new Table({
-		rows: [
-			new TableRow({
-				children: [
-					cell('Name', { width: 2000, bold: true }),
-					cell(teacher.fullName, { width: 5000 }),
-				],
-			}),
-			new TableRow({
-				children: [
-					cell('Position', { width: 2000, bold: true }),
-					cell(teacher.plantillaPosition ?? teacher.designationTitle ?? 'N/A', { width: 5000 }),
-				],
-			}),
-			new TableRow({
-				children: [
-					cell("Bachelor's Degree", { width: 2000, bold: true }),
-					cell(teacher.undergraduateDegree ?? 'N/A', { width: 5000 }),
-				],
-			}),
-			new TableRow({
-				children: [
-					cell('Post Graduate Degree', { width: 2000, bold: true }),
-					cell(teacher.postgraduateDegree ?? 'N/A', { width: 5000 }),
-				],
-			}),
-		],
-		width: { size: 100, type: WidthType.PERCENTAGE },
-		layout: TableLayoutType.FIXED,
-	});
-
-	// ─── Photo Placeholder ───
-	// C05 T6 — embed only when an existing faculty image value is a usable inline
-	// data URL. No schema change and no network fetch; otherwise a bordered
-	// placeholder box is rendered.
+	// ─── Photo + profile block ───
 	function avatarDataUrl(value: string | null): { base64: string; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null {
 		if (!value) return null;
 		const match = value.match(/^data:image\/(png|jpe?g|gif|bmp);base64,(.+)$/is);
@@ -429,7 +295,8 @@ export async function generateTeacherProgramDocx(
 	}
 	const avatar = avatarDataUrl(teacher.avatarUrl);
 	const photoCell = new TableCell({
-		width: { size: 1900, type: WidthType.DXA },
+		width: { size: 1700, type: WidthType.DXA },
+		rowSpan: 4,
 		borders: BORDER_STYLE,
 		verticalAlign: VerticalAlign.CENTER,
 		children: avatar
@@ -437,110 +304,122 @@ export async function generateTeacherProgramDocx(
 				children: [new ImageRun({
 					type: avatar.type,
 					data: Buffer.from(avatar.base64, 'base64'),
-					transformation: { width: 95, height: 115 },
+					transformation: { width: 90, height: 110 },
 				})],
 				alignment: AlignmentType.CENTER,
 			})]
 			: [
-				new Paragraph({
-					children: [new TextRun({ text: 'PHOTO', font: FONT_NAME, size: FONT_SIZE, bold: true })],
-					alignment: AlignmentType.CENTER,
-				}),
-				new Paragraph({
-					children: [new TextRun({ text: '(2 x 2)', font: FONT_NAME, size: FONT_SIZE })],
-					alignment: AlignmentType.CENTER,
-				}),
+				new Paragraph({ children: [run('Picture', { bold: true, size: SMALL_SIZE })], alignment: AlignmentType.CENTER }),
+				new Paragraph({ children: [run('(2 x 2)', { size: SMALL_SIZE })], alignment: AlignmentType.CENTER }),
 			],
 	});
-	const photoTable = new Table({
-		rows: [new TableRow({ children: [photoCell] })],
-		width: { size: 18, type: WidthType.PERCENTAGE },
-		layout: TableLayoutType.FIXED,
-	});
 
-	// ─── Signature Block ───
-	// C05 T6/M10 / contract §3.2 — the final role set must be
-	// `Checked by Teacher + School Head, Noted, Recommending Approval, Approved`
-	// (configurable names; unset names render as blank signature lines). The
-	// earlier adopted delta dropped the `Checked by Teacher` row; it is restored
-	// here with the teacher's persisted full name when available.
-	const signatureRows = [
-		['Checked by:', 'Teacher', teacher.fullName],
-		['Checked by:', 'School Head', ''],
-		['Noted:', 'PSDS', ''],
-		['Recommending Approval:', 'CID Chief', ''],
-		['Approved:', 'ASDS', ''],
-	];
-
-	const signatureTable = new Table({
-		rows: signatureRows.map(([action, role, name]) =>
-			new TableRow({
-				children: [
-					cell(action, { width: 2000, bold: !!action }),
-					cell(role, { width: 2000, bold: true }),
-					cell(name || '________________________', { width: 2500 }),
-					cell('________________________', { width: 2500 }),
-				],
+	function profileLineRow(label: string, value: string | null, leadingCell?: TableCell): TableRow {
+		const children: TableCell[] = [];
+		if (leadingCell) children.push(leadingCell);
+		children.push(
+			new TableCell({
+				width: { size: 2200, type: WidthType.DXA },
+				borders: NO_BORDER,
+				children: [new Paragraph({ children: [run(label, { bold: true })], spacing: { before: 0, after: 0 } })],
 			}),
-		),
+			new TableCell({
+				width: { size: 5400, type: WidthType.DXA },
+				borders: { ...NO_BORDER, bottom: { style: BorderStyle.SINGLE, size: 1, color: '000000' } },
+				children: [new Paragraph({ children: [run(value && value.trim().length > 0 ? value : '')], spacing: { before: 0, after: 0 } })],
+			}),
+		);
+		return new TableRow({ children });
+	}
+
+	const profileTable = new Table({
+		rows: [
+			profileLineRow('Name:', teacher.fullName || null, photoCell),
+			profileLineRow('Position:', teacher.plantillaPosition ?? teacher.designationTitle ?? null),
+			profileLineRow("Bachelor's Degree:", teacher.undergraduateDegree ?? null),
+			profileLineRow('Post Graduate Degree:', teacher.postgraduateDegree ?? null),
+		],
 		width: { size: 100, type: WidthType.PERCENTAGE },
 		layout: TableLayoutType.FIXED,
 	});
+
+	// ─── Signature hierarchy (reference roles and order) ───
+	function signatoryBlock(name: string | null, roleTitle: string): TableCell {
+		return new TableCell({
+			width: { size: 4680, type: WidthType.DXA },
+			borders: NO_BORDER,
+			children: [
+				new Paragraph({ children: [run(name && name.trim().length > 0 ? name : '________________________', { bold: true })], alignment: AlignmentType.CENTER, spacing: { before: 120, after: 0 } }),
+				new Paragraph({ children: [run(roleTitle, { size: SMALL_SIZE })], alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 } }),
+			],
+		});
+	}
+
+	function signatureLabel(label: string): Paragraph {
+		return new Paragraph({ children: [run(label, { bold: true })], spacing: { before: 160, after: 0 } });
+	}
+
+	function signatureRow(cells: TableCell[]): Table {
+		return new Table({
+			rows: [new TableRow({ children: cells })],
+			width: { size: 100, type: WidthType.PERCENTAGE },
+			layout: TableLayoutType.FIXED,
+		});
+	}
+
+	const signatureRegion = [
+		signatureLabel('Checked by:'),
+		signatureRow([
+			signatoryBlock(teacher.fullName || null, 'Teacher'),
+			signatoryBlock(signatories.schoolHead.name, signatories.schoolHead.title),
+		]),
+		signatureLabel('Noted:'),
+		signatureRow([signatoryBlock(signatories.psds.name, signatories.psds.title)]),
+		signatureLabel('Recommending Approval:'),
+		signatureRow([signatoryBlock(signatories.cidChief.name, signatories.cidChief.title)]),
+		signatureLabel('Approved:'),
+		signatureRow([signatoryBlock(signatories.asds.name, signatories.asds.title)]),
+	];
+
+	// ─── Footer (configured treatment only) ───
+	const footerText = (signatories.footerText ?? '').trim();
+	const footer = footerText.length > 0
+		? new Footer({
+			children: [new Paragraph({
+				children: [run(footerText, { italics: true, size: SMALL_SIZE })],
+				alignment: AlignmentType.CENTER,
+				spacing: { before: 0, after: 0 },
+			})],
+		})
+		: undefined;
+
+	const header = new Header({ children: [headerIdentity] });
 
 	// ─── Assemble Document ───
 	const doc = new Document({
 		sections: [
 			{
+				properties: {
+					page: {
+						size: { orientation: PageOrientation.PORTRAIT },
+						margin: { top: 720, right: 720, bottom: 720, left: 720, header: 360, footer: 360 },
+						borders: {
+							pageBorders: { display: PageBorderDisplay.ALL_PAGES, offsetFrom: PageBorderOffsetFrom.TEXT },
+							pageBorderTop: { style: BorderStyle.SINGLE, size: 8, color: '1F3864' },
+							pageBorderRight: { style: BorderStyle.SINGLE, size: 8, color: '1F3864' },
+							pageBorderBottom: { style: BorderStyle.SINGLE, size: 8, color: '1F3864' },
+							pageBorderLeft: { style: BorderStyle.SINGLE, size: 8, color: '1F3864' },
+						},
+					},
+				},
+				headers: { default: header },
+				footers: footer ? { default: footer } : undefined,
 				children: [
-					...titleParagraphs,
+					...titleBlock,
 					scheduleTable,
-					...(creditedWorkTable ? [
-						new Paragraph({ spacing: { before: 200 } }),
-						new Paragraph({
-							children: [
-								new TextRun({
-									text: 'CREDITED NON-TEACHING WORK',
-									font: FONT_NAME,
-									size: 20,
-									bold: true,
-								}),
-							],
-						}),
-						creditedWorkTable,
-					] : []),
-					new Paragraph({ spacing: { before: 200 } }),
-					dailyTotalTable,
-					dailyTotalNote,
-					new Paragraph({ spacing: { before: 200 } }),
-					summaryTable,
-					new Paragraph({ spacing: { before: 300 } }),
-					photoTable,
-					new Paragraph({ spacing: { before: 200 } }),
-					new Paragraph({
-						children: [
-							new TextRun({
-								text: 'PROFILE',
-								font: FONT_NAME,
-								size: 24,
-								bold: true,
-							}),
-						],
-						heading: HeadingLevel.HEADING_2,
-					}),
+					new Paragraph({ spacing: { before: 200, after: 0 } }),
 					profileTable,
-					new Paragraph({ spacing: { before: 300 } }),
-					new Paragraph({
-						children: [
-							new TextRun({
-								text: 'SIGNATORIES',
-								font: FONT_NAME,
-								size: 24,
-								bold: true,
-							}),
-						],
-						heading: HeadingLevel.HEADING_2,
-					}),
-					signatureTable,
+					...signatureRegion,
 				],
 			},
 		],

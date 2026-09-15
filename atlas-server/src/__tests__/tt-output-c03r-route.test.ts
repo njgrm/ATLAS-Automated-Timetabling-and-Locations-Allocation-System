@@ -138,14 +138,22 @@ function buildFakeModels(): Record<string, Record<string, unknown>> {
 			}),
 		}),
 		classProgramSlot: readModel('classProgramSlot', {
+			// The teacher-program projection reads the active slots for the
+			// school/year and filters by grade in memory; the matrix route filters
+			// by program type. The fixture therefore filters by program type only.
 			findMany: async (args: any) => {
 				const where = args?.where ?? {};
 				return CLASS_PROGRAM_SLOTS.filter((slot) =>
-					slot.gradeLevel === where.gradeLevel
-					&& (where.programType == null ? true : slot.programType === where.programType),
+					where.programType == null ? true : slot.programType === where.programType,
 				);
 			},
 		}),
+		// C05R1 — the teacher-program DOCX resolves the year-scoped editable
+		// signatory profile; an unconfigured year reads empty (never invented).
+		teacherProgramPresentationRevision: readModel('teacherProgramPresentationRevision', {
+			findFirst: async () => null,
+		}),
+		policySpecialEvent: readModel('policySpecialEvent', { findMany: async () => [] }),
 	};
 }
 

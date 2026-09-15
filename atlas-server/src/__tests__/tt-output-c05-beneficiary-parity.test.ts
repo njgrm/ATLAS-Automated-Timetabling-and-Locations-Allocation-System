@@ -161,13 +161,7 @@ function makeClient(entries: Entry[], summary: Record<string, unknown>) {
 			}),
 		},
 		classProgramSlot: {
-			findMany: async (args: any) => {
-				const where = args?.where ?? {};
-				return CLASS_PROGRAM_SLOTS.filter((slot) =>
-					slot.gradeLevel === where.gradeLevel
-					&& (where.programType == null ? true : slot.programType === where.programType),
-				);
-			},
+			findMany: async () => CLASS_PROGRAM_SLOTS,
 		},
 	};
 }
@@ -483,10 +477,13 @@ test('M10: the teacher-program DOCX carries branding, the role set, the load ide
 	const { default: JSZip } = await import('jszip');
 	const zip = await (JSZip as any).loadAsync(docxBuffer);
 	const documentXml: string = await zip.file('word/document.xml').async('string');
+	const headerXml: string = zip.file('word/header1.xml') ? await zip.file('word/header1.xml').async('string') : '';
 	const texts: string[] = [...documentXml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1]);
+	const headerTexts: string[] = [...headerXml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1]);
 
-	// Branding block + title + term identity.
-	assert.ok(texts.includes('ATLAS National High School'), 'the configurable branding block renders the persisted school name');
+	// Branding block (Word header, repeats across pages) + title + term identity.
+	assert.ok(headerTexts.includes('Republic of the Philippines'), 'the government identity line renders in the repeating header');
+	assert.ok(headerTexts.includes('ATLAS National High School'), 'the configurable branding block renders the persisted school name');
 	assert.ok(texts.some((value) => /TEACHER.{0,6}S PROGRAM/i.test(value)), 'the title renders');
 	assert.ok(texts.some((value) => /SY 2026-2027/.test(value)), 'the school year and selected term render');
 
@@ -497,16 +494,18 @@ test('M10: the teacher-program DOCX carries branding, the role set, the load ide
 	assert.ok(texts.includes('Day') && texts.includes('Bldg/Room #'), 'the six-column schedule header renders');
 	assert.ok(texts.includes('Monday to Friday'), 'a weekday-complete subject compacts to Monday to Friday');
 
-	// Signature role set (contract §3.2).
+	// Signature hierarchy (C05R1: one `Checked by:` label above Teacher + School Head).
 	const signatureTexts = texts.filter((value) => /Checked by:|Noted:|Recommending Approval:|Approved:/.test(value));
-	assert.deepEqual(signatureTexts, ['Checked by:', 'Checked by:', 'Noted:', 'Recommending Approval:', 'Approved:'], 'the complete role set renders in order');
+	assert.deepEqual(signatureTexts, ['Checked by:', 'Noted:', 'Recommending Approval:', 'Approved:'], 'the complete role set renders in order');
 
-	// Load identity — no ARAL component.
-	for (const label of ['Class Advising Duty', 'Actual Teaching Load', 'Ancillary Work', 'Total Teaching Load']) {
+	// Load identity — actual teaching + adviser credit only; no ARAL, no ancillary credit.
+	for (const label of ['Class Advising Duty', 'Actual Teaching Load', 'Total Teaching Load']) {
 		assert.ok(texts.includes(label), `${label} renders in the load block`);
 	}
 	assert.equal(texts.some((value) => /ARAL Program|Homeroom Guidance/.test(value)), false, 'no ARAL/HG row, label, or 0-min entry may render');
+	assert.ok(texts.includes('Ancillary Work'), 'unoccupied periods render as an export-only Ancillary Work projection');
 
-	// Portrait page geometry.
+	// Portrait + decorative page border.
 	assert.match(documentXml, /<w:pgSz[^>]*w:orient="portrait"/, 'the teacher program is portrait');
+	assert.match(documentXml, /<w:pgBorders[\s>]/, 'the decorative page border renders');
 });

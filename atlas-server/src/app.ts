@@ -47,6 +47,7 @@ import timetableUnassignedRouter from './routes/timetable-unassigned.router.js';
 import notificationRouter from './routes/notification.router.js';
 import teachingLoadHistoryRouter from './routes/teaching-load-history.router.js';
 import teachingLoadCarryForwardRouter from './routes/teaching-load-carry-forward.router.js';
+import exportPresentationRouter from './routes/export-presentation.router.js';
 import { initializeNotificationEventBridges } from './services/notification-events.service.js';
 import { getDependencyReadiness } from './services/health.service.js';
 
@@ -134,6 +135,7 @@ app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/teaching-load', teachingLoadHistoryRouter);
 app.use('/api/v1/teaching-load', teachingLoadCarryForwardRouter);
+app.use('/api/v1/export-presentation', exportPresentationRouter);
 
 app.use(errorHandler);
 

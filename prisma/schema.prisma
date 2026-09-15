@@ -40,6 +40,7 @@ model School {
   subjectOwnerPrefixes       SubjectOwnerPrefix[]
   programScopeRules          ProgramScopeRule[]
   crossDepartmentPermissions CrossDepartmentPermission[]
+  teacherProgramPresentationRevisions TeacherProgramPresentationRevision[]
 
   @@map("schools")
 }
@@ -1299,4 +1300,37 @@ model CrossDepartmentPermission {
 
   @@unique([schoolId, facultyId, subjectId], map: "uq_cross_dept_permission")
   @@map("cross_department_permissions")
+}
+
+/// BENEFICIARY-EXPORT-PARITY-C05R1 — append-only, school/year-scoped editable
+/// teacher-program presentation profile (School Head, PSDS, CID Chief, ASDS
+/// names + displayed titles, and an optional footer line). Each committed save
+/// appends exactly one immutable revision; the effective profile is the highest
+/// revision. Published/archived exports resolve the revision that was effective
+/// at publication time (`created_at <= published_at`), so later edits never
+/// rewrite historical output identity. A passive read, preview, or export never
+/// writes.
+model TeacherProgramPresentationRevision {
+  id              Int      @id @default(autoincrement())
+  schoolId        Int      @map("school_id")
+  schoolYearId    Int      @map("school_year_id")
+  revision        Int
+  schoolHeadName  String?  @map("school_head_name") @db.VarChar(120)
+  schoolHeadTitle String?  @map("school_head_title") @db.VarChar(120)
+  psdsName        String?  @map("psds_name") @db.VarChar(120)
+  psdsTitle       String?  @map("psds_title") @db.VarChar(120)
+  cidChiefName    String?  @map("cid_chief_name") @db.VarChar(120)
+  cidChiefTitle   String?  @map("cid_chief_title") @db.VarChar(120)
+  asdsName        String?  @map("asds_name") @db.VarChar(120)
+  asdsTitle       String?  @map("asds_title") @db.VarChar(120)
+  footerText      String?  @map("footer_text") @db.VarChar(200)
+  createdBy       Int      @map("created_by")
+  auditId         Int?     @map("audit_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, schoolYearId, revision], map: "uq_teacher_program_presentation_revision")
+  @@index([schoolId, schoolYearId, createdAt], map: "idx_teacher_program_presentation_scope")
+  @@map("teacher_program_presentation_revisions")
 }

@@ -148,9 +148,13 @@ test('published teacher-program shape normalizes nested production entries and e
 	]);
 });
 
-test('DOCX production path consumes the numeric workload sorter instead of lexical time labels', async () => {
+test('DOCX production path orders schedule rows numerically by canonical interval, not lexical labels', async () => {
 	const source = await readFile(new URL('../services/docx-export.service.ts', import.meta.url), 'utf8');
-	assert.match(source, /sortTeacherProgramWorkloadRows\(\[\.\.\.compactedTeaching, \.\.\.breakRows\]\)/);
+	// C05R1: the builder renders `shape.rows` directly; the numeric interval
+	// ordering lives in the production projection service.
+	assert.match(source, /const scheduleDataRows = rows\.map/);
+	const projection = await readFile(new URL('../services/teacher-program-export.service.ts', import.meta.url), 'utf8');
+	assert.match(projection, /const rows = \[\.\.\.projected\]\.sort\(/);
 });
 
 test('XLSX production context resolves revision-effective published entries and fails closed on missing term identity', async () => {
