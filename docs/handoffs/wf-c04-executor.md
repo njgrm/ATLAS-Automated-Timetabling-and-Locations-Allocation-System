@@ -100,7 +100,7 @@ Excluded:
 | Worktree | Reason |
 | --- | --- |
 | `E:/ATLAS-worktrees/stakeholder-export-parity-audit-c05` | Clean; its tip `2e0b406f` is an **ancestor** of the active `beneficiary-export-parity-c05` tip `691a7c4a` (`git merge-base --is-ancestor` exit 0) — the audit lane was absorbed into the continuation, not running |
-| `E:/ATLAS-worktrees/workflow-next-prep-20260915` | Packet-storage/authoring branch: `git diff --name-status origin/main...codex/workflow-next-prep-20260915` adds exactly 4 paths, all `docs/prompts/**` + `docs/reference/**` and no product/test file; no writer, no handoff — it is the *input* to cycles, not a running lane |
+| `E:/ATLAS-worktrees/workflow-next-prep-20260915` | Packet-storage/authoring branch: `git diff --name-status origin/main...codex/workflow-next-prep-20260915` adds only `docs/prompts/**` and `docs/reference/**` documents and no product/test file (the prompt count is observation-boundary-dependent — 4 prompts + 1 reference document at this executor's observation, 5 at the planner's integration observation; docs-only either way); no writer, no handoff — it is the *input* to cycles, not a running lane |
 | `E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915` | HEAD == `origin/main` (0 ahead, no unintegrated work); its stream is already registered as `ENROLLPRO-PROXY-RECOVERY-LIVE` (`EXTERNALLY_BLOCKED`) and the packet is NOT GRANTED |
 | `E:/ATLAS-worktrees/integration-workflow-c02-c03-20260914` | HEAD `53a781a4` is an ancestor of `origin/main`; already integrated, no unintegrated work |
 | `E:/ATLAS-worktrees/workflow-hardening-c02` | HEAD `cf1d360c` is an ancestor of `origin/main`; `WF-C02` is already `COMPLETE` |
@@ -183,13 +183,129 @@ credential was read, written, echoed, or committed.
 - **NON_BLOCKING:** the D-drive legacy worktrees could not be inspected where Git
   reports `dubious ownership`. Those rows are reported as unobservable rather
   than assumed inactive; all are historical, integrated, or runtime-owned.
-- **NON_BLOCKING:** `create-stream` enforces the `RUNNING`/`PLANNED` claim rules
-  at creation time only. A later transition could in principle set a `PLANNED`
-  record's `running[]` non-empty; no such transition exists today, so the
-  invariant is not currently bypassable.
+- **NON_BLOCKING:** the `RUNNING`/`PLANNED`/`ACTIVE`-owner claim rules are
+  **creation-time-scoped**. They are enforced only by `create-stream` on the
+  registered record, not globally. A stream-scoped transition that accepts
+  `--running`/`--awaited` can change those lists afterwards — `lease-update`
+  lists both in its `optional` set, and the engine applies
+  `applyAwaitedRunning` for every stream-scoped transition — so the invariant is
+  not bypassable at registration but is **not** a document-wide rule. This is
+  pre-existing behavior and out of scope for the WF-C04 correction; a
+  document-wide rule would require a verifier change and is not claimed here.
 - **NON_BLOCKING:** created streams record `owners.*.sessionId = null` because no
   session identifier was observed. The executor deliberately did not invent ids,
   so heartbeats cannot yet be joined to these records by session.
 
 `EXECUTOR_SESSION_ROUTE: EXISTING` — bounded corrections return to this task if
 the planner resumes it.
+
+---
+
+## 11. R1 correction round — created-stream integration lifecycle
+
+**Risk tier:** MEDIUM. **Verdict:** `REVIEW_REQUIRED`. Additive commits only;
+`docs/plans/atlas-delivery-cycles.json` and the generated register are
+**byte-unchanged** in this round.
+
+### 11.1 Defect
+
+The accepted candidate `6dc272bb` was merged for integration (merge `ff46ca46`,
+parents `9b82a98f…` + `6dc272bb…`; `ff46ca46^{tree}` == `6dc272bb^{tree}`, so the
+merge tree is byte-identical to the reviewed candidate). The integration
+lifecycle then failed on the created-stream path:
+
+```
+record-integration --stream WF-C04 --integration ff46ca46…  -> TRANSITION_RESULT_INVALID
+"candidate state failed verification: REMOTE_OBSERVATION_INVALID:
+ integrationSha ff46ca46… is not an ancestor-or-equal of observed remote sha 9b82a98f…"
+path: streams[11].git.remoteObservation.sha
+```
+
+The earlier `ACTIVE_CYCLE_TERMINAL` rejection in the same lifecycle was correct,
+documented behavior (coordination had to move to `MANUAL` first, per the README
+closure sequence) and is not part of this defect.
+
+### 11.2 Root cause
+
+`create-stream` stores `git.remoteObservation` as the tip observed *before* the
+stream was integrated. The verifier requires `integrationSha` to be an
+ancestor-or-equal of `remoteObservation.sha`. `record-integration` is the first
+transition that sets `integrationSha`, and `record-remote-observation` is gated
+to `INTEGRATED`/`COMPLETE`, so no transition could refresh the observation in the
+eligible `ACCEPT_READY`/`INTEGRATION_READY` window. Every stream created by
+`create-stream` was therefore un-integrable — including `WF-C04` itself and the
+three reconciled lane records. The original trace table exercised
+`create-stream` in isolation and never drove a created stream through
+integration, which is exactly the gap that let this pass.
+
+### 11.3 Fix
+
+`ops/workflow/lib/transition.mjs`, `record-integration` only:
+
+- New optional flags `--observed-remote <40-hex lowercase>` and `--observed-ref
+  <ref>` (default `refs/remotes/origin/main`).
+- With `--observed-remote`: the sha must exist as a commit
+  (`TRANSITION_OBSERVED_REMOTE_UNKNOWN`), match the 40-hex lowercase shape
+  (`TRANSITION_OBSERVED_REMOTE_INVALID`), and the integration must be an
+  ancestor-or-equal of it (`TRANSITION_OBSERVED_REMOTE_ANCESTRY`). On success
+  `stream.git.remoteObservation` becomes `{ ref, sha, observedAt: <transition
+  time>, kind }` with the kind derived exactly as `record-remote-observation`
+  derives it, and the refreshed snapshot is echoed in `summary.observation`.
+- Without the flag, behavior is unchanged: a stream with `remoteObservation:
+  null` integrates exactly as before and no observation is reported.
+- `create-stream`'s storage semantics are unchanged; `record-remote-observation`'s
+  `INTEGRATED`/`COMPLETE` gate is unchanged (a control asserts it still rejects
+  from `ACCEPT_READY`); `coordination-update`, the schema, and the generated
+  register are untouched.
+
+### 11.4 Controls (new file `ops/workflow/__tests__/stream-integration-observation.test.mjs`, 7 tests)
+
+| Control | Type | Result |
+| --- | --- | --- |
+| Creation-time observation + `record-integration` **without** the flag → `TRANSITION_RESULT_INVALID` / `REMOTE_OBSERVATION_INVALID`, revision unchanged, state and render byte-identical | failing-first | PASS |
+| Full lifecycle on a disposable repo through the **real CLI**: `create-stream` (observation at tip A = `candidateSha`) → `record-executor-return` → `record-qa-result` ACCEPT_READY 1/1/0/0/0 → `record-integration --observed-remote <integration>` → `INTEGRATED`, revision 5, observation refreshed, `summary.observation` echoed, `verify` clean | positive | PASS |
+| `--observed-ref refs/heads/main` → `kind: LOCAL_REF` | positive | PASS |
+| malformed / uppercase / unknown / orphan / ancestor-only observations → typed `TRANSITION_OBSERVED_REMOTE_*`, zero state and render mutation | negative | PASS |
+| `--observed-remote` on `create-stream` → `TRANSITION_FLAG_NOT_APPLICABLE` | negative | PASS |
+| `remoteObservation: null` stream integrates without the flag, `summary.observation` absent, observation stays null | regression | PASS |
+| `record-remote-observation` still rejects from `ACCEPT_READY` (`TRANSITION_INVALID_STATE`) | regression | PASS |
+
+The observation sha **may equal** the integration sha: observing the integration
+commit itself is a valid downstream-or-equal snapshot, and the verifier treats
+equality as satisfying the ancestor-or-equal rule. The positive control asserts
+exactly that case.
+
+### 11.5 R1 gate tally — mandatory 6 / passed 6 / blocked 0 / unperformed 0
+
+| # | Command | Exit | Result |
+| --- | --- | --- | --- |
+| 1 | `npm run workflow:test` | 0 | 251 / 251 / 0 fail (244 + 7 new) |
+| 2 | `npm run workflow:verify -- --state docs/plans/atlas-delivery-cycles.json` | 0 | `ok`, 12 streams, `errors: []` |
+| 3 | `npm run workflow:render:check` | 0 | `ok`, no drift |
+| 4 | `git diff --check` | 0 | clean |
+| 5 | `node --test ops/workflow/__tests__/stream-integration-observation.test.mjs` | 0 | 7 / 7 |
+| 6 | `git diff 6dc272bb...HEAD -- docs/plans/` | empty | registry files byte-unchanged in this round |
+
+### 11.6 R1 assertion inventory
+
+Added 7 tests; modified none; removed none. Suite count 244 -> 251 with zero
+assertion losses.
+
+### 11.7 R1 corrections to the original handoff text
+
+- **Section 10, claim rules:** the original sentence said the creation-time claim
+  rules were non-bypassable because "no such transition exists today". That was
+  **false**: `lease-update` lists `running`/`awaited` in its `optional` flags and
+  the engine applies `applyAwaitedRunning` for every stream-scoped transition.
+  Restated as creation-time-scoped, matching the code and the README.
+- **Section 5, prep-branch exclusion:** the note asserted "exactly 4 paths". Path
+  totals for a branch are observation-boundary-dependent (4 prompts + 1 reference
+  document at this executor's observation; 5 at the planner's integration
+  observation). Restated boundary-safely; the exclusion conclusion is unchanged.
+
+### 11.8 R1 boundary statement
+
+No registry transition was run in this round. No deployment, runtime/task/env
+change, database, migration, term-cache, Teaching Load, generation, publication,
+browser, companion, or push/merge/rebase action occurred. Only
+`ops/workflow/**` and `docs/handoffs/wf-c04-executor.md` changed.

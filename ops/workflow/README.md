@@ -119,10 +119,44 @@ planner closure sequence is:
    when it moves to `INTEGRATED`/`COMPLETE`, that stream becomes terminal and the
    candidate document is rejected with `ACTIVE_CYCLE_TERMINAL`. Move coordination
    off the closing stream immediately before integration.
-4. `record-integration` (`--integration`)
+4. `record-integration` (`--integration`, plus `--observed-remote` when the stream
+   carries a creation-time observation — see below)
 5. `record-audit` (`--auditor-verdict`, `--auditor-session`)
 6. `close-cycle` (`--receipt`) — mints and pins the closure receipt
 7. `record-remote-observation` (`--ref`, `--observed-sha`) — a snapshot, terminal
+
+### Refreshing a creation-time observation at integration
+
+The verifier requires `integrationSha` to be an ancestor-or-equal of
+`remoteObservation.sha`, and `record-remote-observation` is gated to
+`INTEGRATED`/`COMPLETE`. A stream registered by `create-stream` therefore carries
+the tip that was observed *before* it was integrated, and that stale snapshot
+cannot be corrected after integration. `record-integration` closes the gap with
+two optional flags:
+
+- `--observed-remote <40-hex lowercase>` — the remote tip that now contains the
+  integration. It must be a real commit (`TRANSITION_OBSERVED_REMOTE_UNKNOWN`)
+  and the integration must be an ancestor-or-equal of it
+  (`TRANSITION_OBSERVED_REMOTE_ANCESTRY`); a malformed value is
+  `TRANSITION_OBSERVED_REMOTE_INVALID`. On success the stream's
+  `git.remoteObservation` is replaced with
+  `{ ref, sha, observedAt: <transition time>, kind }` and the refreshed snapshot
+  is echoed in `summary.observation`.
+- `--observed-ref <ref>` — defaults to `refs/remotes/origin/main`. The kind is
+  derived exactly as `record-remote-observation` derives it:
+  `REMOTE_TRACKING_REF` for a `refs/remotes/` ref, otherwise `LOCAL_REF`.
+
+The observed sha **may equal** the integration sha: an observation of the
+integration commit itself is a valid downstream-or-equal snapshot, and the
+verifier treats equality as satisfying the ancestor-or-equal rule.
+
+Lifecycle rule: a stream carrying a creation-time `git.remoteObservation` must
+refresh it at integration through `record-integration --observed-remote`; without
+the flag the candidate document is rejected with `TRANSITION_RESULT_INVALID`
+(`REMOTE_OBSERVATION_INVALID`) and nothing is written. A stream whose
+`remoteObservation` is `null` integrates without the flag exactly as before, and
+`create-stream`'s storage semantics are unchanged. `record-remote-observation`
+remains the post-integration refresh.
 
 `coordination-update` is document-scoped (no `--stream` required) and takes
 `--mode MANUAL|CYCLE_ACTIVE`, `--active-cycle-id <stream-id|null>`, and
