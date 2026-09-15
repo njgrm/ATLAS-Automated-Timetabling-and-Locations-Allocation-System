@@ -114,6 +114,23 @@ projection is unchanged and still matches the canonical synthesis. No product,
 test, or prisma byte changed; the audited candidate, integration SHA, gate
 tally, and QA/audit verdicts are unchanged.
 
+## Post-closure worktree disposition (executed)
+
+Recorded after the closure and observation pushes, with `origin/main` refreshed
+to `ca8efbd05add8a6a13a4a6674a0caa7d345806c3` before removal:
+
+| Worktree | Branch | HEAD at retirement | Status | Ancestry | Result |
+|---|---|---|---|---|---|
+| `E:/ATLAS-worktrees/beneficiary-export-parity-c05` | `work/beneficiary-export-parity-c05` | `7e5e97ae9408cd340e40a8466d38e6fc62c9084a` | clean | ancestor of `origin/main` | removed with `git worktree remove` (no `--force`), then `git worktree prune` |
+| `E:/ATLAS-worktrees/integration-beneficiary-export-c05r1-20260915` | `integration/beneficiary-export-c05r1-20260915` | `ca8efbd05add8a6a13a4a6674a0caa7d345806c3` | clean | equal to `origin/main` | removed with `git worktree remove` (no `--force`), then `git worktree prune` |
+
+Registered worktrees went 85 → 83; no branch was deleted (both branch refs still
+resolve to the exact HEADs above). Neither worktree was dirty, actively
+referenced, or needed by a named successor (the registry records no successor).
+The temporary detached diagnostic worktrees used during this cycle
+(`tmp-maincheck-wfc05` for the pre-existing `migration.test.mjs` reproduction and
+`tmp-c05r1-closure-note` for this record) were removed the same way.
+
 ## Required primary-planner action
 
 1. Record the closure (`COMPLETE`, receipt pinned) and push.
