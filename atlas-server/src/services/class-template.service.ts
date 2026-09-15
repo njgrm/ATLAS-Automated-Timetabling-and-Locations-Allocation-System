@@ -412,6 +412,72 @@ export async function probeTemplateOwnerSchoolId(id: number): Promise<number | n
 
 // ─── Writes (actor-school scoped, owner check inside the write transaction) ───
 
+/**
+ * AUTHZ-CLASS-TEMPLATE-C07R1 — subject-bundle tenant binding.
+ *
+ * `ClassTemplateSubject` carries no `schoolId`, so nothing at the database layer
+ * stops a school-A template from binding a school-B `subjectId`. Because
+ * `TEMPLATE_INCLUDE` projects the subject `code`/`name`, such a binding would
+ * disclose another school's subject catalog through the actor's own
+ * `GET /class-templates?schoolId=<actor>`.
+ *
+ * Called INSIDE the same interactive transaction as the write, before any
+ * `classTemplate` / `classTemplateSubject` mutation:
+ *  - a requested id owned by ANOTHER school -> typed 403 `CROSS_SCHOOL_DENIED`;
+ *  - a requested id that does not exist at all -> typed 400 `INVALID_PARAM`;
+ *  - any non-positive-integer id -> typed 400 `INVALID_PARAM`.
+ * Both rejections leave zero writes.
+ */
+async function assertSubjectsBelongToSchool(
+	tx: Prisma.TransactionClient,
+	schoolId: number,
+	subjectIds: number[],
+): Promise<void> {
+	if (subjectIds.length === 0) return;
+
+	const requested = [...new Set(subjectIds)];
+	const malformed = requested.filter((id) => !Number.isInteger(id) || id <= 0);
+	if (malformed.length > 0) {
+		throw Object.assign(
+			new Error('subjectIds must contain positive integer subject ids.'),
+			{ statusCode: 400, code: 'INVALID_PARAM' },
+		);
+	}
+
+	// Scoped resolution: only ids owned by the actor school are acceptable.
+	const scoped = await tx.subject.findMany({
+		where: { id: { in: requested }, schoolId },
+		select: { id: true },
+	});
+	const ownedIds = new Set(scoped.map((subject) => subject.id));
+	const unresolved = requested.filter((id) => !ownedIds.has(id));
+	if (unresolved.length === 0) return;
+
+	// Identifier-only probe (never a payload) to tell "another school's subject"
+	// apart from "no such subject".
+	const existingElsewhere = await tx.subject.findMany({
+		where: { id: { in: unresolved } },
+		select: { id: true },
+	});
+	if (existingElsewhere.length > 0) {
+		throw Object.assign(
+			new Error('Cannot bind another school\u2019s subjects to this class template.'),
+			{ statusCode: 403, code: 'CROSS_SCHOOL_DENIED' },
+		);
+	}
+	throw Object.assign(
+		new Error('subjectIds contains one or more subjects that do not exist.'),
+		{ statusCode: 400, code: 'INVALID_PARAM' },
+	);
+}
+
+/**
+ * Create a template owned by `schoolId` with an optional actor-school subject
+ * bundle. The subject tenant binding and the create run in ONE interactive
+ * transaction: a foreign subject throws a typed 403 and an unknown subject
+ * throws a typed 400, both with zero `classTemplate` / `classTemplateSubject`
+ * writes.
+ */
 export async function createTemplate(
 	schoolId: number,
 	data: {
@@ -432,22 +498,31 @@ export async function createTemplate(
 		);
 	}
 
-	const t = await db().classTemplate.create({
-		data: {
-			schoolId,
-			name: data.name,
-			label: data.label,
-			programType: data.programType,
-			gradeApplicability: data.gradeApplicability,
-			periodLengthMinutes: data.periodLengthMinutes,
-			periodsPerDay: data.periodsPerDay,
-			isActive: true,
-			isDefault: false,
-			subjectBindings: data.subjectIds?.length
-				? { create: data.subjectIds.map((sid) => ({ subjectId: sid })) }
-				: undefined,
-		},
-		include: TEMPLATE_INCLUDE,
+	const subjectIds = data.subjectIds ?? [];
+
+	// One interactive transaction: the subject-scope validation and the create
+	// share a single snapshot, so a subject cannot move school between the check
+	// and the binding write.
+	const t = await db().$transaction(async (tx: Prisma.TransactionClient) => {
+		await assertSubjectsBelongToSchool(tx, schoolId, subjectIds);
+
+		return tx.classTemplate.create({
+			data: {
+				schoolId,
+				name: data.name,
+				label: data.label,
+				programType: data.programType,
+				gradeApplicability: data.gradeApplicability,
+				periodLengthMinutes: data.periodLengthMinutes,
+				periodsPerDay: data.periodsPerDay,
+				isActive: true,
+				isDefault: false,
+				subjectBindings: subjectIds.length
+					? { create: subjectIds.map((sid) => ({ subjectId: sid })) }
+					: undefined,
+			},
+			include: TEMPLATE_INCLUDE,
+		});
 	});
 
 	return toClassTemplate(t);
@@ -518,10 +593,11 @@ export async function updateTemplateForSchool(
  * Replace the subject bundle for an actor-school owned template.
  *
  * Removes all existing bindings and creates the new set. The owning-school
- * verification and the binding replacement happen in ONE interactive
- * transaction (no TOCTOU): a foreign template returns `CROSS_SCHOOL` and an
- * absent template returns `NOT_FOUND`, and in both cases zero
- * `classTemplateSubject` rows are touched.
+ * verification, the subject tenant binding, and the binding replacement happen
+ * in ONE interactive transaction (no TOCTOU): a foreign template returns
+ * `CROSS_SCHOOL`, an absent template returns `NOT_FOUND`, a foreign subject
+ * throws a typed 403, and an unknown subject throws a typed 400 — in every
+ * rejection case zero `classTemplateSubject` rows are touched.
  */
 export async function setTemplateSubjectsForSchool(
 	templateId: number,
@@ -542,6 +618,10 @@ export async function setTemplateSubjectsForSchool(
 		});
 		if (!existing) return { ok: false, reason: 'NOT_FOUND' } as const;
 		if (existing.schoolId !== schoolId) return { ok: false, reason: 'CROSS_SCHOOL' } as const;
+
+		// Tenant binding: every requested subject must belong to the actor school
+		// before any binding row is touched.
+		await assertSubjectsBelongToSchool(tx, schoolId, subjectIds);
 
 		await tx.classTemplateSubject.deleteMany({ where: { templateId } });
 		await tx.classTemplateSubject.createMany({
