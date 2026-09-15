@@ -21,6 +21,8 @@ const SEED_STREAM_IDS = [
   "LIVE-GENERATION",
   "LIVE-PUBLICATION",
   "TERM-CACHE-CATCHUP-APPLY",
+  "TERM-CACHE-CATCHUP-APPLY-REFRESH-C01",
+  "TL-DIAGNOSTICS-LOADING-C06",
   "TL-OPERATOR-WORKSPACE-C05",
   "TT-SOURCE-FRESHNESS-C04",
   "WF-C01",
@@ -28,6 +30,7 @@ const SEED_STREAM_IDS = [
   "WF-C03",
   "WF-C04",
   "WF-C05",
+  "WF-SEED-PIN-C01",
 ];
 
 // Ordered set comparison. Returns null on an exact match, otherwise the exact
@@ -248,7 +251,16 @@ test("the seed stream-inventory pin detects a stale registry", () => {
   ];
   const stale = JSON.parse(JSON.stringify(doc));
   stale.streams = stale.streams.filter((s) => !addedAfterPreReconciliation.includes(s.id));
-  assert.equal(stale.streams.length, 8, "the pre-reconciliation registry held exactly eight streams");
+  // The historical pre-reconciliation registry held eight streams. The three
+  // streams registered by the WF-SEED-TERM-CACHE-TL-C06-20260916 cycle
+  // (WF-SEED-PIN-C01, TERM-CACHE-CATCHUP-APPLY-REFRESH-C01,
+  // TL-DIAGNOSTICS-LOADING-C06) are not part of that historical set, so they
+  // remain in `stale` and this count moves with the registry by design.
+  assert.equal(
+    stale.streams.length,
+    11,
+    "the pre-reconciliation registry held exactly eight streams plus the three WF-SEED-TERM-CACHE-TL-C06-20260916 cycle streams",
+  );
 
   const mismatch = seedInventoryMismatch(stale);
   assert.ok(mismatch, "the pre-reconciliation inventory must fail the pin");

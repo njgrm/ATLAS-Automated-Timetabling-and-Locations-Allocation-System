@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T18:31:26.635Z",
-    "lastUpdatedBy": "primary-planner",
-    "revision": 98
+    "lastUpdatedAt": "2026-09-15T20:05:31.049Z",
+    "lastUpdatedBy": "head-planner",
+    "revision": 103
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "ENROLLPRO-PROXY-RECOVERY-LIVE is ACCEPT_READY 20/20/0/0 and being integrated; the fresh Wave Completion Auditor and closure follow. Every other live/HIGH action (term-cache apply, Teaching Load apply, generation, publication, migration) remains locked."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "TL-DIAGNOSTICS-LOADING-C06",
+    "globalNextAction": "WF-SEED-TERM-CACHE-TL-C06-20260916 (CYCLE_ACTIVE): Phase 0 WF-SEED-PIN-C01 is INTEGRATED and pushed at 46d9499d (fresh QA ACCEPT_READY 10/10/0/0). Lane B TL-DIAGNOSTICS-LOADING-C06 is the active source lane; Lane A TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 is a HIGH preparation lane returning an approval sentence only. Every live/HIGH action (term-cache apply, migration, deployment, restart, env change, login, Teaching Load apply, generation, publication) remains locked."
   },
   "streams": [
     {
@@ -2525,6 +2525,440 @@
           "reason": "A fresh Wave Completion Auditor reviews the integrated wave; no session exists yet."
         }
       }
+    },
+    {
+      "id": "WF-SEED-PIN-C01",
+      "kind": "STREAM",
+      "objective": "Remove the seed test's stream-specific conflation of the ENROLLPRO-PROXY-RECOVERY-LIVE evidence candidateSha with the deployed product release 54dce67b, preserve the general null-or-committed-40-hex candidateSha invariant, and add a load-bearing failing-first regression plus malformed/uncommitted negative controls.",
+      "riskTier": "LOW",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T20:01:21.927Z",
+      "nextAction": "Integrated and pushed at 46d9499d; the docs-only register reconciliation of the WF-SEED-TERM-CACHE-TL-C06-20260916 cycle follows in the same planner turn.",
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/wf-seed-pin-c01",
+        "branch": "fix/wf-seed-pin-c01",
+        "baseSha": "476157b100b4ddb1e27bc487c33fd977bc76632b",
+        "candidateSha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+        "integrationSha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+        "changedPaths": [
+          "docs/handoffs/wf-seed-pin-c01-executor.md",
+          "ops/workflow/__tests__/seed.test.mjs"
+        ],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+          "observedAt": "2026-09-15T20:01:21.927Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": "ses_f5975d09bffeqDIwMryyaKCfNB",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "ses_f59690d91ffea3nVkoCZoo5yPo",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 10,
+        "passed": 10,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 10,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 10,
+            "passed": 10,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f59690d91ffea3nVkoCZoo5yPo",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f59690d91ffea3nVkoCZoo5yPo"
+          }
+        ]
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns this cycle's continuity, integration and register transitions"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": "ses_f5975d09bffeqDIwMryyaKCfNB",
+          "reason": "one bounded LOW correction ran in a fresh executor context"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": "ses_f59690d91ffea3nVkoCZoo5yPo",
+          "reason": "fresh independent QA over the frozen candidate range"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no wave-completion audit was required: no schema, transition-semantics or production-workflow-command change"
+        }
+      }
+    },
+    {
+      "id": "TERM-CACHE-CATCHUP-APPLY-REFRESH-C01",
+      "kind": "STREAM",
+      "objective": "Re-bind the existing term-cache catch-up apply packet to the currently verified live runtime and current ordered-term authority truth, perform a fresh read-only runtime/authority/database preflight, correct or supersede the stale runtime pin, and obtain one fresh independent pre-action review. No cache apply is executed.",
+      "riskTier": "HIGH",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T20:02:16.270Z",
+      "nextAction": "Planner executes the read-only preflight (supervisor source-directory and release identity from the registered task/process, exactly one listener per port, local health and readiness, Tailnet health, rollover automation disabled, EnrollPro reachability, live term-authority semantic revision and fingerprint recomputation, mirror 223 cache fields and audit count, apply-route rejection controls), then corrects the packet and commissions one fresh independent pre-action review.",
+      "awaited": [
+        "planner read-only runtime and authority preflight result",
+        "fresh independent pre-action review of the refreshed packet"
+      ],
+      "running": [
+        "planner read-only preflight and packet refresh on docs/prompts/term-cache-catchup-apply-2026-09-14.md"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/integration-wf-seed-term-cache-tl-c06-20260916",
+        "branch": "integration/wf-seed-term-cache-tl-c06-20260916",
+        "baseSha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+          "observedAt": "2026-09-15T20:02:16.270Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "read-only supervisor identity, listener, health, Tailnet and EnrollPro reachability preflight",
+          "live term-authority semantic revision and fingerprint recomputation",
+          "mirror 223 cache-field, timestamp, audit-count and signature recheck",
+          "deployed apply-route authority/fingerprint/confirmation/transaction/replay/zero-write control review",
+          "packet correction and one fresh independent pre-action review"
+        ]
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns the HIGH preparation, packet correction and approval sentence"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no executor is dispatched for a read-only preparation lane"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the refreshed packet requires one fresh independent pre-action review"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no wave-completion audit is planned for a read-only preparation lane"
+        }
+      }
+    },
+    {
+      "id": "TL-DIAGNOSTICS-LOADING-C06",
+      "kind": "STREAM",
+      "objective": "Fix the Teaching Load authority-diagnostics loading-state orphan in atlas-client/src/hooks/useTeachingLoadData.ts without weakening dispatch precedence or actor-school/year scope protection: loading ownership becomes dispatch-scoped, a stale dispatch cannot clear loading owned by a newer active dispatch, a newest dispatch that aborts before request binding terminates or transfers ownership, and newest success and newest typed failure each clear loading exactly once.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T20:05:31.049Z",
+      "nextAction": "Executor implements the bounded client correction on branch work/tl-diagnostics-loading-c06 in E:/ATLAS-worktrees/tl-diagnostics-loading-c06 per the cycle Lane-B handoff and returns REVIEW_REQUIRED; the planner then records the return and dispatches fresh independent QA.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the TL-DIAGNOSTICS-LOADING-C06 candidate",
+        "fresh independent QA over the frozen candidate"
+      ],
+      "running": [
+        "executor implementation session on branch work/tl-diagnostics-loading-c06"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/tl-diagnostics-loading-c06",
+        "branch": "work/tl-diagnostics-loading-c06",
+        "baseSha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
+          "observedAt": "2026-09-15T20:03:14.149Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 14,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 14,
+        "plan": {
+          "MANDATORY_SOURCE": 14,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 14,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 14
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "dispatch-scoped loading ownership in useTeachingLoadData.ts",
+          "real-lifecycle interleaving controls and the load-bearing mutant",
+          "client tsc and production build"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns this cycle's continuity, integration and register transitions"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "one bounded executor session implements and repairs this single prompt; no session id was returned to the registrant, so none is asserted"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a fresh independent QA delegate reviews the frozen candidate"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no wave-completion auditor is planned unless QA exposes cross-stream ambiguity, authorization risk or post-QA candidate changes"
+        }
+      }
     }
   ],
   "leases": [
@@ -2537,6 +2971,17 @@
       "state": "RETURNED",
       "revision": 2,
       "updatedAt": "2026-09-15T17:44:38.447Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-tl-diagnostics-loading-c06",
+      "streamId": "TL-DIAGNOSTICS-LOADING-C06",
+      "worktree": "E:/ATLAS-worktrees/tl-diagnostics-loading-c06",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-15T20:05:31.049Z",
       "expiresAt": null
     }
   ],
