@@ -51,13 +51,13 @@ publication.
 
 | Item | Verified value |
 |---|---|
-| Scheduled task | `ATLAS-Runtime-Supervisor`, principal `SYSTEM`, trigger At system startup, status Running, last run 2026-09-14 12:57:09 +08 |
-| Task action | `C:\Program Files\nodejs\node.exe "D:\ATLAS-runtime-supervised-3d916b26-20260912\ops\runtime\cli.mjs" start` |
-| Working directory | `D:\ATLAS-runtime-supervised-3d916b26-20260912` |
-| Supervisor process | PID `3132` (`node ...\ops\runtime\cli.mjs start`), created 2026-09-14 12:57:09 +08 |
-| Release checkout | HEAD `3d916b261d6a2db71b153558ac8c2d151e2fccd0`; tracked tree clean (only untracked `ops/runtime/logs/`) |
-| Supervisor state | `state=running`, `releaseSha=3d916b26…`, `ownedPids` server `19448` / client `10880` |
-| Listeners | 5001 → PID `19448` (`...\atlas-server\dist\server.js`), 5174 → PID `10880` (`...\ops\runtime\host.mjs`), created 2026-09-14 12:57:27 +08, one owner per port |
+| Scheduled task | **NONE — DRIFT, BLOCKING.** Re-verified read-only 2026-09-16: the `ATLAS-Runtime-Supervisor` task does not exist. A full `schtasks /query /fo LIST` lists only `\ATLAS Daily Backup` and `\ATLAS-DevServer-Temp2`. The resident supervisor is therefore NOT restartable through a registered task; boot recovery is unproven and `cli.mjs` restart semantics no longer match the former record. |
+| Task action | **NOT VERIFIABLE — no registered task exists.** Any successor packet must re-establish a durable launch owner (`launchOwner`, `launchMechanism`, `rollbackLaunchOwner`, `rollbackLaunchMechanism`) before it may be called executable. |
+| Working directory | `D:\ATLAS-runtime-supervised-54dce67b-20260914` (superseded pin `3d916b26`); supervisor state `sourceDir` re-verified 2026-09-16 |
+| Supervisor process | Superseded capture PID `3132` is absent. Re-verified 2026-09-16: supervisor state `state=running`, `startedAt=2026-09-15T17:25:41.742Z`, `ownedPids` server `35988` / client `30192`, `previous: null`. |
+| Release checkout | Re-verified 2026-09-16: `releaseSha=54dce67b8392cbce09aa810813c37f9c87a67159` under `sourceDir=D:\ATLAS-runtime-supervised-54dce67b-20260914` (`productPin=d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`). Superseded pin `3d916b26`. |
+| Supervisor state | Re-verified 2026-09-16: `state=running`, `releaseSha=54dce67b…`, `ownedPids` server `35988` / client `30192`, `previous=null` (see rollback drift in §11). |
+| Listeners | Re-verified 2026-09-16: 5001 → PID `35988` (`node`), 5174 → PID `30192` (`node`), one owner per port; both match supervisor `ownedPids`. Superseded capture `19448`/`10880`. |
 | Automation invariant | `ROLLOVER_AUTO_SYNC_ENABLED=false` (supervisor status + runtime contract) |
 | Liveness / readiness | local `http://127.0.0.1:5001/api/v1/health` 200; `/api/v1/health/ready` 200 (`database: ok`); `https://njgrm.buru-degree.ts.net/api/v1/health` 200; Tailnet root 200 |
 
@@ -450,15 +450,42 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 - The head planner then commissions the fresh post-action Wave Completion
   Auditor (§8.7) and only afterwards may update the register, close the TT-TL
   runtime-acceptance cycle, or prepare generation/publication.
-- Rollback remains available (supervised runtime reset paths and the term-cache
-  restore above) but is exercised only as authorized.
+- Runtime rollback is **NOT available through `cli.mjs`**: the live supervisor
+  state records `previous: null` and its state is source-directory local, so no
+  supervised reset path exists. Any future runtime packet must therefore state
+  rollback explicitly and durably: stop the new supervised release; restore the
+  machine source/release variables; re-point the registered task action and
+  working directory to `D:\ATLAS-runtime-supervised-54dce67b-20260914`;
+  relaunch through the registered SYSTEM task; then re-prove ownership, health
+  and readiness. A packet that claims `cli.mjs` rollback availability is
+  invalid. The term-cache restore transaction above is unchanged and remains
+  the only rollback for the cache write itself.
+
+## 11a. Validated successor constraints (recorded 2026-09-16)
+
+These operator-validated constraints govern any future deployment, migration or
+runtime packet. None of them is authorized by this packet.
+
+- **(a) Migration gate.** New product deployment is BLOCKED until
+  `prisma/migrations/0003_teacher_program_presentation` has been applied. No
+  runtime packet may deploy a release requiring it while it is unapplied.
+- **(b) Additive migration set.** The normal guarded migration deployment will
+  also apply the pending `0002_companion_sso_code`; a future exact HIGH
+  migration approval must name BOTH migrations and their expected additive
+  objects.
+- **(c) Rollback truth.** A future runtime packet must not claim `cli.mjs`
+  rollback is available (live state records `previous=null`). Rollback must be
+  the explicit ordered procedure recorded in §11.
+- **(d) Pin.** No deployment packet may be pinned to `476157b1` or `809fa67b`.
+  The deployment candidate basis is the exact final `origin/main` after Lane B
+  integration, as recorded in the cycle register.
 
 ## 12. Copy-ready HIGH approval sentence (NOT GRANTED)
 
 > I approve HIGH action TERM-CACHE-CATCHUP-APPLY-2026-09-14 against the live
 > supervised ATLAS runtime (release checkout
-> `D:\ATLAS-runtime-supervised-3d916b26-20260912`, HEAD
-> `3d916b261d6a2db71b153558ac8c2d151e2fccd0`) and database
+> `D:\ATLAS-runtime-supervised-54dce67b-20260914`, release
+> `54dce67b8392cbce09aa810813c37f9c87a67159`) and database
 > `atlas_recovery_clean_rebuild_20260905` only, as follows: (1) let the live
 > executor re-run the read-only preflight in §4 and stop before any login or
 > write if any runtime, database, mirror, audit-baseline, `updated_at`,
@@ -505,7 +532,7 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 
 Reviewed implementation: `atlas-server/src/routes/runtime.router.ts:415-497`,
 `atlas-server/src/services/enrollpro-term-contract.service.ts:854-1212`
-(unchanged between the deployed release `3d916b26` and `origin/main`
+(unchanged between the deployed release `54dce67b` and `origin/main`
 `84dd537b`; deployed `dist` inspected and matching). Mounted-route coverage:
 `atlas-server/src/__tests__/term-cache-catchup-rrtc01.test.ts`.
 
