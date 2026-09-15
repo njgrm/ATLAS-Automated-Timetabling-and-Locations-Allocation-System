@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:50:54.957Z",
+    "lastUpdatedAt": "2026-09-15T22:52:31.051Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 119
+    "revision": 120
   },
   "coordination": {
     "mode": "MANUAL",
@@ -2975,11 +2975,11 @@
       "kind": "CYCLE",
       "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T22:50:33.565Z",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T22:52:31.051Z",
       "nextAction": "Fresh independent QA returned ACCEPT_READY over 917da8be...19f21729 (mandatory source gates 18/18/0/0/0). Next: move coordination to MANUAL, integrate the accepted candidate as a merge on origin/main, run the merged-tree combined gates, then commission exactly one fresh Wave Completion Auditor before closing with the receipt. Live deployment and authenticated Tailnet acceptance remain a separate locked HIGH action.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -2987,7 +2987,7 @@
         "branch": "work/authz-class-template-c07",
         "baseSha": "917da8be1c0dea13e2a5062f3883cce82c829384",
         "candidateSha": "19f217294c5224d62e33c4d29e7d7cde26ca9a1e",
-        "integrationSha": null,
+        "integrationSha": "f5731fc79c71140a34609eea4221022f9ccfd416",
         "changedPaths": [
           "atlas-server/src/__tests__/class-template-authority-c07-guard.test.ts",
           "atlas-server/src/__tests__/class-template-authority-c07.test.ts",
@@ -2997,8 +2997,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "917da8be1c0dea13e2a5062f3883cce82c829384",
-          "observedAt": "2026-09-15T22:21:51.940Z",
+          "sha": "f5731fc79c71140a34609eea4221022f9ccfd416",
+          "observedAt": "2026-09-15T22:52:31.051Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -3006,7 +3006,7 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
           "sessionId": "ses_f58d47024ffet3cnb239rJWFgS",
