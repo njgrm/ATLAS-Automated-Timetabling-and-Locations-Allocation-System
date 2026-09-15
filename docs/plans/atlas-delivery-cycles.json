@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T10:30:13.742Z",
+    "lastUpdatedAt": "2026-09-15T10:43:53.190Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 41
+    "revision": 42
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -1779,23 +1779,27 @@
       "artifacts": [],
       "closure": null,
       "objective": "COMPANION-SSO-C03 (operator CYCLE ON, 2026-09-15, packet docs/prompts/companion-sso-docs-integration-option-a-c03-2026-09-15.md): integrate the accepted COMPANION-SSO-LIVE-PREP-C02 docs candidate (233ae67f) with a bounded integration-time truth reconciliation, then implement the ATLAS-owned Option-A reverse-SSO correction (map local roles to the EnrollPro contract vocabulary at POST /api/v1/auth/sso/exchange, guarantee valid non-empty assertion names via a typed service helper, close the mounted-test production-shape gap, document the SSO keys in atlas-server/.env.example), fresh-QA it, integrate, push, and close with a fresh Wave Completion Auditor. No HIGH action is authorized.",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T08:54:04.183Z",
-      "nextAction": "Phase 1: in E:/ATLAS-worktrees/integration-companion-sso-c03-20260915 merge the C02 docs candidate 233ae67f, apply the bounded truth reconciliation (fresh EnrollPro reachability + proxy elevation-stop truth + claim classification), run fresh docs QA over the resulting range, push; then Phase 2 executor dispatch for the Option-A source correction.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T10:43:53.190Z",
+      "nextAction": "Fresh independent QA over the frozen Phase-2 candidate 34e5faab (Option-A reverse SSO identity normalization); then planner integration, push, and a fresh Wave Completion Audit.",
       "awaited": [
-        "fresh docs QA over the Phase-1 integrated range",
-        "Phase-2 executor return (REVIEW_REQUIRED)"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "planner: phase 1 docs integration and truth reconciliation"
-      ],
+      "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/integration-companion-sso-c03-20260915",
-        "branch": "integration/companion-sso-c03-20260915",
-        "baseSha": "c6d83cb45f11c11ae98d3e3e26787f5341a30945",
-        "candidateSha": null,
+        "worktree": "E:/ATLAS-worktrees/companion-sso-option-a-c03",
+        "branch": "work/companion-sso-option-a-c03",
+        "baseSha": "0ed9225ee8cbb44eee03db799c492bf1654a2465",
+        "candidateSha": "34e5faabd8f2f51b316a3d9a8257b639c05987e3",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/.env.example",
+          "atlas-server/src/__tests__/companion-sso-http.test.ts",
+          "atlas-server/src/routes/auth.router.ts",
+          "atlas-server/src/services/companion-sso-identity.ts",
+          "atlas-server/src/services/companion-sso.service.ts",
+          "docs/handoffs/enrollpro-sso-contract-corrections-2026-09-15.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "c6d83cb45f11c11ae98d3e3e26787f5341a30945",
@@ -1810,8 +1814,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b9dd2d6ffe6tkp3h5wlDGxfA",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
