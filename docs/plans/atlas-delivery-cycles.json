@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T14:53:47.294Z",
+    "lastUpdatedAt": "2026-09-15T18:03:59.933Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 72
+    "revision": 95
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "COMPANION-SSO-C03 and COMPANION-SSO-LIVE-PREP-C02 are COMPLETE with receipts (Wave Completion Audit AUDIT_CLEAR 7/7 at c669c77c; F1 docs-only runtime-map reconciliation applied). No active cycle. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked; the corrected Option-A source is integrated but NOT deployed."
+    "globalNextAction": "ENROLLPRO-PROXY-RECOVERY-LIVE is ACCEPT_READY 20/20/0/0 and being integrated; the fresh Wave Completion Auditor and closure follow. Every other live/HIGH action (term-cache apply, Teaching Load apply, generation, publication, migration) remains locked."
   },
   "streams": [
     {
@@ -673,92 +673,71 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "EXTERNALLY_BLOCKED",
-      "stateUpdatedAt": "2026-09-15T14:13:29+08:00",
-      "nextAction": "Provision an elevated execution context (admin rights able to capture/re-point/run the SYSTEM ATLAS-Runtime-Supervisor task); then re-open a fresh observation window (probe both EnrollPro endpoints, set presentedReady=true) and dispatch the elevated executor for the approved packet.",
-      "awaited": [
-        "elevated execution context for the approved live recovery"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T18:03:59.933Z",
+      "nextAction": "Closed COMPLETE (LIVE_ACCEPTED 20/20/0/0) with the wave-audited receipt; release 54dce67b serves supervised 5001/5174; every remaining live/HIGH action stays locked.",
+      "awaited": [],
       "running": [],
       "git": {
-        "worktree": "E:\\ATLAS-worktrees\\enrollpro-proxy-recovery-live-20260915",
+        "worktree": "E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915",
         "branch": "work/enrollpro-proxy-recovery-live-20260915",
-        "baseSha": "d61c38d0f9d38a2bc89ee233164d1dc843b74cc8",
-        "candidateSha": "54dce67b8392cbce09aa810813c37f9c87a67159",
-        "integrationSha": "bc61ecd58fd4e5caaa5bdde43496b13032221354",
+        "baseSha": "68f01eb12fcff4da86c93d696722bca37b6dae4c",
+        "candidateSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
+        "integrationSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "29284ac6218b989ab860cde0d36266eabf26395b",
-          "observedAt": "2026-09-14T17:28:55+08:00",
+          "sha": "eefdc5f33d0af73460d6ebe9881b2cf792012160",
+          "observedAt": "2026-09-15T18:03:59.933Z",
           "kind": "REMOTE_TRACKING_REF"
         },
         "changedPaths": [
-          "atlas-client/.env.example",
-          "atlas-client/src/components/AppShell.tsx",
-          "atlas-client/src/components/app-shell/AppSidebar.tsx",
-          "atlas-client/src/components/app-shell/BackToEnrollProLink.tsx",
-          "atlas-client/src/components/app-shell/IntegratedSystems.tsx",
-          "atlas-client/src/components/app-shell/MobileNavigationDrawer.tsx",
-          "atlas-client/src/lib/__tests__/companion-config.test.ts",
-          "atlas-client/src/lib/__tests__/companion-sso-client.test.ts",
-          "atlas-client/src/lib/bridge.ts",
-          "atlas-client/src/lib/companion-config.ts",
-          "atlas-client/src/lib/integrated-systems.ts",
-          "atlas-server/.env.example",
-          "atlas-server/test-secret.mjs",
-          "atlas-server/test-tailscale.mjs",
-          "docs/reference/atlas-runtime-source-of-truth-map.md",
-          "ops/runtime/README.md",
-          "ops/runtime/__tests__/enrollpro-origin-cli.e2e.test.mjs",
-          "ops/runtime/__tests__/enrollpro-origin.test.mjs",
-          "ops/runtime/__tests__/production-host.test.mjs",
-          "ops/runtime/cli.mjs",
-          "ops/runtime/host.mjs",
-          "ops/runtime/lib/contract.mjs",
-          "ops/runtime/lib/enrollpro-origin.mjs",
-          "ops/runtime/lib/production-host.mjs",
-          "ops/runtime/lib/supervisor.mjs"
+          "docs/reviews/enrollpro-proxy-recovery-live-20260916/live-execution-evidence.md"
         ]
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f59f09d8dffeIK3XJChOIqoenb",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f59d02a81ffeEydqzk78hVNAF5",
+          "status": "RETURNED",
           "writable": false
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 20,
+        "passed": 20,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 4,
+          "MANDATORY_LIVE": 16,
+          "DEFERRED_EXTERNAL": 0
+        },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 4,
+            "passed": 4,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 16,
+            "passed": 16,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -770,27 +749,28 @@
             "blocked": 0,
             "unperformed": 0
           }
-        },
-        "plan": {
-          "MANDATORY_SOURCE": 0,
-          "MANDATORY_LIVE": 0,
-          "DEFERRED_EXTERNAL": 0
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f59d02a81ffeEydqzk78hVNAF5",
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "EXTERNAL",
-        "detail": "Elevated execution context unavailable: executor ses_f5c4f8b88ffe2wPV3GZ0zujIGg (2026-09-15 ~14:12-14:14 +08) confirmed a non-elevated session (Medium integrity; Administrators deny-only; schtasks query/XML denied), so the SYSTEM task could not be captured, re-pointed, or run; it stopped BEFORE any mutation (zero mutation; no candidate commit). Both EnrollPro probes returned HTTP 200 in the live window. An elevated context must be provisioned before the approved packet can execute.",
+        "kind": "NONE",
+        "detail": "",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
@@ -815,20 +795,38 @@
         "requiredObservationIds": [
           "obs-enrollpro-reachability"
         ],
-        "execution": null
+        "execution": {
+          "performed": true,
+          "actionsPerformed": [
+            "back up the durable env file to an operator-only path outside every Git worktree",
+            "set exactly ENROLLPRO_PROXY_ORIGIN and ENROLLPRO_API in D:\\ATLAS-runtime-config\\atlas-server.env",
+            "build the client with VITE_ENROLLPRO_URL and install release 54dce67b8392cbce09aa810813c37f9c87a67159 at D:\\ATLAS-runtime-supervised-54dce67b-20260914",
+            "re-point ATLAS_RUNTIME_SOURCE_DIR, ATLAS_RUNTIME_RELEASE_SHA, and the ATLAS-Runtime-Supervisor task action and working directory",
+            "quiesce only the supervisor-owned ATLAS processes on 5001/5174",
+            "relaunch the replacement resident supervisor through schtasks /run /tn ATLAS-Runtime-Supervisor",
+            "run the packet acceptance matrix",
+            "record the bounded approval, evidence, and register docs-only records"
+          ],
+          "evidence": "docs/reviews/enrollpro-proxy-recovery-live-20260916/live-execution-evidence.md"
+        }
       },
       "observations": [
         {
           "id": "obs-enrollpro-reachability",
           "target": "EnrollPro dev-jegs (100.120.169.123:5002)",
-          "checkedAt": "2026-09-15T14:09:07+08:00",
+          "checkedAt": "2026-09-16T01:12:00+08:00",
           "status": "PASS",
-          "expiresAt": "2026-09-15T14:24:07+08:00",
-          "detail": "Direct read-only probes at 2026-09-15T14:09:07-14:09:08 +08:00: https://dev-jegs.buru-degree.ts.net/api/settings/public HTTP 200; https://dev-jegs.buru-degree.ts.net/api/integration/v1/health HTTP 200. Window per the operator resume protocol (expiresAt = checkedAt + 15 min); the elevated executor repeats both probes immediately before the first runtime mutation."
+          "expiresAt": "2026-09-16T02:12:00+08:00",
+          "detail": "Planner read-only probes 2026-09-16T01:03-01:07 +08:00: https://dev-jegs.buru-degree.ts.net/api/settings/public HTTP 200 (1379 bytes); https://dev-jegs.buru-degree.ts.net/api/integration/v1/health HTTP 200 (292 bytes); ATLAS Tailnet health 200 while /enrollpro-api/settings/public returned 502 (the defect being repaired). Execution window 60 minutes (elevated context confirmed 2026-09-16); the elevated executor repeats both EnrollPro probes immediately before the first runtime mutation and stops if either fails."
         }
       ],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/enrollpro-proxy-recovery-live.receipt.json",
+          "sha256": "0b4b78e05a6c15aa2bfeacd85d85bfab0c3de611bb9832b39cc9132c62b167ca"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
@@ -1871,9 +1869,9 @@
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
-        "auditorVerdict": "CORRECTION_REQUIRED",
-        "auditorSessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
+        "qaSessionId": "ses_f5a31cafeffehbQZJ6cVsO7n5P",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5a248aebffe4GjZ23qJxDf3aD",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -1885,6 +1883,16 @@
             "round": 2,
             "verdict": "ACCEPT_READY",
             "sessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5"
+          },
+          {
+            "round": 3,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU"
+          },
+          {
+            "round": 4,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5a31cafeffehbQZJ6cVsO7n5P"
           }
         ]
       },
@@ -1908,6 +1916,26 @@
           "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
           "auditorVerdict": "CORRECTION_REQUIRED",
           "auditorSessionId": "ses_f5a84e712ffe5apLeArTOcUfOx"
+        },
+        {
+          "round": 3,
+          "baseSha": "b632b3f45ef3b2d40fc513ebe3ae77f86dda51a0",
+          "candidateSha": "713f5f5aa616d4cd1132fbedd8ef7b44e5a640b4",
+          "reason": "C-6R completion of the operator-authorized rule-2 round: the post-C-6 wave audit F-1/F-2/F-3 (supersession-blind unbound branch, no dispatch-order precedence, unguarded pre-binding identity setters) are closed by a monotonic dispatch-precedence authority with every write gated; adds the committed overlapping-fetch failing-first control. C-4/C-5/C-6 behavior preserved.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
+          "auditorVerdict": "CORRECTION_REQUIRED",
+          "auditorSessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F"
+        },
+        {
+          "round": 4,
+          "baseSha": "713f5f5aa616d4cd1132fbedd8ef7b44e5a640b4",
+          "candidateSha": "809fa67b8e9bbb03044c239b78baefc4c4e2f4a9",
+          "reason": "C-6R2 completion of the operator-authorized rule-2 requirement: the post-C-6R audit B1 (the diagnostics reply was gated only at the call site, so a superseded same-scope invocation could persist its payload and clear the loading flag) and N1 (no bound-then-superseded behavioral control) are closed. The loader now requires a dispatch-precedence predicate at reply time in addition to scope currency, and two committed failing-first controls cover same-scope supersession and bound-then-superseded writes; the handoff gating claim is corrected.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5a31cafeffehbQZJ6cVsO7n5P",
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f5a248aebffe4GjZ23qJxDf3aD"
         }
       ],
       "successors": [],
@@ -1931,23 +1959,28 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/tl-operator-workspace-c05.receipt.json",
+          "sha256": "0a49f2d8b1160d356597cef82782cb5ab71988e00c476ac4fddc8528d0deba82"
+        }
+      },
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T14:48:13.663Z",
-      "nextAction": "Post-C-6 wave audit CORRECTION_REQUIRED (9/8/0/0, 1 failed): the operator-authorized rule-2 requirement is still unmet — the null-binding catch/finally branch writes a superseded fetch, there is no dispatch-order precedence, and the pre-binding identity setters are unguarded. Dispatch the bounded C-6R completion (dispatch-order precedence plus guarded null-binding and identity-setter writes, with one committed overlapping-fetch failing-first control) to the existing executor on work/tl-operator-workspace-c05-scope-epoch; then fresh QA and a fresh Wave Completion Auditor before closure and receipt.",
-      "awaited": [
-        "bounded correction commit"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T16:34:08.890Z",
+      "nextAction": "Cycle closed COMPLETE with the wave-audited receipt.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tl-operator-workspace-c05-scope-epoch",
         "branch": "work/tl-operator-workspace-c05-scope-epoch",
         "baseSha": "56b317c5189169666ba14c0c081be94f9b85dceb",
-        "candidateSha": "b632b3f45ef3b2d40fc513ebe3ae77f86dda51a0",
-        "integrationSha": "246ba41ea5701d54a16f58db912fc44ef5bda0c4",
+        "candidateSha": "809fa67b8e9bbb03044c239b78baefc4c4e2f4a9",
+        "integrationSha": "e6b258979ccf1fb6c727a8a17dc1a893f4dda750",
         "changedPaths": [
           "atlas-client/src/hooks/useTeachingLoadData.ts",
+          "atlas-client/src/lib/__tests__/tl-authority-diagnostics-cold-load.test.ts",
+          "atlas-client/src/lib/__tests__/tl-dispatch-precedence-overlap.test.ts",
           "atlas-client/src/lib/__tests__/tl-operator-workspace-c05.test.ts",
           "atlas-client/src/lib/__tests__/tl-scope-epoch-sibling-feeds.test.ts",
           "atlas-client/src/lib/teaching-load-suggestion-diagnostics.ts",
@@ -1955,8 +1988,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "246ba41ea5701d54a16f58db912fc44ef5bda0c4",
-          "observedAt": "2026-09-15T14:30:48.351Z",
+          "sha": "2206e880a3a33bc79bb6f11482b0ed952d11a682",
+          "observedAt": "2026-09-15T16:34:08.890Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -1972,12 +2005,12 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
+          "sessionId": "ses_f5a31cafeffehbQZJ6cVsO7n5P",
           "status": "RETURNED",
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
+          "sessionId": "ses_f5a248aebffe4GjZ23qJxDf3aD",
           "status": "RETURNED",
           "writable": false
         }
@@ -2360,8 +2393,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77",
-        "auditorVerdict": "AUDIT_CLEAR",
-        "auditorSessionId": "ses_f5a8a1c8cffe1NYtIxtf3BkidM",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
         "auditRequired": true,
         "qaRounds": [
           {
@@ -2394,8 +2427,8 @@
           "reason": "Wave-audit F1/F2 (BLOCKING): the R1 reproduction compared a history-derived expected document against the mutable working-tree register, so it failed once later transitions advanced revision 56 to 60. R2 makes the reproduction a statement about the immutable commit pair (08580306 1.1.0 -> 998c1d91 1.2.0) with pins read from the migration commit tree, plus a load-bearing checkout-stability control. Recorded by a disclosed validated planner state update because the transition set cannot reopen an INTEGRATED stream (WF-EVAL-C01 gap).",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77",
-          "auditorVerdict": "AUDIT_CLEAR",
-          "auditorSessionId": "ses_f5a8a1c8cffe1NYtIxtf3BkidM"
+          "auditorVerdict": null,
+          "auditorSessionId": null
         }
       ],
       "successors": [],
@@ -2421,11 +2454,11 @@
       "artifacts": [],
       "closure": null,
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T14:53:47.294Z",
+      "stateUpdatedAt": "2026-09-15T14:21:40.847Z",
       "objective": "WF-C05 process hardening: lifecycle-traversal acceptance for every transition and record class, mandatory record-correction disclosure enforcement, predeclared gate classes that cannot be retroactively reclassified, source-only versus live readiness separation, directive rules for producer-to-consumer parity / unknown-value conservation / scope-epoch stale-response protection, and the seven named failing fixtures/mutants.",
       "nextAction": "Dispatch one fresh Wave Completion Auditor over the corrected integrated wave 541516e7; on AUDIT_CLEAR commit the capsule, record the audit, close the cycle with the receipt, and record the remote observation.",
       "awaited": [
-        "close the cycle and pin the closure receipt"
+        "fresh Wave Completion Auditor over the corrected integrated wave"
       ],
       "running": [],
       "git": {
@@ -2462,8 +2495,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5a8a1c8cffe1NYtIxtf3BkidM",
-          "status": "RETURNED",
+          "sessionId": null,
+          "status": "NONE",
           "writable": false
         }
       },
@@ -2491,7 +2524,19 @@
       }
     }
   ],
-  "leases": [],
+  "leases": [
+    {
+      "id": "lease-enrollpro-proxy-live-20260916",
+      "streamId": "ENROLLPRO-PROXY-RECOVERY-LIVE",
+      "worktree": "E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915",
+      "role": "executor",
+      "sessionId": null,
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-15T17:44:38.447Z",
+      "expiresAt": null
+    }
+  ],
   "browserCustody": {
     "profiles": [
       {
