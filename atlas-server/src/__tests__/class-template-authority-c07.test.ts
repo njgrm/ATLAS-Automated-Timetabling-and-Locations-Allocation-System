@@ -112,6 +112,7 @@ async function main() {
 	let templateC = 0;
 	let subjectC1 = 0;
 	let subjectC2 = 0;
+	let subjectA = 0;
 
 	try {
 		section('F0. disposable fixture (three schools; C owns one template)');
@@ -134,6 +135,14 @@ async function main() {
 			select: { id: true },
 		});
 		subjectC2 = s2.id as number;
+		// A subject owned by ANOTHER school (school A). School A stays template-less,
+		// so the G07 row is unaffected; this subject must never become bindable from
+		// school C's templates.
+		const foreign = await prisma.subject.create({
+			data: { schoolId: schoolA, code: 'A_FOREIGN_MATH', name: 'A Foreign Mathematics', minMinutesPerWeek: 240, programScopes: ['REGULAR'], gradeLevels: [7], preferredRoomType: 'CLASSROOM', isActive: true },
+			select: { id: true },
+		});
+		subjectA = foreign.id as number;
 		const preCreated = await prisma.classTemplate.create({
 			data: {
 				schoolId: schoolC,
@@ -383,6 +392,73 @@ async function main() {
 		res = await call('PUT', `/api/v1/class-templates/${templateC}/subjects`, tokenC, { subjectIds: [] });
 		checkEqual(res.status, 400, 'G12 empty subjectIds still returns 400');
 		checkEqual(res.json.code, 'MISSING_FIELDS', 'G12 empty subjectIds code MISSING_FIELDS');
+
+		section('R2. subject-bundle tenant binding (CROSS_SCHOOL_DENIED / INVALID_PARAM)');
+		const bindingsForTemplate = () => prisma.classTemplateSubject.count({ where: { templateId: templateC } });
+		const bindingsAnywhere = () => prisma.classTemplateSubject.count({ where: { subjectId: subjectA } });
+
+		// 1. foreign subject on PUT /:id/subjects
+		let r2Before = await fixtureCounts();
+		let r2BindingsBefore = await bindingsForTemplate();
+		res = await call('PUT', `/api/v1/class-templates/${templateC}/subjects`, tokenC, { subjectIds: [subjectC1, subjectA] });
+		checkEqual(res.status, 403, 'R2 PUT /:id/subjects foreign subject returns 403');
+		checkEqual(res.json.code, 'CROSS_SCHOOL_DENIED', 'R2 PUT foreign subject code CROSS_SCHOOL_DENIED');
+		checkEqual(await bindingsForTemplate(), r2BindingsBefore, 'R2 PUT foreign subject touched zero classTemplateSubject rows');
+		let r2After = await fixtureCounts();
+		checkEqual(JSON.stringify(r2After), JSON.stringify(r2Before), 'R2 PUT foreign subject wrote zero fixture rows');
+		checkEqual(await bindingsAnywhere(), 0, 'R2 foreign subject is never bound anywhere');
+
+		// 2. foreign subject on POST /
+		r2Before = await fixtureCounts();
+		res = await call('POST', '/api/v1/class-templates', tokenC, {
+			name: 'C07 Cross', label: 'CROSS', programType: 'SPA',
+			gradeApplicability: [7], periodLengthMinutes: 60, periodsPerDay: 8, subjectIds: [subjectC1, subjectA],
+		});
+		checkEqual(res.status, 403, 'R2 POST / foreign subject returns 403');
+		checkEqual(res.json.code, 'CROSS_SCHOOL_DENIED', 'R2 POST foreign subject code CROSS_SCHOOL_DENIED');
+		check(!Object.prototype.hasOwnProperty.call(res.json, 'template'), 'R2 POST foreign subject carries no template payload');
+		r2After = await fixtureCounts();
+		checkEqual(JSON.stringify(r2After), JSON.stringify(r2Before), 'R2 POST foreign subject wrote zero templates/bindings');
+		checkEqual(await bindingsAnywhere(), 0, 'R2 POST foreign subject is still never bound');
+
+		// 3. unknown subject id (does not exist at all)
+		r2Before = await fixtureCounts();
+		r2BindingsBefore = await bindingsForTemplate();
+		res = await call('PUT', `/api/v1/class-templates/${templateC}/subjects`, tokenC, { subjectIds: [subjectC1, 987654321] });
+		checkEqual(res.status, 400, 'R2 PUT /:id/subjects unknown subject returns 400');
+		checkEqual(res.json.code, 'INVALID_PARAM', 'R2 PUT unknown subject code INVALID_PARAM');
+		checkEqual(await bindingsForTemplate(), r2BindingsBefore, 'R2 PUT unknown subject touched zero bindings');
+		res = await call('POST', '/api/v1/class-templates', tokenC, {
+			name: 'C07 Unknown', label: 'UNKNOWN', programType: 'SPS',
+			gradeApplicability: [7], periodLengthMinutes: 60, periodsPerDay: 8, subjectIds: [987654321],
+		});
+		checkEqual(res.status, 400, 'R2 POST / unknown subject returns 400');
+		checkEqual(res.json.code, 'INVALID_PARAM', 'R2 POST unknown subject code INVALID_PARAM');
+		r2After = await fixtureCounts();
+		checkEqual(JSON.stringify(r2After), JSON.stringify(r2Before), 'R2 unknown-subject rejects wrote zero rows');
+
+		// 4. mixed foreign + unknown prefers the typed 403
+		res = await call('PUT', `/api/v1/class-templates/${templateC}/subjects`, tokenC, { subjectIds: [subjectA, 987654321] });
+		checkEqual(res.status, 403, 'R2 mixed foreign+unknown returns 403 (foreign wins)');
+		checkEqual(res.json.code, 'CROSS_SCHOOL_DENIED', 'R2 mixed foreign+unknown code CROSS_SCHOOL_DENIED');
+		checkEqual(await bindingsForTemplate(), r2BindingsBefore, 'R2 mixed reject touched zero bindings');
+
+		// 5. the actor's own read never discloses the foreign subject
+		res = await call('GET', `/api/v1/class-templates?schoolId=${schoolC}`, tokenC);
+		checkEqual(res.status, 200, 'R2 same-school collection GET still returns 200');
+		check(!res.text.includes('A_FOREIGN_MATH') && !res.text.includes('A Foreign Mathematics'), 'R2 actor read never projects the foreign subject code/name');
+
+		// 6. positive same-school rows still succeed
+		res = await call('PUT', `/api/v1/class-templates/${templateC}/subjects`, tokenC, { subjectIds: [subjectC1] });
+		checkEqual(res.status, 200, 'R2 positive same-school PUT still returns 200');
+		checkEqual(await bindingsForTemplate(), 1, 'R2 positive same-school PUT bound exactly one subject');
+		res = await call('POST', '/api/v1/class-templates', tokenC, {
+			name: 'C07 Science', label: 'SPA', programType: 'SPA',
+			gradeApplicability: [7], periodLengthMinutes: 45, periodsPerDay: 10, subjectIds: [subjectC2],
+		});
+		checkEqual(res.status, 201, 'R2 positive same-school POST with subjectIds returns 201');
+		checkEqual(res.json.template?.subjects?.length, 1, 'R2 positive POST bound the same-school subject');
+		checkEqual(res.json.template?.subjects?.[0]?.id, subjectC2, 'R2 positive POST bound exactly the requested same-school subject');
 	} finally {
 		section('G18. cleanup + zero residue');
 		if (server) await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
