@@ -482,19 +482,30 @@ non-docs delta.
 
 ### 6.5 Machine-state verification (read-only) (CURRENT_STATE)
 
-`docs/plans/atlas-delivery-cycles.json` (contractVersion `1.1.0`), read-only at
-correction time: `coordination.mode = MANUAL`; `coordination.activeCycleId =
-null`; `coordination.globalNextAction = "WF-C02 COMPLETE with pinned receipt and
-AUDIT_CLEAR; WF-C03 (Lane B) dispatch follows from the refreshed origin/main
-tip."`; `leases` is empty; `browserCustody.profiles[0].custody` and
-`browserCustody.logins` are both empty; the 6 `streams` entries contain no
-`COMPANION-SSO-LIVE-PREP-C02` entry. No lease and no browser-custody record
+Read from the **authority** `origin/main:docs/plans/atlas-delivery-cycles.json`
+(the branch worktree copy of that file is inherited from `6409a2a8` and is **not**
+current-state authority), at the correction-time `origin/main` tip
+`0c20342394ca2ca800cecc6dd69825e07625c66d` (contractVersion `1.1.0`):
+`coordination.mode = CYCLE_ACTIVE`; `coordination.activeCycleId =
+ENROLLPRO-PROXY-RECOVERY-LIVE`; **7** `streams` entries (WF-C01, WF-C02,
+ENROLLPRO-PROXY-RECOVERY-LIVE, TERM-CACHE-CATCHUP-APPLY, TT-SOURCE-FRESHNESS-C04,
+LIVE-GENERATION, LIVE-PUBLICATION), with **no** `COMPANION-SSO-LIVE-PREP-C02`
+entry; `leases` is empty; `browserCustody.profiles[0].custody` and
+`browserCustody.logins` are both empty. No lease and no browser-custody record
 touches this stream's docs, companion mirrors, disposable-database namespace,
 browser profile, runtime inventory, or SSO packet paths. This preparation cycle
 is **intentionally unregistered** in the machine state because the recovery
-boundary forbids register edits while another lane owns `origin/main`; the
+boundary forbids register edits while the active lane owns `origin/main`; the
 governing packet's Workflow-state requirement is satisfied by this read-only
-verification rather than a state write.
+verification of the authority file rather than a state write.
+
+**Correction (targeted QA round):** an earlier version of this row reported
+`coordination.mode = MANUAL`, `activeCycleId = null`, and 6 streams. Those values
+came from the branch's own stale copy of the file (inherited from `6409a2a8`)
+and were wrong. The `CYCLE_ACTIVE` / `ENROLLPRO-PROXY-RECOVERY-LIVE` / 7-streams
+values above are the authoritative `origin/main` read, consistent with §1, §6.4,
+and executor handoff §11. No claim is made about any stream's content beyond
+what the file shows.
 
 ## 7. Public / browser preflight (no authentication) (CURRENT_STATE)
 
@@ -503,7 +514,7 @@ verification rather than a state write.
 | Playwright MCP tools | present (`playwright_browser_*`); configured browser build `chromium-1244` was initially missing and was installed with the sanctioned `npx @playwright/mcp install-browser chrome-for-testing` (out-of-repo, `%LOCALAPPDATA%\ms-playwright\chromium-1244`) | CURRENT_STATE |
 | ATLAS origin (desktop 1366×768) | `https://njgrm.buru-degree.ts.net/login`; `window.location.origin === "https://njgrm.buru-degree.ts.net"`; title `ATLAS`; login form rendered (Employee ID/Email, Password, Sign In) | CURRENT_STATE |
 | ATLAS origin (mobile 390×844) | same URL; origin asserted again; viewport `390x844`; password input present; "Welcome Back / Sign in to continue to ATLAS" rendered | CURRENT_STATE |
-| ATLAS console | 1 error: `502` on `https://njgrm.buru-degree.ts.net/enrollpro-uploads/55a414b8-….png` — the known EnrollPro proxy degradation pending `ENROLLPRO-PROXY-RECOVERY-LIVE`; page renders normally | CURRENT_STATE |
+| ATLAS console | 1 error: `502` on `https://njgrm.buru-degree.ts.net/enrollpro-uploads/55a414b8-….png` — the known EnrollPro proxy degradation owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (approval GRANTED 2026-09-15; execution pending / externally blocked on EnrollPro host recovery; `ENROLLPRO_PROXY_ORIGIN` not yet proven installed); page renders normally | CURRENT_STATE |
 | ATLAS network | no `/api/*` request on `/login`; no session created, no form submitted, no login | CURRENT_STATE |
 | EnrollPro origin | `https://dev-jegs.buru-degree.ts.net/personnel/login` → HTTP attempts `unable to connect` (×3) and browser `net::ERR_CONNECTION_TIMED_OUT`; Tailscale reports `dev-jegs` (100.120.169.123) **offline, last seen 33m ago** | CURRENT_STATE |
 | Browser custody | one short session owned by the executor; tabs closed after evidence (no lingering context, no reusable session) | CURRENT_STATE |

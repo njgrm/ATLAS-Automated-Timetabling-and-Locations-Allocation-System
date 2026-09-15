@@ -37,8 +37,9 @@ Companion developer handoff:
 | Commit 2 | `faa2422ea81df91e7a87a3529d6115f47b11bdea` — `docs(sso): prepare companion migration and runtime activation gates` |
 | Commit 3 | `61b1de5cbe1e9e305ef5d8d7b0e441dd320ab3ad` — `docs(sso): correct activation release-delta claim` |
 | Commit 4 | `b7ffe61cf0223fce9d32b818bb6c9c5277d2ce03` — `docs(sso): gate activation on proxy origin and fix audit findings` |
-| Commit 5 (tip) | this correction commit — `docs(sso): record proxy approval, option A, and fresh-signature migration gates`; exact SHA in the executor return |
-| Candidate range | `6409a2a8...<tip>` (five additive commits) |
+| Commit 5 | `9901fac3210ae83b576c9054dcac096a04ef8c08` — `docs(sso): record proxy approval, option A, and fresh-signature migration gates` |
+| Commit 6 (tip) | this correction commit — `docs(sso): cite authoritative machine state in prep evidence`; exact SHA in the executor return |
+| Candidate range | `6409a2a8...<tip>` (six additive commits) |
 | Directive `origin/main:AGENTS.md` LF-normalized SHA-256 | `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5` |
 | Directive recorded at prompt authoring | `0cf68d62d9c6c6bb37b737c6038118a8eed7efc2d403a2100de9d64f02c871d6` (superseded; newer wins) |
 
@@ -215,7 +216,14 @@ asserted different from the configured database name; residue count 0 for the
 | 4 — R1 uses Option A | Companion handoff D1 gained a "Decision (head planner, 2026-09-15): Option A selected" block (Option B not required for D1; D2 stays EnrollPro-owned; the D1 acceptance matrix stays mandatory for the correction stream; this worktree implements nothing). Activation §5.2 records the decision and keeps Flow B fail-closed with `PRECONDITION_ROLE_CONTRACT_UNRESOLVED` until the correction is complete, QA'd, integrated, and re-pinned/bound. Evidence §4.5 gained a recorded-decision row tagged `REQUIREMENT`. | Cross-read of the three files; the gate code/behaviour is unchanged (docs-only). |
 | 5 — candidate classification | Executor handoff and evidence doc top status now carry **`PREPARED_WITH_EXTERNAL_GATE`** with the one-line definition, and both 15-row tally statements carry the same classification next to the honest `14/15 passed / 1 blocked` figure. | `grep` shows the classification at both tops and both tally statements, paired with "not `ACCEPT_READY` 15/15" and "no live SSO readiness". |
 
-## 12. Approval sentences (NOT GRANTED)
+## 12. Correction 4 (targeted QA round)
+
+| Finding | Fix | Verification |
+| --- | --- | --- |
+| F1 (BLOCKING, docs) — evidence §6.5 cited the branch's stale worktree copy of the machine state (`coordination.mode = MANUAL`, `activeCycleId = null`, 6 streams) | §6.5 rewritten to cite the authoritative `origin/main:docs/plans/atlas-delivery-cycles.json` read at correction time, stating explicitly that the branch worktree copy is not current-state authority; kept the true claims (empty `leases`, empty `browserCustody`, intentionally unregistered prep stream); added a correction note explaining the stale values. | `git show origin/main:docs/plans/atlas-delivery-cycles.json` at `0c203423`: contractVersion `1.1.0`, `coordination.mode = CYCLE_ACTIVE`, `activeCycleId = ENROLLPRO-PROXY-RECOVERY-LIVE`, **7** streams (WF-C01, WF-C02, ENROLLPRO-PROXY-RECOVERY-LIVE, TERM-CACHE-CATCHUP-APPLY, TT-SOURCE-FRESHNESS-C04, LIVE-GENERATION, LIVE-PUBLICATION), `leases` empty, `browserCustody` custody/logins empty, no `COMPANION-SSO-LIVE-PREP-C02` entry. Now consistent with evidence §1/§6.4 and this handoff §11. |
+| F2 (NON_BLOCKING) — evidence §7 EnrollPro console 502 row lacked the four-way distinction | Reworded to: proxy degradation owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (approval GRANTED 2026-09-15; execution pending / externally blocked on EnrollPro host recovery; `ENROLLPRO_PROXY_ORIGIN` not yet proven installed). | Cross-checked against the §4/§5.7 status wording and the machine-state authority read above. |
+
+## 13. Approval sentences (NOT GRANTED)
 
 - `COMPANION-SSO-MIGRATION-LIVE-C02` — exact sentence in section 9 of
   `docs/prompts/companion-sso-migration-live-c02-2026-09-15.md`; **NOT GRANTED**.
@@ -223,7 +231,7 @@ asserted different from the configured database name; residue count 0 for the
   `docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md`; **NOT
   GRANTED**.
 
-## 13. Return contract
+## 14. Return contract
 
 `REVIEW_REQUIRED`. Control returns to the primary planner for immutable-range
 validation and a fresh independent QA pass. The executor does not integrate,
