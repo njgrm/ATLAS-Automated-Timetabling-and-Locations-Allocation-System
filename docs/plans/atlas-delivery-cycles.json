@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T10:49:36.275Z",
+    "lastUpdatedAt": "2026-09-15T11:51:58.515Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 45
+    "revision": 54
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "COMPANION-SSO-C03 source candidate integrated at fc7abe07 (Option-A reverse-SSO identity normalization; fresh QA ACCEPT_READY 8/8). Awaiting a fresh Wave Completion Audit before closure. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked."
+    "globalNextAction": "COMPANION-SSO-C03 and COMPANION-SSO-LIVE-PREP-C02 are COMPLETE with receipts (Wave Completion Audit AUDIT_CLEAR 7/7 at c669c77c; F1 docs-only runtime-map reconciliation applied). No active cycle. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked; the corrected Option-A source is integrated but NOT deployed."
   },
   "streams": [
     {
@@ -1376,8 +1376,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5bb25208ffekI4ETTVf3sLYRu",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
         "auditRequired": true
       },
       "corrections": [],
@@ -1402,14 +1402,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/companion-sso-live-prep-c02.receipt.json",
+          "sha256": "dc5cb44f0195f376bb636d50a9a39b0737f48e34dc92d1523365ad563d99dbbe"
+        }
+      },
       "objective": "Companion SSO live-preparation lane on branch work/companion-sso-live-prep-c02: a docs-only candidate (executor handoffs, a companion developer handoff, and two prepared HIGH packets, companion-sso-migration-live-c02 and companion-sso-runtime-activation-c02, both NOT GRANTED). Executor handoff docs/handoffs/companion-sso-live-prep-c02-executor.md classifies the candidate PREPARED_WITH_EXTERNAL_GATE and returns REVIEW_REQUIRED.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T09:13:51.375Z",
-      "nextAction": "Review the docs candidate and decide the two prepared HIGH gates (migration-live, runtime-activation); the only unfinished row is external (EnrollPro host), so no live SSO readiness is claimed. Deployment, env configuration, and companion-repository edits remain separate HIGH actions.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T11:41:58.885Z",
+      "nextAction": "Closed COMPLETE; docs candidate integrated with the C03 truth reconciliation; both prepared HIGH packets remain NOT GRANTED.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/companion-sso-live-prep-c02",
@@ -1449,8 +1452,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -1495,7 +1498,18 @@
         "auditorSessionId": "ses_f5b8c0d99ffezvYYAlXQ5os1sv",
         "auditRequired": true
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "05bb8e517daa8a0494ef3ce7257747b4fca51054",
+          "candidateSha": "d4e7581b2e79458c23abeefb60267776154337e8",
+          "reason": "C-4 ancillary/effective-load parity (authoritative ea9b498d, cherry-picked as 7e38f9b4; rewritten local e1c417d8 not consumed) folded with C-5/F2-COLD-LOAD from the post-integration Wave Completion Auditor blocking finding (the scope-epoch guard self-invalidated the cold-cache authority-diagnostics read) into one combined candidate d4e7581b under the operator custody handoff.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [],
       "requires": [],
       "blocker": {
@@ -1519,45 +1533,27 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T10:30:13.742Z",
-      "nextAction": "BLOCKED ON OPERATOR DECISION: a second planner session (ses_f5d0337c7ffe) is concurrently running a TL-C05 correction (ancillary zero in load) inside the same candidate worktree E:/ATLAS-worktrees/tl-operator-workspace-c05; the bounded F2 cold-load correction stopped without mutation and its artifacts are preserved. Do not dispatch further TL-OPERATOR-WORKSPACE-C05 corrections until one owner for the combined correction set is designated.",
+      "state": "CORRECTION_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T11:51:58.515Z",
+      "nextAction": "Fresh independent QA at high over the combined corrected candidate d4e7581b (range c669c77c...d4e7581b); then current-main re-integration and a fresh post-correction Wave Completion Auditor before closure. The INTEGRATED reopen was recorded through the documented WF-C02 validated planner state update because the transition set cannot express it.",
       "awaited": [
-        "bounded correction commit"
+        "fresh independent QA over the combined corrected candidate"
       ],
       "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/tl-operator-workspace-c05",
-        "branch": "work/tl-operator-workspace-c05",
-        "baseSha": "0c20342394ca2ca800cecc6dd69825e07625c66d",
-        "candidateSha": "05bb8e517daa8a0494ef3ce7257747b4fca51054",
-        "integrationSha": "87aa24a3ff2b62482b329e6583524ea9addbb121",
+        "worktree": "E:/ATLAS-worktrees/tl-operator-workspace-c05-combined",
+        "branch": "work/tl-operator-workspace-c05-combined",
+        "baseSha": "c669c77cfc4f8895c5635be6920b9079ab0c259f",
+        "candidateSha": "d4e7581b2e79458c23abeefb60267776154337e8",
+        "integrationSha": null,
         "changedPaths": [
-          "atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx",
-          "atlas-client/src/components/faculty-assignments/SectionGridMode.tsx",
-          "atlas-client/src/components/faculty-assignments/TeachingLoadCandidateDiagnostics.tsx",
-          "atlas-client/src/components/faculty-assignments/TeachingLoadModals.tsx",
-          "atlas-client/src/components/faculty-assignments/TeachingLoadReconciliationPanel.tsx",
-          "atlas-client/src/components/faculty-assignments/TeachingLoadRepairQueue.tsx",
-          "atlas-client/src/components/faculty-assignments/TeachingLoadTruthPanel.tsx",
-          "atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx",
-          "atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx",
           "atlas-client/src/hooks/useTeachingLoadData.ts",
           "atlas-client/src/hooks/useTeachingLoadUI.ts",
-          "atlas-client/src/lib/__tests__/teaching-load-distribution-ui.test.ts",
-          "atlas-client/src/lib/__tests__/teaching-load-suggestion-diagnostics-ui.test.ts",
-          "atlas-client/src/lib/__tests__/tl-operator-workspace-c05-blast-radius.test.ts",
-          "atlas-client/src/lib/__tests__/tl-operator-workspace-c05-r3-truth.test.ts",
+          "atlas-client/src/lib/__tests__/teaching-load-effective-load-parity.test.ts",
+          "atlas-client/src/lib/__tests__/tl-authority-diagnostics-cold-load.test.ts",
           "atlas-client/src/lib/__tests__/tl-operator-workspace-c05.test.ts",
           "atlas-client/src/lib/faculty-assignment-helpers.ts",
-          "atlas-client/src/lib/scope-request-epoch.ts",
-          "atlas-client/src/lib/teaching-load-authority-truth.ts",
-          "atlas-client/src/lib/teaching-load-suggestion-diagnostics.ts",
-          "atlas-client/src/lib/teaching-load-suggestion-presentation.ts",
           "atlas-client/src/pages/TeachingLoad.tsx",
-          "atlas-client/src/types.ts",
-          "atlas-server/src/__tests__/teaching-load-overload-capacity-totals.test.ts",
-          "atlas-server/src/services/teaching-load-reconciliation.service.ts",
           "docs/handoffs/tl-operator-workspace-c05-executor.md"
         ],
         "remoteObservation": {
@@ -1751,8 +1747,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5b760374ffeMxb6tNGpn1CYcj",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
         "auditRequired": true
       },
       "corrections": [],
@@ -1777,14 +1773,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/companion-sso-c03.receipt.json",
+          "sha256": "e208c4492c901afb27b3fceedf0805f5fa0d45f7fee457755b2a0ceb55282a70"
+        }
+      },
       "objective": "COMPANION-SSO-C03 (operator CYCLE ON, 2026-09-15, packet docs/prompts/companion-sso-docs-integration-option-a-c03-2026-09-15.md): integrate the accepted COMPANION-SSO-LIVE-PREP-C02 docs candidate (233ae67f) with a bounded integration-time truth reconciliation, then implement the ATLAS-owned Option-A reverse-SSO correction (map local roles to the EnrollPro contract vocabulary at POST /api/v1/auth/sso/exchange, guarantee valid non-empty assertion names via a typed service helper, close the mounted-test production-shape gap, document the SSO keys in atlas-server/.env.example), fresh-QA it, integrate, push, and close with a fresh Wave Completion Auditor. No HIGH action is authorized.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T10:49:36.275Z",
-      "nextAction": "Wave Completion Audit pending before closure; every live/HIGH action remains locked.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T11:41:00.528Z",
+      "nextAction": "Closed COMPLETE; wave-audited AUDIT_CLEAR 7/7; all live/HIGH actions remain locked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/companion-sso-option-a-c03",
@@ -1824,8 +1823,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
+          "status": "RETURNED",
           "writable": false
         }
       },
