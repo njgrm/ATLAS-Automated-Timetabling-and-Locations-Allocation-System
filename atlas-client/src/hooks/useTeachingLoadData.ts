@@ -198,15 +198,25 @@ export type AuthorityDiagnosticsLoadDeps = {
 	request: () => Promise<{ data: TeachingLoadAuthorityDiagnosticsPayload | null }>;
 	setPayload: AuthorityDiagnosticsSetPayload;
 	setLoading: AuthorityDiagnosticsSetLoading;
+	/**
+	 * C-6R2: dispatch precedence. The reply is discarded when this invocation is no
+	 * longer the newest dispatch — including for the SAME scope. Scope identity and
+	 * epoch alone cannot detect a superseded same-scope dispatch, so this predicate
+	 * is REQUIRED rather than optional: callers that only exercise scope transitions
+	 * pass `() => true`.
+	 */
+	isLatestDispatch: () => boolean;
 };
 
 /**
- * C-5 (F2-COLD-LOAD). Production loader for the read-only
+ * C-5 (F2-COLD-LOAD) / C-6R2. Production loader for the read-only
  * `/faculty-assignments/authority-diagnostics` read.
  *
  * Contract:
  *   - the epoch is opened for the resolved scope BEFORE the token capture, so a
  *     cold-cache first load persists and always clears its loading flag;
+ *   - a reply from a SUPERSEDED DISPATCH is discarded first, because precedence is
+ *     checked before scope currency — a newer same-scope dispatch must win;
  *   - a reply whose scope has been superseded (scope identity changed, or the
  *     epoch advanced) is discarded WITHOUT touching state, so it can neither
  *     overwrite the new scope's payload nor clear the new scope's loading flag;
@@ -216,12 +226,14 @@ export type AuthorityDiagnosticsLoadDeps = {
 export async function loadAuthorityDiagnosticsForScope(
 	deps: AuthorityDiagnosticsLoadDeps,
 ): Promise<AuthorityDiagnosticsLoadOutcome> {
-	const { epoch, scopeRef, scopeId, request, setPayload, setLoading } = deps;
+	const { epoch, scopeRef, scopeId, request, setPayload, setLoading, isLatestDispatch } = deps;
 
 	// Open the epoch for the resolved scope BEFORE capturing the token.
 	openDiagnosticsScope(scopeRef, epoch, scopeId);
 	const binding: ScopeBoundWrite = { scopeRef, epoch, scopeId, token: epoch.current };
-	const isCurrent = () => isScopeCurrent(binding);
+	// C-6R2: dispatch precedence AND scope currency. The precedence term is what
+	// catches a superseded SAME-scope dispatch, which scope+epoch cannot see.
+	const isCurrent = () => isLatestDispatch() && isScopeCurrent(binding);
 
 	setLoading(true);
 	let outcome: AuthorityDiagnosticsLoadOutcome;
@@ -510,6 +522,9 @@ export function useTeachingLoadData() {
 					),
 					setPayload: setAuthorityDiagnostics,
 					setLoading: setAuthorityDiagnosticsLoading,
+					// C-6R2: the reply is also gated on dispatch precedence, so a
+					// superseded same-scope reply cannot overwrite a newer payload.
+					isLatestDispatch,
 				});
 			}
 		} catch (requestError: any) {

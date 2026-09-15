@@ -194,3 +194,50 @@ test('C-6R the guarded fetch path stays read-only', () => {
 	assert.doesNotMatch(hook, /atlasApi\.delete\(/);
 	assert.doesNotMatch(hook, /policies\/scheduling/);
 });
+
+/* ================================================================== *
+ * C-6R2 — bound-then-superseded is rejected BEHAVIOURALLY
+ * ================================================================== */
+
+test('C-6R2 bound-then-superseded: a superseded SAME-scope invocation may not write', () => {
+	const precedence = createDispatchPrecedence();
+	const epoch = createScopeEpoch();
+	const scopeRef: { current: string | null } = { current: null };
+
+	// The older dispatch binds SCOPE_A while it is still the newest.
+	const older = createFetchDispatchScope(precedence, scopeRef, epoch);
+	assert.equal(older.bind(SCOPE_A), true, 'the older dispatch binds while newest');
+	assert.equal(older.canWrite(), true);
+	assert.notEqual(older.binding, null);
+
+	// A newer dispatch arrives for the SAME scope and binds it too. Binding is a
+	// no-op for the scope ref/epoch (same scope id), so scope currency ALONE cannot
+	// distinguish the two invocations — only dispatch precedence can.
+	const newer = createFetchDispatchScope(precedence, scopeRef, epoch);
+	assert.equal(newer.bind(SCOPE_A), true, 'the newer dispatch binds the same scope');
+	assert.equal(scopeRef.current, SCOPE_A, 'the fixture must keep one scope');
+
+	// The older invocation is now BOUND but SUPERSEDED.
+	assert.equal(older.isLatestDispatch(), false);
+	assert.equal(
+		older.canWrite(),
+		false,
+		'a bound-but-superseded invocation may not write (precedence, not scope currency)',
+	);
+
+	// Behavioural proof: the older invocation writes nothing; the newer one does.
+	const written: string[] = [];
+	if (older.canWrite()) written.push('faculty:older');
+	assert.equal(written.length, 0, 'the superseded invocation must write nothing');
+	assert.equal(commitScopeBoundWrite(newer.binding!, () => { written.push('faculty:newer'); }), true);
+	assert.deepEqual(written, ['faculty:newer']);
+});
+
+test('C-6R2 the diagnostics loader is gated on dispatch precedence, not scope alone', () => {
+	const hook = source('src/hooks/useTeachingLoadData.ts');
+	// The predicate is threaded into the loader and applied at reply time.
+	assert.match(hook, /isLatestDispatch: \(\) => boolean;/);
+	assert.match(hook, /const isCurrent = \(\) => isLatestDispatch\(\) && isScopeCurrent\(binding\);/);
+	// The hook passes its own precedence predicate at the call site.
+	assert.match(hook, /setLoading: setAuthorityDiagnosticsLoading,\s*\/\/[\s\S]{0,160}isLatestDispatch,/);
+});

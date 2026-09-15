@@ -741,3 +741,95 @@ the `-combined` worktree, and the integration worktree were **not** entered, mod
 cleaned, stashed, or committed. No browser, login, database, runtime, deployment,
 migration, generation, or publication action occurred. The four C-4 files were not
 modified.
+
+---
+
+# C-6R2 — diagnostics reply gated on dispatch precedence
+
+Correction base `713f5f5aa616d4cd1132fbedd8ef7b44e5a640b4`. Directive pin (LF-normalized
+`origin/main:AGENTS.md`): `7663164608A330AF5440A6E0EA1FFADE20987B49A7BB0D939F3B50F1AA2DF0A3`
+— recomputed and matched. No self-referential final-SHA claim.
+
+## Corrected claim (supersedes the C-6/C-6R wording above)
+
+Earlier sections stated that "every sibling authority feed and the loading flag" were
+gated on the newest dispatch. That was accurate for the sibling feeds, the identity
+setters, the scope binding, and the `finally` loading clear — but **not** for the
+diagnostics read. The diagnostics call site was gated, yet its reply currency was
+`isScopeCurrent(binding)` (scope identity + epoch) only, so a superseded **same-scope**
+dispatch still ran `setPayload` + `setLoading(false)`. The accurate statement is:
+
+> All sibling authority feeds, the pre-binding identity setters, the scope binding, and
+> the page `finally` loading clear are gated on `isLatestDispatch()` **and** scope
+> currency. The diagnostics reply is now gated on **both** as well (C-6R2); before this
+> round it was gated on scope currency alone, which could not detect a superseded
+> same-scope dispatch.
+
+## Defects
+
+- **B1 (BLOCKING).** The diagnostics reply was not precedence-gated. Two same-scope
+  loads with the newer resolving first and the older resolving last returned
+  `persisted` for the older and overwrote the newer payload.
+- **N1.** The committed behavioural controls had no **bound-then-superseded** case; a
+  mutant making `canWrite()` scope-only was caught only by a source-string assertion.
+  A source regex may support but must not replace a behavioural control.
+
+## Fix
+
+`loadAuthorityDiagnosticsForScope` now takes a **required** `isLatestDispatch: () => boolean`
+dep and re-checks it at reply time alongside scope currency:
+`const isCurrent = () => isLatestDispatch() && isScopeCurrent(binding);`. A superseded
+invocation — including a superseded same-scope one — returns `'discarded'` without
+touching payload or loading state. The hook passes its own `isLatestDispatch` at the call
+site; the C-5 cold-load suite passes `() => true`, which preserves its scope-transition
+semantics exactly. The predicate is required rather than optional so a caller cannot
+silently omit the guard.
+
+## Controls and failing-first proofs
+
+| Probe | Blob (base → mutant) | Result |
+|---|---|---|
+| P1 drop the precedence term from the loader's `isCurrent` (**pre-C-6R2 bytes**) | `551a208b6d75a826dbf3f8ea817986ea1a50012d` → `7ece2dcc64303db2b0c3d95d4cfa08e3235edc65` | cold-load suite 9 tests, **8 pass / 1 fail** — "a superseded same-scope reply must be discarded" |
+| P2 drop the precedence term from `canWrite()` (**the auditor's mutant**) | `551a208b…` → `d779e509a406826acdf174cb6d73b096c66f6979` | overlap suite 8 tests, **4 pass / 4 fail** — "a bound-but-superseded invocation may not write (precedence, not scope currency)" |
+
+Both probes restored byte-exact (blob equality; `git diff --quiet` exit 0; porcelain empty).
+
+New committed controls:
+- **same-scope supersession** (cold-load suite): older and newer dispatch the same scope;
+  the newer resolves first and persists `rev-newer`; the older resolves last and is
+  discarded — the newer payload survives and the older reply does not flip `loading`.
+  Scope identity and epoch are unchanged across the two, so only precedence can reject
+  it.
+- **bound-then-superseded** (overlap suite): the older dispatch **binds** first, a newer
+  dispatch binds the same scope, and the older then becomes bound-but-superseded. The
+  control asserts behaviourally (`older.canWrite() === false`, nothing written) rather
+  than by source regex, and it is the assertion that failed under P2.
+
+## Gate table
+
+| Gate | Result |
+|---|---|
+| 1. same-scope supersession failing-first (P1 → 8/1); green on tip | **9/9** |
+| 2. bound-then-superseded behavioural (P2 → 4/4); green on tip | **8/8** |
+| 3. all nine TL suites | **91/91 pass, 0 fail** |
+| 4. client `npx tsc --noEmit` | **exit 0 — zero errors** (no `any`-cast suppression, no `@ts-ignore`, no exclusion) |
+| 5. client `npm run build` | **✓ built in 9.94s** |
+| 6. `git diff --check` | **exit 0** |
+| 7. inventory + preservation | recorded in the return message; four C-4 blobs unchanged; C-5 loader scope-transition semantics intact |
+
+## Known risks
+
+- `BLOCKING`: none.
+- `NON_BLOCKING`: `setLoading(true)`/`setError(null)` still run synchronously at dispatch
+  (before any await) and remain ungated by design.
+- `NON_BLOCKING (harness limitation, unchanged)`: no DOM implementation and frozen
+  dependencies, so controls drive the real exported production seams and render real
+  components via `renderToStaticMarkup`.
+
+## Zero-mutation statement
+
+No push, merge, rebase, amend, force-push, or register edit. The collided legacy worktree,
+the `-combined` worktree, and the integration worktree were **not** entered, modified,
+cleaned, stashed, or committed. No browser, login, database, runtime, deployment,
+migration, generation, or publication action occurred. The four C-4 files were not
+modified.

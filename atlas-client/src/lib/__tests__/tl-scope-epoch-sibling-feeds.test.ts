@@ -142,8 +142,9 @@ test('C-6 the hook gates every sibling authority feed on the dispatch scope', ()
 
 test('C-6 the sibling-feed guard is the same authority the C-5 loader uses', () => {
 	const hook = source('src/hooks/useTeachingLoadData.ts');
-	// The loader delegates to the shared predicate rather than re-implementing it.
-	assert.match(hook, /const isCurrent = \(\) => isScopeCurrent\(binding\);/);
+	// The loader delegates to the shared predicate rather than re-implementing it,
+	// and (C-6R2) additionally requires dispatch precedence.
+	assert.match(hook, /const isCurrent = \(\) => isLatestDispatch\(\) && isScopeCurrent\(binding\);/);
 	const inlineChecks = hook.match(/scopeRef\.current === scopeId && epoch\.isCurrent\(/g) ?? [];
 	assert.equal(inlineChecks.length, 0, 'the currency check must have exactly one implementation');
 });

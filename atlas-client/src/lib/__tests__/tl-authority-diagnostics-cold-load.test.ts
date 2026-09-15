@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { createScopeEpoch } from '@/lib/scope-request-epoch';
+import { createDispatchPrecedence } from '@/hooks/useTeachingLoadData';
 import { TooltipProvider } from '@/ui/tooltip';
 import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
 import {
@@ -128,6 +129,7 @@ test('C-5 cold load: an empty-cache scope resolution persists diagnostics and cl
 		request: inflight.request,
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 	assert.equal(loading, true, 'the read must mark itself loading');
 
@@ -182,6 +184,7 @@ test('C-5 cold load renders the truth panel with known metrics, never "Checking 
 		request: inflight.request,
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 	inflight.resolve({ data: diagnostics() });
 	await inFlight;
@@ -230,6 +233,7 @@ test('C-5 an in-flight read that fails still clears loading and renders the type
 		request: inflight.request,
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 	inflight.reject(new Error('diagnostics unavailable'));
 	const outcome = await inFlight;
@@ -263,6 +267,7 @@ test('C-5 the same scope resolving twice does not open a new epoch and still per
 		request: async () => ({ data: diagnostics() }),
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 
 	assert.equal(await run(), 'persisted');
@@ -310,6 +315,7 @@ test('C-5 adversarial: a reply from a superseded scope is discarded and never to
 		request: stale.request,
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 
 	// A real scope change: the new scope resolves and opens a new epoch.
@@ -318,6 +324,7 @@ test('C-5 adversarial: a reply from a superseded scope is discarded and never to
 		request: () => new Promise(() => {}),
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 
 	// The obsolete reply lands LAST.
@@ -347,12 +354,14 @@ test('C-5 a superseded failure cannot clear the current scope loading flag eithe
 		request: stale.request,
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 	const current = loadAuthorityDiagnosticsForScope({
 		epoch, scopeRef, scopeId: SCOPE_B,
 		request: () => new Promise(() => {}),
 		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
 		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => true,
 	});
 
 	stale.reject(new Error('obsolete scope failed'));
@@ -360,4 +369,58 @@ test('C-5 a superseded failure cannot clear the current scope loading flag eithe
 	assert.equal(payload, 'CURRENT_SCOPE_STATE');
 	assert.equal(loading, true, 'an obsolete failure must not clear the new scope loading flag');
 	void current;
+});
+
+/* ================================================================== *
+ * C-6R2 — a superseded SAME-scope dispatch must be discarded
+ * ================================================================== */
+
+test('C-6R2 a superseded same-scope reply is discarded (the newer payload survives)', async () => {
+	installEmptyLocalStorage();
+	const { loadAuthorityDiagnosticsForScope } = await import('@/hooks/useTeachingLoadData');
+
+	const precedence = createDispatchPrecedence();
+	const epoch = createScopeEpoch();
+	const scopeRef: { current: string | null } = { current: null };
+	let payload: TeachingLoadAuthorityDiagnosticsPayload | null = null;
+	let loading = false;
+	const inflight = deferredRequest();
+
+	// The OLDER dispatch starts first, for SCOPE_A.
+	const olderId = precedence.begin();
+	const olderLoad = loadAuthorityDiagnosticsForScope({
+		epoch, scopeRef, scopeId: SCOPE_A,
+		request: inflight.request,
+		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
+		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => precedence.isLatest(olderId),
+	});
+	assert.equal(loading, true, 'the older read marks itself loading');
+
+	// The NEWER dispatch starts for the SAME scope and resolves FIRST.
+	const newerId = precedence.begin();
+	const newerPayload: TeachingLoadAuthorityDiagnosticsPayload = { ...diagnostics(), sourceRevision: 'rev-newer' };
+	const newerLoad = loadAuthorityDiagnosticsForScope({
+		epoch, scopeRef, scopeId: SCOPE_A,
+		request: async () => ({ data: newerPayload }),
+		setPayload: (next: TeachingLoadAuthorityDiagnosticsPayload | null) => { payload = next; },
+		setLoading: (next: boolean) => { loading = next; },
+		isLatestDispatch: () => precedence.isLatest(newerId),
+	});
+	assert.equal(await newerLoad, 'persisted', 'the newest dispatch persists');
+	assert.equal((payload as TeachingLoadAuthorityDiagnosticsPayload | null)?.sourceRevision, 'rev-newer');
+	assert.equal(loading, false);
+
+	// The older reply lands LAST. Scope identity and epoch are UNCHANGED (same
+	// scope, and `openDiagnosticsScope` is a no-op for it), so only dispatch
+	// precedence can reject it.
+	assert.equal(scopeRef.current, SCOPE_A, 'the fixture must keep one scope');
+	inflight.resolve({ data: { ...diagnostics(), sourceRevision: 'rev-older' } });
+	assert.equal(await olderLoad, 'discarded', 'a superseded same-scope reply must be discarded');
+	assert.equal(
+		(payload as TeachingLoadAuthorityDiagnosticsPayload | null)?.sourceRevision,
+		'rev-newer',
+		'the newer payload must survive the older reply',
+	);
+	assert.equal(loading, false, 'the older reply must not flip the loading flag');
 });
