@@ -160,7 +160,6 @@ test('XLSX production context resolves revision-effective published entries and 
 			draftEntries: [{ entryId: 'stale-draft', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45, termIndex: 1 }],
 		}) },
 		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
-		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
 		enrollProSchoolYearMirror: { findFirst: async () => ({ yearLabel: '2026-2027' }) },
 		sectionMirror: { findMany: async () => [] },
 		facultyMirror: { findMany: async () => [] },
