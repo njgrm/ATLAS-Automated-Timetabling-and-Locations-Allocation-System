@@ -35,10 +35,16 @@ No amend, rebase, reset, squash, merge, or push. Every commit is additive.
 `atlas-server/src/routes/export-presentation.router.ts` (new),
 `atlas-server/src/app.ts` (mount).
 
-**Server tests (7):** `tt-output-c05r1-teacher-program.test.ts` (new),
+**Server tests (6):** `tt-output-c05r1-teacher-program.test.ts` (new),
 `export-presentation-route.test.ts` (new), `export-presentation-postgres.test.ts` (new),
 `timetable-output-export-c03.test.ts`, `tt-output-c03r-route.test.ts`,
-`tt-output-c05-beneficiary-parity.test.ts`, `tt-output-c03r.test.ts`.
+`tt-output-c05-beneficiary-parity.test.ts`.
+
+_Inventory verified mechanically against `git diff --name-only
+691a7c4a..af2a54f9`: 21 paths (6 server tests). `tt-output-c03r.test.ts` is
+**not** in the range — its blob is identical at `691a7c4a` and `af2a54f9`
+(`21b3eaf44f4a144682aea48cb97bb26ae02a0a19`); it is listed in §7 only as an
+unchanged regression rerun._
 
 **Client (4 + 1 test):** `components/timetable/simple/exportPresentationApi.ts` (new),
 `components/timetable/simple/ExportPresentationSettingsDialog.tsx` (new),
@@ -164,7 +170,7 @@ mutant with `git checkout HEAD -- <path>` and verified clean.
 | `export-presentation-postgres.test.ts` | 1 / 1 / 0 |
 | `tt-output-c05-beneficiary-parity.test.ts` | 11 / 11 / 0 |
 | `timetable-output-export-c03.test.ts` | 7 / 7 / 0 |
-| `tt-output-c03r.test.ts` | 13 / 13 / 0 |
+| `tt-output-c03r.test.ts` (unchanged regression rerun; not in the correction range) | 13 / 13 / 0 |
 | `tt-output-c03r3.test.ts` | 12 / 12 / 0 |
 | `tt-output-c03r3-placement-term.test.ts` | 8 / 8 / 0 |
 | `tt-output-c03r-route.test.ts` | 15 / 15 / 0 |
@@ -220,7 +226,9 @@ assertion.
 
 ## 11. `origin/main` drift and predicted integration conflicts
 
-- `origin/main` at handoff: **`9530c7ea7c56febb4a3e31a62fafd0c011944a25`** (advanced from `9b82a98f` at dispatch).
+- `origin/main` at handoff: **`9530c7ea7c56febb4a3e31a62fafd0c011944a25`** (advanced from `9b82a98f` at dispatch); branch 25 ahead / 53 behind `84dd537b`.
+- `origin/main` re-verified during the docs-only correction: **`c6d83cb45f11c11ae98d3e3e26787f5341a30945`**; branch 27 ahead / 57 behind `84dd537b`. The merge-base is unchanged at **`84dd537bb2a2c045b8518c35b3a5372142e0080c`**.
+- `origin/main` moved 4 more commits between the handoff and this correction; the overlap lint below was re-run against the newer tip and still holds.
 - Merge-base with this tip: **`84dd537bb2a2c045b8518c35b3a5372142e0080c`**; branch is 25 ahead / 53 behind.
 - Overlap lint (`84dd537b..origin/main` changed paths ∩ my cumulative paths): **no overlapping paths** → predicted same-file merge conflicts: **none**.
 - Remaining risks: (a) both branches add files under `prisma/migrations/` — origin currently has no `0003_*`, so no collision today; (b) `prisma/schema.prisma` and `atlas-server/src/app.ts` are single-site additive edits that union cleanly; (c) `docs/plans/**` on `origin/main` is a WF lane surface this range does not touch.

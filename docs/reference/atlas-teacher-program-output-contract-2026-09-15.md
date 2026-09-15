@@ -94,7 +94,7 @@ separately gated lane), **HISTORICAL** (superseded).
 | §2.6 break minutes contribute zero | CURRENT_STATE | control 4 |
 | §3 template parity (border/header/title/table/merged bands/compaction/load/profile/signatures/footer) | REQUIREMENT — implemented (CURRENT_STATE) | control 12 render checklist; 1-page render (control 13) |
 | §3.1 one-page portrait when the canonical row count fits | CURRENT_STATE | generated fixture = 1 page; template = 1 page |
-| Region/division/district identity lines and DepEd/school logo images | SUCCESSOR | no persisted ATLAS source; omitted/placeholder per §3.8 (never invented). Needs the EnrollPro branding contract |
+| Region/division/district identity lines and DepEd/school logo images | SUCCESSOR | no persisted ATLAS source; omitted/placeholder under the final paragraph of §3 ("Missing optional identity values shall render as intentional blank signature lines or omitted optional lines, never invented data"). Needs the EnrollPro branding contract |
 | §2.5 vs the scanned template's `ARAL Program 0 min` row | HISTORICAL (template detail superseded) | the binding contract removes ARAL; the generated form omits the row |
 | §2 load block totals convention | REQUIREMENT — clarified | the form states the **per-day** teaching figure (`225 mins` for five 45-minute sessions), not the weekly sum; `perDayTeachingMinutes` / `perDayTotalTeachingLoad` render the totals row and load block (`0b48b1a1`) |
 | §4.1 editable School Head/PSDS/CID Chief/ASDS names + titles; teacher from the selected teacher | CURRENT_STATE | `export-presentation.service.ts` + `ExportPresentationSettingsDialog.tsx`; controls 8, 10 |
@@ -106,7 +106,7 @@ separately gated lane), **HISTORICAL** (superseded).
 | §4.7 JWT role, positive actor, actor-school equality, exact year scope; stale writes fail typed | CURRENT_STATE | mounted matrix (401/403/cross-school/stale 409/validation 400) |
 | §5 ordered-term timetable entries remain the sole class-session authority | CURRENT_STATE | projection consumes resolved selected-term entries only; control 7 |
 | §5 `SchedulingPolicy`/`PolicySpecialEvent` remain the time/break authority | CURRENT_STATE | `resolveCanonicalIntervals` |
-| §5 EnrollPro public settings remain the branding authority | CURRENT_STATE | `branding.schoolName` from the persisted school |
+| §5 EnrollPro public settings remain the branding authority | REQUIREMENT (future); CURRENT_STATE only for ATLAS-persisted school identity | the DOCX reads the ATLAS `School.name` server-side (`teacher-program-export.service.ts`, `branding.schoolName`); EnrollPro branding consumption is client-side only (`atlas-client/src/lib/settings.ts`). EnrollPro-sourced branding lines and logos remain SUCCESSOR — see the region/division/district row above |
 | §5 ATLAS owns signatory configuration + its publication revision | CURRENT_STATE | new `TeacherProgramPresentationRevision` store |
 | §5 no read/export creates/normalises/repairs policy or signatory rows | CURRENT_STATE | instrumented zero-write export + zero-write read/preview |
 | §5 a schema/migration source may be added; applying it is a separate HIGH action | REQUIREMENT — source added, NOT applied | `prisma/migrations/0003_teacher_program_presentation/migration.sql`; disposable-PG proof only |
