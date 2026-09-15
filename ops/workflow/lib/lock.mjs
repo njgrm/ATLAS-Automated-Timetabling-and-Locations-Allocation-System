@@ -37,10 +37,14 @@ function sleepSync(ms) {
   Atomics.wait(shared, 0, 0, ms);
 }
 
-export function lockPathFor(repoRoot) {
+// The lock file name is a parameter so a disjoint surface (for example the
+// WF-C03 browser-custody lease) can serialize through its own lock file while
+// reusing these exact publish/reclaim/claim-mutex semantics. The default keeps
+// the state-transition lock name unchanged.
+export function lockPathFor(repoRoot, lockName = LOCK_FILE_NAME) {
   const common = repoRoot ? gitCommonDir(repoRoot) : null;
   const base = common || repoRoot || os.tmpdir();
-  return path.join(base, LOCK_FILE_NAME);
+  return path.join(base, lockName);
 }
 
 // Liveness probe for a recorded owner pid. A missing process proves the owner is
@@ -184,13 +188,14 @@ function reclaimDeadLock({ lockPath, expectedFingerprint, tempPath }) {
  */
 export function acquireLock({
   repoRoot,
+  lockPath: explicitLockPath,
   transition,
   streamId,
   statePath,
   maxInspect = DEFAULT_MAX_INSPECT,
   backoffMs = DEFAULT_BACKOFF_MS,
 } = {}) {
-  const lockPath = lockPathFor(repoRoot);
+  const lockPath = explicitLockPath || lockPathFor(repoRoot);
   const record = {
     schema: LOCK_SCHEMA,
     ownerPid: process.pid,
@@ -305,8 +310,8 @@ export function releaseLock(lock) {
   }
 }
 
-export function inspectLock(repoRoot) {
-  const lockPath = lockPathFor(repoRoot);
+export function inspectLock(repoRoot, lockName = LOCK_FILE_NAME) {
+  const lockPath = lockPathFor(repoRoot, lockName);
   const verdict = classifyLock(lockPath);
   if (verdict.kind === "GONE") return { held: false, lockPath, owner: null, ownerAlive: false, unreadable: false };
   return {
