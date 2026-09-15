@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T14:30:48.351Z",
+    "lastUpdatedAt": "2026-09-15T14:48:13.663Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 70
+    "revision": 71
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1872,8 +1872,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
-        "auditorVerdict": "PLANNER_DECISION_REQUIRED",
-        "auditorSessionId": "ses_f5af99f31ffeVXFRg4giOTvy7E",
+        "auditorVerdict": "CORRECTION_REQUIRED",
+        "auditorSessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -1906,8 +1906,8 @@
           "reason": "C-6: operator-authorized exceptional final correction round (the live directive 76631646 governs at the unresolved closure boundary). Binds every sibling actor-school/year authority feed in useTeachingLoadData.ts to the dispatch scope (warm-cache, cold-success, fallback/catch, finally) through one ScopeBoundWrite currency predicate; adds a committed failing-first scope-transition control and the two committed R5 rendering mutants (removed producer member; dropped unknown value). C-4 and C-5 behavior preserved.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "CORRECTION_REQUIRED",
+          "auditorSessionId": "ses_f5a84e712ffe5apLeArTOcUfOx"
         }
       ],
       "successors": [],
@@ -1934,10 +1934,10 @@
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T14:30:48.351Z",
-      "nextAction": "Commission the fresh post-C-6 Wave Completion Auditor at high over integration 246ba41e and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the eligible clean worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
+      "stateUpdatedAt": "2026-09-15T14:48:13.663Z",
+      "nextAction": "Post-C-6 wave audit CORRECTION_REQUIRED (9/8/0/0, 1 failed): the operator-authorized rule-2 requirement is still unmet — the null-binding catch/finally branch writes a superseded fetch, there is no dispatch-order precedence, and the pre-binding identity setters are unguarded. Dispatch the bounded C-6R completion (dispatch-order precedence plus guarded null-binding and identity-setter writes, with one committed overlapping-fetch failing-first control) to the existing executor on work/tl-operator-workspace-c05-scope-epoch; then fresh QA and a fresh Wave Completion Auditor before closure and receipt.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded correction commit"
       ],
       "running": [],
       "git": {
@@ -1977,7 +1977,7 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5af99f31ffeVXFRg4giOTvy7E",
+          "sessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
           "status": "RETURNED",
           "writable": false
         }
