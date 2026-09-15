@@ -61,12 +61,17 @@ function diagnostics(
 			policyStatus: 'CONFIGURED',
 			teachingStandardMinutes: 1800,
 			hardCapMinutes: 2400,
-			beforeTeachingMinutes: 3900,
-			afterTeachingMinutes: 3900,
+			// FIVE active faculty rows (incl. zero-load) totalling 7500 minutes.
+			// Deliberately not the owned-pair count (2), and per-faculty excess is
+			// 900 + 1800 = 2700 — not `7500 - 1800`.
+			beforeTeachingMinutes: 7500,
+			afterTeachingMinutes: 7500,
 			beforeOverStandardCount: 2,
 			afterOverStandardCount: 2,
-			beforeOverHardCapCount: 1,
-			afterOverHardCapCount: 1,
+			beforeOverHardCapCount: 2,
+			afterOverHardCapCount: 2,
+			capacityMinutes: 9000,
+			beforeExcessMinutes: 2700,
 		},
 		candidateCountsByDepartment: [],
 		unresolvedReasons: [{ code: 'UNOWNED_PAIR', scope: 'PAIR', message: 'FIL G7-1002 has no qualified owner.' }],
@@ -117,12 +122,12 @@ test('R3 the rendered panel shows every canonical metric with its authoritative 
 		['teaching-load-truth-required-pairs', '3'],
 		['teaching-load-truth-assigned-pairs', '2 (1 real, 1 temp)'],
 		['teaching-load-truth-unresolved-pairs', '1'],
-		['teaching-load-truth-actual-hours', '65h'],
+		['teaching-load-truth-actual-hours', '125h'],
 		['teaching-load-truth-standard', '30h'],
 		['teaching-load-truth-hard-cap', '40h'],
-		['teaching-load-truth-over-standard', '2 (+35h)'],
-		['teaching-load-truth-over-hard-cap', '1'],
-		['teaching-load-truth-remaining', '0h'],
+		['teaching-load-truth-over-standard', '2 (+45h)'],
+		['teaching-load-truth-over-hard-cap', '2'],
+		['teaching-load-truth-remaining', '25h'],
 		['teaching-load-truth-zero-load', '1'],
 		['teaching-load-truth-advisers', '1'],
 		['teaching-load-truth-advisory-credit', '5h'],
@@ -184,6 +189,58 @@ test('R3 minutes convert to hours only for display', () => {
 });
 
 /* ================================================================== *
+ * C-2 — corrected capacity/excess math (unit-coherent with the producer)
+ * ================================================================== */
+
+test('C-2 remaining capacity uses the canonical capacityMinutes basis, not the owned-pair count', () => {
+	const payload = diagnostics();
+	const totals = payload.overloadCapacityTotals;
+	const { model } = renderPanel(payload);
+
+	// The fixture deliberately separates the two candidate bases.
+	assert.notEqual(payload.ownedSubjectSectionPairs.length, 5);
+
+	// The retired formula multiplied the standard by the owned-PAIR count.
+	const retiredMixedUnitRemaining = Math.max(
+		0,
+		(totals.teachingStandardMinutes as number) * payload.ownedSubjectSectionPairs.length - totals.beforeTeachingMinutes,
+	);
+	assert.equal(retiredMixedUnitRemaining, 0);
+
+	assert.ok(isKnown(model.remainingCapacityMinutes));
+	assert.equal(model.remainingCapacityMinutes.value, (totals.capacityMinutes as number) - totals.beforeTeachingMinutes);
+	assert.equal(model.remainingCapacityMinutes.value, 1500);
+	assert.notEqual(model.remainingCapacityMinutes.value, retiredMixedUnitRemaining);
+});
+
+test('C-2 excess uses the per-faculty sum, not the aggregate minus one standard', () => {
+	const payload = diagnostics();
+	const totals = payload.overloadCapacityTotals;
+	const { model } = renderPanel(payload);
+
+	const retiredMixedUnitExcess = Math.max(0, totals.beforeTeachingMinutes - (totals.teachingStandardMinutes as number));
+	assert.equal(retiredMixedUnitExcess, 5700);
+
+	assert.ok(isKnown(model.overload));
+	assert.equal(model.overload.value.excessMinutes, totals.beforeExcessMinutes);
+	assert.equal(model.overload.value.excessMinutes, 2700);
+	assert.notEqual(model.overload.value.excessMinutes, retiredMixedUnitExcess);
+});
+
+test('C-2 a configured policy with a null canonical basis fails closed per metric', () => {
+	const base = diagnostics();
+	const payload = diagnostics({
+		overloadCapacityTotals: { ...base.overloadCapacityTotals, capacityMinutes: null, beforeExcessMinutes: null },
+	});
+	const { model } = renderPanel(payload);
+	assert.equal(model.remainingCapacityMinutes.state, 'unknown');
+	assert.equal(model.overload.state, 'unknown');
+	// The other policy metrics stay truthful.
+	assert.ok(isKnown(model.policyCapacity));
+	assert.ok(isKnown(model.actualTeachingMinutes));
+});
+
+/* ================================================================== *
  * R3 — fail-closed controls
  * ================================================================== */
 
@@ -213,6 +270,8 @@ test('R3 an UNCONFIGURED workload policy fails closed for capacity, overload, an
 			afterOverStandardCount: 0,
 			beforeOverHardCapCount: 0,
 			afterOverHardCapCount: 0,
+			capacityMinutes: null,
+			beforeExcessMinutes: null,
 		},
 	}), 'UNCONFIGURED');
 
@@ -259,6 +318,8 @@ test('R3 a zero teaching standard is not a configured policy', () => {
 				afterOverStandardCount: 0,
 				beforeOverHardCapCount: 0,
 				afterOverHardCapCount: 0,
+				capacityMinutes: 0,
+				beforeExcessMinutes: 0,
 			},
 		}),
 		placeholderFacultyIds: PLACEHOLDERS,

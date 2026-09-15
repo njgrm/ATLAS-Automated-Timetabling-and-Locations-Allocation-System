@@ -59,6 +59,10 @@ export type TeachingLoadAuthorityDiagnosticsPayload = {
 		afterOverStandardCount: number;
 		beforeOverHardCapCount: number;
 		afterOverHardCapCount: number;
+		/** `standard x active faculty count`; null when unconfigured. */
+		capacityMinutes: number | null;
+		/** Sum of per-faculty minutes above the standard; null when unconfigured. */
+		beforeExcessMinutes: number | null;
 	};
 	candidateCountsByDepartment: Array<{ department: string; candidateCount: number; demandedPairCount: number }>;
 	unresolvedReasons: Array<{ code: string; scope: string; pairKey?: string; facultyId?: number; message: string }>;
@@ -167,21 +171,33 @@ export function buildTeachingLoadTruthModel(input: BuildTeachingLoadTruthInput):
 
 	const actualTeachingMinutes: TruthMetric<number> = policyConfigured
 		? known(totals.beforeTeachingMinutes)
-		: unknown(policyConfigured ? NO_AUTHORITY : NO_STANDARD);
+		: unknown(input.workloadPolicyStatus === 'UNCONFIGURED' ? NO_POLICY : NO_STANDARD);
+
+	// Canonical basis guard: `capacityMinutes` and `beforeExcessMinutes` are
+	// computed server-side over the same faculty rows `beforeTeachingMinutes`
+	// sums over. When either is null the metric is unknown — never re-derived
+	// from an owned-pair count or from a single teacher's standard.
+	const capacityMinutesAvailable =
+		policyConfigured && typeof totals.capacityMinutes === 'number' && Number.isFinite(totals.capacityMinutes);
+	const excessMinutesAvailable =
+		policyConfigured && typeof totals.beforeExcessMinutes === 'number' && Number.isFinite(totals.beforeExcessMinutes);
 
 	// Overload is meaningful only against a persisted standard/hard cap.
-	const overload: TruthMetric<{ overStandardCount: number; overHardCapCount: number; excessMinutes: number }> = policyConfigured
+	const overload: TruthMetric<{ overStandardCount: number; overHardCapCount: number; excessMinutes: number }> = excessMinutesAvailable
 		? known({
 			overStandardCount: totals.beforeOverStandardCount,
 			overHardCapCount: totals.beforeOverHardCapCount,
-			excessMinutes: Math.max(0, totals.beforeTeachingMinutes - (totals.teachingStandardMinutes as number)),
+			// Canonical per-faculty excess (sum of max(0, row - standard)).
+			excessMinutes: totals.beforeExcessMinutes as number,
 		})
 		: unknown(input.workloadPolicyStatus === 'UNCONFIGURED' ? NO_POLICY : NO_STANDARD);
 
-	// Remaining capacity is a per-scope aggregate that is only honest when the
-	// count of teachers carrying the standard is authoritative.
-	const remainingCapacityMinutes: TruthMetric<number> = policyConfigured
-		? known(Math.max(0, (totals.teachingStandardMinutes as number) * Math.max(0, real) - totals.beforeTeachingMinutes))
+	// "Remaining" is aggregate headroom only: total standard capacity across the
+	// active faculty minus current teaching minutes. It says nothing about how
+	// evenly the load is distributed — distribution quality is shown separately
+	// by the over-standard and over-hard-cap counts above.
+	const remainingCapacityMinutes: TruthMetric<number> = capacityMinutesAvailable
+		? known(Math.max(0, (totals.capacityMinutes as number) - totals.beforeTeachingMinutes))
 		: unknown(input.workloadPolicyStatus === 'UNCONFIGURED' ? NO_POLICY : NO_STANDARD);
 
 	const unowned = (diagnostics.unownedActiveFaculty ?? []).filter(Boolean);
