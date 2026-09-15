@@ -646,7 +646,6 @@ export default function TeachingLoad() {
 								saving={data.saving}
 								advancedGridVisible={advancedGridVisible}
 								onPrimaryAction={handleRepairPrimaryAction}
-								onToggleAdvancedGrid={() => setAdvancedGridVisible(true)}
 							/>
 						</div>
 

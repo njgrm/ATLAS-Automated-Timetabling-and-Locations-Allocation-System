@@ -316,10 +316,51 @@ test('R1 dead props, dead literal, and the clipped candidate list are removed', 
 	assert.doesNotMatch(inspector, /onClose/);
 });
 
+test('R1 the advanced-grid reveal control exists exactly once across the workspace', () => {
+	const repairQueue = source('src/components/faculty-assignments/TeachingLoadRepairQueue.tsx');
+	const placeholder = source('src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx');
+
+	// Both surfaces render in exactly the `!advancedGridVisible` state, so the old
+	// copy here was a simultaneously-visible duplicate target with a duplicate id.
+	assert.doesNotMatch(repairQueue, /teaching-load-advanced-grid-toggle/);
+	assert.doesNotMatch(repairQueue, /Browse all/);
+	assert.doesNotMatch(repairQueue, /onToggleAdvancedGrid/);
+	assert.match(placeholder, /teaching-load-advanced-grid-toggle/);
+
+	const candidates = [
+		'src/components/faculty-assignments/TeachingLoadRepairQueue.tsx',
+		'src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx',
+		'src/pages/TeachingLoad.tsx',
+	];
+	const owners = candidates.filter((file) => source(file).includes('teaching-load-advanced-grid-toggle'));
+	assert.deepEqual(owners, ['src/components/faculty-assignments/TeachingLoadGuidedModePlaceholder.tsx']);
+});
+
+test('R1 the over-cap and excess chips stay distinct and each is a real control', () => {
+	const overcap = renderToolbar({ overCapCount: 2, excessTeachingCount: 0, syntheticPlaceholderPairs: 0 });
+	assert.match(overcap, /Above weekly max: 2/);
+	assert.match(overcap, /data-testid="teaching-load-alert-over-cap"/);
+	assert.doesNotMatch(overcap, /teaching-load-alert-excess/);
+
+	const excess = renderToolbar({ overCapCount: 0, excessTeachingCount: 5, syntheticPlaceholderPairs: 0 });
+	assert.match(excess, /Excess teaching load: 5/);
+	assert.match(excess, /data-testid="teaching-load-alert-excess"/);
+	// One policy threshold at a time; the weekly-max chip always wins when both
+	// would qualify, so the operator is never shown two competing alerts.
+	assert.doesNotMatch(excess, /teaching-load-alert-over-cap/);
+});
+
+test('R1 the page-level retry and the toolbar retry are mutually exclusive, not duplicates', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	// The full-page error state returns early, so the toolbar (and its inline
+	// retry) cannot co-render with it.
+	assert.match(page, /if \(data\.error && data\.dataSource === 'none'\) \{/);
+	assert.match(page, /Retry Connection/);
+});
+
 /* ================================================================== *
  * R2 — vertical space and no cramped nested scroll traps
  * ================================================================== */
-
 test('R2 the owner picker grows with the viewport instead of clipping at a fixed 300px', () => {
 	const sectionGrid = source('src/components/faculty-assignments/SectionGridMode.tsx');
 	assert.match(sectionGrid, /max-h-\[min\(60vh,26rem\)\]/);
