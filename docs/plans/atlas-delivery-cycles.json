@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T17:08:10.639Z",
+    "lastUpdatedAt": "2026-09-16T01:12:00+08:00",
     "lastUpdatedBy": "primary-planner",
-    "revision": 85
+    "revision": 86
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -673,13 +673,16 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "EXTERNALLY_BLOCKED",
-      "stateUpdatedAt": "2026-09-15T17:08:10.639Z",
-      "nextAction": "Provision an elevated execution context (admin rights able to capture/re-point/run the SYSTEM ATLAS-Runtime-Supervisor task); then re-open a fresh observation window (probe both EnrollPro endpoints, set presentedReady=true) and dispatch the elevated executor for the approved packet.",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T01:12:00+08:00",
+      "nextAction": "Elevated executor executing the approved packet (docs/prompts/enrollpro-proxy-recovery-live-resume-2026-09-16.md) in E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915; fresh independent QA over the frozen evidence candidate follows.",
       "awaited": [
-        "elevated execution context for the approved live recovery"
+        "elevated executor return for the approved live recovery (acceptance matrix + evidence candidate)",
+        "fresh independent QA over the frozen evidence candidate"
       ],
-      "running": [],
+      "running": [
+        "elevated executor executing ENROLLPRO-PROXY-RECOVERY-LIVE in E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915"
+      ],
       "git": {
         "worktree": "E:\\ATLAS-worktrees\\enrollpro-proxy-recovery-live-20260915",
         "branch": "work/enrollpro-proxy-recovery-live-20260915",
@@ -723,13 +726,13 @@
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
           "sessionId": null,
-          "status": "NONE",
-          "writable": false
+          "status": "ACTIVE",
+          "writable": true
         },
         "qa": {
           "sessionId": null,
@@ -789,14 +792,14 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "EXTERNAL",
-        "detail": "Elevated execution context unavailable: executor ses_f5c4f8b88ffe2wPV3GZ0zujIGg (2026-09-15 ~14:12-14:14 +08) confirmed a non-elevated session (Medium integrity; Administrators deny-only; schtasks query/XML denied), so the SYSTEM task could not be captured, re-pointed, or run; it stopped BEFORE any mutation (zero mutation; no candidate commit). Both EnrollPro probes returned HTTP 200 in the live window. An elevated context must be provisioned before the approved packet can execute.",
+        "kind": "NONE",
+        "detail": "",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
       "approval": {
         "required": true,
-        "presentedReady": false,
+        "presentedReady": true,
         "granted": true,
         "operatorIdentity": "operator:njgrm",
         "approvedAt": "2026-09-15T12:00:04+08:00",
@@ -821,10 +824,10 @@
         {
           "id": "obs-enrollpro-reachability",
           "target": "EnrollPro dev-jegs (100.120.169.123:5002)",
-          "checkedAt": "2026-09-15T14:09:07+08:00",
+          "checkedAt": "2026-09-16T01:12:00+08:00",
           "status": "PASS",
-          "expiresAt": "2026-09-15T14:24:07+08:00",
-          "detail": "Direct read-only probes at 2026-09-15T14:09:07-14:09:08 +08:00: https://dev-jegs.buru-degree.ts.net/api/settings/public HTTP 200; https://dev-jegs.buru-degree.ts.net/api/integration/v1/health HTTP 200. Window per the operator resume protocol (expiresAt = checkedAt + 15 min); the elevated executor repeats both probes immediately before the first runtime mutation."
+          "expiresAt": "2026-09-16T02:12:00+08:00",
+          "detail": "Planner read-only probes 2026-09-16T01:03-01:07 +08:00: https://dev-jegs.buru-degree.ts.net/api/settings/public HTTP 200 (1379 bytes); https://dev-jegs.buru-degree.ts.net/api/integration/v1/health HTTP 200 (292 bytes); ATLAS Tailnet health 200 while /enrollpro-api/settings/public returned 502 (the defect being repaired). Execution window 60 minutes (elevated context confirmed 2026-09-16); the elevated executor repeats both EnrollPro probes immediately before the first runtime mutation and stops if either fails."
         }
       ],
       "artifacts": [],
