@@ -77,6 +77,52 @@ function isNullOrCommittedSha(value) {
   return value === null || CANDIDATE_SHA_PATTERN.test(value);
 }
 
+// ---------------------------------------------------------------------------
+// Retired-conflation regression support (WF-SEED-PIN-C01).
+//
+// A stream records TWO different identities:
+//   * `git.candidateSha` / `git.integrationSha` — the reviewed docs/evidence
+//     candidate committed by the stream; and
+//   * the deployed PRODUCT release, which is an operational fact this registry
+//     records only inside `approval.boundary` / `approval.approvedActions` /
+//     `objective` prose (there is deliberately no structured registry field
+//     for deployed runtime identity yet).
+//
+// The seed suite previously asserted, for ENROLLPRO-PROXY-RECOVERY-LIVE only,
+// that `stream.git.candidateSha === <the deployed release literal>`, which
+// forced an evidence commit to equal a product pin. The helpers below derive
+// the deployed release identity structurally from prose — never from a
+// hard-coded literal — so the regression can prove the two stay distinct.
+// ---------------------------------------------------------------------------
+const SHA40_IN_PROSE_PATTERN = /\b[0-9a-f]{40}\b/g;
+
+function extractDeployedReleaseShas(stream) {
+  const prose = [
+    stream.objective,
+    stream.approval?.boundary,
+    ...(stream.approval?.approvedActions ?? []),
+  ]
+    .filter((value) => typeof value === "string")
+    .join("\n");
+  return [...new Set(prose.match(SHA40_IN_PROSE_PATTERN) ?? [])].sort();
+}
+
+// The retired rule expressed as a predicate: "the stream's candidateSha must
+// equal the deployed product release named in its own approval prose."
+// Reintroducing an assertion of this form must fail; the regression below
+// evaluates this predicate against the real committed registry and requires
+// false.
+function conflatesEvidenceWithDeployedRelease(stream) {
+  return extractDeployedReleaseShas(stream).includes(stream.git.candidateSha);
+}
+
+// Mutant control: the inverted predicate must return the opposite value,
+// proving the real-record evaluation above is an observable fact rather than a
+// vacuously false function.
+function invertedConflationPredicate(stream) {
+  return !conflatesEvidenceWithDeployedRelease(stream);
+}
+
 test("the seed declares the exact expected stream inventory with null-or-committed candidate SHAs", () => {
   const doc = JSON.parse(fs.readFileSync(STATE, "utf8"));
   assert.equal(doc.contractVersion, "1.2.0");
@@ -87,10 +133,6 @@ test("the seed declares the exact expected stream inventory with null-or-committ
   for (const stream of doc.streams) {
     assert.equal(Object.prototype.hasOwnProperty.call(stream.git, "remoteSha"), false, `${stream.id} must not carry the legacy remoteSha`);
     assert.equal(Object.prototype.hasOwnProperty.call(stream.git, "remoteObservation"), true, `${stream.id} must carry remoteObservation`);
-    if (stream.id === "ENROLLPRO-PROXY-RECOVERY-LIVE") {
-      assert.equal(stream.git.candidateSha, "54dce67b8392cbce09aa810813c37f9c87a67159");
-      continue;
-    }
     assert.ok(
       isNullOrCommittedSha(stream.git.candidateSha),
       `${stream.id} candidateSha must be null or a 40-hex lowercase SHA, got ${JSON.stringify(stream.git.candidateSha)}`,
@@ -103,13 +145,85 @@ test("the seed declares the exact expected stream inventory with null-or-committ
     "not-a-sha",
     "bcee9d0d92f43a55db4cbfa3a0a6306dd57d327", // 39 hex
     "BCEE9D0D92F43A55DB4CBFA3A0A6306DD57D3275", // uppercase
+    "0xBCEE9D0D92F43A55DB4CBFA3A0A6306DD57D3275", // prefixed
+    " bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275", // leading whitespace
+    "bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275 ", // trailing whitespace
     "",
     123,
+    undefined,
   ]) {
     assert.equal(isNullOrCommittedSha(malformed), false, `predicate must reject ${JSON.stringify(malformed)}`);
   }
   assert.equal(isNullOrCommittedSha(null), true);
   assert.equal(isNullOrCommittedSha("bcee9d0d92f43a55db4cbfa3a0a6306dd57d3275"), true);
+});
+
+// FAILING-FIRST REGRESSION for the retired seed assertion (WF-SEED-PIN-C01).
+// The old rule asserted that ENROLLPRO-PROXY-RECOVERY-LIVE's `git.candidateSha`
+// equalled its deployed product release. Those are two distinct identities: the
+// candidate is the committed docs/evidence boundary for the live-execution
+// stream, while the deployed release is an operational fact recorded only in
+// `approval.boundary` / `approval.approvedActions` / `objective` prose.
+//
+// Load-bearing: if anyone reintroduces a rule of the form
+// `stream.git.candidateSha === <deployed release>` — whether as the original
+// hard-coded literal or as a value derived from the stream's own prose — the
+// assertions below fail, because the conflation predicate is required to be
+// false on the real committed registry while its inversion is required true.
+test("an evidence candidate may differ from the deployed product release", () => {
+  const doc = JSON.parse(fs.readFileSync(STATE, "utf8"));
+  const stream = doc.streams.find((s) => s.id === "ENROLLPRO-PROXY-RECOVERY-LIVE");
+  assert.ok(stream, "the deployed-release regression stream must remain registered");
+
+  const evidenceCandidate = stream.git.candidateSha;
+  const deployedReleaseShas = extractDeployedReleaseShas(stream);
+
+  // (a) the general invariant must still accept the real evidence candidate.
+  assert.ok(
+    isNullOrCommittedSha(evidenceCandidate),
+    `the real evidence candidate must satisfy the general invariant, got ${JSON.stringify(evidenceCandidate)}`,
+  );
+  assert.ok(
+    CANDIDATE_SHA_PATTERN.test(evidenceCandidate),
+    "this regression is only meaningful while the stream carries a committed evidence candidate",
+  );
+
+  // The deployed release must be derivable from the stream's own prose and must
+  // itself be a committed 40-hex lowercase identity.
+  assert.ok(deployedReleaseShas.length > 0, "the approval/objective prose must name the deployed release SHA");
+  for (const sha of deployedReleaseShas) {
+    assert.ok(CANDIDATE_SHA_PATTERN.test(sha), `deployed-release prose token must be a committed SHA, got ${JSON.stringify(sha)}`);
+  }
+  const deployedRelease = deployedReleaseShas[0];
+
+  // (b) the evidence candidate and the deployed release are distinct values.
+  assert.notEqual(
+    evidenceCandidate,
+    deployedRelease,
+    "the evidence candidate must not be conflated with the deployed product release",
+  );
+
+  // (c) the explicit conflation predicate — the retired rule, derived rather
+  // than hard-coded — must be false on the real record, and its inverted mutant
+  // must be true so a vacuous implementation cannot pass this control.
+  assert.equal(
+    conflatesEvidenceWithDeployedRelease(stream),
+    false,
+    "the retired candidateSha == deployed-release rule must not hold on the real registry",
+  );
+  assert.equal(
+    invertedConflationPredicate(stream),
+    true,
+    "the inverted mutant must return true, proving the predicate is observable",
+  );
+
+  // The retired rule in its exact assertion form. This call must throw: it is
+  // the proof that reintroducing the old equality assertion cannot pass here.
+  assert.throws(
+    () => assert.equal(evidenceCandidate, deployedRelease, "retired conflation rule"),
+    (err) => err && err.code === "ERR_ASSERTION",
+    "the retired candidateSha == deployed-release assertion must fail on the real registry",
+  );
 });
 
 test("the generated register is a distinct file from the historical prose register", () => {
