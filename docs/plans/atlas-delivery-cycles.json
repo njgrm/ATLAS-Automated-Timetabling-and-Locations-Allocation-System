@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T09:42:22.893Z",
+    "lastUpdatedAt": "2026-09-15T10:06:51.976Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 39
+    "revision": 40
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -1491,8 +1491,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5c42c3feffe7ZgXXVNc8UjRLI",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "CORRECTION_REQUIRED",
+        "auditorSessionId": "ses_f5b8c0d99ffezvYYAlXQ5os1sv",
         "auditRequired": true
       },
       "corrections": [],
@@ -1520,10 +1520,10 @@
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T09:42:22.893Z",
-      "nextAction": "Commission the fresh post-integration Wave Completion Auditor over integration 87aa24a3 (pushed as origin/main) and this register tip; on AUDIT_CLEAR record the capsule and close the cycle with its receipt. All live Teaching Load actions, deployment, generation, publication, migration, and companion edits remain locked.",
+      "stateUpdatedAt": "2026-09-15T10:06:51.976Z",
+      "nextAction": "Dispatch the bounded F2 cold-load correction to the existing C05 executor on work/tl-operator-workspace-c05; then fresh QA, current-main re-integration, and a fresh post-correction Wave Completion Auditor. The INTEGRATED reopen is not expressible by the transition set and will follow the documented WF-C02 validated-update pattern (direct edit + render-register + verify-cycle exit 0, disclosed).",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded correction commit"
       ],
       "running": [],
       "git": {
@@ -1584,8 +1584,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b8c0d99ffezvYYAlXQ5os1sv",
+          "status": "RETURNED",
           "writable": false
         }
       },
