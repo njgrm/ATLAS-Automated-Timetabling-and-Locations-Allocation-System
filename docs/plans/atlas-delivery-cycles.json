@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T20:05:31.049Z",
+    "lastUpdatedAt": "2026-09-15T20:44:39.498Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 103
+    "revision": 109
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "TL-DIAGNOSTICS-LOADING-C06",
-    "globalNextAction": "WF-SEED-TERM-CACHE-TL-C06-20260916 (CYCLE_ACTIVE): Phase 0 WF-SEED-PIN-C01 is INTEGRATED and pushed at 46d9499d (fresh QA ACCEPT_READY 10/10/0/0). Lane B TL-DIAGNOSTICS-LOADING-C06 is the active source lane; Lane A TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 is a HIGH preparation lane returning an approval sentence only. Every live/HIGH action (term-cache apply, migration, deployment, restart, env change, login, Teaching Load apply, generation, publication) remains locked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "TL-DIAGNOSTICS-LOADING-C06 ACCEPT_READY 14/14/0/0/0; integration merge 3d1b783b and closure follow in this turn. TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 remains a HIGH preparation lane returning an approval sentence only. Every live/HIGH action stays locked."
   },
   "streams": [
     {
@@ -2821,27 +2821,26 @@
       "kind": "STREAM",
       "objective": "Fix the Teaching Load authority-diagnostics loading-state orphan in atlas-client/src/hooks/useTeachingLoadData.ts without weakening dispatch precedence or actor-school/year scope protection: loading ownership becomes dispatch-scoped, a stale dispatch cannot clear loading owned by a newer active dispatch, a newest dispatch that aborts before request binding terminates or transfers ownership, and newest success and newest typed failure each clear loading exactly once.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T20:05:31.049Z",
-      "nextAction": "Executor implements the bounded client correction on branch work/tl-diagnostics-loading-c06 in E:/ATLAS-worktrees/tl-diagnostics-loading-c06 per the cycle Lane-B handoff and returns REVIEW_REQUIRED; the planner then records the return and dispatches fresh independent QA.",
-      "awaited": [
-        "executor REVIEW_REQUIRED return for the TL-DIAGNOSTICS-LOADING-C06 candidate",
-        "fresh independent QA over the frozen candidate"
-      ],
-      "running": [
-        "executor implementation session on branch work/tl-diagnostics-loading-c06"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T20:44:39.498Z",
+      "nextAction": "QA ACCEPT_READY over 46d9499d...b72dd3c6 (mandatory source gates 14/14/0/0/0 = the ten required real-lifecycle controls including the load-bearing mutant, plus client tsc, client production build, git diff --check, and exact changed-path attribution; QA consolidated headline tally was 10/10/0/0). Next: move coordination off the active cycle, record the integration merge, close with the receipt, clear the lease, and push.",
+      "awaited": [],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tl-diagnostics-loading-c06",
         "branch": "work/tl-diagnostics-loading-c06",
         "baseSha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "candidateSha": "b72dd3c6b2b32e439e332f9a042b4c5117fa6f7b",
+        "integrationSha": "3d1b783ba942b99b05e2d5bd753fdbbd7653a60c",
+        "changedPaths": [
+          "atlas-client/src/hooks/useTeachingLoadData.ts",
+          "atlas-client/src/lib/__tests__/tl-authority-diagnostics-cold-load.test.ts",
+          "docs/handoffs/tl-diagnostics-loading-c06-executor.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "46d9499d8bc3993e522d7008ef7a08534ed2badb",
-          "observedAt": "2026-09-15T20:03:14.149Z",
+          "sha": "3d1b783ba942b99b05e2d5bd753fdbbd7653a60c",
+          "observedAt": "2026-09-15T20:44:08.908Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -2853,12 +2852,12 @@
         },
         "executor": {
           "sessionId": null,
-          "status": "IDLE",
-          "writable": true
+          "status": "RETURNED",
+          "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f593753b2ffeu4Irs4ByHuGbIQ",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -2869,10 +2868,10 @@
       },
       "gates": {
         "total": 14,
-        "passed": 0,
+        "passed": 14,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 14,
+        "unperformed": 0,
         "plan": {
           "MANDATORY_SOURCE": 14,
           "MANDATORY_LIVE": 0,
@@ -2881,10 +2880,10 @@
         "classes": {
           "MANDATORY_SOURCE": {
             "total": 14,
-            "passed": 0,
+            "passed": 14,
             "failed": 0,
             "blocked": 0,
-            "unperformed": 14
+            "unperformed": 0
           },
           "MANDATORY_LIVE": {
             "total": 0,
@@ -2903,12 +2902,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f593753b2ffeu4Irs4ByHuGbIQ",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": false,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f593753b2ffeu4Irs4ByHuGbIQ"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -2936,7 +2941,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/tl-diagnostics-loading-c06.receipt.json",
+          "sha256": "7dafa5e77584167a9052d592fbbe748fd6c41e717c9dfaec1fc8f02d54a9ab5b"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
@@ -2979,9 +2989,9 @@
       "worktree": "E:/ATLAS-worktrees/tl-diagnostics-loading-c06",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-15T20:05:31.049Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-15T20:44:36.589Z",
       "expiresAt": null
     }
   ],
