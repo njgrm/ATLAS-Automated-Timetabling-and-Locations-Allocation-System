@@ -5,11 +5,11 @@
 | Field | Value |
 |---|---|
 | Accepted base SHA | `0c20342394ca2ca800cecc6dd69825e07625c66d` (= refreshed `origin/main`; verified ancestor) |
-| Product/test candidate | `66bfcc34cff35a15269eb0d989e9be2aa676dc0f` |
+| Product/test candidate | `61b58b6d274c12f1feed636459a3035b987c814b` |
 | Frozen tip (incl. this handoff) | see the final tip recorded in the return message |
 | Branch | `work/tl-operator-workspace-c05` |
 | Worktree | `E:/ATLAS-worktrees/tl-operator-workspace-c05` |
-| Range | `0c203423..66bfcc34`, 6 commits, 22 paths, +2052 / −510 |
+| Range | `0c203423..61b58b6d`, 8 commits, 24 paths, +2383 / −538 |
 | Directive pin | LF-normalized `origin/main:AGENTS.md` SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (recomputed from `D:/ATLAS/AGENTS.md`; matched) |
 | Worktree disposition | `RETIRE_AFTER_INTEGRATION` (not retired here) |
 
@@ -23,6 +23,8 @@
 | 4 | `e6b91211` | docs(teaching-load): add TL-OPERATOR-WORKSPACE-C05 executor handoff |
 | 5 | `ed5736ea` | feat(teaching-load): surface canonical derived-demand truth (R3) |
 | 6 | `66bfcc34` | fix(teaching-load): restrict the eligibility widening to blank departments |
+| 7 | `a588b416` | docs(teaching-load): record R3, server tally, and blast radius in the C05 handoff |
+| 8 | `61b58b6d` | fix(teaching-load): unit-coherent capacity and excess metrics (correction C-2) |
 
 ## Dependency approach
 
@@ -32,7 +34,7 @@ tree. `npx prisma generate --schema ../prisma/schema.prisma` was required before
 the server type-check (writes only `node_modules/.prisma/client`). `E:` free at
 start 73.41 GiB (floor 15 GiB).
 
-## Exact changed paths (22)
+## Exact changed paths (24)
 
 ```
 M  atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx
@@ -56,12 +58,16 @@ M  atlas-client/src/lib/teaching-load-suggestion-diagnostics.ts
 A  atlas-client/src/lib/teaching-load-suggestion-presentation.ts
 M  atlas-client/src/pages/TeachingLoad.tsx
 M  atlas-client/src/types.ts
+A  atlas-server/src/__tests__/teaching-load-overload-capacity-totals.test.ts   <- C-2
+M  atlas-server/src/services/teaching-load-reconciliation.service.ts           <- C-2 (read-path only)
 A  docs/handoffs/tl-operator-workspace-c05-executor.md
 ```
 
-**Zero server paths changed.** No `package.json`, lockfile, `CHANGELOG.md`,
-`docs/plans/**`, `docs/reference/**`, register, receipt, `ui/**`, `lib/api.ts`,
-`app-shell/**`, `runtime/**`, `timetable/**` (audit-only, unedited),
+Two server paths changed, both for correction C-2 and both **read-path/test only**:
+a pure exported helper plus its hermetic test. No write behaviour, route,
+migration, schema, or persistence change. No `package.json`, lockfile,
+`CHANGELOG.md`, `docs/plans/**`, `docs/reference/**`, register, receipt, `ui/**`,
+`lib/api.ts`, `app-shell/**`, `runtime/**`, `timetable/**` (audit-only, unedited),
 `faculty-dashboard/**`, export surface, or ops file was touched.
 
 ## Control inventory and dispositions
@@ -136,8 +142,8 @@ per metric) and `components/faculty-assignments/TeachingLoadTruthPanel.tsx`
 | Unresolved pairs | set difference `demanded \ owned` by `pairKey` — never aggregate subtraction | chip |
 | Actual teaching minutes | `overloadCapacityTotals.beforeTeachingMinutes` | chip in hours |
 | Persisted policy capacity | `teachingStandardMinutes` / `hardCapMinutes` | chips |
-| Overload count + excess minutes | `beforeOverStandardCount` / `beforeOverHardCapCount` | chips |
-| Remaining capacity | derived only when policy configured | chip |
+| Overload count + excess minutes | `beforeOverStandardCount` / `beforeOverHardCapCount` + **`beforeExcessMinutes`** (sum of per-faculty over-standard minutes) | chips |
+| Remaining capacity | **`capacityMinutes − beforeTeachingMinutes`**, where `capacityMinutes = standard × active-faculty count` | chip |
 | Zero-load active faculty | `unownedActiveFaculty` | count chip + names on demand |
 | Adviser status | `validAdviserMappings` (roster authority) | count chip + names on demand |
 | Advisory credit | `advisoryCreditEligibility` — **policy-bound** | chip, unknown without policy |
@@ -145,16 +151,43 @@ per metric) and `components/faculty-assignments/TeachingLoadTruthPanel.tsx`
 
 **Fail-closed rules (proven):** no diagnostics ⇒ every metric `unknown`; or an
 `UNCONFIGURED` totals block / `UNCONFIGURED` summary status / non-positive
-standard ⇒ capacity, overload, remaining, actual, and advisory credit are
-`unknown` with the operator-visible reason. No invented `0`/`30h`/`5h`.
+standard, **or a null canonical basis (`capacityMinutes` / `beforeExcessMinutes`)**,
+⇒ capacity, overload, remaining, actual, and advisory credit are `unknown` with
+the operator-visible reason. No invented `0`/`30h`/`5h`.
+
+### Correction C-2 — unit-coherent capacity and excess
+
+A planner review found two unit-incoherent derivations in the first R3 cut, and
+the finding was independently confirmed against the real producer
+(`buildTeachingLoadAuthorityDiagnostics`): `beforeTeachingMinutes` is an aggregate
+over `plan.facultyWorkloads` (active, non-stale, non-placeholder faculty,
+including zero-load — constructed at `teaching-load-reconciliation.service.ts:1208-1221`).
+
+| Retired (unit-incoherent) | Corrected |
+|---|---|
+| `remaining = max(0, standard × ownedPairCount − beforeMinutes)` | `remaining = max(0, capacityMinutes − beforeMinutes)` where `capacityMinutes = standard × facultyCount` |
+| `excess = max(0, beforeMinutes − standard)` (aggregate minus ONE standard) | `excess = beforeExcessMinutes` = Σ `max(0, row.beforeMinutes − standard)` |
+
+Server read-path addition (no write-behaviour change): a new exported pure
+function `computeOverloadCapacityTotals(facultyWorkloads, policy)` plus
+`OverloadCapacityTotals` with `capacityMinutes` and `beforeExcessMinutes`, and the
+builder now delegates to it so the payload and the helper cannot drift. The dead
+`policyConfigured ? NO_AUTHORITY : NO_STANDARD` ternary in the actual-minutes
+unknown reason was removed.
 
 ### R3 failing-first mutants (performed, then restored byte-exact)
 
+Baseline blob `4d56a72aafb073598f7bb9a9b411e67e39f8af01`.
+
 | Mutant | Mutation | Result | Restore |
 |---|---|---|---|
-| M1 | null-authority branch fabricates `known(0)` | 13 tests, **12 pass / 1 fail** — "a missing canonical authority renders typed unknown" | blob `595c6da4520dbc25df1a2108fa3fce0f6e64563b` (byte-exact) |
-| M2 | summary-`UNCONFIGURED` override guard removed | 13 tests, **12 pass / 1 fail** — "a summary that reports UNCONFIGURED overrides a stale configured totals block" | blob `595c6da4…` |
-| M3 | policy-configured guards removed, standard defaulted to 1800 | 13 tests, **11 pass / 2 fail** — "UNCONFIGURED … fails closed" and the override test | blob `595c6da4…`; `git diff --quiet` exit 0 |
+| M1 | null-authority branch fabricates `known(0)` | 16 tests, **15 pass / 1 fail** — "a missing canonical authority renders typed unknown" | byte-exact |
+| M2 | summary-`UNCONFIGURED` override guard removed | 16 tests, **15 pass / 1 fail** — "a summary that reports UNCONFIGURED overrides a stale configured totals block" | byte-exact |
+| M3 | policy-configured guards removed, standard defaulted to 1800 | 16 tests, **13 pass / 3 fail** — UNCONFIGURED fail-closed, the override test, and the C-2 null-basis control | byte-exact |
+| M4 | C-2 formulas reverted to the mixed-unit versions | 16 tests, **13 pass / 3 fail** — the rendered chip shows `2 (+95h)` instead of the canonical `2 (+45h)`, plus both C-2 basis tests | byte-exact |
+
+All four restores verified: blob returns to `4d56a72a…`, `git status --porcelain=v2`
+empty, `git diff --quiet` exit 0.
 
 ## Server suite tally (explicit operator requirement)
 
@@ -168,8 +201,11 @@ standard ⇒ capacity, overload, remaining, actual, and advisory credit are
 | `teaching-load-distribution-plan.test.ts` | 13/13 pass |
 | `teaching-load-effective-workload-policy.test.ts` | 56/56 pass |
 | `teaching-load-suggestion-apply-parity.test.ts` | 34/34 pass |
+| `teaching-load-reconciliation.test.ts` **Part A** (hermetic) | 83 passed / 0 failed; Part B skipped (`requires DATABASE_URL`) |
+| `teaching-load-suggestion-authority.test.ts` **Part A** (hermetic) | 4 passed / 0 failed; Part B skipped |
+| `teaching-load-overload-capacity-totals.test.ts` **(new, C-2)** | 7/7 pass |
 | `generation-passive-teaching-load.test.ts` | PASS (GEN-ZW01 source/entry-point guards) |
-| `teaching-load-write-authority.test.ts` | PASS for the source-scan/authority guards; **DB-backed mounted-route rows not exercised** (emits `DATABASE_URL is not set`) |
+| `teaching-load-write-authority.test.ts` | PASS for the source-scan/authority guards; DB-backed mounted-route rows not exercised |
 
 ### Executed without a DB, full tally, zero failures
 
@@ -186,9 +222,8 @@ standard ⇒ capacity, overload, remaining, actual, and advisory credit are
 |---|---|
 | `teaching-load-summary-zero-write-route.test.ts` | `[FAIL] DATABASE_URL is unavailable; cannot run the live zero-write route test.` |
 | `teaching-load-reconciliation-route.test.ts` | `[FAIL] DATABASE_URL is unavailable.` |
-| `teaching-load-reconciliation.test.ts` | no tally; `[prisma] DATABASE_URL is not set` |
-| `teaching-load-suggestion-authority.test.ts` | no tally; `[prisma] DATABASE_URL is not set` |
-| `teaching-load-carry-forward-postgres.test.ts` | no tally; `[prisma] DATABASE_URL is not set` |
+| `teaching-load-carry-forward-postgres.test.ts` | `RESULT: 0 passed, 0 failed` — fully DB-gated, no hermetic assertions |
+| Part B of `teaching-load-reconciliation` / `teaching-load-suggestion-authority` / `uxc01r-derived-demand-route` / `teaching-load-write-authority` | `[SKIP] … requires DATABASE_URL` |
 
 **Exact reason.** The local PostgreSQL 18 cluster (`127.0.0.1:5432`) requires
 SCRAM password authentication; a credential-free probe returned
@@ -205,9 +240,11 @@ against live/shared data.**
 secret was read or printed. **Cleanup: nothing to clean up — zero database
 mutation occurred.** No live/shared database was touched.
 
-Because this candidate changes **zero server files**, none of the above can
-regress from this diff; the server `tsc --noEmit` (the gate a server change would
-break) passes with exit 0.
+The two server paths in this range are a pure exported helper plus its hermetic
+test (correction C-2); the diagnostics payload gained two fields read from the
+same `plan.facultyWorkloads` basis the builder already used, with no write
+behaviour change. The server `tsc --noEmit` and `npm run build` both exit 0, and
+the full hermetic server TL set is green.
 
 ## Shared-predicate blast radius (Section 3)
 
@@ -234,10 +271,11 @@ commit 6 (`66bfcc34`); QA should review the range as a whole.
 
 | Gate | Result |
 |---|---|
-| Client TL suite (C05 ×3 + `teaching-load-*` + helpers + `tt-tl-modules-*` + route-intent + ux-guardrails) | **206/206 pass, 0 fail** |
+| Client TL suite (C05 ×3 + `teaching-load-*` + helpers + `tt-tl-modules-*` + route-intent + ux-guardrails) | **209/209 pass, 0 fail** |
 | `npm run test:ux-guardrails` | 21/21 pass |
 | Client `tsc --noEmit` / `vite build` | exit 0 / `✓ built` |
-| Server `tsc --noEmit` (after `prisma generate`) | exit 0 |
+| Server hermetic TL set (11 suites incl. the new C-2 suite) | all pass / 0 fail |
+| Server `tsc --noEmit` and `npm run build` | exit 0 / exit 0 |
 | `git diff --check` / `--cached --check` | exit 0 |
 | Component line cap (1000) | max = `TeachingLoadTruthPanel` (new, ~300), `TeachingLoad.tsx` 847 |
 | No-scroll shell | `h-[calc(100svh-3.5rem)]`, root `flex flex-col`, `flex-1 min-h-0` preserved; truth panel is horizontal-overflow only, suppressed under `max-height:640px` |
@@ -253,7 +291,7 @@ browser, or runtime. Only structural/class and rendered-markup contracts ship.
 |---|---|---|---|
 | R1 | `WorkspaceToolbar`, `TeachingLoadModals`, `SectionGridMode`, `WorkloadInspector`, `TeachingLoadRepairQueue`, `TeachingLoad.tsx` | rendered chip is a real `<button>`; removal scans for every flag/prop/literal; duplicate-testid single ownership; file-absence for the deleted panel | **PASS** |
 | R2 | `SectionGridMode` popover, `AutoFillSummaryModal` move list, truth panel | viewport-relative class assertions; `max-h-75`/`max-h-64` absent; shell contract present | **PASS (structural)** — live pixels `BLOCKED_EXTERNAL(AUTH_SESSION_REQUIRED)` |
-| R3 | `teaching-load-authority-truth.ts`, `TeachingLoadTruthPanel.tsx`, `useTeachingLoadData.ts` diagnostics GET | rendered harness for all 12 metrics; null-authority fail-closed; UNCONFIGURED fail-closed; three failing-first mutants restored byte-exact | **PASS** |
+| R3 | `teaching-load-authority-truth.ts`, `TeachingLoadTruthPanel.tsx`, `useTeachingLoadData.ts` diagnostics GET, server `computeOverloadCapacityTotals` | rendered harness for all 12 metrics; null-authority fail-closed; UNCONFIGURED fail-closed; C-2 null-basis fail-closed; four failing-first mutants restored byte-exact | **PASS** |
 | R4 | `ownershipDepartmentEligibility`, `matchesOwnershipDepartment`, `selectEligibleOwnerCandidates` | null-department pre-emption mutant fails 4 tests; overloaded FIL/ESP + zero-load-both-depts fixture; blast-radius parity across 8 departments | **PASS** |
 | R5 | `teaching-load-suggestion-diagnostics`, diagnostics panel | every reason label must not be a raw enum/snake_case code; unknown-reason fallback | **PASS** |
 | R6 | `useTeachingLoadData` (summary + diagnostics), `policyReady`, `WorkloadInspector`, truth panel | no `/policies/scheduling`; strict `policyReady`; policy-bound capacity/overload/remaining/advisory | **PASS** |
@@ -280,9 +318,12 @@ coverage reduced.
 
 **BLOCKING:** none.
 
-- `BLOCKED_EXTERNAL(DISPOSABLE_DB_UNAVAILABLE)` — the five DB-backed TL suites
-  listed above (exact reason recorded). They cannot regress from this diff
-  (zero server paths changed) and the server type-check passes.
+- `BLOCKED_EXTERNAL(DISPOSABLE_DB_UNAVAILABLE)` — the DB-gated TL suites and Part B
+  rows listed above (exact reason recorded). Their hermetic Parts passed
+  (`teaching-load-reconciliation` 83/0, `teaching-load-suggestion-authority` 4/0,
+  `uxc01r-derived-demand-route` 4/5 with 1 skip) and the new C-2 helper is proven
+  hermetically in 7/7 assertions, but **the DB-backed rows remain unexecuted** —
+  QA must not treat them as passed.
 - `BLOCKED_EXTERNAL(AUTH_SESSION_REQUIRED)` — live desktop/mobile pixel
   measurement and browser click-path evidence.
 - `NON_BLOCKING` — advisory credit is treated as policy authority, so it renders
