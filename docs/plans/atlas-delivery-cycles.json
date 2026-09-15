@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T01:12:00+08:00",
+    "lastUpdatedAt": "2026-09-15T17:47:27.148Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 86
+    "revision": 91
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "ENROLLPRO-PROXY-RECOVERY-LIVE",
-    "globalNextAction": "CYCLE_ACTIVE: ENROLLPRO-PROXY-RECOVERY-LIVE-RESUME-20260916. Elevated context confirmed (planner + executor shells are elevated; SYSTEM task capturable). Opening the execution window and dispatching the elevated HIGH executor for the approved packet docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md (release 54dce67b, approval 0c203423), then fresh independent QA, then closure. All other live/HIGH actions remain locked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "ENROLLPRO-PROXY-RECOVERY-LIVE is ACCEPT_READY 20/20/0/0 and being integrated; the fresh Wave Completion Auditor and closure follow. Every other live/HIGH action (term-cache apply, Teaching Load apply, generation, publication, migration) remains locked."
   },
   "streams": [
     {
@@ -673,22 +673,19 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T01:12:00+08:00",
-      "nextAction": "Elevated executor executing the approved packet (docs/prompts/enrollpro-proxy-recovery-live-resume-2026-09-16.md) in E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915; fresh independent QA over the frozen evidence candidate follows.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-15T17:47:09.436Z",
+      "nextAction": "Planner integrates the accepted docs candidate and commissions the fresh Wave Completion Auditor over the integrated wave.",
       "awaited": [
-        "elevated executor return for the approved live recovery (acceptance matrix + evidence candidate)",
-        "fresh independent QA over the frozen evidence candidate"
+        "planner validates the immutable range and integration boundary"
       ],
-      "running": [
-        "elevated executor executing ENROLLPRO-PROXY-RECOVERY-LIVE in E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915"
-      ],
+      "running": [],
       "git": {
-        "worktree": "E:\\ATLAS-worktrees\\enrollpro-proxy-recovery-live-20260915",
+        "worktree": "E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915",
         "branch": "work/enrollpro-proxy-recovery-live-20260915",
-        "baseSha": "d61c38d0f9d38a2bc89ee233164d1dc843b74cc8",
-        "candidateSha": "54dce67b8392cbce09aa810813c37f9c87a67159",
-        "integrationSha": "bc61ecd58fd4e5caaa5bdde43496b13032221354",
+        "baseSha": "68f01eb12fcff4da86c93d696722bca37b6dae4c",
+        "candidateSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
+        "integrationSha": null,
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "29284ac6218b989ab860cde0d36266eabf26395b",
@@ -696,31 +693,7 @@
           "kind": "REMOTE_TRACKING_REF"
         },
         "changedPaths": [
-          "atlas-client/.env.example",
-          "atlas-client/src/components/AppShell.tsx",
-          "atlas-client/src/components/app-shell/AppSidebar.tsx",
-          "atlas-client/src/components/app-shell/BackToEnrollProLink.tsx",
-          "atlas-client/src/components/app-shell/IntegratedSystems.tsx",
-          "atlas-client/src/components/app-shell/MobileNavigationDrawer.tsx",
-          "atlas-client/src/lib/__tests__/companion-config.test.ts",
-          "atlas-client/src/lib/__tests__/companion-sso-client.test.ts",
-          "atlas-client/src/lib/bridge.ts",
-          "atlas-client/src/lib/companion-config.ts",
-          "atlas-client/src/lib/integrated-systems.ts",
-          "atlas-server/.env.example",
-          "atlas-server/test-secret.mjs",
-          "atlas-server/test-tailscale.mjs",
-          "docs/reference/atlas-runtime-source-of-truth-map.md",
-          "ops/runtime/README.md",
-          "ops/runtime/__tests__/enrollpro-origin-cli.e2e.test.mjs",
-          "ops/runtime/__tests__/enrollpro-origin.test.mjs",
-          "ops/runtime/__tests__/production-host.test.mjs",
-          "ops/runtime/cli.mjs",
-          "ops/runtime/host.mjs",
-          "ops/runtime/lib/contract.mjs",
-          "ops/runtime/lib/enrollpro-origin.mjs",
-          "ops/runtime/lib/production-host.mjs",
-          "ops/runtime/lib/supervisor.mjs"
+          "docs/reviews/enrollpro-proxy-recovery-live-20260916/live-execution-evidence.md"
         ]
       },
       "owners": {
@@ -730,13 +703,13 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "ACTIVE",
-          "writable": true
+          "sessionId": "ses_f59f09d8dffeIK3XJChOIqoenb",
+          "status": "RETURNED",
+          "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -746,22 +719,27 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 20,
+        "passed": 20,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 4,
+          "MANDATORY_LIVE": 16,
+          "DEFERRED_EXTERNAL": 0
+        },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 4,
+            "passed": 4,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 16,
+            "passed": 16,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -773,20 +751,21 @@
             "blocked": 0,
             "unperformed": 0
           }
-        },
-        "plan": {
-          "MANDATORY_SOURCE": 0,
-          "MANDATORY_LIVE": 0,
-          "DEFERRED_EXTERNAL": 0
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -799,7 +778,7 @@
       },
       "approval": {
         "required": true,
-        "presentedReady": true,
+        "presentedReady": false,
         "granted": true,
         "operatorIdentity": "operator:njgrm",
         "approvedAt": "2026-09-15T12:00:04+08:00",
@@ -818,7 +797,20 @@
         "requiredObservationIds": [
           "obs-enrollpro-reachability"
         ],
-        "execution": null
+        "execution": {
+          "performed": true,
+          "actionsPerformed": [
+            "back up the durable env file to an operator-only path outside every Git worktree",
+            "set exactly ENROLLPRO_PROXY_ORIGIN and ENROLLPRO_API in D:\\ATLAS-runtime-config\\atlas-server.env",
+            "build the client with VITE_ENROLLPRO_URL and install release 54dce67b8392cbce09aa810813c37f9c87a67159 at D:\\ATLAS-runtime-supervised-54dce67b-20260914",
+            "re-point ATLAS_RUNTIME_SOURCE_DIR, ATLAS_RUNTIME_RELEASE_SHA, and the ATLAS-Runtime-Supervisor task action and working directory",
+            "quiesce only the supervisor-owned ATLAS processes on 5001/5174",
+            "relaunch the replacement resident supervisor through schtasks /run /tn ATLAS-Runtime-Supervisor",
+            "run the packet acceptance matrix",
+            "record the bounded approval, evidence, and register docs-only records"
+          ],
+          "evidence": "docs/reviews/enrollpro-proxy-recovery-live-20260916/live-execution-evidence.md"
+        }
       },
       "observations": [
         {
@@ -2536,9 +2528,9 @@
       "worktree": "E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-15T17:08:10.639Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-15T17:44:38.447Z",
       "expiresAt": null
     }
   ],
