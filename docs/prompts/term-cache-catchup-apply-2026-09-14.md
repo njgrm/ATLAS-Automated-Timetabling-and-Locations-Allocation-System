@@ -51,8 +51,8 @@ publication.
 
 | Item | Verified value |
 |---|---|
-| Scheduled task | **NONE — DRIFT, BLOCKING.** Re-verified read-only 2026-09-16: the `ATLAS-Runtime-Supervisor` task does not exist. A full `schtasks /query /fo LIST` lists only `\ATLAS Daily Backup` and `\ATLAS-DevServer-Temp2`. The resident supervisor is therefore NOT restartable through a registered task; boot recovery is unproven and `cli.mjs` restart semantics no longer match the former record. |
-| Task action | **NOT VERIFIABLE — no registered task exists.** Any successor packet must re-establish a durable launch owner (`launchOwner`, `launchMechanism`, `rollbackLaunchOwner`, `rollbackLaunchMechanism`) before it may be called executable. |
+| Scheduled task | **UNVERIFIED — ELEVATION REQUIRED (NOT "absent").** Re-verified read-only 2026-09-16 from an **unelevated** shell. Calibrated control: `schtasks /query /tn ATLAS-NoSuchTask-XYZ-2026 /fo LIST` → `ERROR: The system cannot find the file specified.`, while `schtasks /query /tn ATLAS-Runtime-Supervisor` (with **and** without `/v`) → `ERROR: Access is denied.`, and `ATLAS Daily Backup` succeeds with the same `/v` switch. The name therefore **resolves but is unreadable** by the unelevated caller — consistent with a SYSTEM-registered task ACL; a truly absent task reports "cannot find the file specified". Corroboration: (a) the resident supervisor's direct parent is `svchost.exe` PID 2380 = the **Task Scheduler** service; (b) the cycle register records the COMPLETE `ENROLLPRO-PROXY-RECOVERY-LIVE` action re-pointing this task and relaunching the resident supervisor via `schtasks /run /tn ATLAS-Runtime-Supervisor`, matching the live `startedAt`. **Boot-restart durability is UNVERIFIED, not disproven.** One elevated read-only `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v` settles it; until then no packet may assert the task exists **or** is absent. |
+| Task action | **NOT YET OBSERVED — requires the elevated read in the row above.** This apply does not depend on it: §10 forbids every runtime restart/task/env change, so the single request executes against the already-running resident process. |
 | Working directory | `D:\ATLAS-runtime-supervised-54dce67b-20260914` (superseded pin `3d916b26`); supervisor state `sourceDir` re-verified 2026-09-16 |
 | Supervisor process | Superseded capture PID `3132` is absent. Re-verified 2026-09-16: supervisor state `state=running`, `startedAt=2026-09-15T17:25:41.742Z`, `ownedPids` server `35988` / client `30192`, `previous: null`. |
 | Release checkout | Re-verified 2026-09-16: `releaseSha=54dce67b8392cbce09aa810813c37f9c87a67159` under `sourceDir=D:\ATLAS-runtime-supervised-54dce67b-20260914` (`productPin=d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`). Superseded pin `3d916b26`. |
@@ -133,12 +133,19 @@ All steps below are read-only. Run them in order. If any step fails or differs,
 stop, record the exact disagreement, and return to the planner **without a
 login and without an apply request**.
 
-1. **Runtime identity.** Query `schtasks /query /tn ATLAS-Runtime-Supervisor
-   /fo LIST /v`; resolve the action and start-in directory from the task, not
-   from memory. Run `node ops/runtime/cli.mjs status` from that directory.
-   Confirm `state=running`, `releaseSha`, `ROLLOVER_AUTO_SYNC_ENABLED=false`,
-   and owned PIDs; confirm listeners on 5001/5174 with exactly one owner per
-   port and process command lines pointing into the same release directory.
+1. **Runtime identity.** (a) Attempt `schtasks /query /tn ATLAS-Runtime-Supervisor
+   /fo LIST /v` and record the literal result. `Access is denied` is the
+   **expected unelevated outcome** and is **not** a preflight failure and **not**
+   a stop condition for this apply, because no runtime change is authorized. Do
+   not assert the task is absent. (b) Resolve live identity independently: read
+   `<sourceDir>/ops/runtime/logs/supervisor-state.json` and confirm
+   `state=running`, `releaseSha`, `sourceDir`, `ownedPids`, `previous`; run
+   `node ops/runtime/cli.mjs status` from `sourceDir` for reference only — its
+   `live`/`uptimeMs` fields are unreliable and are **not** authoritative.
+   (c) Confirm 5001/5174 each have exactly one owner and the owning PIDs equal
+   `ownedPids.server`/`ownedPids.client`. (d) Confirm
+   `ROLLOVER_AUTO_SYNC_ENABLED=false`. Stop only if (b)–(d) disagree with §2 or
+   health/readiness fails.
 2. **Health.** Confirm `GET /api/v1/health` 200, `GET /api/v1/health/ready` 200
    (dependency readiness, not just liveness), and Tailnet
    `https://njgrm.buru-degree.ts.net/api/v1/health` 200.
@@ -454,9 +461,12 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
   state records `previous: null` and its state is source-directory local, so no
   supervised reset path exists. Any future runtime packet must therefore state
   rollback explicitly and durably: stop the new supervised release; restore the
-  machine source/release variables; re-point the registered task action and
-  working directory to `D:\ATLAS-runtime-supervised-54dce67b-20260914`;
-  relaunch through the registered SYSTEM task; then re-prove ownership, health
+  machine source/release variables; **first settle the launch-owner state with
+  one elevated read-only `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v`**
+  (do not assume presence or absence), then re-point that task action and
+  working directory to `D:\ATLAS-runtime-supervised-54dce67b-20260914` and
+  relaunch through the registered SYSTEM task, ordered stop-then-start (never
+  zero-downtime), then re-prove ownership, health
   and readiness. A packet that claims `cli.mjs` rollback availability is
   invalid. The term-cache restore transaction above is unchanged and remains
   the only rollback for the cache write itself.
@@ -475,12 +485,26 @@ runtime packet. None of them is authorized by this packet.
   objects.
 - **(c) Rollback truth.** A future runtime packet must not claim `cli.mjs`
   rollback is available (live state records `previous=null`). Rollback must be
-  the explicit ordered procedure recorded in §11.
+  the explicit ordered procedure recorded in §11, and that procedure must first
+  settle the current launch-owner state with one elevated read-only
+  `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v` rather than
+  assuming presence or absence. Because `ops/runtime/lib/supervisor.mjs` fails
+  `start` closed with `ALREADY_RUNNING` while owned PIDs are live, the procedure
+  is ordered stop-then-start and must never be worded as zero-downtime.
 - **(d) Pin.** No deployment packet may be pinned to `476157b1` or `809fa67b`.
   The deployment candidate basis is the exact final `origin/main` after Lane B
   integration, as recorded in the cycle register.
 
 ## 12. Copy-ready HIGH approval sentence (NOT GRANTED)
+
+**NOT GRANTABLE in the current revision.** The §2 launch-owner row is an
+unverified, elevation-limited observation, so §12 must not be offered until the
+correction round (E1–E5) is applied and §2 contains no self-declared BLOCKING
+row, and until one fresh independent pre-action review clears the corrected
+packet. The apply is otherwise executable: the resident runtime is live and
+healthy, the deployed release contains the reviewed apply route, and the seven
+apply-path files are unchanged between the deployed release and the reviewed
+`origin/main`.
 
 > I approve HIGH action TERM-CACHE-CATCHUP-APPLY-2026-09-14 against the live
 > supervised ATLAS runtime (release checkout
