@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T10:49:36.275Z",
+    "lastUpdatedAt": "2026-09-15T11:42:21.653Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 45
+    "revision": 52
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "COMPANION-SSO-C03 source candidate integrated at fc7abe07 (Option-A reverse-SSO identity normalization; fresh QA ACCEPT_READY 8/8). Awaiting a fresh Wave Completion Audit before closure. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked."
+    "globalNextAction": "COMPANION-SSO-C03 and COMPANION-SSO-LIVE-PREP-C02 are COMPLETE with receipts (Wave Completion Audit AUDIT_CLEAR 7/7 at c669c77c; F1 docs-only runtime-map reconciliation applied). No active cycle. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked; the corrected Option-A source is integrated but NOT deployed."
   },
   "streams": [
     {
@@ -1376,8 +1376,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5bb25208ffekI4ETTVf3sLYRu",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
         "auditRequired": true
       },
       "corrections": [],
@@ -1402,14 +1402,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/companion-sso-live-prep-c02.receipt.json",
+          "sha256": "dc5cb44f0195f376bb636d50a9a39b0737f48e34dc92d1523365ad563d99dbbe"
+        }
+      },
       "objective": "Companion SSO live-preparation lane on branch work/companion-sso-live-prep-c02: a docs-only candidate (executor handoffs, a companion developer handoff, and two prepared HIGH packets, companion-sso-migration-live-c02 and companion-sso-runtime-activation-c02, both NOT GRANTED). Executor handoff docs/handoffs/companion-sso-live-prep-c02-executor.md classifies the candidate PREPARED_WITH_EXTERNAL_GATE and returns REVIEW_REQUIRED.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T09:13:51.375Z",
-      "nextAction": "Review the docs candidate and decide the two prepared HIGH gates (migration-live, runtime-activation); the only unfinished row is external (EnrollPro host), so no live SSO readiness is claimed. Deployment, env configuration, and companion-repository edits remain separate HIGH actions.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T11:41:58.885Z",
+      "nextAction": "Closed COMPLETE; docs candidate integrated with the C03 truth reconciliation; both prepared HIGH packets remain NOT GRANTED.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/companion-sso-live-prep-c02",
@@ -1449,8 +1452,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -1751,8 +1754,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5b760374ffeMxb6tNGpn1CYcj",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
         "auditRequired": true
       },
       "corrections": [],
@@ -1777,14 +1780,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/companion-sso-c03.receipt.json",
+          "sha256": "e208c4492c901afb27b3fceedf0805f5fa0d45f7fee457755b2a0ceb55282a70"
+        }
+      },
       "objective": "COMPANION-SSO-C03 (operator CYCLE ON, 2026-09-15, packet docs/prompts/companion-sso-docs-integration-option-a-c03-2026-09-15.md): integrate the accepted COMPANION-SSO-LIVE-PREP-C02 docs candidate (233ae67f) with a bounded integration-time truth reconciliation, then implement the ATLAS-owned Option-A reverse-SSO correction (map local roles to the EnrollPro contract vocabulary at POST /api/v1/auth/sso/exchange, guarantee valid non-empty assertion names via a typed service helper, close the mounted-test production-shape gap, document the SSO keys in atlas-server/.env.example), fresh-QA it, integrate, push, and close with a fresh Wave Completion Auditor. No HIGH action is authorized.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T10:49:36.275Z",
-      "nextAction": "Wave Completion Audit pending before closure; every live/HIGH action remains locked.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T11:41:00.528Z",
+      "nextAction": "Closed COMPLETE; wave-audited AUDIT_CLEAR 7/7; all live/HIGH actions remain locked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/companion-sso-option-a-c03",
@@ -1824,8 +1830,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b4dbd29ffeDxtoKLBF9EWIKU",
+          "status": "RETURNED",
           "writable": false
         }
       },
