@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T17:47:27.148Z",
+    "lastUpdatedAt": "2026-09-15T17:48:19.843Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 91
+    "revision": 92
   },
   "coordination": {
     "mode": "MANUAL",
@@ -673,11 +673,11 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T17:47:09.436Z",
-      "nextAction": "Planner integrates the accepted docs candidate and commissions the fresh Wave Completion Auditor over the integrated wave.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T17:48:19.843Z",
+      "nextAction": "Fresh Wave Completion Auditor over the integrated wave; then close the cycle with the receipt and record the remote observation.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -685,11 +685,11 @@
         "branch": "work/enrollpro-proxy-recovery-live-20260915",
         "baseSha": "68f01eb12fcff4da86c93d696722bca37b6dae4c",
         "candidateSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
-        "integrationSha": null,
+        "integrationSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "29284ac6218b989ab860cde0d36266eabf26395b",
-          "observedAt": "2026-09-14T17:28:55+08:00",
+          "sha": "8a9c8748c3a03c90dc230c8c7ea1708f9ecbfa7f",
+          "observedAt": "2026-09-15T17:48:19.843Z",
           "kind": "REMOTE_TRACKING_REF"
         },
         "changedPaths": [
