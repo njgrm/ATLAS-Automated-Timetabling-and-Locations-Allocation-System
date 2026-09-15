@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T16:16:23.233Z",
+    "lastUpdatedAt": "2026-09-15T16:33:18.302Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 78
+    "revision": 81
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "COMPANION-SSO-C03 and COMPANION-SSO-LIVE-PREP-C02 are COMPLETE with receipts (Wave Completion Audit AUDIT_CLEAR 7/7 at c669c77c; F1 docs-only runtime-map reconciliation applied). No active cycle. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked; the corrected Option-A source is integrated but NOT deployed."
+    "globalNextAction": "TL-OPERATOR-WORKSPACE-C05 is COMPLETE and wave-audited (final audit AUDIT_CLEAR 10/10/0/0 over integration e6b25897; closure receipt pinned). No active cycle. Registered successors, dispatch only under a new operator-activated cycle: (1) TL diagnostics-loading lifecycle orphan (post-C-6R2 F1: a discard-first can leave authorityDiagnosticsLoading set when a newer dispatch aborts early) must be closed before any future deployment of this stream; (2) Timetable sandbox ancillary credit and the server policyCreditedHours path (global ancillary-zero scope); (3) WorkloadInspector advisory/ancillary wording; (4) teaching-load-effective-load-parity sibling-branch citation. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache apply, Teaching Load apply, generation, publication, migration) remains locked."
   },
   "streams": [
     {
@@ -1872,8 +1872,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5a31cafeffehbQZJ6cVsO7n5P",
-        "auditorVerdict": "CORRECTION_REQUIRED",
-        "auditorSessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5a248aebffe4GjZ23qJxDf3aD",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -1936,8 +1936,8 @@
           "reason": "C-6R2 completion of the operator-authorized rule-2 requirement: the post-C-6R audit B1 (the diagnostics reply was gated only at the call site, so a superseded same-scope invocation could persist its payload and clear the loading flag) and N1 (no bound-then-superseded behavioral control) are closed. The loader now requires a dispatch-precedence predicate at reply time in addition to scope currency, and two committed failing-first controls cover same-scope supersession and bound-then-superseded writes; the handoff gating claim is corrected.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5a31cafeffehbQZJ6cVsO7n5P",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f5a248aebffe4GjZ23qJxDf3aD"
         }
       ],
       "successors": [],
@@ -1961,14 +1961,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/tl-operator-workspace-c05.receipt.json",
+          "sha256": "0a49f2d8b1160d356597cef82782cb5ab71988e00c476ac4fddc8528d0deba82"
+        }
+      },
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T16:16:23.233Z",
-      "nextAction": "Commission the fresh post-C-6R2 Wave Completion Auditor at high over integration e6b25897 and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the eligible clean worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T16:32:56.552Z",
+      "nextAction": "Cycle closed COMPLETE with the wave-audited receipt.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tl-operator-workspace-c05-scope-epoch",
@@ -2009,7 +2012,7 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F",
+          "sessionId": "ses_f5a248aebffe4GjZ23qJxDf3aD",
           "status": "RETURNED",
           "writable": false
         }
