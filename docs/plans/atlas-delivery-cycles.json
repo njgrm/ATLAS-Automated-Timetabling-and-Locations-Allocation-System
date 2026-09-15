@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T13:54:11.763Z",
+    "lastUpdatedAt": "2026-09-15T14:10:53.986Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 65
+    "revision": 67
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1500,8 +1500,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5ad0e225ffeYrAnGcgD3n5WSr",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -1516,11 +1516,21 @@
           "round": 1,
           "baseSha": "691a7c4a8e0587d6b9669aa332b764d7bc53b7b9",
           "candidateSha": "e052a564ee6065e166794ab30f94f81016add3b1",
-          "reason": "WF-C04 packet 3.9 pre-integration refresh: the owning lane advanced past the registered snapshot (candidate 691a7c4a, observed 2026-09-15T06:35:56Z); the C05R1 teacher-program correction is in flight at observed tip e052a564. Registry refresh only; no QA verdict attaches to this range.",
-          "qaVerdict": "ACCEPT_READY",
-          "qaSessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN",
+          "reason": "WF-C04 packet 3.9 pre-integration refresh: the owning lane advanced past the registered snapshot (candidate 691a7c4a, observed 2026-09-15T06:35:56Z); the C05R1 teacher-program correction is in flight at observed tip e052a564. Registry refresh only; no QA verdict attaches to this range. The ACCEPT_READY field this entry briefly carried was mechanically filled by record-qa-result and was cleared by the C05R1 integration planner on 2026-09-15, because that verdict belongs to round 2.",
+          "qaVerdict": null,
+          "qaSessionId": null,
           "auditorVerdict": null,
           "auditorSessionId": null
+        },
+        {
+          "round": 2,
+          "baseSha": "e052a564ee6065e166794ab30f94f81016add3b1",
+          "candidateSha": "7e5e97ae9408cd340e40a8466d38e6fc62c9084a",
+          "reason": "C05R1 teacher-program correction (governing packet docs/prompts/beneficiary-export-parity-c05r1-teacher-program-correction-2026-09-15.md): aligned the teacher program with the beneficiary schedule authority, added the editable signatory presentation settings, bound published run/term identity, and closed the empty-selected-term fail-closed guard. Product/test bytes are frozen at 0b48b1a1; commits above it through 7e5e97ae are docs/handoff reconciliation only. Integration QA ACCEPT_READY (ses_f5b0e6263ffeuzNTCoTXzCbUQN) and the post-integration Wave Completion Audit AUDIT_CLEAR (ses_f5ad0e225ffeYrAnGcgD3n5WSr) attach to this round.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN",
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f5ad0e225ffeYrAnGcgD3n5WSr"
         }
       ],
       "successors": [],
@@ -1544,14 +1554,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/beneficiary-export-parity-c05.receipt.json",
+          "sha256": "1f9102e1231a5b99b5fdfc7a6677d1f77fc4aea447f7a917859fbbda7ca041e8"
+        }
+      },
       "objective": "Close the beneficiary/stakeholder output parity correction on branch work/beneficiary-export-parity-c05: fail closed on an empty selected-term renderable set (F1 EMPTY_SELECTED_TERM), complete room/summary/render parity, and bind published run identity. Executor handoff docs/handoffs/beneficiary-export-parity-c05-executor.md reports REVIEW_REQUIRED, revision 2, tally 23/23/0/0.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T13:07:42.711Z",
-      "nextAction": "Integrated at aa774cbf9071a12aea29c8b446cc82ff5a51740b; migration 0003 source-only, NOT applied. Push, then commission the Wave Completion Auditor.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T14:10:53.986Z",
+      "nextAction": "Closed COMPLETE. Product/test freeze 0b48b1a1 integrated at aa774cbf and pushed; migration 0003 source-only (NOT applied); no runtime/deployment/data action. Worktrees RETIRE_AFTER_INTEGRATION. Open follow-ups: WF-C05-lane state-dependent migration.test.mjs reproduction defect (pre-existing on main); export-presentation dialog scope-epoch hardening (NON_BLOCKING); 2 pre-existing disposable drill databases (hygiene).",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/beneficiary-export-parity-c05",
@@ -1636,8 +1649,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5ad0e225ffeYrAnGcgD3n5WSr",
+          "status": "RETURNED",
           "writable": false
         }
       },

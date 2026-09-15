@@ -1,8 +1,8 @@
 {
   "receiptVersion": "1.1.0",
-  "generatedAt": "2026-09-15T14:07:40.906Z",
+  "generatedAt": "2026-09-15T14:11:07.207Z",
   "statePath": "E:/ATLAS-worktrees/integration-beneficiary-export-c05r1-20260915/docs/plans/atlas-delivery-cycles.json",
-  "stateSha256": "c65fd50b770f6cc326b7fe541b2800f65210b5457a8abae566f00a10b2cdf269",
+  "stateSha256": "12368795192eb46ccd9394475cb889ecd61a471b2efba088698c4485146ee0bd",
   "status": "ok",
   "streamId": "BENEFICIARY-EXPORT-PARITY-C05",
   "verified": {
