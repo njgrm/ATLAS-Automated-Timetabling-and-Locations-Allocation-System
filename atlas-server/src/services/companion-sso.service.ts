@@ -9,6 +9,7 @@ import {
 	type LocalAuthUser,
 } from './local-auth.service.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
+import { mapLocalRoleToEnrollProRoles, resolveReverseSsoNameParts } from './companion-sso-identity.js';
 
 /**
  * COMPANION-SSO-C01 — ATLAS-side companion SSO (EnrollPro ↔ ATLAS).
@@ -61,6 +62,8 @@ export type CompanionSsoErrorCode =
 	| 'COMPANION_SSO_IDENTITY_INCOMPLETE'
 	| 'COMPANION_SSO_ACCOUNT_UNAVAILABLE'
 	| 'COMPANION_SSO_ROLE_DENIED'
+	| 'COMPANION_SSO_ROLE_UNMAPPABLE'
+	| 'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE'
 	| 'COMPANION_SSO_COMPLETER_BLOCKED'
 	| 'ACTIVE_SCHOOL_YEAR_REQUIRED'
 	| 'ACTIVE_SCHOOL_YEAR_CONFLICT'
@@ -74,6 +77,8 @@ const ERROR_HTTP_STATUS: Record<CompanionSsoErrorCode, number> = {
 	COMPANION_SSO_IDENTITY_INCOMPLETE: 401,
 	COMPANION_SSO_ACCOUNT_UNAVAILABLE: 401,
 	COMPANION_SSO_ROLE_DENIED: 403,
+	COMPANION_SSO_ROLE_UNMAPPABLE: 403,
+	COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE: 403,
 	COMPANION_SSO_COMPLETER_BLOCKED: 403,
 	ACTIVE_SCHOOL_YEAR_REQUIRED: 409,
 	ACTIVE_SCHOOL_YEAR_CONFLICT: 409,
@@ -89,6 +94,18 @@ export const COMPANION_SSO_INVALID_CODE_BODY = {
 	code: 'COMPANION_SSO_CODE_INVALID',
 	message: 'The SSO authorization code is invalid, expired, or already used.',
 } as const;
+
+/**
+ * Producer-side conformance failures that must reach EnrollPro as an explicit
+ * 403 instead of the generic invalid-code 401. EnrollPro maps 403 to
+ * `COMPANION_REVERSE_SSO_ACCESS_DENIED`; any other status becomes a retryable
+ * 503 (`COMPANION_REVERSE_SSO_UNAVAILABLE`), which would misrepresent an
+ * identity ATLAS can never represent.
+ */
+const REVERSE_ASSERTION_TYPED_FAILURES: ReadonlySet<CompanionSsoErrorCode> = new Set<CompanionSsoErrorCode>([
+	'COMPANION_SSO_ROLE_UNMAPPABLE',
+	'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE',
+]);
 
 export class CompanionSsoError extends Error {
 	readonly code: CompanionSsoErrorCode;
@@ -708,8 +725,13 @@ export async function exchangeCompanionSsoCode(params: ExchangeParams): Promise<
 		});
 		return { ok: true, assertion: assertion.assertion };
 	} catch (error) {
-		// The code is already consumed: never retry it. A failed assertion writes
-		// no success audit.
+		// The code is already consumed: never retry it. Producer-side conformance
+		// failures (unmappable role / unassertable name) propagate as a typed 403
+		// so EnrollPro can deny clearly; every other assertion failure keeps the
+		// generic invalid-code body. No failure path writes a success audit.
+		if (error instanceof CompanionSsoError && REVERSE_ASSERTION_TYPED_FAILURES.has(error.code)) {
+			throw error;
+		}
 		void error;
 		return invalid;
 	}
@@ -768,7 +790,29 @@ async function buildAssertion(claimed: {
 		throw new CompanionSsoError(mirrors.length === 0 ? 'ACTIVE_SCHOOL_YEAR_REQUIRED' : 'ACTIVE_SCHOOL_YEAR_CONFLICT');
 	}
 
-	const nameParts = resolveAccountNameParts(account);
+	// Map the persisted local role onto the exact EnrollPro vocabulary. A role
+	// ATLAS cannot represent must never reach EnrollPro as an invalid assertion.
+	const roles = mapLocalRoleToEnrollProRoles(account.role);
+	if (!roles) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_ROLE_UNMAPPABLE',
+			'The local account role cannot be represented in the EnrollPro role vocabulary.',
+		);
+	}
+
+	// The assertion name must satisfy EnrollPro's `min(1)` schema and its
+	// linked-user name comparison, so it is resolved from persisted identity or
+	// the request fails typed — never fabricated and never an empty string.
+	const nameParts = resolveReverseSsoNameParts({
+		faculty: account.faculty,
+		accountName: account.accountName,
+	});
+	if (!nameParts) {
+		throw new CompanionSsoError(
+			'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE',
+			'The local account has no persisted name that can be asserted.',
+		);
+	}
 
 	return {
 		assertion: {
@@ -781,7 +825,7 @@ async function buildAssertion(claimed: {
 				firstName: nameParts.firstName,
 				middleName: null,
 				lastName: nameParts.lastName,
-				roles: [account.role],
+				roles: [...roles],
 			},
 			activeSchoolYear: {
 				id: mirrors[0].enrollProSchoolYearId,
@@ -791,28 +835,4 @@ async function buildAssertion(claimed: {
 		},
 		audit: { schoolId, actorId: account.id },
 	};
-}
-
-/**
- * Derive display name parts from local, already-persisted fields only. The
- * assertion contract does not require a name, so absent values fall back to
- * empty strings rather than fabricated identity.
- */
-function resolveAccountNameParts(account: {
-	accountName: string | null;
-	email: string;
-	role: string;
-	faculty: { firstName: string; lastName: string } | null;
-}): { firstName: string; lastName: string } {
-	if (account.faculty && (account.faculty.firstName || account.faculty.lastName)) {
-		return {
-			firstName: account.faculty.firstName ?? '',
-			lastName: account.faculty.lastName ?? '',
-		};
-	}
-	if (account.accountName) {
-		const [first = '', ...rest] = account.accountName.trim().split(/\s+/);
-		return { firstName: first, lastName: rest.join(' ') };
-	}
-	return { firstName: '', lastName: '' };
 }

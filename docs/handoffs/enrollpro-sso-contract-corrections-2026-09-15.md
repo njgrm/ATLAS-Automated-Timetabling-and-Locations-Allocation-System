@@ -214,3 +214,5 @@ ATLAS repository), not an EnrollPro request.
   the elevation boundary), the migration apply, and the runtime activation are
   complete, and this handoff's Option-A source correction is integrated and
   bound to the tested release. No live SSO readiness is claimed by this handoff.
+
+ATLAS Option A (D1) status (2026-09-15): implemented in ATLAS source (`COMPANION-SSO-C03` Phase 2) — the Flow B exchange maps lowercase ATLAS roles to the exact EnrollPro `RoleEnum` and fails typed 403 when the stored identity cannot be represented; D2 remains companion-owned with no new companion ask.
