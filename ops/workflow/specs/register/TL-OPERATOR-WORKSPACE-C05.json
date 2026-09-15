@@ -1,0 +1,130 @@
+{
+  "id": "TL-OPERATOR-WORKSPACE-C05",
+  "kind": "STREAM",
+  "riskTier": "MEDIUM",
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": false,
+    "safeWorkItems": []
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
+  "state": "REVIEW_REQUIRED",
+  "stateUpdatedAt": "2026-09-15T06:35:49Z",
+  "nextAction": "Fresh independent QA over the frozen tip 05bb8e51, then integrate from a clean current-main E-drive worktree; every live Teaching Load apply stays locked behind its own reviewed preview and explicit HIGH approval.",
+  "awaited": [
+    "fresh independent QA over the frozen tip 05bb8e51"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/tl-operator-workspace-c05",
+    "branch": "work/tl-operator-workspace-c05",
+    "baseSha": "0c20342394ca2ca800cecc6dd69825e07625c66d",
+    "candidateSha": "05bb8e517daa8a0494ef3ce7257747b4fca51054",
+    "integrationSha": null,
+    "changedPaths": [
+      "atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx",
+      "atlas-client/src/components/faculty-assignments/SectionGridMode.tsx",
+      "atlas-client/src/components/faculty-assignments/TeachingLoadCandidateDiagnostics.tsx",
+      "atlas-client/src/components/faculty-assignments/TeachingLoadModals.tsx",
+      "atlas-client/src/components/faculty-assignments/TeachingLoadReconciliationPanel.tsx",
+      "atlas-client/src/components/faculty-assignments/TeachingLoadRepairQueue.tsx",
+      "atlas-client/src/components/faculty-assignments/TeachingLoadTruthPanel.tsx",
+      "atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx",
+      "atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx",
+      "atlas-client/src/hooks/useTeachingLoadData.ts",
+      "atlas-client/src/hooks/useTeachingLoadUI.ts",
+      "atlas-client/src/lib/__tests__/teaching-load-distribution-ui.test.ts",
+      "atlas-client/src/lib/__tests__/teaching-load-suggestion-diagnostics-ui.test.ts",
+      "atlas-client/src/lib/__tests__/tl-operator-workspace-c05-blast-radius.test.ts",
+      "atlas-client/src/lib/__tests__/tl-operator-workspace-c05-r3-truth.test.ts",
+      "atlas-client/src/lib/__tests__/tl-operator-workspace-c05.test.ts",
+      "atlas-client/src/lib/faculty-assignment-helpers.ts",
+      "atlas-client/src/lib/scope-request-epoch.ts",
+      "atlas-client/src/lib/teaching-load-authority-truth.ts",
+      "atlas-client/src/lib/teaching-load-suggestion-diagnostics.ts",
+      "atlas-client/src/lib/teaching-load-suggestion-presentation.ts",
+      "atlas-client/src/pages/TeachingLoad.tsx",
+      "atlas-client/src/types.ts",
+      "atlas-server/src/__tests__/teaching-load-overload-capacity-totals.test.ts",
+      "atlas-server/src/services/teaching-load-reconciliation.service.ts",
+      "docs/handoffs/tl-operator-workspace-c05-executor.md"
+    ],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "RETURNED",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "executor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "qa": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "auditor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    }
+  }
+}

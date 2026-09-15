@@ -1,0 +1,110 @@
+{
+  "id": "COMPANION-SSO-LIVE-PREP-C02",
+  "kind": "STREAM",
+  "riskTier": "MEDIUM",
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": false,
+    "safeWorkItems": []
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "objective": "Companion SSO live-preparation lane on branch work/companion-sso-live-prep-c02: a docs-only candidate (executor handoffs, a companion developer handoff, and two prepared HIGH packets, companion-sso-migration-live-c02 and companion-sso-runtime-activation-c02, both NOT GRANTED). Executor handoff docs/handoffs/companion-sso-live-prep-c02-executor.md classifies the candidate PREPARED_WITH_EXTERNAL_GATE and returns REVIEW_REQUIRED.",
+  "state": "REVIEW_REQUIRED",
+  "stateUpdatedAt": "2026-09-15T06:35:49Z",
+  "nextAction": "Review the docs candidate and decide the two prepared HIGH gates (migration-live, runtime-activation); the only unfinished row is external (EnrollPro host), so no live SSO readiness is claimed. Deployment, env configuration, and companion-repository edits remain separate HIGH actions.",
+  "awaited": [
+    "planner review of the docs candidate and of the two NOT-GRANTED HIGH packets"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/companion-sso-live-prep-c02",
+    "branch": "work/companion-sso-live-prep-c02",
+    "baseSha": "234046f80effa5b963295bb27f83a90020b4f544",
+    "candidateSha": "233ae67f0263f78744fd605a6af7ccd550cdcb64",
+    "integrationSha": null,
+    "changedPaths": [
+      "docs/handoffs/companion-sso-live-prep-c02-evidence.md",
+      "docs/handoffs/companion-sso-live-prep-c02-executor.md",
+      "docs/handoffs/enrollpro-sso-contract-corrections-2026-09-15.md",
+      "docs/prompts/companion-sso-live-prep-c02-2026-09-15.md",
+      "docs/prompts/companion-sso-migration-live-c02-2026-09-15.md",
+      "docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md"
+    ],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "RETURNED",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "executor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "qa": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "auditor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    }
+  }
+}
