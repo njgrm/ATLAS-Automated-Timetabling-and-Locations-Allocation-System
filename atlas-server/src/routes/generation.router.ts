@@ -9,6 +9,10 @@ import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
+import {
+	EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE,
+	EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_MESSAGE,
+} from '../services/export-presentation.service.js';
 import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
 import { generateClassProgramMatrix, validateSpecializationVisibility } from '../services/class-program-matrix.service.js';
 
@@ -828,6 +832,17 @@ router.get(
 			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the run has no verified ordered-term identity.' });
+				return;
+			}
+			// EXPORT-PRESENTATION-SCHEMA-GUARD-C06B — the teacher-program
+			// presentation store lives in migration 0003, which may not be applied
+			// on this deployment. Fail closed with the one typed, non-leaking body
+			// (and zero document bytes) instead of the generic Prisma 500 leak.
+			if (e?.code === EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE) {
+				res.status(503).json({
+					code: EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE,
+					message: EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_MESSAGE,
+				});
 				return;
 			}
 			// Preserve typed ordered-term authority errors as JSON.
