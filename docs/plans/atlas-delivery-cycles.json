@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T18:02:27.235Z",
+    "lastUpdatedAt": "2026-09-15T18:03:59.933Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 94
+    "revision": 95
   },
   "coordination": {
     "mode": "MANUAL",
@@ -674,7 +674,7 @@
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T18:02:27.235Z",
+      "stateUpdatedAt": "2026-09-15T18:03:59.933Z",
       "nextAction": "Closed COMPLETE (LIVE_ACCEPTED 20/20/0/0) with the wave-audited receipt; release 54dce67b serves supervised 5001/5174; every remaining live/HIGH action stays locked.",
       "awaited": [],
       "running": [],
@@ -686,8 +686,8 @@
         "integrationSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "8a9c8748c3a03c90dc230c8c7ea1708f9ecbfa7f",
-          "observedAt": "2026-09-15T17:48:19.843Z",
+          "sha": "eefdc5f33d0af73460d6ebe9881b2cf792012160",
+          "observedAt": "2026-09-15T18:03:59.933Z",
           "kind": "REMOTE_TRACKING_REF"
         },
         "changedPaths": [
