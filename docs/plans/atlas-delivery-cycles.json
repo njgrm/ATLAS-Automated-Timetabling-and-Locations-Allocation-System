@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T10:43:53.190Z",
+    "lastUpdatedAt": "2026-09-15T10:49:36.275Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 42
+    "revision": 45
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "COMPANION-SSO-C03",
-    "globalNextAction": "COMPANION-SSO-C03 (CYCLE_ACTIVE): Phase 1 docs range c6d83cb4..789487e2 integrated and pushed (fresh docs QA ACCEPT_READY 5/5/0/0). Next: Phase-2 Option-A reverse-SSO source correction in E:/ATLAS-worktrees/companion-sso-option-a-c03 (fresh executor), then fresh QA, integration, push, and a fresh Wave Completion Audit. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "COMPANION-SSO-C03 source candidate integrated at fc7abe07 (Option-A reverse-SSO identity normalization; fresh QA ACCEPT_READY 8/8). Awaiting a fresh Wave Completion Audit before closure. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked."
   },
   "streams": [
     {
@@ -1742,15 +1742,15 @@
       "kind": "CYCLE",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 8,
+        "passed": 8,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5b760374ffeMxb6tNGpn1CYcj",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true
@@ -1779,11 +1779,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "COMPANION-SSO-C03 (operator CYCLE ON, 2026-09-15, packet docs/prompts/companion-sso-docs-integration-option-a-c03-2026-09-15.md): integrate the accepted COMPANION-SSO-LIVE-PREP-C02 docs candidate (233ae67f) with a bounded integration-time truth reconciliation, then implement the ATLAS-owned Option-A reverse-SSO correction (map local roles to the EnrollPro contract vocabulary at POST /api/v1/auth/sso/exchange, guarantee valid non-empty assertion names via a typed service helper, close the mounted-test production-shape gap, document the SSO keys in atlas-server/.env.example), fresh-QA it, integrate, push, and close with a fresh Wave Completion Auditor. No HIGH action is authorized.",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T10:43:53.190Z",
-      "nextAction": "Fresh independent QA over the frozen Phase-2 candidate 34e5faab (Option-A reverse SSO identity normalization); then planner integration, push, and a fresh Wave Completion Audit.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T10:49:36.275Z",
+      "nextAction": "Wave Completion Audit pending before closure; every live/HIGH action remains locked.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -1791,7 +1791,7 @@
         "branch": "work/companion-sso-option-a-c03",
         "baseSha": "0ed9225ee8cbb44eee03db799c492bf1654a2465",
         "candidateSha": "34e5faabd8f2f51b316a3d9a8257b639c05987e3",
-        "integrationSha": null,
+        "integrationSha": "fc7abe07e738448cc69f35fccc6614bcf14b3502",
         "changedPaths": [
           "atlas-server/.env.example",
           "atlas-server/src/__tests__/companion-sso-http.test.ts",
@@ -1802,15 +1802,15 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "c6d83cb45f11c11ae98d3e3e26787f5341a30945",
-          "observedAt": "2026-09-15T08:54:04.183Z",
+          "sha": "fc7abe07e738448cc69f35fccc6614bcf14b3502",
+          "observedAt": "2026-09-15T10:49:36.275Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
@@ -1819,8 +1819,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b760374ffeMxb6tNGpn1CYcj",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
