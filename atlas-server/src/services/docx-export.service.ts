@@ -459,11 +459,17 @@ export async function generateTeacherProgramDocx(
 	});
 
 	// ─── Signature Block ───
+	// C05 T6/M10 / contract §3.2 — the final role set must be
+	// `Checked by Teacher + School Head, Noted, Recommending Approval, Approved`
+	// (configurable names; unset names render as blank signature lines). The
+	// earlier adopted delta dropped the `Checked by Teacher` row; it is restored
+	// here with the teacher's persisted full name when available.
 	const signatureRows = [
-		['Noted:', 'School Head', ''],
-		['Recommending Approval:', 'District Supervisor', ''],
-		['', 'CID Chief', ''],
-		['', 'ASDS', ''],
+		['Checked by:', 'Teacher', teacher.fullName],
+		['Checked by:', 'School Head', ''],
+		['Noted:', 'PSDS', ''],
+		['Recommending Approval:', 'CID Chief', ''],
+		['Approved:', 'ASDS', ''],
 	];
 
 	const signatureTable = new Table({

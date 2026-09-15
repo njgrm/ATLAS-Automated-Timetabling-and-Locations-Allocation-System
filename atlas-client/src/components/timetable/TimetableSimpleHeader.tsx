@@ -234,17 +234,22 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// term. "All terms" resolves to no request so nothing mixed-term is exported.
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportFacultyId = context.viewMode === 'faculty' && context.entityFilter ? Number(context.entityFilter) : null;
+	// C05 T9/M18 — the persisted school-year label keeps client filenames
+	// byte-identical to the server `Content-Disposition` identity.
+	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
 	const summaryExport = resolveSimpleExportRequest('summary-teacher-schedule', {
 		schoolId: context.schoolId,
 		schoolYearId: context.schoolYearId,
 		runId: exportRunId,
 		termFilter: context.termFilter,
+		yearLabel: exportYearLabel,
 	});
 	const classProgramExport = resolveSimpleExportRequest('class-program', {
 		schoolId: context.schoolId,
 		schoolYearId: context.schoolYearId,
 		runId: exportRunId,
 		termFilter: context.termFilter,
+		yearLabel: exportYearLabel,
 	});
 	const teacherProgramExport = resolveSimpleExportRequest('teacher-program', {
 		schoolId: context.schoolId,
@@ -252,6 +257,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		runId: exportRunId,
 		termFilter: context.termFilter,
 		facultyId: exportFacultyId,
+		yearLabel: exportYearLabel,
 	});
 
 	const handleSimpleExport = async (kind: SimpleExportKind) => {

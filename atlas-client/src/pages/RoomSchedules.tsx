@@ -20,12 +20,15 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
 import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
 import { ScheduleTimetableGrid } from '@/components/room-schedules/ScheduleTimetableGrid';
 import { ScheduleMobileCards } from '@/components/room-schedules/ScheduleMobileCards';
-import { exportScheduleToCsv } from '@/components/room-schedules/schedule-export';
+import { exportScheduleToCsv, resolveRoomProgramExportRequest } from '@/components/room-schedules/schedule-export';
+import { dispatchSimpleExport } from '@/components/timetable/simple/simpleExportRequests';
+import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
 import { SmartHelpTrigger, SmartSourceStatusChip } from '@/components/smart/SmartPageShell';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, SectionSummaryResponse, DraftReport } from '@/types';
 import type { ViewMode, SectionInfo } from '@/components/room-schedules/schedule-types';
@@ -75,6 +78,7 @@ export default function RoomSchedules() {
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionInfo>>(new Map());
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
+	const [schoolYearLabel, setSchoolYearLabel] = useState<string | null>(null);
 	const [roomsLoading, setRoomsLoading] = useState(true);
 	const [lookupError, setLookupError] = useState(false);
 
@@ -86,6 +90,11 @@ export default function RoomSchedules() {
 	const [runIdInput, setRunIdInput] = useState('');
 	const [presentationMode, setPresentationMode] = useState<'schedule' | 'occupancy'>('schedule');
 	const [templateVariant, setTemplateVariant] = useState<'11x6' | '13x6'>('11x6');
+	// C05 T7/M11 — official room program download term selection. `all` is
+	// unresolved and keeps the official control disabled with zero dispatch.
+	const [exportTerm, setExportTerm] = useState<string>('all');
+	const [exportingRoomProgram, setExportingRoomProgram] = useState(false);
+	const [roomProgramError, setRoomProgramError] = useState<string | null>(null);
 
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
 	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
@@ -134,6 +143,7 @@ export default function RoomSchedules() {
 				]);
 
 				setSchoolYearId(activeSchoolYearId);
+				setSchoolYearLabel(yearContext.activeSchoolYearLabel ?? null);
 
 				if (activeSchoolYearId) {
 					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${scopedSchoolId}`)
@@ -356,6 +366,31 @@ export default function RoomSchedules() {
 		exportScheduleToCsv(state.data, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap);
 	}, [state, viewMode, selectedName, subjectMap, facultyMap, sectionMap, roomMap]);
 
+	// C05 T7/M11 — official server-generated room program. The request resolves
+	// only when the run and a numeric term are both resolved; otherwise the
+	// control is disabled and no request is dispatched.
+	const roomProgramRequest = useMemo(() => resolveRoomProgramExportRequest({
+		schoolId: actorSchoolId,
+		schoolYearId,
+		runId: state.status === 'ok' ? state.data.source.runId : null,
+		termFilter: exportTerm === 'all' ? 'all' : Number(exportTerm),
+		roomId: viewMode === 'rooms' ? Number(selectedEntityId) : null,
+		yearLabel: schoolYearLabel,
+	}), [actorSchoolId, schoolYearId, state, exportTerm, viewMode, selectedEntityId, schoolYearLabel]);
+
+	const handleRoomProgramExport = useCallback(async () => {
+		if (!roomProgramRequest || exportingRoomProgram) return;
+		setRoomProgramError(null);
+		setExportingRoomProgram(true);
+		try {
+			await dispatchSimpleExport(roomProgramRequest);
+		} catch (err) {
+			setRoomProgramError(err instanceof Error && err.message ? err.message : 'Room program export failed');
+		} finally {
+			setExportingRoomProgram(false);
+		}
+	}, [roomProgramRequest, exportingRoomProgram]);
+
 	const conflictHandler = useCallback((day: string, dayLabel: string, startTime: string, endTime: string, entries: Parameters<NonNullable<Parameters<typeof ScheduleTimetableGrid>[0]['onConflictClick']>>[4]) => {
 		if (state.status !== 'ok') return;
 		setConflictData({
@@ -511,6 +546,40 @@ export default function RoomSchedules() {
 				>
 					Export CSV
 				</Button>
+				<div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+					<Select value={exportTerm} onValueChange={setExportTerm}>
+						<SelectTrigger
+							className="h-10 w-28 text-xs"
+							aria-label="Official room program term"
+							data-testid="schedules-room-program-term"
+						>
+							<SelectValue placeholder="Term" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All terms</SelectItem>
+							{Array.from({ length: MAX_ACADEMIC_TERM_INDEX }, (_, index) => index + 1).map((term) => (
+								<SelectItem key={term} value={String(term)}>{`Term ${term}`}</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handleRoomProgramExport}
+						disabled={!roomProgramRequest || exportingRoomProgram}
+						className="h-10 shrink-0 shadow-sm text-xs"
+						data-testid="schedules-export-room-program"
+						data-room-program-url={roomProgramRequest?.url ?? ''}
+						data-room-program-filename={roomProgramRequest?.filename ?? ''}
+					>
+						{exportingRoomProgram ? 'Exporting…' : 'Export room program (.xlsx)'}
+					</Button>
+				</div>
+				{roomProgramError ? (
+					<p className="w-full text-xs font-medium text-destructive" data-testid="schedules-room-program-error">
+						{roomProgramError}
+					</p>
+				) : null}
 			</div>
 
 			{state.status === 'ok' && (

@@ -1,6 +1,50 @@
 import type { RoomScheduleView, RoomScheduleEntry } from '@/types';
 import type { ViewMode, SectionInfo } from './schedule-types';
 import { DAY_SHORT } from './schedule-types';
+import { MAX_ACADEMIC_TERM_INDEX } from '@/lib/academic-term';
+
+/** Mirrors the server `exportFileStem` year token byte-for-byte. */
+function exportYearToken(yearLabel: string | null | undefined): string {
+	const value = (yearLabel ?? '').trim();
+	return value.length > 0 ? `SY${value.replace(/[^a-zA-Z0-9-]/g, '')}` : 'SY-UNLABELED';
+}
+
+export type RoomProgramExportRequest = {
+	url: string;
+	filename: string;
+	termIndex: number;
+};
+
+/**
+ * BENEFICIARY-EXPORT-PARITY-C05 T7/T9/M11/M18 — resolve the official
+ * server-generated room program download. Returns `null` (zero dispatch) when
+ * the run or the selected term is unresolved, so the control can never request a
+ * mixed-term or unscoped official output.
+ */
+export function resolveRoomProgramExportRequest(target: {
+	schoolId: number | null;
+	schoolYearId: number | null;
+	runId: number | null;
+	termFilter: 'all' | number;
+	roomId?: number | null;
+	yearLabel?: string | null;
+}): RoomProgramExportRequest | null {
+	const { schoolId, schoolYearId, runId } = target;
+	if (!Number.isInteger(schoolId) || (schoolId ?? 0) <= 0) return null;
+	if (!Number.isInteger(schoolYearId) || (schoolYearId ?? 0) <= 0) return null;
+	if (!Number.isInteger(runId) || (runId ?? 0) <= 0) return null;
+	const term = target.termFilter;
+	if (typeof term !== 'number' || !Number.isInteger(term) || term < 1 || term > MAX_ACADEMIC_TERM_INDEX) return null;
+
+	const roomScoped = Number.isInteger(target.roomId) && (target.roomId ?? 0) > 0;
+	const roomToken = roomScoped ? String(target.roomId) : 'ALL';
+	const roomParam = roomScoped ? `&roomId=${roomToken}` : '';
+	return {
+		url: `/api/v1/generation/${schoolId}/${schoolYearId}/runs/${runId}/export/room-program.xlsx?termIndex=${term}${roomParam}`,
+		filename: `room-program-${roomToken}-${exportYearToken(target.yearLabel)}-term${term}.xlsx`,
+		termIndex: term,
+	};
+}
 
 export function exportScheduleToCsv(
 	view: RoomScheduleView,

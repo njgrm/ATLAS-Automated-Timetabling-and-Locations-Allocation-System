@@ -7,6 +7,7 @@ import { buildGenerationReadiness } from '../services/generation-readiness.servi
 import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
+import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
 import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
 import { generateClassProgramMatrix, validateSpecializationVisibility } from '../services/class-program-matrix.service.js';
@@ -830,6 +831,86 @@ router.get(
 	},
 );
 
+// ─── GET /:schoolId/:schoolYearId/runs/:runId/export/room-program.xlsx ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/export/room-program.xlsx',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can export room programs.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			if (!assertActorSchoolScope(req, res, schoolId)) return;
+
+			// T1/M1 — official outputs are selected-term documents; absent term fails
+			// closed with zero bytes.
+			const termParse = parseRequiredTermQuery(req.query.termIndex);
+			if (!termParse.ok) {
+				res.status(400).json({ code: termParse.code, message: termParse.message });
+				return;
+			}
+			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
+
+			// T7 — optional room scope; omit = every room with entries.
+			let scopedRoomId: number | undefined;
+			const roomIdRaw = req.query.roomId;
+			if (roomIdRaw != null && String(roomIdRaw).trim() !== '') {
+				const parsedRoomId = positiveInt(roomIdRaw, 'roomId');
+				if (typeof parsedRoomId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: parsedRoomId }); return; }
+				scopedRoomId = parsedRoomId;
+			}
+
+			const buffer = await exportRoomProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, roomId: scopedRoomId });
+
+			const resolvedTerm = termIndex as number;
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
+			// The entity token is the numeric room id (or ALL), so the client — which
+			// knows the id but not the server's sanitized name — emits the identical
+			// filename (T9/M18).
+			const entityToken = scopedRoomId != null ? String(scopedRoomId) : 'ALL';
+			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('room-program', entityToken, yearLabel, resolvedTerm)}.xlsx"`);
+			res.send(buffer);
+		} catch (e: any) {
+			if (e?.message === 'RUN_NOT_FOUND') {
+				res.status(404).json({ code: 'RUN_NOT_FOUND', message: 'Generation run not found.' });
+				return;
+			}
+			if (e?.message === 'RUN_NOT_COMPLETED') {
+				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			if (e?.message === 'ROOM_NOT_FOUND') {
+				res.status(404).json({ code: 'ROOM_NOT_FOUND', message: 'Room not found for this school.' });
+				return;
+			}
+			if (e?.message === 'EMPTY_ROOM_SCHEDULE') {
+				res.status(422).json({ code: 'EMPTY_ROOM_SCHEDULE', message: 'The requested room has no entries in the selected term.' });
+				return;
+			}
+			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
+				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the run has no verified ordered-term identity.' });
+				return;
+			}
+			if (typeof e?.statusCode === 'number' && typeof e?.code === 'string') {
+				res.status(e.statusCode).json({ code: e.code, message: e.message });
+				return;
+			}
+			next(e);
+		}
+	},
+);
+
 // ─── GET /:schoolId/:schoolYearId/class-program-matrix — grade-level class-program output ───
 
 router.get(
@@ -865,7 +946,9 @@ router.get(
 
 			// Bind the requested/effective source run and ordered term exactly like
 			// the reviewed workbook route. An absent runId resolves the latest
-			// completed run; an absent termIndex keeps all terms of that run.
+			// completed run; an absent termIndex is rejected by
+			// `parseRequiredTermQuery` below with a typed `TERM_INDEX_REQUIRED`
+			// (official outputs are selected-term documents — never all-term).
 			let runId: number | undefined;
 			if (req.query.runId != null) {
 				const parsedRunId = positiveInt(req.query.runId, 'runId');

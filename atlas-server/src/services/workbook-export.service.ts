@@ -98,12 +98,22 @@ function specialEventLabelForSlot(
 	return null;
 }
 
-type ExportContext = {
+/** C05 T4/M9 — configurable branding lines; unset values stay blank. */
+export type ExportBranding = {
+	schoolName: string;
+	regionLine: string;
+	divisionLine: string;
+	districtLine: string;
+};
+
+export type ExportContext = {
 	schoolName: string;
 	yearLabel: string;
 	runId: number;
 	/** Resolved selected ordered term for this output, when bound. */
 	termIndex: number | null;
+	/** C05 T4/M9 — persisted/blank branding block above the title. */
+	branding: ExportBranding;
 	/** Persisted run publication state (C05 T10/M23). */
 	publication: {
 		isPublished: boolean;
@@ -306,6 +316,15 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 		yearLabel: schoolYearMirror?.yearLabel ?? '',
 		runId,
 		termIndex: options.termIndex ?? null,
+		branding: {
+			// School identity comes from persisted configuration; region/division/
+			// district have no persisted ATLAS source yet, so they stay blank and
+			// are never invented (C05 contract §1.10).
+			schoolName: school?.name ?? '',
+			regionLine: '',
+			divisionLine: '',
+			districtLine: '',
+		},
 		publication,
 		subjectMap,
 		facultyMap,
@@ -411,32 +430,80 @@ function publicationMarker(ctx: ExportContext): string {
 	return 'NOT PUBLISHED — DRAFT/REVIEW';
 }
 
-function addReportHeader(
+/**
+ * C05 T4/M9 — layout contract: rows 1..4 carry the configurable branding block
+ * above the title, row 5 the title, row 6 the identity/publication meta row.
+ * Section/grade blocks start at `EXPORT_FIRST_BLOCK_ROW`.
+ */
+export const EXPORT_HEADER_LAST_ROW = 6;
+export const EXPORT_FIRST_BLOCK_ROW = EXPORT_HEADER_LAST_ROW + 2;
+
+/**
+ * C05 T4/M9 — branding block + identity/publication meta. Only persisted values
+ * are printed; unset branding lines render as an empty string (never invented).
+ */
+export function addReportHeader(
 	sheet: ExcelJS.Workbook['worksheets'][number],
 	ctx: ExportContext,
 	title: string,
 ) {
-	const headerRow = sheet.getRow(1);
+	const brandingLines = [
+		ctx.branding.schoolName,
+		ctx.branding.regionLine,
+		ctx.branding.divisionLine,
+		ctx.branding.districtLine,
+	];
+	brandingLines.forEach((line, index) => {
+		const row = sheet.getRow(index + 1);
+		row.getCell(1).value = line;
+		row.getCell(1).font = index === 0 ? { bold: true, size: 12 } : { size: 10 };
+	});
+
+	const headerRow = sheet.getRow(5);
 	headerRow.getCell(1).value = title;
 	headerRow.getCell(1).font = { bold: true, size: 14 };
-	// Branding: persisted school identity; unset lines stay blank, never invented.
-	headerRow.getCell(6).value = ctx.schoolName || '';
-	headerRow.getCell(6).font = { italic: true };
 
-	const metaRow = sheet.getRow(2);
+	const metaRow = sheet.getRow(EXPORT_HEADER_LAST_ROW);
 	metaRow.getCell(1).value = `School: ${ctx.schoolName}`;
 	metaRow.getCell(1).font = { italic: true };
 	metaRow.getCell(2).value = `Year: ${ctx.yearLabel}`;
 	metaRow.getCell(2).font = { italic: true };
-	metaRow.getCell(3).value = `Run: ${ctx.runId}`;
+	metaRow.getCell(3).value = `Term: ${ctx.termIndex != null ? `T${ctx.termIndex}` : ''}`;
 	metaRow.getCell(3).font = { italic: true };
-	metaRow.getCell(4).value = `Generated: ${new Date().toISOString().split('T')[0]}`;
+	metaRow.getCell(4).value = `Run: ${ctx.runId}`;
 	metaRow.getCell(4).font = { italic: true };
-	// Selected-term identity and explicit publication state.
-	metaRow.getCell(5).value = ctx.termIndex != null ? `Term: T${ctx.termIndex}` : '';
+	metaRow.getCell(5).value = `Generated: ${new Date().toISOString().split('T')[0]}`;
 	metaRow.getCell(5).font = { italic: true };
 	metaRow.getCell(6).value = publicationMarker(ctx);
 	metaRow.getCell(6).font = { italic: true, bold: true };
+}
+
+/** C05 T4/M9 — landscape, fit-to-width print setup for every official sheet. */
+export function applyLandscapePrintSetup(sheet: ExcelJS.Workbook['worksheets'][number]) {
+	sheet.pageSetup = {
+		paperSize: 9, // A4
+		orientation: 'landscape',
+		fitToPage: true,
+		fitToWidth: 1,
+		fitToHeight: 0,
+	};
+}
+
+/** C05 T5/M12 — ExcelJS sheet-name safety (31 chars, no `[]:*?/\`). */
+function sanitizeSheetName(name: string): string {
+	const cleaned = (name || 'SHEET').replace(/[\\/?*[\]:]/g, ' ').trim();
+	return (cleaned.length > 0 ? cleaned : 'SHEET').slice(0, 31);
+}
+
+function uniqueSheetName(workbook: ExcelJS.Workbook, base: string): string {
+	const candidate = sanitizeSheetName(base);
+	let name = candidate;
+	let suffix = 2;
+	while (workbook.worksheets.some((sheet) => sheet.name === name)) {
+		name = `${candidate.slice(0, 28)}_${suffix}`;
+		suffix += 1;
+	}
+	return name;
 }
 
 export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buffer> {
@@ -474,12 +541,12 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 	addReportHeader(sheet, ctx, 'CLASS-MONITORING SUMMARY');
 
 	const orderedSlots = interleaveSlots(periodSlots, breakSlots);
+	const bandHeight = orderedSlots.reduce((sum, item) => sum + (item.type === 'break' ? 1 : 2), 0) + 3;
 
+	let rowCursor = EXPORT_FIRST_BLOCK_ROW;
 	for (let bandIdx = 0; bandIdx < bands.length; bandIdx++) {
 		const band = bands[bandIdx];
-		// header(1) + meta(1) + blank(1) + section(1) + adviser(1) + data rows
-		const dataStartRow = 4 + bandIdx * (orderedSlots.reduce((sum, item) => sum + (item.type === 'break' ? 1 : 2), 0) + 3);
-		const startRow = bandIdx === 0 ? 4 : dataStartRow;
+		const startRow = EXPORT_FIRST_BLOCK_ROW + bandIdx * bandHeight;
 
 		// Section header
 		const headerRow = sheet.getRow(startRow);
@@ -527,9 +594,103 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 				row++;
 			}
 		}
+		rowCursor = row + 1;
 	}
 
+	// C05 T5/M12 — reconciliation totals from the same selected-term entries the
+	// class program renders, so the summary and class program agree exactly.
+	rowCursor += 1;
+	const totalMinutes = ctx.entries.reduce((sum, entry) => {
+		return sum + (entry.durationMinutes ?? Math.max(0, toMinutes(entry.endTime) - toMinutes(entry.startTime)));
+	}, 0);
+	const reconciliationRow = sheet.getRow(rowCursor);
+	reconciliationRow.getCell(1).value = 'RECONCILIATION (SELECTED TERM)';
+	reconciliationRow.getCell(1).font = { bold: true };
+	reconciliationRow.getCell(2).value = `Entries: ${ctx.entries.length} — Total minutes: ${totalMinutes}`;
+	reconciliationRow.getCell(2).font = { italic: true };
+
 	sheet.columns.forEach((col) => { col.width = 18; });
+	applyLandscapePrintSetup(sheet);
+
+	// ─── Per-subject teacher sheets (reference workbook parity, C05 T5/M12) ───
+	const subjectIds = [...new Set(ctx.entries.map((entry) => entry.subjectId))]
+		.filter((id): id is number => typeof id === 'number' && id > 0);
+	for (const subjectId of subjectIds) {
+		const subject = ctx.subjectMap.get(subjectId);
+		if (!subject) continue;
+		const subjectEntries = ctx.entries.filter((entry) => entry.subjectId === subjectId);
+		const subjectSheet = workbook.addWorksheet(uniqueSheetName(workbook, subject.name));
+		addReportHeader(subjectSheet, ctx, `SUBJECT: ${subject.name}`);
+		subjectSheet.columns.forEach((col) => { col.width = 20; });
+
+		// Panel-per-(section, teacher) mirroring the reference workbook structure.
+		const panelKeys = new Map<string, { sectionId: number; facultyId: number | null }>();
+		for (const entry of subjectEntries) {
+			const key = `${entry.sectionId}-${entry.facultyId ?? 0}`;
+			if (!panelKeys.has(key)) panelKeys.set(key, { sectionId: entry.sectionId, facultyId: entry.facultyId ?? null });
+		}
+
+		let panelRow = EXPORT_FIRST_BLOCK_ROW;
+		for (const panel of panelKeys.values()) {
+			const panelEntries = subjectEntries
+				.filter((entry) => entry.sectionId === panel.sectionId && (entry.facultyId ?? null) === panel.facultyId)
+				.sort((a, b) => a.day.localeCompare(b.day) || a.startTime.localeCompare(b.startTime));
+			const section = sortedSections.find((s) => s.externalId === panel.sectionId);
+			const sectionName = section?.name ?? `Section ${panel.sectionId}`;
+			const faculty = panel.facultyId != null ? ctx.facultyMap.get(panel.facultyId) : null;
+			const teacherName = faculty
+				? [faculty.lastName, faculty.firstName].filter(Boolean).join(', ')
+				: 'Unassigned';
+			const adviserName = section ? ctx.adviserMap.get(section.externalId) ?? '' : '';
+
+			const panelHeader = subjectSheet.getRow(panelRow);
+			panelHeader.getCell(1).value = `SUBJECT: ${subject.name}`;
+			panelHeader.getCell(1).font = { bold: true };
+			panelHeader.getCell(2).value = `SECTION: ${sectionName}`;
+			panelHeader.getCell(3).value = `TEACHER: ${teacherName}`;
+			panelRow += 1;
+
+			const columnHeader = subjectSheet.getRow(panelRow);
+			['TIME', 'MINUTES', 'DAY', 'ROOM'].forEach((label, index) => {
+				columnHeader.getCell(index + 1).value = label;
+				columnHeader.getCell(index + 1).font = { bold: true };
+			});
+			panelRow += 1;
+
+			let panelMinutes = 0;
+			for (const entry of panelEntries) {
+				const minutes = entry.durationMinutes ?? Math.max(0, toMinutes(entry.endTime) - toMinutes(entry.startTime));
+				panelMinutes += minutes;
+				const room = entry.roomId ? ctx.roomMap.get(entry.roomId) : undefined;
+				const row = subjectSheet.getRow(panelRow);
+				row.getCell(1).value = `${formatTime12h(entry.startTime)}-${formatTime12h(entry.endTime)}`;
+				row.getCell(2).value = minutes;
+				row.getCell(3).value = WEEKDAY_SHORT[entry.day] ?? entry.day;
+				row.getCell(4).value = formatRoomLabel(room);
+				panelRow += 1;
+			}
+
+			// Advisory / ancillary / total rows. Values are blank when no
+			// authoritative source exists; nothing is invented.
+			const advisoryRow = subjectSheet.getRow(panelRow);
+			advisoryRow.getCell(1).value = 'ADVISORY';
+			advisoryRow.getCell(1).font = { bold: true };
+			advisoryRow.getCell(2).value = adviserName;
+			panelRow += 1;
+			const ancillaryRow = subjectSheet.getRow(panelRow);
+			ancillaryRow.getCell(1).value = 'ANCILLARY';
+			ancillaryRow.getCell(1).font = { bold: true };
+			panelRow += 1;
+			const totalRow = subjectSheet.getRow(panelRow);
+			totalRow.getCell(1).value = 'TOTAL';
+			totalRow.getCell(1).font = { bold: true };
+			totalRow.getCell(2).value = panelMinutes;
+			totalRow.getCell(2).font = { bold: true };
+			panelRow += 2;
+		}
+
+		applyLandscapePrintSetup(subjectSheet);
+	}
 
 	const buffer = await workbook.xlsx.writeBuffer();
 	return Buffer.from(buffer);
@@ -629,22 +790,35 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		addReportHeader(sheet, ctx, `CLASS PROGRAM - Grade ${gradeLevel}`);
 		sheet.columns.forEach((col) => { col.width = 16; });
 
-		let rowCursor = 4;
+		let rowCursor = EXPORT_FIRST_BLOCK_ROW;
 		for (const section of gradeSections) {
+			// C05 T4/M9 — learner/identity row. Male/Female/Total values stay blank:
+			// ATLAS has no authoritative learner-count source (D-E), and blank
+			// fields are never replaced with invented numbers.
 			const sectionRow = sheet.getRow(rowCursor);
-			sectionRow.getCell(1).value = `SECTION: ${section.name}`;
+			sectionRow.getCell(1).value = `GRADE ${gradeLevel} — SECTION: ${section.name}`;
 			sectionRow.getCell(1).font = { bold: true, size: 12 };
-			sectionRow.getCell(4).value = `ADVISER: ${ctx.adviserMap.get(section.externalId) ?? ''}`;
-			sectionRow.getCell(7).value = `BLDG./RM.: ${formatRoomLabel(sectionRoomMap.get(section.externalId))}`;
+			sectionRow.getCell(3).value = 'No. of Learners — MALE:';
+			sectionRow.getCell(5).value = 'FEMALE:';
+			sectionRow.getCell(7).value = 'TOTAL:';
+			rowCursor++;
+
+			const identityRow = sheet.getRow(rowCursor);
+			identityRow.getCell(1).value = `ADVISER: ${ctx.adviserMap.get(section.externalId) ?? ''}`;
+			identityRow.getCell(3).value = `BLDG./RM.: ${formatRoomLabel(sectionRoomMap.get(section.externalId))}`;
+			identityRow.getCell(6).value = `TERM: ${ctx.termIndex != null ? `T${ctx.termIndex}` : ''}`;
 			rowCursor++;
 
 			const headerRow = sheet.getRow(rowCursor);
 			headerRow.getCell(1).value = 'TIME';
 			headerRow.getCell(2).value = 'MINUTES';
 			WEEKDAYS.forEach((day, dayIndex) => { headerRow.getCell(dayIndex + 3).value = day; });
+			// C05 T4/M9 — unambiguous per-period teacher attribution column.
+			headerRow.getCell(8).value = 'TEACHER';
 			headerRow.font = { bold: true };
 			rowCursor++;
 
+			let dailyTotalMinutes = 0;
 			for (const item of orderedSlots) {
 				const row = sheet.getRow(rowCursor);
 				const startTime = item.slot.startTime;
@@ -656,30 +830,78 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 						: `${formatTime12h(startTime)}-${formatTime12h(endTime)}`;
 				row.getCell(2).value = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
 
-				WEEKDAYS.forEach((day, dayIndex) => {
-					const cell = row.getCell(dayIndex + 3);
-					if (item.type === 'break') {
-						const eventDay = resolveSpecialEventDay(item.slot.eventName, item.slot.dayOfWeek);
-						cell.value = eventDay && eventDay !== day ? '' : getBreakLabel(item.slot.eventName);
-						return;
+				if (item.type === 'break') {
+					const eventDay = resolveSpecialEventDay(item.slot.eventName, item.slot.dayOfWeek);
+					if (eventDay) {
+						// C05 T4/M7 — a day-scoped break/event band (e.g. the
+						// Monday-only Flag/HGP overlay) occupies only its own weekday;
+						// the same interval stays teachable on the other weekdays.
+						const dayIndex = (WEEKDAYS as readonly string[]).indexOf(eventDay);
+						if (dayIndex >= 0) row.getCell(dayIndex + 3).value = getBreakLabel(item.slot.eventName);
+					} else {
+						// Week-spanning break band: one merged band across Mon–Fri.
+						row.getCell(3).value = getBreakLabel(item.slot.eventName);
+						sheet.mergeCells(rowCursor, 3, rowCursor, 7);
 					}
-					// A Monday-only Flag/HGP event occupies only Monday's cell; the
-					// same interval stays an ordinary class period on other weekdays.
-					const eventLabel = specialEventLabelForSlot(specialEventSlots, day, startTime, endTime);
-					if (eventLabel) {
-						cell.value = eventLabel;
-						return;
-					}
-					const entry = entryGrid.get(`${section.externalId}-${day}-${startTime}-${endTime}`);
-					if (!entry) { cell.value = ''; return; }
-					if (visibility === 'hidden' && entry.isSpecialization) { cell.value = ''; return; }
-					cell.value = entry.teacher ? `${entry.subject}\n${entry.teacher}` : entry.subject;
-				});
+				} else {
+					dailyTotalMinutes += Math.max(0, toMinutes(endTime) - toMinutes(startTime));
+					const dayEntries: GridEntry[] = [];
+					WEEKDAYS.forEach((day, dayIndex) => {
+						const cell = row.getCell(dayIndex + 3);
+						// A Monday-only Flag/HGP event occupies only Monday's cell; the
+						// same interval stays an ordinary class period on other weekdays.
+						const eventLabel = specialEventLabelForSlot(specialEventSlots, day, startTime, endTime);
+						if (eventLabel) {
+							cell.value = eventLabel;
+							return;
+						}
+						const entry = entryGrid.get(`${section.externalId}-${day}-${startTime}-${endTime}`);
+						if (!entry) { cell.value = ''; return; }
+						if (visibility === 'hidden' && entry.isSpecialization) { cell.value = ''; return; }
+						cell.value = entry.teacher ? `${entry.subject}\n${entry.teacher}` : entry.subject;
+						dayEntries.push(entry);
+					});
+					row.getCell(8).value = formatDayTaggedField(dayEntries, 'teacher');
+				}
 				rowCursor++;
 			}
 
-			rowCursor += 1; // blank separator between sections
+			// C05 T4/M9 — daily totals row with exact arithmetic reconciled to the
+			// configured period structure (sum of the rendered class-period minutes).
+			const totalsRow = sheet.getRow(rowCursor);
+			totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
+			totalsRow.getCell(1).font = { bold: true };
+			totalsRow.getCell(2).value = dailyTotalMinutes;
+			totalsRow.getCell(2).font = { bold: true };
+			WEEKDAYS.forEach((_, dayIndex) => {
+				totalsRow.getCell(dayIndex + 3).value = dailyTotalMinutes;
+				totalsRow.getCell(dayIndex + 3).font = { bold: true };
+			});
+			rowCursor += 2; // blank separator between sections
 		}
+
+		// C05 T4/M9 — approval block after each grade sheet. Unset names render as
+		// blank signature lines, never invented people.
+		const approvalTitle = sheet.getRow(rowCursor);
+		approvalTitle.getCell(1).value = 'APPROVAL';
+		approvalTitle.getCell(1).font = { bold: true, size: 12 };
+		rowCursor++;
+		for (const role of ['Prepared by:', 'Reviewed by:', 'Recommending Approval:', 'Approved by:']) {
+			const row = sheet.getRow(rowCursor);
+			row.getCell(1).value = role;
+			row.getCell(1).font = { bold: true };
+			row.getCell(3).value = '________________________';
+			rowCursor++;
+		}
+		const adviserRow = sheet.getRow(rowCursor);
+		adviserRow.getCell(1).value = 'Adviser:';
+		adviserRow.getCell(1).font = { bold: true };
+		adviserRow.getCell(3).value = gradeSections
+			.map((section) => ctx.adviserMap.get(section.externalId) ?? '')
+			.filter((value) => value.length > 0)
+			.join(', ') || '________________________';
+
+		applyLandscapePrintSetup(sheet);
 	}
 
 	const buffer = await workbook.xlsx.writeBuffer();
