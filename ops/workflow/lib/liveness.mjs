@@ -151,11 +151,25 @@ export function reconcileRegister({ register, heartbeats }) {
   return { warnings };
 }
 
+// Count conservation: every view increments exactly one bucket, so the buckets
+// always sum to the view total. An out-of-domain classification is conserved in
+// the explicit UNKNOWN bucket rather than silently dropped, coerced to NaN, or
+// added as an un-vocabulary key.
 export function summarizeClassifications(views) {
   const byClassification = {};
   for (const name of CLASSIFICATIONS) byClassification[name] = 0;
-  for (const view of views) byClassification[view.classification] += 1;
+  for (const view of views) {
+    const value = view && typeof view === "object" ? view.classification : null;
+    const bucket = CLASSIFICATIONS.includes(value) ? value : "UNKNOWN";
+    byClassification[bucket] += 1;
+  }
   return byClassification;
+}
+
+// Total count represented by a summarizeClassifications result. Used by the
+// conservation control: sum(buckets) must always equal the input length.
+export function classificationTotal(byClassification) {
+  return Object.values(byClassification).reduce((sum, value) => sum + value, 0);
 }
 
 /** Concise human view; deterministic given the same state and clock. */

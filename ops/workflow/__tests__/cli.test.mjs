@@ -25,13 +25,26 @@ function materializedState(repo, fixtureName, outName) {
 function integrationReadyState(repo) {
   const doc = JSON.parse(substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo)));
   doc.streams[0].state = "INTEGRATION_READY";
-  doc.streams[0].gates = { total: 2, passed: 2, failed: 0, blocked: 0, unperformed: 0 };
+  doc.streams[0].gates = {
+    total: 2,
+    passed: 2,
+    failed: 0,
+    blocked: 0,
+    unperformed: 0,
+    plan: { MANDATORY_SOURCE: 2, MANDATORY_LIVE: 0, DEFERRED_EXTERNAL: 0 },
+    classes: {
+      MANDATORY_SOURCE: { total: 2, passed: 2, failed: 0, blocked: 0, unperformed: 0 },
+      MANDATORY_LIVE: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+      DEFERRED_EXTERNAL: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+    },
+  };
   doc.streams[0].review = {
     qaVerdict: "ACCEPT_READY",
     qaSessionId: "sess-qa-mint",
     auditorVerdict: "AUDIT_CLEAR",
     auditorSessionId: "sess-aud-mint",
     auditRequired: false,
+    qaRounds: [{ round: 1, verdict: "ACCEPT_READY", sessionId: "sess-qa-mint" }],
   };
   return writeState(repo, "mint-state.json", `${JSON.stringify(doc, null, 2)}\n`);
 }

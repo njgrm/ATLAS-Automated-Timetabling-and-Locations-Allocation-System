@@ -14,7 +14,30 @@ import { getSharedRepo, stateDocFromFixture, verifyInProcess, SCHEMA_FILE } from
 const ISO = "2026-09-14T10:00:00+08:00";
 
 function completeReview() {
-  return { qaVerdict: "ACCEPT_READY", qaSessionId: "ses-qa", auditorVerdict: "AUDIT_CLEAR", auditorSessionId: "ses-aud", auditRequired: true };
+  return {
+    qaVerdict: "ACCEPT_READY",
+    qaSessionId: "ses-qa",
+    auditorVerdict: "AUDIT_CLEAR",
+    auditorSessionId: "ses-aud",
+    auditRequired: true,
+    qaRounds: [{ round: 1, verdict: "ACCEPT_READY", sessionId: "ses-qa" }],
+  };
+}
+
+// A gate-class shape whose five top-level counters are the exact class sums.
+function classedGates(source, live = { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 }, deferred = { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 }) {
+  const zero = () => ({ total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 });
+  const classes = { MANDATORY_SOURCE: { ...source }, MANDATORY_LIVE: { ...live }, DEFERRED_EXTERNAL: { ...deferred } };
+  const sum = (key) => classes.MANDATORY_SOURCE[key] + classes.MANDATORY_LIVE[key] + classes.DEFERRED_EXTERNAL[key];
+  return {
+    total: sum("total"),
+    passed: sum("passed"),
+    failed: sum("failed"),
+    blocked: sum("blocked"),
+    unperformed: sum("unperformed"),
+    plan: { MANDATORY_SOURCE: classes.MANDATORY_SOURCE.total, MANDATORY_LIVE: classes.MANDATORY_LIVE.total, DEFERRED_EXTERNAL: classes.DEFERRED_EXTERNAL.total },
+    classes,
+  };
 }
 
 function runCase({ fixture = "pass-ordinary.json", mutate, schemaPatch, inRepo = true }) {
@@ -83,7 +106,63 @@ const CASES = [
     mutate: (d) => {
       d.streams[0].state = "COMPLETE";
       d.streams[0].nextAction = null;
-      d.streams[0].review = { qaVerdict: "ACCEPT_READY", qaSessionId: "q", auditorVerdict: null, auditorSessionId: null, auditRequired: true };
+      d.streams[0].gates = classedGates({ total: 1, passed: 1, failed: 0, blocked: 0, unperformed: 0 });
+      d.streams[0].review = {
+        qaVerdict: "ACCEPT_READY",
+        qaSessionId: "q",
+        auditorVerdict: null,
+        auditorSessionId: null,
+        auditRequired: true,
+        qaRounds: [{ round: 1, verdict: "ACCEPT_READY", sessionId: "q" }],
+      };
+    },
+  },
+  {
+    code: "QA_ROUNDS_INCONSISTENT",
+    mutate: (d) => {
+      d.streams[0].review.qaVerdict = "ACCEPT_READY";
+      d.streams[0].review.qaSessionId = "ses-qa";
+      d.streams[0].review.qaRounds = [];
+      d.streams[0].gates = classedGates({ total: 1, passed: 1, failed: 0, blocked: 0, unperformed: 0 });
+    },
+  },
+  {
+    code: "QA_ROUNDS_INCONSISTENT",
+    mutate: (d) => {
+      d.streams[0].review.qaVerdict = "ACCEPT_READY";
+      d.streams[0].review.qaSessionId = "ses-qa-2";
+      d.streams[0].review.qaRounds = [
+        { round: 1, verdict: "ACCEPT_READY", sessionId: "ses-qa-1" },
+        { round: 3, verdict: "ACCEPT_READY", sessionId: "ses-qa-2" },
+      ];
+      d.streams[0].gates = classedGates({ total: 1, passed: 1, failed: 0, blocked: 0, unperformed: 0 });
+    },
+  },
+  {
+    code: "COMPLETE_MANDATORY_GATES_UNPASSED",
+    mutate: (d) => {
+      d.streams[0].state = "COMPLETE";
+      d.streams[0].nextAction = null;
+      d.streams[0].closure = null;
+      d.streams[0].gates = classedGates({ total: 1, passed: 1, failed: 0, blocked: 0, unperformed: 0 }, { total: 1, passed: 0, failed: 0, blocked: 0, unperformed: 1 });
+      d.streams[0].review = {
+        qaVerdict: "ACCEPT_READY",
+        qaSessionId: "ses-qa",
+        auditorVerdict: null,
+        auditorSessionId: null,
+        auditRequired: false,
+        qaRounds: [{ round: 1, verdict: "ACCEPT_READY", sessionId: "ses-qa" }],
+      };
+    },
+  },
+  {
+    code: "GATES_ARITHMETIC",
+    mutate: (d) => {
+      // Per-class arithmetic is internally consistent, but the class total does
+      // not equal the top-level counter (W3 class-sum dimension).
+      const gates = classedGates({ total: 2, passed: 2, failed: 0, blocked: 0, unperformed: 0 });
+      gates.total = 3;
+      d.streams[0].gates = gates;
     },
   },
   {

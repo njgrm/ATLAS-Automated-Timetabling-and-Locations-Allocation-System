@@ -19,6 +19,7 @@ import {
 } from "./git.mjs";
 import { sha256Hex } from "./util.mjs";
 import { validateClosureReceipt } from "./receipt.mjs";
+import { GATE_CLASSES } from "./readiness.mjs";
 
 const NEXT_ACTION_STATES = new Set([
   "PLANNED",
@@ -32,6 +33,19 @@ const NEXT_ACTION_STATES = new Set([
   "BLOCKED",
   "EXTERNALLY_BLOCKED",
 ]);
+
+// The states/verdicts that assert the work is accepted or closed. A predeclared
+// gate plan must be fully accounted for at such a claim; anything less is a
+// silent reclassification of a predeclared gate.
+const ACCEPTANCE_OR_CLOSURE_STATES = new Set(["ACCEPT_READY", "INTEGRATION_READY", "INTEGRATED", "COMPLETE"]);
+
+export function isAcceptanceOrClosureClaim(stream) {
+  return (
+    ACCEPTANCE_OR_CLOSURE_STATES.has(stream.state) ||
+    stream.review.qaVerdict === "ACCEPT_READY" ||
+    stream.review.auditorVerdict === "AUDIT_CLEAR"
+  );
+}
 
 export const TERMINAL_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED", "SUPERSEDED"]);
 const SUCCESSOR_UNLOCKABLE_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED"]);
@@ -166,18 +180,121 @@ export function verifyStateDocument(statePath, options = {}) {
   streams.forEach((stream, i) => {
     const sp = `streams[${i}]`;
     const gates = stream.gates;
-    const arithmetic = gates.total === gates.passed + gates.failed + gates.blocked + gates.unperformed;
-    if (!arithmetic) {
+    const topLevelSum = gates.passed + gates.failed + gates.blocked + gates.unperformed;
+    if (gates.total !== topLevelSum) {
       push(
         "GATES_ARITHMETIC",
-        `gates total ${gates.total} != passed+failed+blocked+unperformed (${gates.passed + gates.failed + gates.blocked + gates.unperformed})`,
+        `gates total ${gates.total} != passed+failed+blocked+unperformed (${topLevelSum})`,
         `${sp}.gates`,
       );
     }
-    const cleanGates = gates.total > 0 && gates.passed === gates.total && gates.failed === 0 && gates.blocked === 0 && gates.unperformed === 0;
+    // Per-class arithmetic, and each top-level counter must equal the sum of the
+    // three predeclared classes. This is the load-bearing control that a
+    // predeclared gate cannot be moved out of the arithmetic.
+    for (const className of GATE_CLASSES) {
+      const counters = gates.classes[className];
+      const classSum = counters.passed + counters.failed + counters.blocked + counters.unperformed;
+      if (counters.total !== classSum) {
+        push(
+          "GATES_ARITHMETIC",
+          `gates.classes.${className} total ${counters.total} != passed+failed+blocked+unperformed (${classSum})`,
+          `${sp}.gates.classes.${className}`,
+        );
+      }
+    }
+    for (const key of ["total", "passed", "failed", "blocked", "unperformed"]) {
+      const summed = GATE_CLASSES.reduce((sum, name) => sum + gates.classes[name][key], 0);
+      if (gates[key] !== summed) {
+        push("GATES_ARITHMETIC", `gates.${key} ${gates[key]} != sum of the three gate classes (${summed})`, `${sp}.gates`);
+      }
+    }
+
+    // A gate may never appear above its predeclared class plan, and at an
+    // acceptance/closure claim every predeclared gate must be accounted for.
+    const claim = isAcceptanceOrClosureClaim(stream);
+    for (const className of GATE_CLASSES) {
+      const actual = gates.classes[className].total;
+      const planned = gates.plan[className];
+      if (actual > planned) {
+        push(
+          "GATE_PLAN_MISMATCH",
+          `gate class ${className} total ${actual} exceeds its predeclared plan ${planned}`,
+          `${sp}.gates.classes.${className}.total`,
+        );
+      } else if (claim && actual !== planned) {
+        push(
+          "GATE_PLAN_MISMATCH",
+          `gate class ${className} total ${actual} != its predeclared plan ${planned} at an acceptance/closure claim`,
+          `${sp}.gates.classes.${className}.total`,
+        );
+      }
+    }
+
     if (stream.state === "ACCEPT_READY" || stream.review.qaVerdict === "ACCEPT_READY") {
-      if (!cleanGates) {
-        push("ACCEPT_READY_DIRTY_GATES", "ACCEPT_READY requires total>0, passed===total, failed/blocked/unperformed===0", `${sp}.gates`);
+      const mandatorySource = gates.classes.MANDATORY_SOURCE;
+      const mandatoryLive = gates.classes.MANDATORY_LIVE;
+      const sourceClean =
+        mandatorySource.total > 0 &&
+        mandatorySource.passed === mandatorySource.total &&
+        mandatorySource.failed === 0 &&
+        mandatorySource.blocked === 0 &&
+        mandatorySource.unperformed === 0;
+      const liveClean = mandatoryLive.failed === 0 && mandatoryLive.blocked === 0;
+      if (!(gates.total > 0 && sourceClean && liveClean)) {
+        push(
+          "ACCEPT_READY_DIRTY_GATES",
+          "ACCEPT_READY requires total>0, MANDATORY_SOURCE fully passed, and zero failed/blocked MANDATORY_LIVE gates",
+          `${sp}.gates`,
+        );
+      }
+    }
+    if (stream.state === "COMPLETE") {
+      const mandatoryLive = gates.classes.MANDATORY_LIVE;
+      if (!(mandatoryLive.passed === mandatoryLive.total && mandatoryLive.unperformed === 0)) {
+        push(
+          "COMPLETE_MANDATORY_GATES_UNPASSED",
+          `COMPLETE requires every MANDATORY_LIVE gate passed with zero unperformed (have ${mandatoryLive.passed}/${mandatoryLive.total}, unperformed ${mandatoryLive.unperformed})`,
+          `${sp}.gates.classes.MANDATORY_LIVE`,
+        );
+      }
+    }
+
+    // ---- QA rounds and the corrections trail ----
+    // Every QA round is recorded; the last round is the current verdict. A
+    // disclosed CORRECTION_REQUIRED round requires a recorded correction round
+    // before the stream may claim acceptance or closure.
+    const qaRounds = stream.review.qaRounds;
+    if (qaRounds.length === 0) {
+      if (stream.review.qaVerdict !== null) {
+        push("QA_ROUNDS_INCONSISTENT", "review.qaVerdict is set while review.qaRounds is empty", `${sp}.review.qaRounds`);
+      }
+    } else {
+      let roundsConsistent = true;
+      qaRounds.forEach((round, ri) => {
+        if (round.round !== ri + 1) roundsConsistent = false;
+      });
+      const lastRound = qaRounds[qaRounds.length - 1];
+      if (!(lastRound.verdict === stream.review.qaVerdict && (lastRound.sessionId ?? null) === (stream.review.qaSessionId ?? null))) {
+        roundsConsistent = false;
+      }
+      if (!roundsConsistent) {
+        push(
+          "QA_ROUNDS_INCONSISTENT",
+          "review.qaRounds must be exactly 1..n with the last round matching review.qaVerdict/qaSessionId",
+          `${sp}.review.qaRounds`,
+        );
+      }
+    }
+    if (claim) {
+      for (const round of qaRounds) {
+        if (round.verdict !== "CORRECTION_REQUIRED") continue;
+        if (!stream.corrections.some((correction) => correction.round >= round.round)) {
+          push(
+            "CORRECTION_NOT_RECORDED",
+            `qaRounds round ${round.round} disclosed CORRECTION_REQUIRED while corrections[] holds no round >= ${round.round}`,
+            `${sp}.corrections`,
+          );
+        }
       }
     }
 

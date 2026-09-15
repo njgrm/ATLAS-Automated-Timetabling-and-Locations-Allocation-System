@@ -1,7 +1,15 @@
 {
-  "contractVersion": "1.1.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:00:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
-  "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
+  "contractVersion": "1.2.0",
+  "registry": {
+    "lastUpdatedAt": "2026-09-14T10:00:00+08:00",
+    "lastUpdatedBy": "fixture",
+    "revision": 1
+  },
+  "coordination": {
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": null
+  },
   "streams": [
     {
       "id": "ORD-1",
@@ -12,35 +20,133 @@
       "stateUpdatedAt": "2026-09-14T10:00:00+08:00",
       "nextAction": "Continue the bounded implementation.",
       "awaited": [],
-      "running": ["executor running"],
-      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
-      "owners": {
-        "planner": { "sessionId": null, "status": "ACTIVE", "writable": true },
-        "executor": { "sessionId": null, "status": "NONE", "writable": false },
-        "qa": { "sessionId": null, "status": "NONE", "writable": false },
-        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      "running": [
+        "executor running"
+      ],
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
       },
-      "gates": { "total": 4, "passed": 2, "failed": 1, "blocked": 0, "unperformed": 1 },
-      "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "ACTIVE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 4,
+        "passed": 2,
+        "failed": 1,
+        "blocked": 0,
+        "unperformed": 1,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 4,
+            "passed": 2,
+            "failed": 1,
+            "blocked": 0,
+            "unperformed": 1
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 4,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": []
+      },
       "corrections": [],
       "successors": [],
       "requires": [],
-      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
       "approval": {
-        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [],
       "closure": null,
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture planner routing" },
-        "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture executor routing" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture QA routing" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture auditor routing" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "fixture planner routing"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "fixture executor routing"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture QA routing"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture auditor routing"
+        }
       }
     }
   ],
   "leases": [],
-  "browserCustody": { "profiles": [], "logins": [] }
+  "browserCustody": {
+    "profiles": [],
+    "logins": []
+  }
 }

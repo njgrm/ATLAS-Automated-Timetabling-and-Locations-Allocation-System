@@ -3,10 +3,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { sha256Hex, writeFileAtomicSync } from "./util.mjs";
-import { isPlainObject, deepEqual } from "./schema.mjs";
+import { isPlainObject } from "./schema.mjs";
+import { deriveReadiness, READINESS_CLASSES } from "./readiness.mjs";
 
-export const RECEIPT_VERSION = "1.0.0";
-export const SUPPORTED_RECEIPT_VERSIONS = new Set([RECEIPT_VERSION]);
+export const LEGACY_RECEIPT_VERSION = "1.0.0";
+export const RECEIPT_VERSION = "1.1.0";
+export const SUPPORTED_RECEIPT_VERSIONS = new Set([LEGACY_RECEIPT_VERSION, RECEIPT_VERSION]);
+export const GATE_COUNTER_KEYS = ["total", "passed", "failed", "blocked", "unperformed"];
 
 export function receiptPathFor(closureEntry, repoRoot, stateDir) {
   const base = repoRoot ? repoRoot : stateDir;
@@ -34,17 +37,21 @@ export function validateReceiptShape(receipt) {
     problems.push("verified must be an object");
     return problems;
   }
-  const verifiedKeys = new Set(["candidateSha", "integrationSha", "qaVerdict", "auditorVerdict", "gates", "artifacts"]);
+  const verifiedKeys = new Set(["candidateSha", "integrationSha", "qaVerdict", "auditorVerdict", "gates", "artifacts", "readiness"]);
   for (const key of Object.keys(verified)) {
     if (!verifiedKeys.has(key)) problems.push(`unexpected verified field "${key}"`);
   }
-  for (const key of verifiedKeys) {
+  const requiredVerifiedKeys = ["candidateSha", "integrationSha", "qaVerdict", "auditorVerdict", "gates", "artifacts"];
+  for (const key of requiredVerifiedKeys) {
     if (!Object.prototype.hasOwnProperty.call(verified, key)) problems.push(`missing verified field "${key}"`);
+  }
+  if (Object.prototype.hasOwnProperty.call(verified, "readiness") && !READINESS_CLASSES.includes(verified.readiness)) {
+    problems.push(`verified.readiness must be one of ${READINESS_CLASSES.join(", ")}`);
   }
   if (!isPlainObject(verified.gates)) {
     problems.push("verified.gates must be an object");
   } else {
-    for (const key of ["total", "passed", "failed", "blocked", "unperformed"]) {
+    for (const key of GATE_COUNTER_KEYS) {
       if (typeof verified.gates[key] !== "number" || !Number.isInteger(verified.gates[key]) || verified.gates[key] < 0) {
         problems.push(`verified.gates.${key} must be a non-negative integer`);
       }
@@ -105,20 +112,41 @@ export function validateClosureReceipt(stream, repoRoot, stateDir, resolveReceip
   if (!SUPPORTED_RECEIPT_VERSIONS.has(receipt.receiptVersion)) {
     return { code: "RECEIPT_INVALID", message: `unsupported receiptVersion ${receipt.receiptVersion}` };
   }
+  if (receipt.receiptVersion === RECEIPT_VERSION && !READINESS_CLASSES.includes(receipt.verified.readiness)) {
+    return {
+      code: "RECEIPT_INVALID",
+      message: `receiptVersion ${RECEIPT_VERSION} requires verified.readiness to be one of ${READINESS_CLASSES.join(", ")}`,
+    };
+  }
   if (receipt.status !== "ok") {
     return { code: "RECEIPT_INVALID", message: `receipt status is ${receipt.status}, expected "ok"` };
   }
   if (receipt.streamId !== stream.id) {
     return { code: "RECEIPT_INVALID", message: `receipt streamId ${receipt.streamId} != ${stream.id}` };
   }
+  // verified.gates keeps the five scalar counters (no classes); compare the
+  // scalars, not the whole gates object, so the 1.2.0 class/plan fields do not
+  // invalidate every historical receipt.
+  const gatesMatch = GATE_COUNTER_KEYS.every((key) => receipt.verified.gates[key] === stream.gates[key]);
   const factsMatch =
     receipt.verified.candidateSha === stream.git.candidateSha &&
     receipt.verified.integrationSha === stream.git.integrationSha &&
     receipt.verified.qaVerdict === stream.review.qaVerdict &&
     receipt.verified.auditorVerdict === stream.review.auditorVerdict &&
-    deepEqual(receipt.verified.gates, stream.gates);
+    gatesMatch;
   if (!factsMatch) {
     return { code: "RECEIPT_STALE", message: "receipt attests facts that differ from the current stream facts" };
+  }
+  // A 1.1.0 receipt additionally attests the derived readiness scope. A
+  // source-only acceptance may never pin a live-readiness receipt.
+  if (receipt.receiptVersion === RECEIPT_VERSION) {
+    const derived = deriveReadiness(stream.gates).scope;
+    if (receipt.verified.readiness !== derived) {
+      return {
+        code: "RECEIPT_READINESS_MISMATCH",
+        message: `receipt attests readiness ${receipt.verified.readiness} but the stream derives ${derived}`,
+      };
+    }
   }
   return null;
 }
@@ -163,6 +191,7 @@ export function buildReceipt(stream, statePathAsGiven, stateBytes) {
         blocked: stream.gates.blocked,
         unperformed: stream.gates.unperformed,
       },
+      readiness: deriveReadiness(stream.gates).scope,
       artifacts: stream.artifacts.map((a) => ({ path: a.path, sha256: a.sha256 })),
     },
   };
