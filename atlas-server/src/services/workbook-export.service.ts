@@ -495,6 +495,25 @@ function isReferenceOnlySubjectCode(code: string | null | undefined): boolean {
 	return normalized === 'HG' || normalized === 'ARAL';
 }
 
+/**
+ * C05 M16 — a completed run whose selected-term renderable entry set is empty
+ * must never emit a header-only official file. "Renderable" is the set the
+ * document would actually print: reference-only (HG/ARAL) rows are excluded
+ * because they never become a cell/row. The distinct `EMPTY_SOURCE_RUN` /
+ * `EMPTY_ROOM_SCHEDULE` failures owned by the matrix and room paths are
+ * deliberately NOT replaced by this guard.
+ */
+export function assertRenderableExportEntries(ctx: ExportContext): void {
+	const hasRenderable = ctx.entries.some(
+		(entry) => !isReferenceOnlySubjectCode(ctx.subjectMap.get(entry.subjectId)?.code),
+	);
+	if (!hasRenderable) {
+		const error = new Error('EMPTY_SELECTED_TERM');
+		(error as Error & { code?: string }).code = 'EMPTY_SELECTED_TERM';
+		throw error;
+	}
+}
+
 /** C05 T5/M12 — ExcelJS sheet-name safety (31 chars, no `[]:*?/\`). */
 function sanitizeSheetName(name: string): string {
 	const cleaned = (name || 'SHEET').replace(/[\\/?*[\]:]/g, ' ').trim();
@@ -514,6 +533,8 @@ function uniqueSheetName(workbook: ExcelJS.Workbook, base: string): string {
 
 export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buffer> {
 	const ctx = await loadExportContext(options);
+	// C05 M16 — fail closed on an empty selected-term renderable set (zero bytes).
+	assertRenderableExportEntries(ctx);
 
 	const allSlots = [...ctx.displaySlots].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 	const periodSlots = allSlots.filter((s) => !s.isSpecialEvent);
@@ -713,6 +734,8 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 
 export async function exportClassProgramWorkbook(options: ExportOptions): Promise<Buffer> {
 	const ctx = await loadExportContext(options);
+	// C05 M16 — fail closed on an empty selected-term renderable set (zero bytes).
+	assertRenderableExportEntries(ctx);
 	const visibility = options.specializationVisibility ?? 'hidden';
 	// The injected test client is a partial read-only stub; keep the production
 	// Prisma delegate typing for callbacks and query results.

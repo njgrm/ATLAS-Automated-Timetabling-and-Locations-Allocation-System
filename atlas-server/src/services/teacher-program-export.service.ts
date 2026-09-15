@@ -325,6 +325,16 @@ export async function buildTeacherProgramExportShape(params: {
 		return code !== 'HG' && code !== 'ARAL';
 	});
 
+	// C05 M16 — an empty selected-term renderable set must never emit a
+	// header-only teacher program (zero bytes). This mirrors the class/summary
+	// routes with the same typed code; the distinct `TERM_FILTER_NOT_READY`
+	// semantics above are unchanged.
+	if (facultyEntries.length === 0) {
+		const error = new Error('EMPTY_SELECTED_TERM');
+		(error as Error & { code?: string }).code = 'EMPTY_SELECTED_TERM';
+		throw error;
+	}
+
 	// 7. Load section mirrors for grade/section labels
 	// Run entries carry EnrollPro section IDs (externalId), not ATLAS local IDs.
 	// Query both externalId and id to resolve all possible matches.

@@ -40,6 +40,9 @@ const FACULTY = [
 const SUBJECTS = [
 	{ id: 11, name: 'Mathematics', code: 'MATH' },
 	{ id: 12, name: 'Science', code: 'SCI' },
+	// C05 M16 — a reference-only subject so the zero-renderable-set control can
+	// prove HG-only runs fail closed instead of emitting a header-only file.
+	{ id: 99, name: 'Homeroom Guidance', code: 'HG' },
 ];
 const ROOMS = [
 	{ id: 601, name: 'Room 101', type: 'CLASSROOM', floor: 1, building: { id: 1, name: 'Building A' } },
@@ -74,6 +77,13 @@ const TERM_CONTRACT = {
 const WRITE_METHODS = new Set(['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany', 'executeRaw', 'queryRaw']);
 const calls: Array<{ model: string; method: string }> = [];
 
+/**
+ * C05 M16 — the harness source always runs a completed run for the requested
+ * scope; individual controls swap the persisted entry set to exercise the
+ * zero-entry and reference-only-only cases against the production guard.
+ */
+let activeExportEntries: Array<Record<string, unknown>> = ENTRIES;
+
 function readModel<T extends Record<string, unknown>>(name: string, methods: T): T {
 	const wrapped: Record<string, unknown> = {};
 	for (const [method, fn] of Object.entries(methods)) {
@@ -94,7 +104,7 @@ function buildFakeModels(): Record<string, Record<string, unknown>> {
 			findFirst: async (args: any) => {
 				const id = args?.where?.id;
 				if (id != null && id !== RUN_ID) return null;
-				return { id: id ?? RUN_ID, status: 'COMPLETED', summary: { isPublished: false, timetableDisplaySlots: [] }, draftEntries: ENTRIES };
+				return { id: id ?? RUN_ID, status: 'COMPLETED', summary: { isPublished: false, timetableDisplaySlots: [] }, draftEntries: activeExportEntries };
 			},
 			findMany: async () => [{ id: RUN_ID }],
 		}),
@@ -436,6 +446,70 @@ test('official export routes fail closed on missing, invalid, non-privileged, an
 			assert.equal(response.headers.get('content-disposition'), null, `${testCase.label} must not receive a file`);
 			assert.equal(calls.length, 0, `${testCase.label} must dispatch zero downstream reads/writes on ${target}`);
 		}
+	}
+});
+
+// ─── C05 M16 — a zero-entry selected term never emits a header-only file ───
+
+test('every official export fails closed with zero file bytes when the completed run has no selected-term entries', { skip: harnessSkip }, async () => {
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const routes = [
+		'summary-teacher-schedule.xlsx?termIndex=1',
+		'class-program.xlsx?termIndex=1',
+		'teacher-program.docx?facultyId=501&termIndex=1',
+	];
+
+	// Positive control: the populated fixture still produces a real file.
+	activeExportEntries = ENTRIES;
+	for (const suffix of routes) {
+		const ok = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/${suffix}`, { headers });
+		assert.equal(ok.status, 200, `${suffix} must still succeed when the selected term has entries`);
+		assert.ok(Buffer.from(await ok.arrayBuffer()).length > 2000, `${suffix} must produce a real file`);
+	}
+
+	// Failing-first control: before the guard these returned 200 with a
+	// header-only document (QA observed 7141 / 6815 / DOCX-with-teaching=0).
+	// The second case is all-reference-only (HG): the renderable set is still
+	// empty, so it must fail closed rather than emit a header-only file.
+	for (const emptyEntries of [[], ENTRIES.map((entry) => ({ ...entry, subjectId: 99 }))]) {
+		activeExportEntries = emptyEntries;
+		try {
+			for (const suffix of routes) {
+				calls.length = 0;
+				const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/${suffix}`, { headers });
+				assert.equal(response.status, 422, `${suffix} must fail closed for an empty renderable set`);
+				assert.equal(response.headers.get('content-disposition'), null, `${suffix} must not attach a file`);
+				assert.match(String(response.headers.get('content-type')), /application\/json/, `${suffix} must return a typed error body, not a document`);
+				const body = Buffer.from(await response.arrayBuffer());
+				assert.ok(body.length < 500, `${suffix} must emit an error body, not a ${body.length}-byte header-only document`);
+				let parsed: { code?: string } = {};
+				try { parsed = JSON.parse(body.toString('utf8')); } catch { parsed = {}; }
+				assert.equal(parsed.code, 'EMPTY_SELECTED_TERM', `${suffix} must return the typed code`);
+				assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, `${suffix} must not write`);
+			}
+		} finally {
+			activeExportEntries = ENTRIES;
+		}
+	}
+	activeExportEntries = ENTRIES;
+});
+
+// ─── C05 M16 non-regression — room/matrix keep their own distinct typed errors ───
+
+test('the zero-entry guard does not replace the room or matrix failure contracts', { skip: harnessSkip }, async () => {
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	activeExportEntries = [];
+	try {
+		const room = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1&roomId=601`, { headers });
+		assert.notEqual(room.status, 422, 'the room route owns its own failure contract');
+		const roomBody = await room.json() as any;
+		assert.notEqual(roomBody.code, 'EMPTY_SELECTED_TERM', 'the room route must not be rewritten by the shared guard');
+
+		const matrix = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}&termIndex=1`, { headers });
+		assert.equal(matrix.status, 422);
+		assert.equal((await matrix.json() as any).code, 'EMPTY_SOURCE_RUN', 'the matrix route keeps its distinct typed error');
+	} finally {
+		activeExportEntries = ENTRIES;
 	}
 });
 

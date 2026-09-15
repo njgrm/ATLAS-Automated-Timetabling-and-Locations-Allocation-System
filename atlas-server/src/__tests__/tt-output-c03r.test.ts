@@ -399,7 +399,12 @@ test('class-program layout emits the learner row, merged break bands, daily tota
 });
 
 test('class-program layout merges weekday-agnostic break bands across Mon–Fri', async () => {
-	const client = makeClient([], { summary: { timetableDisplaySlots: [
+	// C05 M16 — the export now fails closed on an empty selected-term renderable
+	// set, so this geometry control carries one real entry (rows are driven by the
+	// canonical slot structure, not by the entry count).
+	const client = makeClient([
+		{ entryId: 'mon-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+	], { summary: { timetableDisplaySlots: [
 		{ startTime: '06:00', endTime: '06:45' },
 		{ startTime: '09:00', endTime: '09:15', isSpecialEvent: true, eventName: 'Health Break' },
 	] } });

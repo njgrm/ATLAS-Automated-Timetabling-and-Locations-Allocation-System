@@ -662,6 +662,12 @@ router.get(
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
 				return;
 			}
+			// C05 M16 — an empty selected-term renderable set never emits a
+			// header-only official file.
+			if (e?.code === 'EMPTY_SELECTED_TERM' || e?.message === 'EMPTY_SELECTED_TERM') {
+				res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no renderable entries for this run; no official file was produced.' });
+				return;
+			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
 				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Active term cannot be verified from the persisted EnrollPro term authority.' });
 				return;
@@ -731,6 +737,12 @@ router.get(
 			}
 			if (e?.message === 'RUN_NOT_COMPLETED') {
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			// C05 M16 — an empty selected-term renderable set never emits a
+			// header-only official file.
+			if (e?.code === 'EMPTY_SELECTED_TERM' || e?.message === 'EMPTY_SELECTED_TERM') {
+				res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no renderable entries for this run; no official file was produced.' });
 				return;
 			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
@@ -806,6 +818,12 @@ router.get(
 			}
 			if (e?.message === 'RUN_NOT_COMPLETED') {
 				res.status(422).json({ code: 'RUN_NOT_COMPLETED', message: 'Only completed or published runs can be exported.' });
+				return;
+			}
+			// C05 M16 — an empty selected-term renderable set never emits a
+			// header-only official file.
+			if (e?.code === 'EMPTY_SELECTED_TERM' || e?.message === 'EMPTY_SELECTED_TERM') {
+				res.status(422).json({ code: 'EMPTY_SELECTED_TERM', message: 'The selected term has no renderable entries for this run; no official file was produced.' });
 				return;
 			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
@@ -990,7 +1008,7 @@ router.get(
 				return;
 			}
 			if (e?.code === 'TERM_FILTER_NOT_READY' || e?.message === 'TERM_FILTER_NOT_READY') {
-				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the source run has no verified ordered-term identity.' });
+				res.status(501).json({ code: 'TERM_FILTER_NOT_READY', message: 'Term filtering is unavailable because the run has no verified ordered-term identity.' });
 				return;
 			}
 			// Preserve typed ordered-term authority errors as JSON.
