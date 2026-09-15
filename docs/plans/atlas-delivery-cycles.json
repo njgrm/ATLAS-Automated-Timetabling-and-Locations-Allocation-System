@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:58:20.470Z",
+    "lastUpdatedAt": "2026-09-15T23:02:17.467Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 125
+    "revision": 126
   },
   "coordination": {
     "mode": "MANUAL",
@@ -2976,10 +2976,10 @@
       "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T22:52:31.051Z",
-      "nextAction": "Fresh independent QA returned ACCEPT_READY over 917da8be...19f21729 (mandatory source gates 18/18/0/0/0). Next: move coordination to MANUAL, integrate the accepted candidate as a merge on origin/main, run the merged-tree combined gates, then commission exactly one fresh Wave Completion Auditor before closing with the receipt. Live deployment and authenticated Tailnet acceptance remain a separate locked HIGH action.",
+      "stateUpdatedAt": "2026-09-15T23:02:17.467Z",
+      "nextAction": "Wave Completion Audit returned CORRECTION_REQUIRED (auditor task ses_f58b9c3ecffe4gjMsMO3g8sB7O). Accepted for one bounded correction round: F2 subjectIds are not bound to the actor school (a school-A officer can bind a school-B subjectId and read that foreign subject code/name back through their own GET /class-templates, a cross-school disclosure on this boundary); F3 atlas-client Audit.tsx renders a false green coverage claim when the template list is empty, which the new zero-write GET makes reachable; F4 the register nextAction was stale. F1 adjudication: the deployed release 54dce67b does still serve the pre-fix unauthenticated write-on-read route, but this cycle is explicitly forbidden to deploy, log in or touch live data, so the live exposure is recorded as an open HIGH risk whose only closure is a separately authored HIGH deployment packet with exact operator approval (locked successor AUTHZ-CLASS-TEMPLATE-LIVE, NOT granted).",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded correction commit"
       ],
       "running": [],
       "git": {
@@ -3019,8 +3019,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f58b9c3ecffe4gjMsMO3g8sB7O",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -3062,8 +3062,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f58c2d108ffeOLCxB5fDoWojBI",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "CORRECTION_REQUIRED",
+        "auditorSessionId": "ses_f58b9c3ecffe4gjMsMO3g8sB7O",
         "auditRequired": true,
         "qaRounds": [
           {
