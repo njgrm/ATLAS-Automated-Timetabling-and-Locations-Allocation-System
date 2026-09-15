@@ -10,7 +10,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
   TRANSITION_CLI,
   VERIFY_CLI,
@@ -343,7 +343,11 @@ test("S1c four real transition writers from a dead-owner lock commit exactly onc
     const lockPath = path.join(repo.dir, ".git", "atlas-workflow.lock");
     const claimPath = `${lockPath}.claim`;
     // Seed a provably dead owner, exactly as a crashed transition would leave it.
-    const dead = spawnSync(process.execPath, ["-e", "process.exit(0)"], { windowsHide: true }).pid;
+    // The owner pid is an impossible pid rather than a spawned-then-exited one:
+    // under PID churn the OS can reuse an exited pid while a fresh writer process
+    // starts, and the writer then correctly sees a LIVE holder instead of the
+    // dead-owner reclaim path. Same literal as the reclaimed-lock row above.
+    const dead = 2147480000;
     assert.equal(processAlive(dead), false, "the seeded owner pid must be provably absent");
     fs.writeFileSync(
       lockPath,

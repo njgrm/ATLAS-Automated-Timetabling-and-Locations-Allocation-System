@@ -1,10 +1,17 @@
 // S1/S3 — claim-serialized lock reclaim under a synchronized stampede.
 //
 // Four persistent OS worker processes contend for the real lock file across
-// many rounds. A short-lived process supplies a provably dead owner pid, the
-// parent re-seeds a dead record each round, and every worker starts its acquire
-// at the same file barrier instant, so the interleaving is genuine (not
-// cooperative) while process startup is paid once per worker.
+// many rounds. The parent re-seeds a provably dead owner record each round from
+// an impossible owner pid, and every worker starts its acquire at the same file
+// barrier instant, so the interleaving is genuine (not cooperative) while
+// process startup is paid once per worker.
+//
+// The dead owner is an impossible pid (see `DEAD_OWNER_PID`), NOT the pid of a
+// spawned-then-exited process. The earlier spawn-and-reuse seed was racy under
+// this host's PID churn: while a fresh worker process was starting, the OS could
+// reuse the exited pid, so the worker correctly classified the seeded record as
+// LIVE and returned live-holder contention instead of the claim-file path
+// (observed as a one-off S3 failure). An impossible pid cannot be reused.
 //
 // The worker module is resolved from THIS file's location (`../lib/lock.mjs`),
 // so running this same test file against a disposable copy of the workflow tree
@@ -14,7 +21,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createTempRepo, cleanupRepo } from "./harness.mjs";
 import { lockPathFor, classifyLock, processAlive } from "../lib/lock.mjs";
 
@@ -29,13 +36,12 @@ const CLAIM = `${LOCK}.claim`;
 const LOCK_DIR = path.dirname(LOCK);
 const MANY_WRITERS = 6;
 
-function deadPid() {
-  const res = spawnSync(process.execPath, ["-e", "process.exit(0)"], { windowsHide: true });
-  return res.pid;
-}
+// A pid that cannot exist on this host: `process.kill(pid, 0)` raises ESRCH for
+// it, so `classifyLock` deterministically reports ABSENT and no worker can ever
+// observe a live owner. The same impossible-pid literal is already used by
+// `lock.test.mjs` and `transition.test.mjs`.
+const DEAD_OWNER_PID = 2147480000;
 
-// Resolved lazily by `seedDeadLock`, which refreshes the pid whenever the OS
-// reuses it, so a reused pid can never masquerade as a live lock owner.
 function writeDeadLock(pid, padding) {
   const record = {
     schema: "atlas.workflow.lock/1",
@@ -196,30 +202,23 @@ function startWorker() {
   };
 }
 
-// A short-lived process supplies a real, exited pid. The OS can later reuse that
-// pid, so the cached value is refreshed whenever it stops being absent, and a
-// round whose seed went live mid-flight is retried with a fresh pid.
-let cachedDeadPid = null;
-
+// Seed the dead-owner record the next round races from. The owner pid is an
+// impossible pid, so its absence is a property of the constant rather than of
+// timing, and the classification below cannot flip to LIVE mid-round.
 function seedDeadLock(padding) {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    if (cachedDeadPid === null || processAlive(cachedDeadPid)) {
-      cachedDeadPid = deadPid();
-    }
-    writeDeadLock(cachedDeadPid, padding);
-    const verdict = classifyLock(LOCK);
-    if (verdict.kind === "ABSENT" && !processAlive(cachedDeadPid)) return cachedDeadPid;
-    cachedDeadPid = null;
-  }
-  throw new Error("could not seed a provably absent owner pid");
+  assert.equal(processAlive(DEAD_OWNER_PID), false, `the impossible owner pid ${DEAD_OWNER_PID} must be provably absent on this host`);
+  writeDeadLock(DEAD_OWNER_PID, padding);
+  const verdict = classifyLock(LOCK);
+  assert.equal(verdict.kind, "ABSENT", `the seeded dead-owner record must classify ABSENT, got ${verdict.kind} (${verdict.reason})`);
+  return DEAD_OWNER_PID;
 }
 
 async function stampedeRound(workers, padding) {
   // The control's load-bearing assertion is "never more than one winner", which
   // is returned immediately and never retried. A zero-winner round is an
-  // environmental anomaly (a reused/live seed pid or a transient filesystem
-  // race), so it is retried a bounded number of times; a genuine lock
-  // regression yields zero winners every attempt and still fails the test.
+  // environmental anomaly (a transient filesystem race), so it is retried a
+  // bounded number of times; a genuine lock regression yields zero winners every
+  // attempt and still fails the test.
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const outcome = await singleRound(workers, padding);
     if (outcome.winners !== 0) return outcome;
