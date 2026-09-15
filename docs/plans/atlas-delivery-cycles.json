@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:42:38.060Z",
+    "lastUpdatedAt": "2026-09-15T22:50:33.565Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 117
+    "revision": 118
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -2975,11 +2975,11 @@
       "kind": "CYCLE",
       "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T22:42:38.060Z",
-      "nextAction": "Executor implements the 18-gate class-template authority contract in E:/ATLAS-worktrees/authz-class-template-c07 per docs/prompts/authz-class-template-c07-2026-09-16.md and returns REVIEW_REQUIRED with the base/candidate SHAs and the full gate matrix; then one fresh independent QA over the frozen range and one fresh Wave Completion Auditor. Deployment of the corrected source remains a separate locked HIGH action.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-15T22:50:33.565Z",
+      "nextAction": "Fresh independent QA returned ACCEPT_READY over 917da8be...19f21729 (mandatory source gates 18/18/0/0/0). Next: move coordination to MANUAL, integrate the accepted candidate as a merge on origin/main, run the merged-tree combined gates, then commission exactly one fresh Wave Completion Auditor before closing with the receipt. Live deployment and authenticated Tailnet acceptance remain a separate locked HIGH action.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -3014,8 +3014,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f58c2d108ffeOLCxB5fDoWojBI",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -3025,8 +3025,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 18,
+        "passed": 18,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -3037,8 +3037,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 18,
+            "passed": 18,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -3060,12 +3060,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f58c2d108ffeOLCxB5fDoWojBI",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f58c2d108ffeOLCxB5fDoWojBI"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
