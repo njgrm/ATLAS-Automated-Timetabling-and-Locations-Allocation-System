@@ -302,6 +302,12 @@ states.
   the term-specific subject, teacher, and room.
 - Grid, unresolved and violation rails, section/teacher/room projections,
   official exports, and published reads consume the same selected-term entries.
+  BENEFICIARY-EXPORT-PARITY-C05 makes this operative for the official outputs:
+  the summary/class/teacher/room export routes and the class-program matrix reject
+  an absent `termIndex` with a typed `TERM_INDEX_REQUIRED` and zero file bytes,
+  the room read accepts the same strict per-term scope, and the client binds one
+  selected ordered term to every official download (all-term selection dispatches
+  nothing).
 - Switching term clears stale selection, previews, dialogs, swap state, repair
   drawers, pending confirmations, inline status, and term-scoped Undo/Redo,
   while retaining the run and chosen layout.

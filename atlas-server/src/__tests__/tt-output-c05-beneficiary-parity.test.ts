@@ -430,3 +430,56 @@ test('M22: real builders produce DOCX/XLSX artifacts with exact bidirectional va
 	assert.ok(docxBuffer.length > 0);
 	void docxText;
 });
+
+// ─── M10 — teacher-program DOCX presentation parity ───
+
+test('M10: the teacher-program DOCX carries branding, the role set, the load identity, and no ARAL component', { skip: exceljsSkip }, async () => {
+	const teacherClient = makeClient(ENTRIES, PUBLISHED_SUMMARY);
+	const presentation = await withDataContext(teacherClient, () => buildTeacherProgramExportShape({
+		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, runId: RUN_ID, facultyId: 501, termIndex: 1,
+		client: teacherClient,
+		publishedScheduleResolver: async () => ({
+			source: { runId: RUN_ID },
+			entries: [
+				{ entryId: 'd-mon', day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
+				{ entryId: 'd-tue', day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
+				{ entryId: 'd-wed', day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
+				{ entryId: 'd-thu', day: 'THURSDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
+				{ entryId: 'd-fri', day: 'FRIDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
+				{ entryId: 'd-ap', day: 'THURSDAY', startTime: '06:45', endTime: '07:30', durationMinutes: 45, termIndex: 1, subject: { id: 13 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 602 } },
+			],
+			summary: PUBLISHED_SUMMARY,
+		}),
+	}));
+	const docxBuffer = await generateTeacherProgramDocx(presentation);
+
+	const { default: JSZip } = await import('jszip');
+	const zip = await (JSZip as any).loadAsync(docxBuffer);
+	const documentXml: string = await zip.file('word/document.xml').async('string');
+	const texts: string[] = [...documentXml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1]);
+
+	// Branding block + title + term identity.
+	assert.ok(texts.includes('ATLAS National High School'), 'the configurable branding block renders the persisted school name');
+	assert.ok(texts.some((value) => /TEACHER.{0,6}S PROGRAM/i.test(value)), 'the title renders');
+	assert.ok(texts.some((value) => /SY 2026-2027/.test(value)), 'the school year and selected term render');
+
+	// Publication state from persisted run data.
+	assert.ok(texts.some((value) => /^PUBLISHED/.test(value)), 'a published run renders the PUBLISHED marker');
+
+	// Six-column schedule with the Monday–Friday compaction convention.
+	assert.ok(texts.includes('Day') && texts.includes('Bldg/Room #'), 'the six-column schedule header renders');
+	assert.ok(texts.includes('Monday to Friday'), 'a weekday-complete subject compacts to Monday to Friday');
+
+	// Signature role set (contract §3.2).
+	const signatureTexts = texts.filter((value) => /Checked by:|Noted:|Recommending Approval:|Approved:/.test(value));
+	assert.deepEqual(signatureTexts, ['Checked by:', 'Checked by:', 'Noted:', 'Recommending Approval:', 'Approved:'], 'the complete role set renders in order');
+
+	// Load identity — no ARAL component.
+	for (const label of ['Class Advising Duty', 'Actual Teaching Load', 'Ancillary Work', 'Total Teaching Load']) {
+		assert.ok(texts.includes(label), `${label} renders in the load block`);
+	}
+	assert.equal(texts.some((value) => /ARAL Program|Homeroom Guidance/.test(value)), false, 'no ARAL/HG row, label, or 0-min entry may render');
+
+	// Portrait page geometry.
+	assert.match(documentXml, /<w:pgSz[^>]*w:orient="portrait"/, 'the teacher program is portrait');
+});

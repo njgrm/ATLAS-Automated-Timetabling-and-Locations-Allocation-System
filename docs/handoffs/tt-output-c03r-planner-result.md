@@ -80,6 +80,12 @@ link; target read-only; no installs or `prisma generate` were run).
   all-term while explicit term selection is fully implemented and tested
   server-side. The head planner may schedule a bounded client term-parameter
   wiring follow-up; it is not a defect of this candidate.
+  **SUPERSEDED by BENEFICIARY-EXPORT-PARITY-C05 (2026-09-15):** the client term
+  wiring now exists — `TimetableSimpleHeader`/`simpleExportRequests.ts` bind one
+  selected ordered term to every official download and dispatch nothing for an
+  all-term selection — and the server rejects an absent `termIndex` with a typed
+  `TERM_INDEX_REQUIRED` (zero bytes), so "default downloads are all-term" is no
+  longer true. This record is retained as history, not as current behavior.
 - NON_BLOCKING: matrix JSON cells gained `day`/per-weekday shape (additive; no
   in-repo consumer found).
 - NON_BLOCKING: the teacher-program DOCX guard has no mounted cross-school test
