@@ -2,11 +2,6 @@ import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { AutoFillSummaryModal, type AutoFillSummaryResult } from '@/components/faculty-assignments/AutoFillSummaryModal';
 
 type TeachingLoadModalsProps = {
-	autoFillDialogOpen: boolean;
-	onAutoFillDialogOpenChange: (open: boolean) => void;
-	coverageModeConfig: { label: string; description: string };
-	onAutoFillConfirm: () => void;
-	autoFillLoading: boolean;
 	summaryModalOpen: boolean;
 	onSummaryModalOpenChange: (open: boolean) => void;
 	autoFillResult: AutoFillSummaryResult | null;
@@ -23,11 +18,6 @@ type TeachingLoadModalsProps = {
 };
 
 export function TeachingLoadModals({
-	autoFillDialogOpen,
-	onAutoFillDialogOpenChange,
-	coverageModeConfig,
-	onAutoFillConfirm,
-	autoFillLoading,
 	summaryModalOpen,
 	onSummaryModalOpenChange,
 	autoFillResult,
@@ -44,16 +34,9 @@ export function TeachingLoadModals({
 }: TeachingLoadModalsProps) {
 	return (
 		<>
-			<ConfirmationModal
-				open={autoFillDialogOpen}
-				onOpenChange={onAutoFillDialogOpenChange}
-				title="Preview suggested Teaching Load draft?"
-				description={`Coverage mode: ${coverageModeConfig.label}. ${coverageModeConfig.description} This preview will not save Teaching Load rows.`}
-				onConfirm={onAutoFillConfirm}
-				confirmText="Preview suggestion"
-				variant="primary"
-				loading={autoFillLoading}
-			/>
+			{/* The legacy zero-write confirmation step was removed: its open flag was
+				never set true anywhere, so the dialog was unreachable. The primary
+				toolbar action already dispatches the zero-write preview directly. */}
 
 			<AutoFillSummaryModal
 				open={summaryModalOpen}

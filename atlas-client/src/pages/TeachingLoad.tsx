@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AlertTriangle, UserRound } from 'lucide-react';
@@ -15,6 +15,7 @@ import {
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
 import { TooltipProvider } from '@/ui/tooltip';
+import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
@@ -26,6 +27,8 @@ import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/Teachi
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
+import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
+import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -93,9 +96,18 @@ export default function TeachingLoad() {
 	// A rollover or school switch must reset every mutable filter, dialog, and
 	// selection before the new scope renders. Draft/history clearing lives in the
 	// data and history hooks.
+	const scopeEpochRef = useRef(createScopeEpoch());
 	const { resetForScope } = ui;
 	useEffect(() => {
+		// Opening a new epoch invalidates every in-flight Teaching Load response so
+		// a late reply from the previous school/year can never repopulate the
+		// suggestion, proposal, or applying state of the new scope.
+		scopeEpochRef.current.begin();
 		resetForScope();
+		setSuggestionProposalId(null);
+		setAutoFillResult(null);
+		setSuggestionLoading(false);
+		setSuggestionApplying(false);
 	}, [data.scopeKey, resetForScope]);
 
 	const completedSectionIds = useMemo(() => {
@@ -238,7 +250,8 @@ export default function TeachingLoad() {
 
 	const handlePreviewSuggestedTeachingLoad = useCallback(async () => {
 		if (!data.schoolId || !data.activeSchoolYearId) return;
-		ui.setAutoFillDialogOpen(false);
+		// Anything that changes the scope after dispatch makes this reply obsolete.
+		const stillCurrent = captureEpoch(scopeEpochRef.current);
 		setSuggestionLoading(true);
 		setAutoFillResult(null);
 		setSuggestionProposalId(null);
@@ -256,6 +269,7 @@ export default function TeachingLoad() {
 					coverageMode: ui.coverageMode,
 				},
 			);
+			if (!stillCurrent()) return;
 			setSuggestionProposalId(result.proposal.id);
 			setAutoFillResult({
 				...result.preview,
@@ -273,13 +287,14 @@ export default function TeachingLoad() {
 				toast.success(message, { id: toastId });
 			}
 		} catch (error: any) {
+			if (!stillCurrent()) return;
 			const message = error?.response?.data?.message ?? 'ATLAS could not prepare a Teaching Load suggestion. Refresh the source and try again.';
 			setDraftStatusMessage(message);
 			toast.error(message, { id: toastId });
 		} finally {
-			setSuggestionLoading(false);
+			if (stillCurrent()) setSuggestionLoading(false);
 		}
-	}, [data.activeSchoolYearId, ui]);
+	}, [data.activeSchoolYearId, data.schoolId, ui]);
 
 	const suggestionApplyDisabledReason = useMemo(() => {
 		if (!autoFillResult) return 'Preview a Teaching Load suggestion before applying it.';
@@ -300,6 +315,9 @@ export default function TeachingLoad() {
 			return;
 		}
 		setSuggestionApplying(true);
+		// The apply reply is bound to the scope that dispatched it. A stale reply
+		// must not mutate the new scope's modal, status, or proposal state.
+		const stillCurrent = captureEpoch(scopeEpochRef.current);
 		const toastId = toast.loading('Applying suggested Teaching Load...');
 		try {
 			const { data: result } = await atlasApi.post<{
@@ -310,6 +328,7 @@ export default function TeachingLoad() {
 			}>(`/faculty-assignments/suggestion-proposals/${suggestionProposalId}/apply`);
 			// Use refreshedPreview for the modal display (it has suggestedRows and breakdown)
 			// The applyResult is the actual apply result which may not have preview data
+			if (!stillCurrent()) return;
 			const displayResult = result.refreshedPreview ?? result.preview;
 			setAutoFillResult({
 				...displayResult,
@@ -323,26 +342,30 @@ export default function TeachingLoad() {
 			setSuggestionProposalId(null);
 			toast.success(message, { id: toastId });
 			await data.fetchData({ forceRefresh: true });
-			ui.setSummaryModalOpen(false);
+			if (stillCurrent()) ui.setSummaryModalOpen(false);
 		} catch (error: any) {
+			if (!stillCurrent()) return;
 			const message = error?.response?.data?.actionHint ?? error?.response?.data?.message ?? 'ATLAS could not apply the suggested Teaching Load. It is safe to retry after refreshing the source.';
 			setDraftStatusMessage(message);
 			toast.error(message, { id: toastId });
 		} finally {
-			setSuggestionApplying(false);
+			if (stillCurrent()) setSuggestionApplying(false);
 		}
 	}, [data, suggestionApplyDisabledReason, suggestionProposalId, ui]);
 
 	const handleCancelPendingSuggestionProposal = useCallback(async (options?: { silent?: boolean }) => {
 		const proposalId = suggestionProposalId;
 		if (!proposalId || suggestionApplying) return;
+		const stillCurrent = captureEpoch(scopeEpochRef.current);
 		try {
 			await atlasApi.post(`/faculty-assignments/suggestion-proposals/${proposalId}/cancel`);
+			if (!stillCurrent()) return;
 			setSuggestionProposalId(null);
 			if (!options?.silent) {
 				setDraftStatusMessage('Teaching Load suggestion cancelled. No Teaching Load rows were changed.');
 			}
 		} catch (error: any) {
+			if (!stillCurrent()) return;
 			const message = error?.response?.data?.actionHint ?? error?.response?.data?.message ?? 'ATLAS could not cancel this Teaching Load suggestion. Refresh the page before applying a new suggestion.';
 			setDraftStatusMessage(message);
 			if (!options?.silent) toast.error(message);
@@ -449,6 +472,19 @@ export default function TeachingLoad() {
 		ui.setShowFilters(false);
 	}, [ui]);
 
+	// The "Temporary substitutes" readiness chip is a real control: it opens the
+	// teacher grid filtered to unmapped temporary placeholder rows so the
+	// operator can replace them before generating.
+	const showTemporarySubstitutes = useCallback(() => {
+		ui.setViewMode('teacher');
+		ui.setShowTemporaryRoles(true);
+		ui.setSectionModeFilter('all');
+		ui.setLoadFilter('all');
+		ui.setFilterStatus('all');
+		ui.setShowFilters(false);
+		setAdvancedGridVisible(true);
+	}, [ui]);
+
 	const workspaceState = useMemo(() => {
 		if (!data.isOnline) {
 			return {
@@ -553,6 +589,25 @@ export default function TeachingLoad() {
 
 	const departmentOptions = ui.departmentFacetOptions;
 
+	// Canonical truth surface. Every value is derived from the server contracts;
+	// nothing here re-computes demand, policy, or qualification authority.
+	const placeholderFacultyIds = useMemo(
+		() => new Set(data.faculty.filter((member) => member.isPlaceholder).map((member) => member.id)),
+		[data.faculty],
+	);
+	const truthModel = useMemo(
+		() => buildTeachingLoadTruthModel({
+			diagnostics: data.authorityDiagnostics,
+			placeholderFacultyIds,
+			workloadPolicyStatus: data.workloadPolicyStatus,
+		}),
+		[data.authorityDiagnostics, data.workloadPolicyStatus, placeholderFacultyIds],
+	);
+	const truthUnresolvedReasons = useMemo(
+		() => (data.authorityDiagnostics?.unresolvedReasons ?? []).map((reason) => ({ code: reason.code, message: reason.message })),
+		[data.authorityDiagnostics],
+	);
+
 	if (data.error && data.dataSource === 'none') {
 		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
@@ -581,6 +636,7 @@ export default function TeachingLoad() {
 						excessTeachingCount={excessTeachingCount}
 						policyReady={ui.policyReady}
 						onShowExcessTeachingLoad={showExcessTeachingLoad}
+						onShowTemporarySubstitutes={showTemporarySubstitutes}
 						autoFillLoading={data.loading || suggestionLoading}
 						autoFillEnabled={Boolean(data.schoolId && data.activeSchoolYearId) && data.canPersistAssignments}
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
@@ -620,6 +676,17 @@ export default function TeachingLoad() {
 							</div>
 						)}
 
+						{/* Summary-first canonical truth. Details (names, reasons) stay on
+							demand so an older scheduler is never handed a diagnostic wall. */}
+						<div className="shrink-0 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
+							<TeachingLoadTruthPanel
+								model={truthModel}
+								loading={data.loading || data.authorityDiagnosticsLoading}
+								sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
+								unresolvedReasons={truthUnresolvedReasons}
+							/>
+						</div>
+
 						{/* Phase 4.1: the standalone TeachingLoadTaskGuide is removed.
 							Its "next step" prompt duplicated the repair queue, and its
 							% staffed badge already lives in the readiness strip under
@@ -633,7 +700,6 @@ export default function TeachingLoad() {
 								saving={data.saving}
 								advancedGridVisible={advancedGridVisible}
 								onPrimaryAction={handleRepairPrimaryAction}
-								onToggleAdvancedGrid={() => setAdvancedGridVisible(true)}
 							/>
 						</div>
 
@@ -700,13 +766,8 @@ export default function TeachingLoad() {
 								subjects={data.subjects}
 								sectionsBySubject={sectionsBySubject}
 								faculty={data.faculty}
-								savedOwnershipMap={data.savedOwnershipMap}
-								pendingOwnershipMap={data.pendingOwnershipMap}
 								effectiveOwnershipMap={data.effectiveOwnershipMap}
 								onSetSections={handleSetSections}
-								onSelectTeacher={data.setSelectedId}
-								onHoverTeacher={data.setSelectedId}
-								onClearHover={() => {}}
 								saving={data.saving}
 								isReadOnlyMode={data.isReadOnlyMode}
 								activeFacultyIds={data.activeFacultyIds}
@@ -716,8 +777,6 @@ export default function TeachingLoad() {
 								teachingStandardHours={ui.teachingStandardHours}
 								selectedSectionId={ui.selectedSectionId}
 								onSelectSection={ui.setSelectedSectionId}
-								onSave={handleSave}
-								hasDraft={data.activeDraftCount > 0}
 								onSwapSectionOwnership={handleSwapRequest}
 								completedSectionIds={completedSectionIds}
 								workspaceStateLabel={workspaceState.label}
@@ -825,11 +884,6 @@ export default function TeachingLoad() {
 			</Sheet>
 
 			<TeachingLoadModals
-				autoFillDialogOpen={ui.autoFillDialogOpen}
-				onAutoFillDialogOpenChange={ui.setAutoFillDialogOpen}
-				coverageModeConfig={COVERAGE_MODE_CONFIG[ui.coverageMode]}
-				onAutoFillConfirm={handlePreviewSuggestedTeachingLoad}
-				autoFillLoading={data.loading || suggestionLoading}
 				summaryModalOpen={ui.summaryModalOpen}
 				onSummaryModalOpenChange={handleSummaryModalOpenChange}
 				autoFillResult={autoFillResult}

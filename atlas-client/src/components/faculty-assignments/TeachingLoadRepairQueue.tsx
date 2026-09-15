@@ -32,7 +32,6 @@ type TeachingLoadRepairQueueProps = {
 	saving: boolean;
 	advancedGridVisible: boolean;
 	onPrimaryAction: (item: TeachingLoadRepairQueueItem) => void;
-	onToggleAdvancedGrid: () => void;
 };
 
 function taskTone(kind: TeachingLoadRepairTaskKind) {
@@ -65,7 +64,6 @@ export function TeachingLoadRepairQueue({
 	saving,
 	advancedGridVisible,
 	onPrimaryAction,
-	onToggleAdvancedGrid,
 }: TeachingLoadRepairQueueProps) {
 	const currentItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? FALLBACK_ITEM;
 	const CurrentIcon = currentItem.kind === 'review-ready' ? CheckCircle2 : AlertTriangle;
@@ -121,18 +119,11 @@ export function TeachingLoadRepairQueue({
 							<ClipboardCheck className="size-4" />
 							<span className="max-w-32 truncate">{saving ? 'Saving...' : currentItem.actionLabel}</span>
 						</Button>
-						{!advancedGridVisible && (
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="hidden h-9 px-3 text-xs font-bold sm:inline-flex"
-								data-testid="teaching-load-advanced-grid-toggle"
-								onClick={onToggleAdvancedGrid}
-							>
-								Browse all
-							</Button>
-						)}
+						{/* The advanced-grid reveal control lives only on the guided
+							placeholder, which renders in exactly the same
+							`!advancedGridVisible` state. Keeping a second copy here produced
+							two simultaneously-visible controls with one shared target and a
+							duplicate test id. */}
 					</div>
 				</div>
 			</div>

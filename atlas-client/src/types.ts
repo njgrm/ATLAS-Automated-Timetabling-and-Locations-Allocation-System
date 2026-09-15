@@ -2037,7 +2037,16 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'NOT_QUALIFIED'
 	| 'HARD_CAP_EXCEEDED'
 	| 'CURRENT_OWNER'
-	| 'PLACEHOLDER_FACULTY';
+	| 'PLACEHOLDER_FACULTY'
+	/** Emitted by the server preview; parsed from the distribution plan. */
+	| 'OUTSIDE_CANONICAL_DEMAND'
+	// Operator-mandated R5 vocabulary kept as reserved/defensive copy. These are
+	// not currently emitted by the producer but must render human copy if they are.
+	| 'INACTIVE_FACULTY'
+	| 'WRONG_SCHOOL'
+	| 'DEPARTMENT_RESTRICTED'
+	| 'UNAVAILABLE'
+	| 'STALE_AUTHORITY';
 
 export type TeachingLoadCandidateRejection = {
 	subjectId: number;

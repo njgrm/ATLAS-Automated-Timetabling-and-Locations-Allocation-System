@@ -319,6 +319,31 @@ export type TeachingLoadAuthorityDiagnostic = {
 	message: string;
 };
 
+/**
+ * Persisted-policy overload/capacity totals over the same faculty basis the
+ * teaching minutes use: `plan.facultyWorkloads` (active, non-stale,
+ * non-placeholder faculty, including zero-load rows).
+ *
+ * `capacityMinutes` and `beforeExcessMinutes` are unit-coherent with
+ * `beforeTeachingMinutes`. Consumers must never re-derive them from an
+ * owned-pair count or from a single teacher's standard.
+ */
+export type OverloadCapacityTotals = {
+	policyStatus: WorkloadPolicySnapshot['status'];
+	teachingStandardMinutes: number | null;
+	hardCapMinutes: number | null;
+	beforeTeachingMinutes: number;
+	afterTeachingMinutes: number;
+	beforeOverStandardCount: number;
+	afterOverStandardCount: number;
+	beforeOverHardCapCount: number;
+	afterOverHardCapCount: number;
+	/** `standard x facultyWorkloads.length`; null when no configured standard. */
+	capacityMinutes: number | null;
+	/** Sum of per-faculty minutes above the standard; null when unconfigured. */
+	beforeExcessMinutes: number | null;
+};
+
 export type TeachingLoadAuthorityDiagnostics = {
 	demandedSubjectSectionPairs: DemandPair[];
 	ownedSubjectSectionPairs: Array<{
@@ -349,17 +374,7 @@ export type TeachingLoadAuthorityDiagnostics = {
 		creditMinutes: number;
 		reason: string;
 	}>;
-	overloadCapacityTotals: {
-		policyStatus: WorkloadPolicySnapshot['status'];
-		teachingStandardMinutes: number | null;
-		hardCapMinutes: number | null;
-		beforeTeachingMinutes: number;
-		afterTeachingMinutes: number;
-		beforeOverStandardCount: number;
-		afterOverStandardCount: number;
-		beforeOverHardCapCount: number;
-		afterOverHardCapCount: number;
-	};
+	overloadCapacityTotals: OverloadCapacityTotals;
 	candidateCountsByDepartment: Array<{
 		department: string;
 		candidateCount: number;
@@ -1238,6 +1253,47 @@ export async function buildReconciliationPlan(
 }
 
 /**
+ * Pure, hermetically provable capacity/overload totals.
+ *
+ * Capacity basis is `facultyWorkloads.length` — exactly the rows
+ * `beforeTeachingMinutes` sums over (active, non-stale, non-placeholder,
+ * including zero-load). `beforeExcessMinutes` is the sum of PER-FACULTY
+ * over-standard minutes; it is deliberately not `aggregate - one standard`,
+ * which would be unit-incoherent.
+ */
+export function computeOverloadCapacityTotals(
+	facultyWorkloads: FacultyWorkloadSnapshot[],
+	policy: WorkloadPolicySnapshot,
+): OverloadCapacityTotals {
+	const standard = policy.status === 'CONFIGURED' ? policy.teachingStandardMinutes : null;
+	const hardCap = policy.status === 'CONFIGURED' ? policy.hardCapMinutes : null;
+	const countAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) =>
+		threshold == null ? 0 : rows.filter((row) => row.beforeMinutes > threshold).length;
+	const countAfterAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) =>
+		threshold == null ? 0 : rows.filter((row) => row.afterMinutes > threshold).length;
+
+	const beforeTeachingMinutes = facultyWorkloads.reduce((sum, row) => sum + row.beforeMinutes, 0);
+	const afterTeachingMinutes = facultyWorkloads.reduce((sum, row) => sum + row.afterMinutes, 0);
+
+	return {
+		policyStatus: policy.status,
+		teachingStandardMinutes: standard,
+		hardCapMinutes: hardCap,
+		beforeTeachingMinutes,
+		afterTeachingMinutes,
+		beforeOverStandardCount: countAbove(facultyWorkloads, standard),
+		afterOverStandardCount: countAfterAbove(facultyWorkloads, standard),
+		beforeOverHardCapCount: countAbove(facultyWorkloads, hardCap),
+		afterOverHardCapCount: countAfterAbove(facultyWorkloads, hardCap),
+		capacityMinutes: standard == null ? null : standard * facultyWorkloads.length,
+		beforeExcessMinutes:
+			standard == null
+				? null
+				: facultyWorkloads.reduce((sum, row) => sum + Math.max(0, row.beforeMinutes - standard), 0),
+	};
+}
+
+/**
  * Build the read-only authority/diagnostic view consumed by the reconciliation
  * preview. This deliberately reports persisted legacy rows instead of deleting
  * them, and derives candidate counts from the same qualification and policy
@@ -1300,12 +1356,8 @@ export async function buildTeachingLoadAuthorityDiagnostics(
 		};
 	});
 
-	const beforeTeachingMinutes = plan.facultyWorkloads.reduce((sum, row) => sum + row.beforeMinutes, 0);
-	const afterTeachingMinutes = plan.facultyWorkloads.reduce((sum, row) => sum + row.afterMinutes, 0);
-	const standard = snapshot.workloadPolicy.status === 'CONFIGURED' ? snapshot.workloadPolicy.teachingStandardMinutes : null;
-	const hardCap = snapshot.workloadPolicy.status === 'CONFIGURED' ? snapshot.workloadPolicy.hardCapMinutes : null;
-	const countAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) => threshold == null ? 0 : rows.filter((row) => row.beforeMinutes > threshold).length;
-	const countAfterAbove = (rows: FacultyWorkloadSnapshot[], threshold: number | null) => threshold == null ? 0 : rows.filter((row) => row.afterMinutes > threshold).length;
+	const overloadCapacityTotals = computeOverloadCapacityTotals(plan.facultyWorkloads, snapshot.workloadPolicy);
+	const hardCap = overloadCapacityTotals.hardCapMinutes;
 
 	const beforeMinutesByFaculty = new Map(plan.facultyWorkloads.map((row) => [row.facultyId, row.beforeMinutes]));
 	const candidateCounts = new Map<string, { candidateCount: number; pairKeys: Set<string> }>();
@@ -1363,17 +1415,7 @@ export async function buildTeachingLoadAuthorityDiagnostics(
 		validAdviserMappings,
 		legacyHgOwnershipRows: plan.hgRowsFound,
 		advisoryCreditEligibility,
-		overloadCapacityTotals: {
-			policyStatus: snapshot.workloadPolicy.status,
-			teachingStandardMinutes: standard,
-			hardCapMinutes: hardCap,
-			beforeTeachingMinutes,
-			afterTeachingMinutes,
-			beforeOverStandardCount: countAbove(plan.facultyWorkloads, standard),
-			afterOverStandardCount: countAfterAbove(plan.facultyWorkloads, standard),
-			beforeOverHardCapCount: countAbove(plan.facultyWorkloads, hardCap),
-			afterOverHardCapCount: countAfterAbove(plan.facultyWorkloads, hardCap),
-		},
+		overloadCapacityTotals,
 		candidateCountsByDepartment: [...candidateCounts.entries()]
 			.sort(([left], [right]) => left.localeCompare(right))
 			.map(([department, value]) => ({ department, candidateCount: value.candidateCount, demandedPairCount: value.pairKeys.size })),
