@@ -191,6 +191,75 @@ export type AuthorityDiagnosticsSetLoading = (loading: boolean) => void;
 
 export type AuthorityDiagnosticsLoadOutcome = 'persisted' | 'cleared' | 'discarded';
 
+/**
+ * C-6R3: dispatch-scoped ownership of the authority-diagnostics loading flag.
+ *
+ * The loading flag is a resource with exactly one owner: the dispatch that set
+ * it. A bare boolean cannot express that, which is how a superseded invocation
+ * could set the flag and then be discarded WITHOUT ever clearing it. When the
+ * newest dispatch aborted before it could reach the diagnostics read (an
+ * unresolved actor school or active year), no dispatch owned the clear and the
+ * R3 truth panel stayed on "Checking source" with every metric unknown.
+ *
+ * Ownership is claimed on entry and released on EVERY exit path, so a superseded
+ * reply terminates its own in-flight read. A release that no longer owns the
+ * claim is refused, so it can never clear a newer active dispatch's flag.
+ */
+export type DiagnosticsLoadingOwnership = {
+	/** The dispatch id that currently owns the loading flag, or null. */
+	readonly ownerId: number | null;
+	/** Take ownership for `dispatchId`. The caller sets the loading flag true. */
+	claim(dispatchId: number): void;
+	/** Drop ownership; true when `dispatchId` was still the owner. */
+	release(dispatchId: number): boolean;
+	/** Drop whatever claim is outstanding; true when a claim existed. */
+	releaseAll(): boolean;
+};
+
+export function createDiagnosticsLoadingOwnership(initialOwner: number | null = null): DiagnosticsLoadingOwnership {
+	let owner: number | null = initialOwner;
+	return {
+		get ownerId() {
+			return owner;
+		},
+		claim(dispatchId: number) {
+			owner = dispatchId;
+		},
+		release(dispatchId: number) {
+			if (owner !== dispatchId) return false;
+			owner = null;
+			return true;
+		},
+		releaseAll() {
+			if (owner === null) return false;
+			owner = null;
+			return true;
+		},
+	};
+}
+
+/**
+ * C-6R3: terminal handoff for a fetch that finishes WITHOUT having engaged the
+ * diagnostics read, i.e. it aborted while resolving the actor school or active
+ * year. The inherited claim would otherwise stay set forever: the superseded
+ * invocation that claimed it is no longer the newest dispatch, so its own
+ * release is refused, and no newer dispatch ever takes the flag over.
+ *
+ * Only the NEWEST dispatch may terminate that claim — a superseded invocation
+ * must never clear a newer active dispatch's loading flag. Returns true when a
+ * claim was terminated.
+ */
+export function terminateDiagnosticsLoadingForLatestDispatch(
+	ownership: DiagnosticsLoadingOwnership,
+	isLatestDispatch: () => boolean,
+	commit: AuthorityDiagnosticsSetLoading,
+): boolean {
+	if (!isLatestDispatch()) return false;
+	if (!ownership.releaseAll()) return false;
+	commit(false);
+	return true;
+}
+
 export type AuthorityDiagnosticsLoadDeps = {
 	epoch: ScopeEpoch;
 	scopeRef: { current: string | null };
@@ -198,6 +267,16 @@ export type AuthorityDiagnosticsLoadDeps = {
 	request: () => Promise<{ data: TeachingLoadAuthorityDiagnosticsPayload | null }>;
 	setPayload: AuthorityDiagnosticsSetPayload;
 	setLoading: AuthorityDiagnosticsSetLoading;
+	/**
+	 * C-6R3: dispatch-scoped loading ownership. REQUIRED rather than optional: a
+	 * bare boolean setter cannot express who owns the flag, and omitting the
+	 * authority is exactly the fail-open shape that orphaned it. The loader claims
+	 * on entry and releases on EVERY exit path — including a discarded superseded
+	 * reply.
+	 */
+	loadingOwnership: DiagnosticsLoadingOwnership;
+	/** C-6R3: this dispatch's identity within `loadingOwnership`. */
+	loadingOwnerId: number;
 	/**
 	 * C-6R2: dispatch precedence. The reply is discarded when this invocation is no
 	 * longer the newest dispatch — including for the SAME scope. Scope identity and
@@ -209,7 +288,7 @@ export type AuthorityDiagnosticsLoadDeps = {
 };
 
 /**
- * C-5 (F2-COLD-LOAD) / C-6R2. Production loader for the read-only
+ * C-5 (F2-COLD-LOAD) / C-6R2 / C-6R3. Production loader for the read-only
  * `/faculty-assignments/authority-diagnostics` read.
  *
  * Contract:
@@ -221,12 +300,15 @@ export type AuthorityDiagnosticsLoadDeps = {
  *     epoch advanced) is discarded WITHOUT touching state, so it can neither
  *     overwrite the new scope's payload nor clear the new scope's loading flag;
  *   - a repeated resolution of the SAME scope does not open a new epoch, so it
- *     cannot self-invalidate.
+ *     cannot self-invalidate;
+ *   - the loading flag is claimed for this dispatch on entry and released on
+ *     EVERY exit path, so a superseded reply terminates its own in-flight claim
+ *     instead of orphaning it, while a newer owner is left untouched.
  */
 export async function loadAuthorityDiagnosticsForScope(
 	deps: AuthorityDiagnosticsLoadDeps,
 ): Promise<AuthorityDiagnosticsLoadOutcome> {
-	const { epoch, scopeRef, scopeId, request, setPayload, setLoading, isLatestDispatch } = deps;
+	const { epoch, scopeRef, scopeId, request, setPayload, setLoading, loadingOwnership, loadingOwnerId, isLatestDispatch } = deps;
 
 	// Open the epoch for the resolved scope BEFORE capturing the token.
 	openDiagnosticsScope(scopeRef, epoch, scopeId);
@@ -235,6 +317,11 @@ export async function loadAuthorityDiagnosticsForScope(
 	// catches a superseded SAME-scope dispatch, which scope+epoch cannot see.
 	const isCurrent = () => isLatestDispatch() && isScopeCurrent(binding);
 
+	// C-6R3: this dispatch now OWNS the loading flag. Every exit path releases the
+	// claim — including a discarded superseded reply — so an in-flight read whose
+	// newer dispatch never reached this loader still terminates instead of leaving
+	// the panel stuck on "Checking source".
+	loadingOwnership.claim(loadingOwnerId);
 	setLoading(true);
 	let outcome: AuthorityDiagnosticsLoadOutcome;
 	try {
@@ -246,9 +333,12 @@ export async function loadAuthorityDiagnosticsForScope(
 		if (!isCurrent()) return 'discarded';
 		setPayload(null);
 		outcome = 'cleared';
+	} finally {
+		// C-6R3: clear only while this dispatch still owns the flag; a newer active
+		// dispatch's claim survives its superseded sibling.
+		if (loadingOwnership.release(loadingOwnerId)) setLoading(false);
 	}
 	if (!isCurrent()) return 'discarded';
-	setLoading(false);
 	return outcome;
 }
 
@@ -275,6 +365,16 @@ export function useTeachingLoadData() {
 	// `loadAuthorityDiagnosticsForScope`.
 	const diagnosticsEpochRef = useRef(createScopeEpoch());
 	const diagnosticsScopeRef = useRef<string | null>(null);
+	// C-6R3: dispatch-scoped ownership of `authorityDiagnosticsLoading`. A bare
+	// boolean let a superseded invocation inherit the flag and never clear it.
+	const diagnosticsLoadingOwnershipRef = useRef(createDiagnosticsLoadingOwnership());
+	// C-6R3: terminal release for a scope reset or unmount — the flag must return
+	// to false and no stale claim may survive the teardown of its scope.
+	const releaseDiagnosticsLoadingOwnership = useCallback(() => {
+		if (diagnosticsLoadingOwnershipRef.current.releaseAll()) {
+			setAuthorityDiagnosticsLoading(false);
+		}
+	}, []);
 	// C-6R: monotonic dispatch precedence so a late-resolving OLDER fetch can never
 	// bind a scope, write a feed, or clear a loading flag over a newer one.
 	const dispatchPrecedenceRef = useRef(createDispatchPrecedence());
@@ -520,6 +620,10 @@ export function useTeachingLoadData() {
 						),
 						{ attempts: 1, delayMs: 300 },
 					),
+					// C-6R3: the diagnostics read owns its loading flag per dispatch, so
+					// a superseded reply releases only its own claim.
+					loadingOwnership: diagnosticsLoadingOwnershipRef.current,
+					loadingOwnerId: dispatchScope.dispatchId,
 					setPayload: setAuthorityDiagnostics,
 					setLoading: setAuthorityDiagnosticsLoading,
 					// C-6R2: the reply is also gated on dispatch precedence, so a
@@ -563,6 +667,17 @@ export function useTeachingLoadData() {
 			// C-6: a superseded fetch must not clear a loading flag that now belongs
 			// to the newer fetch for the current scope.
 			if (scopeBindingIsCurrent()) setLoading(false);
+			// C-6R3: the NEWEST dispatch is the terminal owner of the diagnostics
+			// loading flag. When it aborts before it can reach the diagnostics read —
+			// an unresolved actor school or active year — it must still terminate the
+			// claim a superseded dispatch left set, or the panel is stuck on
+			// "Checking source" with no dispatch left to clear it. A superseded
+			// invocation returns without touching the newer active claim.
+			terminateDiagnosticsLoadingForLatestDispatch(
+				diagnosticsLoadingOwnershipRef.current,
+				isLatestDispatch,
+				setAuthorityDiagnosticsLoading,
+			);
 		}
 	}, [isOnline]);
 
@@ -719,7 +834,20 @@ export function useTeachingLoadData() {
 		// cold-cache first load cannot invalidate its own in-flight request. This
 		// effect only clears the panel so the previous scope's numbers never linger.
 		setAuthorityDiagnostics(null);
-	}, [scopeKey, setDraftAssignmentsByFaculty]);
+		// C-6R3: the scope change also drops any outstanding diagnostics loading
+		// claim, so an in-flight read from the previous school/year — or from a
+		// logout/actor change — can never orphan the panel on "Checking source".
+		releaseDiagnosticsLoadingOwnership();
+	}, [scopeKey, setDraftAssignmentsByFaculty]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// C-6R3: unmount must drop any outstanding diagnostics loading claim too. A
+	// reply that lands after teardown cannot leave a remounted instance loading
+	// forever, and the flag returns to false.
+	useEffect(() => {
+		return () => {
+			releaseDiagnosticsLoadingOwnership();
+		};
+	}, [releaseDiagnosticsLoadingOwnership]);
 
 	useEffect(() => {
 		if (!selected) {
