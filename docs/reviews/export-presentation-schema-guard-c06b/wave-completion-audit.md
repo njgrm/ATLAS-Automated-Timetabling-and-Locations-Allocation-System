@@ -91,3 +91,29 @@ row in the window, no generation/publication, no companion-repository change.
 Record the audit, mint the closure receipt, apply the docs-only coordination delta, carry
 F1 as a mandatory precondition on the next HIGH deployment packet, and retire the two
 cycle worktrees. No HIGH action is unlocked by this audit.
+
+## Worktree retirement record
+
+Both cycle worktrees were retired in this closure with non-forced
+`git worktree remove <exact-path>` plus one `git worktree prune`. No branch was deleted:
+`work/export-presentation-schema-guard-c06b` still resolves to
+`a715768b469e4e55d944f9303245071ef09e170e` and
+`integration/export-presentation-schema-guard-c06b` to
+`03cffe141f001ea99861ce5f5d23b8d953cc2170` (`= origin/main` at retirement). The candidate
+commit `dbf1ed22` and the candidate branch tip `a715768b` are both ancestors of
+`origin/main`, so nothing unintegrated was discarded; the only superseded bytes were the
+candidate-side machine-state snapshot that the integration replay replaced. Registered
+worktrees under `E:/ATLAS-worktrees` went 10 → 8; `E:` free space 71.7 → 73.44 GiB.
+
+**Disclosed planner process defect (non-blocking, no product impact).** The integration
+worktree had been given two junctions into the candidate worktree's dependency trees
+(`node_modules`, `atlas-server/node_modules`) so the combined gates could run once without
+a second install. `git worktree remove` followed those junctions on Windows and emptied
+the shared target trees before removing the worktree. The lost bytes are gitignored,
+installable dependencies inside a worktree that was retired in the same closure; no
+tracked repository content, no database, no runtime, no register artifact, and no
+evidence object was affected, and every reviewed/pushed byte is unchanged. Corrective
+rule for future cycles: never junction a dependency tree into a worktree that will be
+retired; remove the junctions with a link-unlink operation (`cmd /c rmdir <junction>`)
+that does not recurse into the target, and verify the target is intact before
+`git worktree remove`.
