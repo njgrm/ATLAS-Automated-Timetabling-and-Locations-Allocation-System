@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T23:11:00.770Z",
+    "lastUpdatedAt": "2026-09-15T23:19:51.160Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 130
+    "revision": 132
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3419,6 +3419,154 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "One fresh read-only Wave Completion Auditor runs after integration of this error-boundary correction."
+        }
+      }
+    },
+    {
+      "id": "AUTHZ-CLASS-TEMPLATE-C07R1",
+      "kind": "STREAM",
+      "objective": "Bounded correction round for AUTHZ-CLASS-TEMPLATE-C07 closing the two accepted blocking findings of its Wave Completion Audit while preserving every previously accepted gate: (R2) bind class-template subject bundles to the actor school so a foreign subjectId can no longer be bound and then projected through the actor's own GET, and (R3) stop atlas-client Audit.tsx from claiming section coverage when the template list is empty after the write-on-read removal. Fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate.",
+      "riskTier": "MEDIUM",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T23:19:51.160Z",
+      "nextAction": "Record the executor correction return (base 19f21729, candidate dd8faf6b), commission one fresh independent QA over the corrected range, integrate the accepted correction, and run one fresh Wave Completion Auditor before closing with the receipt. Live deployment of the corrected source remains a separate locked HIGH action (AUTHZ-CLASS-TEMPLATE-LIVE, NOT granted).",
+      "awaited": [
+        "fresh independent QA over the frozen candidate"
+      ],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/authz-class-template-c07",
+        "branch": "work/authz-class-template-c07",
+        "baseSha": "19f217294c5224d62e33c4d29e7d7cde26ca9a1e",
+        "candidateSha": "dd8faf6bdec32ce83644a350e0538fd5da7451d1",
+        "integrationSha": null,
+        "changedPaths": [
+          "atlas-client/src/lib/__tests__/audit-section-coverage.test.ts",
+          "atlas-client/src/lib/audit-section-coverage.ts",
+          "atlas-client/src/pages/Audit.tsx",
+          "atlas-server/src/__tests__/class-template-authority-c07.test.ts",
+          "atlas-server/src/services/class-template.service.ts",
+          "docs/handoffs/authz-class-template-c07r1-executor.md"
+        ],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "dc3613eb9cbeca5ed448dcb0034f894d12f43831",
+          "observedAt": "2026-09-15T23:19:42.045Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": "ses_f58d47024ffet3cnb239rJWFgS",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 12,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "R2 actor-school subject-bundle binding with typed 403/400 rejections and zero writes on rejection",
+          "R3 Audit page section-coverage truthfulness for an empty template list, with a failing-first helper suite",
+          "fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns this correction round's continuity, integration and register transitions"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the same executor session that produced the reviewed candidate performs the additive correction; no session id was returned to the registrant, so none is asserted"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a correction creates a new candidate and requires a fresh independent QA delegate"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the activated cycle requires a fresh Wave Completion Auditor over the corrected final tree"
         }
       }
     }
