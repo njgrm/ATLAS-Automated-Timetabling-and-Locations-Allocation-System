@@ -82,6 +82,10 @@ export function ownershipDepartmentEligibility(
 	// definitive mismatch. Returning `ineligible` here used to drop qualified
 	// zero-load teachers from the owner picker and the suggestion/distribution
 	// receiver lists purely because their department row was blank.
+	//
+	// This is the ONLY widening: a blank/unknown department becomes visible.
+	// Every known department is still decided by the declared authority (or, when
+	// none is declared, by the legacy heuristic) exactly as before.
 	if (!normalizedFaculty) return 'unknown';
 
 	if (ownerDepartments.length > 0) {
@@ -89,10 +93,9 @@ export function ownershipDepartmentEligibility(
 	}
 
 	// No declared owner departments: the subject-code/name heuristic is the only
-	// remaining signal. It may confirm eligibility but never proves exclusion, so
-	// a known department that fails the heuristic is `unknown` rather than a
-	// hard mismatch — matching the pre-existing fail-open behavior.
-	return isDepartmentMatch(facultyDepartment ?? null, subject.code, subject.name) ? 'eligible' : 'unknown';
+	// signal, and its verdict is preserved byte-for-byte so a known non-matching
+	// department remains excluded.
+	return isDepartmentMatch(facultyDepartment ?? null, subject.code, subject.name) ? 'eligible' : 'ineligible';
 }
 
 /**
