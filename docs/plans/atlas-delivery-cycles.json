@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T09:21:51.291Z",
+    "lastUpdatedAt": "2026-09-15T09:42:22.893Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 37
+    "revision": 39
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -1482,15 +1482,15 @@
       "kind": "STREAM",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 21,
+        "passed": 21,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5c42c3feffe7ZgXXVNc8UjRLI",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true
@@ -1519,11 +1519,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T06:36:00.163Z",
-      "nextAction": "Fresh independent QA over the frozen tip 05bb8e51, then integrate from a clean current-main E-drive worktree; every live Teaching Load apply stays locked behind its own reviewed preview and explicit HIGH approval.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T09:42:22.893Z",
+      "nextAction": "Commission the fresh post-integration Wave Completion Auditor over integration 87aa24a3 (pushed as origin/main) and this register tip; on AUDIT_CLEAR record the capsule and close the cycle with its receipt. All live Teaching Load actions, deployment, generation, publication, migration, and companion edits remain locked.",
       "awaited": [
-        "fresh independent QA over the frozen tip 05bb8e51"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -1531,7 +1531,7 @@
         "branch": "work/tl-operator-workspace-c05",
         "baseSha": "0c20342394ca2ca800cecc6dd69825e07625c66d",
         "candidateSha": "05bb8e517daa8a0494ef3ce7257747b4fca51054",
-        "integrationSha": null,
+        "integrationSha": "87aa24a3ff2b62482b329e6583524ea9addbb121",
         "changedPaths": [
           "atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx",
           "atlas-client/src/components/faculty-assignments/SectionGridMode.tsx",
@@ -1562,15 +1562,15 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "9b82a98f7c74ffecd34e2dae337d7a69c19d7fdf",
-          "observedAt": "2026-09-15T06:36:00.163Z",
+          "sha": "87aa24a3ff2b62482b329e6583524ea9addbb121",
+          "observedAt": "2026-09-15T09:42:22.893Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
@@ -1579,8 +1579,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5c42c3feffe7ZgXXVNc8UjRLI",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
