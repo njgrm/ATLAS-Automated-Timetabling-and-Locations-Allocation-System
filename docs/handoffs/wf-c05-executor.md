@@ -226,3 +226,113 @@ git -C <worktree> rev-parse HEAD                                        # branch
 `PLANNER_SESSION_ROUTE: EXISTING primary-planner (WF-C05 cycle)`
 `EXECUTOR_SESSION_ROUTE: EXISTING work/workflow-process-hardening-c05 executor`
 `QA_SESSION_ROUTE: FRESH_REQUIRED`
+
+---
+
+# R2 addendum — WF-C05-R2 (2026-09-15), classification `PRODUCT_OR_TEST_CHANGE`
+
+## Scope correction to the handoff above
+
+The handoff and its "Gates recorded (final battery)" table above were written
+against the candidate tree `2e3fee25` (`cae18a8f` product tip), **not** the
+integrated tree. They must not be read as a claim that the integrated tree was
+green. At the integrated final tree `b9490691` the migration reproduction failed,
+so the earlier "final battery green" wording is corrected here.
+
+## Failing-first baseline (independently reproduced)
+
+| Tree | Command | Result |
+|---|---|---|
+| Integrated final tree `b9490691` | `node --test ops/workflow/__tests__/migration.test.mjs` | **exit 1 — 4 tests, 2 pass, 2 fail, 0 cancelled, 0 skipped** |
+| Integrated final tree `b9490691` | `npm run workflow:test` | **exit 1 — 278 tests, 276 pass, 2 fail, 0 cancelled, 0 skipped** |
+| Candidate tree `2e3fee25` | `node --test ops/workflow/__tests__/migration.test.mjs` | exit 0 — 4 tests, 4 pass, 0 fail |
+
+The two failing assertions were `migrating the derived pre-migration committed
+document reproduces the committed bytes` and `a mutated migrated document fails
+the byte-identity reproduction`, both at the baseline byte-identity comparison
+(migration bytes `333a3718…` vs working-tree bytes `afeefe2d…`).
+
+## Root cause
+
+R1 (`2e3fee25`, "test(workflow): derive the migration base mechanically")
+correctly removed the hard-coded pre-migration SHA, but the comparison still read
+the **mutable working-tree** state file (`fs.readFileSync`) and refreshed artifact
+pins from **workspace** bytes. The reproduction is a statement about an immutable
+commit pair in history, not about the checkout: once the register advanced by four
+recorded transitions above the migration commit (`registry.revision` 56 → 60) the
+working-tree bytes diverged and the check became a false negative.
+
+## R2 rule — history-derived reproduction
+
+`ops/workflow/__tests__/migration.test.mjs` now derives, with no hard-coded SHA:
+
+1. the **pre-migration commit** = newest commit in
+   `git log --format=%H -- docs/plans/atlas-delivery-cycles.json` whose committed
+   document is `contractVersion` `1.1.0`;
+2. its **immediate state-path successor** = the next-newer entry in the same log,
+   asserted to exist, to be a descendant of the derived commit, and to be
+   `contractVersion` `1.2.0`;
+3. the **expected document** = `migrateStateDocument(pre-migration document)` with
+   every artifact pin set to `git show <migration-commit>:<artifact.path>` bytes
+   (never workspace bytes; `pins > 0` fails closed);
+4. **byte-for-byte equality** against
+   `git show <migration-commit>:docs/plans/atlas-delivery-cycles.json`.
+
+The reproduction never reads the working-tree state file. Added controls: a
+checkout-stability control that builds a disposable history
+`1.1.0 → migration (1.2.0) → later transition-like commit` (revision advanced,
+artifact re-pinned) and proves the reproduction still passes while working-tree
+comparisons fail; and an explicit failure when no `1.1.0` document exists in
+history.
+
+## Load-bearing mutation evidence
+
+A disposable copy of `ops/workflow` (under `%TEMP%`, deleted immediately after)
+was patched so the shared reproduction read the working tree again — both the
+state bytes and the artifact pins. Running only the checkout-stability control
+against that mutant returned exit 1 with
+`AssertionError: the reproduction must pass on a history whose checkout has moved
+on`; the unpatched file passed the same control with exit 0. This proves the new
+control fails if the reproduction regresses to a workspace read.
+
+## Test-preservation census
+
+`4` tests → `6` tests; no assertion removed without replacement.
+
+| Removed assertion | Replacement |
+|---|---|
+| `assert.equal(sha256(fs.readFileSync(COMMITTED_STATE)), sha256(Buffer.from(committed)))` (tautological: the same file read twice) | `assert.equal(JSON.parse(committed).registry.revision, revisionBefore)` plus `assert.equal(migration.doc.contractVersion, CONTRACT_VERSION)` and `assert.notEqual(migration.sha, head)` — Git-object assertions on the migration commit itself |
+| working-tree byte-identity baseline in the mutant test | identical byte-identity assertion against `git show <migration-commit>:<state>` |
+| (none) | added: `pins > 0` fail-closed artifact-pin assertion; checkout-stability control; no-`1.1.0`-in-history control |
+
+The fixture-based `1.1.0 → 1.2.0` structural test, the `1.1.0`-guard rejection of
+the committed `HEAD` document, and the mutated-migration byte-identity control are
+preserved with undiminished strength.
+
+## R2 recorded gates (exact counts)
+
+| Gate | Result |
+|---|---|
+| `node --test ops/workflow/__tests__/migration.test.mjs` | exit 0 — 6 tests, 6 pass, 0 fail, 0 cancelled, 0 skipped |
+| `npm run workflow:test` | exit 0 — 280 tests, 280 pass, 0 fail, 0 cancelled, 0 skipped |
+| `node --test --test-concurrency=1 "ops/workflow/__tests__/*.test.mjs"` | exit 0 — 280 tests, 280 pass, 0 fail, 0 cancelled, 0 skipped |
+| `node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | exit 0 — `status: ok`, `errors: 0`, `stateSha256 afeefe2d…` |
+| `node ops/workflow/render-register.mjs --check --state docs/plans/atlas-delivery-cycles.json --output docs/plans/atlas-active-delivery-streams.generated.md` | exit 0 |
+| `git diff --check` | exit 0 |
+| `git status --short` | empty at return |
+
+Host note: one intermediate `npm run workflow:test` run under concurrent load
+reported 280/279/1 with no named assertion failure; the immediately repeated runs
+(the gate above) were 280/280/0 both at default and `--test-concurrency=1`. The
+transient row is recorded here rather than hidden; no test was weakened.
+
+## R2 zero-mutation statement
+
+No workflow transition was recorded and `docs/plans/atlas-delivery-cycles.json`
+(`registry.revision` 60) and the generated register are byte-unchanged
+(`stateSha256 afeefe2d…`). No product code, schema, fixture, or other test
+changed; only `ops/workflow/__tests__/migration.test.mjs` and this handoff. No
+push, merge, rebase, install, or worktree operation occurred.
+
+`REVIEW_REQUIRED` — fresh independent QA reviews `b9490691...<R2 candidate>` next.
+The executor does not self-approve, merge, or push.
