@@ -83,6 +83,87 @@ export function commitScopeBoundWrite(binding: ScopeBoundWrite, write: () => voi
 }
 
 /**
+ * C-6R: monotonic dispatch precedence.
+ *
+ * `openDiagnosticsScope` compares scope-id strings only, so without a dispatch
+ * order a late-resolving OLDER invocation could re-open the epoch for its own
+ * scope and make the newer invocation's binding look stale (precedence
+ * inversion). Every invocation takes a monotonic id at dispatch; only the newest
+ * id may bind a scope, write an authority feed, or clear a loading flag.
+ */
+export type DispatchPrecedence = {
+	readonly latest: number;
+	/** Take the next dispatch id for a new invocation. */
+	begin(): number;
+	/** True while `dispatchId` is still the newest dispatch issued. */
+	isLatest(dispatchId: number): boolean;
+};
+
+export function createDispatchPrecedence(initial = 0): DispatchPrecedence {
+	let latest = initial;
+	return {
+		get latest() {
+			return latest;
+		},
+		begin() {
+			latest += 1;
+			return latest;
+		},
+		isLatest(dispatchId: number) {
+			return dispatchId === latest;
+		},
+	};
+}
+
+/**
+ * C-6R: the per-invocation dispatch scope that `fetchData` actually uses.
+ *
+ * This is the production authority for both questions a fetch must answer:
+ *   - `isLatestDispatch()` — am I still the newest invocation for this hook?
+ *   - `canWrite()` — may I write? (newest invocation AND, once bound, my scope
+ *     still in force. An UNBOUND invocation is no longer supersession-blind.)
+ *
+ * `bind()` is refused unless this is still the newest dispatch, so a
+ * late-resolving older invocation can never re-open the epoch over a newer
+ * binding (the precedence inversion).
+ */
+export type FetchDispatchScope = {
+	readonly dispatchId: number;
+	isLatestDispatch(): boolean;
+	/** Bind the resolved scope. Refused for a superseded invocation. */
+	bind(scopeId: string): boolean;
+	/** True when this invocation may write anything at all. */
+	canWrite(): boolean;
+	readonly binding: ScopeBoundWrite | null;
+};
+
+export function createFetchDispatchScope(
+	precedence: DispatchPrecedence,
+	scopeRef: { current: string | null },
+	epoch: ScopeEpoch,
+): FetchDispatchScope {
+	const dispatchId = precedence.begin();
+	let binding: ScopeBoundWrite | null = null;
+	const isLatestDispatch = () => precedence.isLatest(dispatchId);
+	return {
+		dispatchId,
+		isLatestDispatch,
+		bind(scopeId: string) {
+			if (!isLatestDispatch()) return false;
+			openDiagnosticsScope(scopeRef, epoch, scopeId);
+			binding = { scopeRef, epoch, scopeId, token: epoch.current };
+			return true;
+		},
+		canWrite() {
+			return isLatestDispatch() && (binding == null || isScopeCurrent(binding));
+		},
+		get binding() {
+			return binding;
+		},
+	};
+}
+
+/**
  * C-5 (F2-COLD-LOAD). Open a new diagnostics epoch when — and only when — the
  * RESOLVED scope actually changed.
  *
@@ -182,6 +263,9 @@ export function useTeachingLoadData() {
 	// `loadAuthorityDiagnosticsForScope`.
 	const diagnosticsEpochRef = useRef(createScopeEpoch());
 	const diagnosticsScopeRef = useRef<string | null>(null);
+	// C-6R: monotonic dispatch precedence so a late-resolving OLDER fetch can never
+	// bind a scope, write a feed, or clear a loading flag over a newer one.
+	const dispatchPrecedenceRef = useRef(createDispatchPrecedence());
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -231,16 +315,25 @@ export function useTeachingLoadData() {
 
 	const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		const forceRefresh = options?.forceRefresh === true;
+		// C-6R: take this invocation's dispatch id BEFORE the first await, so every
+		// later write can be proven to belong to the newest invocation.
+		const dispatchScope = createFetchDispatchScope(
+			dispatchPrecedenceRef.current,
+			diagnosticsScopeRef,
+			diagnosticsEpochRef.current,
+		);
+		const isLatestDispatch = () => dispatchScope.isLatestDispatch();
 		setLoading(true);
 		setError(null);
 
 		let schoolYearId: number | null = null;
 		let resolvedSchoolId: number | null = null;
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
-		// C-6: the scope this fetch is bound to. Null until the actor school/year
-		// resolves; an unresolved fetch is not scope-bound and is never blocked.
-		let scopeBinding: ScopeBoundWrite | null = null;
-		const scopeBindingIsCurrent = () => scopeBinding == null || isScopeCurrent(scopeBinding);
+		// C-6R: a write is allowed only when this is still the newest dispatch AND —
+		// once a scope is bound — that scope is still the one in force. The
+		// previously supersession-blind unbound branch is gone: an older invocation
+		// that never resolved its scope now writes nothing.
+		const scopeBindingIsCurrent = () => dispatchScope.canWrite();
 
 		try {
 			// Actor school first: the authenticated session owns the school scope.
@@ -260,24 +353,26 @@ export function useTeachingLoadData() {
 			resolvedSchoolId = scope.schoolId;
 			// Local const: non-null inside this try block (also safe inside closures below).
 			const school = scope.schoolId;
-			setSchoolId(school);
-			setActiveSchoolYearLabel(schoolYearContext.activeSchoolYearLabel ?? null);
 			schoolYearId = scope.schoolYearId;
 			yearContextSource = schoolYearContext.source;
-			setActiveTermIndex(schoolYearContext.activeTerm?.termIndex ?? null);
 
-			// C-6: bind this fetch to the resolved scope BEFORE any reply can be
-			// consumed. Opening the epoch here (not in an effect) keeps a cold load
-			// from self-invalidating, and gives every sibling authority feed below a
-			// single currency check so an obsolete reply writes nothing.
-			const resolvedScopeId = `${school}:${schoolYearId}`;
-			openDiagnosticsScope(diagnosticsScopeRef, diagnosticsEpochRef.current, resolvedScopeId);
-			scopeBinding = {
-				scopeRef: diagnosticsScopeRef,
-				epoch: diagnosticsEpochRef.current,
-				scopeId: resolvedScopeId,
-				token: diagnosticsEpochRef.current.current,
-			};
+			// C-6R: only the newest dispatch may publish actor-school/year identity.
+			// These setters drive `scopeKey` and the draft/selection invalidation, so a
+			// superseded invocation that resolves late must not re-point the hook at
+			// its stale scope. Binding is gated for the same reason: an older
+			// invocation must never re-open the epoch over a newer scope (which would
+			// invert precedence and make the newer binding look stale).
+			if (isLatestDispatch()) {
+				setSchoolId(school);
+				setActiveSchoolYearLabel(schoolYearContext.activeSchoolYearLabel ?? null);
+				setActiveTermIndex(schoolYearContext.activeTerm?.termIndex ?? null);
+
+				// C-6: bind this fetch to the resolved scope BEFORE any reply can be
+				// consumed. Opening the epoch here (not in an effect) keeps a cold load
+				// from self-invalidating, and gives every sibling authority feed below a
+				// single currency check so an obsolete reply writes nothing.
+				dispatchScope.bind(`${school}:${schoolYearId}`);
+			}
 
 			if (!forceRefresh) {
 				const cachedSummary = getCachedFacultyAssignmentsSummary(school, schoolYearId, {
@@ -398,20 +493,25 @@ export function useTeachingLoadData() {
 			// render ordering. Opening the epoch here, synchronously for the scope we
 			// just resolved and before the token capture, is what stops a cold-cache
 			// first load from invalidating its own in-flight request.
-			await loadAuthorityDiagnosticsForScope({
-				epoch: diagnosticsEpochRef.current,
-				scopeRef: diagnosticsScopeRef,
-				scopeId: `${school}:${schoolYearId}`,
-				request: () => requestWithRetry(
-					() => atlasApi.get<TeachingLoadAuthorityDiagnosticsPayload>(
-						'/faculty-assignments/authority-diagnostics',
-						{ params: { schoolId: school, schoolYearId } },
+			// C-6R: only the newest dispatch may touch the diagnostics scope. The loader
+			// opens the epoch for the scope it is given, so an older invocation reaching
+			// here would invert precedence over the newer binding.
+			if (isLatestDispatch()) {
+				await loadAuthorityDiagnosticsForScope({
+					epoch: diagnosticsEpochRef.current,
+					scopeRef: diagnosticsScopeRef,
+					scopeId: `${school}:${schoolYearId}`,
+					request: () => requestWithRetry(
+						() => atlasApi.get<TeachingLoadAuthorityDiagnosticsPayload>(
+							'/faculty-assignments/authority-diagnostics',
+							{ params: { schoolId: school, schoolYearId } },
+						),
+						{ attempts: 1, delayMs: 300 },
 					),
-					{ attempts: 1, delayMs: 300 },
-				),
-				setPayload: setAuthorityDiagnostics,
-				setLoading: setAuthorityDiagnosticsLoading,
-			});
+					setPayload: setAuthorityDiagnostics,
+					setLoading: setAuthorityDiagnosticsLoading,
+				});
+			}
 		} catch (requestError: any) {
 			const cachedSummary = schoolYearId && resolvedSchoolId ? getCachedFacultyAssignmentsSummary(resolvedSchoolId, schoolYearId) : null;
 			const cachedSubjects = resolvedSchoolId ? getCachedSubjects(resolvedSchoolId) : null;

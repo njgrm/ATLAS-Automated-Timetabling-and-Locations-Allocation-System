@@ -118,10 +118,9 @@ test('C-6 the hook gates every sibling authority feed on the dispatch scope', ()
 	const hook = source('src/hooks/useTeachingLoadData.ts');
 
 	// One shared binding authority, opened by the resolving fetch (never an effect).
-	assert.match(hook, /let scopeBinding: ScopeBoundWrite \| null = null;/);
-	assert.match(hook, /scopeBinding = \{\s*scopeRef: diagnosticsScopeRef,/);
-	assert.match(hook, /const scopeBindingIsCurrent = \(\) => scopeBinding == null \|\| isScopeCurrent\(scopeBinding\);/);
-	assert.match(hook, /openDiagnosticsScope\(diagnosticsScopeRef, diagnosticsEpochRef\.current, resolvedScopeId\);/);
+	assert.match(hook, /const dispatchScope = createFetchDispatchScope\(/);
+	assert.match(hook, /const scopeBindingIsCurrent = \(\) => dispatchScope\.canWrite\(\);/);
+	assert.match(hook, /dispatchScope\.bind\(`\$\{school\}:\$\{schoolYearId\}`\);/);
 
 	// Warm-cache branch is gated.
 	assert.match(hook, /if \(cachedSummary && cachedSubjects && cachedSections && scopeBindingIsCurrent\(\)\) \{/);
