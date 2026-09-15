@@ -5,11 +5,11 @@
 | Field | Value |
 |---|---|
 | Accepted base SHA | `0c20342394ca2ca800cecc6dd69825e07625c66d` (= refreshed `origin/main`; verified ancestor) |
-| Product/test candidate | `61b58b6d274c12f1feed636459a3035b987c814b` |
+| Product/test candidate | `51800840b5655e2b49f88017582e36b25896f6cb` |
 | Frozen tip (incl. this handoff) | see the final tip recorded in the return message |
 | Branch | `work/tl-operator-workspace-c05` |
 | Worktree | `E:/ATLAS-worktrees/tl-operator-workspace-c05` |
-| Range | `0c203423..61b58b6d`, 8 commits, 24 paths, +2383 / −538 |
+| Range | `0c203423..51800840`, 9 commits, 26 paths, +2740 / −595 |
 | Directive pin | LF-normalized `origin/main:AGENTS.md` SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (recomputed from `D:/ATLAS/AGENTS.md`; matched) |
 | Worktree disposition | `RETIRE_AFTER_INTEGRATION` (not retired here) |
 
@@ -25,6 +25,7 @@
 | 6 | `66bfcc34` | fix(teaching-load): restrict the eligibility widening to blank departments |
 | 7 | `a588b416` | docs(teaching-load): record R3, server tally, and blast radius in the C05 handoff |
 | 8 | `61b58b6d` | fix(teaching-load): unit-coherent capacity and excess metrics (correction C-2) |
+| 9 | `51800840` | fix(teaching-load): close the producer/consumer rejection-reason gap (correction C-3: F1 + F2) |
 
 ## Dependency approach
 
@@ -34,13 +35,73 @@ tree. `npx prisma generate --schema ../prisma/schema.prisma` was required before
 the server type-check (writes only `node_modules/.prisma/client`). `E:` free at
 start 73.41 GiB (floor 15 GiB).
 
-## Exact changed paths (24)
+## Correction C-3 — producer/consumer rejection-reason parity (F1) and diagnostics supersession (F2)
+
+### F1 — producer inventory (verified)
+
+Exactly one producer contract for `TeachingLoadCandidateRejection.reason`:
+
+| Producer location | Emits |
+|---|---|
+| `teaching-load-automation.service.ts:166-173` | the union type — the authority |
+| `teaching-load-automation.service.ts:1464`, `:3313` | `PROGRAM_SCOPE_INCOMPATIBLE` / `NOT_QUALIFIED` |
+| `teaching-load-automation.service.ts:1481`, `:3335` | `HARD_CAP_EXCEEDED` |
+| `teaching-load-automation.service.ts:3281` | `CURRENT_OWNER` |
+| `teaching-load-automation.service.ts:3293` | `PLACEHOLDER_FACULTY` |
+| `teaching-load-automation.service.ts:3397` | `OUTSIDE_CANONICAL_DEMAND` |
+
+`qualification-evaluator.service.ts` and `teaching-load-reconciliation.service.ts`
+carry *different* contracts (`ADVISER_*`, qualification outcomes); the automation
+service maps qualification outcomes into this union at 1464/3313. **Full emitted
+set: the 6 union members.** No other file emits this contract, and no server fix
+was required — the correction is client-side.
+
+**Defect (confirmed):** the client union/labels/details/order omitted
+`OUTSIDE_CANONICAL_DEMAND`, and `summarizeCandidateRejections` iterated only
+`CANDIDATE_REJECTION_ORDER`, so that reason was silently dropped from the grouped
+body while the header still counted it.
+
+**Fix:** reason added to the client union, labels, details, and order with terse
+scheduler-facing copy; the operator-mandated R5 vocabulary
+(`INACTIVE_FACULTY`, `WRONG_SCHOOL`, `DEPARTMENT_RESTRICTED`, `UNAVAILABLE`,
+`STALE_AUTHORITY`) is retained as explicitly *reserved/defensive* copy, no longer
+presented as the producer set; and the unknown path is now live — unmatched
+reasons group under `UNKNOWN_REASON` with safe copy, preserving
+`sum(group.count) === totalCandidateRejections(list)`.
+
+The diagnostics body was extracted into `TeachingLoadCandidateDiagnostics.tsx`
+so the grouping is directly renderable/assertable (the modal renders through a
+Radix portal and is not server-renderable).
+
+### F2 — diagnostics supersession guard
+
+`useTeachingLoadData.ts` now captures a scope epoch token before dispatching the
+read-only `/faculty-assignments/authority-diagnostics` GET and discards any reply
+that lands after a school/year change; the scope effect opens a new epoch before
+clearing the state it owns. The suggestion handlers already used the same
+`scope-request-epoch` primitive.
+
+**Disclosed residual (out of this correction's bound):** the pre-existing
+summary/subjects/sections setters in the same hook are NOT epoch-guarded. They
+are overwritten by the next fetch and were not reworked here.
+
+### C-3 failing-first mutants (performed, restored byte-exact)
+
+| Mutant | Mutation | Baseline blob | Mutant blob | Result | Restore |
+|---|---|---|---|---|---|
+| F1-M1 | remove `OUTSIDE_CANONICAL_DEMAND` from the client map (labels/details/order) | `1a775fb0cf9e71547ca3728f472c66d4c127f133` | `0dcf66349bb97b5af72c6965e60c857b808f1e33` | 32 tests, **29 pass / 3 fail** — producer parity ("missing from the client union"), rendered count equality, grouped-summary | byte-exact |
+| F2-M1 | remove the diagnostics scope guard | `e3298b87ce03689a42f552367a2b4b231e8f83e6` | `e5d63b5fad27fde7114921ac3d42df88b1aca908` | 32 tests, **31 pass / 1 fail** — "the success path must discard an obsolete reply" | byte-exact |
+
+Both restores verified by blob equality and `git diff --quiet` exit 0.
+
+## Exact changed paths (26)
 
 ```
 M  atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx
 M  atlas-client/src/components/faculty-assignments/SectionGridMode.tsx
 M  atlas-client/src/components/faculty-assignments/TeachingLoadModals.tsx
 D  atlas-client/src/components/faculty-assignments/TeachingLoadReconciliationPanel.tsx
+A  atlas-client/src/components/faculty-assignments/TeachingLoadCandidateDiagnostics.tsx   <- C-3
 M  atlas-client/src/components/faculty-assignments/TeachingLoadRepairQueue.tsx
 A  atlas-client/src/components/faculty-assignments/TeachingLoadTruthPanel.tsx
 M  atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx
@@ -271,13 +332,13 @@ commit 6 (`66bfcc34`); QA should review the range as a whole.
 
 | Gate | Result |
 |---|---|
-| Client TL suite (C05 ×3 + `teaching-load-*` + helpers + `tt-tl-modules-*` + route-intent + ux-guardrails) | **209/209 pass, 0 fail** |
+| Client TL suite (C05 ×3 + `teaching-load-*` + helpers + `tt-tl-modules-*` + route-intent + ux-guardrails) | **213/213 pass, 0 fail** |
 | `npm run test:ux-guardrails` | 21/21 pass |
 | Client `tsc --noEmit` / `vite build` | exit 0 / `✓ built` |
 | Server hermetic TL set (11 suites incl. the new C-2 suite) | all pass / 0 fail |
 | Server `tsc --noEmit` and `npm run build` | exit 0 / exit 0 |
 | `git diff --check` / `--cached --check` | exit 0 |
-| Component line cap (1000) | max = `TeachingLoadTruthPanel` (new, ~300), `TeachingLoad.tsx` 847 |
+| Component line cap (1000, physical) | max = `TeachingLoad.tsx` **906**, `AutoFillSummaryModal.tsx` 720, `SubjectRow.tsx` 672, `TeacherGridMode.tsx` 594, `SectionGridMode.tsx` 434, `TeachingLoadTruthPanel.tsx` 283, `TeachingLoadCandidateDiagnostics.tsx` 79 |
 | No-scroll shell | `h-[calc(100svh-3.5rem)]`, root `flex flex-col`, `flex-1 min-h-0` preserved; truth panel is horizontal-overflow only, suppressed under `max-height:640px` |
 | Zero-write | `useTeachingLoadData.ts` contains the diagnostics GET and **no** `atlasApi.post/put/patch/delete`; no `/policies/scheduling` in the hook or the new modules |
 
@@ -293,11 +354,11 @@ browser, or runtime. Only structural/class and rendered-markup contracts ship.
 | R2 | `SectionGridMode` popover, `AutoFillSummaryModal` move list, truth panel | viewport-relative class assertions; `max-h-75`/`max-h-64` absent; shell contract present | **PASS (structural)** — live pixels `BLOCKED_EXTERNAL(AUTH_SESSION_REQUIRED)` |
 | R3 | `teaching-load-authority-truth.ts`, `TeachingLoadTruthPanel.tsx`, `useTeachingLoadData.ts` diagnostics GET, server `computeOverloadCapacityTotals` | rendered harness for all 12 metrics; null-authority fail-closed; UNCONFIGURED fail-closed; C-2 null-basis fail-closed; four failing-first mutants restored byte-exact | **PASS** |
 | R4 | `ownershipDepartmentEligibility`, `matchesOwnershipDepartment`, `selectEligibleOwnerCandidates` | null-department pre-emption mutant fails 4 tests; overloaded FIL/ESP + zero-load-both-depts fixture; blast-radius parity across 8 departments | **PASS** |
-| R5 | `teaching-load-suggestion-diagnostics`, diagnostics panel | every reason label must not be a raw enum/snake_case code; unknown-reason fallback | **PASS** |
+| R5 | `teaching-load-suggestion-diagnostics`, `TeachingLoadCandidateDiagnostics` | producer-parity control reads the server union and every emitted reason; rendered count-equality control with an unknown code; failing-first mutant removed a producer reason and failed 3 controls | **PASS** |
 | R6 | `useTeachingLoadData` (summary + diagnostics), `policyReady`, `WorkloadInspector`, truth panel | no `/policies/scheduling`; strict `policyReady`; policy-bound capacity/overload/remaining/advisory | **PASS** |
 | R7 | `resolveSuggestionPreviewState`, `AutoFillSummaryModal` header + `data-preview-state` | mutant dropping the evaluated guard yields `imbalance` where production yields `unevaluated` | **PASS** |
 | R8 | `TeachingLoad.tsx` preview/apply | client sends no fingerprint; apply targets the server proposal id; zero server diffs | **PASS** |
-| R9 | `scope-request-epoch.ts`, page preview/apply/cancel guards, scope effect | epoch discard control; ≥3 guarded handlers and ≥3 discards asserted; scope change clears suggestion state | **PASS** |
+| R9 | `scope-request-epoch.ts`, page preview/apply/cancel guards, scope effect, diagnostics read guard (F2) | epoch discard control; ≥3 guarded suggestion handlers and ≥3 discards asserted; scope change clears suggestion state; failing-first mutant removed the diagnostics guard | **PASS** |
 | R10 | Inventory above, encoded as tests | duplicate-target/testid ownership control; per-chip distinctness | **PASS** |
 | R11 | Repair-queue-first shell, toolbar, truth strip | no regression in shell/repair-queue assertions | **PASS** |
 | R12 | HG canonical code, proposal/apply contract, term/actor paths | source assertions | **PASS** |
@@ -335,6 +396,15 @@ coverage reduced.
   `allowedOwnerDepartments` remain client projections of the server's persisted
   qualification authority; the client avoids pre-empting it but cannot prove
   eligibility. Apply stays server-authoritative.
+- `NON_BLOCKING (disclosed residual, F2)` — the summary/subjects/sections setters
+  in `useTeachingLoadData.ts` remain un-epoch-guarded; only the
+  authority-diagnostics read was guarded this round. They are overwritten by the
+  next fetch and were deliberately left outside the bounded correction.
+- `NON_BLOCKING (disclosed residual, out of scope)` — the timetable consumer
+  `components/timetable/TacticalSandboxDock.helpers.ts` still uses the boolean
+  `matchesOwnershipDepartment` while the tri-state helper carries richer copy;
+  that copy asymmetry is a disclosed out-of-scope residual and the file was not
+  touched.
 
 ## Zero-mutation statement
 
