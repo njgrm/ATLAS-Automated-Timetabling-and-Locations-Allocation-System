@@ -283,6 +283,14 @@ test('C07-S05. the real triggerGenerationRun persists fixture A with zero labora
 		assert.equal(scienceEntries.filter((entry) => entry.termIndex === term).length, 2, `term T${term} must keep its full Science session count`);
 	}
 	assert.ok(persistedEntries.every((entry) => entry.termIndex === 1 || entry.termIndex === 2 || entry.termIndex === 3), 'every persisted entry binds an explicit ordered term');
+
+	// C07-S08 at the trigger level: the fixture persists an UNAVAILABLE window
+	// (faculty 71, WEDNESDAY 06:00-06:45). No persisted entry may place that
+	// faculty member inside the persisted unavailable window.
+	assert.equal(
+		persistedEntries.some((entry) => entry.facultyId === 71 && entry.day === 'WEDNESDAY' && entry.startTime === '06:00' && entry.endTime === '06:45'), false,
+		'the real trigger must never place a faculty member inside their persisted UNAVAILABLE window',
+	);
 });
 
 test('C07-S05 mutant M4. a laboratory IS reachable for the fixture, so the zero-laboratory result is load-bearing', () => {
