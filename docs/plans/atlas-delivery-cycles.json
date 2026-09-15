@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:37:38.000Z",
+    "lastUpdatedAt": "2026-09-15T22:42:38.060Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 116
+    "revision": 117
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -2975,22 +2975,26 @@
       "kind": "CYCLE",
       "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T22:21:51.940Z",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T22:42:38.060Z",
       "nextAction": "Executor implements the 18-gate class-template authority contract in E:/ATLAS-worktrees/authz-class-template-c07 per docs/prompts/authz-class-template-c07-2026-09-16.md and returns REVIEW_REQUIRED with the base/candidate SHAs and the full gate matrix; then one fresh independent QA over the frozen range and one fresh Wave Completion Auditor. Deployment of the corrected source remains a separate locked HIGH action.",
       "awaited": [
-        "executor candidate for AUTHZ-CLASS-TEMPLATE-C07 (REVIEW_REQUIRED with base/candidate SHAs and the 18-gate matrix)"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "executor: atlas-executor-delegate implementing the class-template actor-school authority correction in E:/ATLAS-worktrees/authz-class-template-c07 (session id returned on handoff)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/authz-class-template-c07",
         "branch": "work/authz-class-template-c07",
         "baseSha": "917da8be1c0dea13e2a5062f3883cce82c829384",
-        "candidateSha": null,
+        "candidateSha": "19f217294c5224d62e33c4d29e7d7cde26ca9a1e",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/class-template-authority-c07-guard.test.ts",
+          "atlas-server/src/__tests__/class-template-authority-c07.test.ts",
+          "atlas-server/src/routes/class-template.router.ts",
+          "atlas-server/src/services/class-template.service.ts",
+          "docs/handoffs/authz-class-template-c07-executor.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "917da8be1c0dea13e2a5062f3883cce82c829384",
@@ -3005,9 +3009,9 @@
           "writable": true
         },
         "executor": {
-          "sessionId": null,
-          "status": "IDLE",
-          "writable": true
+          "sessionId": "ses_f58d47024ffet3cnb239rJWFgS",
+          "status": "RETURNED",
+          "writable": false
         },
         "qa": {
           "sessionId": null,
