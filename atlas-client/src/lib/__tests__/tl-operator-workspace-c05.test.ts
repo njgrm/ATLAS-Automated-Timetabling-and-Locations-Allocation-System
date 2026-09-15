@@ -26,6 +26,7 @@ import {
 	SAFE_SUGGESTION_STATES,
 	UNSAFE_SUGGESTION_STATES,
 } from '@/lib/teaching-load-suggestion-presentation';
+import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { COVERAGE_MODE_CONFIG } from '@/lib/teaching-load-helpers';
 import type { AutoFillSummaryResult, FacultySummary, Subject, TeachingLoadCandidateRejectionReason } from '@/types';
 
@@ -379,6 +380,40 @@ test('R2 the no-scroll shell contract is preserved', () => {
 	assert.match(page, /flex-1 flex min-h-0/);
 	const sectionGrid = source('src/components/faculty-assignments/SectionGridMode.tsx');
 	assert.match(sectionGrid, /flex-1 overflow-auto/);
+});
+
+/* ================================================================== *
+ * R9 — stale scope state is cleared and obsolete replies are discarded
+ * ================================================================== */
+
+test('R9 a scope epoch discards a reply captured before the scope changed', () => {
+	const epoch = createScopeEpoch();
+	const preview = captureEpoch(epoch);
+	assert.equal(preview(), true);
+
+	// School/year/actor change.
+	epoch.begin();
+	assert.equal(preview(), false, 'an obsolete in-flight reply must be discarded');
+
+	// The next request in the new scope is authoritative again.
+	const nextPreview = captureEpoch(epoch);
+	assert.equal(nextPreview(), true);
+	assert.equal(epoch.isCurrent(epoch.current), true);
+	assert.equal(epoch.isCurrent(epoch.current + 1), false);
+});
+
+test('R9 the Teaching Load page binds every suggestion handler to the scope epoch', () => {
+	const page = source('src/pages/TeachingLoad.tsx');
+	assert.match(page, /scopeEpochRef\.current\.begin\(\)/);
+	const guards = page.match(/captureEpoch\(scopeEpochRef\.current\)/g) ?? [];
+	assert.ok(guards.length >= 3, `preview/apply/cancel must each capture an epoch, found ${guards.length}`);
+	const discards = page.match(/if \(!stillCurrent\(\)\) return;/g) ?? [];
+	assert.ok(discards.length >= 3, `each guarded handler must discard an obsolete reply, found ${discards.length}`);
+	// A scope change also clears the scope-bound suggestion state rather than
+	// leaving a previous school/year's proposal or preview actionable.
+	for (const setter of ['setSuggestionProposalId(null)', 'setAutoFillResult(null)', 'setSuggestionLoading(false)', 'setSuggestionApplying(false)']) {
+		assert.ok(page.includes(setter), `${setter} must run on scope change`);
+	}
 });
 
 /* ================================================================== *
