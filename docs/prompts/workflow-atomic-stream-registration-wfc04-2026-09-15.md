@@ -71,6 +71,14 @@ spot and can race with other integration owners.
     every genuinely active ordinary lane missing from the machine registry.
     Re-observe rather than assuming the historical count of four. Do not create
     records for clean terminal worktrees merely because they exist.
+11. Before freezing the candidate, enumerate every register-derived seed or
+    inventory assertion affected by adding a stream. Update those pins inside
+    the reviewed candidate (or a new correction candidate), never as an
+    integration-time surprise after QA has accepted a different test tree.
+12. Before pinning any plugin, review capsule, receipt, or other byte-hashed
+    artifact, prove that its path class has a load-bearing `.gitattributes`
+    `text eol=lf` rule and that a fresh Git checkout materializes the pinned LF
+    bytes. The candidate return must enumerate any attribute change explicitly.
 
 ## 4. Required controls
 
@@ -93,6 +101,10 @@ Add failing-first and positive controls over the real CLI/library entry points:
   registry and does not use a private cache/list;
 - reconciliation fixture proving active lanes are added while terminal clean
   worktrees are not inferred as running.
+- seed-inventory assertions updated by the successful create-stream fixture and
+  a failing control showing a stale pin is detected;
+- `.gitattributes` coverage plus checkout-materialization parity for every new
+  pinned artifact class, including a mutant with the LF rule removed.
 
 Run at minimum:
 
