@@ -13,8 +13,8 @@ live generation, publication, or live-data action.
 
 ## 1. Verdict
 
-**REVIEW_REQUIRED.** The candidate is complete for T1–T10 and the W3/W4 scope except
-M19's DOCX page render (host Word COM hang — see §7); one row is `BLOCKED`.
+**REVIEW_REQUIRED.** The candidate is complete for T1–T10 and the W3/W4 scope;
+all 23 mandatory matrix rows are PASS (revision 2 — F1 correction + M19 render).
 
 ## 2. Immutable range
 
@@ -25,8 +25,9 @@ M19's DOCX page render (host Word COM hang — see §7); one row is `BLOCKED`.
   `dbe2ceef` (planner packet). Not rebased, amended, reverted, or rewritten.
 - Pre-existing recovery commits authored by the interrupted sessions and
   re-verified (not rewritten) by this executor: `5175a6ed`, `f7e72f97`.
-- Additive corrections by this executor: `f29a9667`, `e614feef`, plus the
-  handoff commit.
+- Additive corrections (round 1): `f29a9667`, `e614feef`, `2005f4dd`.
+- Additive corrections (round 2 — QA `CORRECTION_REQUIRED`): `b1760dd6`
+  (F1 zero-entry guard), plus the updated handoff commit.
 
 ## 3. Changed paths
 
@@ -44,6 +45,30 @@ M19's DOCX page render (host Word COM hang — see §7); one row is `BLOCKED`.
 `docs/prompts/beneficiary-export-parity-c05-recovery-adoption-2026-09-15.md`.
 
 **Modified by this executor (additive corrections):**
+- **F1 (QA round 1, blocking M16)** — one typed `EMPTY_SELECTED_TERM` (HTTP 422)
+  fail-closed guard for a completed run whose selected-term *renderable* entry
+  set is empty (reference-only HG/ARAL rows are not renderable). Placement is
+  service level so the transport stays thin.
+  - `atlas-server/src/services/workbook-export.service.ts` — new exported
+    `assertRenderableExportEntries(ctx)`, called from `exportSummaryWorkbook`
+    and `exportClassProgramWorkbook` immediately after `loadExportContext`.
+  - `atlas-server/src/services/teacher-program-export.service.ts` — same typed
+    failure after the selected-term + reference-only filters.
+  - `atlas-server/src/routes/generation.router.ts` — typed mapping on the
+    summary, class, and teacher routes only. The room route keeps
+    `EMPTY_ROOM_SCHEDULE` and the matrix route keeps `EMPTY_SOURCE_RUN`; the
+    guard deliberately does **not** live in `loadExportContext`, so neither is
+    replaced.
+  - Interpretation recorded (F1 item 3): the guard is evaluated on the renderable
+    entry set the document would actually print. A run with entries in the
+    selected term still returns 200 + a real file; a run whose selected-term rows
+    are all HG/ARAL fails closed.
+  - Tests in `tt-output-c03r-route.test.ts`: `every official export fails closed
+    with zero file bytes when the completed run has no selected-term entries`
+    (both directions — populated → 200 + >2000 bytes; empty and HG-only → 422
+    `EMPTY_SELECTED_TERM`, no `content-disposition`, `application/json`, error
+    body < 500 bytes, zero writes) and `the zero-entry guard does not replace the
+    room or matrix failure contracts` (non-regression).
 - `atlas-server/src/services/room-program-export.service.ts` — period structure now
   unions entry intervals with `displaySlots` (an entry could previously be
   silently dropped); totals row is per-weekday occupancy instead of one repeated
@@ -89,7 +114,7 @@ M19's DOCX page render (host Word COM hang — see §7); one row is `BLOCKED`.
 
 ## 5. Mandatory matrix tally
 
-`total 23 / passed 22 / blocked 1 / deferred 0`
+`total 23 / passed 23 / blocked 0 / deferred 0` (revision 2)
 
 | # | Verdict | Evidence |
 |---|---|---|
@@ -108,22 +133,22 @@ M19's DOCX page render (host Word COM hang — see §7); one row is `BLOCKED`.
 | M13 | PASS | Class/room/summary conserve the same 7 renderable term-1 entries; class and room agree on the tuple |
 | M14 | PASS | Mounted matrix: missing JWT 401, invalid JWT 401, non-privileged 403, raw system token 401, cross-school 403 — zero dispatch each |
 | M15 | PASS | Instrumented DB client: exports zero-write; passive policy reader performs exactly one `findUnique` and zero writes; room view never calls the creating/DDL path |
-| M16 | PASS | Typed 4xx + zero bytes for unknown run, invalid/absent/out-of-contract term, unknown room, unknown faculty, empty source run |
+| M16 | PASS | **F1 correction.** Typed 4xx + zero file bytes for unknown run, invalid/absent/out-of-contract term, unknown room, unknown faculty, empty source run, **and a completed run whose selected-term renderable set is empty (now `EMPTY_SELECTED_TERM`, 422, `application/json`, `content-disposition` absent, error body < 500 bytes, zero writes on all three official export routes; QA's pre-fix 7141/6815/DOCX bytes no longer produced)**. Room keeps `EMPTY_ROOM_SCHEDULE`, matrix keeps `EMPTY_SOURCE_RUN` |
 | M17 | PASS | Busy flag + every official item disabled by the in-flight flag + handler single-flight guard |
 | M18 | PASS | Server `Content-Disposition` and client filenames identical for all four outputs, incl. `SY-UNLABELED` |
-| M19 | **BLOCKED** | 6/7 rendered (all XLSX sheets). **DOCX→PDF page render not performed**: host Word COM hangs |
+| M19 | PASS | 7/7 produced outputs rendered to PDF, **every one exactly 1 page**; artifacts within sane size bounds (7 130–10 320 B); DOCX portrait (`w:pgSz w:orient="portrait"`); XLSX landscape + fit-to-width. **Root cause of the earlier hang confirmed: the wedged default printer `POS58 Printer(3)`. Recipe: save the default, set `Microsoft Print to PDF`, bounded 90 s Word COM job, then restore the default and kill orphans — default verified restored and no orphan Office processes remain.** |
 | M20 | PASS | Three docs corrected; `git diff --check` clean |
 | M21 | PASS | No assertion removals: asserts 52→72, 29→74, 16→16, 14→14; tests 11→13, 5→13 |
 | M22 | PASS | Real builders produced DOCX/XLSX in `%TEMP%`; bidirectional extraction on real bytes |
 | M23 | PASS | Draft renders `NOT PUBLISHED — DRAFT/REVIEW`; published renders `PUBLISHED — Revision 7 (2026-09-01)` |
 
-**M19 blocked reason (exact):** the host Word COM recipe
-(`Documents.Open` + `ExportAsFixedFormat(...,17)`) hangs indefinitely (two
-attempts, 420 s and 150 s, no error, no output). Excel COM succeeded for all
-XLSX sheets. No LibreOffice fallback is installed. The DOCX artifact itself is
-real and was structurally extracted (portrait `w:pgSz`, full role set, no ARAL).
-All orphaned `WINWORD`/`EXCEL` processes spawned by the attempts were killed and
-verified absent.
+**M19 no longer blocked.** The earlier Word COM hang was caused by the wedged
+default printer queue (`POS58 Printer(3)`), not by the artifacts. The verified
+recipe was applied: save the current default, set `Microsoft Print to PDF`, run a
+bounded 90 s Word COM job (`Documents.Open` → `ExportAsFixedFormat(...,17)` →
+`Close` → `Quit`), then restore the default and kill orphan Office processes. The
+default was restored and verified (`POS58 Printer(3)`), and no orphan
+`WINWORD`/`EXCEL` processes remain.
 
 ## 6. Decisive commands and results
 
@@ -133,7 +158,7 @@ verified absent.
 | `npx tsc --noEmit -p tsconfig.json` (atlas-client) | exit 0 |
 | `npm run build` (atlas-server) | exit 0 |
 | `npm run build` (atlas-client) | exit 0 |
-| `tsx src/__tests__/tt-output-c03r-route.test.ts` | 13 pass / 0 fail / 0 skip |
+| `tsx src/__tests__/tt-output-c03r-route.test.ts` | 15 pass / 0 fail / 0 skip |
 | `tsx src/__tests__/tt-output-c03r.test.ts` | 13 / 0 / 0 |
 | `tsx src/__tests__/tt-output-c03r3.test.ts` | 12 / 0 / 0 |
 | `tsx src/__tests__/tt-output-c03r3-placement-term.test.ts` | 8 / 0 / 0 |
@@ -142,7 +167,8 @@ verified absent.
 | `tsx --test src/lib/__tests__/timetable-*.test.ts` (7 suites) | 29 pass / 0 fail / 0 skip |
 | `git diff --check` | clean |
 
-Server total **64 pass / 0 fail / 0 skip**; client total **29 pass / 0 fail / 0 skip**.
+Server total (round 2) **66 pass / 0 fail / 0 skip**; client total **29 pass /
+0 fail / 0 skip** (client untouched by F1).
 
 ## 7. Fixture inventory (deterministic)
 
@@ -175,34 +201,38 @@ Artifacts (never in the repo), directory
 
 | Artifact | Bytes |
 |---|---|
-| `class-program-SY2026-2027-term1.xlsx` | 7673 |
-| `summary-teacher-schedule-SY2026-2027-term1.xlsx` | 9557 |
-| `room-program-601-SY2026-2027-term1.xlsx` | 7130 |
-| `teacher-program-501-SY2026-2027-term1.docx` | 10320 |
-| `artifact-inventory.json`, `render-inventory.json` | — |
+| `class-program-SY2026-2027-term1.xlsx` | 7674 |
+| `summary-teacher-schedule-SY2026-2027-term1.xlsx` | 9558 |
+| `room-program-601-SY2026-2027-term1.xlsx` | 7131 |
+| `teacher-program-501-SY2026-2027-term1.docx` | 10319 |
+| `artifact-inventory.json`, `render-inventory.json`, `default-printer.before.txt` | — |
+
+Byte counts drift by ±1 between rebuilds (container metadata); the M22 suite
+asserts a >2000-byte sanity floor rather than an exact size.
 
 Sheet inventory: class `Grade 7`; summary `SUMMARY, Mathematics, Biology,
 Araling Panlipunan` (no HG/ARAL sheet); room `Room 101`.
 
-Renders (Excel COM → per-sheet PDF) under `.../renders/`:
-`class-program…Grade_7.pdf` (1 page, 249 303 B),
-`room-program-601…Room_101.pdf` (9, 289 431 B),
-`summary…SUMMARY.pdf` (13, 263 981 B),
-`summary…Mathematics.pdf` (17, 276 504 B),
-`summary…Biology.pdf` (13, 271 635 B),
-`summary…Araling Panlipunan.pdf` (13, 276 668 B).
-`teacher-program-501-SY2026-2027-term1.docx` render: **NOT PERFORMED** (M19).
+Renders (Excel/Word COM → per-output PDF) under `.../renders/` — **7/7 outputs,
+every one a single page**:
+
+| Render | Bytes | Pages |
+|---|---|---|
+| `class-program-SY2026-2027-term1.xlsx.Grade_7.pdf` | 298 620 | 1 |
+| `room-program-601-SY2026-2027-term1.xlsx.Room_101.pdf` | 285 080 | 1 |
+| `summary-teacher-schedule-SY2026-2027-term1.xlsx.SUMMARY.pdf` | 258 309 | 1 |
+| `summary-teacher-schedule-SY2026-2027-term1.xlsx.Mathematics.pdf` | 267 738 | 1 |
+| `summary-teacher-schedule-SY2026-2027-term1.xlsx.Biology.pdf` | 265 452 | 1 |
+| `summary-teacher-schedule-SY2026-2027-term1.xlsx.Araling_Panlipunan.pdf` | 270 454 | 1 |
+| `teacher-program-501-SY2026-2027-term1.docx.pdf` | 118 165 | 1 |
+
+The full machine-readable inventory is `render-inventory.json`.
 
 ## 10. Known risks
 
-- **BLOCKING (M19):** the teacher-program DOCX page render and the visual
-  clipped-column/blank-page inspection were not performed; the host Word COM
-  automation hangs. QA must either re-render on a host where Word COM responds or
-  obtain an explicit planner waiver for this row.
-- **NON_BLOCKING:** the XLSX renders paginate to 1/9/13/13/13/17 pages. The
-  class-program sheet is a clean single page; the room and summary sheets
-  paginate broadly. Not visually inspected (no PDF→PNG pass was run), so no
-  claim is made about blank pages or clipped columns beyond page counts.
+- **NON_BLOCKING:** every produced output rendered to a single page, so there is
+  no multi-page clipped-column case to inspect; the landscape/fit-to-width setup
+  is proven only for the deterministic fixture at this page geometry.
 - **NON_BLOCKING:** the client year token comes from the runtime context's
   `activeSchoolYearLabel`; the server resolves it from `enrollProSchoolYearMirror`.
   Both degrade to `SY-UNLABELED`, but equality is by contract, not by a shared
@@ -225,9 +255,12 @@ publication, no browser login, no companion-repository edit, no
 `stakeholderFiles/**` access, no `prisma/**`, no `package.json`/lockfile change,
 no `docs/plans/**` or `CHANGELOG.md` edit, no push, no new dependency. All
 produced artifacts live under `%TEMP%/opencode/beneficiary-export-parity-c05/`.
-Orphaned Office automation processes spawned by the render attempts were killed
-and verified absent.
+The M19 render required a temporary default-printer switch to
+`Microsoft Print to PDF`; the original default (`POS58 Printer(3)`) was restored
+and verified, no print queue was modified, and no orphan Office automation
+processes remain.
 
 ## 12. Return
 
-**REVIEW_REQUIRED.**
+**REVIEW_REQUIRED.** Revision 2 — F1 (`EMPTY_SELECTED_TERM`) and M19 render
+resolved; tally `23 / 23 / 0 / 0`.
