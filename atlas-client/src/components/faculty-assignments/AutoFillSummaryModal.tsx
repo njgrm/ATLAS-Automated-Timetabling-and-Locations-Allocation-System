@@ -25,6 +25,19 @@ import {
 	candidateRejectionsForResult,
 	summarizeCandidateRejections,
 } from '@/lib/teaching-load-suggestion-diagnostics';
+import {
+	resolveSuggestionPreviewState,
+	type SuggestionPreviewState,
+} from '@/lib/teaching-load-suggestion-presentation';
+
+const SUGGESTION_PREVIEW_TITLES: Record<SuggestionPreviewState, string> = {
+	'review-only': 'Review saved Teaching Load coverage',
+	loading: 'Checking Teaching Load suggestion',
+	shortage: 'Review suggested Teaching Load draft',
+	imbalance: 'Coverage complete, rebalance proposed',
+	unevaluated: 'Coverage complete, balance not evaluated',
+	balanced: 'Suggested Teaching Load covers all rows and is balanced',
+};
 
 export type { AutoFillSummaryResult, CoverageMode };
 
@@ -45,7 +58,6 @@ type AutoFillSummaryModalProps = {
 	onOpenChange: (open: boolean) => void;
 	result: AutoFillSummaryResult | null;
 	onApplySuggestion?: () => void;
-	onReviewManually?: () => void;
 	applyingSuggestion?: boolean;
 	applyDisabledReason?: string | null;
 	reviewWarning?: string | null;
@@ -160,7 +172,6 @@ export function AutoFillSummaryModal({
 	onOpenChange,
 	result,
 	onApplySuggestion,
-	onReviewManually,
 	applyingSuggestion = false,
 	applyDisabledReason,
 	reviewWarning,
@@ -206,17 +217,16 @@ export function AutoFillSummaryModal({
 			? 'border-amber-200 bg-amber-50/60 text-amber-900'
 			: 'border-blue-200 bg-blue-50/60 text-blue-900';
 
-	const title = reviewOnly
-		? 'Review saved Teaching Load coverage'
-		: !hasResult
-			? 'Checking Teaching Load suggestion'
-			: hasShortage
-				? 'Review suggested Teaching Load draft'
-				: hasImbalance
-					? 'Coverage complete, rebalance proposed'
-					: !distributionEvaluated
-						? 'Coverage complete, balance not evaluated'
-						: 'Suggested Teaching Load covers all rows and is balanced';
+	const previewState = resolveSuggestionPreviewState({
+		reviewOnly,
+		hasResult,
+		hasShortage,
+		distributionEvaluated,
+		balanced: distribution?.summary.balanced === true,
+	});
+	// Single authoritative state drives the header. An unevaluated proposal can
+	// never reach the `balanced` state.
+	const title = SUGGESTION_PREVIEW_TITLES[previewState];
 	const description = reviewOnly
 		? 'Review the current saved Teaching Load assignments, unassigned pairs, and warnings. Use Suggest Teaching Load draft to prepare new assignments.'
 		: !hasResult
@@ -257,7 +267,7 @@ export function AutoFillSummaryModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent data-testid="teaching-load-suggestion-preview" className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl flex flex-col max-h-[90vh]">
+			<DialogContent data-testid="teaching-load-suggestion-preview" data-preview-state={previewState} className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl flex flex-col max-h-[90vh]">
 				<DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0 relative overflow-hidden">
 					{/* Background decorative elements */}
 					<div className="absolute top-0 right-0 p-4 opacity-10">
@@ -266,7 +276,10 @@ export function AutoFillSummaryModal({
 					
 					<div className="relative z-10 flex flex-col items-start gap-3">
 						<div className="bg-white/20 p-2 rounded-xl backdrop-blur-md border border-white/20">
-							{!hasResult ? <Zap className="size-6 animate-pulse" /> : hasShortage || hasImbalance ? <AlertTriangle className="size-6" /> : distributionEvaluated ? <BadgeCheck className="size-6" /> : <Info className="size-6" />}
+							{previewState === 'loading' ? <Zap className="size-6 animate-pulse" />
+								: previewState === 'shortage' || previewState === 'imbalance' ? <AlertTriangle className="size-6" />
+									: previewState === 'balanced' ? <BadgeCheck className="size-6" />
+										: <Info className="size-6" />}
 						</div>
 						<div className="space-y-1">
 							<DialogTitle className="text-2xl font-bold tracking-tight">
@@ -568,7 +581,7 @@ export function AutoFillSummaryModal({
 											<span>Move to</span>
 											<span className="text-right">From</span>
 										</div>
-										<div className="max-h-64 overflow-y-auto">
+										<div className="max-h-[min(55vh,30rem)] overflow-y-auto">
 											{distribution.moves.map((move) => (
 												<div key={move.ownershipId} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 border-b border-border/20 px-3 py-2 text-xs last:border-b-0">
 													<span className="font-bold text-foreground truncate">{move.subjectCode}</span>
@@ -671,7 +684,14 @@ export function AutoFillSummaryModal({
 											className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs"
 											data-testid={`teaching-load-rejection-${group.reason}`}
 										>
-											<span className="font-bold text-foreground shrink-0">{group.label}</span>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="shrink-0 font-bold text-foreground underline decoration-dotted decoration-muted-foreground/40 underline-offset-2">
+														{group.label}
+													</span>
+												</TooltipTrigger>
+												<TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">{group.detail}</TooltipContent>
+											</Tooltip>
 											{group.facultyNames.length > 0 && (
 												<TooltipProvider>
 													<Tooltip>

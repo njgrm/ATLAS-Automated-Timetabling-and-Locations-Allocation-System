@@ -11,17 +11,57 @@
 
 import type { TeachingLoadCandidateRejection, TeachingLoadCandidateRejectionReason } from '@/types';
 
+/**
+ * Concise, scheduler-facing reason copy. One terse line per candidate class —
+ * never a raw enum/code wall. `detail` is shown on demand (tooltip), while
+ * `label` is the always-visible primary explanation.
+ */
 export const CANDIDATE_REJECTION_LABELS: Record<TeachingLoadCandidateRejectionReason, string> = {
-	PROGRAM_SCOPE_INCOMPATIBLE: 'Program scope mismatch',
-	NOT_QUALIFIED: 'No persisted qualification',
-	HARD_CAP_EXCEEDED: 'At teaching cap',
-	CURRENT_OWNER: 'Current owner cannot receive',
-	PLACEHOLDER_FACULTY: 'Placeholder faculty',
+	PROGRAM_SCOPE_INCOMPATIBLE: 'Not in this program',
+	NOT_QUALIFIED: 'Not qualified for this subject',
+	HARD_CAP_EXCEEDED: 'Already at the weekly maximum',
+	CURRENT_OWNER: 'Already owns this class',
+	PLACEHOLDER_FACULTY: 'Temporary substitute, not a real teacher',
+	INACTIVE_FACULTY: 'Not active for scheduling',
+	WRONG_SCHOOL: 'Assigned to another school',
+	DEPARTMENT_RESTRICTED: 'Outside this subject department',
+	UNAVAILABLE: 'Marked unavailable',
+	STALE_AUTHORITY: 'Teacher data is out of date',
 };
+
+/** One-sentence explanation shown on demand for a grouped reason. */
+export const CANDIDATE_REJECTION_DETAILS: Record<TeachingLoadCandidateRejectionReason, string> = {
+	PROGRAM_SCOPE_INCOMPATIBLE: 'The subject is offered only in a program this teacher is not part of.',
+	NOT_QUALIFIED: 'The teacher has no persisted qualification or specialization for this subject.',
+	HARD_CAP_EXCEEDED: 'Adding this class would push the teacher above the weekly maximum.',
+	CURRENT_OWNER: 'This teacher already holds the class, so no new assignment is needed.',
+	PLACEHOLDER_FACULTY: 'Temporary substitute rows are not offered as real Teaching Load owners.',
+	INACTIVE_FACULTY: 'The teacher is not active for scheduling in the current school year.',
+	WRONG_SCHOOL: 'The teacher belongs to a different school than the active scope.',
+	DEPARTMENT_RESTRICTED: 'The subject is restricted to a department this teacher is not part of.',
+	UNAVAILABLE: 'The teacher is marked unavailable for the affected load.',
+	STALE_AUTHORITY: 'The teacher record changed since this preview was prepared; refresh before applying.',
+};
+
+/** Canonical, deterministic display order for grouped reasons. */
+export const CANDIDATE_REJECTION_ORDER: TeachingLoadCandidateRejectionReason[] = [
+	'PROGRAM_SCOPE_INCOMPATIBLE',
+	'NOT_QUALIFIED',
+	'DEPARTMENT_RESTRICTED',
+	'HARD_CAP_EXCEEDED',
+	'CURRENT_OWNER',
+	'INACTIVE_FACULTY',
+	'WRONG_SCHOOL',
+	'UNAVAILABLE',
+	'STALE_AUTHORITY',
+	'PLACEHOLDER_FACULTY',
+];
 
 export type CandidateRejectionGroup = {
 	reason: TeachingLoadCandidateRejectionReason;
 	label: string;
+	/** On-demand one-sentence explanation (tooltip), never the primary copy. */
+	detail: string;
 	count: number;
 	/** Distinct teacher names, bounded and stable, for a short tooltip/summary. */
 	facultyNames: string[];
@@ -40,16 +80,9 @@ function asRejectionList(rejections: TeachingLoadCandidateRejection[] | undefine
 export function summarizeCandidateRejections(
 	rejections: TeachingLoadCandidateRejection[] | undefined | null,
 ): CandidateRejectionGroup[] {
-	const reasonOrder: TeachingLoadCandidateRejectionReason[] = [
-		'PROGRAM_SCOPE_INCOMPATIBLE',
-		'NOT_QUALIFIED',
-		'HARD_CAP_EXCEEDED',
-		'CURRENT_OWNER',
-		'PLACEHOLDER_FACULTY',
-	];
 	const list = asRejectionList(rejections);
 	const groups: CandidateRejectionGroup[] = [];
-	for (const reason of reasonOrder) {
+	for (const reason of CANDIDATE_REJECTION_ORDER) {
 		const rows = list.filter((row) => row.reason === reason);
 		if (rows.length === 0) continue;
 		const names: string[] = [];
@@ -59,9 +92,23 @@ export function summarizeCandidateRejections(
 			names.push(name);
 			if (names.length >= MAX_GROUP_NAMES) break;
 		}
-		groups.push({ reason, label: CANDIDATE_REJECTION_LABELS[reason], count: rows.length, facultyNames: names });
+		groups.push({
+			reason,
+			label: CANDIDATE_REJECTION_LABELS[reason],
+			detail: CANDIDATE_REJECTION_DETAILS[reason],
+			count: rows.length,
+			facultyNames: names,
+		});
 	}
 	return groups;
+}
+
+/** Safe lookup so an unknown/legacy reason never renders a raw code. */
+export function describeCandidateRejection(reason: TeachingLoadCandidateRejectionReason): { label: string; detail: string } {
+	return {
+		label: CANDIDATE_REJECTION_LABELS[reason] ?? 'Not eligible for this class',
+		detail: CANDIDATE_REJECTION_DETAILS[reason] ?? 'ATLAS did not select this teacher for the class.',
+	};
 }
 
 /** The distribution plan carries the diagnostics for the plan preview. */

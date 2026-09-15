@@ -39,8 +39,12 @@ test('the suggestion preview never claims full capacity success from coverage al
 	// The distribution counts are shown even when a coverage shortage coexists.
 	assert.match(modal, /teaching-load-distribution-summary/);
 	// The header must not assert balance when distribution was not evaluated.
+	// C05: the title now comes from a single pure preview-state authority
+	// (`resolveSuggestionPreviewState`) instead of an inline ternary chain, so
+	// the assertion binds to that authority while keeping the exact copy.
 	assert.match(modal, /Coverage complete, balance not evaluated/);
-	assert.match(modal, /: !distributionEvaluated/);
+	assert.match(modal, /unevaluated: 'Coverage complete, balance not evaluated'/);
+	assert.match(modal, /resolveSuggestionPreviewState\(/);
 });
 
 test('client AutoFillSummaryResult carries the structured distribution plan', () => {

@@ -25,7 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from '@/ui/popover';
 import { cn } from '@/lib/utils';
-import { getAssignmentOwnershipKey, matchesOwnershipDepartment, teachingUtilizationPercentFor, resolveTeachingActualHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import { getAssignmentOwnershipKey, ownershipDepartmentEligibility, selectEligibleOwnerCandidates, teachingUtilizationPercentFor, resolveTeachingActualHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
 import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
 
 export type SectionGridModeProps = {
@@ -33,13 +33,8 @@ export type SectionGridModeProps = {
 	subjects: Subject[];
 	sectionsBySubject: Record<number, ExternalSection[]>;
 	faculty: FacultySummary[];
-	savedOwnershipMap: Record<string, FacultyOwnershipState>;
-	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
 	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
 	onSetSections: (subjectId: number, sectionIds: number[], facultyId?: number) => void;
-	onSelectTeacher: (id: number) => void;
-	onHoverTeacher: (id: number | null) => void;
-	onClearHover: () => void;
 	saving: boolean;
 	isReadOnlyMode: boolean;
 	activeFacultyIds: Set<number>;
@@ -48,8 +43,6 @@ export type SectionGridModeProps = {
 	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
 	selectedSectionId: number | null;
 	onSelectSection: (id: number | null) => void;
-	onSave: () => void;
-	hasDraft: boolean;
 	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => void;
 	workspaceStateLabel: string;
 	workspaceStateNextAction: string;
@@ -65,13 +58,8 @@ export function SectionGridMode({
 	subjects,
 	sectionsBySubject,
 	faculty,
-	savedOwnershipMap,
-	pendingOwnershipMap,
 	effectiveOwnershipMap,
 	onSetSections,
-	onSelectTeacher,
-	onHoverTeacher,
-	onClearHover,
 	saving,
 	isReadOnlyMode,
 	activeFacultyIds,
@@ -80,8 +68,6 @@ export function SectionGridMode({
 	effectiveAssignmentsByFaculty,
 	selectedSectionId,
 	onSelectSection,
-	onSave,
-	hasDraft,
 	onSwapSectionOwnership,
 	workspaceStateLabel,
 	workspaceStateNextAction,
@@ -164,7 +150,8 @@ export function SectionGridMode({
 			newSectionIds = [sectionId];
 		}
 		
-		// Intentionally do NOT call onSelectTeacher here — doing so bleeds into Teacher Grid mode selection
+		// Intentionally does not select the teacher in the grid — doing so would
+		// bleed a section-mode assignment into Teacher Grid mode selection.
 		onSetSections(subjectId, newSectionIds, facultyId);
 	};
 
@@ -321,9 +308,7 @@ export function SectionGridMode({
 											const owner = effectiveOwnershipMap[key];
 											const isStaffed = owner && activeFacultyIds.has(owner.facultyId);
 											
-											const candidates = faculty
-												.filter(f => activeFacultyIds.has(f.id) && matchesOwnershipDepartment(f.department, subject))
-												.sort((a, b) => a.lastName.localeCompare(b.lastName));
+											const candidates = selectEligibleOwnerCandidates(faculty, subject, activeFacultyIds);
 
 											return (
 												<div
@@ -369,12 +354,12 @@ export function SectionGridMode({
 																		<ChevronDown className="size-4 opacity-50" />
 																	</Button>
 																</PopoverTrigger>
-																<PopoverContent align="end" className="w-80 p-0 overflow-hidden rounded-xl shadow-2xl border-primary/20">
+																<PopoverContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0 overflow-hidden rounded-xl shadow-2xl border-primary/20">
 																	<div className="p-3 border-b border-border/40 bg-muted/20">
 																		<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">Eligible Teaching Load owners</p>
 																		<p className="text-xs font-bold text-foreground truncate">{subject.name}</p>
 																	</div>
-																	<div className="max-h-75 overflow-auto no-scrollbar p-1">
+																	<div className="max-h-[min(60vh,26rem)] overflow-auto no-scrollbar p-1">
 																		{candidates.length === 0 ? (
 																			<p className="p-4 text-center text-xs font-bold text-muted-foreground italic uppercase">No qualified owners found</p>
 																		) : candidates.map(f => {
@@ -383,6 +368,7 @@ export function SectionGridMode({
 																		// explicit effective standard. Unknown standard shows hours only.
 																				const candidateHours = resolveTeachingActualHours(f);
 																				const loadPct = f.isPlaceholder || teachingStandardHours == null ? null : Math.round(teachingUtilizationPercentFor(f, teachingStandardHours));
+																			const authority = ownershipDepartmentEligibility(f.department, subject);
 																			return (
 																				<PopoverClose asChild key={f.id}>
 																					<Button
@@ -411,6 +397,16 @@ export function SectionGridMode({
 																								<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
 																									{f.department || 'No Dept'}
 																								</span>
+																								{/* An unmapped/blank department is shown as unverified, never as
+																								    a hard exclusion. The server authority decides on apply. */}
+																								{authority === 'unknown' && (
+																									<span
+																										className="text-[10px] font-bold uppercase tracking-tighter text-amber-600"
+																										data-testid="teaching-load-owner-option-unverified"
+																									>
+																										Verify dept
+																									</span>
+																								)}
 																							</div>
 																						</div>
 																						{isCurrentOwner ? <UserCheck className="size-4 text-emerald-600" /> : <UserPlus className="size-4 text-primary/40 group-hover:text-primary transition-colors" />}

@@ -238,7 +238,6 @@ export default function TeachingLoad() {
 
 	const handlePreviewSuggestedTeachingLoad = useCallback(async () => {
 		if (!data.schoolId || !data.activeSchoolYearId) return;
-		ui.setAutoFillDialogOpen(false);
 		setSuggestionLoading(true);
 		setAutoFillResult(null);
 		setSuggestionProposalId(null);
@@ -449,6 +448,19 @@ export default function TeachingLoad() {
 		ui.setShowFilters(false);
 	}, [ui]);
 
+	// The "Temporary substitutes" readiness chip is a real control: it opens the
+	// teacher grid filtered to unmapped temporary placeholder rows so the
+	// operator can replace them before generating.
+	const showTemporarySubstitutes = useCallback(() => {
+		ui.setViewMode('teacher');
+		ui.setShowTemporaryRoles(true);
+		ui.setSectionModeFilter('all');
+		ui.setLoadFilter('all');
+		ui.setFilterStatus('all');
+		ui.setShowFilters(false);
+		setAdvancedGridVisible(true);
+	}, [ui]);
+
 	const workspaceState = useMemo(() => {
 		if (!data.isOnline) {
 			return {
@@ -581,6 +593,7 @@ export default function TeachingLoad() {
 						excessTeachingCount={excessTeachingCount}
 						policyReady={ui.policyReady}
 						onShowExcessTeachingLoad={showExcessTeachingLoad}
+						onShowTemporarySubstitutes={showTemporarySubstitutes}
 						autoFillLoading={data.loading || suggestionLoading}
 						autoFillEnabled={Boolean(data.schoolId && data.activeSchoolYearId) && data.canPersistAssignments}
 						onAutoFillClick={handlePreviewSuggestedTeachingLoad}
@@ -700,13 +713,8 @@ export default function TeachingLoad() {
 								subjects={data.subjects}
 								sectionsBySubject={sectionsBySubject}
 								faculty={data.faculty}
-								savedOwnershipMap={data.savedOwnershipMap}
-								pendingOwnershipMap={data.pendingOwnershipMap}
 								effectiveOwnershipMap={data.effectiveOwnershipMap}
 								onSetSections={handleSetSections}
-								onSelectTeacher={data.setSelectedId}
-								onHoverTeacher={data.setSelectedId}
-								onClearHover={() => {}}
 								saving={data.saving}
 								isReadOnlyMode={data.isReadOnlyMode}
 								activeFacultyIds={data.activeFacultyIds}
@@ -716,8 +724,6 @@ export default function TeachingLoad() {
 								teachingStandardHours={ui.teachingStandardHours}
 								selectedSectionId={ui.selectedSectionId}
 								onSelectSection={ui.setSelectedSectionId}
-								onSave={handleSave}
-								hasDraft={data.activeDraftCount > 0}
 								onSwapSectionOwnership={handleSwapRequest}
 								completedSectionIds={completedSectionIds}
 								workspaceStateLabel={workspaceState.label}
@@ -825,11 +831,6 @@ export default function TeachingLoad() {
 			</Sheet>
 
 			<TeachingLoadModals
-				autoFillDialogOpen={ui.autoFillDialogOpen}
-				onAutoFillDialogOpenChange={ui.setAutoFillDialogOpen}
-				coverageModeConfig={COVERAGE_MODE_CONFIG[ui.coverageMode]}
-				onAutoFillConfirm={handlePreviewSuggestedTeachingLoad}
-				autoFillLoading={data.loading || suggestionLoading}
 				summaryModalOpen={ui.summaryModalOpen}
 				onSummaryModalOpenChange={handleSummaryModalOpenChange}
 				autoFillResult={autoFillResult}

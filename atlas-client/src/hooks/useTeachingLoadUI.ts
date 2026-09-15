@@ -62,7 +62,6 @@ export function useTeachingLoadUI({
 	const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
 	const [coverageMode, setCoverageMode] = useState<CoverageMode>('REAL_FACULTY_THEN_TEACHER_X');
 	const [summaryModalOpen, setSummaryModalOpen] = useState(false);
-	const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
 
 	const mappedSpecializations = useMemo(() => {
@@ -301,7 +300,6 @@ export function useTeachingLoadUI({
 		setSelectedSectionId(null);
 		setSelectedSubjectId(null);
 		setSummaryModalOpen(false);
-		setAutoFillDialogOpen(false);
 		setCoverageMode('REAL_FACULTY_THEN_TEACHER_X');
 		setHoveredIncomingMinutes(0);
 	}, []);
@@ -323,7 +321,6 @@ export function useTeachingLoadUI({
 		selectedSectionId, setSelectedSectionId,
 		selectedSubjectId, setSelectedSubjectId,
 		summaryModalOpen, setSummaryModalOpen,
-		autoFillDialogOpen, setAutoFillDialogOpen,
 		hoveredIncomingMinutes, setHoveredIncomingMinutes,
 		coverageMode, setCoverageMode,
 		filteredFaculty,

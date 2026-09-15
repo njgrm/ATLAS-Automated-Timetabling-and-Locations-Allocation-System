@@ -18,6 +18,7 @@ type WorkspaceToolbarProps = {
 	excessTeachingCount: number;
 	policyReady: boolean;
 	onShowExcessTeachingLoad: () => void;
+	onShowTemporarySubstitutes: () => void;
 	autoFillLoading: boolean;
 	autoFillEnabled: boolean;
 	onAutoFillClick: () => void;
@@ -56,6 +57,7 @@ export function WorkspaceToolbar({
 	excessTeachingCount,
 	policyReady,
 	onShowExcessTeachingLoad,
+	onShowTemporarySubstitutes,
 	autoFillLoading,
 	autoFillEnabled,
 	onAutoFillClick,
@@ -147,14 +149,14 @@ export function WorkspaceToolbar({
 				key: 'teacherx',
 				label: `Temporary substitutes: ${syntheticPlaceholderPairs}`,
 				tone: 'warning' as const,
-				tooltip: 'Temporary substitutes are filling load rows. Replace before publishing.',
-				onClick: undefined as (() => void) | undefined,
+				tooltip: 'Temporary substitutes are filling load rows. Open the filtered teacher list to replace them before generating.',
+				onClick: onShowTemporarySubstitutes,
 				disabled: false,
 				testId: 'teaching-load-alert-teacher-x',
 			};
 		}
 		return null;
-	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad]);
+	}, [overCapCount, excessTeachingCount, policyReady, syntheticPlaceholderPairs, onShowExcessTeachingLoad, onShowTemporarySubstitutes]);
 
 	return (
 		<div className="rounded-xl border border-border/40 bg-background px-2 py-1 shadow-sm" data-testid="teaching-load-command-header">
@@ -255,7 +257,7 @@ export function WorkspaceToolbar({
 
 			{/* Row 2: Tabs — always visible, never hidden in an overflow strip. */}
 			<div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-border/40 pt-1.5" data-testid="teaching-load-tab-row">
-				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation' | 'subjects')} className="h-8">
+				<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-8">
 					<TabsList className="h-8 p-0.5 border border-border/40 bg-muted/50">
 						<TabsTrigger value="teacher" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Teachers</TabsTrigger>
 						<TabsTrigger value="allocation" className="h-7 px-3 text-xs font-bold uppercase tracking-tight">Sections</TabsTrigger>
@@ -298,9 +300,8 @@ export function WorkspaceToolbar({
 							disabled={alertChip.disabled}
 							aria-label={alertChip.label}
 							className={cn(
-								'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition-colors',
+								'flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer hover:brightness-95',
 								STRIP_TONE[alertChip.tone],
-								alertChip.onClick ? 'cursor-pointer hover:brightness-95' : 'cursor-default',
 							)}
 						>
 							{alertChip.key === 'overcap' ? <Activity className="size-3.5" /> : <Users className="size-3.5" />}

@@ -2037,7 +2037,14 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'NOT_QUALIFIED'
 	| 'HARD_CAP_EXCEEDED'
 	| 'CURRENT_OWNER'
-	| 'PLACEHOLDER_FACULTY';
+	| 'PLACEHOLDER_FACULTY'
+	// Additive reason classes so every skipped candidate can be explained in
+	// plain language instead of a raw diagnostic dump.
+	| 'INACTIVE_FACULTY'
+	| 'WRONG_SCHOOL'
+	| 'DEPARTMENT_RESTRICTED'
+	| 'UNAVAILABLE'
+	| 'STALE_AUTHORITY';
 
 export type TeachingLoadCandidateRejection = {
 	subjectId: number;

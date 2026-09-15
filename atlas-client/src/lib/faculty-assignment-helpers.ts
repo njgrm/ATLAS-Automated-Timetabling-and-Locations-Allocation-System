@@ -55,7 +55,21 @@ export function normalizeDepartmentCode(value: string | null | undefined): strin
 	return table[normalized] ?? normalized;
 }
 
-export function matchesOwnershipDepartment(facultyDepartment: string | null | undefined, subject: Subject): boolean {
+/**
+ * Tri-state department/ownership eligibility.
+ *
+ * `unknown` is NOT a mismatch. A faculty row with no persisted department (or a
+ * subject that declares no owner departments) cannot be proven ineligible by the
+ * client, so it must not be silently hidden. The server's persisted
+ * qualification/department/program authority remains the final gate when a
+ * proposal is previewed or applied.
+ */
+export type OwnershipDepartmentEligibility = 'eligible' | 'ineligible' | 'unknown';
+
+export function ownershipDepartmentEligibility(
+	facultyDepartment: string | null | undefined,
+	subject: Subject,
+): OwnershipDepartmentEligibility {
 	const ownerDepartments = [
 		...(subject.ownerDepartment ? [subject.ownerDepartment] : []),
 		...(subject.allowedOwnerDepartments ?? []),
@@ -63,14 +77,50 @@ export function matchesOwnershipDepartment(facultyDepartment: string | null | un
 		.map((value) => normalizeDepartmentCode(value))
 		.filter((value): value is string => Boolean(value));
 
+	const normalizedFaculty = normalizeDepartmentCode(facultyDepartment);
+	// A missing/blank persisted department is UNKNOWN authority, never a
+	// definitive mismatch. Returning `ineligible` here used to drop qualified
+	// zero-load teachers from the owner picker and the suggestion/distribution
+	// receiver lists purely because their department row was blank.
+	if (!normalizedFaculty) return 'unknown';
+
 	if (ownerDepartments.length > 0) {
-		const normalizedFaculty = normalizeDepartmentCode(facultyDepartment);
-		if (!normalizedFaculty) return false;
-		if (ownerDepartments.includes(normalizedFaculty)) return true;
-		return false;
+		return ownerDepartments.includes(normalizedFaculty) ? 'eligible' : 'ineligible';
 	}
 
-	return isDepartmentMatch(facultyDepartment ?? null, subject.code, subject.name);
+	// No declared owner departments: the subject-code/name heuristic is the only
+	// remaining signal. It may confirm eligibility but never proves exclusion, so
+	// a known department that fails the heuristic is `unknown` rather than a
+	// hard mismatch — matching the pre-existing fail-open behavior.
+	return isDepartmentMatch(facultyDepartment ?? null, subject.code, subject.name) ? 'eligible' : 'unknown';
+}
+
+/**
+ * Boolean eligibility used by the picker/list/UI paths.
+ *
+ * Only a proven `ineligible` verdict hides a candidate. `unknown` stays visible
+ * so a zero-load or blank-department qualified teacher is never dropped before
+ * the server authority is consulted.
+ */
+export function matchesOwnershipDepartment(facultyDepartment: string | null | undefined, subject: Subject): boolean {
+	return ownershipDepartmentEligibility(facultyDepartment, subject) !== 'ineligible';
+}
+
+/**
+ * The single eligible-owner candidate list used by the section owner picker.
+ *
+ * Extracted so the production predicate (not a re-implementation) is what the
+ * zero-load / blank-department regressions exercise. Load is deliberately not
+ * part of this filter: a qualified zero-load teacher is always a candidate.
+ */
+export function selectEligibleOwnerCandidates(
+	faculty: FacultySummary[],
+	subject: Subject,
+	activeFacultyIds: Set<number>,
+): FacultySummary[] {
+	return faculty
+		.filter((member) => activeFacultyIds.has(member.id) && matchesOwnershipDepartment(member.department, subject))
+		.sort((a, b) => a.lastName.localeCompare(b.lastName));
 }
 
 export function getFacultyComparableLoadHours(member: FacultySummary): number {

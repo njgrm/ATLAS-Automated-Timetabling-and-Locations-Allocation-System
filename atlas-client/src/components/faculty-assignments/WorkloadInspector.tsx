@@ -30,7 +30,6 @@ type WorkloadInspectorProps = {
 	/** Explicit effective teaching standard (hours). Null when UNCONFIGURED. */
 	teachingStandardHours: number | null;
 	policyReady: boolean;
-	onClose?: () => void;
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; icon: any }> = {
@@ -51,7 +50,6 @@ export function WorkloadInspector({
 	activeTermIndex,
 	teachingStandardHours,
 	policyReady,
-	onClose
 }: WorkloadInspectorProps) {
 	if (!selected) {
 		return (
