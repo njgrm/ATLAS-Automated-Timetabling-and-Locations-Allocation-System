@@ -1,0 +1,22 @@
+{
+  "receiptVersion": "1.0.0",
+  "generatedAt": "2026-09-15T08:03:53.832Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "8f891515ee845d881f248f61a0bc4656344832fe54c93f81e2794f07361be92e",
+  "status": "ok",
+  "streamId": "WF-C04",
+  "verified": {
+    "candidateSha": "fab7031da955b866f22de13913c69aba7e38b4f4",
+    "integrationSha": "9530c7ea7c56febb4a3e31a62fafd0c011944a25",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 21,
+      "passed": 21,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "artifacts": []
+  }
+}

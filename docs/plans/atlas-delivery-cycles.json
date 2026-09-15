@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T07:30:14.152Z",
+    "lastUpdatedAt": "2026-09-15T08:03:55.068Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 27
+    "revision": 30
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "WF-C04 is integrated (merge 9530c7ea) pending the post-integration Wave Completion Audit; on AUDIT_CLEAR the cycle closes with its receipt. ENROLLPRO-PROXY-RECOVERY-LIVE remains EXTERNALLY_BLOCKED pending an elevated execution context; TERM-CACHE-CATCHUP-APPLY, LIVE-GENERATION, LIVE-PUBLICATION, and every live Teaching Load or companion action remain locked."
+    "globalNextAction": "WF-C04 is COMPLETE and wave-audited (AUDIT_CLEAR); no active cycle. ENROLLPRO-PROXY-RECOVERY-LIVE remains EXTERNALLY_BLOCKED pending an elevated execution context; TERM-CACHE-CATCHUP-APPLY, LIVE-GENERATION, LIVE-PUBLICATION, and every live Teaching Load or companion action remain locked."
   },
   "streams": [
     {
@@ -1626,8 +1626,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5c15227cffeaIOVS3mROJmX4R",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5bfbc9a7ffenduP4D1rMNo0AX",
         "auditRequired": true
       },
       "corrections": [],
@@ -1652,14 +1652,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T07:30:14.152Z",
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/wf-c04.receipt.json",
+          "sha256": "6b2ffe58deedbf5437f3b251d43727858e5d6bae38d16e757248f4d364ade3df"
+        }
+      },
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T08:03:47.552Z",
       "objective": "WF-C04 atomic stream registration and live-lane reconciliation: add a named create-stream transition to the existing ops/workflow pipeline and reconcile the genuinely active ordinary lanes missing from the machine registry.",
-      "nextAction": "Commission the post-integration Wave Completion Auditor over origin/main 9530c7ea and this integration; on AUDIT_CLEAR record the capsule, audit verdict, closure receipt, and remote observation.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "nextAction": "Closed COMPLETE and wave-audited AUDIT_CLEAR; worktree disposition RETIRE_AFTER_INTEGRATION; no HIGH action unlocked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/workflow-atomic-stream-registration-c04",
@@ -1706,8 +1709,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5bfbc9a7ffenduP4D1rMNo0AX",
+          "status": "RETURNED",
           "writable": false
         }
       },
