@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T15:15:01.848Z",
+    "lastUpdatedAt": "2026-09-15T15:29:31.563Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 72
+    "revision": 73
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1871,7 +1871,7 @@
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
+        "qaSessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
         "auditorVerdict": "CORRECTION_REQUIRED",
         "auditorSessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
         "auditRequired": true,
@@ -1885,6 +1885,11 @@
             "round": 2,
             "verdict": "ACCEPT_READY",
             "sessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5"
+          },
+          {
+            "round": 3,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU"
           }
         ]
       },
@@ -1914,8 +1919,8 @@
           "baseSha": "b632b3f45ef3b2d40fc513ebe3ae77f86dda51a0",
           "candidateSha": "713f5f5aa616d4cd1132fbedd8ef7b44e5a640b4",
           "reason": "C-6R completion of the operator-authorized rule-2 round: the post-C-6 wave audit F-1/F-2/F-3 (supersession-blind unbound branch, no dispatch-order precedence, unguarded pre-binding identity setters) are closed by a monotonic dispatch-precedence authority with every write gated; adds the committed overlapping-fetch failing-first control. C-4/C-5/C-6 behavior preserved.",
-          "qaVerdict": null,
-          "qaSessionId": null,
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
@@ -1943,11 +1948,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T15:15:01.848Z",
-      "nextAction": "Fresh independent QA at high over the C-6R corrected candidate 713f5f5a (rule-2 completion); then clean current-main re-integration and a fresh Wave Completion Auditor at high before closure and receipt. No live/HIGH action is authorized.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-15T15:29:31.563Z",
+      "nextAction": "C-6R QA ACCEPT_READY over candidate 713f5f5a (eight verified mandatory source gates: dispatch-precedence suite, scope-epoch suite, C-4 parity, C-5 cold-load, TL C05/R3 suites, rule-13 mutants load-bearing, client tsc plus build, changed-path and preservation checks); integrate on current main and commission the fresh Wave Completion Auditor at high before closure.",
       "awaited": [
-        "fresh independent QA over the C-6R corrected candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -1983,7 +1988,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
+          "sessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
           "status": "RETURNED",
           "writable": false
         },
