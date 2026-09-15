@@ -11,7 +11,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { STATUS_CLI, REPO_ROOT, runCli, sha256 } from "./harness.mjs";
 import { observabilityPaths, writeHeartbeat, buildHeartbeat, OBSERVABILITY_ROOT } from "../lib/observability.mjs";
 import { gitCommonDir } from "../lib/git.mjs";
@@ -45,13 +44,19 @@ function record(over = {}) {
   };
 }
 
-/** A real pid whose process has already exited (verified absent at use time). */
+/**
+ * A pid that cannot exist on this host, verified absent at use time. This
+ * replaces a spawned-then-exited process pid, which the OS can reuse before the
+ * caller asserts on it: the same PID-reuse race made a lock worker classify a
+ * seeded dead-owner record as LIVE.
+ */
+const IMPOSSIBLE_PID = 2147480000;
+
 function absentPid() {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const res = spawnSync(process.execPath, ["-e", "process.exit(0)"], { windowsHide: true });
-    if (typeof res.pid === "number" && !isAlive(res.pid)) return res.pid;
+  if (isAlive(IMPOSSIBLE_PID)) {
+    throw new Error(`the impossible pid ${IMPOSSIBLE_PID} is unexpectedly alive on this host; the absent-process precondition cannot be met`);
   }
-  throw new Error("could not obtain a provably absent pid");
+  return IMPOSSIBLE_PID;
 }
 
 function isAlive(pid) {

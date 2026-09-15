@@ -10,7 +10,7 @@ pushed, not self-accepted.
 - Accepted base: `3a1a175997463c16d6e6c2c2eaca8165539166bb` (F0 checkpoint, adopted
   by planner decision; unamended)
 - Product candidate: `a4ca89c53a6f925c0ee58add5ec49886c95401cb`
-- Frozen tip: the R1 correction commit at the end of this file's commit table
+- Frozen tip: the R2 correction commit at the end of this file's commit table
   (its SHA is reported by the executor in its return message; verify with
   `git rev-parse HEAD`)
 
@@ -22,7 +22,8 @@ Commits on top of the base:
 | `89f67575` | `feat(workflow): add exclusive browser-profile custody lease` |
 | `a4ca89c5` | `feat(workflow): add truthful liveness, workflow:status, and recovery controls` |
 | `a8467490` | `docs(workflow): add WF-C03 executor handoff` |
-| _(R1)_ | `fix(workflow): fail closed on an unreadable custody record` |
+| `c7e4610f` | `fix(workflow): fail closed on an unreadable custody record` (R1) |
+| _(R2)_ | `test(workflow): remove PID-reuse races from lock and liveness fixtures` |
 
 ### Adoption protocol
 
@@ -79,6 +80,36 @@ covering all seven operations with byte-identical before/after assertions and no
 `.tmp`/`.lock` residue; read-model classification; no-auto-clear plus a
 manual-removal positive control; the CLI status row) and one `workflow:status`
 surfacing row.
+
+## R2 correction (test determinism only — no product behavior change)
+
+**Finding.** On the frozen R1 tip the primary planner's independent suite run
+reported 229/230 with one failure at `lock-stampede.test.mjs:289` ("S3 a stale
+claim file blocks reclaim fail-closed and is never auto-deleted"): the seeded
+dead-owner record was classified `LIVE` — `... is held by live pid 6904
+(dead-holder)` — instead of reaching the claim-file path.
+
+**Root cause.** Three fixtures seeded a "provably dead" owner pid by spawning a
+short-lived `node -e process.exit(0)` and reusing its pid. Under this host's PID
+churn (concurrent agent sessions) the OS reused the exited pid while a fresh
+worker process was starting, so the worker *correctly* classified a genuinely
+live process as the holder. The product behavior was correct; only the fixture
+precondition was racy.
+
+**Fix.** Seed the impossible owner pid `2147480000` — the same literal already
+used by `lock.test.mjs` (`ABSENT_PID`) and `transition.test.mjs` — in
+`lock-stampede.test.mjs` (replacing `deadPid()`, `cachedDeadPid`, and the respawn
+loop), in `transition.test.mjs` S1c, and in the `absentPid()` helper of
+`liveness-status.test.mjs`; the now-unused `spawnSync` imports were dropped. Each
+site keeps its `processAlive(...) === false` / `classifyLock(...) === ABSENT`
+verification, so the precondition is now proved rather than raced. The
+`stampedeRound` zero-winner retry and the "never more than one winner" assertion
+are unchanged, and no production file changed.
+
+**Deterministic demonstration.** `classifyLock` on a record naming a live pid
+returns `LIVE` / `held by live pid <pid>` (the captured message shape); on
+`2147480000` it returns `ABSENT` / `owner pid 2147480000 is provably absent` with
+`processAlive(2147480000) === false`.
 
 ## Changed paths (`git diff --name-only 3a1a1759..a4ca89c5`)
 
