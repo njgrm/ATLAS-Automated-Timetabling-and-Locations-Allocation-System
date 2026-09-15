@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T23:10:40.093Z",
+    "lastUpdatedAt": "2026-09-15T23:11:00.770Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 129
+    "revision": 130
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3354,8 +3354,8 @@
       },
       "objective": "Bounded export-presentation schema-guard correction per docs/prompts/export-presentation-schema-guard-c06b-2026-09-16.md: when migration 0003's presentation table (or one of its selected columns) is unavailable, the official teacher-program DOCX export and the mounted presentation settings routes must fail closed with a typed JSON 503 EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE, with no HTML, Prisma error text, stack detail, SQL identifier, or partial document bytes, while a present table still produces the normal DOCX.",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T23:10:24.004Z",
-      "nextAction": "Closed COMPLETE with the wave-audited receipt. Source-only: the guard ships with origin/main; migration 0003 apply and every deployment/live action remain locked and NOT granted. Carry audit F1 as a mandatory precondition on the next HIGH deployment packet.",
+      "stateUpdatedAt": "2026-09-15T23:11:00.770Z",
+      "nextAction": "Closed COMPLETE (SOURCE_ONLY) with receipt 6ccaf7fb... and the final remote observation recorded. No return remains; every HIGH action stays locked and NOT granted.",
       "awaited": [],
       "running": [],
       "git": {
@@ -3372,8 +3372,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "11cc1a24d146f2f1b34690371ede5c6b9b561ce1",
-          "observedAt": "2026-09-15T22:58:20.470Z",
+          "sha": "c05351b63d8085c01dcf37cf0d5be3cf1326db7e",
+          "observedAt": "2026-09-15T23:11:00.770Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
