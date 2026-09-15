@@ -550,3 +550,109 @@ No push, merge, rebase, amend, force-push, or register edit. The legacy worktree
 entered, read-modified, cleaned, stashed, or committed. No browser, login, database,
 runtime, deployment, migration, generation, or publication action occurred. The four
 C-4 files were not modified.
+
+---
+
+# C-6 — sibling authority feeds bound to the dispatch scope
+
+Full-range base: `56b317c5189169666ba14c0c081be94f9b85dceb` (refreshed `origin/main`; the
+wave merge `61761a1e` is already integrated here). Branch/worktree:
+`work/tl-operator-workspace-c05-scope-epoch` @
+`E:/ATLAS-worktrees/tl-operator-workspace-c05-scope-epoch`. Directive pin (LF-normalized
+`origin/main:AGENTS.md`): `7663164608A330AF5440A6E0EA1FFADE20987B49A7BB0D939F3B50F1AA2DF0A3`
+— recomputed and matched. This section makes **no self-referential final-SHA claim**.
+
+## Defect
+
+C-5 guarded only the diagnostics read. `fetchData` still wrote every other authority feed
+unconditionally — `setFaculty`, `setSubjects`, `setSectionSummary`,
+`setSectionAssignedClassesIndex`, `setCoverageTotals`, `setWorkloadPolicy(Status)`,
+`setDataSource`, `setDegradedNotice`, `setError`, and the page `setLoading` — in three
+paths (warm-cache branch, cold-success path, catch/fallback path). A reply that landed
+after a school/year transition therefore overwrote (or cleared) the current scope's state.
+
+## Fix
+
+One shared `ScopeBoundWrite` binding — `{ scopeRef, epoch, scopeId, token }` with the
+token captured at dispatch — opened by the **resolving fetch** (never an effect), then
+used at every write site:
+
+- `openDiagnosticsScope(diagnosticsScopeRef, diagnosticsEpochRef.current, resolvedScopeId)`
+  runs immediately after the scope resolves and **before** the token is captured;
+- `isScopeCurrent(binding)` is the single currency predicate (the C-5 loader now delegates
+  to it — `scopeRef.current === scopeId && epoch.isCurrent(...)` has exactly one
+  implementation);
+- `commitScopeBoundWrite(binding, write)` applies a write only when current;
+- the warm-cache branch condition, the cold-success block, both catch/fallback branches,
+  and the `finally` loading clear are all gated; an unresolved scope binding is
+  deliberately **not** blocked, so an early actor-school failure still surfaces its error.
+
+Zero-write preserved: read-only GETs only; no `atlasApi.post/put/patch/delete`; no
+`/policies/scheduling`.
+
+## Controls and mutant proofs
+
+New committed control `tl-scope-epoch-sibling-feeds.test.ts` (7 tests) drives the real
+production guard: an obsolete-scope reply must write **nothing** across the whole sibling
+feed set; an obsolete reply must not clear the newer fetch's loading flag; a repeated
+same-scope dispatch stays current (no self-invalidation); an unresolved binding never
+blocks; the hook wiring gates every required feed; the currency predicate has one
+implementation; the guarded path stays read-only.
+
+| Probe | Blob (base → mutant) | Result |
+|---|---|---|
+| P1 weaken `isScopeCurrent` to `return true` | `4281f8605b06be21cea1881ebc4ba23b31938b4c` → `33c8e1da44c1127c907cd633623c8ead6f969914` | scope suite 7 tests, **5 pass / 2 fail** — "A is superseded once B resolves", "an obsolete fetch must not clear the newer fetch's loading flag" |
+| P2 remove `OUTSIDE_CANONICAL_DEMAND` from the client mapping (**removed producer member**) | `f4a4d00171209dc40ea442e3c30ad1a89edcaa16` → `d9ebc2cddf8166bafd1ef64b14168caab09deafe` | C05 suite 35 tests, **31 pass / 4 fail** — C-6 mutant A ("every producer reason must have a client entry") plus the R5 parity/count/grouped controls |
+| P3 drop the unmatched group in `summarizeCandidateRejections` (**dropped unknown value**) | `f4a4d00171209dc40ea442e3c30ad1a89edcaa16` → `9ca07329181f2b5541304d838b368e95f104869a` | C05 suite 35 tests, **32 pass / 3 fail** — C-6 mutant B ("the conservation check must count every row") plus the rendered count-equality and unknown-path controls |
+
+All three probes restored byte-exact (blob equality; `git diff --quiet` exit 0; porcelain
+empty). The two C-6 rendering mutants are committed additive controls: they pass on the
+current code (full producer-domain coverage; `grouped === total`) and fail when the
+corresponding guard is weakened.
+
+## Gate table
+
+| Gate | Result |
+|---|---|
+| 1. scope-transition control (green on tip + failing-first P1) | **7/7** on tip; P1 → 5/2 |
+| 2. rendering mutants in both directions (P2 → 31/4, P3 → 32/3) | proven both ways |
+| 3. `tl-authority-diagnostics-cold-load.test.ts` (C-5) | **8/8** |
+| 4. `teaching-load-effective-load-parity.test.ts` (C-4) | **5/5** |
+| 5. C05/R3 suites (5 files) | all green — **82/82** across gates 1–5 |
+| 6. client `npx tsc --noEmit` | **exit 0 — zero errors** |
+| 7. client `npm run build` | **✓ built** |
+| 8. `git diff --check` | **exit 0** |
+| 9. inventory + C-4 blobs + C-5 seam | recorded in the return message; all four C-4 blobs unchanged; C-5 seam still present |
+
+Dependencies: isolated `npm ci` in `atlas-client` (lockfile SHA-256
+`CE1AE84ED088BE75F27542CB039ABF338395ECE1C9E9A5D2139C2C65CF3B9F1E`, unchanged). Server
+dependencies were **not** installed or needed. No other worktree's `node_modules` was used.
+
+## Optional item
+
+The `WorkloadInspector.tsx` "advisory/ancillary" → advisory-only wording correction was
+**skipped**: it would add a fifth path to a scope-epoch correction with no bearing on the
+authorized C-6 behavior, i.e. pure path churn. Flagged for a future cosmetic pass.
+
+## Known risks
+
+- `BLOCKING`: none.
+- `NON_BLOCKING (harness limitation, unchanged from C-5)`: no DOM implementation is
+  available and dependencies are frozen, so controls drive the real exported production
+  seams and render real components via `renderToStaticMarkup`.
+- `NON_BLOCKING (pre-existing)`: `setSchoolId` / `setActiveSchoolYearLabel` /
+  `setActiveTermIndex` are written during scope resolution itself (before the binding
+  exists) and are intentionally not gated; they establish the scope rather than consume a
+  reply.
+- `NON_BLOCKING`: same-scope concurrent fetches share one token and may both write; they
+  describe the same scope, and no cross-scope overwrite is possible.
+- `BLOCKED_EXTERNAL(AUTH_SESSION_REQUIRED)`: live browser/pixel evidence is not authorized.
+
+## Zero-mutation statement
+
+No push, merge, rebase, amend, force-push, or register edit. The worktrees
+`tl-operator-workspace-c05`, `tl-operator-workspace-c05-combined`, and
+`integration-tl-operator-workspace-c05-20260915` were **not** entered, modified, cleaned,
+stashed, or committed. No browser, login, database, runtime, deployment, migration,
+generation, or publication action occurred. The four C-4 files were not modified.
+
