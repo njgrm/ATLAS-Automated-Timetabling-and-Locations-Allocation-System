@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T23:19:51.160Z",
+    "lastUpdatedAt": "2026-09-15T23:27:38.594Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 132
+    "revision": 133
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3427,11 +3427,11 @@
       "kind": "STREAM",
       "objective": "Bounded correction round for AUTHZ-CLASS-TEMPLATE-C07 closing the two accepted blocking findings of its Wave Completion Audit while preserving every previously accepted gate: (R2) bind class-template subject bundles to the actor school so a foreign subjectId can no longer be bound and then projected through the actor's own GET, and (R3) stop atlas-client Audit.tsx from claiming section coverage when the template list is empty after the write-on-read removal. Fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T23:19:51.160Z",
-      "nextAction": "Record the executor correction return (base 19f21729, candidate dd8faf6b), commission one fresh independent QA over the corrected range, integrate the accepted correction, and run one fresh Wave Completion Auditor before closing with the receipt. Live deployment of the corrected source remains a separate locked HIGH action (AUTHZ-CLASS-TEMPLATE-LIVE, NOT granted).",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-15T23:27:38.594Z",
+      "nextAction": "Fresh independent QA returned ACCEPT_READY over 19f21729...dd8faf6b with mandatory source gates 12/12/0/0/0 (C01-C12 including the C06 subject-scope mutant and the C09 empty-list mutant). Next: integrate the accepted correction as a merge on origin/main, run the merged-tree combined gates, then commission exactly one fresh Wave Completion Auditor over the corrected final tree before closing with the receipt. Residuals disclosed: the GET subject projection is not defensively school-filtered (zero existing cross-school bindings measured), the Audit page stale-scope pattern is pre-existing, and two unrelated 2026-09-11/12 drill databases remain. Live deployment of the corrected source remains a separate locked HIGH action, NOT granted.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -3467,8 +3467,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f58a1059dffeRklljd5L53YaoV",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -3478,8 +3478,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -3490,8 +3490,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 12,
+            "passed": 12,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -3513,12 +3513,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f58a1059dffeRklljd5L53YaoV",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f58a1059dffeRklljd5L53YaoV"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
