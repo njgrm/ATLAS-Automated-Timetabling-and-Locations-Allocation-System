@@ -205,6 +205,12 @@ ATLAS repository), not an EnrollPro request.
   are EnrollPro-owned changes committed by the EnrollPro repository owner.
 - The preparation candidate that produced this handoff performed zero companion
   mutations (`D:/EnrollPro` clean at `5887d685…` before and after).
-- The live EnrollPro Tailnet host `dev-jegs` was offline at evidence capture; the
-  end-to-end acceptance rows above can only be exercised once it is reachable and
-  the migration + activation preconditions are met.
+- The live EnrollPro Tailnet host `dev-jegs` was offline at evidence capture and
+  is reachable again at integration time (read-only re-probe 2026-09-15
+  16:55 +08: `GET /api/settings/public` HTTP 200 and
+  `GET /api/integration/v1/health` HTTP 200). The end-to-end acceptance rows
+  above can only be exercised once the proxy-origin install (owned by
+  `ENROLLPRO-PROXY-RECOVERY-LIVE`; approval GRANTED, execution NOT PERFORMED at
+  the elevation boundary), the migration apply, and the runtime activation are
+  complete, and this handoff's Option-A source correction is integrated and
+  bound to the tested release. No live SSO readiness is claimed by this handoff.

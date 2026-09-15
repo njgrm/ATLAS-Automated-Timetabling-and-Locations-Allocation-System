@@ -403,7 +403,7 @@ and `VITE_ENROLLPRO_SSO_START_URL=https://dev-jegs.buru-degree.ts.net/api/auth/c
 | System | Origin / route | Evidence | Tag |
 | --- | --- | --- | --- |
 | ATLAS | `https://njgrm.buru-degree.ts.net` | HTTP 200 (`/` and `/login`); Tailscale "Funnel on: https://njgrm.buru-degree.ts.net"; `CLIENT_URL` key agrees | CURRENT_STATE |
-| EnrollPro browser entry | `https://dev-jegs.buru-degree.ts.net/personnel/login` | Tailnet DNS A → `100.120.169.123`; **currently unreachable** (see §7) | CURRENT_STATE |
+| EnrollPro browser entry | `https://dev-jegs.buru-degree.ts.net/personnel/login` | Tailnet DNS A → `100.120.169.123`; **reachable again at integration time** — read-only re-probe 2026-09-15 16:55 +08: `GET /api/settings/public` HTTP 200 and `GET /api/integration/v1/health` HTTP 200 (§7 keeps the earlier offline capture as `HISTORICAL`) | CURRENT_STATE |
 | EnrollPro server base | expected shape `https://dev-jegs.buru-degree.ts.net/api` (EnrollPro mounts under `/api`) | EnrollPro `server/src/app.ts:179`; production `ENROLLPRO_PUBLIC_URL` value not present in the read-only mirror → **UNPROVEN**, must be supplied by the operator in the activation packet | SUCCESSOR |
 
 Never substitute a retired raw Tailnet IP, `localhost`, or an old hostname for
@@ -484,28 +484,43 @@ non-docs delta.
 
 Read from the **authority** `origin/main:docs/plans/atlas-delivery-cycles.json`
 (the branch worktree copy of that file is inherited from `6409a2a8` and is **not**
-current-state authority), at the correction-time `origin/main` tip
-`0c20342394ca2ca800cecc6dd69825e07625c66d` (contractVersion `1.1.0`):
-`coordination.mode = CYCLE_ACTIVE`; `coordination.activeCycleId =
-ENROLLPRO-PROXY-RECOVERY-LIVE`; **7** `streams` entries (WF-C01, WF-C02,
-ENROLLPRO-PROXY-RECOVERY-LIVE, TERM-CACHE-CATCHUP-APPLY, TT-SOURCE-FRESHNESS-C04,
-LIVE-GENERATION, LIVE-PUBLICATION), with **no** `COMPANION-SSO-LIVE-PREP-C02`
-entry; `leases` is empty; `browserCustody.profiles[0].custody` and
-`browserCustody.logins` are both empty. No lease and no browser-custody record
-touches this stream's docs, companion mirrors, disposable-database namespace,
-browser profile, runtime inventory, or SSO packet paths. This preparation cycle
-is **intentionally unregistered** in the machine state because the recovery
-boundary forbids register edits while the active lane owns `origin/main`; the
-governing packet's Workflow-state requirement is satisfied by this read-only
-verification of the authority file rather than a state write.
+current-state authority). Two capture boundaries are recorded:
 
-**Correction (targeted QA round):** an earlier version of this row reported
-`coordination.mode = MANUAL`, `activeCycleId = null`, and 6 streams. Those values
-came from the branch's own stale copy of the file (inherited from `6409a2a8`)
-and were wrong. The `CYCLE_ACTIVE` / `ENROLLPRO-PROXY-RECOVERY-LIVE` / 7-streams
-values above are the authoritative `origin/main` read, consistent with §1, §6.4,
-and executor handoff §11. No claim is made about any stream's content beyond
-what the file shows.
+- **Integration-time read (2026-09-15 ~16:54 +08, `origin/main` tip
+  `c6d83cb45f11c11ae98d3e3e26787f5341a30945`, registry revision 31,
+  contractVersion `1.1.0`):** `coordination.mode = MANUAL` with
+  `activeCycleId = null`; **12** `streams` entries (WF-C01 through WF-C04,
+  ENROLLPRO-PROXY-RECOVERY-LIVE, TERM-CACHE-CATCHUP-APPLY,
+  TT-SOURCE-FRESHNESS-C04, LIVE-GENERATION, LIVE-PUBLICATION,
+  BENEFICIARY-EXPORT-PARITY-C05, COMPANION-SSO-LIVE-PREP-C02,
+  TL-OPERATOR-WORKSPACE-C05); `WF-C04` is `COMPLETE` with receipt
+  `docs/plans/receipts/wf-c04.receipt.json`; `leases` is empty;
+  `browserCustody.profiles[0].custody` and `browserCustody.logins` are both
+  empty.
+- **Registration-time transitions (same integration worktree, 2026-09-15
+  16:54 +08):** the C03 cycle registered `COMPANION-SSO-C03` through the atomic
+  `create-stream` transition (revision 32) and set `coordination.mode =
+  CYCLE_ACTIVE` / `activeCycleId = COMPANION-SSO-C03` (revision 33); the
+  resulting generated register is in this same change.
+- **Superseded capture (correction time, `0c203423`, retained `HISTORICAL`):**
+  those values were `CYCLE_ACTIVE` / `activeCycleId =
+  ENROLLPRO-PROXY-RECOVERY-LIVE` / **7** `streams` with no
+  `COMPANION-SSO-LIVE-PREP-C02` entry.
+
+The preparation cycle was intentionally unregistered in machine state at its own
+capture boundary (the recovery boundary forbade register edits while the earlier
+active lane owned `origin/main`); the C03 cycle that integrates this candidate is
+duly registered as `COMPANION-SSO-C03`. No lease and no browser-custody record
+touches this stream's docs, companion mirrors, disposable-database namespace,
+browser profile, runtime inventory, or SSO packet paths.
+
+**Correction (targeted QA round, retained):** an earlier version of this row
+reported `coordination.mode = MANUAL`, `activeCycleId = null`, and 6 streams
+from the branch's own stale copy of the file (inherited from `6409a2a8`); those
+values were wrong at that capture boundary. The `0c203423` block above records
+what the authoritative read showed at correction time and is superseded by the
+integration-time read. No claim is made about any stream's content beyond what
+the file shows.
 
 ## 7. Public / browser preflight (no authentication) (CURRENT_STATE)
 
@@ -514,15 +529,21 @@ what the file shows.
 | Playwright MCP tools | present (`playwright_browser_*`); configured browser build `chromium-1244` was initially missing and was installed with the sanctioned `npx @playwright/mcp install-browser chrome-for-testing` (out-of-repo, `%LOCALAPPDATA%\ms-playwright\chromium-1244`) | CURRENT_STATE |
 | ATLAS origin (desktop 1366×768) | `https://njgrm.buru-degree.ts.net/login`; `window.location.origin === "https://njgrm.buru-degree.ts.net"`; title `ATLAS`; login form rendered (Employee ID/Email, Password, Sign In) | CURRENT_STATE |
 | ATLAS origin (mobile 390×844) | same URL; origin asserted again; viewport `390x844`; password input present; "Welcome Back / Sign in to continue to ATLAS" rendered | CURRENT_STATE |
-| ATLAS console | 1 error: `502` on `https://njgrm.buru-degree.ts.net/enrollpro-uploads/55a414b8-….png` — the known EnrollPro proxy degradation owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (approval GRANTED 2026-09-15; execution pending / externally blocked on EnrollPro host recovery; `ENROLLPRO_PROXY_ORIGIN` not yet proven installed); page renders normally | CURRENT_STATE |
+| ATLAS console | 1 error: `502` on `https://njgrm.buru-degree.ts.net/enrollpro-uploads/55a414b8-….png` — the known EnrollPro proxy degradation owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (approval GRANTED 2026-09-15; execution **NOT PERFORMED** — the 2026-09-15 readiness-window attempt stopped at the pre-mutation elevation gate with zero mutation; the host is reachable again at integration time; `ENROLLPRO_PROXY_ORIGIN` not yet proven installed; ATLAS proxy re-probe 2026-09-15 16:55 +08 → HTTP 502); page renders normally | CURRENT_STATE |
 | ATLAS network | no `/api/*` request on `/login`; no session created, no form submitted, no login | CURRENT_STATE |
-| EnrollPro origin | `https://dev-jegs.buru-degree.ts.net/personnel/login` → HTTP attempts `unable to connect` (×3) and browser `net::ERR_CONNECTION_TIMED_OUT`; Tailscale reports `dev-jegs` (100.120.169.123) **offline, last seen 33m ago** | CURRENT_STATE |
+| EnrollPro origin | `https://dev-jegs.buru-degree.ts.net/personnel/login` → HTTP attempts `unable to connect` (×3) and browser `net::ERR_CONNECTION_TIMED_OUT`; Tailscale reports `dev-jegs` (100.120.169.123) **offline, last seen 33m ago** | HISTORICAL |
+| EnrollPro origin (integration-time re-probe) | `GET https://dev-jegs.buru-degree.ts.net/api/settings/public` → HTTP 200; `GET https://dev-jegs.buru-degree.ts.net/api/integration/v1/health` → HTTP 200 (read-only, no login, 2026-09-15 16:55 +08); the browser entry itself was not re-exercised this turn | CURRENT_STATE |
 | Browser custody | one short session owned by the executor; tabs closed after evidence (no lingering context, no reusable session) | CURRENT_STATE |
 | Flow A / Flow B protected execution | `NOT_AUTHORIZED_IN_PREP` — no login, no code issued/exchanged/consumed, no session created | REQUIREMENT |
 
-The EnrollPro half of the preflight is **externally blocked** by a live Tailnet
-state change (`dev-jegs` offline), not by the candidate. Both prepared packets
-encode this as a fail-closed precondition.
+The EnrollPro half of the preflight was **externally blocked** at capture by a
+live Tailnet state change (`dev-jegs` offline), not by the candidate. At
+integration time the host is reachable again (re-probe above), but every live
+SSO acceptance row remains unexercised and externally gated: the proxy-origin
+execution (`ENROLLPRO-PROXY-RECOVERY-LIVE`; approval GRANTED, execution NOT
+PERFORMED at the elevation boundary), the SSO migration apply, and the runtime
+activation are all separate HIGH actions. Both prepared packets encode
+fail-closed preconditions for this.
 
 ## 8. Trace table (requirement → production path → negative control → verification)
 
@@ -537,7 +558,7 @@ encode this as a fail-closed precondition.
 | T7 | Disposable apply/status/rollback/replay + zero residue | `prisma migrate deploy --schema prisma/schema.prisma`; mounted suite | rollback → re-apply; `pg_database` residue count | §5.2 sequence | PASS |
 | T8 | Secret-safe config presence inventory | `D:\ATLAS-runtime-config\atlas-server.env` key names only | no value printed/hashed/committed | key-name extraction | PASS |
 | T9 | Runtime/release/supervisor/rollback inventory, zero mutation | `cli.mjs status`; listener ownership; rollback dirs | PIDs unchanged before/after isolated probe | `cli.mjs status`; `Get-NetTCPConnection`; `git rev-parse` on rollback dirs | PASS |
-| T10 | Tailnet-only public preflight, exact origins, two viewports | `https://njgrm.buru-degree.ts.net/login` (both viewports) | **EnrollPro origin offline** | browser origin assertion + HTTP probes + `tailscale status` | **BLOCKED** (ATLAS half PASS; EnrollPro half `EXTERNALLY_BLOCKED(LIVE_TAILNET)`) |
+| T10 | Tailnet-only public preflight, exact origins, two viewports | `https://njgrm.buru-degree.ts.net/login` (both viewports) | **EnrollPro origin offline at capture** (reachable again at integration time; the EnrollPro half remains unexercised) | browser origin assertion + HTTP probes + `tailscale status` | **BLOCKED** (ATLAS half PASS; EnrollPro half `EXTERNALLY_BLOCKED(LIVE_TAILNET)` at capture; live SSO rows remain gated by the proxy/migration/activation HIGH actions) |
 | T11 | Migration HIGH packet complete + satisfiable | `docs/prompts/companion-sso-migration-live-c02-2026-09-15.md` | binds fail-closed preflight; no config/deploy/login authority | packet review | PASS |
 | T12 | Runtime activation HIGH packet complete + satisfiable | `docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md` | dependency-bound; NOT GRANTED; no AIMS/SMART/MRF bundling | packet review | PASS |
 | T13 | Companion defect handoff with exact evidence, no companion edit | `docs/handoffs/enrollpro-sso-contract-corrections-2026-09-15.md` | `D:/EnrollPro` clean before/after (`5887d685`, 0 dirty) | `git -C D:/EnrollPro status --porcelain` | PASS |
@@ -557,7 +578,7 @@ encode this as a fail-closed precondition.
 | 7 | Disposable PostgreSQL apply/status/rollback/replay plus zero residue | PASS |
 | 8 | Secret-safe configuration presence inventory with zero values disclosed | PASS |
 | 9 | Runtime/release/supervisor/rollback inventory with zero mutation | PASS |
-| 10 | Tailnet-only public browser preflight, exact origins, two viewports, serialized custody | **BLOCKED** — ATLAS origin PASS; EnrollPro origin `EXTERNALLY_BLOCKED(LIVE_TAILNET)` (`dev-jegs` offline at capture) |
+| 10 | Tailnet-only public browser preflight, exact origins, two viewports, serialized custody | **BLOCKED** — ATLAS origin PASS; EnrollPro origin `EXTERNALLY_BLOCKED(LIVE_TAILNET)` (`dev-jegs` offline at capture; reachable again at the integration-time re-probe — the EnrollPro half and every live SSO row remain unexercised and gated by the proxy/migration/activation HIGH actions) |
 | 11 | Separate migration HIGH packet complete and satisfiable | PASS |
 | 12 | Separate runtime activation HIGH packet complete, dependency-bound, satisfiable | PASS |
 | 13 | Companion defect has an ATLAS-owned developer handoff, no companion edit | PASS |
@@ -565,11 +586,15 @@ encode this as a fail-closed precondition.
 | 15 | `git diff --check`, changed-path attribution, no secret-like content, no unauthorized mutation | PASS |
 
 Tally: **14 / 15 passed / 1 blocked / 0 unperformed.** The single blocked row is
-an external live-state condition (EnrollPro Tailnet host offline), captured with
-evidence and encoded as a fail-closed precondition in both prepared packets.
-Candidate classification: **`PREPARED_WITH_EXTERNAL_GATE`** — row 10's EnrollPro
-half is an external **activation** precondition; this is not `ACCEPT_READY` 15/15
-and claims no live SSO readiness.
+an external live-state condition (EnrollPro Tailnet host offline at the preflight
+capture; reachable again at the integration-time re-probe, 2026-09-15 16:55 +08),
+captured with evidence and encoded as a fail-closed precondition in both prepared
+packets. The live SSO rows remain externally gated by the still-unperformed
+proxy-origin execution (elevated context needed), the SSO migration apply, and
+the runtime activation — all separate HIGH actions. Candidate classification:
+**`PREPARED_WITH_EXTERNAL_GATE`** — row 10's EnrollPro half is an external
+**activation** precondition; this is not `ACCEPT_READY` 15/15 and claims no live
+SSO readiness.
 
 ## 10. What was not executed (explicit)
 
@@ -593,7 +618,7 @@ and claims no live SSO readiness.
 | R1 | Flow B reverse assertion role/name contract mismatch (§4.5) makes ATLAS→EnrollPro SSO fail in production even after migration + config | **BLOCKING** for live SSO acceptance; remedy documented in the companion handoff (outside this prep candidate's writable scope) |
 | R2 | EnrollPro `.env.example` reverse URLs/`client_id` are contradictory and wrong (§4.3) | **BLOCKING** for a correct-configuration claim; activation packet binds the verified matrix and requires source-correct values |
 | R3 | `ENROLLPRO_BASE_URL` / `ENROLLPRO_SSO_*` / `ATLAS_SSO_REVERSE_*` absent; `ENROLLPRO_API` is a raw Tailnet IP with `/api` | **BLOCKING** for activation; bound as explicit PRESENT-gate preconditions |
-| R4 | EnrollPro Tailnet origin `dev-jegs` offline at capture; blocks the EnrollPro half of the public preflight and every live SSO acceptance row | **BLOCKING** for activation acceptance; fail-closed preflight required |
+| R4 | EnrollPro Tailnet origin `dev-jegs`: offline at capture, **reachable again at the integration-time re-probe** (2026-09-15 16:55 +08, HTTP 200 on both `/api` endpoints). The EnrollPro half of the public preflight and every live SSO acceptance row remain unexercised — now gated by the still-unperformed proxy-origin execution (elevated context), the migration apply, and the runtime activation | **BLOCKING** for activation acceptance; fail-closed preflight required |
 | R5 | Live runtime predates SSO (404 on `/api/v1/auth/sso/*`); activation requires installing a post-`c989f03d` release | **BLOCKING** for live SSO; owned by `COMPANION-SSO-RUNTIME-ACTIVATION-C02` |
 | R6 | `schtasks /query` denied to the non-elevated executor, so the boot-task action/principal could not be re-read this turn; the activation packet must re-verify it elevated before any restart | NON_BLOCKING for preparation; mandatory precondition for the HIGH action |
 | R7 | `atlas-server/.env.example` documents none of the four SSO keys | NON_BLOCKING documentation gap; successor correction |
@@ -602,7 +627,11 @@ and claims no live SSO readiness.
 
 ## 12. Claim-classification lint
 
-- Every `CURRENT_STATE` row describes an observation at the capture boundary.
+- Every `CURRENT_STATE` row describes an observation at its stated capture
+  boundary (the integration-time read is dated 2026-09-15 16:55 +08).
+- No `CURRENT_STATE` row asserts EnrollPro unreachability after the
+  integration-time reachability re-probe; the earlier offline capture is retained
+  only as `HISTORICAL` (§7).
 - Every unfinished item (live migration, configuration, deployment, live SSO
   acceptance, AIMS/SMART enablement, the role-vocabulary correction) is tagged
   `SUCCESSOR` and points at an owning packet or handoff.

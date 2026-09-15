@@ -124,7 +124,10 @@ drift.
   `https://dev-jegs.buru-degree.ts.net/api` (EnrollPro mounts `/api`).
   **EnrollPro Tailnet host `dev-jegs` (100.120.169.123) was OFFLINE at capture**
   ("offline, last seen 33m ago"); the browser entry
-  `https://dev-jegs.buru-degree.ts.net/personnel/login` timed out.
+  `https://dev-jegs.buru-degree.ts.net/personnel/login` timed out. This row is a
+  HISTORICAL capture-boundary observation: the integration-time re-probe
+  (2026-09-15 16:55 +08) shows the host reachable again (HTTP 200 on both `/api`
+  endpoints — see the §4 note).
 - `schtasks /query /tn ATLAS-Runtime-Supervisor` returned `Access is denied` for
   the non-elevated executor; the task definition could not be re-read during
   preparation and MUST be captured elevated at execution preflight.
@@ -143,7 +146,7 @@ ATLAS server keys (`D:\ATLAS-runtime-config\atlas-server.env`):
 | `ENROLLPRO_SSO_CLIENT_SECRET` | shared secret S1 (≥32 chars) | Flow A `Authorization: Bearer` |
 | `ENROLLPRO_SSO_CALLBACK_URL` | `https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/reverse/callback` | Flow B exact `redirect_uri` binding; MUST equal EnrollPro's computed redirect URI byte-for-byte |
 | `ATLAS_SSO_REVERSE_CLIENT_SECRET` | shared secret S2 (≥32 chars, distinct from S1) | Flow B inbound `Authorization: Bearer` |
-| `ENROLLPRO_PROXY_ORIGIN` | `https://dev-jegs.buru-degree.ts.net` (bare origin, **no path**) | Supervised launch gate of the pinned release (`ops/runtime/cli.mjs:36-39,46,97` → `ops/runtime/lib/enrollpro-origin.mjs:96-104`). **Owned/set by `ENROLLPRO-PROXY-RECOVERY-LIVE`** (approval GRANTED 2026-09-15; execution pending on EnrollPro host recovery; value not yet proven installed — see §4 note); this packet must not add or modify it |
+| `ENROLLPRO_PROXY_ORIGIN` | `https://dev-jegs.buru-degree.ts.net` (bare origin, **no path**) | Supervised launch gate of the pinned release (`ops/runtime/cli.mjs:36-39,46,97` → `ops/runtime/lib/enrollpro-origin.mjs:96-104`). **Owned/set by `ENROLLPRO-PROXY-RECOVERY-LIVE`** (approval GRANTED 2026-09-15; execution NOT PERFORMED — stopped at the pre-mutation elevation gate with zero mutation; host reachable again at integration time; value not yet proven installed — see §4 note); this packet must not add or modify it |
 
 `ENROLLPRO_PROXY_ORIGIN` is not an SSO key, but the pinned release's supervised
 launch gate makes it a hard precondition of any restart: the gate
@@ -162,11 +165,15 @@ approval is **GRANTED** (machine-state authority `origin/main`
 `docs/plans/atlas-delivery-cycles.json` at `0c203423`: stream
 `ENROLLPRO-PROXY-RECOVERY-LIVE` → `approval.granted = true`,
 `operatorIdentity = operator:njgrm`, `approvedAt = 2026-09-15T12:00:04+08:00`,
-stream state `EXTERNALLY_BLOCKED`). Its **execution is NOT PERFORMED** because
-the EnrollPro host is offline (required observation
-`obs-enrollpro-reachability` = FAIL at `2026-09-15T12:00:04+08:00`; Tailscale
-reports `dev-jegs` / `100.120.169.123` offline, last seen ~1 h before this
-correction). Therefore `ENROLLPRO_PROXY_ORIGIN` is **not yet proven installed**.
+stream state `EXTERNALLY_BLOCKED`). Its **execution is NOT PERFORMED**: the
+2026-09-15 readiness-window attempt stopped at the pre-mutation elevation gate
+with zero mutation — the non-elevated session could not capture, re-point, or
+run the SYSTEM `ATLAS-Runtime-Supervisor` task (`origin/main` `9b82a98f` records
+the stop; no candidate commit exists). Both EnrollPro probes returned HTTP 200
+inside that window (14:09-14:12 +08), and the integration-time re-probe
+(2026-09-15 16:55 +08) confirms the host reachable again. Therefore
+`ENROLLPRO_PROXY_ORIGIN` is **not yet proven installed**: the current blocker is
+the elevated execution context, not EnrollPro reachability.
 The owner packet sets exactly this bare origin (and
 `ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api`) and itself warns never
 to bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`; this packet must not add or modify
@@ -238,9 +245,10 @@ characters, and contain none of the placeholder markers
 3. **Companion reachability.** `https://dev-jegs.buru-degree.ts.net` resolves to
    the Tailnet host and `GET /personnel/login` returns a browser page (2xx/3xx)
    at execution time; Tailscale reports the peer online. If the peer is offline,
-   STOP with `EXTERNALLY_BLOCKED(LIVE_TAILNET)` — prep-time evidence shows it
-   was offline ("last seen 33m ago") and no acceptance row may be downgraded to
-   non-blocking because of that.
+   STOP with `EXTERNALLY_BLOCKED(LIVE_TAILNET)` and never downgrade an
+   acceptance row. Prep-time evidence shows it offline at capture ("last seen
+   33m ago"); the integration-time re-probe (2026-09-15 16:55 +08) shows it
+   reachable again — the execution-time check remains mandatory either way.
 4. **Release tree and build.** The chosen release directory contains a clean
    checkout of the pinned tip with `atlas-server/dist` and `atlas-client/dist`
    built from that tree, and the client build used
@@ -264,13 +272,15 @@ characters, and contain none of the placeholder markers
    supervised launch gate (`ops/runtime/cli.mjs:36-39`, called at `:46` and `:97`)
    fails closed with `ENROLLPRO_PROXY_ORIGIN_MISSING` before any child process is
    constructed when the value is absent. This packet does **not** write the key;
-   it is owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (§4). **Status (verified at
-   correction time against `origin/main`
-   `docs/plans/atlas-delivery-cycles.json`):** that owner packet's approval is
-   **GRANTED** (2026-09-15T12:00:04+08, `operator:njgrm`, stream state
-   `EXTERNALLY_BLOCKED`), but its execution is **pending** because the EnrollPro
-   host is offline (`obs-enrollpro-reachability` FAIL), so the value is **not yet
-   proven installed**. This precondition therefore stays a hard STOP
+   it is owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (§4). **Status
+   (integration-time refresh against `origin/main`
+   `docs/plans/atlas-delivery-cycles.json` at `c6d83cb4` revision 31):** that
+   owner packet's approval is **GRANTED** (2026-09-15T12:00:04+08,
+   `operator:njgrm`, stream state `EXTERNALLY_BLOCKED`), but its execution is
+   **NOT PERFORMED** — the 2026-09-15 readiness-window attempt stopped at the
+   pre-mutation elevation gate with zero mutation, and the EnrollPro host is
+   reachable again at integration time; the value is **not yet proven
+   installed**. This precondition therefore stays a hard STOP
    (`PRECONDITION_PROXY_ORIGIN_MISSING`) until the proxy recovery executes and its
    post-action evidence proves the key and the recovered runtime. If the value is
    absent or not a valid bare origin, STOP with
@@ -522,7 +532,9 @@ Any unexplained extra write in either system is an incident stop.
 > IgnoreNew (incumbent at preflight: release `3d916b26`, as re-verified at
 > execution; only after confirming `ENROLLPRO_PROXY_ORIGIN` is present in the
 > durable env as a valid bare origin owned by `ENROLLPRO-PROXY-RECOVERY-LIVE`
-> (approval GRANTED 2026-09-15; execution pending on EnrollPro host recovery) —
+> (approval GRANTED 2026-09-15; execution NOT PERFORMED — stopped at the
+> pre-mutation elevation gate with zero mutation; host reachable again at
+> integration time) —
 > this packet does not write that key; STOP with
 > `PRECONDITION_PROXY_ORIGIN_MISSING` if it is absent or invalid, and never
 > bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`); run the packet's acceptance matrix
