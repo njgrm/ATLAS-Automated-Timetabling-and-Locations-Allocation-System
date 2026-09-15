@@ -274,21 +274,71 @@ export const TRANSITIONS = {
 
   "record-integration": {
     from: ["ACCEPT_READY", "INTEGRATION_READY"],
-    optional: ["integration", "worktree", "branch", "next-action", "awaited", "running"],
+    optional: ["integration", "observed-remote", "observed-ref", "worktree", "branch", "next-action", "awaited", "running"],
     required: ["integration"],
     apply(ctx) {
-      const { stream, flags, repoRoot, git } = ctx;
+      const { stream, flags, repoRoot, git, nowIso } = ctx;
       if (!git.shaExists(repoRoot, flags.integration)) {
         throw new TransitionError("TRANSITION_INTEGRATION_UNKNOWN", `integration ${flags.integration} is not a commit in this repository`, "$.git.integrationSha");
       }
       if (nonEmpty(stream.git.candidateSha) && !git.isAncestor(repoRoot, stream.git.candidateSha, flags.integration)) {
         throw new TransitionError("TRANSITION_ANCESTRY", `candidate ${stream.git.candidateSha} is not an ancestor of integration ${flags.integration}`, "$.git");
       }
+
+      // A stream registered by `create-stream` carries the tip that was observed
+      // BEFORE it was integrated. The verifier requires integrationSha to be an
+      // ancestor-or-equal of remoteObservation.sha, and `record-remote-observation`
+      // is gated to INTEGRATED/COMPLETE, so without a refresh at integration every
+      // created stream would be un-integrable. `--observed-remote` refreshes the
+      // observation to the tip that actually contains the integration. The flag is
+      // optional: a stream whose observation is null integrates exactly as before.
+      let refreshedObservation = null;
+      if (flags["observed-remote"] !== undefined) {
+        const observedRemote = flags["observed-remote"];
+        const ref = flags["observed-ref"] || OBSERVATION_REF;
+        if (!SHA40_RE.test(observedRemote)) {
+          throw new TransitionError(
+            "TRANSITION_OBSERVED_REMOTE_INVALID",
+            "--observed-remote must be a lowercase 40-hex commit id",
+            "$.git.remoteObservation.sha",
+          );
+        }
+        if (!git.shaExists(repoRoot, observedRemote)) {
+          throw new TransitionError(
+            "TRANSITION_OBSERVED_REMOTE_UNKNOWN",
+            `observed remote ${observedRemote} is not a commit in this repository`,
+            "$.git.remoteObservation.sha",
+          );
+        }
+        // The observed tip must contain the integration. It may equal it: an
+        // observation of the integration commit itself is a valid downstream-or-
+        // equal snapshot, and the verifier treats equality as satisfying the
+        // ancestor-or-equal rule.
+        if (!git.isAncestorOrEqual(repoRoot, flags.integration, observedRemote)) {
+          throw new TransitionError(
+            "TRANSITION_OBSERVED_REMOTE_ANCESTRY",
+            `integration ${flags.integration} is not an ancestor-or-equal of observed remote ${observedRemote}`,
+            "$.git.remoteObservation.sha",
+          );
+        }
+        refreshedObservation = {
+          ref,
+          sha: observedRemote,
+          observedAt: nowIso,
+          kind: ref.startsWith("refs/remotes/") ? "REMOTE_TRACKING_REF" : "LOCAL_REF",
+        };
+      }
+
       stream.git.integrationSha = flags.integration;
+      if (refreshedObservation) stream.git.remoteObservation = refreshedObservation;
       if (flags.worktree !== undefined) stream.git.worktree = flags.worktree;
       if (flags.branch !== undefined) stream.git.branch = flags.branch;
       stream.owners.planner = { sessionId: stream.owners.planner.sessionId, status: "IDLE", writable: false };
-      return { state: "INTEGRATED", defaults: { awaited: ["fresh Wave Completion Auditor"], running: [] } };
+      return {
+        state: "INTEGRATED",
+        defaults: { awaited: ["fresh Wave Completion Auditor"], running: [] },
+        observation: refreshedObservation,
+      };
     },
   },
 
@@ -746,6 +796,7 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       summary.streamId = candidateStream.id;
       summary.fromState = stream.state;
       summary.toState = candidateStream.state;
+      if (outcome.observation) summary.observation = outcome.observation;
       nextActions = [{ streamId: candidateStream.id, nextAction: candidateStream.nextAction }];
     } else if (createdStream) {
       summary.streamId = createdStream.id;
