@@ -88,7 +88,22 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 		if (section.externalId != null) sectionNameByExternalId.set(section.externalId, section.name);
 	}
 
-	const allSlots = [...ctx.displaySlots].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+	// C05 T7/M13 — the period structure must cover every selected-term entry
+	// interval. `displaySlots` is the policy/canonical view; the union guarantees
+	// a persisted session can never be dropped from the official room program
+	// merely because the run has no display-slot metadata (or the interval is not
+	// part of the configured structure).
+	const slotByInterval = new Map<string, (typeof ctx.displaySlots)[number]>();
+	for (const slot of ctx.displaySlots) {
+		slotByInterval.set(`${slot.startTime}-${slot.endTime}`, slot);
+	}
+	for (const entry of ctx.entries) {
+		const key = `${entry.startTime}-${entry.endTime}`;
+		if (!slotByInterval.has(key)) {
+			slotByInterval.set(key, { startTime: entry.startTime, endTime: entry.endTime, isSpecialEvent: false });
+		}
+	}
+	const allSlots = [...slotByInterval.values()].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 	const periodSlots = allSlots.filter((slot) => !slot.isSpecialEvent);
 	const breakSlots = allSlots.filter((slot) => slot.isSpecialEvent);
 	const orderedSlots: Array<{ type: 'period' | 'break'; slot: (typeof allSlots)[number] }> = [];
@@ -141,7 +156,10 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 		headerRow.font = { bold: true };
 
 		let rowCursor = EXPORT_FIRST_BLOCK_ROW + 2;
-		let occupiedMinutes = 0;
+		// C05 T7/M13 — occupied minutes are accumulated per weekday from the
+		// renderable entries, so the totals row states each day's real occupancy
+		// instead of repeating one aggregate across five columns.
+		const dailyMinutes: Record<string, number> = {};
 		for (const item of orderedSlots) {
 			const row = sheet.getRow(rowCursor);
 			const startTime = item.slot.startTime;
@@ -159,6 +177,7 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 					sheet.mergeCells(rowCursor, 3, rowCursor, 7);
 				}
 			} else {
+				const intervalMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
 				WEEKDAYS.forEach((day, dayIndex) => {
 					const cell = row.getCell(dayIndex + 3);
 					// Room-scoped cell built directly from the selected-term entries so
@@ -181,8 +200,8 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 							return `${subject}\n${sectionName}\n${teacher}`;
 						})
 						.join('\n---\n');
+					dailyMinutes[day] = (dailyMinutes[day] ?? 0) + intervalMinutes;
 				});
-				occupiedMinutes += Math.max(0, toMinutes(endTime) - toMinutes(startTime));
 			}
 			rowCursor++;
 		}
@@ -190,10 +209,11 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 		const totalsRow = sheet.getRow(rowCursor);
 		totalsRow.getCell(1).value = 'TOTAL MINUTES PER DAY';
 		totalsRow.getCell(1).font = { bold: true };
-		totalsRow.getCell(2).value = occupiedMinutes;
+		const weekMinutes = WEEKDAYS.reduce((sum, day) => sum + (dailyMinutes[day] ?? 0), 0);
+		totalsRow.getCell(2).value = weekMinutes;
 		totalsRow.getCell(2).font = { bold: true };
-		WEEKDAYS.forEach((_, dayIndex) => {
-			totalsRow.getCell(dayIndex + 3).value = occupiedMinutes;
+		WEEKDAYS.forEach((day, dayIndex) => {
+			totalsRow.getCell(dayIndex + 3).value = dailyMinutes[day] ?? 0;
 			totalsRow.getCell(dayIndex + 3).font = { bold: true };
 		});
 

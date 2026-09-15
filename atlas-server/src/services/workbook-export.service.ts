@@ -489,6 +489,12 @@ export function applyLandscapePrintSetup(sheet: ExcelJS.Workbook['worksheets'][n
 	};
 }
 
+/** C05 T5/M8 — reference-only subjects never appear in any official output. */
+function isReferenceOnlySubjectCode(code: string | null | undefined): boolean {
+	const normalized = (code ?? '').trim().toUpperCase();
+	return normalized === 'HG' || normalized === 'ARAL';
+}
+
 /** C05 T5/M12 — ExcelJS sheet-name safety (31 chars, no `[]:*?/\`). */
 function sanitizeSheetName(name: string): string {
 	const cleaned = (name || 'SHEET').replace(/[\\/?*[\]:]/g, ' ').trim();
@@ -599,14 +605,20 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 
 	// C05 T5/M12 — reconciliation totals from the same selected-term entries the
 	// class program renders, so the summary and class program agree exactly.
+	// Reference-only HG/ARAL entries never render a class-program cell and are
+	// excluded here too.
 	rowCursor += 1;
-	const totalMinutes = ctx.entries.reduce((sum, entry) => {
+	const renderableEntries = ctx.entries.filter((entry) => {
+		const code = ctx.subjectMap.get(entry.subjectId)?.code?.trim().toUpperCase();
+		return code !== 'HG' && code !== 'ARAL';
+	});
+	const totalMinutes = renderableEntries.reduce((sum, entry) => {
 		return sum + (entry.durationMinutes ?? Math.max(0, toMinutes(entry.endTime) - toMinutes(entry.startTime)));
 	}, 0);
 	const reconciliationRow = sheet.getRow(rowCursor);
 	reconciliationRow.getCell(1).value = 'RECONCILIATION (SELECTED TERM)';
 	reconciliationRow.getCell(1).font = { bold: true };
-	reconciliationRow.getCell(2).value = `Entries: ${ctx.entries.length} — Total minutes: ${totalMinutes}`;
+	reconciliationRow.getCell(2).value = `Entries: ${renderableEntries.length} — Total minutes: ${totalMinutes}`;
 	reconciliationRow.getCell(2).font = { italic: true };
 
 	sheet.columns.forEach((col) => { col.width = 18; });
@@ -614,7 +626,10 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 
 	// ─── Per-subject teacher sheets (reference workbook parity, C05 T5/M12) ───
 	const subjectIds = [...new Set(ctx.entries.map((entry) => entry.subjectId))]
-		.filter((id): id is number => typeof id === 'number' && id > 0);
+		.filter((id): id is number => typeof id === 'number' && id > 0)
+		// C05 T5/M8 — a reference-only subject (HG/ARAL) must not produce a
+		// subject sheet, panel, row, label, or placeholder anywhere.
+		.filter((id) => !isReferenceOnlySubjectCode(ctx.subjectMap.get(id)?.code));
 	for (const subjectId of subjectIds) {
 		const subject = ctx.subjectMap.get(subjectId);
 		if (!subject) continue;

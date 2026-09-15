@@ -274,10 +274,14 @@ test('mounted class-program.xlsx route returns a real weekday workbook', {
 	await workbook.xlsx.load(buffer);
 	const sheet = workbook.getWorksheet('Grade 7');
 	assert.ok(sheet);
-	const header = [1, 2, 3, 4, 5, 6, 7].map((col) => sheet.getRow(5).getCell(col).value);
-	assert.deepEqual(header, ['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']);
-	assert.equal(sheet.getRow(6).getCell(3).value, 'Mathematics\nDela Cruz, Juan');
-	assert.equal(sheet.getRow(6).getCell(4).value, 'Science\nSantos, Maria');
+	// C05 T4/M9 — the branding block (rows 1-4) sits above the title (row 5) and
+	// the identity/meta row (row 6); block rows follow at 8, so the weekday header
+	// is row 10 and the first data row is 11.
+	const header = [1, 2, 3, 4, 5, 6, 7, 8].map((col) => sheet.getRow(10).getCell(col).value);
+	assert.deepEqual(header, ['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'TEACHER']);
+	assert.equal(sheet.getRow(11).getCell(3).value, 'Mathematics\nDela Cruz, Juan');
+	assert.equal(sheet.getRow(11).getCell(4).value, 'Science\nSantos, Maria');
+	assert.equal(sheet.getRow(11).getCell(8).value, 'MON: Dela Cruz, Juan / TUE: Santos, Maria');
 	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'route must perform zero writes');
 });
 
@@ -293,6 +297,7 @@ test('every official export route rejects an absent termIndex with a typed 4xx a
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx`,
 		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/class-program-matrix?gradeLevel=7&runId=${RUN_ID}`,
 	];
 	for (const url of targets) {
@@ -345,4 +350,105 @@ test('mounted teacher-program.docx fails closed without a term and across school
 	assert.equal(crossSchool.status, 403);
 	assert.equal((await crossSchool.json() as any).code, 'CROSS_SCHOOL_DENIED');
 	assert.equal(calls.length, 0, 'rejected teacher-program requests must dispatch zero downstream reads/writes');
+});
+
+// ─── C05 M11/M15/M18 — mounted room-program.xlsx route ───
+
+test('mounted room-program.xlsx returns a scoped workbook with identity, zero writes, and no reference-only subject', {
+	skip: harnessSkip || (exceljsUsable ? false : 'EXTERNALLY_BLOCKED: worktree exceljs dependency tree is incomplete'),
+}, async () => {
+	calls.length = 0;
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+
+	const scoped = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1&roomId=601`, { headers });
+	assert.equal(scoped.status, 200);
+	assert.match(String(scoped.headers.get('content-type')), /spreadsheetml/);
+	// M18 — the server identity is `<type>-<entity>-SY<year>-term<N>.xlsx`; the
+	// client resolver mirrors the exact same token, including the room id.
+	assert.equal(scoped.headers.get('content-disposition'), 'attachment; filename="room-program-601-SY2026-2027-term1.xlsx"');
+
+	const ExcelJS = (await import('exceljs')).default as any;
+	const workbook = new ExcelJS.Workbook();
+	await workbook.xlsx.load(Buffer.from(await scoped.arrayBuffer()));
+	const sheet = workbook.worksheets[0];
+	assert.ok(sheet, 'the scoped room sheet exists');
+	const flat: string[] = [];
+	sheet.eachRow((row: any) => {
+		row.eachCell((cell: any) => { if (typeof cell.value === 'string') flat.push(cell.value); });
+	});
+	assert.ok(flat.some((value) => value === 'TIME'), 'the weekday header is present');
+	assert.ok(flat.some((value) => value.includes('Mathematics') && value.includes('7-Rizal') && value.includes('Dela Cruz, Juan')), 'the Monday cell carries Subject+Section+Teacher unambiguously');
+	// M8 — ARAL Program and HG never appear in the official room program.
+	assert.equal(flat.some((value) => /ARAL|ARAL PROGRAM|Homeroom Guidance/i.test(value)), false, 'no ARAL/HG row, cell, or label may render');
+	// M15 — the room export path performs zero writes.
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'room export must perform zero writes');
+
+	// Omitting roomId scopes every room with entries and uses the ALL token.
+	calls.length = 0;
+	const all = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1`, { headers });
+	assert.equal(all.status, 200);
+	assert.equal(all.headers.get('content-disposition'), 'attachment; filename="room-program-ALL-SY2026-2027-term1.xlsx"');
+
+	// A room outside the school fails closed with zero bytes and zero writes.
+	calls.length = 0;
+	const unknown = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1&roomId=999`, { headers });
+	assert.equal(unknown.status, 404);
+	assert.equal((await unknown.json() as any).code, 'ROOM_NOT_FOUND');
+	assert.equal(unknown.headers.get('content-disposition'), null);
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'a rejected room export must not write');
+});
+
+// ─── C05 M14 — mounted authentication and role matrix across official exports ───
+
+test('official export routes fail closed on missing, invalid, non-privileged, and raw system-token callers', { skip: harnessSkip }, async () => {
+	const exportPaths = [
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/summary-teacher-schedule.xlsx?termIndex=1`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=1`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=501&termIndex=1`,
+		`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/room-program.xlsx?termIndex=1`,
+	];
+	const cases: Array<{ label: string; headers: Record<string, string>; status: number; code: string }> = [
+		{ label: 'missing JWT', headers: {}, status: 401, code: 'NO_TOKEN' },
+		{ label: 'invalid JWT', headers: { Authorization: 'Bearer not-a-real-jwt' }, status: 401, code: 'INVALID_TOKEN' },
+		{ label: 'non-privileged role', headers: { Authorization: `Bearer ${jwt.sign({ userId: 9, role: 'faculty', authSource: 'local', schoolId: SCHOOL_ID }, process.env.JWT_SECRET!, { expiresIn: '5m' })}` }, status: 403, code: 'FORBIDDEN' },
+		{ label: 'raw system token', headers: { Authorization: 'Bearer atlas-system-raw-token' }, status: 401, code: 'INVALID_TOKEN' },
+	];
+
+	for (const target of exportPaths) {
+		for (const testCase of cases) {
+			calls.length = 0;
+			const response = await fetch(target, { headers: testCase.headers });
+			assert.equal(response.status, testCase.status, `${testCase.label} must be rejected on ${target}`);
+			assert.equal((await response.json() as any).code, testCase.code, `${testCase.label} must return the typed code on ${target}`);
+			assert.equal(response.headers.get('content-disposition'), null, `${testCase.label} must not receive a file`);
+			assert.equal(calls.length, 0, `${testCase.label} must dispatch zero downstream reads/writes on ${target}`);
+		}
+	}
+});
+
+// ─── C05 M18/M23 — server filename identity and publication marker ───
+
+test('mounted official exports emit year+term+entity filename identity and the draft publication marker', {
+	skip: harnessSkip || (exceljsUsable ? false : 'EXTERNALLY_BLOCKED: worktree exceljs dependency tree is incomplete'),
+}, async () => {
+	const headers = { Authorization: `Bearer ${authToken(SCHOOL_ID)}` };
+	const dispositions: Array<[string, string]> = [
+		[`summary-teacher-schedule.xlsx?termIndex=1`, 'summary-teacher-schedule-SY2026-2027-term1.xlsx'],
+		[`class-program.xlsx?termIndex=1`, 'class-program-SY2026-2027-term1.xlsx'],
+		[`teacher-program.docx?facultyId=501&termIndex=1`, 'teacher-program-501-SY2026-2027-term1.docx'],
+		[`room-program.xlsx?termIndex=1&roomId=602`, 'room-program-602-SY2026-2027-term1.xlsx'],
+	];
+	for (const [suffix, expected] of dispositions) {
+		const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/${suffix}`, { headers });
+		assert.equal(response.status, 200, `${suffix} must succeed`);
+		assert.equal(response.headers.get('content-disposition'), `attachment; filename="${expected}"`, `${suffix} must emit the exact identity`);
+	}
+
+	// M23 — an unpublished run is explicitly marked in the workbook header area.
+	const classProgram = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/class-program.xlsx?termIndex=1`, { headers });
+	const ExcelJS = (await import('exceljs')).default as any;
+	const workbook = new ExcelJS.Workbook();
+	await workbook.xlsx.load(Buffer.from(await classProgram.arrayBuffer()));
+	const sheet = workbook.getWorksheet('Grade 7');
+	assert.equal(sheet.getRow(6).getCell(6).value, 'NOT PUBLISHED — DRAFT/REVIEW', 'a draft export states its publication state');
 });
