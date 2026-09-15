@@ -15,6 +15,7 @@ const HISTORICAL = path.join(REPO_ROOT, "docs", "plans", "atlas-active-delivery-
 // fails closed instead of silently widening the suite's contract.
 const SEED_STREAM_IDS = [
   "BENEFICIARY-EXPORT-PARITY-C05",
+  "COMPANION-SSO-C03",
   "COMPANION-SSO-LIVE-PREP-C02",
   "ENROLLPRO-PROXY-RECOVERY-LIVE",
   "LIVE-GENERATION",
@@ -26,6 +27,7 @@ const SEED_STREAM_IDS = [
   "WF-C02",
   "WF-C03",
   "WF-C04",
+  "WF-C05",
 ];
 
 // Ordered set comparison. Returns null on an exact match, otherwise the exact
@@ -117,24 +119,26 @@ test("the generated register is a distinct file from the historical prose regist
 // Load-bearing control for the inventory pin above: the assertion must fail on
 // the pre-reconciliation registry, not merely pass on whatever the registry now
 // holds. The removed set is asserted exactly so this control cannot silently
-// become vacuous if the WF-C04-created streams are ever renamed.
+// become vacuous if the registered streams are ever renamed.
 test("the seed stream-inventory pin detects a stale registry", () => {
   const doc = JSON.parse(fs.readFileSync(STATE, "utf8"));
   assert.equal(seedInventoryMismatch(doc), null, "the committed registry must satisfy the pin first");
 
-  const addedByWfc04 = [
+  const addedAfterPreReconciliation = [
     "BENEFICIARY-EXPORT-PARITY-C05",
+    "COMPANION-SSO-C03",
     "COMPANION-SSO-LIVE-PREP-C02",
     "TL-OPERATOR-WORKSPACE-C05",
     "WF-C04",
+    "WF-C05",
   ];
   const stale = JSON.parse(JSON.stringify(doc));
-  stale.streams = stale.streams.filter((s) => !addedByWfc04.includes(s.id));
+  stale.streams = stale.streams.filter((s) => !addedAfterPreReconciliation.includes(s.id));
   assert.equal(stale.streams.length, 8, "the pre-reconciliation registry held exactly eight streams");
 
   const mismatch = seedInventoryMismatch(stale);
   assert.ok(mismatch, "the pre-reconciliation inventory must fail the pin");
-  assert.deepEqual([...mismatch.missing].sort(), [...addedByWfc04].sort(), "the failure must name exactly the added streams");
+  assert.deepEqual([...mismatch.missing].sort(), [...addedAfterPreReconciliation].sort(), "the failure must name exactly the added streams");
   assert.deepEqual(mismatch.extra, []);
 
   // The count pin is load-bearing too: an extra stream alone is drift.

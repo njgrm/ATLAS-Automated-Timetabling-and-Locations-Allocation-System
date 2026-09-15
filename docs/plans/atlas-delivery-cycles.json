@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T09:14:39.682Z",
+    "lastUpdatedAt": "2026-09-15T09:21:51.291Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 36
+    "revision": 37
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -1845,6 +1845,117 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "Wave completion requires a fresh adversarial audit context."
+        }
+      }
+    },
+    {
+      "id": "WF-C05",
+      "kind": "CYCLE",
+      "riskTier": "MEDIUM",
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T09:21:51.291Z",
+      "objective": "WF-C05 process hardening: lifecycle-traversal acceptance for every transition and record class, mandatory record-correction disclosure enforcement, predeclared gate classes that cannot be retroactively reclassified, source-only versus live readiness separation, directive rules for producer-to-consumer parity / unknown-value conservation / scope-epoch stale-response protection, and the seven named failing fixtures/mutants.",
+      "nextAction": "Executor implements the bounded WF-C05 candidate on E:/ATLAS-worktrees/workflow-process-hardening-c05 per docs/prompts/workflow-process-hardening-c05-2026-09-15.md and returns REVIEW_REQUIRED; the planner then records the executor return and dispatches fresh independent QA.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the WF-C05 candidate",
+        "fresh independent QA over the frozen candidate"
+      ],
+      "running": [
+        "executor implementation session on branch work/workflow-process-hardening-c05 (packet docs/prompts/workflow-process-hardening-c05-2026-09-15.md)"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/workflow-process-hardening-c05",
+        "branch": "work/workflow-process-hardening-c05",
+        "baseSha": "c6d83cb45f11c11ae98d3e3e26787f5341a30945",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "0ed9225ee8cbb44eee03db799c492bf1654a2465",
+          "observedAt": "2026-09-15T09:21:51.291Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "WF-C05 cycle activated by the operator; the planner session id was not exposed to the registrant, so none is asserted."
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "Fresh cycle; the executor session id was not exposed to the registrant, so none is asserted."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "A fresh independent QA delegate reviews each WF-C05 candidate; no session exists yet."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "A fresh Wave Completion Auditor reviews the integrated wave; no session exists yet."
         }
       }
     }
