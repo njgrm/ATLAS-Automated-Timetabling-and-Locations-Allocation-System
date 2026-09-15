@@ -1,7 +1,7 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T14:12:07.384Z",
+    "lastUpdatedAt": "2026-09-15T14:21:40.847Z",
     "lastUpdatedBy": "primary-planner",
     "revision": 68
   },
@@ -2318,20 +2318,20 @@
       "kind": "CYCLE",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 7,
-        "passed": 7,
+        "total": 11,
+        "passed": 11,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 7,
+          "MANDATORY_SOURCE": 11,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 7,
-            "passed": 7,
+            "total": 11,
+            "passed": 11,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -2354,7 +2354,7 @@
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5b0494b0ffedIQA8MZiixtMPS",
+        "qaSessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
@@ -2363,6 +2363,11 @@
             "round": 1,
             "verdict": "ACCEPT_READY",
             "sessionId": "ses_f5b0494b0ffedIQA8MZiixtMPS"
+          },
+          {
+            "round": 2,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77"
           }
         ]
       },
@@ -2374,6 +2379,16 @@
           "reason": "Integration-discovered correction (PRODUCT_OR_TEST_CHANGE): ops/workflow/__tests__/migration.test.mjs hard-pinned the cycle base 387a1f6d for its reproduction assertion, which fails once the machine registry advances in parallel at integration; the pre-migration document is now derived mechanically from Git history with non-vacuity controls. Fresh QA accepted the corrected tip. Correction executor session ses_f5b0e411cffe4TAToIiaHzWKPL.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5b0494b0ffedIQA8MZiixtMPS",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 2,
+          "baseSha": "2e3fee2570e77f7cd2b67d510ded8be1655dcdc5",
+          "candidateSha": "242238234485674303b3cce3331fadcb65952333",
+          "reason": "Wave-audit F1/F2 (BLOCKING): the R1 reproduction compared a history-derived expected document against the mutable working-tree register, so it failed once later transitions advanced revision 56 to 60. R2 makes the reproduction a statement about the immutable commit pair (08580306 1.1.0 -> 998c1d91 1.2.0) with pins read from the migration commit tree, plus a load-bearing checkout-stability control. Recorded by a disclosed validated planner state update because the transition set cannot reopen an INTEGRATED stream (WF-EVAL-C01 gap).",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
@@ -2401,84 +2416,27 @@
       "artifacts": [],
       "closure": null,
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T12:31:28.514Z",
+      "stateUpdatedAt": "2026-09-15T14:21:40.847Z",
       "objective": "WF-C05 process hardening: lifecycle-traversal acceptance for every transition and record class, mandatory record-correction disclosure enforcement, predeclared gate classes that cannot be retroactively reclassified, source-only versus live readiness separation, directive rules for producer-to-consumer parity / unknown-value conservation / scope-epoch stale-response protection, and the seven named failing fixtures/mutants.",
-      "nextAction": "Dispatch one fresh Wave Completion Auditor over the integrated wave; then commit the capsule, record the audit, close the cycle with the receipt, and record the remote observation.",
+      "nextAction": "Dispatch one fresh Wave Completion Auditor over the corrected integrated wave 541516e7; on AUDIT_CLEAR commit the capsule, record the audit, close the cycle with the receipt, and record the remote observation.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "fresh Wave Completion Auditor over the corrected integrated wave"
       ],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-wf-c05-20260915",
         "branch": "integration/wf-c05-20260915",
-        "baseSha": "387a1f6d0d1e4c44eb41125f717e2aa50797238f",
-        "candidateSha": "2e3fee2570e77f7cd2b67d510ded8be1655dcdc5",
-        "integrationSha": "998c1d9122bbd51e309f8c3e303ba818cf43ba6c",
+        "baseSha": "b94906915dfe1e44126c2f3ad270180d2ce8acda",
+        "candidateSha": "242238234485674303b3cce3331fadcb65952333",
+        "integrationSha": "541516e7296acc51ed9d79b7f8632b027e3c3ba2",
         "changedPaths": [
-          "AGENTS.md",
           "docs/handoffs/wf-c05-executor.md",
-          "docs/plans/atlas-active-delivery-streams.generated.md",
-          "docs/plans/atlas-delivery-cycles.json",
-          "ops/workflow/README.md",
-          "ops/workflow/__fixtures__/expected.json",
-          "ops/workflow/__fixtures__/fail-accept-ready-blocked.json",
-          "ops/workflow/__fixtures__/fail-candidate-unknown.json",
-          "ops/workflow/__fixtures__/fail-changed-paths-extra.json",
-          "ops/workflow/__fixtures__/fail-changed-paths.json",
-          "ops/workflow/__fixtures__/fail-complete-stale-corrections.json",
-          "ops/workflow/__fixtures__/fail-correction-disclosed-unrecorded.json",
-          "ops/workflow/__fixtures__/fail-custody-overlap.json",
-          "ops/workflow/__fixtures__/fail-dependency-not-satisfied.json",
-          "ops/workflow/__fixtures__/fail-duplicate-writable.json",
-          "ops/workflow/__fixtures__/fail-external-with-safe-work.json",
-          "ops/workflow/__fixtures__/fail-gate-class-reclassified.json",
-          "ops/workflow/__fixtures__/fail-gates-arithmetic.json",
-          "ops/workflow/__fixtures__/fail-high-boundary-exceeded.json",
-          "ops/workflow/__fixtures__/fail-high-expired-dependency.json",
-          "ops/workflow/__fixtures__/fail-high-unreachable-dependency.json",
-          "ops/workflow/__fixtures__/fail-high-without-approval.json",
-          "ops/workflow/__fixtures__/fail-missing-next-action.json",
-          "ops/workflow/__fixtures__/fail-receipt-missing.json",
-          "ops/workflow/__fixtures__/fail-receipt-readiness-live.json",
-          "ops/workflow/__fixtures__/fail-receipt-stale.json",
-          "ops/workflow/__fixtures__/fail-stale-candidate.json",
-          "ops/workflow/__fixtures__/fail-successor-unlocked.json",
-          "ops/workflow/__fixtures__/fail-unauthorized-login.json",
-          "ops/workflow/__fixtures__/fail-unknown-requires.json",
-          "ops/workflow/__fixtures__/pass-audited-wave.json",
-          "ops/workflow/__fixtures__/pass-high-prepared.json",
-          "ops/workflow/__fixtures__/pass-ordinary.json",
-          "ops/workflow/__tests__/cli.test.mjs",
-          "ops/workflow/__tests__/coverage.test.mjs",
-          "ops/workflow/__tests__/create-stream.test.mjs",
-          "ops/workflow/__tests__/directive-conformance.test.mjs",
-          "ops/workflow/__tests__/fixtures.test.mjs",
-          "ops/workflow/__tests__/harness.mjs",
-          "ops/workflow/__tests__/identity.test.mjs",
-          "ops/workflow/__tests__/leases.test.mjs",
-          "ops/workflow/__tests__/lifecycle-traversal.test.mjs",
-          "ops/workflow/__tests__/liveness-status.test.mjs",
-          "ops/workflow/__tests__/migration.test.mjs",
-          "ops/workflow/__tests__/readiness.test.mjs",
-          "ops/workflow/__tests__/schema.test.mjs",
-          "ops/workflow/__tests__/seed.test.mjs",
-          "ops/workflow/__tests__/stream-integration-observation.test.mjs",
-          "ops/workflow/__tests__/transition.test.mjs",
-          "ops/workflow/lib/liveness.mjs",
-          "ops/workflow/lib/migrate.mjs",
-          "ops/workflow/lib/readiness.mjs",
-          "ops/workflow/lib/receipt.mjs",
-          "ops/workflow/lib/render.mjs",
-          "ops/workflow/lib/schema.mjs",
-          "ops/workflow/lib/transition.mjs",
-          "ops/workflow/lib/verify.mjs",
-          "ops/workflow/schema/cycle-state.schema.json",
-          "ops/workflow/status.mjs"
+          "ops/workflow/__tests__/migration.test.mjs"
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "998c1d9122bbd51e309f8c3e303ba818cf43ba6c",
-          "observedAt": "2026-09-15T12:31:28.514Z",
+          "sha": "541516e7296acc51ed9d79b7f8632b027e3c3ba2",
+          "observedAt": "2026-09-15T14:21:40.845Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
