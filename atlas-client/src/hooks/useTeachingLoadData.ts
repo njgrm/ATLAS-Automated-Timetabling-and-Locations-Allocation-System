@@ -36,7 +36,7 @@ import {
 	type WorkloadPolicyReadiness,
 } from '@/lib/faculty-teaching-load-cache';
 import type { TeachingLoadAuthorityDiagnosticsPayload } from '@/lib/teaching-load-authority-truth';
-import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
+import { createScopeEpoch, type ScopeEpoch } from '@/lib/scope-request-epoch';
 import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
 import type {
 	ExternalSection,
@@ -49,6 +49,83 @@ import type {
 	TeachingLoadCoverageTotals,
 	TeachingLoadIntegrityDiagnostics,
 } from '@/types';
+
+/**
+ * C-5 (F2-COLD-LOAD). Open a new diagnostics epoch when — and only when — the
+ * RESOLVED scope actually changed.
+ *
+ * This is called synchronously by `fetchData` for the scope it just resolved,
+ * immediately before the request token is captured. That ordering is load
+ * bearing: a render-time effect that opened the epoch instead would run AFTER
+ * the capture on a cold-cache first load and invalidate the very request that
+ * resolved the scope, leaving the truth panel permanently "Checking source".
+ *
+ * Returns true when a new epoch was opened.
+ */
+export function openDiagnosticsScope(
+	scopeRef: { current: string | null },
+	epoch: ScopeEpoch,
+	scopeId: string,
+): boolean {
+	if (scopeRef.current === scopeId) return false;
+	scopeRef.current = scopeId;
+	epoch.begin();
+	return true;
+}
+
+export type AuthorityDiagnosticsSetPayload = (payload: TeachingLoadAuthorityDiagnosticsPayload | null) => void;
+export type AuthorityDiagnosticsSetLoading = (loading: boolean) => void;
+
+export type AuthorityDiagnosticsLoadOutcome = 'persisted' | 'cleared' | 'discarded';
+
+export type AuthorityDiagnosticsLoadDeps = {
+	epoch: ScopeEpoch;
+	scopeRef: { current: string | null };
+	scopeId: string;
+	request: () => Promise<{ data: TeachingLoadAuthorityDiagnosticsPayload | null }>;
+	setPayload: AuthorityDiagnosticsSetPayload;
+	setLoading: AuthorityDiagnosticsSetLoading;
+};
+
+/**
+ * C-5 (F2-COLD-LOAD). Production loader for the read-only
+ * `/faculty-assignments/authority-diagnostics` read.
+ *
+ * Contract:
+ *   - the epoch is opened for the resolved scope BEFORE the token capture, so a
+ *     cold-cache first load persists and always clears its loading flag;
+ *   - a reply whose scope has been superseded (scope identity changed, or the
+ *     epoch advanced) is discarded WITHOUT touching state, so it can neither
+ *     overwrite the new scope's payload nor clear the new scope's loading flag;
+ *   - a repeated resolution of the SAME scope does not open a new epoch, so it
+ *     cannot self-invalidate.
+ */
+export async function loadAuthorityDiagnosticsForScope(
+	deps: AuthorityDiagnosticsLoadDeps,
+): Promise<AuthorityDiagnosticsLoadOutcome> {
+	const { epoch, scopeRef, scopeId, request, setPayload, setLoading } = deps;
+
+	// Open the epoch for the resolved scope BEFORE capturing the token.
+	openDiagnosticsScope(scopeRef, epoch, scopeId);
+	const epochToken = epoch.current;
+	const isCurrent = () => scopeRef.current === scopeId && epoch.isCurrent(epochToken);
+
+	setLoading(true);
+	let outcome: AuthorityDiagnosticsLoadOutcome;
+	try {
+		const response = await request();
+		if (!isCurrent()) return 'discarded';
+		setPayload(response?.data ?? null);
+		outcome = 'persisted';
+	} catch {
+		if (!isCurrent()) return 'discarded';
+		setPayload(null);
+		outcome = 'cleared';
+	}
+	if (!isCurrent()) return 'discarded';
+	setLoading(false);
+	return outcome;
+}
 
 export function useTeachingLoadData() {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -66,9 +143,13 @@ export function useTeachingLoadData() {
 	// it is never replaced with a fabricated count or policy default.
 	const [authorityDiagnostics, setAuthorityDiagnostics] = useState<TeachingLoadAuthorityDiagnosticsPayload | null>(null);
 	const [authorityDiagnosticsLoading, setAuthorityDiagnosticsLoading] = useState(false);
-	// Scope-bound epoch for the diagnostics read. A late response from an obsolete
-	// school/year must never repopulate the truth strip.
+	// C-5 (F2-COLD-LOAD): scope-bound epoch + resolved scope identity for the
+	// diagnostics read. Correctness must NOT depend on React effect ordering — the
+	// epoch is opened synchronously by `fetchData` for the scope it just resolved,
+	// immediately before the token is captured. See `openDiagnosticsScope` /
+	// `loadAuthorityDiagnosticsForScope`.
 	const diagnosticsEpochRef = useRef(createScopeEpoch());
+	const diagnosticsScopeRef = useRef<string | null>(null);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -258,27 +339,24 @@ export function useTeachingLoadData() {
 			// masked with an invented number — a null payload renders the typed
 			// unknown state instead. Read-only GET with zero write side effects.
 			//
-			// Scope-guarded: the epoch is captured before dispatch, so a reply that
-			// arrives after a school/year change is discarded rather than written
-			// into the new scope.
-			const diagnosticsStillCurrent = captureEpoch(diagnosticsEpochRef.current);
-			setAuthorityDiagnosticsLoading(true);
-			try {
-				const diagnosticsRes = await requestWithRetry(
+			// C-5 (F2-COLD-LOAD): guarded by the RESOLVED SCOPE IDENTITY, not by
+			// render ordering. Opening the epoch here, synchronously for the scope we
+			// just resolved and before the token capture, is what stops a cold-cache
+			// first load from invalidating its own in-flight request.
+			await loadAuthorityDiagnosticsForScope({
+				epoch: diagnosticsEpochRef.current,
+				scopeRef: diagnosticsScopeRef,
+				scopeId: `${school}:${schoolYearId}`,
+				request: () => requestWithRetry(
 					() => atlasApi.get<TeachingLoadAuthorityDiagnosticsPayload>(
 						'/faculty-assignments/authority-diagnostics',
 						{ params: { schoolId: school, schoolYearId } },
 					),
 					{ attempts: 1, delayMs: 300 },
-				);
-				if (!diagnosticsStillCurrent()) return;
-				setAuthorityDiagnostics(diagnosticsRes.data ?? null);
-			} catch {
-				if (!diagnosticsStillCurrent()) return;
-				setAuthorityDiagnostics(null);
-			} finally {
-				if (diagnosticsStillCurrent()) setAuthorityDiagnosticsLoading(false);
-			}
+				),
+				setPayload: setAuthorityDiagnostics,
+				setLoading: setAuthorityDiagnosticsLoading,
+			});
 		} catch (requestError: any) {
 			const cachedSummary = schoolYearId && resolvedSchoolId ? getCachedFacultyAssignmentsSummary(resolvedSchoolId, schoolYearId) : null;
 			const cachedSubjects = resolvedSchoolId ? getCachedSubjects(resolvedSchoolId) : null;
@@ -460,9 +538,10 @@ export function useTeachingLoadData() {
 		setSectionFocusId(null);
 		setHomeroomHint(null);
 		// Authority truth is scope-bound: a stale panel must never describe the
-		// previous school/year, and an in-flight reply for the old scope must be
-		// discarded when it lands.
-		diagnosticsEpochRef.current.begin();
+		// previous school/year. The EPOCH is deliberately NOT opened here (C-5):
+		// the resolving fetch opens it synchronously for the scope it resolved, so a
+		// cold-cache first load cannot invalidate its own in-flight request. This
+		// effect only clears the panel so the previous scope's numbers never linger.
 		setAuthorityDiagnostics(null);
 	}, [scopeKey, setDraftAssignmentsByFaculty]);
 

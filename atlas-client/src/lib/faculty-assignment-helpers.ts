@@ -211,6 +211,28 @@ export function resolveAdvisoryCreditHours(
 }
 
 /**
+ * The effective-load baseline for the Teaching Load workspace equation.
+ *
+ * OPERATOR-SETTLED CONTRACT: `Total Teaching Load = Actual Teaching Load +
+ * effective Class Advising credit`. Ancillary Work, ARAL, HG/HGP, and scheduled
+ * breaks contribute ZERO teaching-load credit, so they must never enter this
+ * baseline — the persisted `ancillaryMinutesPerWeek` is display metadata, not
+ * load.
+ *
+ * The helper deliberately accepts only the adviser flag and the effective
+ * policy, so no ancillary/legacy credited fallback can leak back into the
+ * equation through this seam. It is the single source consumed by both the
+ * workspace profile (`useTeachingLoadUI.loadProfile`) and the section-hover
+ * preview delta (`TeachingLoad.resolveSectionHoverDeltaMinutes`).
+ */
+export function resolveEffectiveLoadBaselineHours(
+	member: Pick<FacultySummary, 'isClassAdviser'>,
+	policy: EffectiveTeachingPolicy,
+): number {
+	return resolveAdvisoryCreditHours(member, policy);
+}
+
+/**
  * Canonical teaching-load status from ACTUAL teaching hours against the
  * explicit effective standard. All parameters required — no local defaults.
  */
