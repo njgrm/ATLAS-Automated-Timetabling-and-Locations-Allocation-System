@@ -10,7 +10,7 @@ import {
 	matchesOwnershipDepartment, 
 	buildTeachingLoadProfile,
 	resolveTeachingActualHours,
-	resolveAdvisoryCreditHours,
+	resolveEffectiveLoadBaselineHours,
 	computeTeachingLoadFacets,
 	applyTeachingLoadFilters,
 	teachingStandardHoursOf,
@@ -267,13 +267,15 @@ export function useTeachingLoadUI({
 		// No effective policy → no invented load profile. The inspector renders
 		// the typed readiness state instead.
 		if (!policyReady || workloadPolicy == null || selected == null) return null;
-		// Advisory authority is the effective policy for valid advisers only.
-		const advisoryHours = selected.isClassAdviser ? resolveAdvisoryCreditHours(selected, workloadPolicy) : 0;
+		// Effective-load baseline = authorized Class Advising credit ONLY (policy
+		// owned, gated on real adviser status). Ancillary Work / ARAL / HG-HGP /
+		// breaks contribute zero teaching-load credit and must not inflate the
+		// credited total or anything downstream.
 		const profile = buildTeachingLoadProfile(
 			currentAssignments,
 			subjects,
 			sectionMap,
-			advisoryHours + ((selected.ancillaryMinutesPerWeek || 0) / 60),
+			resolveEffectiveLoadBaselineHours(selected, workloadPolicy),
 			workloadPolicy,
 			selected.maxHoursPerWeek,
 		);
