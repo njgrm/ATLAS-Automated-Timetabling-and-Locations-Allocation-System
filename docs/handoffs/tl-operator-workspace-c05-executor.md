@@ -655,4 +655,3 @@ No push, merge, rebase, amend, force-push, or register edit. The worktrees
 `integration-tl-operator-workspace-c05-20260915` were **not** entered, modified, cleaned,
 stashed, or committed. No browser, login, database, runtime, deployment, migration,
 generation, or publication action occurred. The four C-4 files were not modified.
-
