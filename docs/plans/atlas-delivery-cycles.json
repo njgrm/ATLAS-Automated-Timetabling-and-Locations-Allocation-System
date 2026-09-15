@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T14:09:07+08:00",
+    "lastUpdatedAt": "2026-09-15T14:13:29+08:00",
     "lastUpdatedBy": "primary-planner",
-    "revision": 16
+    "revision": 17
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
     "activeCycleId": "ENROLLPRO-PROXY-RECOVERY-LIVE",
-    "globalNextAction": "Execute the approved ENROLLPRO-PROXY-RECOVERY-LIVE packet with the elevated executor under the operator resume protocol (fresh PASS observation window, pre-mutation gate); then fresh independent QA and the post-action Wave Completion Audit."
+    "globalNextAction": "Provision an elevated execution context for ENROLLPRO-PROXY-RECOVERY-LIVE (the non-elevated executor could not capture/re-point/run the SYSTEM task); then re-open a fresh observation window, execute the approved packet, and proceed to fresh QA and the post-action Wave Completion Audit."
   },
   "streams": [
     {
@@ -563,11 +563,11 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T14:09:07+08:00",
-      "nextAction": "Execute the approved live recovery with the elevated executor (packet sections 4-9 plus the operator pre-mutation gate), then fresh independent QA and the post-action Wave Completion Audit.",
+      "state": "EXTERNALLY_BLOCKED",
+      "stateUpdatedAt": "2026-09-15T14:13:29+08:00",
+      "nextAction": "Provision an elevated execution context (admin rights able to capture/re-point/run the SYSTEM ATLAS-Runtime-Supervisor task); then re-open a fresh observation window (probe both EnrollPro endpoints, set presentedReady=true) and dispatch the elevated executor for the approved packet.",
       "awaited": [
-        "elevated executor live execution and committed evidence"
+        "elevated execution context for the approved live recovery"
       ],
       "running": [],
       "git": {
@@ -650,14 +650,14 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "NONE",
-        "detail": "",
+        "kind": "EXTERNAL",
+        "detail": "Elevated execution context unavailable: executor ses_f5c4f8b88ffe2wPV3GZ0zujIGg (2026-09-15 ~14:12-14:14 +08) confirmed a non-elevated session (Medium integrity; Administrators deny-only; schtasks query/XML denied), so the SYSTEM task could not be captured, re-pointed, or run; it stopped BEFORE any mutation (zero mutation; no candidate commit). Both EnrollPro probes returned HTTP 200 in the live window. An elevated context must be provisioned before the approved packet can execute.",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
       "approval": {
         "required": true,
-        "presentedReady": true,
+        "presentedReady": false,
         "granted": true,
         "operatorIdentity": "operator:njgrm",
         "approvedAt": "2026-09-15T12:00:04+08:00",
