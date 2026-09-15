@@ -283,6 +283,10 @@ test('control 4: ancillary/break/HG/ARAL contribute zero to load; an ancillary-i
 	assert.equal(shape.summary.advisoryMinutes, 60, 'adviser credit comes from the effective policy');
 	assert.equal(shape.summary.totalTeachingLoad, 330, 'total = actual teaching + adviser credit');
 	assert.equal(shape.summary.totalTeachingLoad, shape.summary.actualTeachingMinutes + shape.summary.advisoryMinutes);
+	// Reference convention: the form's "Total minutes per day" / load block state
+	// one full teaching day (Monday = MATH 45 + Biology 45), not the weekly sum.
+	assert.equal(shape.summary.perDayTeachingMinutes, 90, 'per-day teaching = the busiest weekday total, excluding breaks and ancillary');
+	assert.equal(shape.summary.perDayTotalTeachingLoad, 150, 'per-day total = per-day teaching + adviser credit');
 
 	// Mutant control: an implementation that added the ancillary projection
 	// minutes to the total would produce a different, wrong number.
@@ -413,8 +417,9 @@ test('control 11: the produced DOCX reproduces the reference structure and load 
 		assert.ok(all.includes(label), `load label "${label}" renders`);
 	}
 	assert.equal(all.some((value) => /ARAL Program|ARAL PROGRAM|Homeroom Guidance/.test(value)), false, 'no ARAL/HG label may render');
-	assert.ok(all.includes('330 mins'), 'the total teaching load states the arithmetic result');
-	assert.ok(all.includes('270 mins'), 'the actual teaching load states the teaching-only total');
+	assert.ok(all.includes('150 mins'), 'the total teaching load states the per-day arithmetic result');
+	assert.ok(all.includes('90 mins'), 'the actual teaching load states the per-day teaching-only total');
+	assert.ok(all.includes('Total minutes per day'), 'the reference totals row renders');
 	// Profile fields.
 	for (const label of ['Name:', 'Position:', "Bachelor's Degree:", 'Post Graduate Degree:']) {
 		assert.ok(all.includes(label), `profile label "${label}" renders`);

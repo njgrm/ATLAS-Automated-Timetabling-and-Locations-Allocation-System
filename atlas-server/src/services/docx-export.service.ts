@@ -240,7 +240,7 @@ export async function generateTeacherProgramDocx(
 	});
 
 	// ─── Total minutes per day + load block (same table, template layout) ───
-	const weekdayTeachingTotal = summary.actualTeachingMinutes;
+	const weekdayTeachingTotal = summary.perDayTeachingMinutes;
 	const totalMinutesRow = new TableRow({
 		children: [
 			cell('Total minutes per day', { width: COLUMN_WIDTHS.time, bold: true }),
@@ -266,14 +266,14 @@ export async function generateTeacherProgramDocx(
 			children: [
 				cell('', { width: COLUMN_WIDTHS.time, verticalMerge: VerticalMergeType.CONTINUE }),
 				cell('Actual Teaching Load', { width: COLUMN_WIDTHS.minutes + COLUMN_WIDTHS.subject, span: 2 }),
-				cell(minutesLabel(summary.actualTeachingMinutes), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3 }),
+				cell(minutesLabel(summary.perDayTeachingMinutes), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3 }),
 			],
 		}),
 		new TableRow({
 			children: [
 				cell('', { width: COLUMN_WIDTHS.time, verticalMerge: VerticalMergeType.CONTINUE }),
 				cell('Total Teaching Load', { width: COLUMN_WIDTHS.minutes + COLUMN_WIDTHS.subject, span: 2, bold: true }),
-				cell(minutesLabel(summary.totalTeachingLoad), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3, bold: true }),
+				cell(minutesLabel(summary.perDayTotalTeachingLoad), { width: COLUMN_WIDTHS.gradeSection + COLUMN_WIDTHS.day + COLUMN_WIDTHS.room, span: 3, bold: true }),
 			],
 		}),
 	];

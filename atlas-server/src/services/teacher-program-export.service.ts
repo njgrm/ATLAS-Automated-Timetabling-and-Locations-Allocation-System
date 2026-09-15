@@ -76,11 +76,20 @@ export interface TeacherProgramWorkloadSummary {
 	/** Actual teaching minutes per week (sum of teaching entry durations). */
 	actualTeachingMinutes: number;
 	/**
-	 * Total teaching load. C05R1 operator contract:
+	 * Total teaching load (weekly). C05R1 operator contract:
 	 * `Total = actual teaching load + effective adviser credit`; ancillary,
 	 * breaks, HG and ARAL carry zero.
 	 */
 	totalTeachingLoad: number;
+	/**
+	 * Reference-template convention: the "Total minutes per day" row and the
+	 * load block state the per-day teaching minutes (the canonical
+	 * Monday–Friday daily pattern), exactly as the authoritative form does
+	 * (`225 mins` for five 45-minute sessions on a full day).
+	 */
+	perDayTeachingMinutes: number;
+	/** Per-day teaching minutes + effective adviser credit (reference load block). */
+	perDayTotalTeachingLoad: number;
 	/** Daily teaching-only totals: day -> teaching minutes. */
 	dailyTotals: Record<string, number>;
 	/** Warnings generated during workload assembly */
@@ -738,6 +747,9 @@ export async function buildTeacherProgramExportShape(params: {
 		advisorySectionLabel: isRealAdviser ? (faculty.advisedSectionName ?? null) : null,
 		actualTeachingMinutes: teachingMinutes,
 		totalTeachingLoad,
+		// Reference convention: the form states one full teaching day.
+		perDayTeachingMinutes: SCHOOL_DAYS.reduce((max, day) => Math.max(max, dailyTotals[day] ?? 0), 0),
+		perDayTotalTeachingLoad: SCHOOL_DAYS.reduce((max, day) => Math.max(max, dailyTotals[day] ?? 0), 0) + advisoryMinutesPerWeek,
 		dailyTotals,
 		warnings,
 	};
