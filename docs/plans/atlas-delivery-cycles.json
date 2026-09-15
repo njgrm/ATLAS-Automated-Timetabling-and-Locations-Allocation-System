@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T16:13:51.241Z",
+    "lastUpdatedAt": "2026-09-15T16:16:23.233Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 77
+    "revision": 78
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1963,11 +1963,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T16:13:51.241Z",
-      "nextAction": "C-6R2 QA ACCEPT_READY over candidate 809fa67b (eight verified mandatory source gates: diagnostics-reply precedence closure, boundary/scope suites, C-4 parity, C-5 cold-load, TL C05/R3 suites, rule-13 mutants load-bearing, client tsc plus build, changed-path and preservation checks); integrate on current main and commission the fresh Wave Completion Auditor at high before closure.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T16:16:23.233Z",
+      "nextAction": "Commission the fresh post-C-6R2 Wave Completion Auditor at high over integration e6b25897 and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the eligible clean worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -1975,7 +1975,7 @@
         "branch": "work/tl-operator-workspace-c05-scope-epoch",
         "baseSha": "56b317c5189169666ba14c0c081be94f9b85dceb",
         "candidateSha": "809fa67b8e9bbb03044c239b78baefc4c4e2f4a9",
-        "integrationSha": null,
+        "integrationSha": "e6b258979ccf1fb6c727a8a17dc1a893f4dda750",
         "changedPaths": [
           "atlas-client/src/hooks/useTeachingLoadData.ts",
           "atlas-client/src/lib/__tests__/tl-authority-diagnostics-cold-load.test.ts",
@@ -1987,8 +1987,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "2b4c436968ee83117c2f6919eb0f99bec707bced",
-          "observedAt": "2026-09-15T15:32:36.181Z",
+          "sha": "e6b258979ccf1fb6c727a8a17dc1a893f4dda750",
+          "observedAt": "2026-09-15T16:16:23.233Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
