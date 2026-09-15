@@ -352,6 +352,19 @@ test('mounted teacher-program.docx fails closed without a term and across school
 	assert.equal(calls.length, 0, 'rejected teacher-program requests must dispatch zero downstream reads/writes');
 });
 
+// ─── C05 M16 — unknown faculty on an official export fails closed with zero bytes ───
+
+test('teacher-program.docx fails closed for a faculty member outside the run scope', { skip: harnessSkip }, async () => {
+	calls.length = 0;
+	const response = await fetch(`${baseUrl}/api/v1/generation/${SCHOOL_ID}/${SCHOOL_YEAR_ID}/runs/${RUN_ID}/export/teacher-program.docx?facultyId=999&termIndex=1`, {
+		headers: { Authorization: `Bearer ${authToken(SCHOOL_ID)}` },
+	});
+	assert.equal(response.status, 404);
+	assert.equal((await response.json() as any).code, 'FACULTY_NOT_FOUND');
+	assert.equal(response.headers.get('content-disposition'), null, 'a rejected export must not attach a file');
+	assert.equal(calls.some((call) => WRITE_METHODS.has(call.method)), false, 'a rejected export must not write');
+});
+
 // ─── C05 M11/M15/M18 — mounted room-program.xlsx route ───
 
 test('mounted room-program.xlsx returns a scoped workbook with identity, zero writes, and no reference-only subject', {

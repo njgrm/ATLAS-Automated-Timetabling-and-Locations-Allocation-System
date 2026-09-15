@@ -19,12 +19,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
 import { withDataContext } from '../lib/data-context.js';
+import { resolveSchedulingPolicyForRead } from '../services/scheduling-policy.service.js';
 import {
 	exportClassProgramWorkbook,
 	exportSummaryWorkbook,
@@ -429,6 +430,32 @@ test('M22: real builders produce DOCX/XLSX artifacts with exact bidirectional va
 	assert.match(presentation.summary.totalTeachingLoad.toString(), /^\d+$/, 'the load summary is numeric');
 	assert.ok(docxBuffer.length > 0);
 	void docxText;
+});
+
+// ─── M15/T8/G11 — the room read resolves policy passively (zero writes) ───
+
+test('M15/T8: the room-read policy resolver performs zero writes and the room view never calls the creating path', async () => {
+	const calls: string[] = [];
+	const instrumented = {
+		schedulingPolicy: {
+			findUnique: async () => { calls.push('findUnique'); return null; },
+			create: async () => { calls.push('create'); throw new Error('UNEXPECTED WRITE: schedulingPolicy.create'); },
+			upsert: async () => { calls.push('upsert'); throw new Error('UNEXPECTED WRITE: schedulingPolicy.upsert'); },
+			update: async () => { calls.push('update'); throw new Error('UNEXPECTED WRITE: schedulingPolicy.update'); },
+			executeRaw: async () => { calls.push('executeRaw'); throw new Error('UNEXPECTED WRITE: executeRaw'); },
+			queryRaw: async () => { calls.push('queryRaw'); throw new Error('UNEXPECTED WRITE: queryRaw'); },
+		},
+	};
+
+	// A missing persisted policy resolves in-memory defaults for the read only.
+	const policy = await resolveSchedulingPolicyForRead(SCHOOL_ID, SCHOOL_YEAR_ID, instrumented as any);
+	assert.ok(policy, 'a missing policy resolves an in-memory read default');
+	assert.deepEqual(calls, ['findUnique'], 'the passive read performs exactly one read and zero writes');
+
+	// Failing-first control: the retired creating path is the one that writes.
+	const roomService = readFileSync(new URL('../services/room-schedule.service.ts', import.meta.url), 'utf8');
+	assert.match(roomService, /resolveSchedulingPolicyForRead/, 'the room read uses the passive policy reader');
+	assert.doesNotMatch(roomService, /getOrCreatePolicy/, 'the room read must never call the creating/DDL policy path');
 });
 
 // ─── M10 — teacher-program DOCX presentation parity ───
