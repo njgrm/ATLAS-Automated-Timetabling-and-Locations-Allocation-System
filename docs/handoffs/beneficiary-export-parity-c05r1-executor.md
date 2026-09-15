@@ -20,9 +20,10 @@
 | Correction commit 3 (instrumented draft-export zero-write control) | `c7533e4a` |
 | Correction commit 4 (reference per-day totals convention in the load block) | `0b48b1a1` |
 | Correction commit 5 (contract classification) + 6 (this handoff) | `a715b84e` |
+| Correction commits 7–8 (docs-only QA round 1: F1 path inventory + F2 contract cross-reference/classification, then this pin) | `af3b10a6` + the docs-only pin commit directly above it |
 | Final **source** candidate (last product/test commit) | `0b48b1a1` |
-| Final **tip** (docs-only over the source candidate; this reconciliation commit) | `HEAD` at freeze — see the return message |
-| Cumulative range | `076b4b2d..HEAD` |
+| Final **tip** (docs-only over the source candidate) | `af3b10a6` (F1/F2 correction) plus the docs-only pin commit directly above it |
+| Cumulative range | `076b4b2d..af3b10a6` (the pin commit above changes only this pin row) |
 | Immutable correction range (prior candidate → source candidate) | `691a7c4a..0b48b1a1` |
 
 No amend, rebase, reset, squash, merge, or push. Every commit is additive.
@@ -244,7 +245,7 @@ contains no generated render, screenshot, or scratch file.
 
 ## 13. Single next action
 
-Primary planner: verify the immutable range (`076b4b2d..<final tip>`; product/test
+Primary planner: verify the immutable range (`076b4b2d..af3b10a6`; product/test
 range `691a7c4a..0b48b1a1`), then commission fresh independent QA on the frozen
 candidate (control 12/13 render evidence and the per-day totals convention are
 the highest-value re-checks). Do not integrate or push from this handoff; the
