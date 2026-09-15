@@ -18,6 +18,17 @@ Canonical directive: fetch `origin/main`, read `origin/main:AGENTS.md`, and reco
 - Add correction commits on top. Refresh `origin/main` only to record drift and integration risk; do not merge it into this worktree.
 - The planner must verify the worktree is clean at dispatch. If it is dirty, inventory and attribute every byte before assigning ownership; never discard or blanket-stage it.
 
+## Parallel-wave ownership boundary
+
+This source lane may run while `WF-C04` and `TL-OPERATOR-WORKSPACE-C05` run, subject to these hard ownership rules:
+
+- `WF-C04` exclusively owns `ops/workflow/**`, `docs/plans/**`, generated workflow state/register artifacts, workflow receipts, and any `AGENTS.md` workflow-rule change. This lane shall not edit them.
+- `TL-OPERATOR-WORKSPACE-C05` exclusively owns `atlas-client/src/types.ts`, `atlas-client/src/pages/TeachingLoad.tsx`, `atlas-client/src/hooks/useTeachingLoad*.ts`, `atlas-client/src/components/faculty-assignments/**`, `atlas-client/src/lib/teaching-load*.ts`, `atlas-client/src/lib/faculty-assignment-helpers.ts`, and `atlas-server/src/services/teaching-load-reconciliation.service.ts`. This lane shall not edit them.
+- Define export/signatory API types in dedicated export modules rather than the shared `atlas-client/src/types.ts` while the TL owner is active.
+- This lane owns only beneficiary-export services/routes/tests, its new export-presentation settings modules/UI, any narrowly required Prisma model/migration source, and its handoff/review docs.
+- The persistent Playwright profile is not required for source or DOCX render QA and shall not be opened by this lane. Use a unique `%TEMP%/opencode/beneficiary-export-parity-c05r1/<role-or-round>` render directory; never reuse an earlier QA directory or claim custody of another role's Word/renderer process.
+- If implementation discovers a required edit in another lane's exclusive path, record the dependency and route a bounded request through the head planner. Do not silently widen ownership.
+
 ## Governing evidence
 
 - Contract: `docs/reference/atlas-teacher-program-output-contract-2026-09-15.md` from this packet's branch or exact copied content below the executor handoff.
