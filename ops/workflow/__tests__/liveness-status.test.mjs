@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 import { STATUS_CLI, REPO_ROOT, runCli, sha256 } from "./harness.mjs";
 import { observabilityPaths, writeHeartbeat, buildHeartbeat, OBSERVABILITY_ROOT } from "../lib/observability.mjs";
 import { gitCommonDir } from "../lib/git.mjs";
+import { profileKey, DEFAULT_PROFILE } from "../lib/custody.mjs";
 import {
   CLASSIFICATIONS,
   DEFAULT_ACTIVE_WINDOW_MS,
@@ -307,6 +308,32 @@ test("the notification surface writes only local ring-buffer state", (t) => {
   );
   assert.equal(rejected.status, 1, "an unknown notification kind must fail closed");
   assert.equal(rejected.json.errors[0].code, "NOTIFICATION_KIND_INVALID");
+});
+
+test("workflow:status surfaces an unreadable custody record instead of dropping it", (t) => {
+  const commonDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfc03-status-custody-"));
+  t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
+  const paths = observabilityPaths(commonDir);
+  fs.mkdirSync(paths.custodyDir, { recursive: true });
+  const file = paths.custodyFile(profileKey(DEFAULT_PROFILE));
+  fs.writeFileSync(file, "{ this is not json\n");
+
+  const result = runCli(STATUS_CLI, ["--state", STATE, "--common-dir", commonDir, "--json", "--now", NOW_ISO], { cwd: REPO_ROOT });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.json.status, "ok");
+  assert.equal(result.json.summary.custody, null, "an unreadable record must never be reported as a valid lease");
+  assert.equal(result.json.summary.custodyUnreadable.path, file);
+  assert.match(result.json.summary.custodyUnreadable.reason, /not valid JSON/);
+  assert.match(result.json.summary.custodyUnreadable.recovery, /uncertain custody/);
+  assert.match(result.json.summary.custodyUnreadable.recovery, /Manual operator recovery/);
+  assert.equal(result.json.summary.unreadableLeases.length, 1);
+  assert.ok(result.json.nextActions.some((a) => a.scope === "custody" && /uncertain custody/.test(a.action)));
+  assert.ok(result.json.artifacts.some((a) => a.kind === "custody-unreadable" && a.path === file));
+
+  // The concise human view carries the same instruction.
+  const human = runCli(STATUS_CLI, ["--state", STATE, "--common-dir", commonDir, "--now", NOW_ISO], { cwd: REPO_ROOT });
+  assert.equal(human.status, 0);
+  assert.match(human.stdout, /next custody: uncertain custody/);
 });
 
 test("malformed classification inputs are usage errors, not silent defaults", (t) => {

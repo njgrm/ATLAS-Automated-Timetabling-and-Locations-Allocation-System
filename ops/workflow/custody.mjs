@@ -28,10 +28,11 @@ import {
   release,
   recover,
   recordLogin,
-  readLease,
+  readLeaseResult,
   listLeases,
   summarizeLease,
   recoveryInstructions,
+  unreadableRecovery,
   DEFAULT_ORIGIN,
   DEFAULT_PROFILE,
   DEFAULT_TTL_MS,
@@ -152,8 +153,34 @@ function withLock(fn) {
 
 try {
   if (op === "status") {
-    const lease = readLease(paths, profile);
-    const summary = lease ? summarizeLease(lease, now) : null;
+    const read = readLeaseResult(paths, profile);
+    const entries = listLeases(paths);
+    const knownLeases = entries.leases.map((l) => summarizeLease(l, now));
+    const unreadableLeases = entries.unreadable.map((u) => ({ ...u, recovery: unreadableRecovery(u.path) }));
+
+    // An existing-but-unreadable record is uncertain custody. Reporting it as
+    // "no lease" (or exiting 0) would let a caller assume the profile is free.
+    if (read.kind === "UNREADABLE") {
+      const recovery = unreadableRecovery(read.path);
+      emit({
+        status: "fail",
+        summary: {
+          operation: op,
+          profile,
+          origin: parsed.values.origin || DEFAULT_ORIGIN,
+          lease: null,
+          unreadable: { path: read.path, reason: read.reason, recovery },
+          unreadableLeases,
+          leases: knownLeases,
+        },
+        nextActions: [{ scope: "custody", action: recovery }],
+        artifacts: [{ kind: "custody", profile, leaseId: null, path: read.path }],
+        errors: [{ code: "CUSTODY_UNREADABLE", message: read.reason, path: read.path }],
+      });
+      process.exit(1);
+    }
+
+    const summary = read.lease ? summarizeLease(read.lease, now) : null;
     emit({
       status: "ok",
       summary: {
@@ -162,7 +189,8 @@ try {
         origin: parsed.values.origin || DEFAULT_ORIGIN,
         lease: summary,
         recovery: summary ? recoveryInstructions(summary) : "no custody lease exists for this profile",
-        leases: listLeases(paths).map((l) => summarizeLease(l, now)),
+        unreadableLeases,
+        leases: knownLeases,
       },
       nextActions: summary ? [{ scope: summary.leaseId, action: recoveryInstructions(summary) }] : [],
       artifacts: [],

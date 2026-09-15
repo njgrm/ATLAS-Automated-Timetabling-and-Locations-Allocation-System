@@ -29,7 +29,8 @@ import {
   release,
   recover,
   recordLogin,
-  readLease,
+  readLeaseResult,
+  listLeases,
   summarizeLease,
   effectiveState,
   recoveryInstructions,
@@ -145,7 +146,7 @@ test("acquire binds session/role/stream/profile/origin/budget/cleanup and revisi
   assert.equal(lease.cleanupStatus, "PENDING");
   assert.equal(lease.issuedAt, T0);
   assert.equal(lease.expiresAt, "2026-09-15T01:30:00.000Z");
-  const stored = readLease(paths, DEFAULT_PROFILE);
+  const stored = readLeaseResult(paths, DEFAULT_PROFILE).lease;
   assert.equal(stored.leaseId, lease.leaseId);
   assert.deepEqual(
     lease.history.map((h) => h.op),
@@ -520,4 +521,130 @@ test("the custody CLI status op reads a released lease and never writes", async 
   assert.equal(result.json.summary.lease, null);
   assert.match(result.json.summary.recovery, /no custody lease exists/);
   assert.deepEqual(listFiles(obsRoot), before, "status must not create or change custody state");
+});
+
+// ---- Malformed custody records are uncertain custody, never free -----------
+//
+// A file that exists but cannot be read or validated is NOT the same as no
+// lease. It must fail every operation closed, byte-identically, and only an
+// explicit out-of-band removal may clear it.
+
+const CORRUPT_BYTES = "{ this is not json\n";
+const FOREIGN_SCHEMA = `${JSON.stringify({ schema: "some.other.lease/9", leaseId: "lease-foreign", revision: 3 }, null, 2)}\n`;
+
+function seedLeaseFile(paths, contents) {
+  fs.mkdirSync(paths.custodyDir, { recursive: true });
+  const file = custodyFilePath(paths, DEFAULT_PROFILE);
+  fs.writeFileSync(file, contents);
+  return file;
+}
+
+for (const [label, contents] of [
+  ["unparseable JSON", CORRUPT_BYTES],
+  ["a foreign-schema record", FOREIGN_SCHEMA],
+]) {
+  test(`a lease file containing ${label} is uncertain custody for every operation`, (t) => {
+    const paths = mkPaths(t);
+    const file = seedLeaseFile(paths, contents);
+    const before = sha256(fs.readFileSync(file));
+
+    expectCode(paths, () => owner(paths, { sessionId: "ses_rival" }), "CUSTODY_UNREADABLE");
+    expectCode(paths, () => renew({ paths, leaseId: "lease-any", sessionId: "ses_owner", expectedRevision: 1, now: T0 }), "CUSTODY_UNREADABLE");
+    expectCode(
+      paths,
+      () => transferRequest({ paths, leaseId: "lease-any", sessionId: "ses_owner", expectedRevision: 1, toSessionId: "ses_next", toRole: "qa", now: T0 }),
+      "CUSTODY_UNREADABLE",
+    );
+    expectCode(paths, () => transferAck({ paths, leaseId: "lease-any", sessionId: "ses_owner", expectedRevision: 1, now: T0 }), "CUSTODY_UNREADABLE");
+    expectCode(
+      paths,
+      () => release({ paths, leaseId: "lease-any", sessionId: "ses_owner", expectedRevision: 1, cleanupComplete: true, now: T0 }),
+      "CUSTODY_UNREADABLE",
+    );
+    expectCode(
+      paths,
+      () => recover({ paths, profile: DEFAULT_PROFILE, leaseId: "lease-any", expectedRevision: 1, operator: "op", reason: "clear it", confirm: true, now: T0 }),
+      "CUSTODY_UNREADABLE",
+    );
+    expectCode(paths, () => recordLogin({ paths, leaseId: "lease-any", sessionId: "ses_owner", expectedRevision: 1, now: T0 }), "CUSTODY_UNREADABLE");
+
+    assert.equal(sha256(fs.readFileSync(file)), before, "the malformed file must stay byte-identical after every rejected operation");
+    assert.equal(fs.existsSync(file), true, "a malformed lease is never auto-cleared");
+    assert.deepEqual(
+      listFiles(paths.root).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock")),
+      [],
+      "a rejected operation must leave no staged or lock residue",
+    );
+  });
+}
+
+test("the read model distinguishes absent, valid, and unreadable custody records", (t) => {
+  const paths = mkPaths(t);
+  assert.equal(readLeaseResult(paths, DEFAULT_PROFILE).kind, "ABSENT");
+
+  const { lease } = owner(paths);
+  const ok = readLeaseResult(paths, DEFAULT_PROFILE);
+  assert.equal(ok.kind, "OK");
+  assert.equal(ok.lease.leaseId, lease.leaseId);
+
+  const file = seedLeaseFile(paths, CORRUPT_BYTES);
+  const bad = readLeaseResult(paths, DEFAULT_PROFILE);
+  assert.equal(bad.kind, "UNREADABLE");
+  assert.equal(bad.lease, null);
+  assert.equal(bad.path, file);
+  assert.match(bad.reason, /not valid JSON/);
+
+  const entries = listLeases(paths);
+  assert.deepEqual(entries.leases, [], "an unreadable record is never reported as a valid lease");
+  assert.equal(entries.unreadable.length, 1);
+  assert.equal(entries.unreadable[0].path, file);
+  assert.match(entries.unreadable[0].reason, /not valid JSON/);
+});
+
+test("a malformed record is never auto-cleared, and an explicit removal restores acquisition", (t) => {
+  const paths = mkPaths(t);
+  const file = seedLeaseFile(paths, CORRUPT_BYTES);
+
+  expectCode(paths, () => owner(paths, { sessionId: "ses_rival" }), "CUSTODY_UNREADABLE");
+  assert.equal(fs.existsSync(file), true, "a failed acquire must not remove the malformed file");
+
+  // Only an explicit, out-of-band removal by an operator clears uncertain custody.
+  fs.unlinkSync(file);
+  assert.equal(readLeaseResult(paths, DEFAULT_PROFILE).kind, "ABSENT");
+  const { lease } = owner(paths, { sessionId: "ses_rival" });
+  assert.equal(lease.sessionId, "ses_rival");
+  assert.equal(lease.revision, 1);
+});
+
+test("the custody CLI status op fails closed and names an unreadable record", async (t) => {
+  const repo = getSharedRepo();
+  const statePath = writeState(repo, "custody-corrupt-status-state.json", substitute(fixtureRaw("pass-ordinary.json"), repoSubstitutions(repo)));
+  const obsRoot = path.join(repo.dir, ".git", OBSERVABILITY_ROOT);
+  t.after(() => {
+    try {
+      fs.rmSync(obsRoot, { recursive: true, force: true });
+    } catch {
+      /* best effort */
+    }
+  });
+
+  const leaseDir = path.join(obsRoot, "custody");
+  fs.mkdirSync(leaseDir, { recursive: true });
+  const file = path.join(leaseDir, `${profileKey(DEFAULT_PROFILE)}.json`);
+  fs.writeFileSync(file, CORRUPT_BYTES);
+  const before = sha256(fs.readFileSync(file));
+
+  const result = await runCliAsync(CUSTODY_CLI, ["--op", "status", "--state", statePath, "--now", T0], repo.dir);
+  assert.equal(result.code, 1, result.raw);
+  assert.equal(result.json.status, "fail");
+  assert.equal(result.json.errors[0].code, "CUSTODY_UNREADABLE");
+  assert.equal(result.json.summary.unreadable.path, file);
+  assert.match(result.json.summary.unreadable.recovery, /uncertain custody/);
+  assert.match(result.json.summary.unreadable.recovery, /by hand/);
+  assert.equal(sha256(fs.readFileSync(file)), before, "status must not rewrite the malformed record");
+  assert.deepEqual(
+    listFiles(obsRoot).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock")),
+    [],
+    "status must leave no lock or staged residue",
+  );
 });

@@ -293,6 +293,11 @@ export function applyToolAction(existing, toolName, context = {}) {
 
 // ---- Heartbeat persistence -------------------------------------------------
 
+// NOTE: unlike the browser custody lease, a heartbeat is ADVISORY local
+// monitoring state. A missing, oversized, or corrupt session record is treated
+// as "no heartbeat", and a later event legitimately rewrites it. Custody state
+// must never be treated this way: an unreadable lease is uncertain custody and
+// every custody operation fails closed (see `readLeaseResult` in custody.mjs).
 export function readHeartbeat(paths, sessionId) {
   let raw;
   try {

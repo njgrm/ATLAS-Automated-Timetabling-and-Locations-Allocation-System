@@ -25,7 +25,7 @@ import {
   pushNotification,
   nowIso,
 } from "./lib/observability.mjs";
-import { listLeases, readLease, summarizeLease, recoveryInstructions, DEFAULT_PROFILE } from "./lib/custody.mjs";
+import { listLeases, readLeaseResult, summarizeLease, recoveryInstructions, unreadableRecovery, DEFAULT_PROFILE } from "./lib/custody.mjs";
 import { buildSessionView, registerSnapshot, reconcileRegister, summarizeClassifications, formatHuman, DEFAULT_ACTIVE_WINDOW_MS } from "./lib/liveness.mjs";
 
 function emit(report, asJson) {
@@ -111,7 +111,9 @@ if (!commonDir) {
 
 const paths = observabilityPaths(commonDir);
 const heartbeats = listHeartbeats(paths);
-const leases = listLeases(paths);
+const leaseEntries = listLeases(paths);
+const leases = leaseEntries.leases;
+const unreadableLeases = leaseEntries.unreadable.map((entry) => ({ ...entry, recovery: unreadableRecovery(entry.path) }));
 const leaseBySession = new Map(leases.map((lease) => [lease.leaseId, summarizeLease(lease, nowEpoch)]));
 const register = registerSnapshot(result.doc);
 
@@ -122,8 +124,12 @@ const views = heartbeats.map((record) => {
 
 const reconcile = reconcileRegister({ register, heartbeats });
 const profile = parsed.values.profile || DEFAULT_PROFILE;
-const profileLease = readLease(paths, profile);
-const custody = profileLease ? summarizeLease(profileLease, nowEpoch) : null;
+const profileRead = readLeaseResult(paths, profile);
+// An existing-but-unreadable record is uncertain custody. It is reported with
+// its path and reason, never folded into "no lease exists".
+const custodyUnreadable =
+  profileRead.kind === "UNREADABLE" ? { path: profileRead.path, reason: profileRead.reason, recovery: unreadableRecovery(profileRead.path) } : null;
+const custody = profileRead.lease ? summarizeLease(profileRead.lease, nowEpoch) : null;
 
 const nextActions = [];
 if (result.doc.coordination.globalNextAction) {
@@ -131,6 +137,9 @@ if (result.doc.coordination.globalNextAction) {
 }
 for (const view of views) {
   if (view.classification !== "ACTIVE") nextActions.push({ scope: view.sessionId, action: view.recovery });
+}
+for (const entry of unreadableLeases) {
+  nextActions.push({ scope: "custody", action: entry.recovery });
 }
 for (const stream of result.doc.streams) {
   if (stream.nextAction) nextActions.push({ scope: stream.id, action: stream.nextAction });
@@ -150,6 +159,9 @@ for (const record of heartbeats) {
 }
 for (const view of views) {
   if (view.worktree) artifacts.push({ kind: "worktree", path: view.worktree, head: view.observedHead, processId: view.processId });
+}
+for (const entry of unreadableLeases) {
+  artifacts.push({ kind: "custody-unreadable", path: entry.path, reason: entry.reason });
 }
 artifacts.sort((a, b) => (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
@@ -179,6 +191,8 @@ const report = {
     sessions: { total: views.length, byClassification: summarizeClassifications(views), views },
     reconcile,
     custody: custody ? { ...custody, recovery: recoveryInstructions(custody) } : null,
+    custodyUnreadable,
+    unreadableLeases,
     notifications: notifications.entries,
     observedAt: now,
     statePath,

@@ -10,8 +10,8 @@ pushed, not self-accepted.
 - Accepted base: `3a1a175997463c16d6e6c2c2eaca8165539166bb` (F0 checkpoint, adopted
   by planner decision; unamended)
 - Product candidate: `a4ca89c53a6f925c0ee58add5ec49886c95401cb`
-- Frozen tip: the docs-only commit containing this handoff (the tip SHA is
-  reported by the executor in its return message; verify with
+- Frozen tip: the R1 correction commit at the end of this file's commit table
+  (its SHA is reported by the executor in its return message; verify with
   `git rev-parse HEAD`)
 
 Commits on top of the base:
@@ -21,7 +21,8 @@ Commits on top of the base:
 | `eeee4823` | `feat(workflow): add local observability heartbeat store and OpenCode plugin` |
 | `89f67575` | `feat(workflow): add exclusive browser-profile custody lease` |
 | `a4ca89c5` | `feat(workflow): add truthful liveness, workflow:status, and recovery controls` |
-| _(this file)_ | `docs(workflow): add WF-C03 executor handoff` |
+| `a8467490` | `docs(workflow): add WF-C03 executor handoff` |
+| _(R1)_ | `fix(workflow): fail closed on an unreadable custody record` |
 
 ### Adoption protocol
 
@@ -31,6 +32,53 @@ interrupted draft. The dirty-path list was re-recorded unchanged before editing
 (`git update-index --refresh` + `git status --porcelain=v1`), every residual file
 was read and re-derived, and defects found in it were fixed (see Risks R5/R6).
 Nothing from the interrupted session is treated as evidence.
+
+## R1 correction (after fresh QA returned `CORRECTION_REQUIRED` 20/19/1/0)
+
+**Finding F1 (single blocking).** `lib/custody.mjs` conflated "lease file absent"
+with "lease file present but unreadable": `readLease` returned `null` for any
+read/parse/schema failure, `acquire` treated `null` as free custody and
+overwrote the bytes, and `listLeases` silently dropped the unparseable record.
+This violated B3 — only a verified owner release or an explicit operator recovery
+may clear uncertain custody.
+
+**Failing-first evidence against the pre-fix bytes (`a8467490`).** A probe using
+only the pre-fix API on a profile seeded with `{ this is not json` printed:
+
+```
+outcome: ACQUIRE_SUCCEEDED (defect: corrupt bytes treated as free custody)
+corruptBytesOverwritten: true
+readLeaseReturns: null (absent and corrupt conflated)
+```
+
+**Fix (one reader, no conflation).**
+
+- `readLeaseResult(paths, profile)` returns `ABSENT` | `OK` | `UNREADABLE`.
+  `ENOENT` is the only absent case; any other read error, JSON parse failure, or
+  failed structural validation is `UNREADABLE`.
+- `parseLeaseStrict` validates `schema`, `leaseId`, `revision`, `sessionId`,
+  `profile`, and `state`, and never repairs a malformed record into a lease.
+- `loadForMutation` and `acquire` throw `CUSTODY_UNREADABLE` (with the path and
+  reason) for an unreadable record; the conflating `readLease` accessor is
+  removed, so no production path can mistake corruption for free custody.
+- `listLeases` now returns `{ leases, unreadable }`, so an unreadable record is
+  reported instead of dropped.
+- `workflow:custody --op status` exits `1` with `CUSTODY_UNREADABLE` and names
+  the path, reason, and manual-recovery instruction. `workflow:status` (read-only
+  liveness) reports `summary.custodyUnreadable` + `summary.unreadableLeases` + a
+  `custody` next action + a `custody-unreadable` artifact, and never reports "no
+  lease" for that profile.
+- No auto-clear anywhere, including `recover --confirm`, which fails closed on an
+  unreadable record. The documented recovery is manual: after proving no custody
+  is live, remove that single file by hand and re-acquire (README invariant list).
+- `lib/observability.mjs` documents that heartbeat/notification records are
+  advisory and intentionally reset — no behavior change.
+
+**New controls.** Five custody rows (unparseable JSON and foreign-schema matrices
+covering all seven operations with byte-identical before/after assertions and no
+`.tmp`/`.lock` residue; read-model classification; no-auto-clear plus a
+manual-removal positive control; the CLI status row) and one `workflow:status`
+surfacing row.
 
 ## Changed paths (`git diff --name-only 3a1a1759..a4ca89c5`)
 

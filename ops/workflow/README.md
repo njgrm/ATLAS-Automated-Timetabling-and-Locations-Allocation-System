@@ -339,6 +339,21 @@ Invariants:
   `CUSTODY_*` code and **mutates nothing**.
 - A transfer is two-step: the current owner requests it, and only the target may
   acknowledge it, which moves the lease.
+- **A lease file that exists but cannot be read or validated is uncertain
+  custody, never free custody.** `readLeaseResult` distinguishes `ABSENT` from
+  `UNREADABLE`, and every operation — `acquire`, `renew`, `transfer-request`,
+  `transfer-ack`, `release`, `recover`, `login`, `status` — fails closed with
+  `CUSTODY_UNREADABLE` and leaves the file byte-identical. There is no automatic
+  clear, and `recover --confirm` will not rewrite an unreadable record. The only
+  documented recovery mirrors the lock doctrine: after proving that no custody is
+  live, an operator removes that single corrupt file by hand and re-acquires.
+  `workflow:custody --op status` exits `1` with `CUSTODY_UNREADABLE` and names the
+  path, reason, and manual-recovery instruction; `workflow:status` reports the
+  same in `summary.custodyUnreadable` and `summary.unreadableLeases` plus a
+  `custody` next action, and never reports "no lease" for that profile.
+- Heartbeats and notifications are **advisory** local monitoring state and are
+  intentionally reset when a record is missing or corrupt; custody records are
+  not, and `lib/observability.mjs` documents that distinction at the reader.
 - Lease mutations are serialized through an exclusive lock under the Git common
   dir that reuses the state-transition lock's publish/reclaim/claim-mutex
   semantics, so two concurrent acquires commit exactly one lease plus one typed

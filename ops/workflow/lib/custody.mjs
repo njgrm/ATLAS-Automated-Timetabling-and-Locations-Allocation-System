@@ -177,47 +177,114 @@ export function buildLease(input) {
   };
 }
 
-export function parseLease(raw) {
+/**
+ * Strict structural validation. A record that parses but fails any of these
+ * checks is NOT repaired into a lease: silently coercing a malformed record
+ * (for example defaulting a missing revision to 1) would launder corrupt custody
+ * state into an apparently valid lease.
+ */
+export function parseLeaseStrict(raw) {
   let parsed;
   try {
     parsed = JSON.parse(raw.toString("utf8"));
-  } catch {
-    return null;
+  } catch (err) {
+    return { ok: false, reason: `lease file is not valid JSON: ${err.message}` };
   }
-  if (!parsed || parsed.schema !== CUSTODY_SCHEMA || typeof parsed.leaseId !== "string") return null;
-  return buildLease(parsed);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, reason: "lease record is not a JSON object" };
+  }
+  if (parsed.schema !== CUSTODY_SCHEMA) {
+    return { ok: false, reason: `lease record schema ${JSON.stringify(parsed.schema)} is not ${CUSTODY_SCHEMA}` };
+  }
+  if (typeof parsed.leaseId !== "string" || parsed.leaseId.length === 0) {
+    return { ok: false, reason: "lease record has no non-empty string leaseId" };
+  }
+  if (!Number.isInteger(parsed.revision) || parsed.revision < 1) {
+    return { ok: false, reason: `lease record revision ${JSON.stringify(parsed.revision)} is not a positive integer` };
+  }
+  if (typeof parsed.sessionId !== "string" || parsed.sessionId.length === 0) {
+    return { ok: false, reason: "lease record has no non-empty string sessionId" };
+  }
+  if (typeof parsed.profile !== "string" || parsed.profile.length === 0) {
+    return { ok: false, reason: "lease record has no non-empty string profile" };
+  }
+  if (!["ACTIVE", "STALE_UNCONFIRMED", "RELEASED"].includes(parsed.state)) {
+    return { ok: false, reason: `lease record state ${JSON.stringify(parsed.state)} is not a known custody state` };
+  }
+  return { ok: true, lease: buildLease(parsed) };
 }
 
-export function readLease(paths, profile) {
+/**
+ * Read the custody state for one profile with THREE distinct outcomes:
+ *
+ *   ABSENT     — no lease file exists; custody is genuinely free
+ *   OK         — a complete, structurally valid lease
+ *   UNREADABLE — a file exists but cannot be read/parsed/validated
+ *
+ * `UNREADABLE` is uncertain custody, never free custody. Not comparable with a
+ * missing lease, so no caller may treat it as "no lease".
+ */
+export function readLeaseResult(paths, profile) {
+  const filePath = custodyFilePath(paths, profile);
   let raw;
   try {
-    raw = fs.readFileSync(custodyFilePath(paths, profile));
-  } catch {
-    return null;
+    raw = fs.readFileSync(filePath);
+  } catch (err) {
+    if (err && err.code === "ENOENT") return { kind: "ABSENT", lease: null, path: filePath, reason: null };
+    return { kind: "UNREADABLE", lease: null, path: filePath, reason: `lease file is unreadable (${(err && err.code) || "unknown error"})` };
   }
-  return parseLease(raw);
+  const parsed = parseLeaseStrict(raw);
+  if (parsed.ok) return { kind: "OK", lease: parsed.lease, path: filePath, reason: null };
+  return { kind: "UNREADABLE", lease: null, path: filePath, reason: parsed.reason };
 }
 
-/** Read every custody lease under the observability root (status reconciliation). */
+/**
+ * Read every custody record under the observability root. Returns both the
+ * valid leases and the unreadable records: an unparseable file is reported, not
+ * dropped, so a status surface can never claim "no lease" while a corrupt one
+ * still occupies the profile.
+ */
 export function listLeases(paths) {
   let files;
   try {
     files = fs.readdirSync(paths.custodyDir);
   } catch {
-    return [];
+    return { leases: [], unreadable: [] };
   }
   const leases = [];
+  const unreadable = [];
   for (const file of files.filter((f) => f.endsWith(".json")).sort()) {
+    const filePath = path.join(paths.custodyDir, file);
     let raw;
     try {
-      raw = fs.readFileSync(path.join(paths.custodyDir, file));
-    } catch {
+      raw = fs.readFileSync(filePath);
+    } catch (err) {
+      if (err && err.code === "ENOENT") continue;
+      unreadable.push({ path: filePath, reason: `lease file is unreadable (${(err && err.code) || "unknown error"})` });
       continue;
     }
-    const lease = parseLease(raw);
-    if (lease) leases.push(lease);
+    const parsed = parseLeaseStrict(raw);
+    if (parsed.ok) leases.push(parsed.lease);
+    else unreadable.push({ path: filePath, reason: parsed.reason });
   }
-  return leases;
+  return { leases, unreadable };
+}
+
+/**
+ * The documented manual recovery for an unreadable custody record. There is no
+ * automatic clear: mirroring the lock doctrine, an operator may remove the single
+ * corrupt file only after proving that no custody is live, then re-acquire.
+ */
+export function unreadableRecovery(filePath) {
+  return `uncertain custody: ${filePath} exists but could not be read, so this lease is NOT free. Manual operator recovery is required: only after proving that no custody is live, remove that single file by hand and re-acquire; there is no automatic clear.`;
+}
+
+function unreadableError(profile, result) {
+  return new CustodyError(
+    "CUSTODY_UNREADABLE",
+    `custody for profile ${profile} is uncertain: ${result.path} exists but could not be read (${result.reason}); refusing to treat it as free custody`,
+    { path: result.path, reason: result.reason },
+  );
 }
 
 export function writeLease(paths, lease) {
@@ -226,10 +293,12 @@ export function writeLease(paths, lease) {
 }
 
 function loadForMutation(paths, profile, leaseId) {
-  const existing = readLease(paths, profile);
-  if (!existing) {
+  const read = readLeaseResult(paths, profile);
+  if (read.kind === "UNREADABLE") throw unreadableError(profile, read);
+  if (!read.lease) {
     throw new CustodyError("CUSTODY_UNKNOWN_LEASE", `no custody lease exists for profile ${profile}`);
   }
+  const existing = read.lease;
   if (leaseId !== undefined && leaseId !== null && existing.leaseId !== leaseId) {
     throw new CustodyError("CUSTODY_UNKNOWN_LEASE", `lease ${leaseId} does not match the active lease`);
   }
@@ -289,7 +358,9 @@ export function acquire({
   if (typeof cleanupOwner !== "string" || cleanupOwner.trim().length === 0) {
     throw new CustodyError("CUSTODY_CLEANUP_OWNER_MISSING", "acquire requires a named cleanup owner");
   }
-  const existing = readLease(paths, profile);
+  const read = readLeaseResult(paths, profile);
+  if (read.kind === "UNREADABLE") throw unreadableError(profile, read);
+  const existing = read.lease;
   const existingState = existing ? effectiveState(existing, now) : null;
   if (existing && existingState !== "RELEASED") {
     throw new CustodyError("CUSTODY_HELD", `profile ${profile} is already held by lease ${existing.leaseId} (${existingState})`, {
