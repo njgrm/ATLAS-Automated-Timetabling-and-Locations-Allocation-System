@@ -8,7 +8,7 @@
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5` (blob
 `a372b5b52b4e9e756cb1689abe8689a8edd2d898`) — matches the packet pin.
 **Risk tier:** MEDIUM source/client/tests/docs with a HIGH-class future migration apply (not performed).
-**Mechanically reconciled against git at `a2a6dc35` (2026-09-15 16:30 Asia/Manila).** Every commit SHA/subject, range endpoint and pin, changed-path list and count, suite/gate count, stakeholder/contract hash, and cross-reference in this handoff was re-verified against `git log`/`git diff`/`Get-FileHash` in one pass during QA round 2; the final tip pin lives in the last docs-only commit.
+**Mechanically reconciled against git at `dc05c933` (2026-09-15 16:30 Asia/Manila; product/test bytes remain at `0b48b1a1`).** Every commit SHA/subject, range endpoint and pin, changed-path list and count, suite/gate count, stakeholder/contract hash, and cross-reference in this handoff was re-verified against `git log`/`git diff`/`Get-FileHash` in one pass during QA round 2; the final tip pin lives in the last docs-only commit above `dc05c933`.
 
 ## 1. Immutable range
 
@@ -25,7 +25,8 @@ Rebuilt verbatim from `git log --oneline 691a7c4a..HEAD` (one row per commit, ex
 | `af2a54f9` | `docs(exports): pin the C05R1 final source candidate SHA in the handoff` |
 | `af3b10a6` | `docs(exports): correct C05R1 handoff path inventory and contract cross-reference` |
 | `a2a6dc35` | `docs(exports): pin the C05R1 QA-round-1 correction tip in the handoff` |
-| Round-2 reconciliation commit | `docs(exports): reconcile the C05R1 handoff against git (QA round 2)` — SHA pinned in the final docs commit |
+| `dc05c933` | `docs(exports): reconcile the C05R1 handoff against git (QA round 2)` |
+| Final docs-only pin commit | replaces this pin row with the SHA above and states that it is the final commit; it changes no other statement |
 
 | Derived pin | Value |
 |---|---|
@@ -34,7 +35,7 @@ Rebuilt verbatim from `git log --oneline 691a7c4a..HEAD` (one row per commit, ex
 | Frozen product/docs state before this docs-only round | `a2a6dc35` |
 | Cumulative range (product + docs) | `076b4b2d..a2a6dc35` |
 | Immutable correction range (prior candidate → source candidate) | `691a7c4a..0b48b1a1` |
-| Final tip pin | lives in the **last docs-only commit** (it changes only the reconciliation-commit row above) |
+| Final tip pin | lives in the **final docs-only commit** above `dc05c933` (it changes only the two pin rows in this table) |
 
 No amend, rebase, reset, squash, merge, or push. Every commit is additive.
 
