@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T06:36:10.577Z",
-    "lastUpdatedBy": "wf-c04-executor",
-    "revision": 22
+    "lastUpdatedAt": "2026-09-15T07:30:14.152Z",
+    "lastUpdatedBy": "primary-planner",
+    "revision": 27
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "WF-C04",
-    "globalNextAction": "WF-C04 critical path: return the frozen add-stream candidate to the planner, then fresh independent QA over the immutable range, integration from a clean current-main E-drive worktree, and a post-integration Wave Completion Audit. ENROLLPRO-PROXY-RECOVERY-LIVE remains EXTERNALLY_BLOCKED pending an elevated execution context; TERM-CACHE-CATCHUP-APPLY, LIVE-GENERATION, LIVE-PUBLICATION, and every live Teaching Load or companion action remain locked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "WF-C04 is integrated (merge 9530c7ea) pending the post-integration Wave Completion Audit; on AUDIT_CLEAR the cycle closes with its receipt. ENROLLPRO-PROXY-RECOVERY-LIVE remains EXTERNALLY_BLOCKED pending an elevated execution context; TERM-CACHE-CATCHUP-APPLY, LIVE-GENERATION, LIVE-PUBLICATION, and every live Teaching Load or companion action remain locked."
   },
   "streams": [
     {
@@ -1215,7 +1215,18 @@
         "auditorSessionId": null,
         "auditRequired": true
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "691a7c4a8e0587d6b9669aa332b764d7bc53b7b9",
+          "candidateSha": "e052a564ee6065e166794ab30f94f81016add3b1",
+          "reason": "WF-C04 packet 3.9 pre-integration refresh: the owning lane advanced past the registered snapshot (candidate 691a7c4a, observed 2026-09-15T06:35:56Z); the C05R1 teacher-program correction is in flight at observed tip e052a564. Registry refresh only; no QA verdict attaches to this range.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [],
       "requires": [],
       "blocker": {
@@ -1239,18 +1250,18 @@
       "artifacts": [],
       "closure": null,
       "objective": "Close the beneficiary/stakeholder output parity correction on branch work/beneficiary-export-parity-c05: fail closed on an empty selected-term renderable set (F1 EMPTY_SELECTED_TERM), complete room/summary/render parity, and bind published run identity. Executor handoff docs/handoffs/beneficiary-export-parity-c05-executor.md reports REVIEW_REQUIRED, revision 2, tally 23/23/0/0.",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T06:35:56.428Z",
-      "nextAction": "Fresh independent QA over the frozen candidate 691a7c4a, then integrate from a clean current-main E-drive worktree and run the post-integration Wave Completion Audit; a separate successor packet (docs/prompts/beneficiary-export-parity-c05r1-teacher-program-correction-2026-09-15.md) is authored but not dispatched.",
+      "state": "CORRECTION_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T07:29:27.697Z",
+      "nextAction": "Owning lane owns the next transition: record the executor return for the C05R1 correction, then fresh independent QA over its frozen tip.",
       "awaited": [
-        "fresh independent QA over the frozen candidate 691a7c4a"
+        "fresh independent QA over the corrected candidate"
       ],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/beneficiary-export-parity-c05",
         "branch": "work/beneficiary-export-parity-c05",
         "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c",
-        "candidateSha": "691a7c4a8e0587d6b9669aa332b764d7bc53b7b9",
+        "candidateSha": "e052a564ee6065e166794ab30f94f81016add3b1",
         "integrationSha": null,
         "changedPaths": [
           "atlas-client/src/components/room-schedules/schedule-export.ts",
@@ -1259,14 +1270,20 @@
           "atlas-client/src/lib/__tests__/timetable-c05-beneficiary-export.test.ts",
           "atlas-client/src/lib/__tests__/timetable-term-export-c03r3.test.ts",
           "atlas-client/src/pages/RoomSchedules.tsx",
+          "atlas-server/src/__tests__/export-presentation-postgres.test.ts",
+          "atlas-server/src/__tests__/export-presentation-route.test.ts",
           "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
           "atlas-server/src/__tests__/tt-output-c03r-route.test.ts",
           "atlas-server/src/__tests__/tt-output-c03r.test.ts",
           "atlas-server/src/__tests__/tt-output-c05-beneficiary-parity.test.ts",
+          "atlas-server/src/__tests__/tt-output-c05r1-teacher-program.test.ts",
+          "atlas-server/src/app.ts",
+          "atlas-server/src/routes/export-presentation.router.ts",
           "atlas-server/src/routes/generation.router.ts",
           "atlas-server/src/routes/room-schedule.router.ts",
           "atlas-server/src/services/class-program-matrix.service.ts",
           "atlas-server/src/services/docx-export.service.ts",
+          "atlas-server/src/services/export-presentation.service.ts",
           "atlas-server/src/services/published-schedule.service.ts",
           "atlas-server/src/services/room-program-export.service.ts",
           "atlas-server/src/services/room-schedule.service.ts",
@@ -1277,9 +1294,11 @@
           "docs/handoffs/stakeholder-export-parity-audit-c05.md",
           "docs/handoffs/tt-output-c03r-planner-result.md",
           "docs/prompts/beneficiary-export-parity-c05-recovery-adoption-2026-09-15.md",
+          "docs/prompts/beneficiary-export-parity-c05r1-teacher-program-correction-2026-09-15.md",
           "docs/prompts/beneficiary-export-parity-one-shot-c05-2026-09-14.md",
           "docs/reference/atlas-beneficiary-output-contract.md",
           "docs/reference/atlas-runtime-source-of-truth-map.md",
+          "docs/reference/atlas-teacher-program-output-contract-2026-09-15.md",
           "docs/reference/timetable-dynamic-workspace-and-warning-contract.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/lane-a.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/lane-b.md",
@@ -1287,7 +1306,9 @@
           "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r1.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r2.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r3.md",
-          "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r4.md"
+          "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r4.md",
+          "prisma/migrations/0003_teacher_program_presentation/migration.sql",
+          "prisma/schema.prisma"
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
@@ -1596,15 +1617,15 @@
       "kind": "CYCLE",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 21,
+        "passed": 21,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5c15227cffeaIOVS3mROJmX4R",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true
@@ -1632,45 +1653,56 @@
       "observations": [],
       "artifacts": [],
       "closure": null,
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T06:36:02.454Z",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T07:30:14.152Z",
       "objective": "WF-C04 atomic stream registration and live-lane reconciliation: add a named create-stream transition to the existing ops/workflow pipeline and reconcile the genuinely active ordinary lanes missing from the machine registry.",
-      "nextAction": "Commit the bounded add-stream candidate plus the reconciled registry and return REVIEW_REQUIRED; the planner then records the executor return via record-executor-return and dispatches fresh independent QA.",
+      "nextAction": "Commission the post-integration Wave Completion Auditor over origin/main 9530c7ea and this integration; on AUDIT_CLEAR record the capsule, audit verdict, closure receipt, and remote observation.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the WF-C04 candidate",
-        "fresh independent QA over the frozen candidate"
+        "fresh Wave Completion Auditor"
       ],
-      "running": [
-        "executor implementation session on branch work/workflow-atomic-stream-registration-c04 (packet docs/prompts/workflow-atomic-stream-registration-wfc04-2026-09-15.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/workflow-atomic-stream-registration-c04",
         "branch": "work/workflow-atomic-stream-registration-c04",
         "baseSha": "9b82a98f7c74ffecd34e2dae337d7a69c19d7fdf",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "candidateSha": "fab7031da955b866f22de13913c69aba7e38b4f4",
+        "integrationSha": "9530c7ea7c56febb4a3e31a62fafd0c011944a25",
+        "changedPaths": [
+          "docs/handoffs/wf-c04-executor.md",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "ops/workflow/README.md",
+          "ops/workflow/__tests__/create-stream.test.mjs",
+          "ops/workflow/__tests__/seed.test.mjs",
+          "ops/workflow/__tests__/stream-integration-observation.test.mjs",
+          "ops/workflow/lib/transition.mjs",
+          "ops/workflow/specs/register/BENEFICIARY-EXPORT-PARITY-C05.json",
+          "ops/workflow/specs/register/COMPANION-SSO-LIVE-PREP-C02.json",
+          "ops/workflow/specs/register/TL-OPERATOR-WORKSPACE-C05.json",
+          "ops/workflow/specs/register/WF-C04.json",
+          "ops/workflow/transition.mjs"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "9b82a98f7c74ffecd34e2dae337d7a69c19d7fdf",
-          "observedAt": "2026-09-15T06:36:02.454Z",
+          "sha": "9530c7ea7c56febb4a3e31a62fafd0c011944a25",
+          "observedAt": "2026-09-15T07:30:14.152Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5c40e917ffetFXdPNgRWPoRmc",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5c15227cffeaIOVS3mROJmX4R",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
