@@ -63,7 +63,7 @@ test("an unsupported schema keyword fails closed with SCHEMA_UNSUPPORTED_KEYWORD
 test("the shipped schema is a 2020-12 document with the frozen contract version", () => {
   const schema = JSON.parse(fs.readFileSync(SCHEMA_FILE, "utf8"));
   assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
-  assert.equal(schema.properties.contractVersion.const, "1.1.0");
+  assert.equal(schema.properties.contractVersion.const, "1.2.0");
   assert.equal(schema.additionalProperties, false);
 });
 

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["contractVersion", "registry", "coordination", "streams", "leases", "browserCustody"],
   "properties": {
-    "contractVersion": { "const": "1.1.0" },
+    "contractVersion": { "const": "1.2.0" },
     "registry": {
       "type": "object",
       "additionalProperties": false,
@@ -117,7 +117,7 @@
         "expiresAt": { "$ref": "#/$defs/iso" }
       }
     },
-    "gates": {
+    "gateCounters": {
       "type": "object",
       "additionalProperties": false,
       "required": ["total", "passed", "failed", "blocked", "unperformed"],
@@ -129,16 +129,61 @@
         "unperformed": { "type": "integer", "minimum": 0 }
       }
     },
+    "gatePlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["MANDATORY_SOURCE", "MANDATORY_LIVE", "DEFERRED_EXTERNAL"],
+      "properties": {
+        "MANDATORY_SOURCE": { "type": "integer", "minimum": 0 },
+        "MANDATORY_LIVE": { "type": "integer", "minimum": 0 },
+        "DEFERRED_EXTERNAL": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "gateClasses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["MANDATORY_SOURCE", "MANDATORY_LIVE", "DEFERRED_EXTERNAL"],
+      "properties": {
+        "MANDATORY_SOURCE": { "$ref": "#/$defs/gateCounters" },
+        "MANDATORY_LIVE": { "$ref": "#/$defs/gateCounters" },
+        "DEFERRED_EXTERNAL": { "$ref": "#/$defs/gateCounters" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "blocked", "unperformed", "plan", "classes"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "unperformed": { "type": "integer", "minimum": 0 },
+        "plan": { "$ref": "#/$defs/gatePlan" },
+        "classes": { "$ref": "#/$defs/gateClasses" }
+      }
+    },
+    "qaRound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round", "verdict", "sessionId"],
+      "properties": {
+        "round": { "type": "integer", "minimum": 1 },
+        "verdict": { "enum": ["ACCEPT_READY", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED"] },
+        "sessionId": { "type": ["string", "null"] }
+      }
+    },
     "review": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["qaVerdict", "qaSessionId", "auditorVerdict", "auditorSessionId", "auditRequired"],
+      "required": ["qaVerdict", "qaSessionId", "auditorVerdict", "auditorSessionId", "auditRequired", "qaRounds"],
       "properties": {
         "qaVerdict": { "enum": ["ACCEPT_READY", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED", null] },
         "qaSessionId": { "type": ["string", "null"] },
         "auditorVerdict": { "enum": ["AUDIT_CLEAR", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED", null] },
         "auditorSessionId": { "type": ["string", "null"] },
-        "auditRequired": { "type": "boolean" }
+        "auditRequired": { "type": "boolean" },
+        "qaRounds": { "type": "array", "minItems": 0, "maxItems": 24, "items": { "$ref": "#/$defs/qaRound" } }
       }
     },
     "correction": {

@@ -1,22 +1,161 @@
 {
-  "contractVersion": "1.1.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:49:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
-  "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
-  "streams": [{
-    "id": "RC-1", "kind": "CYCLE", "objective": "COMPLETE with a missing closure receipt.", "riskTier": "MEDIUM",
-    "state": "COMPLETE", "stateUpdatedAt": "2026-09-14T10:49:00+08:00", "nextAction": null,
-    "awaited": [], "running": [],
-    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
-    "owners": { "planner": { "sessionId": null, "status": "NONE", "writable": false }, "executor": { "sessionId": null, "status": "NONE", "writable": false }, "qa": { "sessionId": null, "status": "NONE", "writable": false }, "auditor": { "sessionId": null, "status": "NONE", "writable": false } },
-    "gates": { "total": 5, "passed": 5, "failed": 0, "blocked": 0, "unperformed": 0 },
-    "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "sess-qa-1", "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
-    "corrections": [], "successors": [], "requires": [],
-    "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
-    "approval": { "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null, "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null },
-    "observations": [], "artifacts": [],
-    "closure": { "receipt": { "path": "missing-receipt.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
-    "sessionRouting": { "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }, "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" } }
-  }],
+  "contractVersion": "1.2.0",
+  "registry": {
+    "lastUpdatedAt": "2026-09-14T10:49:00+08:00",
+    "lastUpdatedBy": "fixture",
+    "revision": 1
+  },
+  "coordination": {
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": null
+  },
+  "streams": [
+    {
+      "id": "RC-1",
+      "kind": "CYCLE",
+      "objective": "COMPLETE with a missing closure receipt.",
+      "riskTier": "MEDIUM",
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-14T10:49:00+08:00",
+      "nextAction": null,
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 5,
+        "passed": 5,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 5,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "sess-qa-1",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "sess-qa-1"
+          }
+        ]
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": {
+        "receipt": {
+          "path": "missing-receipt.json",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "fixture"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "fixture"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture"
+        }
+      }
+    }
+  ],
   "leases": [],
-  "browserCustody": { "profiles": [], "logins": [] }
+  "browserCustody": {
+    "profiles": [],
+    "logins": []
+  }
 }

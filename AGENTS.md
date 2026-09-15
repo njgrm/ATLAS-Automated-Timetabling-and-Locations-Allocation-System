@@ -907,6 +907,16 @@ renders data produced by another ATLAS layer.
     Include a deterministic interleave control that changes one non-demand
     input such as a room, faculty qualification, or shift window and proves the
     write fails closed with zero run/audit writes.
+13. **Prove producer-to-consumer parity and unknown-value conservation.** When a
+    client renders server-owned enums, reason codes, state names, or blocker
+    codes, the change must enumerate the producer's complete emitted domain and
+    prove the consumer's mapping member by member, and it must conserve every
+    value: an unrecognized value lands in an explicit unknown bucket and
+    `sum(grouped counts) === total` holds. Each property requires its own
+    failing-first mutant: one removed producer member the consumer must fail to
+    handle, and one dropped unknown value the conservation check must fail to
+    count. Missing either mutant prevents `ACCEPT_READY` for a change that
+    renders server-owned values.
 
 ##### Ordered-term timetable invariants
 
@@ -1966,7 +1976,16 @@ for successful deployment or durable documentation.
   exercise a same-SPA-session user-A to user-B transition without relying on a
   full page reload and prove that no request is sent with user A's school after
   user B becomes authoritative. A server-side cross-school rejection limits the
-  damage but does not make stale client scope acceptable.
+  damage but does not make stale client scope acceptable. Scope-epoch protection
+  (or an equivalent stale-response guard that binds each dispatched request to
+  the scope active at dispatch time and discards a reply that lands after a
+  school, year, or session transition) applies to every related actor-school/year
+  authority feed in the affected contract — reads, diagnostics, previews, and
+  state setters alike — not only the call site being edited. Guarding one feed
+  while a sibling feed in the same authority contract can still accept an
+  obsolete-scope reply has not closed the defect: an unguarded sibling feed is a
+  blocking defect, not a disclosed residual, and the acceptance must include a
+  failing-first scope-transition control.
 - Read-only and zero-write previews are still authorization and tenant-isolation
   surfaces. When a preview feeds a later mutation, it must use the same actor,
   role, school/year authority, and cross-school rejection boundary as the apply,

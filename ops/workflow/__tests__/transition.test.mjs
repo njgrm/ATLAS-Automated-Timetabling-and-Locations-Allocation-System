@@ -21,6 +21,7 @@ import {
   stateDocFromFixture,
   writeStateDoc,
   verifyInProcess,
+  readJson,
 } from "./harness.mjs";
 import { runTransition } from "../lib/transition.mjs";
 import { lockPathFor, processAlive } from "../lib/lock.mjs";
@@ -144,6 +145,8 @@ test("a full closure lifecycle reaches a stable state with one observation and n
     "--qa-verdict", "ACCEPT_READY",
     "--qa-session", "ses-qa-1",
     "--gates", "5/5/0/0/0",
+    "--gates-classes", "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "--gates-plan", "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
   ]);
   assert.equal(qa.status, 0, qa.stdout + qa.stderr);
   doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
@@ -229,6 +232,8 @@ test("an invalid transition for the current state fails closed", () => {
     "qa-verdict": "ACCEPT_READY",
     "qa-session": "ses-qa-1",
     gates: "5/5/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "gates-plan": "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
   });
   assert.equal(result.status, "fail");
   assert.deepEqual(reportCodes(result), ["TRANSITION_INVALID_STATE"]);
@@ -320,6 +325,8 @@ test("a mid-write failure leaves state, render, and receipt byte-identical", () 
           "qa-verdict": "ACCEPT_READY",
           "qa-session": "s",
           gates: "5/5/0/0/0",
+          "gates-classes": "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+          "gates-plan": "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
         });
         assert.equal(result.status, "fail", `${fault} must fail`);
         assert.deepEqual(reportCodes(result), ["FAULT_INJECTED"]);
@@ -430,13 +437,92 @@ test("lease-update records a valid lease change and rejects invalid input", () =
   assert.deepEqual(reportCodes(mismatch), ["TRANSITION_LEASE_STREAM_MISMATCH"]);
 });
 
+test("R3 predeclared-gate and correction-disclosure guards fail closed with zero mutation", () => {
+  const repo = getSharedRepo();
+  const doc = baseDoc(repo);
+  doc.streams[0].state = "REVIEW_REQUIRED";
+  doc.streams[0].nextAction = "Dispatch fresh QA.";
+  const statePath = writeStateDoc(repo, "state-r3-guards.json", doc);
+  const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
+
+  const assertNoMutation = (flags, code) => {
+    const stateBefore = fs.readFileSync(statePath);
+    const renderBefore = readOrNull(renderPath);
+    const result = inProcess(statePath, "record-qa-result", flags);
+    assert.equal(result.status, "fail", `${code}: ${JSON.stringify(result.errors)}`);
+    assert.deepEqual(reportCodes(result), [code]);
+    assert.deepEqual(fs.readFileSync(statePath), stateBefore, `${code} must not mutate state`);
+    assert.deepEqual(readOrNull(renderPath), renderBefore, `${code} must not mutate the render`);
+  };
+
+  // A mandatory-live gate that was never predeclared is rejected.
+  assertNoMutation(
+    {
+      stream: "ORD-1",
+      "expect-revision": "1",
+      "qa-verdict": "CORRECTION_REQUIRED",
+      "qa-session": "ses-r3-nonpredeclared",
+      gates: "1/1/0/0/0",
+      "gates-classes": "MANDATORY_SOURCE=0/0/0/0/0,MANDATORY_LIVE=1/1/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    },
+    "TRANSITION_GATE_PLAN_MISMATCH",
+  );
+
+  // A predeclared plan may be raised but never lowered.
+  assertNoMutation(
+    {
+      stream: "ORD-1",
+      "expect-revision": "1",
+      "qa-verdict": "CORRECTION_REQUIRED",
+      "qa-session": "ses-r3-regression",
+      gates: "4/4/0/0/0",
+      "gates-classes": "MANDATORY_SOURCE=4/4/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+      "gates-plan": "MANDATORY_SOURCE=3,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
+    },
+    "TRANSITION_GATE_PLAN_REGRESSION",
+  );
+
+  // Record a disclosed CORRECTION_REQUIRED round, then attempt ACCEPT_READY with
+  // no recorded correction: the transition must fail closed with zero mutation.
+  const disclosed = inProcess(statePath, "record-qa-result", {
+    stream: "ORD-1",
+    "expect-revision": "1",
+    "qa-verdict": "CORRECTION_REQUIRED",
+    "qa-session": "ses-r3-corr",
+    gates: "0/0/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=0/0/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+  });
+  assert.equal(disclosed.status, "ok", JSON.stringify(disclosed.errors));
+  assert.deepEqual(readJson(statePath).streams[0].corrections, []);
+
+  const stateBefore = fs.readFileSync(statePath);
+  const renderBefore = readOrNull(renderPath);
+  const accepted = inProcess(statePath, "record-qa-result", {
+    stream: "ORD-1",
+    "expect-revision": "2",
+    "qa-verdict": "ACCEPT_READY",
+    "qa-session": "ses-r3-accept",
+    gates: "5/5/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "gates-plan": "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
+  });
+  assert.equal(accepted.status, "fail", JSON.stringify(accepted.errors));
+  assert.deepEqual(reportCodes(accepted), ["TRANSITION_CORRECTION_NOT_RECORDED"]);
+  assert.deepEqual(fs.readFileSync(statePath), stateBefore, "TRANSITION_CORRECTION_NOT_RECORDED must not mutate state");
+  assert.deepEqual(readOrNull(renderPath), renderBefore, "TRANSITION_CORRECTION_NOT_RECORDED must not mutate the render");
+  // The disclosed round is still the current verdict; no ACCEPT_READY round leaked in.
+  const after = readJson(statePath);
+  assert.deepEqual(after.streams[0].review.qaRounds, [{ round: 1, verdict: "CORRECTION_REQUIRED", sessionId: "ses-r3-corr" }]);
+});
+
+
 test("R2-T1 a CYCLE_ACTIVE stream cannot record-integration until coordination moves", () => {
   const repo = getSharedRepo();
   const statePath = writeStateDoc(repo, "state-r2t1.json", cycleDoc(repo));
   const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
 
   assert.equal(inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha }).status, "ok");
-  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t1-qa", gates: "13/13/0/0/0" }).status, "ok");
+  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t1-qa", gates: "13/13/0/0/0", "gates-classes": "MANDATORY_SOURCE=13/13/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0", "gates-plan": "MANDATORY_SOURCE=13,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0" }).status, "ok");
 
   const stateBefore = fs.readFileSync(statePath);
   const renderBefore = readOrNull(renderPath);
@@ -463,7 +549,7 @@ test("R2-T2 a CYCLE_ACTIVE stream closes end-to-end once coordination moves", ()
   assert.equal(verified().status, 0, "initial CYCLE_ACTIVE document must verify");
   assert.equal(inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha }).status, "ok");
   assert.equal(verified().status, 0);
-  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t2-qa", gates: "13/13/0/0/0" }).status, "ok");
+  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t2-qa", gates: "13/13/0/0/0", "gates-classes": "MANDATORY_SOURCE=13/13/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0", "gates-plan": "MANDATORY_SOURCE=13,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0" }).status, "ok");
   assert.equal(verified().status, 0);
   assert.equal(inProcess(statePath, "coordination-update", { "expect-revision": "3", mode: "MANUAL" }).status, "ok");
   assert.equal(verified().status, 0);

@@ -79,7 +79,7 @@ function isNullOrCommittedSha(value) {
 
 test("the seed declares the exact expected stream inventory with null-or-committed candidate SHAs", () => {
   const doc = JSON.parse(fs.readFileSync(STATE, "utf8"));
-  assert.equal(doc.contractVersion, "1.1.0");
+  assert.equal(doc.contractVersion, "1.2.0");
   assert.equal(Number.isInteger(doc.registry.revision) && doc.registry.revision >= 1, true);
   assert.ok(Array.isArray(doc.leases), "the seed must declare the leases array");
   assert.equal(seedInventoryMismatch(doc), null, `seed stream inventory drifted: ${JSON.stringify(seedInventoryMismatch(doc))}`);

@@ -52,6 +52,83 @@ export function isCleanGates(g) {
   return g.total > 0 && g.passed === g.total && g.failed === 0 && g.blocked === 0 && g.unperformed === 0;
 }
 
+// Predeclared gate classes. The plan is fixed when the stream is registered and
+// may only ever be raised; a predeclared gate can never be moved to a lighter
+// class or dropped from the arithmetic.
+export const GATE_CLASSES = ["MANDATORY_SOURCE", "MANDATORY_LIVE", "DEFERRED_EXTERNAL"];
+
+function parseCounters(name, counts) {
+  const nums = counts.split("/").map((part) => Number(part));
+  if (nums.length !== 5 || nums.some((n) => !Number.isInteger(n) || n < 0)) {
+    throw new TransitionError(
+      "TRANSITION_GATES_CLASSES_INVALID",
+      `gate class "${name}" counters must be five non-negative integers (total/passed/failed/blocked/unperformed), got "${counts}"`,
+      "$.gates.classes",
+    );
+  }
+  const [total, passed, failed, blocked, unperformed] = nums;
+  return { total, passed, failed, blocked, unperformed };
+}
+
+export function parseGatesClasses(value) {
+  if (!nonEmpty(value)) {
+    throw new TransitionError(
+      "TRANSITION_GATES_CLASSES_REQUIRED",
+      "--gates-classes must be provided as CLASS=t/p/f/b/u,CLASS=t/p/f/b/u,CLASS=t/p/f/b/u",
+      "$.gates.classes",
+    );
+  }
+  const classes = {};
+  for (const entry of value.split(",")) {
+    const eq = entry.indexOf("=");
+    if (eq === -1) {
+      throw new TransitionError("TRANSITION_GATES_CLASSES_INVALID", `--gates-classes entry "${entry}" must be CLASS=t/p/f/b/u`, "$.gates.classes");
+    }
+    const name = entry.slice(0, eq);
+    if (!GATE_CLASSES.includes(name)) {
+      throw new TransitionError("TRANSITION_GATES_CLASSES_INVALID", `unknown gate class "${name}" (known: ${GATE_CLASSES.join(", ")})`, "$.gates.classes");
+    }
+    if (Object.prototype.hasOwnProperty.call(classes, name)) {
+      throw new TransitionError("TRANSITION_GATES_CLASSES_INVALID", `duplicate gate class "${name}"`, "$.gates.classes");
+    }
+    classes[name] = parseCounters(name, entry.slice(eq + 1));
+  }
+  for (const name of GATE_CLASSES) {
+    if (!Object.prototype.hasOwnProperty.call(classes, name)) {
+      throw new TransitionError("TRANSITION_GATES_CLASSES_INVALID", `--gates-classes must declare every class; missing "${name}"`, "$.gates.classes");
+    }
+  }
+  return classes;
+}
+
+export function parseGatesPlan(value) {
+  const plan = {};
+  for (const entry of value.split(",")) {
+    const eq = entry.indexOf("=");
+    if (eq === -1) {
+      throw new TransitionError("TRANSITION_GATE_PLAN_INVALID", `--gates-plan entry "${entry}" must be CLASS=n`, "$.gates.plan");
+    }
+    const name = entry.slice(0, eq);
+    const amount = Number(entry.slice(eq + 1));
+    if (!GATE_CLASSES.includes(name)) {
+      throw new TransitionError("TRANSITION_GATE_PLAN_INVALID", `unknown gate class "${name}" (known: ${GATE_CLASSES.join(", ")})`, "$.gates.plan");
+    }
+    if (Object.prototype.hasOwnProperty.call(plan, name)) {
+      throw new TransitionError("TRANSITION_GATE_PLAN_INVALID", `duplicate gate class "${name}"`, "$.gates.plan");
+    }
+    if (!Number.isInteger(amount) || amount < 0) {
+      throw new TransitionError("TRANSITION_GATE_PLAN_INVALID", `gate class "${name}" plan must be a non-negative integer, got "${entry.slice(eq + 1)}"`, "$.gates.plan");
+    }
+    plan[name] = amount;
+  }
+  for (const name of GATE_CLASSES) {
+    if (!Object.prototype.hasOwnProperty.call(plan, name)) {
+      throw new TransitionError("TRANSITION_GATE_PLAN_INVALID", `--gates-plan must declare every class; missing "${name}"`, "$.gates.plan");
+    }
+  }
+  return plan;
+}
+
 function verifyRenderedBytes(markdown) {
   if (typeof markdown !== "string" || markdown.length === 0) {
     throw new TransitionError("TRANSITION_RENDER_EMPTY", "renderer produced empty output", "$.render");
@@ -174,9 +251,10 @@ function assertClaimEvidenceConsistency(stream) {
   }
 }
 
-const QA_VERDICTS = ["ACCEPT_READY", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED"];
-const AUDITOR_VERDICTS = ["AUDIT_CLEAR", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED"];
-const LEASE_STATES = ["ACTIVE", "RETURNED", "IDLE", "ERROR", "STALE_UNCONFIRMED"];
+export const QA_VERDICTS = ["ACCEPT_READY", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED"];
+export const AUDITOR_VERDICTS = ["AUDIT_CLEAR", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED"];
+export const LEASE_STATES = ["ACTIVE", "RETURNED", "IDLE", "ERROR", "STALE_UNCONFIRMED"];
+export const LEASE_ROLES = ["planner", "executor", "qa", "auditor"];
 
 export const TRANSITIONS = {
   "record-executor-return": {
@@ -240,8 +318,8 @@ export const TRANSITIONS = {
 
   "record-qa-result": {
     from: ["REVIEW_REQUIRED", "CORRECTION_REQUIRED"],
-    optional: ["qa-verdict", "qa-session", "gates", "next-action", "awaited", "running"],
-    required: ["qa-verdict", "qa-session", "gates"],
+    optional: ["qa-verdict", "qa-session", "gates", "gates-classes", "gates-plan", "next-action", "awaited", "running"],
+    required: ["qa-verdict", "qa-session", "gates", "gates-classes"],
     apply(ctx) {
       const { stream, flags } = ctx;
       const verdict = flags["qa-verdict"];
@@ -249,10 +327,80 @@ export const TRANSITIONS = {
         throw new TransitionError("TRANSITION_QA_VERDICT_INVALID", `--qa-verdict must be one of ${QA_VERDICTS.join(", ")}`, "$.review.qaVerdict");
       }
       const gates = parseGates(flags.gates);
-      if (verdict === "ACCEPT_READY" && !isCleanGates(gates)) {
-        throw new TransitionError("TRANSITION_ACCEPT_READY_DIRTY_GATES", "ACCEPT_READY requires total>0, passed===total, and zero failed/blocked/unperformed", "$.gates");
+      const classes = parseGatesClasses(flags["gates-classes"]);
+
+      // Increase-only plan. A predeclared gate count may be raised but never
+      // lowered, so a gate cannot be retroactively removed from the plan.
+      const plan = { ...stream.gates.plan };
+      if (flags["gates-plan"] !== undefined) {
+        const requested = parseGatesPlan(flags["gates-plan"]);
+        for (const name of GATE_CLASSES) {
+          if (requested[name] < plan[name]) {
+            throw new TransitionError(
+              "TRANSITION_GATE_PLAN_REGRESSION",
+              `gate class ${name} plan may not decrease (${plan[name]} -> ${requested[name]})`,
+              "$.gates.plan",
+            );
+          }
+          plan[name] = requested[name];
+        }
       }
-      stream.gates = gates;
+
+      // The candidate must satisfy the plan/class rules before any write.
+      const acceptanceClaim = verdict === "ACCEPT_READY" || stream.state === "ACCEPT_READY";
+      for (const name of GATE_CLASSES) {
+        const actual = classes[name].total;
+        if (actual > plan[name]) {
+          throw new TransitionError(
+            "TRANSITION_GATE_PLAN_MISMATCH",
+            `gate class ${name} total ${actual} exceeds its predeclared plan ${plan[name]}`,
+            `$.gates.classes.${name}.total`,
+          );
+        }
+        if (acceptanceClaim && actual !== plan[name]) {
+          throw new TransitionError(
+            "TRANSITION_GATE_PLAN_MISMATCH",
+            `gate class ${name} total ${actual} != its predeclared plan ${plan[name]} at an acceptance claim`,
+            `$.gates.classes.${name}.total`,
+          );
+        }
+      }
+
+      if (verdict === "ACCEPT_READY") {
+        const mandatorySource = classes.MANDATORY_SOURCE;
+        const mandatoryLive = classes.MANDATORY_LIVE;
+        const sourceClean =
+          mandatorySource.total > 0 &&
+          mandatorySource.passed === mandatorySource.total &&
+          mandatorySource.failed === 0 &&
+          mandatorySource.blocked === 0 &&
+          mandatorySource.unperformed === 0;
+        const liveClean = mandatoryLive.failed === 0 && mandatoryLive.blocked === 0;
+        if (!(gates.total > 0 && sourceClean && liveClean)) {
+          throw new TransitionError(
+            "TRANSITION_ACCEPT_READY_DIRTY_GATES",
+            "ACCEPT_READY requires total>0, MANDATORY_SOURCE fully passed, and zero failed/blocked MANDATORY_LIVE gates",
+            "$.gates",
+          );
+        }
+        // A disclosed CORRECTION_REQUIRED round must have a recorded correction
+        // whose candidate is the current candidate before acceptance is recorded.
+        if (stream.review.qaVerdict === "CORRECTION_REQUIRED") {
+          const lastCorrection = stream.corrections.length > 0 ? stream.corrections[stream.corrections.length - 1] : null;
+          if (!lastCorrection || lastCorrection.candidateSha !== stream.git.candidateSha) {
+            throw new TransitionError(
+              "TRANSITION_CORRECTION_NOT_RECORDED",
+              "recording ACCEPT_READY after CORRECTION_REQUIRED requires a recorded correction whose candidateSha equals the current git.candidateSha",
+              "$.corrections",
+            );
+          }
+        }
+      }
+
+      stream.gates = { total: gates.total, passed: gates.passed, failed: gates.failed, blocked: gates.blocked, unperformed: gates.unperformed, plan, classes };
+      // Append the round before applying the verdict so the recorded history is
+      // the pre-transition history plus this result.
+      stream.review.qaRounds.push({ round: stream.review.qaRounds.length + 1, verdict, sessionId: flags["qa-session"] });
       stream.review.qaVerdict = verdict;
       stream.review.qaSessionId = flags["qa-session"];
       stream.owners.qa = { sessionId: flags["qa-session"], status: "RETURNED", writable: false };
@@ -280,6 +428,15 @@ export const TRANSITIONS = {
       const { stream, flags, repoRoot, git, nowIso } = ctx;
       if (!git.shaExists(repoRoot, flags.integration)) {
         throw new TransitionError("TRANSITION_INTEGRATION_UNKNOWN", `integration ${flags.integration} is not a commit in this repository`, "$.git.integrationSha");
+      }
+      // `--observed-ref` only qualifies `--observed-remote`; on its own it would
+      // be silently ignored, so it fails closed instead (WF-C04 audit F1).
+      if (flags["observed-ref"] !== undefined && flags["observed-remote"] === undefined) {
+        throw new TransitionError(
+          "TRANSITION_OBSERVED_REF_WITHOUT_REMOTE",
+          "--observed-ref requires --observed-remote; a ref without an observed commit id is silently ignored otherwise",
+          "$.git.remoteObservation.ref",
+        );
       }
       if (nonEmpty(stream.git.candidateSha) && !git.isAncestor(repoRoot, stream.git.candidateSha, flags.integration)) {
         throw new TransitionError("TRANSITION_ANCESTRY", `candidate ${stream.git.candidateSha} is not an ancestor of integration ${flags.integration}`, "$.git");

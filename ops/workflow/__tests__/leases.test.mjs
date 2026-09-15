@@ -138,7 +138,14 @@ test("a COMPLETE stream cannot retain a live lease", () => {
   // is under test.
   doc.streams[0].closure = null;
   doc.streams[0].state = "COMPLETE";
-  doc.streams[0].review = { qaVerdict: "ACCEPT_READY", qaSessionId: "q", auditorVerdict: "AUDIT_CLEAR", auditorSessionId: "a", auditRequired: true };
+  doc.streams[0].review = {
+    qaVerdict: "ACCEPT_READY",
+    qaSessionId: "q",
+    auditorVerdict: "AUDIT_CLEAR",
+    auditorSessionId: "a",
+    auditRequired: true,
+    qaRounds: [{ round: 1, verdict: "ACCEPT_READY", sessionId: "q" }],
+  };
   const result = verifyDoc(doc);
   assert.ok(codes(result).includes("COMPLETE_WITH_LIVE_LEASE"), JSON.stringify(codes(result)));
 });

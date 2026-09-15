@@ -1,7 +1,15 @@
 {
-  "contractVersion": "1.1.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:05:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
-  "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
+  "contractVersion": "1.2.0",
+  "registry": {
+    "lastUpdatedAt": "2026-09-14T10:05:00+08:00",
+    "lastUpdatedBy": "fixture",
+    "revision": 1
+  },
+  "coordination": {
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": null
+  },
   "streams": [
     {
       "id": "WAVE-1",
@@ -13,34 +21,141 @@
       "nextAction": null,
       "awaited": [],
       "running": [],
-      "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
-      "owners": {
-        "planner": { "sessionId": "sess-planner-1", "status": "RETURNED", "writable": false },
-        "executor": { "sessionId": "sess-exec-1", "status": "RETURNED", "writable": false },
-        "qa": { "sessionId": "sess-qa-1", "status": "RETURNED", "writable": false },
-        "auditor": { "sessionId": "sess-aud-1", "status": "RETURNED", "writable": false }
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
       },
-      "gates": { "total": 5, "passed": 5, "failed": 0, "blocked": 0, "unperformed": 0 },
-      "review": { "qaVerdict": "ACCEPT_READY", "qaSessionId": "sess-qa-1", "auditorVerdict": "AUDIT_CLEAR", "auditorSessionId": "sess-aud-1", "auditRequired": true },
+      "owners": {
+        "planner": {
+          "sessionId": "sess-planner-1",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": "sess-exec-1",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "sess-qa-1",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": "sess-aud-1",
+          "status": "RETURNED",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 5,
+        "passed": 5,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 5,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "sess-qa-1",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "sess-aud-1",
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "sess-qa-1"
+          }
+        ]
+      },
       "corrections": [],
       "successors": [],
       "requires": [],
-      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
       "approval": {
-        "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null,
-        "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
       },
       "observations": [],
       "artifacts": [],
-      "closure": { "receipt": { "path": "receipt-pass-audited-wave.json", "sha256": "{{RECEIPT_SHA}}" } },
+      "closure": {
+        "receipt": {
+          "path": "receipt-pass-audited-wave.json",
+          "sha256": "{{RECEIPT_SHA}}"
+        }
+      },
       "sessionRouting": {
-        "planner": { "decision": "EXISTING", "sessionId": "sess-planner-1", "reason": "fixture planner routing" },
-        "executor": { "decision": "EXISTING", "sessionId": "sess-exec-1", "reason": "fixture executor routing" },
-        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture QA routing" },
-        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture auditor routing" }
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": "sess-planner-1",
+          "reason": "fixture planner routing"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": "sess-exec-1",
+          "reason": "fixture executor routing"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture QA routing"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture auditor routing"
+        }
       }
     }
   ],
   "leases": [],
-  "browserCustody": { "profiles": [], "logins": [] }
+  "browserCustody": {
+    "profiles": [],
+    "logins": []
+  }
 }

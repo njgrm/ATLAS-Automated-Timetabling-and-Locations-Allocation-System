@@ -1,0 +1,88 @@
+{
+  "contractVersion": "1.2.0",
+  "registry": {
+    "lastUpdatedAt": "2026-09-15T09:00:00+08:00",
+    "lastUpdatedBy": "fixture",
+    "revision": 1
+  },
+  "coordination": {
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": null
+  },
+  "streams": [
+    {
+      "id": "GP-1",
+      "kind": "STREAM",
+      "objective": "A predeclared MANDATORY_LIVE gate silently reclassified as DEFERRED_EXTERNAL.",
+      "riskTier": "MEDIUM",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T09:00:00+08:00",
+      "nextAction": null,
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": "work/gp-1",
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
+      },
+      "owners": {
+        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+        "executor": { "sessionId": null, "status": "RETURNED", "writable": false },
+        "qa": { "sessionId": "ses-qa", "status": "RETURNED", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": {
+        "total": 2,
+        "passed": 1,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 1,
+        "plan": { "MANDATORY_SOURCE": 1, "MANDATORY_LIVE": 1, "DEFERRED_EXTERNAL": 0 },
+        "classes": {
+          "MANDATORY_SOURCE": { "total": 1, "passed": 1, "failed": 0, "blocked": 0, "unperformed": 0 },
+          "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+          "DEFERRED_EXTERNAL": { "total": 1, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 1 }
+        }
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses-qa",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": [{ "round": 1, "verdict": "ACCEPT_READY", "sessionId": "ses-qa" }]
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" },
+        "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }
+      }
+    }
+  ],
+  "leases": [],
+  "browserCustody": { "profiles": [], "logins": [] }
+}

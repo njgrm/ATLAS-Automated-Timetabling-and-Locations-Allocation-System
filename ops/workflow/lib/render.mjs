@@ -3,6 +3,7 @@
 // state document content plus its content SHA-256: no timestamps, no file
 // paths, no mtimes, no environment values.
 import { collectArtifacts } from "./verify.mjs";
+import { GATE_CLASSES, deriveReadiness, READINESS_RULE_LINE } from "./readiness.mjs";
 
 const GENERATED_NOTICE = "<!-- atlas-workflow-register: generated; do not edit -->";
 export { GENERATED_NOTICE };
@@ -54,12 +55,28 @@ export function renderRegister(doc, stateSha256) {
 
   lines.push("## Streams");
   lines.push("");
-  lines.push("| Stream | Kind | State | Risk | Branch | Next action |");
-  lines.push("| --- | --- | --- | --- | --- | --- |");
+  lines.push("| Stream | Kind | State | Readiness | Risk | Branch | Next action |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const stream of streams) {
     lines.push(
-      `| ${cell(stream.id)} | ${cell(stream.kind)} | ${cell(stream.state)} | ${cell(stream.riskTier)} | ${cell(stream.git.branch ?? "")} | ${cell(stream.nextAction ?? "")} |`,
+      `| ${cell(stream.id)} | ${cell(stream.kind)} | ${cell(stream.state)} | ${cell(deriveReadiness(stream.gates).scope)} | ${cell(stream.riskTier)} | ${cell(stream.git.branch ?? "")} | ${cell(stream.nextAction ?? "")} |`,
     );
+  }
+  lines.push("");
+
+  lines.push("## Gate classes");
+  lines.push("");
+  lines.push(READINESS_RULE_LINE);
+  lines.push("");
+  lines.push("| Stream | Class | Planned | Total | Passed | Failed | Blocked | Unperformed |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const stream of streams) {
+    for (const className of GATE_CLASSES) {
+      const counters = stream.gates.classes[className];
+      lines.push(
+        `| ${cell(stream.id)} | ${cell(className)} | ${stream.gates.plan[className]} | ${counters.total} | ${counters.passed} | ${counters.failed} | ${counters.blocked} | ${counters.unperformed} |`,
+      );
+    }
   }
   lines.push("");
 

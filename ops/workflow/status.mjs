@@ -16,7 +16,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { parseArgs } from "./lib/args.mjs";
 import { verifyStateDocument, buildReport } from "./lib/verify.mjs";
-import { gitCommonDir } from "./lib/git.mjs";
+import { gitCommonDir, normalizePath } from "./lib/git.mjs";
 import { sha256Hex } from "./lib/util.mjs";
 import {
   observabilityPaths,
@@ -107,6 +107,33 @@ if (!commonDir) {
     asJson,
   );
   process.exit(1);
+}
+
+// Scope-epoch guard. Local heartbeats, leases, and classifications are only
+// meaningful for the state document's own Git scope: an explicit --common-dir
+// that resolves to a different repository's common directory would render
+// foreign sessions as current. It fails closed instead.
+if (parsed.values["common-dir"] !== undefined) {
+  const expectedCommonDir = gitCommonDir(result.repoRoot);
+  if (!expectedCommonDir || normalizePath(path.resolve(commonDir)) !== normalizePath(expectedCommonDir)) {
+    emit(
+      {
+        status: "fail",
+        summary: { registerRevision: result.doc.registry.revision, coordinationMode: result.doc.coordination.mode, sessions: { total: 0, byClassification: summarizeClassifications([]), views: [] }, reconcile: { warnings: [] }, custody: null, observedAt: now },
+        nextActions: [],
+        artifacts: [],
+        errors: [
+          {
+            code: "STATUS_SCOPE_MISMATCH",
+            message: `--common-dir ${commonDir} is not the state document's resolved Git common directory ${expectedCommonDir || "(unresolved)"}; foreign observability state is never rendered as current`,
+            path: "$.commonDir",
+          },
+        ],
+      },
+      asJson,
+    );
+    process.exit(1);
+  }
 }
 
 const paths = observabilityPaths(commonDir);

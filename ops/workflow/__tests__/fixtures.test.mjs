@@ -40,6 +40,16 @@ const RECEIPT_FIXTURES = {
     qaVerdict: "ACCEPT_READY",
     auditorVerdict: null,
   },
+  "fail-receipt-readiness-live.json": {
+    receiptRel: "receipt-readiness-live.json",
+    streamId: "RR-1",
+    gates: { total: 5, passed: 5, failed: 0, blocked: 0, unperformed: 0 },
+    qaVerdict: "ACCEPT_READY",
+    auditorVerdict: null,
+    // A 1.1.0 receipt that attests live readiness for a source-only stream.
+    receiptVersion: "1.1.0",
+    readiness: "LIVE_ACCEPTED",
+  },
 };
 
 function prepareFixture(name, repo) {
@@ -59,6 +69,8 @@ function prepareFixture(name, repo) {
     qaVerdict: spec.qaVerdict,
     auditorVerdict: spec.auditorVerdict,
     gates: spec.gates,
+    receiptVersion: spec.receiptVersion,
+    readiness: spec.readiness,
   });
   const receiptSha = writeReceipt(repo, spec.receiptRel, receipt);
   fs.writeFileSync(statePath, substitute(raw, { ...subs, RECEIPT_SHA: receiptSha }));
@@ -100,6 +112,50 @@ test("positive fixtures expose no error codes at all", () => {
     assert.equal(result.ok, true, `${name} should pass: ${JSON.stringify(result.errors)}`);
     assert.deepEqual(result.errors, [], `${name} should report no codes`);
   }
+});
+
+test("the corrected counterpart of the stale-corrections fixture verifies clean", () => {
+  const repo = getSharedRepo();
+  const stateRel = "corrected-stale-state.json";
+  const receiptRel = "receipt-stale-corrections.json";
+  const source = () => substitute(fixtureRaw("fail-complete-stale-corrections.json"), { ...repoSubstitutions(repo), RECEIPT_SHA: "0".repeat(64) });
+  const statePath = writeState(repo, stateRel, source());
+
+  // The corrected document: the post-correction QA session is fresh and the
+  // disclosed CORRECTION_REQUIRED round keeps its recorded correction.
+  const corrected = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  const stream = corrected.streams[0];
+  stream.corrections[1].qaSessionId = "sess-qa-fresh";
+  stream.review.qaSessionId = "sess-qa-fresh";
+  stream.review.qaRounds = [
+    { round: 1, verdict: "CORRECTION_REQUIRED", sessionId: "sess-qa-reused" },
+    { round: 2, verdict: "ACCEPT_READY", sessionId: "sess-qa-fresh" },
+  ];
+  fs.writeFileSync(statePath, `${JSON.stringify(corrected, null, 2)}\n`);
+
+  // A receipt that attests the corrected facts, pinned into the final document.
+  const receipt = makeReceipt({
+    statePathAsGiven: stateRel,
+    stateBytes: fs.readFileSync(statePath, "utf8"),
+    streamId: "PC-1",
+    qaVerdict: "ACCEPT_READY",
+    auditorVerdict: "AUDIT_CLEAR",
+    gates: { total: 6, passed: 6, failed: 0, blocked: 0, unperformed: 0 },
+  });
+  const receiptSha = writeReceipt(repo, receiptRel, receipt);
+  const finalDoc = JSON.parse(substitute(fixtureRaw("fail-complete-stale-corrections.json"), { ...repoSubstitutions(repo), RECEIPT_SHA: receiptSha }));
+  const finalStream = finalDoc.streams[0];
+  finalStream.corrections[1].qaSessionId = "sess-qa-fresh";
+  finalStream.review.qaSessionId = "sess-qa-fresh";
+  finalStream.review.qaRounds = [
+    { round: 1, verdict: "CORRECTION_REQUIRED", sessionId: "sess-qa-reused" },
+    { round: 2, verdict: "ACCEPT_READY", sessionId: "sess-qa-fresh" },
+  ];
+  fs.writeFileSync(statePath, `${JSON.stringify(finalDoc, null, 2)}\n`);
+
+  const result = verifyInProcess(statePath);
+  assert.equal(result.ok, true, `the corrected counterpart must verify clean: ${JSON.stringify(result.errors)}`);
+  assert.deepEqual(result.errors, []);
 });
 
 test("changed-path fixtures isolate the mismatch direction", () => {
