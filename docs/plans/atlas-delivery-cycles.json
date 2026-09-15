@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T11:51:58.515Z",
+    "lastUpdatedAt": "2026-09-15T12:18:10.304Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 54
+    "revision": 55
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1485,15 +1485,15 @@
       "kind": "STREAM",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 21,
-        "passed": 21,
+        "total": 8,
+        "passed": 8,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5c42c3feffe7ZgXXVNc8UjRLI",
+        "qaSessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
         "auditorVerdict": "CORRECTION_REQUIRED",
         "auditorSessionId": "ses_f5b8c0d99ffezvYYAlXQ5os1sv",
         "auditRequired": true
@@ -1504,8 +1504,8 @@
           "baseSha": "05bb8e517daa8a0494ef3ce7257747b4fca51054",
           "candidateSha": "d4e7581b2e79458c23abeefb60267776154337e8",
           "reason": "C-4 ancillary/effective-load parity (authoritative ea9b498d, cherry-picked as 7e38f9b4; rewritten local e1c417d8 not consumed) folded with C-5/F2-COLD-LOAD from the post-integration Wave Completion Auditor blocking finding (the scope-epoch guard self-invalidated the cold-cache authority-diagnostics read) into one combined candidate d4e7581b under the operator custody handoff.",
-          "qaVerdict": null,
-          "qaSessionId": null,
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
@@ -1533,11 +1533,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T11:51:58.515Z",
-      "nextAction": "Fresh independent QA at high over the combined corrected candidate d4e7581b (range c669c77c...d4e7581b); then current-main re-integration and a fresh post-correction Wave Completion Auditor before closure. The INTEGRATED reopen was recorded through the documented WF-C02 validated planner state update because the transition set cannot express it.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-15T12:18:10.304Z",
+      "nextAction": "QA ACCEPT_READY 8/8/0/0 over the combined candidate d4e7581b; integrate on current main, then commission the fresh post-correction Wave Completion Auditor before closure.",
       "awaited": [
-        "fresh independent QA over the combined corrected candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -1575,7 +1575,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f5c42c3feffe7ZgXXVNc8UjRLI",
+          "sessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
           "status": "RETURNED",
           "writable": false
         },
