@@ -21,6 +21,7 @@ import {
   stateDocFromFixture,
   writeStateDoc,
   verifyInProcess,
+  readJson,
 } from "./harness.mjs";
 import { runTransition } from "../lib/transition.mjs";
 import { lockPathFor, processAlive } from "../lib/lock.mjs";
@@ -435,6 +436,85 @@ test("lease-update records a valid lease change and rejects invalid input", () =
   const mismatch = inProcess(secondPath, "lease-update", { stream: "ORD-2", "expect-revision": String(twoStreams.registry.revision), "lease-id": "L1", "lease-state": "IDLE", "lease-role": "executor" });
   assert.deepEqual(reportCodes(mismatch), ["TRANSITION_LEASE_STREAM_MISMATCH"]);
 });
+
+test("R3 predeclared-gate and correction-disclosure guards fail closed with zero mutation", () => {
+  const repo = getSharedRepo();
+  const doc = baseDoc(repo);
+  doc.streams[0].state = "REVIEW_REQUIRED";
+  doc.streams[0].nextAction = "Dispatch fresh QA.";
+  const statePath = writeStateDoc(repo, "state-r3-guards.json", doc);
+  const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
+
+  const assertNoMutation = (flags, code) => {
+    const stateBefore = fs.readFileSync(statePath);
+    const renderBefore = readOrNull(renderPath);
+    const result = inProcess(statePath, "record-qa-result", flags);
+    assert.equal(result.status, "fail", `${code}: ${JSON.stringify(result.errors)}`);
+    assert.deepEqual(reportCodes(result), [code]);
+    assert.deepEqual(fs.readFileSync(statePath), stateBefore, `${code} must not mutate state`);
+    assert.deepEqual(readOrNull(renderPath), renderBefore, `${code} must not mutate the render`);
+  };
+
+  // A mandatory-live gate that was never predeclared is rejected.
+  assertNoMutation(
+    {
+      stream: "ORD-1",
+      "expect-revision": "1",
+      "qa-verdict": "CORRECTION_REQUIRED",
+      "qa-session": "ses-r3-nonpredeclared",
+      gates: "1/1/0/0/0",
+      "gates-classes": "MANDATORY_SOURCE=0/0/0/0/0,MANDATORY_LIVE=1/1/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    },
+    "TRANSITION_GATE_PLAN_MISMATCH",
+  );
+
+  // A predeclared plan may be raised but never lowered.
+  assertNoMutation(
+    {
+      stream: "ORD-1",
+      "expect-revision": "1",
+      "qa-verdict": "CORRECTION_REQUIRED",
+      "qa-session": "ses-r3-regression",
+      gates: "4/4/0/0/0",
+      "gates-classes": "MANDATORY_SOURCE=4/4/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+      "gates-plan": "MANDATORY_SOURCE=3,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
+    },
+    "TRANSITION_GATE_PLAN_REGRESSION",
+  );
+
+  // Record a disclosed CORRECTION_REQUIRED round, then attempt ACCEPT_READY with
+  // no recorded correction: the transition must fail closed with zero mutation.
+  const disclosed = inProcess(statePath, "record-qa-result", {
+    stream: "ORD-1",
+    "expect-revision": "1",
+    "qa-verdict": "CORRECTION_REQUIRED",
+    "qa-session": "ses-r3-corr",
+    gates: "0/0/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=0/0/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+  });
+  assert.equal(disclosed.status, "ok", JSON.stringify(disclosed.errors));
+  assert.deepEqual(readJson(statePath).streams[0].corrections, []);
+
+  const stateBefore = fs.readFileSync(statePath);
+  const renderBefore = readOrNull(renderPath);
+  const accepted = inProcess(statePath, "record-qa-result", {
+    stream: "ORD-1",
+    "expect-revision": "2",
+    "qa-verdict": "ACCEPT_READY",
+    "qa-session": "ses-r3-accept",
+    gates: "5/5/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "gates-plan": "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
+  });
+  assert.equal(accepted.status, "fail", JSON.stringify(accepted.errors));
+  assert.deepEqual(reportCodes(accepted), ["TRANSITION_CORRECTION_NOT_RECORDED"]);
+  assert.deepEqual(fs.readFileSync(statePath), stateBefore, "TRANSITION_CORRECTION_NOT_RECORDED must not mutate state");
+  assert.deepEqual(readOrNull(renderPath), renderBefore, "TRANSITION_CORRECTION_NOT_RECORDED must not mutate the render");
+  // The disclosed round is still the current verdict; no ACCEPT_READY round leaked in.
+  const after = readJson(statePath);
+  assert.deepEqual(after.streams[0].review.qaRounds, [{ round: 1, verdict: "CORRECTION_REQUIRED", sessionId: "ses-r3-corr" }]);
+});
+
 
 test("R2-T1 a CYCLE_ACTIVE stream cannot record-integration until coordination moves", () => {
   const repo = getSharedRepo();
