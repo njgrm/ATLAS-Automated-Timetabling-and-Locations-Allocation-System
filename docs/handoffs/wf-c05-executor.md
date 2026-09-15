@@ -5,7 +5,7 @@
 - Worktree: `E:/ATLAS-worktrees/workflow-process-hardening-c05`
 - Branch: `work/workflow-process-hardening-c05`
 - Accepted base SHA: `387a1f6d0d1e4c44eb41125f717e2aa50797238f` (= `origin/main` at dispatch, the WF-C05 registration commit)
-- Product/test tip SHA: `89cce196a5a74bd2bccfc9bf831561f3da65f278` (checkpoint `1956d771` + additive W8 test commits `83aa08da`, `89cce196`)
+- Product/test tip SHA: `cae18a8f1765b3cf3bd0ce586c664fd94803f29f` (checkpoint `1956d771` + additive W8/W6 test commits `83aa08da`, `89cce196`, `cae18a8f`)
 - Candidate branch tip: the commit that carries this handoff (docs-only on top of the product/test tip). A file cannot contain its own commit SHA; resolve the branch tip with
   `git -C E:/ATLAS-worktrees/workflow-process-hardening-c05 rev-parse HEAD`.
 - Risk tier: MEDIUM (repository-owned workflow tooling `ops/workflow/**` + directive text only)
@@ -13,7 +13,7 @@
 
 ## Changed paths
 
-The product/test inventory is `git diff --name-only 387a1f6d...89cce196` — **58 paths**, set-equal
+The product/test inventory is `git diff --name-only 387a1f6d...cae18a8f` — **58 paths**, set-equal
 to the list below (asserted by the commands in "Mechanical checks"). This handoff is a
 docs-only finalize commit on top, so `git diff --name-only 387a1f6d...<branch tip>` is **59
 paths** (the 58 below plus `docs/handoffs/wf-c05-executor.md`).
@@ -95,7 +95,7 @@ Every changed path is inside the owned set (`AGENTS.md`, `ops/workflow/**`,
 | W3 predeclared gate classes | schema `gates.plan`/`gates.classes`; `GATES_ARITHMETIC` class sums; `GATE_PLAN_MISMATCH`; updated `ACCEPT_READY_DIRTY_GATES`; new `COMPLETE_MANDATORY_GATES_UNPASSED`; `--gates-classes` (required) + increase-only `--gates-plan` | `fail-gate-class-reclassified.json` -> `GATE_PLAN_MISMATCH`; `TRANSITION_GATE_PLAN_REGRESSION` + `TRANSITION_GATE_PLAN_MISMATCH` with zero mutation | `node --test --test-concurrency=1 ops/workflow/__tests__/transition.test.mjs ops/workflow/__tests__/coverage.test.mjs` | PASS |
 | W4 source-only never renders as live | `lib/readiness.mjs` `deriveReadiness` (verifier + renderer `Readiness` column + receipts) | `fail-receipt-readiness-live.json` -> `RECEIPT_READINESS_MISMATCH`; readiness source-only mutant | `node --test --test-concurrency=1 ops/workflow/__tests__/readiness.test.mjs ops/workflow/__tests__/fixtures.test.mjs` | PASS |
 | W5 directive parity/conservation + scope-epoch | `AGENTS.md` Production-shape rule 13; extended Always-On actor/tenant bullet | directive text (no runtime control) | `sha256(LF-normalized AGENTS.md)` | PASS |
-| W6(1) producer-domain parity | schema enum domains vs `LEASE_STATES`/`LEASE_ROLES`/`QA_VERDICTS`/`AUDITOR_VERDICTS`/`GATE_CLASSES` | schema-patch mutant adding `REVOKED` to `lease.state` must fail naming it | `node --test ops/workflow/__tests__/directive-conformance.test.mjs` | PASS |
+| W6(1) producer-domain parity | schema enum domains vs `LEASE_STATES`/`LEASE_ROLES`/`QA_VERDICTS`/`AUDITOR_VERDICTS`/`GATE_CLASSES`; fail-closed `SCHEMA_ENUM` default for stream states, blocker kinds, owner statuses, observation statuses | schema-patch mutant adding `REVOKED` to `lease.state` must fail naming it; each consumer-less domain fails closed on an out-of-domain member | `node --test ops/workflow/__tests__/directive-conformance.test.mjs` | PASS |
 | W6(2) unknown-value conservation | `liveness.mjs` `summarizeClassifications` UNKNOWN bucket; `classificationTotal` | dropping/NaN-iteration mutant in a disposable tree | `node --test ops/workflow/__tests__/directive-conformance.test.mjs` | PASS |
 | W6(3) scope-epoch stale response | `status.mjs` `STATUS_SCOPE_MISMATCH`; `record-integration` `TRANSITION_OBSERVED_REF_WITHOUT_REMOTE` | two-temp-repo control (state in A, heartbeats in B) + guard-removal mutant; observed-ref-only rejection | `node --test ops/workflow/__tests__/directive-conformance.test.mjs ops/workflow/__tests__/stream-integration-observation.test.mjs` | PASS |
 | W7 contract 1.2.0 + deterministic migration | schema `1.2.0`; `lib/migrate.mjs` 1.1.0->1.2.0; live document migrated; generated register regenerated | migration reproduction from `git show 387a1f6d:...`; 1.1.0 embedded doc verifies clean | `node --test ops/workflow/__tests__/migration.test.mjs`; `verify-cycle` + `render-register --check` | PASS |
@@ -106,7 +106,7 @@ Every changed path is inside the owned set (`AGENTS.md`, `ops/workflow/**`,
 
 | Defect class | Executable control | Mutant | Restore proof |
 |---|---|---|---|
-| "server reason absent from client mapping" | `directive-conformance.test.mjs` "every consumer constant covers its complete schema-declared domain" (`domainParityFindings`) | test-local parsed-schema patch adds `REVOKED` to `$defs.lease.properties.state.enum`; control must return exactly `[{domain:"lease.state", member:"REVOKED"}]` | the schema file is parsed into memory only; `fs.readFileSync(SCHEMA_FILE)` bytes are asserted equal before/after (`af435c56…a71e81e7`) |
+| "server reason absent from client mapping" | `directive-conformance.test.mjs` "every consumer constant covers its complete schema-declared domain" (`domainParityFindings`) and "out-of-domain members with no consumer constant fail closed via the schema" | test-local parsed-schema patch adds `REVOKED` to `$defs.lease.properties.state.enum`; control must return exactly `[{domain:"lease.state", member:"REVOKED"}]`. Consumer-less domains (stream state, blocker kind, owner status, observation status) must be rejected by `SCHEMA_ENUM` | the schema file is parsed into memory only; `fs.readFileSync(SCHEMA_FILE)` bytes are asserted equal before/after (`af435c56…a71e81e7`) |
 | "unknown reason dropped instead of conserved" | `directive-conformance.test.mjs` "an out-of-domain classification is conserved under UNKNOWN, never dropped" + `conservationFindings`/`classificationTotal` | old dropping/NaN iteration must fail the conservation control; and a temp-tree `liveness.mjs` mutant (anchor replaced) must fail the same control through the real module | the mutant is written only to the `copyWorkflowToTemp` tree; the workspace `lib/liveness.mjs` bytes are asserted unchanged (`5889c0b9…76743ad7`) |
 | "stale response accepted after scope transition" | `directive-conformance.test.mjs` "an explicit --common-dir from a foreign Git scope is rejected"; matching scope unchanged | temp-tree `status.mjs` mutant (`expectedCommonDir = commonDir`) accepts the foreign scope and renders `ses_foreign_scope` | the mutant is written only to the disposable tree; the workspace `status.mjs` bytes are asserted unchanged (`0512c7c4…b7414eec3`) |
 | "source-only inferred as live readiness" (W4) | `readiness.test.mjs` "a source-only derivation is never LIVE_ACCEPTED…" | temp-tree `readiness.mjs` mutant returns `LIVE_ACCEPTED` for a zero-live gate set | the mutant is written only to the disposable tree; the workspace `lib/readiness.mjs` bytes are asserted unchanged (`eb8dae2a…fc862fb7`) |
@@ -145,7 +145,7 @@ Failing-first controls (all assert byte-identical state + render on rejection):
 
 ## Test-preservation census
 
-No test was deleted. 251 tests at the accepted base -> **274** tests on the product/test tip (273 at checkpoint `1956d771`, plus the W8 transition-layer control and the corrected-counterpart control). Removed assertion lines and their replacements:
+No test was deleted. 251 tests at the accepted base -> **276** tests on the product/test tip (273 at checkpoint `1956d771`, plus the W8 transition-layer control, the corrected-counterpart control, and the W6 consumer-less-domain fail-closed control). Removed assertion lines and their replacements:
 
 | Removed assertion | Replacement |
 |---|---|
@@ -161,15 +161,15 @@ Positive fixture set, `expected.json` index, all negative fixtures, and the plug
 
 | Gate | Command | Result |
 |---|---|---|
-| Deterministic battery | `node --test --test-concurrency=1 ops/workflow/__tests__/*.test.mjs` | exit 0 — 274 tests, 274 pass, 0 fail, 0 cancelled, 0 skipped (~138 s) |
-| npm suite | `npm run workflow:test` | exit 0 — 273 tests (checkpoint `1956d771`), 273 pass, 0 fail (~68 s); rerun not needed after the test-only additive commits |
+| Deterministic battery | `node --test --test-concurrency=1 ops/workflow/__tests__/*.test.mjs` | exit 0 — 276 tests, 276 pass, 0 fail, 0 cancelled, 0 skipped (~352 s) on the final product/test tip |
+| npm suite | `npm run workflow:test` | exit 0 — 273 tests (checkpoint `1956d771`), 273 pass, 0 fail (~68 s); the three additive commits are test-only and their files were rerun in isolation (transition 16/16, fixtures 31/31, directive-conformance 7/7) |
 | State verify | `node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | exit 0, `status: ok`, `errors: 0` |
 | Render check | `node ops/workflow/render-register.mjs --check --state docs/plans/atlas-delivery-cycles.json --output docs/plans/atlas-active-delivery-streams.generated.md` | exit 0 |
 | Migration reproduction | `node --test ops/workflow/__tests__/migration.test.mjs` | exit 0 — `git show 387a1f6d:docs/plans/atlas-delivery-cycles.json` -> migrate -> byte-identical committed document |
 | Diff hygiene | `git diff --check` | exit 0 |
 | Worktree | `git status --short` | empty |
 
-Environment note: no `plugin-load.test.mjs` timeout occurred in either final battery run; the base-time known flake did not reproduce, so no isolated rerun was needed. Full battery timings varied (308 s at checkpoint, 138 s on the final tip) with identical results.
+Environment note: no `plugin-load.test.mjs` timeout occurred in any final battery run; the base-time known flake did not reproduce, so no isolated rerun was needed. Full battery timings varied (308 s at checkpoint `1956d771`, 138 s at `83aa08da`, 352 s at `cae18a8f`) with identical results.
 
 ## Live-document migration note
 
@@ -215,9 +215,9 @@ bytes are asserted unchanged by the tests.
 
 ```
 git -C <worktree> rev-parse 387a1f6d0d1e4c44eb41125f717e2aa50797238f   # base
-git -C <worktree> diff --name-only 387a1f6d...89cce196 | wc -l          # 58
+git -C <worktree> diff --name-only 387a1f6d...cae18a8f | wc -l          # 58
 git -C <worktree> status --short                                        # empty
-git -C <worktree> rev-parse HEAD                                        # branch tip (this handoff)
+git -C <worktree> rev-parse HEAD                                        # branch tip (this handoff; base...tip = 59 paths)
 ```
 
 `REVIEW_REQUIRED` — a fresh independent QA delegate reviews the immutable range
