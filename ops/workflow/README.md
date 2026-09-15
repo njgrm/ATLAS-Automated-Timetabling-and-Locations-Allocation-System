@@ -35,7 +35,9 @@ Direct CLI contract:
 - `node ops/workflow/custody.mjs --op <acquire|renew|transfer-request|transfer-ack|release|recover|login|status> --state <path> [flags]`
 
 Exit codes: `0` ok, `1` state/transition failure, `2` usage error. `--stream`
-without `--receipt` is a usage error, not a silent no-op. There is never a
+without `--receipt` is a usage error, not a silent no-op. A repeated flag on
+`transition.mjs` is a usage error (`USAGE_DUPLICATE_FLAG`), never a last-one-wins
+override, because a caller cannot tell which value was used. There is never a
 default state file: `--state` is always required.
 
 Every CLI prints exactly one JSON document with the top-level keys `status`,
@@ -102,13 +104,13 @@ arbitrary JSON patching. Each one performs, under an exclusive
 repository-common-dir lock:
 
 `read -> schema/semantic verify -> expected-revision CAS -> mutate exactly one
-stream -> render -> verify rendered bytes -> optionally mint/pin the closure
-receipt -> atomic replace`
+stream (or append exactly one new stream) -> render -> verify rendered bytes ->
+optionally mint/pin the closure receipt -> atomic replace`
 
 Named transitions: `record-executor-return`, `record-correction`,
-`record-qa-result`, `coordination-update`, `record-integration`, `record-audit`,
-`close-cycle`, `record-remote-observation`, `lease-update`. The planner closure
-sequence is:
+`record-qa-result`, `create-stream`, `coordination-update`, `record-integration`,
+`record-audit`, `close-cycle`, `record-remote-observation`, `lease-update`. The
+planner closure sequence is:
 
 1. `record-executor-return` (derives `changedPaths` from `git diff base...candidate`)
 2. `record-qa-result` (`--qa-verdict`, `--qa-session`, `--gates total/passed/failed/blocked/unperformed`)
@@ -129,6 +131,84 @@ rejects an explicitly non-null id; `CYCLE_ACTIVE` requires a defined,
 non-terminal target stream and a non-empty global next action. It runs through
 the same lock, CAS, staging, render, verification, and atomic-replace pipeline,
 so a rejected update leaves state, render, and receipt byte-identical.
+
+### Registering a new stream (`create-stream`)
+
+`create-stream` appends exactly one stream to `streams[]` through the same lock,
+CAS, schema/semantic verification, render, render-byte check, and atomic replace
+as every other transition. There is no second CLI, no second registry, and no
+JSON Patch, JavaScript evaluation, or partial mutation of an existing stream.
+
+```bash
+node ops/workflow/transition.mjs --transition create-stream \
+  --state docs/plans/atlas-delivery-cycles.json --expect-revision <n> \
+  --stream-spec <path> --observed-origin-main <40-hex tip> [--by <actor>]
+```
+
+- `--stream-spec <path>` is **required** and must resolve to exactly one JSON
+  object that is a complete stream record. The path is resolved against the
+  process working directory (never against the state document, never a default
+  location). `--stream-spec` and `--observed-origin-main` are the only two
+  transition-specific flags; `--stream` is rejected
+  (`TRANSITION_FLAG_NOT_APPLICABLE`) because the id comes from the spec.
+- `--observed-origin-main <40-hex>` is **required**. It is the only source of
+  the created record's `git.remoteObservation`, and the tool stamps both
+  `remoteObservation.observedAt` and `stateUpdatedAt` with the transition time so
+  a spec cannot assert a remote tip it did not observe or backdate its own state.
+  A spec that already carries a non-null `git.remoteObservation` is contradictory
+  and is rejected.
+- The spec is validated against the shipped `$defs.stream` schema before any
+  mutation, so **unknown keys anywhere in the record** (`CREATE_SPEC_UNKNOWN_KEY`
+  names the exact path) and every schema violation (`CREATE_SPEC_INVALID`,
+  reported by code and path only — no spec value is echoed) are rejected with
+  zero state/render/receipt mutation.
+- The whole candidate document is then re-verified by the production engine, so
+  duplicate ids (`CREATE_SPEC_DUPLICATE_ID`), unknown commits (`GIT_SHA_UNKNOWN`),
+  broken `base -> candidate -> integration` ancestry (`GIT_ANCESTRY`), a
+  `changedPaths` set that does not match `git diff base...candidate`
+  (`CHANGED_PATHS_MISMATCH`), and a HIGH record that bypasses the approval or
+  dependency rules (`HIGH_EXECUTION_WITHOUT_APPROVAL`,
+  `HIGH_DEPENDENCY_*`) all fail closed.
+- Creation-time claim/evidence consistency (`CREATE_SPEC_CLAIM_INCONSISTENT`):
+  `RUNNING` requires a non-empty `running[]`, `PLANNED` requires an empty
+  `running[]`, and an owner claiming `status: "ACTIVE"` requires a non-null
+  `sessionId`. A `PLANNED` record additionally may not name an `ACTIVE` lease or
+  own a dirty worktree — the verifier enforces both on the final document
+  (`PLANNED_WITH_LIVE_LEASE`, `PLANNED_WITH_DIRTY_WORKTREE`).
+- Credential-shaped content anywhere in the spec is rejected
+  (`CREATE_SPEC_SECRET_CONTENT`) using `lib/redact.mjs` `containsSecret` before
+  parsing; the value is never echoed, logged, or written.
+- On success `registry.revision` increments exactly once, exactly one stream is
+  appended, all existing stream bytes are preserved, and the deterministic
+  generated register is published in the same operation. Repeating the same
+  operation after success fails deterministically as a duplicate and never
+  creates a second record or silently overwrites the first.
+- `create-stream` mints no closure receipt, so `ATLAS_WORKFLOW_FAULT=STAGE_RECEIPT`
+  is unreachable for it; `STAGE_STATE`, `STAGE_RENDER`, `VERIFY_RENDERED`, and
+  `AFTER_LOCK` remain atomic. Two concurrent creators with the same expected
+  revision produce exactly one winner and one typed loser (`LOCK_CONTENTION` or
+  `TRANSITION_STALE_REVISION`) with no partial files.
+
+### Machine-state evidence rule
+
+Any document that claims current registry state must cite the exact
+`origin/main` tip observed at authoring time; a claim without that tip is not
+current-state evidence. Two consequences are load-bearing:
+
+- **A worktree-local registry copy is never current-state authority.** A linked
+  worktree's `docs/plans/atlas-delivery-cycles.json` (or its generated register)
+  is a snapshot of that branch, not of the remote. Refresh `origin/main` and read
+  the tip from the integration boundary before treating registry state as current.
+- **Time-sensitive observations carry their capture boundary and must be
+  refreshed before integration.** A recorded observation (including the
+  `git.remoteObservation` stamped by `create-stream`) attests the SHA observed at
+  its `observedAt` instant. It is not compared with the containing commit, the
+  current tip, or the working HEAD, and it must not be presented as the current
+  tip after the remote has moved.
+
+`create-stream` makes the first consequence mechanical for new records: the
+observed tip is a required flag, so the created record always carries an exact
+`refs/remotes/origin/main` observation rather than an assumed one.
 
 Failure atomicity: on invalid input, stale revision, invalid transition,
 ambiguous stream, failed render, failed receipt, or lock contention the command
