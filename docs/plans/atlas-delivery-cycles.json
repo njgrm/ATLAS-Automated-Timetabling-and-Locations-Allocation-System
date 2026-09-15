@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T04:20:08+08:00",
+    "lastUpdatedAt": "2026-09-15T12:00:04+08:00",
     "lastUpdatedBy": "primary-planner",
-    "revision": 11
+    "revision": 12
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "Obtain the exact ENROLLPRO-PROXY-RECOVERY-LIVE approval and execute that supervised recovery first; then revalidate and request the separately fingerprinted TERM-CACHE-CATCHUP-APPLY approval. WF-C03 remains safe ordinary parallel work."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "ENROLLPRO-PROXY-RECOVERY-LIVE",
+    "globalNextAction": "Wait for the EnrollPro dev-jegs host to come back online; on recovery re-probe the host, refresh obs-enrollpro-reachability, set approval.presentedReady=true, and dispatch the elevated executor for the approved ENROLLPRO-PROXY-RECOVERY-LIVE packet."
   },
   "streams": [
     {
@@ -410,16 +410,16 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "HIGH_APPROVAL_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T04:20:08+08:00",
-      "nextAction": "Obtain the packet's exact operator approval; re-verify EnrollPro reachability and runtime identity at execution preflight before any mutation.",
+      "state": "EXTERNALLY_BLOCKED",
+      "stateUpdatedAt": "2026-09-15T12:00:04+08:00",
+      "nextAction": "On EnrollPro dev-jegs recovery: re-probe the host, refresh obs-enrollpro-reachability to PASS, set approval.presentedReady=true, then dispatch the elevated executor for the approved packet (docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md).",
       "awaited": [
-        "Revised exact HIGH approval (currently NOT GRANTED)"
+        "EnrollPro dev-jegs host recovery (offline since ~2026-09-15T11:21+08:00)"
       ],
       "running": [],
       "git": {
-        "worktree": null,
-        "branch": null,
+        "worktree": "E:\\ATLAS-worktrees\\enrollpro-proxy-recovery-live-20260915",
+        "branch": "work/enrollpro-proxy-recovery-live-20260915",
         "baseSha": "d61c38d0f9d38a2bc89ee233164d1dc843b74cc8",
         "candidateSha": "54dce67b8392cbce09aa810813c37f9c87a67159",
         "integrationSha": "bc61ecd58fd4e5caaa5bdde43496b13032221354",
@@ -497,19 +497,29 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "NONE",
-        "detail": "",
+        "kind": "EXTERNAL",
+        "detail": "EnrollPro dev-jegs (100.120.169.123) offline in Tailscale since ~2026-09-15T11:21-11:23+08:00 (last seen 36m at 11:59; DNS resolves; TCP 443 and every HTTPS probe failed 11:45-11:59, 17/17 attempts). Execution preflight cannot pass and acceptance rows 4-5 cannot run until the host recovers.",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
       "approval": {
         "required": true,
         "presentedReady": false,
-        "granted": false,
-        "operatorIdentity": null,
-        "approvedAt": null,
-        "boundary": null,
-        "approvedActions": [],
+        "granted": true,
+        "operatorIdentity": "operator:njgrm",
+        "approvedAt": "2026-09-15T12:00:04+08:00",
+        "boundary": "Approved scope: back up the durable env file; set exactly ENROLLPRO_PROXY_ORIGIN and ENROLLPRO_API; build the client with VITE_ENROLLPRO_URL and install release 54dce67b8392cbce09aa810813c37f9c87a67159 at D:\\ATLAS-runtime-supervised-54dce67b-20260914; re-point ATLAS_RUNTIME_SOURCE_DIR/ATLAS_RUNTIME_RELEASE_SHA and the ATLAS-Runtime-Supervisor task action and working directory; quiesce supervisor-owned 5001/5174 and relaunch the resident supervisor only through the registered SYSTEM task preserving ONSTART/PT0S/IgnoreNew; run the packet acceptance matrix; roll back symmetrically on any mandatory failure; record the bounded approval/evidence/register docs-only records. Excluded: port 5175, unrelated processes, Tailscale Serve, companion runtimes, database/migrations/data, term-cache, Teaching Load, generation, publication, login, and every other environment key.",
+        "approvedActions": [
+          "back up the durable env file to an operator-only path outside every Git worktree",
+          "set exactly ENROLLPRO_PROXY_ORIGIN and ENROLLPRO_API in D:\\ATLAS-runtime-config\\atlas-server.env",
+          "build the client with VITE_ENROLLPRO_URL and install release 54dce67b8392cbce09aa810813c37f9c87a67159 at D:\\ATLAS-runtime-supervised-54dce67b-20260914",
+          "re-point ATLAS_RUNTIME_SOURCE_DIR, ATLAS_RUNTIME_RELEASE_SHA, and the ATLAS-Runtime-Supervisor task action and working directory",
+          "quiesce only the supervisor-owned ATLAS processes on 5001/5174",
+          "relaunch the replacement resident supervisor through schtasks /run /tn ATLAS-Runtime-Supervisor",
+          "run the packet acceptance matrix",
+          "roll back symmetrically on a mandatory failure",
+          "record the bounded approval, evidence, and register docs-only records"
+        ],
         "requiredObservationIds": [
           "obs-enrollpro-reachability"
         ],
@@ -519,10 +529,10 @@
         {
           "id": "obs-enrollpro-reachability",
           "target": "EnrollPro dev-jegs (100.120.169.123:5002)",
-          "checkedAt": "2026-09-15T04:20:08+08:00",
-          "status": "PASS",
-          "expiresAt": "2026-09-15T04:50:08+08:00",
-          "detail": "Read-only probe: current EnrollPro HTTPS public settings returned 200; ATLAS remains healthy while its existing /enrollpro-api/settings/public proxy returns 502, which is the prepared recovery target."
+          "checkedAt": "2026-09-15T12:00:04+08:00",
+          "status": "FAIL",
+          "expiresAt": "2026-09-15T18:00:00+08:00",
+          "detail": "Execution barrier: EnrollPro dev-jegs offline in Tailscale since ~11:21-11:23 +08 (DNS resolves; TCP 443 and HTTPS failed on 17/17 attempts 11:45-11:59); ATLAS local/Tailnet health remained 200. approval.granted records the operator grant; approval.presentedReady stays false until a fresh PASS observation at execution readiness per the packet execution preflight."
         }
       ],
       "artifacts": [],
