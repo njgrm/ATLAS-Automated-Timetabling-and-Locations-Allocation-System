@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T14:28:51.761Z",
+    "lastUpdatedAt": "2026-09-15T14:30:48.351Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 69
+    "revision": 70
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1933,11 +1933,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T14:28:51.761Z",
-      "nextAction": "C-6 QA ACCEPT_READY over candidate b632b3f4 (eight verified mandatory source gates: C-6 scope-transition 7/7, the two committed rendering mutants load-bearing both directions, C-4 parity 5/5, C-5 cold-load 8/8, TL C05/R3 suites green, client tsc 0 plus production build, changed-path and C-4/C-5 preservation checks); integrate on current main and commission the fresh Wave Completion Auditor at high before closure.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T14:30:48.351Z",
+      "nextAction": "Commission the fresh post-C-6 Wave Completion Auditor at high over integration 246ba41e and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the eligible clean worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -1945,7 +1945,7 @@
         "branch": "work/tl-operator-workspace-c05-scope-epoch",
         "baseSha": "56b317c5189169666ba14c0c081be94f9b85dceb",
         "candidateSha": "b632b3f45ef3b2d40fc513ebe3ae77f86dda51a0",
-        "integrationSha": null,
+        "integrationSha": "246ba41ea5701d54a16f58db912fc44ef5bda0c4",
         "changedPaths": [
           "atlas-client/src/hooks/useTeachingLoadData.ts",
           "atlas-client/src/lib/__tests__/tl-operator-workspace-c05.test.ts",
@@ -1955,8 +1955,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "61761a1e75e5545963fdb7b6783937362abffcc1",
-          "observedAt": "2026-09-15T12:23:03.295Z",
+          "sha": "246ba41ea5701d54a16f58db912fc44ef5bda0c4",
+          "observedAt": "2026-09-15T14:30:48.351Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
