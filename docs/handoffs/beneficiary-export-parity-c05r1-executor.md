@@ -19,9 +19,11 @@
 | Correction commit 2 (client signatory editor + API module + client suite) | `f1e74b14` |
 | Correction commit 3 (instrumented draft-export zero-write control) | `c7533e4a` |
 | Correction commit 4 (reference per-day totals convention in the load block) | `0b48b1a1` |
-| Correction commit 5 (contract classification) + 6 (this handoff) | _final tip — see §13_ |
-| Cumulative range | `076b4b2d..<final tip>` |
-| Immutable correction range (prior candidate → tip) | `691a7c4a..<final tip>` |
+| Correction commit 5 (contract classification) + 6 (this handoff) | `a715b84e` |
+| Final **source** candidate (last product/test commit) | `0b48b1a1` |
+| Final **tip** (docs-only over the source candidate; this reconciliation commit) | `HEAD` at freeze — see the return message |
+| Cumulative range | `076b4b2d..HEAD` |
+| Immutable correction range (prior candidate → source candidate) | `691a7c4a..0b48b1a1` |
 
 No amend, rebase, reset, squash, merge, or push. Every commit is additive.
 
@@ -234,8 +236,9 @@ contains no generated render, screenshot, or scratch file.
 
 ## 13. Single next action
 
-Primary planner: verify the immutable range (`076b4b2d..<final tip>`), then
-commission fresh independent QA on the frozen candidate (control 12/13 render
-evidence and the per-day totals convention are the highest-value re-checks).
-Do not integrate or push from this handoff; the migration source remains
-unapplied and the publication snapshot binding is revision-based (R4).
+Primary planner: verify the immutable range (`076b4b2d..<final tip>`; product/test
+range `691a7c4a..0b48b1a1`), then commission fresh independent QA on the frozen
+candidate (control 12/13 render evidence and the per-day totals convention are
+the highest-value re-checks). Do not integrate or push from this handoff; the
+migration source remains unapplied and the publication snapshot binding is
+revision-based (R4).
