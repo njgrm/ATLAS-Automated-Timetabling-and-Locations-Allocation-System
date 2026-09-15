@@ -420,3 +420,134 @@ the owned paths was modified; `D:/ATLAS` and every other worktree were untouched
 `66bfcc34cff35a15269eb0d989e9be2aa676dc0f` on `work/tl-operator-workspace-c05`,
 base `0c20342394ca2ca800cecc6dd69825e07625c66d`. A fresh independent QA delegate
 follows; this executor does not self-approve, integrate, or push.
+
+---
+
+# Combined correction append — C-4 (ancillary/effective-load parity) + C-5 (F2-COLD-LOAD)
+
+Supersedes the "Return" paragraph above. That stale candidate SHA is historical
+and is **not** re-asserted here; this section deliberately makes **no
+self-referential final-SHA claim**.
+
+- Full-range base: `c669c77cfc4f8895c5635be6920b9079ab0c259f` (refreshed `origin/main`)
+- Correction base: `7e38f9b49b22e2658c9ea0c187293b9c5fde4fba` (planner `-x` cherry-pick of `ea9b498d` onto `c669c77c`)
+- Branch/worktree: `work/tl-operator-workspace-c05-combined` @ `E:/ATLAS-worktrees/tl-operator-workspace-c05-combined`
+- Directive pin (LF-normalized `origin/main:AGENTS.md`): `C1E05AB0AAC280B9C335A0EA7FE41CCD9250B42AC5ADD9960F69508F566DCCA7` — recomputed and matched.
+
+## C-4 — ancillary / effective-load parity (frozen input, not modified)
+
+`Total Teaching Load = Actual Teaching Load + effective Class Advising credit`.
+Ancillary Work, ARAL, HG/HGP, and scheduled breaks contribute **zero** teaching-load
+credit. Implemented by `resolveEffectiveLoadBaselineHours` in
+`faculty-assignment-helpers.ts`, consumed by `useTeachingLoadUI.loadProfile` and
+`TeachingLoad.resolveSectionHoverDeltaMinutes`, with five parity controls in
+`teaching-load-effective-load-parity.test.ts`.
+
+**Provenance (truthful):** the lane rewrote its local `e1c417d8` into the
+authoritative `ea9b498d`. `e1c417d8` is **not consumed** by this candidate and must
+not be cited as an ancestor.
+
+The four C-4 blobs were re-verified unchanged at the new tip:
+
+| Path | Blob |
+|---|---|
+| `atlas-client/src/hooks/useTeachingLoadUI.ts` | `73538e71fbd2cc7ace4caf65b6284a253b1e8ac6` |
+| `atlas-client/src/lib/__tests__/teaching-load-effective-load-parity.test.ts` | `6ebee29a1ab57cb8908cc2b49c7a55f7dc613679` |
+| `atlas-client/src/lib/faculty-assignment-helpers.ts` | `1b5ec43ce440a9ea0255f9a53ca1d258b50dec21` |
+| `atlas-client/src/pages/TeachingLoad.tsx` | `1d07d5c7ca523e00a4555337fd1c19ed7f9af3aa` |
+
+## C-5 / F2-COLD-LOAD — the authority-diagnostics read was dead on the first load
+
+**Defect.** In `useTeachingLoadData.ts` the diagnostics token capture (`:264`) and
+dispatch (`:267`) ran in the SAME synchronous continuation as the scope-resolving
+setter (`:232`, after the awaited `Promise.all` at `:178`), so React's scope effect
+(`:456-467`, `diagnosticsEpochRef.current.begin()` at `:465`) ran afterwards and
+self-invalidated the captured token. On a cold cache the first
+`GET /faculty-assignments/authority-diagnostics` reply was discarded at `:274`/`:277`,
+`:280` declined to clear the loading flag, and `TeachingLoadTruthPanel` stayed on
+"Checking source" with every metric unknown.
+
+**Fix.** The epoch is now owned by the **resolving fetch**, not by a render-time
+effect:
+
+- `openDiagnosticsScope(scopeRef, epoch, scopeId)` opens an epoch only when the
+  RESOLVED scope identity actually changed;
+- `loadAuthorityDiagnosticsForScope({ epoch, scopeRef, scopeId, request, setPayload, setLoading })`
+  opens the epoch **before** capturing the token, then persists + clears loading for
+  the current scope, or returns `'discarded'` **without touching state** for a
+  superseded scope;
+- the scope effect clears the panel only and never opens an epoch.
+
+**Harness note (disclosed limitation).** This repository has no DOM implementation
+(no `jsdom`, `react-test-renderer`, `happy-dom`, `linkedom`, `@testing-library/react`)
+and dependencies are frozen, so a DOM-mounted hook render is not available. The
+controls therefore drive the real exported production seams that `fetchData` calls
+and render the real `TeachingLoadTruthPanel` through the established
+`renderToStaticMarkup` harness.
+
+**Controls** (`tl-authority-diagnostics-cold-load.test.ts`, 8 tests):
+1. Cold cache + first resolved scope persists the payload and clears loading.
+2. Loading clears after success **and** after failure (typed unknown rendered).
+3. Same scope re-resolved does not self-invalidate (`openDiagnosticsScope` + loader).
+4. A genuinely superseded-scope response is discarded.
+5. A superseded response — success **or failure** — cannot clear the current scope's
+   loading flag.
+6. Zero-write: read-only GET only; no `atlasApi.post/put/patch/delete`; no
+   `/policies/scheduling`; the loader itself has no transport and no cache write.
+7. The real panel renders known values ("Source verified", `data-metric-state="known"`,
+   required-pairs = 2) instead of "Checking source".
+
+## Failing-first mutant proofs (byte-exact restores)
+
+| # | Mutation | Blob | Result |
+|---|---|---|---|
+| A | literal currently-integrated pre-F2 hook (`git checkout` of `useTeachingLoadData.ts`) | `e3298b87ce03689a42f552367a2b4b231e8f83e6` | 8 tests, **0 pass / 8 fail** — the pre-F2 hook exposes no drivable seam ("the loader must be exported"), so the control cannot pass at all |
+| B | stale-scope ordering mutant: capture the token BEFORE the epoch opens (the pre-F2 ordering expressed in the seam) | `7b81231ea3d25faffe68381ce9d6d58eb305d1c8` | 8 tests, **4 pass / 4 fail** — "the scope-resolving reply must be persisted", "the panel must not be stuck on the loading badge", failure-path loading, same-scope re-resolve |
+| — | fixed hook (restored) | `fad12c9ab69af8c2150460c582f2a9c80bd5e8d8` | restore verified by blob equality, `git diff --quiet` exit 0, `git status --porcelain=v2` empty |
+
+Mutant B is the load-bearing proof: it reproduces the exact production ordering
+defect and fails for the right reason. The adversarial cross-scope discard controls
+stayed **green under both mutants**.
+
+## Gate results
+
+| Gate | Result |
+|---|---|
+| 1. C-5 cold-load production-seam suite | **8/8 pass** |
+| 2. `teaching-load-effective-load-parity.test.ts` (C-4) | **5/5 pass** |
+| 3. C05/R3 suites (`tl-operator-workspace-c05`, `-r3-truth`, `-blast-radius`, `teaching-load-distribution-ui`, `teaching-load-suggestion-diagnostics-ui`) | **all green** (73/73 across gates 1-3 in one run) |
+| 4. `teaching-load-effective-workload-policy.test.ts` (server) | **Total: 56, Passed: 56, Failed: 0**; server `tsc --noEmit` exit 0 |
+| 5. client `npx tsc --noEmit` | **exit 0 — zero errors** |
+| 6. client `npm run build` | **✓ built** |
+| 7. `git diff --check` | **exit 0** |
+| 8. changed-path inventory + C-4 blob re-verification | recorded in the return message; C-4 blobs unchanged |
+
+Dependencies: isolated `npm ci` in `atlas-client` (lockfile SHA-256
+`CE1AE84ED088BE75F27542CB039ABF338395ECE1C9E9A5D2139C2C65CF3B9F1E`, unchanged) and
+in `atlas-server` (`ECF06AEF5C385591A0CF4C03F6852018B283182375F9B23656210BF13794B6E5`,
+unchanged), followed by `npx prisma generate --schema ../prisma/schema.prisma`. No
+other worktree's `node_modules` was reused. A stray root-level `node_modules`
+(created by a mis-targeted first install) exists but is gitignored and untracked.
+
+## Known risks
+
+- `BLOCKING`: none.
+- `NON_BLOCKING (harness limitation, disclosed)`: no DOM implementation is available
+  and dependencies are frozen, so the cold-load control drives the real production
+  loader seam rather than a DOM-mounted hook render. The rendered assertions use the
+  real panel component.
+- `NON_BLOCKING (pre-existing)`: the summary/subjects/sections setters in
+  `useTeachingLoadData.ts` remain un-epoch-guarded; only the diagnostics read is
+  scope-guarded by this correction.
+- `BLOCKED_EXTERNAL(AUTH_SESSION_REQUIRED)`: live browser/pixel evidence is not
+  authorized by this packet.
+
+## Zero-mutation statement
+
+No push, merge, rebase, amend, force-push, or register edit. The legacy worktree
+`E:/ATLAS-worktrees/tl-operator-workspace-c05` and
+`E:/ATLAS-worktrees/integration-tl-operator-workspace-c05-20260915` were **not**
+entered, read-modified, cleaned, stashed, or committed. No browser, login, database,
+runtime, deployment, migration, generation, or publication action occurred. The four
+C-4 files were not modified.
+
