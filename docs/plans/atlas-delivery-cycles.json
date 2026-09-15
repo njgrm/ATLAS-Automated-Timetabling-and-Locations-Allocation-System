@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:22:41.940Z",
+    "lastUpdatedAt": "2026-09-15T22:22:24.260Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 113
+    "revision": 114
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING, NOT approval-ready; operator escalation). Launch owner SETTLED: ATLAS-Runtime-Supervisor task EXISTS and is Running (SYSTEM, At system start up, Enabled; calibrated absent control exits 1 'cannot find the file specified'). Second fresh pre-action review ses_f58dc165cffe2O0f8WZ5CNFt2k returned CORRECTION_REQUIRED 20/16/3/1 and REFUTED the planner's volatility narrative: the two logged starts (21:30:14.532Z and 21:31:04.221Z) are separated by a HOST REBOOT (LastBootUpTime 2026-09-16 05:30:45 +08) and the second is the ONSTART SYSTEM task run (Last Result 267009), so BOOT-RECOVERY DURABILITY IS PROVEN; the nearest Prisma P1001 was 2026-09-15T20:32:10.523Z, ~58 min earlier in the previous boot session, so the P1001 causality claim is WITHDRAWN. Also confirmed: previous is now NON-NULL, so cli.mjs rollback is reachable and would relaunch the identical release/sourceDir (54dce67b) - not a usable rollback to a prior artifact; the earlier previous=null claim is obsolete. Blocking: the apply-time runtime pre-state must be captured and bound INSIDE the execution window, and the packet's stale sections 2/4/11/11a/11b/12 need the bounded docs-only correction. Direct allocation pin: raw and LF origin/main:AGENTS.md SHA-256 7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3. Per the two-round auditor correction limit this lane is escalated to the operator; NO approval sentence is offered. Term-cache apply, migrations, deployment, restart, login, Teaching Load apply, generation and publication remain LOCKED and NOT granted."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "AUTHZ-CLASS-TEMPLATE-C07",
+    "globalNextAction": "AUTHZ-CLASS-TEMPLATE-C07 (CYCLE_ACTIVE, RUNNING): planner activated the executor-led source correction of the deployed class-template authority boundary (authenticate + privileged role and exact actor-school equality on both GET routes, GET /:id bound to the owning school, zero-write reads with the write-on-read seeding removed, an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, and actor-school binding on POST /, PATCH /:id and PUT /:id/subjects) at base 917da8be on branch work/authz-class-template-c07 (worktree E:/ATLAS-worktrees/authz-class-template-c07) per docs/prompts/authz-class-template-c07-2026-09-16.md. Awaited: the executor REVIEW_REQUIRED candidate with base/candidate SHAs and the 18-gate matrix; then one fresh independent QA over the frozen range and one fresh Wave Completion Auditor. No deployment, login, live-database, migration, Teaching Load, generation or publication action is granted by this cycle. Lane preserved: TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING, not approval-ready): elevated read-only re-verification SETTLED the launch owner - the ATLAS-Runtime-Supervisor task EXISTS and is Running (SYSTEM, At system start up, action/Start In = D:\\\\ATLAS-runtime-supervised-54dce67b-20260914; calibrated absent control exits 1 'cannot find the file specified'). The planner's earlier absence claim is retracted. Live: release 54dce67b, listeners 13244/13260, previous now NON-NULL, health/readiness/Tailnet 200, rollover disabled, env keyCount 14 with ENROLLPRO_PROXY_ORIGIN, /enrollpro-api/settings/public 404 freshly reproduced. BLOCKING: pre-state volatility (two supervisor restarts at 21:30:14Z and 21:31:04Z plus a preceding Prisma P1001 episode), so any apply must re-run the full preflight in the execution window and bind that pre-state. Directive pin corrected to raw/LF origin/main:AGENTS.md SHA-256 7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3 (the earlier ffd14520 value was computed through a lossy pipeline and is retracted). Awaited: one fresh independent pre-action review of the corrected packet; E8 Appendix A anchor. Term-cache apply, migrations, deployment, restart, login, Teaching Load apply, generation and publication remain LOCKED and NOT granted."
   },
   "streams": [
     {
@@ -2967,6 +2967,152 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "no wave-completion auditor is planned unless QA exposes cross-stream ambiguity, authorization risk or post-QA candidate changes"
+        }
+      }
+    },
+    {
+      "id": "AUTHZ-CLASS-TEMPLATE-C07",
+      "kind": "CYCLE",
+      "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T22:21:51.940Z",
+      "nextAction": "Executor implements the 18-gate class-template authority contract in E:/ATLAS-worktrees/authz-class-template-c07 per docs/prompts/authz-class-template-c07-2026-09-16.md and returns REVIEW_REQUIRED with the base/candidate SHAs and the full gate matrix; then one fresh independent QA over the frozen range and one fresh Wave Completion Auditor. Deployment of the corrected source remains a separate locked HIGH action.",
+      "awaited": [
+        "executor candidate for AUTHZ-CLASS-TEMPLATE-C07 (REVIEW_REQUIRED with base/candidate SHAs and the 18-gate matrix)"
+      ],
+      "running": [
+        "executor: atlas-executor-delegate implementing the class-template actor-school authority correction in E:/ATLAS-worktrees/authz-class-template-c07 (session id returned on handoff)"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/authz-class-template-c07",
+        "branch": "work/authz-class-template-c07",
+        "baseSha": "917da8be1c0dea13e2a5062f3883cce82c829384",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "917da8be1c0dea13e2a5062f3883cce82c829384",
+          "observedAt": "2026-09-15T22:21:51.940Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 18,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "route and service actor-school authority for both GET routes",
+          "school-bound item read without payload disclosure",
+          "zero-write reads (write-on-read seeding removed)",
+          "explicit privileged, actor-school-scoped, idempotent, audited initialization command",
+          "actor-school binding for POST /, PATCH /:id and PUT /:id/subjects",
+          "dispatch-free guard suite and guarded-disposable-database mounted suite with load-bearing mutants"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns this cycle's continuity, integration and register transitions"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "one bounded executor session implements and repairs this single prompt; no session id was returned to the registrant, so none is asserted"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a fresh independent QA delegate must review the frozen candidate over the immutable range"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the activator required a Wave Completion Audit for this authorization-boundary cycle; the auditor runs after integration and QA"
         }
       }
     }
