@@ -444,3 +444,44 @@ test('missing signatory names render blank signature lines with the configured r
 	assert.ok(all.includes('________________________'), 'a missing name renders a blank signature line');
 	assert.equal(all.some((value) => /BEBOSO|TORNEA|NONATO|ENGLIS/.test(value)), false, 'no reference name is invented');
 });
+
+// ─── Control 9 — the full draft export path is instrumented zero-write ───
+
+const WRITE_METHODS = new Set(['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany', 'executeRaw', 'queryRaw', '$executeRaw', '$queryRaw']);
+
+/**
+ * Wrap every model delegate so any write attempt throws. A production export
+ * that created, normalized, or repaired policy/signatory rows would fail here.
+ */
+function zeroWriteClient(base: any): { client: any; writes: string[] } {
+	const writes: string[] = [];
+	const wrapDelegate = (model: string, delegate: any) => new Proxy(delegate, {
+		get(target, property: string) {
+			const value = target[property];
+			if (typeof value === 'function' && WRITE_METHODS.has(property)) {
+				return (...args: unknown[]) => {
+					writes.push(`${model}.${property}`);
+					throw new Error(`UNEXPECTED WRITE: ${model}.${property}`);
+				};
+			}
+			return typeof value === 'function' ? value.bind(target) : value;
+		},
+	});
+	const client = new Proxy(base, {
+		get(target, property: string) {
+			const value = target[property];
+			if (value && typeof value === 'object') return wrapDelegate(property, value);
+			if (typeof value === 'function') return value.bind(target);
+			return value;
+		},
+	});
+	return { client, writes };
+}
+
+test('control 9: a draft export is an instrumented zero-write path', async () => {
+	const { client, writes } = zeroWriteClient(makeClient());
+	const shape = await buildShape(client, 501, 1);
+	const buffer = await generateTeacherProgramDocx(shape);
+	assert.ok(buffer.length > 2000, 'the draft export produced a real artifact');
+	assert.deepEqual(writes, [], 'the draft export path performs zero writes');
+});
