@@ -11,7 +11,7 @@ import atlasApi from '@/lib/api';
 import {
 	computeSectionAssignmentDeltaMinutes,
 	buildGuidedEmptyTeachingLoadMessage,
-	resolveAdvisoryCreditHours,
+	resolveEffectiveLoadBaselineHours,
 } from '@/lib/faculty-assignment-helpers';
 import { COVERAGE_MODE_CONFIG, formatTeachingLoadSaveError, buildSectionsBySubject, transferExactSectionPair, buildSaveCommitReceipt } from '@/lib/teaching-load-helpers';
 import { TooltipProvider } from '@/ui/tooltip';
@@ -396,7 +396,7 @@ export default function TeachingLoad() {
 			data.effectiveAssignmentsByFaculty[data.selectedId ?? 0] ?? [],
 			data.subjects,
 			data.sectionMap,
-			resolveAdvisoryCreditHours(data.selected, ui.workloadPolicy) + ((data.selected.ancillaryMinutesPerWeek || 0) / 60),
+			resolveEffectiveLoadBaselineHours(data.selected, ui.workloadPolicy),
 			ui.workloadPolicy,
 			data.selected.maxHoursPerWeek,
 		);
