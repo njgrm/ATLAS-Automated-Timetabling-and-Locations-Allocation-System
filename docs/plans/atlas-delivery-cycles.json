@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T15:32:36.181Z",
+    "lastUpdatedAt": "2026-09-15T15:47:29.980Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 74
+    "revision": 75
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1873,7 +1873,7 @@
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
         "auditorVerdict": "CORRECTION_REQUIRED",
-        "auditorSessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
+        "auditorSessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -1921,8 +1921,8 @@
           "reason": "C-6R completion of the operator-authorized rule-2 round: the post-C-6 wave audit F-1/F-2/F-3 (supersession-blind unbound branch, no dispatch-order precedence, unguarded pre-binding identity setters) are closed by a monotonic dispatch-precedence authority with every write gated; adds the committed overlapping-fetch failing-first control. C-4/C-5/C-6 behavior preserved.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "CORRECTION_REQUIRED",
+          "auditorSessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F"
         }
       ],
       "successors": [],
@@ -1949,10 +1949,10 @@
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T15:32:36.181Z",
-      "nextAction": "Commission the fresh post-C-6R Wave Completion Auditor at high over integration 2b4c4369 and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the eligible clean worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
+      "stateUpdatedAt": "2026-09-15T15:47:29.980Z",
+      "nextAction": "Post-C-6R wave audit CORRECTION_REQUIRED (9/8/0/0, 1 failed): the diagnostics reply path is gated only at the call site, so a superseded SAME-SCOPE invocation can still persist its payload and clear authorityDiagnosticsLoading; the committed behavioral controls also lack a bound-then-superseded case. Dispatch the bounded C-6R2 completion (thread dispatch precedence into the loader reply check plus committed same-scope and bound-superseded failing-first controls, and correct the handoff claim) on work/tl-operator-workspace-c05-scope-epoch; then fresh QA and a fresh Wave Completion Auditor before closure. If this completion does not clear, escalate to the operator rather than iterate again.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded correction commit"
       ],
       "running": [],
       "git": {
@@ -1993,7 +1993,7 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5a84e712ffe5apLeArTOcUfOx",
+          "sessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F",
           "status": "RETURNED",
           "writable": false
         }
