@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T12:18:10.304Z",
+    "lastUpdatedAt": "2026-09-15T12:23:03.295Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 55
+    "revision": 56
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1533,11 +1533,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T12:18:10.304Z",
-      "nextAction": "QA ACCEPT_READY 8/8/0/0 over the combined candidate d4e7581b; integrate on current main, then commission the fresh post-correction Wave Completion Auditor before closure.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T12:23:03.295Z",
+      "nextAction": "Commission the fresh post-correction Wave Completion Auditor at high over integration 61761a1e and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the clean superseded worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -1545,7 +1545,7 @@
         "branch": "work/tl-operator-workspace-c05-combined",
         "baseSha": "c669c77cfc4f8895c5635be6920b9079ab0c259f",
         "candidateSha": "d4e7581b2e79458c23abeefb60267776154337e8",
-        "integrationSha": null,
+        "integrationSha": "61761a1e75e5545963fdb7b6783937362abffcc1",
         "changedPaths": [
           "atlas-client/src/hooks/useTeachingLoadData.ts",
           "atlas-client/src/hooks/useTeachingLoadUI.ts",
@@ -1558,8 +1558,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "87aa24a3ff2b62482b329e6583524ea9addbb121",
-          "observedAt": "2026-09-15T09:42:22.893Z",
+          "sha": "61761a1e75e5545963fdb7b6783937362abffcc1",
+          "observedAt": "2026-09-15T12:23:03.295Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
