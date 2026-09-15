@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T23:27:38.594Z",
+    "lastUpdatedAt": "2026-09-15T23:29:29.931Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 133
+    "revision": 134
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3427,11 +3427,11 @@
       "kind": "STREAM",
       "objective": "Bounded correction round for AUTHZ-CLASS-TEMPLATE-C07 closing the two accepted blocking findings of its Wave Completion Audit while preserving every previously accepted gate: (R2) bind class-template subject bundles to the actor school so a foreign subjectId can no longer be bound and then projected through the actor's own GET, and (R3) stop atlas-client Audit.tsx from claiming section coverage when the template list is empty after the write-on-read removal. Fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T23:27:38.594Z",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T23:29:29.931Z",
       "nextAction": "Fresh independent QA returned ACCEPT_READY over 19f21729...dd8faf6b with mandatory source gates 12/12/0/0/0 (C01-C12 including the C06 subject-scope mutant and the C09 empty-list mutant). Next: integrate the accepted correction as a merge on origin/main, run the merged-tree combined gates, then commission exactly one fresh Wave Completion Auditor over the corrected final tree before closing with the receipt. Residuals disclosed: the GET subject projection is not defensively school-filtered (zero existing cross-school bindings measured), the Audit page stale-scope pattern is pre-existing, and two unrelated 2026-09-11/12 drill databases remain. Live deployment of the corrected source remains a separate locked HIGH action, NOT granted.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -3439,7 +3439,7 @@
         "branch": "work/authz-class-template-c07",
         "baseSha": "19f217294c5224d62e33c4d29e7d7cde26ca9a1e",
         "candidateSha": "dd8faf6bdec32ce83644a350e0538fd5da7451d1",
-        "integrationSha": null,
+        "integrationSha": "d15be91992bd1dfe190363366562c22456a1125f",
         "changedPaths": [
           "atlas-client/src/lib/__tests__/audit-section-coverage.test.ts",
           "atlas-client/src/lib/audit-section-coverage.ts",
@@ -3450,8 +3450,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "dc3613eb9cbeca5ed448dcb0034f894d12f43831",
-          "observedAt": "2026-09-15T23:19:42.045Z",
+          "sha": "d15be91992bd1dfe190363366562c22456a1125f",
+          "observedAt": "2026-09-15T23:29:29.931Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -3459,7 +3459,7 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
           "sessionId": "ses_f58d47024ffet3cnb239rJWFgS",
