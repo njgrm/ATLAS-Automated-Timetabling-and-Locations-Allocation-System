@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T20:44:39.498Z",
+    "lastUpdatedAt": "2026-09-15T20:46:15.967Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 109
+    "revision": 110
   },
   "coordination": {
     "mode": "MANUAL",
@@ -2822,7 +2822,7 @@
       "objective": "Fix the Teaching Load authority-diagnostics loading-state orphan in atlas-client/src/hooks/useTeachingLoadData.ts without weakening dispatch precedence or actor-school/year scope protection: loading ownership becomes dispatch-scoped, a stale dispatch cannot clear loading owned by a newer active dispatch, a newest dispatch that aborts before request binding terminates or transfers ownership, and newest success and newest typed failure each clear loading exactly once.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T20:44:39.498Z",
+      "stateUpdatedAt": "2026-09-15T20:46:15.967Z",
       "nextAction": "QA ACCEPT_READY over 46d9499d...b72dd3c6 (mandatory source gates 14/14/0/0/0 = the ten required real-lifecycle controls including the load-bearing mutant, plus client tsc, client production build, git diff --check, and exact changed-path attribution; QA consolidated headline tally was 10/10/0/0). Next: move coordination off the active cycle, record the integration merge, close with the receipt, clear the lease, and push.",
       "awaited": [],
       "running": [],
@@ -2839,8 +2839,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "3d1b783ba942b99b05e2d5bd753fdbbd7653a60c",
-          "observedAt": "2026-09-15T20:44:08.908Z",
+          "sha": "d430937f579a346b280b27ad88990e506ae39cb4",
+          "observedAt": "2026-09-15T20:46:15.967Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
