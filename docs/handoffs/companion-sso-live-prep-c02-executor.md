@@ -4,6 +4,12 @@ Status: `REVIEW_REQUIRED`. This is the executor's single handoff for the
 preparation candidate. It is not approval, integration, or a `GO`. The executor
 does not self-accept, merge, rebase, push, or plan successors.
 
+**Candidate classification: `PREPARED_WITH_EXTERNAL_GATE`.** All docs-candidate
+checks pass; the only unfinished row is row 10's EnrollPro half, carried as an
+external **activation** precondition (fail-closed, `EXTERNALLY_BLOCKED(LIVE_TAILNET)`
+while the EnrollPro host is offline). This is **not** `ACCEPT_READY` 15/15 and it
+claims **no live SSO readiness**.
+
 Governing packet: `docs/prompts/companion-sso-live-prep-c02-2026-09-15.md`.
 Full matrices and sanitized evidence:
 `docs/handoffs/companion-sso-live-prep-c02-evidence.md`.
@@ -30,8 +36,9 @@ Companion developer handoff:
 | Commit 1 | `62da5e7b81c3ae6b7307d7db0537cb8f6c32386d` — `docs(sso): record companion SSO live-prep evidence` |
 | Commit 2 | `faa2422ea81df91e7a87a3529d6115f47b11bdea` — `docs(sso): prepare companion migration and runtime activation gates` |
 | Commit 3 | `61b1de5cbe1e9e305ef5d8d7b0e441dd320ab3ad` — `docs(sso): correct activation release-delta claim` |
-| Commit 4 (tip) | this correction commit — `docs(sso): gate activation on proxy origin and fix audit findings`; exact SHA in the executor return |
-| Candidate range | `6409a2a8...<tip>` (four additive commits) |
+| Commit 4 | `b7ffe61cf0223fce9d32b818bb6c9c5277d2ce03` — `docs(sso): gate activation on proxy origin and fix audit findings` |
+| Commit 5 (tip) | this correction commit — `docs(sso): record proxy approval, option A, and fresh-signature migration gates`; exact SHA in the executor return |
+| Candidate range | `6409a2a8...<tip>` (five additive commits) |
 | Directive `origin/main:AGENTS.md` LF-normalized SHA-256 | `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5` |
 | Directive recorded at prompt authoring | `0cf68d62d9c6c6bb37b737c6038118a8eed7efc2d403a2100de9d64f02c871d6` (superseded; newer wins) |
 
@@ -108,7 +115,9 @@ implemented by ATLAS.
 
 **Tally: 14 / 15 passed / 1 blocked / 0 unperformed.** Row 10's EnrollPro half is
 an external live-state condition, captured with evidence and encoded as a
-fail-closed precondition in both prepared packets.
+fail-closed precondition in both prepared packets. Candidate classification:
+**`PREPARED_WITH_EXTERNAL_GATE`** (external **activation** precondition on that
+row; not `ACCEPT_READY` 15/15; no live SSO readiness claimed).
 
 ## 5. Decisive command results
 
@@ -190,14 +199,23 @@ asserted different from the configured database name; residue count 0 for the
 
 | Finding | Detail | Fix | Verification |
 | --- | --- | --- | --- |
-| F1 (BLOCKING, safety gate) | The activation packet did not account for the re-pinned release's supervised launch gate, which requires `ENROLLPRO_PROXY_ORIGIN`. | Activation packet §4 gained an `ENROLLPRO_PROXY_ORIGIN` row (bare origin `https://dev-jegs.buru-degree.ts.net`, owned by `ENROLLPRO-PROXY-RECOVERY-LIVE`, not written by this packet) plus an explanatory paragraph; §5 gained precondition 7 (`PRECONDITION_PROXY_ORIGIN_MISSING`); §6.2 scopes the "no other key" rule to the four SSO keys this packet writes and requires `ENROLLPRO_PROXY_ORIGIN`/`ENROLLPRO_API` to remain intact; §6.6 references the gate and forbids bypassing `ENROLLPRO_PROXY_ORIGIN_MISSING`; §8 rows 1/2/4 require the recorded presence check, spawned children with no `ENROLLPRO_PROXY_ORIGIN_MISSING`, and the 401-not-404 mounted-route proof on the new release; §10 approval sentence adds the precondition without authorizing the key write; §11 requires the presence check in the return. | `ops/runtime/cli.mjs:36-39` `assertLaunchEnrollProOrigin`, called at `:46` (`runStart`) and `:97` (`runRollback`); `stop`/`status` exempt (`:33-34`). `ops/runtime/lib/enrollpro-origin.mjs:96-104` (`requireExplicit` → `ENROLLPRO_PROXY_ORIGIN_MISSING`). `ops/runtime/runtime-contract.json` → `upstream.enrollProOriginVariable = ENROLLPRO_PROXY_ORIGIN`. Incumbent `D:\ATLAS-runtime-supervised-3d916b26-20260912\ops\runtime\cli.mjs` has **no** gate/origin references (file read directly; the directory is not a safe git dir for this user). `ENROLLPRO_PROXY_ORIGIN` **ABSENT**, `ENROLLPRO_API` **PRESENT** in `D:\ATLAS-runtime-config\atlas-server.env`. Owner packet `origin/main:docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md:119,127,167-168` sets exactly the bare origin and warns never to bypass the missing-code. |
+| F1 (BLOCKING, safety gate) | The activation packet did not account for the re-pinned release's supervised launch gate, which requires `ENROLLPRO_PROXY_ORIGIN`. | Activation packet §4 gained an `ENROLLPRO_PROXY_ORIGIN` row (bare origin `https://dev-jegs.buru-degree.ts.net`, owned by `ENROLLPRO-PROXY-RECOVERY-LIVE`, not written by this packet) plus an explanatory paragraph; §5 gained precondition 7 (`PRECONDITION_PROXY_ORIGIN_MISSING`); §6.2 scopes the "no other key" rule to the four SSO keys this packet writes and requires `ENROLLPRO_PROXY_ORIGIN`/`ENROLLPRO_API` to remain intact; §6.6 references the gate and forbids bypassing `ENROLLPRO_PROXY_ORIGIN_MISSING`; §8 rows 1/2/4 require the recorded presence check, spawned children with no `ENROLLPRO_PROXY_ORIGIN_MISSING`, and the 401-not-404 mounted-route proof on the new release; §10 approval sentence adds the precondition without authorizing the key write; §11 requires the presence check in the return. | `ops/runtime/cli.mjs:36-39` `assertLaunchEnrollProOrigin`, called at `:46` (`runStart`) and `:97` (`runRollback`); `stop`/`status` exempt (`:33-34`). `ops/runtime/lib/enrollpro-origin.mjs:96-104` (`requireExplicit` → `ENROLLPRO_PROXY_ORIGIN_MISSING`). `ops/runtime/runtime-contract.json` → `upstream.enrollProOriginVariable = ENROLLPRO_PROXY_ORIGIN`. Incumbent `D:\ATLAS-runtime-supervised-3d916b26-20260912\ops\runtime\cli.mjs` has **no** gate/origin references (file read directly; the directory is not a safe git dir for this user). `ENROLLPRO_PROXY_ORIGIN` **ABSENT**, `ENROLLPRO_API` **PRESENT** in `D:\ATLAS-runtime-config\atlas-server.env`. Owner packet `origin/main:docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md:119,127,167-168` sets exactly the bare origin and warns never to bypass the missing-code. **Proxy-lane status (verified against `origin/main` `docs/plans/atlas-delivery-cycles.json` at `0c203423`):** approval **GRANTED** (2026-09-15T12:00:04+08, `operator:njgrm`, stream state `EXTERNALLY_BLOCKED`); execution **pending** (EnrollPro host offline, `obs-enrollpro-reachability` FAIL), so `ENROLLPRO_PROXY_ORIGIN` is **not yet proven installed**. |
 | F2 (NON_BLOCKING) | Wrong `runStatus` citation `ops/runtime/cli.mjs:63-72`. | Corrected to `:81-91` in activation §3 and evidence §6.3. | Verified directly: `runStatus` block is lines 81–91. |
 | F3 (NON_BLOCKING) | Wrong `getStatus`/`live` citation `supervisor.mjs:371-401` / `:397`. | Corrected to `getStatus()` at `:375` and the `live:` computation at `:401` in activation §3 and evidence §6.3. | Verified directly: `getStatus() {` at line 375; `live: liveChildren[...]` at line 401. |
 | F4 (NON_BLOCKING) | The governing packet's authoring-time directive pin `0cf68d62…` is unreproducible. | Added a parenthetical recovery note at the pin (original value not rewritten): audit could not reproduce it under LF/raw/UTF-16LE/UTF-8-BOM/the packet base `234046f8`; the execution authority is `5f920670…`. | Planner-authorized edit (the governing packet is normally untouched); the `5f920670…` value was independently re-verified in R1. |
 | F5 (NON_BLOCKING) | Evidence §1 tagged `origin/main 53a781a4` as `CURRENT_STATE`. | Re-tagged `HISTORICAL` with the supersession note (capture-boundary observation superseded by correction-time tip `0c203423`; see §6.4 Correction 1). | Tag legend is defined in evidence §0. |
 | F6 (NON_BLOCKING) | The governing packet's Workflow-state verification of `docs/plans/atlas-delivery-cycles.json` was not recorded. | Added evidence §6.5 with the read-only observed values and the intentional-unregistered rationale. | `coordination.mode = MANUAL`, `activeCycleId = null`, `leases` empty, `browserCustody` custody/logins empty, 6 `streams` with no `COMPANION-SSO-LIVE-PREP-C02` entry. |
 
-## 11. Approval sentences (NOT GRANTED)
+## 11. Correction 3 (head-planner pre-integration correction)
+
+| Correction | Fix | Verification |
+| --- | --- | --- |
+| 1+2 — proxy-recovery approval-status truth (four-way distinction) | Activation §4 explanatory paragraph rewritten: owner packet's approval is **GRANTED** (machine-state `docs/plans/atlas-delivery-cycles.json` at `origin/main` `0c203423`: `approval.granted = true`, `operator:njgrm`, `approvedAt 2026-09-15T12:00:04+08:00`, stream state `EXTERNALLY_BLOCKED`), execution **NOT PERFORMED** (EnrollPro host offline, `obs-enrollpro-reachability` FAIL), so `ENROLLPRO_PROXY_ORIGIN` is **not yet proven installed**; §4 table row aligned; §5.7 adds the status and keeps the hard STOP; §10 sentence clause changed to "approval GRANTED 2026-09-15; execution pending on EnrollPro host recovery"; the F1 row above gained the same one-line status. | Read `origin/main:docs/plans/atlas-delivery-cycles.json` (not the stale worktree copy): `granted=true`, `operatorIdentity=operator:njgrm`, `approvedAt=2026-09-15T12:00:04+08:00`, `presentedReady=false`, `state=EXTERNALLY_BLOCKED`, `execution=null`; `coordination.mode=CYCLE_ACTIVE`, `activeCycleId=ENROLLPRO-PROXY-RECOVERY-LIVE`; observation `obs-enrollpro-reachability` status `FAIL`. `tailscale status`: `dev-jegs` (100.120.169.123) offline, last seen 1 h before this correction. `ENROLLPRO_PROXY_ORIGIN` remains **ABSENT** in the durable env. |
+| 3 — migration packet: historical snapshot, fresh signatures, fail-closed deltas | §3 relabelled "HISTORICAL CONTEXT ONLY … not an execution-time invariant or pass condition"; §5.6 now requires a fresh pre-action signature block (migrations count/rows, `to_regclass`, row counts incl. role distribution); §7.4 replaced with an exact comparison against the §5.6 block permitting only the one new migration row and `companion_sso_codes` (zero rows), every other delta fail-closed → STOP + §8 rollback; §8.3 rollback verification now compares to the fresh §5.6 state rather than a hard-coded count; §9 approval sentence replaced the stale-number clause; the execution-record section (§10, the packet's only execution-record section) requires the fresh block and the delta comparison. | §5.1/§5.2 identity/state checks kept (database name, `0002` ABSENT, prior migrations finished) as preflight facts; §3 numbers retained as historical facts only. **Note for the planner:** the correction brief called the execution-record section "§11"; the migration packet has 10 sections, so the edit landed on §10 "Execution record required" (its only execution-record section). |
+| 4 — R1 uses Option A | Companion handoff D1 gained a "Decision (head planner, 2026-09-15): Option A selected" block (Option B not required for D1; D2 stays EnrollPro-owned; the D1 acceptance matrix stays mandatory for the correction stream; this worktree implements nothing). Activation §5.2 records the decision and keeps Flow B fail-closed with `PRECONDITION_ROLE_CONTRACT_UNRESOLVED` until the correction is complete, QA'd, integrated, and re-pinned/bound. Evidence §4.5 gained a recorded-decision row tagged `REQUIREMENT`. | Cross-read of the three files; the gate code/behaviour is unchanged (docs-only). |
+| 5 — candidate classification | Executor handoff and evidence doc top status now carry **`PREPARED_WITH_EXTERNAL_GATE`** with the one-line definition, and both 15-row tally statements carry the same classification next to the honest `14/15 passed / 1 blocked` figure. | `grep` shows the classification at both tops and both tally statements, paired with "not `ACCEPT_READY` 15/15" and "no live SSO readiness". |
+
+## 12. Approval sentences (NOT GRANTED)
 
 - `COMPANION-SSO-MIGRATION-LIVE-C02` — exact sentence in section 9 of
   `docs/prompts/companion-sso-migration-live-c02-2026-09-15.md`; **NOT GRANTED**.
@@ -205,7 +223,7 @@ asserted different from the configured database name; residue count 0 for the
   `docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md`; **NOT
   GRANTED**.
 
-## 12. Return contract
+## 13. Return contract
 
 `REVIEW_REQUIRED`. Control returns to the primary planner for immutable-range
 validation and a fresh independent QA pass. The executor does not integrate,

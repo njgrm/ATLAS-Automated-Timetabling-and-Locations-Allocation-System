@@ -96,6 +96,20 @@ its owner**; ATLAS must not implement it.
 Whichever option is chosen must be recorded as the single authority for the
 reverse role/name contract, and both packets that depend on it must cite it.
 
+### Decision (head planner, 2026-09-15): **Option A selected**
+
+The head planner selected **Option A**. A separate ATLAS correction shall
+normalize the reverse SSO roles to EnrollPro's vocabulary and guarantee valid
+non-empty assertion names. That correction requires its own source change, fresh
+independent QA, integration, and a re-pin/binding of the consuming install; it is
+**not** implemented by this docs-only preparation worktree.
+
+- Option B is **not** required for D1.
+- D2 remains EnrollPro-owned (a companion-repository change by its owner).
+- This worktree does not implement any part of the correction.
+- The D1 acceptance matrix above stays **mandatory** for the correction stream and
+  is the acceptance authority for that source change.
+
 ### Negative controls (mandatory)
 
 1. A lowercase-role ATLAS account asserts a role the consumer accepts;

@@ -31,11 +31,13 @@ publication, Teaching Load or term-cache actions, or any companion mutation.
   `0001_term_subject_authority` are already applied and finished.
 - One bounded database action; a migration preview is not migration approval.
 
-## 3. Prepared-time live snapshot (read-only, 2026-09-15 ~04:05Z / ~12:05 +08)
+## 3. Prepared-time live snapshot — HISTORICAL CONTEXT ONLY (read-only, 2026-09-15 ~04:05Z / ~12:05 +08)
 
-Every value is a preparation-time observation and a revalidation input, not an
-execution assumption. Re-probe each value at execution preflight; STOP and
-report if the live identity differs.
+**This section is HISTORICAL context only and is NOT an execution-time invariant
+or pass condition.** Every value below is a preparation-time observation, not an
+execution assumption. Execution identity/state must be re-derived at preflight
+(§5.1/§5.2), and the before-signatures must be captured fresh immediately before
+apply (§5.6); §7.4 compares against that fresh block, never against this section.
 
 - `_prisma_migrations` rows: **2** (`0000_clean_baseline` finished,
   `0001_term_subject_authority` finished, neither rolled back).
@@ -119,8 +121,16 @@ No other object may be created, altered, or dropped. No data row is written.
    and manifest file name; never print secret values.
    **Requirement:** the selected manifest must be ≤24 h old for the exact target
    database when `npm run migrate:guarded` runs.
-6. Record the exact DDL the migration will emit (§4) and the before signatures
-   (§3) as a pre-apply evidence block.
+6. **Capture a fresh pre-action signature block immediately before apply**
+   (this is the comparison baseline for §7.4; §3 is historical context and must
+   not be used as one). Record, read-only:
+   - `_prisma_migrations` state — total row count and each row's
+     `migration_name` with `finished_at`/`rolled_back_at` flags;
+   - `to_regclass('public.companion_sso_codes')` (expected NULL);
+   - row-count signatures for `schools`, `atlas_auth_accounts` (including the
+     `role` distribution), `audit_logs`, `enrollpro_school_year_mirrors`, and
+     `faculty_mirrors`;
+   - the exact DDL the migration will emit (§4).
 7. Confirm no other migration is pending and no `--schema` argument will be
    forwarded to the guarded wrapper.
 
@@ -157,9 +167,14 @@ schema command against any database other than the verified target.
    `_code_hash_consumed_at_idx`, `_expires_at_idx`), and the
    `_user_id_fkey` FK (`ON UPDATE CASCADE ON DELETE CASCADE`).
 3. Table row count is 0 immediately after apply (no data row written).
-4. Non-target signatures unchanged versus §3: `schools`=2,
-   `atlas_auth_accounts`=44, `audit_logs`=242,
-   `enrollpro_school_year_mirrors`=2, `faculty_mirrors`=42.
+4. **Exact post-action comparison against the fresh pre-action signature block
+   captured in §5.6.** Only two deltas are permitted: (a) exactly one new
+   `_prisma_migrations` row for `0002_companion_sso_code` (finished, not rolled
+   back); and (b) creation of `public.companion_sso_codes` with zero rows (plus
+   its declared indexes and FK, §7.2). **Every other delta must fail closed** —
+   STOP, report the exact delta, and execute the §8 rollback. The §3
+   preparation-time numbers are historical context and are **not** a pass
+   condition.
 5. Replay/idempotence: a second `npm run migrate:guarded` (or
    `prisma migrate deploy`) is a no-op ("No pending migrations to apply.") and
    writes nothing.
@@ -173,7 +188,8 @@ a disposable database in COMPANION-SSO-LIVE-PREP-C02) is:
 
 1. `DROP TABLE IF EXISTS companion_sso_codes;`
 2. `DELETE FROM _prisma_migrations WHERE migration_name = '0002_companion_sso_code';`
-3. Verify the table is absent and `_prisma_migrations` is back to 2 rows.
+3. Verify the table is absent and `_prisma_migrations` is restored to the fresh
+   pre-action state captured in §5.6 (not the historical §3 numbers).
 4. If a clean re-apply is required, re-run §6 and re-verify §7.
 
 Rollback must be executed only on the same verified target, only for a failed
@@ -194,9 +210,15 @@ resort and requires the §5 backup archive.
 > database using the canonical guarded command `npm run migrate:guarded` from
 > `atlas-server/`; verify the expected DDL (`companion_sso_codes` table, its
 > columns/defaults/indexes, and the `user_id → atlas_auth_accounts(id)`
-> CASCADE FK), a zero row count, an unchanged non-target signature (schools=2,
-> atlas_auth_accounts=44, audit_logs=242, enrollpro_school_year_mirrors=2,
-> faculty_mirrors=42), migration-status replay as a no-op, and record the
+> CASCADE FK), a zero row count, an exact post-action comparison against a fresh
+> pre-action signature block captured immediately before apply
+> (`_prisma_migrations` count/rows, `to_regclass('companion_sso_codes')`, and row
+> counts for schools, atlas_auth_accounts incl. role distribution, audit_logs,
+> enrollpro_school_year_mirrors, faculty_mirrors) in which the only permitted
+> deltas are exactly one new `_prisma_migrations` row for
+> `0002_companion_sso_code` (finished, not rolled back) and creation of
+> `public.companion_sso_codes` with zero rows — every other delta fails closed
+> with a STOP and the rollback, migration-status replay as a no-op, and record the
 > `MIGRATE_GATE_OK` receipt; and on any mandatory failure roll back by dropping
 > `companion_sso_codes` and deleting its `_prisma_migrations` row (or restoring
 > the backup). Excluded: every other migration, all configuration and secret
@@ -209,10 +231,16 @@ resort and requires the §5 backup archive.
 ## 10. Execution record required
 
 Return: preflight re-probe results and resolved (sanitized) target identity;
-the recomputed §4 fingerprint; the backup archive path + size + SHA-256 +
-`restoreListEntries` + manifest name and the `npm run backup` result; the exact
-`npm run migrate:guarded` invocation and its `MIGRATE_GATE_OK` line; the
-`_prisma_migrations` before/after rows; the post-apply schema proof (columns,
-indexes, FK); the row-count and non-target signature deltas; the replay no-op
-result; the rollback record if used; an explicit statement that no excluded
-action occurred; and the final live identity of the target database.
+the recomputed §4 fingerprint; **the fresh pre-action signature block captured
+immediately before apply (§5.6)** — `_prisma_migrations` count and rows,
+`to_regclass('public.companion_sso_codes')`, and row counts for `schools`,
+`atlas_auth_accounts` (incl. role distribution), `audit_logs`,
+`enrollpro_school_year_mirrors`, `faculty_mirrors`; **the exact post-action delta
+comparison against that fresh block (§7.4)**, showing only the two permitted
+deltas or the fail-closed STOP + rollback; the backup archive path + size +
+SHA-256 + `restoreListEntries` + manifest name and the `npm run backup` result;
+the exact `npm run migrate:guarded` invocation and its `MIGRATE_GATE_OK` line;
+the `_prisma_migrations` before/after rows; the post-apply schema proof (columns,
+indexes, FK); the replay no-op result; the rollback record if used; an explicit
+statement that no excluded action occurred; and the final live identity of the
+target database.

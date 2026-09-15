@@ -143,7 +143,7 @@ ATLAS server keys (`D:\ATLAS-runtime-config\atlas-server.env`):
 | `ENROLLPRO_SSO_CLIENT_SECRET` | shared secret S1 (≥32 chars) | Flow A `Authorization: Bearer` |
 | `ENROLLPRO_SSO_CALLBACK_URL` | `https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/reverse/callback` | Flow B exact `redirect_uri` binding; MUST equal EnrollPro's computed redirect URI byte-for-byte |
 | `ATLAS_SSO_REVERSE_CLIENT_SECRET` | shared secret S2 (≥32 chars, distinct from S1) | Flow B inbound `Authorization: Bearer` |
-| `ENROLLPRO_PROXY_ORIGIN` | `https://dev-jegs.buru-degree.ts.net` (bare origin, **no path**) | Supervised launch gate of the pinned release (`ops/runtime/cli.mjs:36-39,46,97` → `ops/runtime/lib/enrollpro-origin.mjs:96-104`). **Owned/set by `ENROLLPRO-PROXY-RECOVERY-LIVE`** (or an explicit operator grant naming this key); this packet must not add or modify it |
+| `ENROLLPRO_PROXY_ORIGIN` | `https://dev-jegs.buru-degree.ts.net` (bare origin, **no path**) | Supervised launch gate of the pinned release (`ops/runtime/cli.mjs:36-39,46,97` → `ops/runtime/lib/enrollpro-origin.mjs:96-104`). **Owned/set by `ENROLLPRO-PROXY-RECOVERY-LIVE`** (approval GRANTED 2026-09-15; execution pending on EnrollPro host recovery; value not yet proven installed — see §4 note); this packet must not add or modify it |
 
 `ENROLLPRO_PROXY_ORIGIN` is not an SSO key, but the pinned release's supervised
 launch gate makes it a hard precondition of any restart: the gate
@@ -156,10 +156,21 @@ and the value must be a bare `http(s)` origin with no path
 (`ops/runtime/lib/enrollpro-origin.mjs:96-104`; absent and malformed values fail
 closed). The incumbent release `3d916b26` has no such gate, which is why the
 current runtime starts without the key. It is currently **ABSENT** from
-`D:\ATLAS-runtime-config\atlas-server.env`; the audited, not-granted
-`docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md` is its owner and sets
-exactly this bare origin (and `ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api`),
-and itself warns never to bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`.
+`D:\ATLAS-runtime-config\atlas-server.env`; its owner is
+`docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md`, whose operator
+approval is **GRANTED** (machine-state authority `origin/main`
+`docs/plans/atlas-delivery-cycles.json` at `0c203423`: stream
+`ENROLLPRO-PROXY-RECOVERY-LIVE` → `approval.granted = true`,
+`operatorIdentity = operator:njgrm`, `approvedAt = 2026-09-15T12:00:04+08:00`,
+stream state `EXTERNALLY_BLOCKED`). Its **execution is NOT PERFORMED** because
+the EnrollPro host is offline (required observation
+`obs-enrollpro-reachability` = FAIL at `2026-09-15T12:00:04+08:00`; Tailscale
+reports `dev-jegs` / `100.120.169.123` offline, last seen ~1 h before this
+correction). Therefore `ENROLLPRO_PROXY_ORIGIN` is **not yet proven installed**.
+The owner packet sets exactly this bare origin (and
+`ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api`) and itself warns never
+to bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`; this packet must not add or modify
+it.
 
 ATLAS client build input (baked into the bundle by Vite):
 
@@ -203,17 +214,25 @@ characters, and contain none of the placeholder markers
    `companionSsoReverseExchangeResponseSchema` requires case-sensitive uppercase
    `RoleEnum` values and non-empty `firstName`/`lastName`; EnrollPro therefore
    rejects the assertion with `502 COMPANION_REVERSE_SSO_RESPONSE_INVALID`.
-   The planner/operator MUST choose and complete one resolution before Flow B
-   acceptance is attempted:
-   - **(A) ATLAS-side normalization** — map the local role to EnrollPro's
-     vocabulary and guarantee non-empty assertion names before responding (new
-     ATLAS product commit + fresh QA + re-pin); or
-   - **(B) EnrollPro-side acceptance** — widen
+   **Decision (head planner, 2026-09-15): Option A selected** — a separate ATLAS
+   correction shall normalize the reverse roles to EnrollPro's vocabulary and
+   guarantee valid non-empty assertion names; Option B is not required for D1 and
+   D2 remains EnrollPro-owned (recorded in
+   `docs/handoffs/enrollpro-sso-contract-corrections-2026-09-15.md` and evidence
+   §4.5). Until that ATLAS correction is complete, independently QA'd, integrated,
+   and the install re-pinned/bound to the corrected product SHA, this gate stays
+   fail-closed for Flow B acceptance: STOP with
+   `PRECONDITION_ROLE_CONTRACT_UNRESOLVED`. The two resolution options remain
+   documented for completeness:
+   - **(A) ATLAS-side normalization** (selected) — map the local role to
+     EnrollPro's vocabulary and guarantee non-empty assertion names before
+     responding (new ATLAS product commit + fresh QA + re-pin); or
+   - **(B) EnrollPro-side acceptance** (not required for D1) — widen
      `companionSsoReverseExchangeResponseSchema` to accept ATLAS's role
      vocabulary (and define the name fallback), committed in the EnrollPro
      repository by its owner.
-   If neither resolution is complete and independently verified, STOP with
-   `PRECONDITION_ROLE_CONTRACT_UNRESOLVED` (Flow A may still be exercised as
+   If the selected resolution is not complete and independently verified, STOP
+   with `PRECONDITION_ROLE_CONTRACT_UNRESOLVED` (Flow A may still be exercised as
    partial evidence, but the packet is not satisfiable and must not be reported
    as passing).
 3. **Companion reachability.** `https://dev-jegs.buru-degree.ts.net` resolves to
@@ -245,8 +264,16 @@ characters, and contain none of the placeholder markers
    supervised launch gate (`ops/runtime/cli.mjs:36-39`, called at `:46` and `:97`)
    fails closed with `ENROLLPRO_PROXY_ORIGIN_MISSING` before any child process is
    constructed when the value is absent. This packet does **not** write the key;
-   it is owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (or an explicit operator grant
-   naming it, §4). If the value is absent or not a valid bare origin, STOP with
+   it is owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (§4). **Status (verified at
+   correction time against `origin/main`
+   `docs/plans/atlas-delivery-cycles.json`):** that owner packet's approval is
+   **GRANTED** (2026-09-15T12:00:04+08, `operator:njgrm`, stream state
+   `EXTERNALLY_BLOCKED`), but its execution is **pending** because the EnrollPro
+   host is offline (`obs-enrollpro-reachability` FAIL), so the value is **not yet
+   proven installed**. This precondition therefore stays a hard STOP
+   (`PRECONDITION_PROXY_ORIGIN_MISSING`) until the proxy recovery executes and its
+   post-action evidence proves the key and the recovered runtime. If the value is
+   absent or not a valid bare origin, STOP with
    `PRECONDITION_PROXY_ORIGIN_MISSING` — do not attempt the restart.
 
 ## 6. Exact switch set (nothing else may change)
@@ -494,7 +521,8 @@ Any unexplained extra write in either system is an incident stop.
 > `schtasks /run /tn "ATLAS-Runtime-Supervisor"`, preserving ONSTART, `PT0S`,
 > IgnoreNew (incumbent at preflight: release `3d916b26`, as re-verified at
 > execution; only after confirming `ENROLLPRO_PROXY_ORIGIN` is present in the
-> durable env as a valid bare origin owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` —
+> durable env as a valid bare origin owned by `ENROLLPRO-PROXY-RECOVERY-LIVE`
+> (approval GRANTED 2026-09-15; execution pending on EnrollPro host recovery) —
 > this packet does not write that key; STOP with
 > `PRECONDITION_PROXY_ORIGIN_MISSING` if it is absent or invalid, and never
 > bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`); run the packet's acceptance matrix

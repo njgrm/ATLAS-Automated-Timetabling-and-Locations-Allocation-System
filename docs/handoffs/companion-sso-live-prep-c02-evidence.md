@@ -1,6 +1,10 @@
 # COMPANION-SSO-LIVE-PREP-C02 — preparation evidence
 
 Status: `REVIEW_REQUIRED` (preparation candidate, frozen by the executor).
+**Classification: `PREPARED_WITH_EXTERNAL_GATE`** — all docs-candidate checks
+pass; the live EnrollPro reachability row (row 10's EnrollPro half) is carried as
+an external **activation** precondition (fail-closed). This is **not**
+`ACCEPT_READY` 15/15 and it claims **no live SSO readiness**.
 Governing packet: `docs/prompts/companion-sso-live-prep-c02-2026-09-15.md`.
 Executor handoff: `docs/handoffs/companion-sso-live-prep-c02-executor.md`.
 Prepared HIGH packets:
@@ -261,6 +265,10 @@ lowercase. Per the production-shape equivalence gate it is a blocking
 integration defect, not a non-blocking note. It is documented for correction in
 `docs/handoffs/enrollpro-sso-contract-corrections-2026-09-15.md`; no product
 source was edited by this preparation cycle.
+
+| Recorded decision | Detail | Tag |
+| --- | --- | --- |
+| D1 resolution | Head planner (2026-09-15) selected **Option A**: a separate ATLAS correction must normalize the reverse SSO roles to EnrollPro's vocabulary and guarantee valid non-empty assertion names, with its own source change, fresh QA, integration, and install re-pin/binding. Option B is not required for D1; D2 remains EnrollPro-owned. This docs-only worktree implements none of it, and the activation packet keeps Flow B gated with `PRECONDITION_ROLE_CONTRACT_UNRESOLVED` until the correction is complete and verified. | REQUIREMENT |
 
 ### 4.6 AIMS / SMART roadmap classification (READ_ONLY) (CURRENT_STATE)
 
@@ -548,6 +556,9 @@ encode this as a fail-closed precondition.
 Tally: **14 / 15 passed / 1 blocked / 0 unperformed.** The single blocked row is
 an external live-state condition (EnrollPro Tailnet host offline), captured with
 evidence and encoded as a fail-closed precondition in both prepared packets.
+Candidate classification: **`PREPARED_WITH_EXTERNAL_GATE`** — row 10's EnrollPro
+half is an external **activation** precondition; this is not `ACCEPT_READY` 15/15
+and claims no live SSO readiness.
 
 ## 10. What was not executed (explicit)
 
