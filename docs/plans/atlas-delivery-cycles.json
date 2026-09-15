@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T05:33:09.223Z",
+    "lastUpdatedAt": "2026-09-15T14:09:07+08:00",
     "lastUpdatedBy": "primary-planner",
-    "revision": 15
+    "revision": 16
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
     "activeCycleId": "ENROLLPRO-PROXY-RECOVERY-LIVE",
-    "globalNextAction": "Wait for the EnrollPro dev-jegs host to come back online; on recovery re-probe the host, refresh obs-enrollpro-reachability, set approval.presentedReady=true, and dispatch the elevated executor for the approved ENROLLPRO-PROXY-RECOVERY-LIVE packet."
+    "globalNextAction": "Execute the approved ENROLLPRO-PROXY-RECOVERY-LIVE packet with the elevated executor under the operator resume protocol (fresh PASS observation window, pre-mutation gate); then fresh independent QA and the post-action Wave Completion Audit."
   },
   "streams": [
     {
@@ -563,11 +563,11 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "EXTERNALLY_BLOCKED",
-      "stateUpdatedAt": "2026-09-15T12:00:04+08:00",
-      "nextAction": "On EnrollPro dev-jegs recovery: re-probe the host, refresh obs-enrollpro-reachability to PASS, set approval.presentedReady=true, then dispatch the elevated executor for the approved packet (docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md).",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T14:09:07+08:00",
+      "nextAction": "Execute the approved live recovery with the elevated executor (packet sections 4-9 plus the operator pre-mutation gate), then fresh independent QA and the post-action Wave Completion Audit.",
       "awaited": [
-        "EnrollPro dev-jegs host recovery (offline since ~2026-09-15T11:21+08:00)"
+        "elevated executor live execution and committed evidence"
       ],
       "running": [],
       "git": {
@@ -650,14 +650,14 @@
       "successors": [],
       "requires": [],
       "blocker": {
-        "kind": "EXTERNAL",
-        "detail": "EnrollPro dev-jegs (100.120.169.123) offline in Tailscale since ~2026-09-15T11:21-11:23+08:00 (last seen 36m at 11:59; DNS resolves; TCP 443 and every HTTPS probe failed 11:45-11:59, 17/17 attempts). Execution preflight cannot pass and acceptance rows 4-5 cannot run until the host recovers.",
+        "kind": "NONE",
+        "detail": "",
         "safeWorkRemaining": false,
         "safeWorkItems": []
       },
       "approval": {
         "required": true,
-        "presentedReady": false,
+        "presentedReady": true,
         "granted": true,
         "operatorIdentity": "operator:njgrm",
         "approvedAt": "2026-09-15T12:00:04+08:00",
@@ -682,10 +682,10 @@
         {
           "id": "obs-enrollpro-reachability",
           "target": "EnrollPro dev-jegs (100.120.169.123:5002)",
-          "checkedAt": "2026-09-15T12:00:04+08:00",
-          "status": "FAIL",
-          "expiresAt": "2026-09-15T18:00:00+08:00",
-          "detail": "Execution barrier: EnrollPro dev-jegs offline in Tailscale since ~11:21-11:23 +08 (DNS resolves; TCP 443 and HTTPS failed on 17/17 attempts 11:45-11:59); ATLAS local/Tailnet health remained 200. approval.granted records the operator grant; approval.presentedReady stays false until a fresh PASS observation at execution readiness per the packet execution preflight."
+          "checkedAt": "2026-09-15T14:09:07+08:00",
+          "status": "PASS",
+          "expiresAt": "2026-09-15T14:24:07+08:00",
+          "detail": "Direct read-only probes at 2026-09-15T14:09:07-14:09:08 +08:00: https://dev-jegs.buru-degree.ts.net/api/settings/public HTTP 200; https://dev-jegs.buru-degree.ts.net/api/integration/v1/health HTTP 200. Window per the operator resume protocol (expiresAt = checkedAt + 15 min); the elevated executor repeats both probes immediately before the first runtime mutation."
         }
       ],
       "artifacts": [],
