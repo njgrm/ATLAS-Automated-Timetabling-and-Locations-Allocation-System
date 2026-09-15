@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T10:06:51.976Z",
+    "lastUpdatedAt": "2026-09-15T10:30:13.742Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 40
+    "revision": 41
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -1520,8 +1520,8 @@
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T10:06:51.976Z",
-      "nextAction": "Dispatch the bounded F2 cold-load correction to the existing C05 executor on work/tl-operator-workspace-c05; then fresh QA, current-main re-integration, and a fresh post-correction Wave Completion Auditor. The INTEGRATED reopen is not expressible by the transition set and will follow the documented WF-C02 validated-update pattern (direct edit + render-register + verify-cycle exit 0, disclosed).",
+      "stateUpdatedAt": "2026-09-15T10:30:13.742Z",
+      "nextAction": "BLOCKED ON OPERATOR DECISION: a second planner session (ses_f5d0337c7ffe) is concurrently running a TL-C05 correction (ancillary zero in load) inside the same candidate worktree E:/ATLAS-worktrees/tl-operator-workspace-c05; the bounded F2 cold-load correction stopped without mutation and its artifacts are preserved. Do not dispatch further TL-OPERATOR-WORKSPACE-C05 corrections until one owner for the combined correction set is designated.",
       "awaited": [
         "bounded correction commit"
       ],
