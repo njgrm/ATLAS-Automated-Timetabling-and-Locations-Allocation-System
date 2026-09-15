@@ -162,7 +162,7 @@ Positive fixture set, `expected.json` index, all negative fixtures, and the plug
 | Gate | Command | Result |
 |---|---|---|
 | Deterministic battery | `node --test --test-concurrency=1 ops/workflow/__tests__/*.test.mjs` | exit 0 — 276 tests, 276 pass, 0 fail, 0 cancelled, 0 skipped (~352 s) on the final product/test tip |
-| npm suite | `npm run workflow:test` | exit 0 — 273 tests (checkpoint `1956d771`), 273 pass, 0 fail (~68 s); the three additive commits are test-only and their files were rerun in isolation (transition 16/16, fixtures 31/31, directive-conformance 7/7) |
+| npm suite | `npm run workflow:test` | exit 0 — 276 tests, 276 pass, 0 fail (~131 s) on the final product/test tip; also green at checkpoint `1956d771` (273/273, ~68 s) |
 | State verify | `node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` | exit 0, `status: ok`, `errors: 0` |
 | Render check | `node ops/workflow/render-register.mjs --check --state docs/plans/atlas-delivery-cycles.json --output docs/plans/atlas-active-delivery-streams.generated.md` | exit 0 |
 | Migration reproduction | `node --test ops/workflow/__tests__/migration.test.mjs` | exit 0 — `git show 387a1f6d:docs/plans/atlas-delivery-cycles.json` -> migrate -> byte-identical committed document |
