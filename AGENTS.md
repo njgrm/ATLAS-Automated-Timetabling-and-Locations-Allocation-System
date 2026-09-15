@@ -1166,22 +1166,41 @@ decision exists nowhere in committed evidence.
 
 #### Cost-aware planner model routing
 
-- Use the strongest available planning/reasoning model for architecture,
-  cross-stream sequencing, authority boundaries, `HIGH` action design,
-  contradictory QA evidence, and correction packets that span several
-  production consumers.
-- Use a lower-cost capable model for repository census, immutable-range checks,
-  focused test reruns, mechanical documentation reconciliation, and bounded
-  executor work whose acceptance criteria are already explicit.
-- Prefer one strong planner pass followed by cheaper bounded execution and QA
-  over repeated weak planning attempts that require several correction loops.
+- Every newly authored or materially revised planner, executor, QA, correction,
+  or audit handoff must name both the intended role and its recommended
+  reasoning variant. If the active provider does not expose the named variant,
+  use the nearest supported lower variant and disclose the substitution. A
+  model label or benchmark never replaces the required evidence gates.
+- Default routing for the current OpenCode workflow is:
+
+  | Role or work class | Default reasoning variant | Use `max` only when |
+  | --- | --- | --- |
+  | Head Planner | `high` | Resolving architecture, conflicting candidates, or designing/reviewing a `HIGH` live action |
+  | Source Executor | `high` | The implementation crosses several tightly coupled production authorities or consumers |
+  | Mechanical or docs-only correction | `low` | Almost never; escalate only when the correction changes normative meaning rather than bookkeeping |
+  | Fresh independent QA | `high` | Security, concurrency, authorization, destructive-write, or similarly adversarial review requires it |
+  | Wave Completion Auditor | `high` | Auditing a `HIGH` runtime/data action or genuinely ambiguous cross-stream result |
+  | WF-EVAL regression execution | `low` | Never for routine execution; use `high` when designing new adversarial traps and `max` only for an exceptional architecture-level evaluation decision |
+
+- `high` is the normal Head Planner setting. Do not default the primary planner
+  to `max`: reserve `max` for a named reason from the table and record that
+  reason in the dispatch or handoff. Routine sequencing, status recovery,
+  immutable-range checks, repository census, focused reruns, and register
+  reconciliation do not justify `max`.
+- A bounded correction retains its original role but may use `low` when it is
+  mechanically classified `IDENTITY_OR_BOOKKEEPING_ONLY`. A
+  `NORMATIVE_CONTRACT_CHANGE` or `PRODUCT_OR_TEST_CHANGE` is not a mechanical
+  docs correction and keeps the appropriate executor/QA reasoning level.
+- Prefer one `high` planner pass followed by bounded execution and fresh QA over
+  repeated `max` passes. Reuse valid immutable-tree evidence after a
+  bookkeeping-only correction; do not spend a higher reasoning tier rerunning
+  unchanged source gates.
 - Do not encode provider usage quotas or promotional prices as durable project
   facts. Check the current provider catalog before selecting a model. Model
   price, label, or reasoning setting never substitutes for evidence.
-- Use the highest reasoning variant for primary planning when the provider
-  exposes it; use medium/default only for routine sequencing or status
-  reconciliation. Do not assume a `high` variant exists—select only variants
-  reported by the active OpenCode model catalog.
+- Select only variants reported by the active OpenCode model catalog. If a
+  handoff omits the role or recommended variant, the primary planner must add
+  them before dispatch rather than silently inheriting an expensive default.
 
 ### Role Pinning And Executor-Report Intake
 
