@@ -22,12 +22,14 @@ Companion developer handoff:
 | Dispatch base (additive base) | `6409a2a8c2977a7e96db114b1d1a2d84a0d01afb` |
 | Prompt-authoring base (packet) | `234046f80effa5b963295bb27f83a90020b4f544` |
 | Merge-base with `origin/main` | `234046f80effa5b963295bb27f83a90020b4f544` |
-| `origin/main` tip at executor turn | `53a781a4fdb6e254bd1277c47fcef0700e0e769d` |
-| Drift `234046f8..origin/main` | docs-only (10 files under `docs/plans`, `docs/prompts`, `docs/reviews`); no product-tree change |
+| `origin/main` tip at executor turn | `53a781a4fdb6e254bd1277c47fcef0700e0e769d` (advanced to `0c20342394ca2ca800cecc6dd69825e07625c66d` by correction time) |
+| Drift `234046f8..53a781a4` (executor turn) | docs-only (10 files under `docs/plans`, `docs/prompts`, `docs/reviews`); no product-tree change |
+| Drift `53a781a4..0c203423` (correction time) | docs-only (2 files: `docs/plans/atlas-active-delivery-streams.generated.md`, `docs/plans/atlas-delivery-cycles.json`; +48/-38) |
+| Release-pin delta (corrected) | tip is **not** docs-only above `c989f03d`; see Correction 1 below |
 | Required ancestor | `c989f03d67fa246ac8b168a59012a7615458be4f` (COMPANION-SSO-C01 merge) is an ancestor of `origin/main` (exit 0) |
 | Commit 1 | `62da5e7b81c3ae6b7307d7db0537cb8f6c32386d` — `docs(sso): record companion SSO live-prep evidence` |
-| Commit 2 (tip) | this commit — `docs(sso): prepare companion migration and runtime activation gates`; exact SHA in the executor return |
-| Candidate range | `6409a2a8...<tip>` (two additive commits) |
+| Commit 3 (tip) | this correction commit — `docs(sso): correct activation release-delta claim`; exact SHA in the executor return |
+| Candidate range | `6409a2a8...<tip>` (three additive commits) |
 | Directive `origin/main:AGENTS.md` LF-normalized SHA-256 | `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5` |
 | Directive recorded at prompt authoring | `0cf68d62d9c6c6bb37b737c6038118a8eed7efc2d403a2100de9d64f02c871d6` (superseded; newer wins) |
 
@@ -171,7 +173,18 @@ asserted different from the configured database name; residue count 0 for the
 - Any product-source or test change (the R1 correction belongs to a successor
   packet with its own authority).
 
-## 9. Approval sentences (NOT GRANTED)
+## 9. Correction 1 (planner review)
+
+| Field | Detail |
+| --- | --- |
+| Defect 1 (MATERIAL) | The activation packet §2 claimed "the commits above `c989f03d` to this tip are docs-only". False. |
+| Fix | `docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md` §2 now states the measured truth (tip is not docs-only; the only docs-only drift is the branch base `234046f8..53a781a4`, with `53a781a4..0c203423` also docs-only), records both exact shortstats and their top-level non-docs scopes, and states plainly that installing the re-pinned tip deploys the entire integrated main product tree since the incumbent pin `d44f29e0`, not SSO alone. §5 gained precondition 6 (full-delta review + operator acknowledgment; `PRECONDITION_RELEASE_DELTA_UNRECORDED` stop). §8 row 1 now requires the recorded deltas as release-identity evidence. §10 approval sentence records the delta requirement without widening authority. §11 requires both delta records in the return. |
+| Defect 2 (MINOR) | The evidence doc §3 described the isolated `node_modules` trees as pre-existing from "earlier the same day". |
+| Fix | §3 now gives the truthful provenance (created during this preparation cycle's execution turn on 2026-09-15: root 11:12:57, `atlas-server` 11:10:21, `atlas-client` 11:11:01 +08) and records the recomputed lockfile SHA-256 values. |
+| Evidence corpus sync | The evidence doc §6.4 gained a compact "Correction 1" delta row so the evidence matches the corrected packet. |
+| Verification | `git diff --shortstat c989f03d 0c203423` = 299 files, 40938+/3034-; non-docs 230 files. `git diff --shortstat d44f29e0 0c203423 -- . ":(exclude)docs"` = 270 files, 39367+/2863-. `git diff --shortstat d44f29e0 0c203423` = 366 files, 54059+/2938-. `git diff --shortstat 53a781a4 0c203423` = 2 files, 48+/38- (docs-only). Lockfile SHA-256 recomputed and matched: `ecf06aef…b6e5`, `ce1ae84e…9f1e`. Docs-only; `git diff --check` exit 0; worktree clean. |
+
+## 10. Approval sentences (NOT GRANTED)
 
 - `COMPANION-SSO-MIGRATION-LIVE-C02` — exact sentence in section 9 of
   `docs/prompts/companion-sso-migration-live-c02-2026-09-15.md`; **NOT GRANTED**.
@@ -179,7 +192,7 @@ asserted different from the configured database name; residue count 0 for the
   `docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md`; **NOT
   GRANTED**.
 
-## 10. Return contract
+## 11. Return contract
 
 `REVIEW_REQUIRED`. Control returns to the primary planner for immutable-range
 validation and a fresh independent QA pass. The executor does not integrate,

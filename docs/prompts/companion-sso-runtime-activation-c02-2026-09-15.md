@@ -38,9 +38,36 @@ SSO, and does not perform companion-to-companion federation.
   `fbb9dc6367fc9a20372e4a71d908f6a9d81a5411`). The deployed HEAD MUST descend
   from `c989f03d`.
 - Candidate release pin at preparation time: `origin/main` tip
-  `53a781a4fdb6e254bd1277c47fcef0700e0e769d` (product tree equals the integrated
-  main product tree; the commits above `c989f03d` to this tip are docs-only —
-  re-verify with `git diff --stat c989f03d..<tip>` before install).
+  `53a781a4fdb6e254bd1277c47fcef0700e0e769d`; re-measured at correction time
+  (2026-09-15) against `origin/main`
+  `0c20342394ca2ca800cecc6dd69825e07625c66d` (the `53a781a4..0c203423` drift is
+  itself docs-only: 2 files,
+  `docs/plans/atlas-active-delivery-streams.generated.md` and
+  `docs/plans/atlas-delivery-cycles.json`, +48/-38).
+  **The tip is NOT docs-only above the SSO merge.** Measured at correction time:
+  - `git diff --shortstat c989f03d 0c203423` = **299 files changed, 40938
+    insertions(+), 3034 deletions(-)**; non-docs = **230 files**, top-level
+    scopes `atlas-client` 90, `ops` 67, `atlas-server` 63, `.opencode` 4,
+    `package.json` 1, `opencode.json` 1, `.gitignore` 1, `.gitattributes` 1,
+    plus the root `CHANGELOG.md` and `AGENTS.md`.
+  - The incumbent release `3d916b26` deploys product pin
+    `d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`. `git diff --shortstat d44f29e0
+    0c203423 -- . ":(exclude)docs"` = **270 files changed, 39367
+    insertions(+), 2863 deletions(-)**, top-level scopes `atlas-client` 96,
+    `ops` 84, `atlas-server` 76, `.opencode` 4, `prisma` 2, `qa-artifacts` 2,
+    `package.json` 1, `.gitignore` 1, `.gitattributes` 1, `opencode.json` 1,
+    plus the root `CHANGELOG.md` and `AGENTS.md`. (Full delta including docs:
+    366 files, 54059 insertions(+), 2938 deletions(-).)
+  - The **only** docs-only drift in this preparation lineage is the branch base
+    `234046f8..53a781a4` (10 files at the executor turn); `53a781a4..0c203423`
+    is also docs-only (2 files, above).
+  - **Consequence: installing the re-pinned tip deploys the entire integrated
+    main product tree — every integrated-but-undeployed change since the
+    incumbent, including COMPANION-SSO-C01 — not the SSO change alone.** The
+    execution preflight MUST recompute and record both
+    `git diff --stat c989f03d..<pin>` and the non-docs
+    `git diff --stat d44f29e0..<pin>` before install, and review the latter as the
+    actual deployment diff.
 - **Re-pinning rule:** if `origin/main` advanced by execution time, re-pin to the
   new tip, re-verify it descends from `c989f03d` and that
   `atlas-server/src/services/companion-sso.service.ts`,
@@ -186,6 +213,13 @@ characters, and contain none of the placeholder markers
    `ATLAS-Runtime-Supervisor` task definition (principal, trigger/delay,
    multiple-instances policy, action, working directory) with the rights the
    approval grants before any re-point.
+6. **Full release-delta reviewed and recorded.** Recompute and record, against
+   the then-current re-pinned tip, both `git diff --stat c989f03d..<pin>` and
+   the non-docs `git diff --stat d44f29e0..<pin>` (this is the full
+   integrated-but-undeployed product delta the install actually deploys, not the
+   SSO change alone). The operator MUST acknowledge the recorded non-docs delta
+   for the exact tip being installed. If either delta cannot be computed or
+   recorded, STOP with `PRECONDITION_RELEASE_DELTA_UNRECORDED` — do not install.
 
 ## 6. Exact switch set (nothing else may change)
 
@@ -302,7 +336,12 @@ Any unexplained extra write in either system is an incident stop.
 
 1. Release identity: `git -C <newReleaseDir> rev-parse HEAD` equals the pinned
    tip and descends from `c989f03d`; supervisor state `releaseSha` matches;
-   `atlas-client/dist` exists and was built with the §4 `VITE_ENROLLPRO_URL`.
+   `atlas-client/dist` exists and was built with the §4 `VITE_ENROLLPRO_URL`;
+   and the §5.6 recorded deltas are present for this exact tip — the full
+   `git diff --stat c989f03d..<pin>` and the non-docs
+   `git diff --stat d44f29e0..<pin>` (the deployment's actual product delta, not
+   SSO alone), acknowledged by the operator. A missing or unreproducible delta
+   record fails this row.
 2. Mounted routes live: `POST /api/v1/auth/sso/exchange` and
    `POST /api/v1/auth/sso/authorize` return 401 (not 404) on the Tailnet origin.
 3. Health/readiness: local `/api/v1/health` 200, `/api/v1/health/ready` 200;
@@ -400,7 +439,11 @@ Any unexplained extra write in either system is an incident stop.
 > `ENROLLPRO_PUBLIC_URL=https://dev-jegs.buru-degree.ts.net` on the `dev-jegs`
 > host; build the client with `VITE_ENROLLPRO_URL=https://dev-jegs.buru-degree.ts.net`
 > and install release `<re-pinned origin/main tip, descendant of c989f03d>` at
-> `D:\ATLAS-runtime-supervised-<pin7>-20260915`; re-point
+> `D:\ATLAS-runtime-supervised-<pin7>-20260915` after recomputing and recording
+> the full release delta for that exact tip (`git diff --stat c989f03d..<pin>`
+> and the non-docs `git diff --stat d44f29e0..<pin>`), acknowledging that the
+> install deploys the entire integrated main product tree since the incumbent
+> product pin `d44f29e0`, not the SSO change alone; re-point
 > `ATLAS_RUNTIME_SOURCE_DIR`/`ATLAS_RUNTIME_RELEASE_SHA` and the
 > `ATLAS-Runtime-Supervisor` task action and working directory to it; quiesce
 > only the supervisor-owned ATLAS processes on 5001/5174 and relaunch the
@@ -427,7 +470,11 @@ Any unexplained extra write in either system is an incident stop.
 ## 11. Execution record required
 
 Return: preflight re-probes and the elevated task-definition capture; the exact
-pinned tip and `rev-parse HEAD`; the client build invocation with the
+pinned tip and `rev-parse HEAD`; the recorded release deltas for that exact tip —
+`git diff --stat c989f03d..<pin>` and the non-docs
+`git diff --stat d44f29e0..<pin>` with their shortstat outputs (the full
+integrated-but-undeployed product delta, not SSO alone) and the operator's
+acknowledgment of the non-docs delta; the client build invocation with the
 `VITE_ENROLLPRO_URL` value; the environment backup path + size + SHA-256; the
 four added key names (names only); the EnrollPro-side key names changed and by
 whom (names only); the quiesce/start transcript and the

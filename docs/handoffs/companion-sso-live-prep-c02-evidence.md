@@ -121,14 +121,20 @@ enable them and does not expand into companion-to-companion federation
 | Isolated built-server startup | `node dist/server.js`, `PORT=5317`, `ROLLOVER_AUTO_SYNC_ENABLED=false`, disposable `DATABASE_URL` | `GET http://127.0.0.1:5317/api/v1/health` → **200** `{"status":"ok","service":"atlas"}`; process stopped; port 5317 released; sentinel listeners 5001/5174 retained their PIDs (19792 / 19000) | CURRENT_STATE |
 | Whitespace check | `git diff --check` | clean (see handoff for the final post-commit run) | CURRENT_STATE |
 
-Dependency tree: the worktree already contained isolated `node_modules` for both
-packages, created earlier the same day (2026-09-15 11:10 / 11:15 +08) from the
-committed lockfiles. All seven gates above executed against that tree and
-passed; no shared junction or shared dependency tree was used, and the runner
-did not re-run `npm ci` (it would have rebuilt a byte-identical tree). The
-isolated install is therefore validated by execution rather than asserted.
-(Note for reviewers: `node_modules` is gitignored and is not part of the
-candidate.)
+Dependency tree: the isolated `node_modules` trees were created during this
+preparation cycle's execution turn on 2026-09-15 (Asia/Manila) — root
+`node_modules` 11:12:57, `atlas-server/node_modules` 11:10:21,
+`atlas-client/node_modules` 11:11:01 — from the committed lockfiles
+(`atlas-server/package-lock.json` SHA-256
+`ecf06aef5c385591a0cf4c03f6852018b283182375f9b23656210bf13794b6e5`;
+`atlas-client/package-lock.json` SHA-256
+`ce1ae84ed088be75f27542cb039abf338395ece1c9e9a5d2139c2c65cf3b9f1e`). They were
+not a pre-existing shared dependency tree carried over from an older checkout.
+All seven gates above executed against that tree and passed; no shared junction
+or shared dependency tree was used, and the runner did not re-run `npm ci` (it
+would have rebuilt a byte-identical tree). The isolated install is therefore
+validated by execution rather than asserted. (Note for reviewers: `node_modules`
+is gitignored and is not part of the candidate.)
 
 Localhost use in this table is an **isolated non-browser test harness** only; it
 is not browser evidence.
@@ -443,8 +449,28 @@ This is expected: deployed release `3d916b26` predates COMPANION-SSO-C01
 (`c989f03d`). **Live SSO is not available** and is not claimed to be. Required
 successor: `COMPANION-SSO-RUNTIME-ACTIVATION-C02`. Minimum reviewed ATLAS
 product SHA that contains COMPANION-SSO-C01: any descendant of merge
-`c989f03d`; the current `origin/main` tip `53a781a4` is the candidate pin, to be
-re-verified at execution.
+`c989f03d`; the executor-turn `origin/main` tip `53a781a4` is the candidate pin
+(origin/main has since advanced to `0c203423`; see the correction below), to be
+re-pinned and re-verified at execution.
+
+**Correction 1 (planner review, 2026-09-15) — release-delta correction.** The
+earlier statement that the commits above `c989f03d` up to the release tip are
+docs-only was false and is superseded. Re-measured against the current
+`origin/main` `0c20342394ca2ca800cecc6dd69825e07625c66d`:
+
+| Measurement | Result |
+| --- | --- |
+| `git diff --shortstat c989f03d 0c203423` | 299 files changed, 40938 insertions(+), 3034 deletions(-); non-docs = 230 files |
+| `git diff --shortstat d44f29e0 0c203423 -- . ":(exclude)docs"` | 270 files changed, 39367 insertions(+), 2863 deletions(-) |
+| `git diff --shortstat d44f29e0 0c203423` (full) | 366 files changed, 54059 insertions(+), 2938 deletions(-) |
+| `git diff --shortstat 53a781a4 0c203423` | 2 files changed, 48 insertions(+), 38 deletions(-) — docs-only (`docs/plans/…generated.md`, `docs/plans/atlas-delivery-cycles.json`) |
+
+Installing the re-pinned tip therefore deploys the **entire integrated main
+product tree** since the incumbent product pin `d44f29e0` (deployed release
+`3d916b26`), not the SSO change alone. The activation packet's
+§2/§5.6/§8.1/§10/§11 now require recomputing and recording both deltas against
+the exact installed tip before install, with operator acknowledgment of the
+non-docs delta.
 
 ## 7. Public / browser preflight (no authentication) (CURRENT_STATE)
 
