@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T15:47:29.980Z",
+    "lastUpdatedAt": "2026-09-15T16:01:54.056Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 75
+    "revision": 76
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1923,6 +1923,16 @@
           "qaSessionId": "ses_f5a5c56aaffes8fmHVMBB3ZBtU",
           "auditorVerdict": "CORRECTION_REQUIRED",
           "auditorSessionId": "ses_f5a4ca21cffeuu5P1GYK4M7z8F"
+        },
+        {
+          "round": 4,
+          "baseSha": "713f5f5aa616d4cd1132fbedd8ef7b44e5a640b4",
+          "candidateSha": "809fa67b8e9bbb03044c239b78baefc4c4e2f4a9",
+          "reason": "C-6R2 completion of the operator-authorized rule-2 requirement: the post-C-6R audit B1 (the diagnostics reply was gated only at the call site, so a superseded same-scope invocation could persist its payload and clear the loading flag) and N1 (no bound-then-superseded behavioral control) are closed. The loader now requires a dispatch-precedence predicate at reply time in addition to scope currency, and two committed failing-first controls cover same-scope supersession and bound-then-superseded writes; the handoff gating claim is corrected.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
         }
       ],
       "successors": [],
@@ -1948,21 +1958,22 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T15:47:29.980Z",
-      "nextAction": "Post-C-6R wave audit CORRECTION_REQUIRED (9/8/0/0, 1 failed): the diagnostics reply path is gated only at the call site, so a superseded SAME-SCOPE invocation can still persist its payload and clear authorityDiagnosticsLoading; the committed behavioral controls also lack a bound-then-superseded case. Dispatch the bounded C-6R2 completion (thread dispatch precedence into the loader reply check plus committed same-scope and bound-superseded failing-first controls, and correct the handoff claim) on work/tl-operator-workspace-c05-scope-epoch; then fresh QA and a fresh Wave Completion Auditor before closure. If this completion does not clear, escalate to the operator rather than iterate again.",
+      "state": "CORRECTION_REQUIRED",
+      "stateUpdatedAt": "2026-09-15T16:01:54.056Z",
+      "nextAction": "Fresh independent QA at high over the C-6R2 corrected candidate 809fa67b (rule-2 completion); then clean current-main re-integration and a fresh Wave Completion Auditor at high before closure and receipt. No live/HIGH action is authorized.",
       "awaited": [
-        "bounded correction commit"
+        "fresh independent QA over the C-6R2 corrected candidate"
       ],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tl-operator-workspace-c05-scope-epoch",
         "branch": "work/tl-operator-workspace-c05-scope-epoch",
         "baseSha": "56b317c5189169666ba14c0c081be94f9b85dceb",
-        "candidateSha": "713f5f5aa616d4cd1132fbedd8ef7b44e5a640b4",
-        "integrationSha": "2b4c436968ee83117c2f6919eb0f99bec707bced",
+        "candidateSha": "809fa67b8e9bbb03044c239b78baefc4c4e2f4a9",
+        "integrationSha": null,
         "changedPaths": [
           "atlas-client/src/hooks/useTeachingLoadData.ts",
+          "atlas-client/src/lib/__tests__/tl-authority-diagnostics-cold-load.test.ts",
           "atlas-client/src/lib/__tests__/tl-dispatch-precedence-overlap.test.ts",
           "atlas-client/src/lib/__tests__/tl-operator-workspace-c05.test.ts",
           "atlas-client/src/lib/__tests__/tl-scope-epoch-sibling-feeds.test.ts",
