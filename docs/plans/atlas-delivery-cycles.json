@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T12:31:28.514Z",
+    "lastUpdatedAt": "2026-09-15T12:58:07.623Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 60
+    "revision": 61
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1847,8 +1847,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
-        "auditorVerdict": "CORRECTION_REQUIRED",
-        "auditorSessionId": "ses_f5b8c0d99ffezvYYAlXQ5os1sv",
+        "auditorVerdict": "PLANNER_DECISION_REQUIRED",
+        "auditorSessionId": "ses_f5af99f31ffeVXFRg4giOTvy7E",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -1866,8 +1866,8 @@
           "reason": "C-4 ancillary/effective-load parity (authoritative ea9b498d, cherry-picked as 7e38f9b4; rewritten local e1c417d8 not consumed) folded with C-5/F2-COLD-LOAD from the post-integration Wave Completion Auditor blocking finding (the scope-epoch guard self-invalidated the cold-cache authority-diagnostics read) into one combined candidate d4e7581b under the operator custody handoff.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "PLANNER_DECISION_REQUIRED",
+          "auditorSessionId": "ses_f5af99f31ffeVXFRg4giOTvy7E"
         }
       ],
       "successors": [],
@@ -1894,10 +1894,10 @@
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T12:23:03.295Z",
-      "nextAction": "Commission the fresh post-correction Wave Completion Auditor at high over integration 61761a1e and this register tip; on AUDIT_CLEAR close the cycle with its receipt, retire the clean superseded worktrees, and leave the collided legacy worktree untouched until every retained artifact and authoritative commit is proven recoverable.",
+      "stateUpdatedAt": "2026-09-15T12:58:07.623Z",
+      "nextAction": "PLANNER_DECISION_REQUIRED: the post-correction wave audit returned PLANNER_DECISION_REQUIRED (13/11/2/0) because a concurrently pushed directive hardening (origin/main b9490691, AGENTS.md LF-SHA-256 7663164608A330AF5440A6E0EA1FFADE20987B49A7BB0D939F3B50F1AA2DF0A3) reclassifies the disclosed sibling authority-feed residual in the same actor-school/year contract as a blocking defect requiring a failing-first scope-transition control, and adds rule 13 rendering mutants; two substantive auditor-triggered correction rounds are already complete, so the next step is the operator decision (governing directive + authorization of one final bounded scope-epoch hardening correction), not another correction dispatched by inertia.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "operator-decision-governing-directive-and-authorization-of-one-final-bounded-scope-epoch-hardening-correction"
       ],
       "running": [],
       "git": {
@@ -1940,7 +1940,7 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": "ses_f5b8c0d99ffezvYYAlXQ5os1sv",
+          "sessionId": "ses_f5af99f31ffeVXFRg4giOTvy7E",
           "status": "RETURNED",
           "writable": false
         }
