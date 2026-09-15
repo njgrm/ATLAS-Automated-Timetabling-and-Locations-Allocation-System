@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:57:57.511Z",
+    "lastUpdatedAt": "2026-09-15T22:58:20.470Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 124
+    "revision": 125
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3348,11 +3348,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Bounded export-presentation schema-guard correction per docs/prompts/export-presentation-schema-guard-c06b-2026-09-16.md: when migration 0003's presentation table (or one of its selected columns) is unavailable, the official teacher-program DOCX export and the mounted presentation settings routes must fail closed with a typed JSON 503 EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE, with no HTML, Prisma error text, stack detail, SQL identifier, or partial document bytes, while a present table still produces the normal DOCX.",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-15T22:57:46.667Z",
-      "nextAction": "Accepted candidate dbf1ed22 is integrated at merge 0c2bd1c7 (product/test bytes byte-identical to the reviewed candidate; combined gates green). Next: record the integration, run one fresh Wave Completion Auditor, then close with the receipt.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T22:58:20.470Z",
+      "nextAction": "Integrated at merge 0c2bd1c7 over origin/main 76b2536f and pushed (origin/main 11cc1a24). Awaiting one fresh read-only Wave Completion Auditor over the integrated tree before the receipt-pinned closure.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -3360,7 +3360,7 @@
         "branch": "work/export-presentation-schema-guard-c06b",
         "baseSha": "d7743bd8d154395f984a816cd1feb868b166d31f",
         "candidateSha": "dbf1ed224b2b6caf81d423f72b03ef3caabb10fa",
-        "integrationSha": null,
+        "integrationSha": "0c2bd1c77a289235d89aa0545cbb0420bc5b4679",
         "changedPaths": [
           "atlas-server/src/__tests__/export-presentation-schema-guard-c06b.test.ts",
           "atlas-server/src/routes/generation.router.ts",
@@ -3369,15 +3369,15 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "0c2bd1c77a289235d89aa0545cbb0420bc5b4679",
-          "observedAt": "2026-09-15T22:57:21.263Z",
+          "sha": "11cc1a24d146f2f1b34690371ede5c6b9b561ce1",
+          "observedAt": "2026-09-15T22:58:20.470Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
