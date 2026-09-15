@@ -1,0 +1,139 @@
+{
+  "id": "BENEFICIARY-EXPORT-PARITY-C05",
+  "kind": "STREAM",
+  "riskTier": "MEDIUM",
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": false,
+    "safeWorkItems": []
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "objective": "Close the beneficiary/stakeholder output parity correction on branch work/beneficiary-export-parity-c05: fail closed on an empty selected-term renderable set (F1 EMPTY_SELECTED_TERM), complete room/summary/render parity, and bind published run identity. Executor handoff docs/handoffs/beneficiary-export-parity-c05-executor.md reports REVIEW_REQUIRED, revision 2, tally 23/23/0/0.",
+  "state": "REVIEW_REQUIRED",
+  "stateUpdatedAt": "2026-09-15T06:35:49Z",
+  "nextAction": "Fresh independent QA over the frozen candidate 691a7c4a, then integrate from a clean current-main E-drive worktree and run the post-integration Wave Completion Audit; a separate successor packet (docs/prompts/beneficiary-export-parity-c05r1-teacher-program-correction-2026-09-15.md) is authored but not dispatched.",
+  "awaited": [
+    "fresh independent QA over the frozen candidate 691a7c4a"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/beneficiary-export-parity-c05",
+    "branch": "work/beneficiary-export-parity-c05",
+    "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c",
+    "candidateSha": "691a7c4a8e0587d6b9669aa332b764d7bc53b7b9",
+    "integrationSha": null,
+    "changedPaths": [
+      "atlas-client/src/components/room-schedules/schedule-export.ts",
+      "atlas-client/src/components/timetable/TimetableSimpleHeader.tsx",
+      "atlas-client/src/components/timetable/simple/simpleExportRequests.ts",
+      "atlas-client/src/lib/__tests__/timetable-c05-beneficiary-export.test.ts",
+      "atlas-client/src/lib/__tests__/timetable-term-export-c03r3.test.ts",
+      "atlas-client/src/pages/RoomSchedules.tsx",
+      "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
+      "atlas-server/src/__tests__/tt-output-c03r-route.test.ts",
+      "atlas-server/src/__tests__/tt-output-c03r.test.ts",
+      "atlas-server/src/__tests__/tt-output-c05-beneficiary-parity.test.ts",
+      "atlas-server/src/routes/generation.router.ts",
+      "atlas-server/src/routes/room-schedule.router.ts",
+      "atlas-server/src/services/class-program-matrix.service.ts",
+      "atlas-server/src/services/docx-export.service.ts",
+      "atlas-server/src/services/published-schedule.service.ts",
+      "atlas-server/src/services/room-program-export.service.ts",
+      "atlas-server/src/services/room-schedule.service.ts",
+      "atlas-server/src/services/teacher-program-export.service.ts",
+      "atlas-server/src/services/workbook-export.service.ts",
+      "docs/analysis/stakeholder-export-parity-audit-2026-09-14.md",
+      "docs/handoffs/beneficiary-export-parity-c05-executor.md",
+      "docs/handoffs/stakeholder-export-parity-audit-c05.md",
+      "docs/handoffs/tt-output-c03r-planner-result.md",
+      "docs/prompts/beneficiary-export-parity-c05-recovery-adoption-2026-09-15.md",
+      "docs/prompts/beneficiary-export-parity-one-shot-c05-2026-09-14.md",
+      "docs/reference/atlas-beneficiary-output-contract.md",
+      "docs/reference/atlas-runtime-source-of-truth-map.md",
+      "docs/reference/timetable-dynamic-workspace-and-warning-contract.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/lane-a.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/lane-b.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/lane-c.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r1.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r2.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r3.md",
+      "docs/reviews/stakeholder-export-parity-audit-c05/wave-completion-audit-r4.md"
+    ],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "RETURNED",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "executor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "qa": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    },
+    "auditor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream was created by the WF-C04 atomic create-stream reconciliation; no session id was observed, so none is asserted."
+    }
+  }
+}

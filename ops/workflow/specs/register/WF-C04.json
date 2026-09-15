@@ -1,0 +1,106 @@
+{
+  "id": "WF-C04",
+  "kind": "CYCLE",
+  "riskTier": "MEDIUM",
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": false,
+    "safeWorkItems": []
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-15T06:35:00Z",
+  "objective": "WF-C04 atomic stream registration and live-lane reconciliation: add a named create-stream transition to the existing ops/workflow pipeline and reconcile the genuinely active ordinary lanes missing from the machine registry.",
+  "nextAction": "Commit the bounded add-stream candidate plus the reconciled registry and return REVIEW_REQUIRED; the planner then records the executor return via record-executor-return and dispatches fresh independent QA.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return for the WF-C04 candidate",
+    "fresh independent QA over the frozen candidate"
+  ],
+  "running": [
+    "executor implementation session on branch work/workflow-atomic-stream-registration-c04 (packet docs/prompts/workflow-atomic-stream-registration-wfc04-2026-09-15.md)"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/workflow-atomic-stream-registration-c04",
+    "branch": "work/workflow-atomic-stream-registration-c04",
+    "baseSha": "9b82a98f7c74ffecd34e2dae337d7a69c19d7fdf",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Fresh cycle; the executor session id was not exposed to the registrant, so none is asserted."
+    },
+    "executor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Fresh cycle; the executor session id was not exposed to the registrant, so none is asserted."
+    },
+    "qa": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Fresh cycle; the executor session id was not exposed to the registrant, so none is asserted."
+    },
+    "auditor": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Fresh cycle; the executor session id was not exposed to the registrant, so none is asserted."
+    }
+  }
+}
