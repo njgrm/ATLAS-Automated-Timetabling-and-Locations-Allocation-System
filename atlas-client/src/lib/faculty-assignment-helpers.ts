@@ -58,11 +58,14 @@ export function normalizeDepartmentCode(value: string | null | undefined): strin
 /**
  * Tri-state department/ownership eligibility.
  *
- * `unknown` is NOT a mismatch. A faculty row with no persisted department (or a
- * subject that declares no owner departments) cannot be proven ineligible by the
- * client, so it must not be silently hidden. The server's persisted
- * qualification/department/program authority remains the final gate when a
- * proposal is previewed or applied.
+ * `unknown` is NOT a mismatch, but it is narrower than "we have no authority":
+ * ONLY a blank/unknown faculty department yields `unknown`. A known department is
+ * always decided — by the declared owner departments when present, otherwise by
+ * the legacy subject-code/name heuristic — so a known non-matching department is
+ * `ineligible` and stays hidden.
+ *
+ * The server's persisted qualification/department/program authority remains the
+ * final gate when a proposal is previewed or applied.
  */
 export type OwnershipDepartmentEligibility = 'eligible' | 'ineligible' | 'unknown';
 

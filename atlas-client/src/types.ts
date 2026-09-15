@@ -2038,8 +2038,10 @@ export type TeachingLoadCandidateRejectionReason =
 	| 'HARD_CAP_EXCEEDED'
 	| 'CURRENT_OWNER'
 	| 'PLACEHOLDER_FACULTY'
-	// Additive reason classes so every skipped candidate can be explained in
-	// plain language instead of a raw diagnostic dump.
+	/** Emitted by the server preview; parsed from the distribution plan. */
+	| 'OUTSIDE_CANONICAL_DEMAND'
+	// Operator-mandated R5 vocabulary kept as reserved/defensive copy. These are
+	// not currently emitted by the producer but must render human copy if they are.
 	| 'INACTIVE_FACULTY'
 	| 'WRONG_SCHOOL'
 	| 'DEPARTMENT_RESTRICTED'

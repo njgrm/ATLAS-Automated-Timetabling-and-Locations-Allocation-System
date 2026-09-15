@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path';
 
 import { TooltipProvider } from '@/ui/tooltip';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
+import { TeachingLoadCandidateDiagnostics } from '@/components/faculty-assignments/TeachingLoadCandidateDiagnostics';
 import {
 	matchesOwnershipDepartment,
 	ownershipDepartmentEligibility,
@@ -19,7 +20,10 @@ import {
 	CANDIDATE_REJECTION_DETAILS,
 	CANDIDATE_REJECTION_ORDER,
 	describeCandidateRejection,
+	describeUnknownRejection,
 	summarizeCandidateRejections,
+	totalCandidateRejections,
+	UNKNOWN_REJECTION_REASON,
 } from '@/lib/teaching-load-suggestion-diagnostics';
 import {
 	resolveSuggestionPreviewState,
@@ -28,12 +32,30 @@ import {
 } from '@/lib/teaching-load-suggestion-presentation';
 import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { COVERAGE_MODE_CONFIG } from '@/lib/teaching-load-helpers';
-import type { AutoFillSummaryResult, FacultySummary, Subject, TeachingLoadCandidateRejectionReason } from '@/types';
+import type { AutoFillSummaryResult, FacultySummary, Subject, TeachingLoadCandidateRejection, TeachingLoadCandidateRejectionReason } from '@/types';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
+const REPO_ROOT = resolve(ROOT, '..');
 function source(relativePath: string): string {
 	return readFileSync(resolve(ROOT, relativePath), 'utf8');
+}
+/** Read a file from the repository root (outside atlas-client). */
+function repoSource(relativePath: string): string {
+	return readFileSync(resolve(REPO_ROOT, relativePath), 'utf8');
+}
+
+function rejection(overrides: Partial<TeachingLoadCandidateRejection> = {}): TeachingLoadCandidateRejection {
+	return {
+		subjectId: 21,
+		subjectCode: 'FIL',
+		sectionId: 7001,
+		sectionName: 'G7-7001',
+		facultyId: 102,
+		facultyName: 'Mila Filipino',
+		reason: 'NOT_QUALIFIED',
+		...overrides,
+	};
 }
 
 /* ================================================================== *
@@ -129,24 +151,88 @@ test('R4 failing-first mutant: the retired null-department pre-emption would hid
  * R5 — every exclusion reason is explained in concise human language
  * ================================================================== */
 
-test('R5 every reason class has scheduler-facing copy and an on-demand detail', () => {
-	const expectedReasons: TeachingLoadCandidateRejectionReason[] = [
+test('R5 producer parity: every reason the server emits has client copy and an order entry', () => {
+	const serverSrc = repoSource('atlas-server/src/services/teaching-load-automation.service.ts');
+
+	// 1. The declared producer union.
+	const unionMatch = serverSrc.match(/export type TeachingLoadCandidateRejectionReason =([\s\S]*?);/);
+	assert.ok(unionMatch, 'producer reason union must be found in the server source');
+	const union = Array.from(unionMatch[1].matchAll(/'([A-Z_]+)'/g)).map((match) => match[1]);
+	assert.ok(union.length >= 6, `producer union should be non-trivial, saw ${union.length}`);
+	assert.ok(union.includes('OUTSIDE_CANONICAL_DEMAND'), 'the producer union must declare OUTSIDE_CANONICAL_DEMAND');
+
+	// 2. Every reason literal the server actually emits in a `reason:` position.
+	const emitted = new Set<string>();
+	for (const line of serverSrc.split('\n')) {
+		if (!line.includes('reason')) continue;
+		for (const match of line.matchAll(/'([A-Z][A-Z_]{3,})'/g)) emitted.add(match[1]);
+	}
+	const unionSet = new Set(union);
+	const emittedProducerReasons = [...emitted].filter((reason) => unionSet.has(reason));
+	assert.ok(
+		emittedProducerReasons.includes('OUTSIDE_CANONICAL_DEMAND'),
+		'the emitted OUTSIDE_CANONICAL_DEMAND rejection must be found',
+	);
+
+	// 3. Every producer reason is present in the client union, order, labels, details.
+	const order = CANDIDATE_REJECTION_ORDER as string[];
+	const labels = CANDIDATE_REJECTION_LABELS as Record<string, string>;
+	const details = CANDIDATE_REJECTION_DETAILS as Record<string, string>;
+	const clientUnion = new Set(Object.keys(labels));
+	for (const reason of union) {
+		assert.ok(clientUnion.has(reason), `${reason} is missing from the client union`);
+		assert.ok(order.includes(reason), `${reason} is missing from CANDIDATE_REJECTION_ORDER`);
+		assert.ok(labels[reason], `${reason} is missing a label`);
+		assert.ok(details[reason], `${reason} is missing a detail`);
+	}
+	// Emitted reasons specifically (guards against a union member never emitted).
+	for (const reason of emittedProducerReasons) {
+		assert.ok(order.includes(reason), `emitted reason ${reason} is missing from CANDIDATE_REJECTION_ORDER`);
+		assert.ok(labels[reason], `emitted reason ${reason} is missing a label`);
+	}
+
+	// The R5 reserved vocabulary must remain present as defensive copy.
+	for (const reserved of ['INACTIVE_FACULTY', 'WRONG_SCHOOL', 'DEPARTMENT_RESTRICTED', 'UNAVAILABLE', 'STALE_AUTHORITY']) {
+		assert.ok(clientUnion.has(reserved), `reserved R5 reason ${reserved} must keep its copy`);
+	}
+});
+
+test('R5 rendered count equality: every skipped row is accounted for in the rendered groups', () => {
+	const producerReasons = [
 		'PROGRAM_SCOPE_INCOMPATIBLE',
 		'NOT_QUALIFIED',
-		'DEPARTMENT_RESTRICTED',
 		'HARD_CAP_EXCEEDED',
 		'CURRENT_OWNER',
-		'INACTIVE_FACULTY',
-		'WRONG_SCHOOL',
-		'UNAVAILABLE',
-		'STALE_AUTHORITY',
 		'PLACEHOLDER_FACULTY',
+		'OUTSIDE_CANONICAL_DEMAND',
 	];
-	assert.deepEqual(CANDIDATE_REJECTION_ORDER, expectedReasons);
-	for (const reason of expectedReasons) {
-		assert.ok(CANDIDATE_REJECTION_LABELS[reason], `${reason} needs a label`);
-		assert.ok(CANDIDATE_REJECTION_DETAILS[reason], `${reason} needs a detail`);
+	const payload: TeachingLoadCandidateRejection[] = producerReasons.map((reason, index) =>
+		rejection({ facultyId: 100 + index, facultyName: `Teacher ${index}`, reason: reason as TeachingLoadCandidateRejectionReason }),
+	);
+	// A reason this client build does not describe.
+	payload.push(rejection({ facultyId: 900, facultyName: 'Future Reason Teacher', reason: 'SOME_FUTURE_CODE' as TeachingLoadCandidateRejectionReason }));
+
+	const groups = summarizeCandidateRejections(payload);
+	assert.equal(groups.length, producerReasons.length + 1, 'one group per reason, including the fallback');
+	assert.equal(
+		groups.reduce((sum, group) => sum + group.count, 0),
+		totalCandidateRejections(payload),
+		'sum(group counts) must equal the total; no row may be dropped',
+	);
+
+	const markup = renderToStaticMarkup(
+		createElement(TooltipProvider, null, createElement(TeachingLoadCandidateDiagnostics, { rejections: payload })),
+	);
+	assert.match(markup, new RegExp(`${payload.length} skipped`));
+	for (const reason of producerReasons) {
+		assert.match(markup, new RegExp(`data-testid="teaching-load-rejection-${reason}"`), `${reason} must render a group`);
+		const label = CANDIDATE_REJECTION_LABELS[reason as TeachingLoadCandidateRejectionReason];
+		assert.ok(markup.includes(label), `${reason} must render human copy (${label})`);
 	}
+	// The unknown reason renders fallback copy and never the raw enum.
+	assert.match(markup, /data-testid="teaching-load-rejection-UNKNOWN_REASON"/);
+	assert.ok(markup.includes(describeUnknownRejection().label));
+	assert.doesNotMatch(markup, /SOME_FUTURE_CODE/);
 });
 
 test('R5 the primary explanation is human copy, never a raw enum code', () => {
@@ -163,20 +249,46 @@ test('R5 the primary explanation is human copy, never a raw enum code', () => {
 
 test('R5 grouped summary carries the on-demand detail and never a raw code as the primary line', () => {
 	const groups = summarizeCandidateRejections([
-		{ subjectId: 1, subjectCode: 'FIL', sectionId: 2, sectionName: 'G7-A', facultyId: 9, facultyName: 'Ana', reason: 'INACTIVE_FACULTY' },
-		{ subjectId: 1, subjectCode: 'FIL', sectionId: 2, sectionName: 'G7-A', facultyId: 10, facultyName: 'Ben', reason: 'INACTIVE_FACULTY' },
+		{ subjectId: 1, subjectCode: 'FIL', sectionId: 2, sectionName: 'G7-A', facultyId: 9, facultyName: 'Ana', reason: 'OUTSIDE_CANONICAL_DEMAND' },
+		{ subjectId: 1, subjectCode: 'FIL', sectionId: 2, sectionName: 'G7-A', facultyId: 10, facultyName: 'Ben', reason: 'OUTSIDE_CANONICAL_DEMAND' },
 	]);
 	assert.equal(groups.length, 1);
-	assert.equal(groups[0].reason, 'INACTIVE_FACULTY');
+	assert.equal(groups[0].reason, 'OUTSIDE_CANONICAL_DEMAND');
 	assert.equal(groups[0].count, 2);
-	assert.equal(groups[0].detail, CANDIDATE_REJECTION_DETAILS.INACTIVE_FACULTY);
+	assert.equal(groups[0].detail, CANDIDATE_REJECTION_DETAILS.OUTSIDE_CANONICAL_DEMAND);
 	assert.deepEqual(groups[0].facultyNames, ['Ana', 'Ben']);
 });
 
-test('R5 unknown/legacy reasons never render a raw code', () => {
+test('R5 the unknown-reason path is live and never drops a row', () => {
+	// A single unrecognised reason still produces a rendered group.
+	const groups = summarizeCandidateRejections([
+		rejection({ reason: 'SOME_FUTURE_CODE' as TeachingLoadCandidateRejectionReason, facultyName: 'Unknown One' }),
+	]);
+	assert.equal(groups.length, 1);
+	assert.equal(groups[0].reason, UNKNOWN_REJECTION_REASON);
+	assert.equal(groups[0].count, 1);
+	assert.deepEqual(groups[0].facultyNames, ['Unknown One']);
+	// Safe copy only — never the raw code.
+	assert.doesNotMatch(groups[0].label, /SOME_FUTURE_CODE/);
+	assert.doesNotMatch(groups[0].detail, /SOME_FUTURE_CODE/);
+	assert.deepEqual(describeUnknownRejection(), { label: groups[0].label, detail: groups[0].detail });
+
+	// The invariant holds for a mixed list too.
+	const mixed: TeachingLoadCandidateRejection[] = [
+		rejection({ reason: 'NOT_QUALIFIED' }),
+		rejection({ facultyId: 2, reason: 'SOME_FUTURE_CODE' as TeachingLoadCandidateRejectionReason }),
+		rejection({ facultyId: 3, reason: 'ANOTHER_UNKNOWN' as TeachingLoadCandidateRejectionReason }),
+	];
+	const mixedGroups = summarizeCandidateRejections(mixed);
+	assert.equal(mixedGroups.reduce((sum, group) => sum + group.count, 0), totalCandidateRejections(mixed));
+	assert.equal(mixedGroups.filter((group) => group.reason === UNKNOWN_REJECTION_REASON)[0].count, 2);
+});
+
+test('R5 describeCandidateRejection still answers for an unknown reason without a raw code', () => {
 	const described = describeCandidateRejection('SOME_FUTURE_CODE' as never);
-	assert.equal(described.label, 'Not eligible for this class');
+	assert.equal(described.label, describeUnknownRejection().label);
 	assert.ok(described.detail.length > 0);
+	assert.doesNotMatch(described.label, /SOME_FUTURE_CODE/);
 });
 
 /* ================================================================== *
@@ -414,6 +526,43 @@ test('R9 the Teaching Load page binds every suggestion handler to the scope epoc
 	for (const setter of ['setSuggestionProposalId(null)', 'setAutoFillResult(null)', 'setSuggestionLoading(false)', 'setSuggestionApplying(false)']) {
 		assert.ok(page.includes(setter), `${setter} must run on scope change`);
 	}
+});
+
+/* ================================================================== *
+ * F2 — the diagnostics read is scope-guarded
+ * ================================================================== */
+
+test('F2 the diagnostics fetch captures a scope token before dispatch', () => {
+	const hook = source('src/hooks/useTeachingLoadData.ts');
+	assert.match(hook, /const diagnosticsEpochRef = useRef\(createScopeEpoch\(\)\)/);
+	assert.match(hook, /diagnosticsEpochRef\.current\.begin\(\)/);
+	assert.match(hook, /const diagnosticsStillCurrent = captureEpoch\(diagnosticsEpochRef\.current\)/);
+
+	// The state setter is unreachable without passing the guard.
+	const guardIndex = hook.indexOf('const diagnosticsStillCurrent = captureEpoch(diagnosticsEpochRef.current)');
+	const setterIndex = hook.indexOf('setAuthorityDiagnostics(diagnosticsRes.data ?? null)');
+	assert.ok(guardIndex >= 0, 'the diagnostics fetch must capture a scope token');
+	assert.ok(setterIndex > guardIndex, 'the setter must appear after the token capture');
+	assert.match(
+		hook.slice(guardIndex, setterIndex),
+		/if \(!diagnosticsStillCurrent\(\)\) return;/,
+		'the success path must discard an obsolete reply',
+	);
+});
+
+test('F2 a diagnostics reply captured before the scope changed is discarded', () => {
+	const epoch = createScopeEpoch();
+	const inFlight = captureEpoch(epoch);
+	assert.equal(inFlight(), true);
+	// A school/year change opens a new epoch.
+	epoch.begin();
+	assert.equal(inFlight(), false, 'an obsolete diagnostics reply must be discarded');
+	assert.equal(captureEpoch(epoch)(), true, 'the next request in the new scope is authoritative');
+
+	// The scope reset opens the epoch before clearing the state it owns.
+	const hook = source('src/hooks/useTeachingLoadData.ts');
+	const resetMatch = hook.match(/useEffect\(\(\) => \{[\s\S]*?diagnosticsEpochRef\.current\.begin\(\);[\s\S]*?setAuthorityDiagnostics\(null\);[\s\S]*?\}/);
+	assert.ok(resetMatch, 'the scope reset must open a new epoch and clear the diagnostics state');
 });
 
 /* ================================================================== *

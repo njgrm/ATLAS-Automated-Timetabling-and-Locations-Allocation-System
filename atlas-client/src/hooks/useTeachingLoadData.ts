@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -36,6 +36,7 @@ import {
 	type WorkloadPolicyReadiness,
 } from '@/lib/faculty-teaching-load-cache';
 import type { TeachingLoadAuthorityDiagnosticsPayload } from '@/lib/teaching-load-authority-truth';
+import { createScopeEpoch, captureEpoch } from '@/lib/scope-request-epoch';
 import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
 import type {
 	ExternalSection,
@@ -65,6 +66,9 @@ export function useTeachingLoadData() {
 	// it is never replaced with a fabricated count or policy default.
 	const [authorityDiagnostics, setAuthorityDiagnostics] = useState<TeachingLoadAuthorityDiagnosticsPayload | null>(null);
 	const [authorityDiagnosticsLoading, setAuthorityDiagnosticsLoading] = useState(false);
+	// Scope-bound epoch for the diagnostics read. A late response from an obsolete
+	// school/year must never repopulate the truth strip.
+	const diagnosticsEpochRef = useRef(createScopeEpoch());
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [activeTermIndex, setActiveTermIndex] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -253,6 +257,11 @@ export function useTeachingLoadData() {
 			// failure must not break the assignment workspace, and it must never be
 			// masked with an invented number — a null payload renders the typed
 			// unknown state instead. Read-only GET with zero write side effects.
+			//
+			// Scope-guarded: the epoch is captured before dispatch, so a reply that
+			// arrives after a school/year change is discarded rather than written
+			// into the new scope.
+			const diagnosticsStillCurrent = captureEpoch(diagnosticsEpochRef.current);
 			setAuthorityDiagnosticsLoading(true);
 			try {
 				const diagnosticsRes = await requestWithRetry(
@@ -262,11 +271,13 @@ export function useTeachingLoadData() {
 					),
 					{ attempts: 1, delayMs: 300 },
 				);
+				if (!diagnosticsStillCurrent()) return;
 				setAuthorityDiagnostics(diagnosticsRes.data ?? null);
 			} catch {
+				if (!diagnosticsStillCurrent()) return;
 				setAuthorityDiagnostics(null);
 			} finally {
-				setAuthorityDiagnosticsLoading(false);
+				if (diagnosticsStillCurrent()) setAuthorityDiagnosticsLoading(false);
 			}
 		} catch (requestError: any) {
 			const cachedSummary = schoolYearId && resolvedSchoolId ? getCachedFacultyAssignmentsSummary(resolvedSchoolId, schoolYearId) : null;
@@ -449,7 +460,9 @@ export function useTeachingLoadData() {
 		setSectionFocusId(null);
 		setHomeroomHint(null);
 		// Authority truth is scope-bound: a stale panel must never describe the
-		// previous school/year.
+		// previous school/year, and an in-flight reply for the old scope must be
+		// discarded when it lands.
+		diagnosticsEpochRef.current.begin();
 		setAuthorityDiagnostics(null);
 	}, [scopeKey, setDraftAssignmentsByFaculty]);
 
