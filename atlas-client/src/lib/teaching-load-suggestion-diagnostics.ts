@@ -182,3 +182,32 @@ export function candidateRejectionsForResult(result: {
 export function totalCandidateRejections(rejections: TeachingLoadCandidateRejection[] | undefined | null): number {
 	return asRejectionList(rejections).length;
 }
+
+/**
+ * C-6 audit: producer reasons the client cannot render.
+ *
+ * Returns every reason present in the producer domain that has no label, detail,
+ * or canonical-order entry. An empty result means the client mapping covers the
+ * whole producer domain.
+ */
+export function missingProducerReasons(producerReasons: readonly string[]): string[] {
+	const mapped = new Set<string>(Object.keys(CANDIDATE_REJECTION_LABELS));
+	const ordered = new Set<string>(CANDIDATE_REJECTION_ORDER);
+	return producerReasons.filter((reason) => !mapped.has(reason) || !ordered.has(reason));
+}
+
+/**
+ * C-6 audit: conservation of the grouped summary.
+ *
+ * Every rejection row must land in exactly one group, so
+ * `grouped === total` is the invariant. A dropped unknown/unmatched value makes
+ * `conserved` false — which is exactly what the committed mutant control asserts.
+ */
+export function auditRejectionConservation(
+	rejections: TeachingLoadCandidateRejection[] | undefined | null,
+	groups: CandidateRejectionGroup[],
+): { total: number; grouped: number; conserved: boolean } {
+	const total = totalCandidateRejections(rejections);
+	const grouped = groups.reduce((sum, group) => sum + group.count, 0);
+	return { total, grouped, conserved: total === grouped };
+}

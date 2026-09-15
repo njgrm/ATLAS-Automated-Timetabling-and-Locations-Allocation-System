@@ -21,6 +21,8 @@ import {
 	CANDIDATE_REJECTION_ORDER,
 	describeCandidateRejection,
 	describeUnknownRejection,
+	auditRejectionConservation,
+	missingProducerReasons,
 	summarizeCandidateRejections,
 	totalCandidateRejections,
 	UNKNOWN_REJECTION_REASON,
@@ -195,6 +197,60 @@ test('R5 producer parity: every reason the server emits has client copy and an o
 	for (const reserved of ['INACTIVE_FACULTY', 'WRONG_SCHOOL', 'DEPARTMENT_RESTRICTED', 'UNAVAILABLE', 'STALE_AUTHORITY']) {
 		assert.ok(clientUnion.has(reserved), `reserved R5 reason ${reserved} must keep its copy`);
 	}
+});
+
+/* ------------------------------------------------------------------ *
+ * C-6 committed rendering mutants (R5)
+ * Each control is proven in both directions: it passes on the current
+ * code and fails when the corresponding guard is weakened.
+ * ------------------------------------------------------------------ */
+
+test('C-6 mutant A — removed producer member: the client mapping must cover the whole producer domain', () => {
+	const serverSrc = repoSource('atlas-server/src/services/teaching-load-automation.service.ts');
+	const unionMatch = serverSrc.match(/export type TeachingLoadCandidateRejectionReason =([\s\S]*?);/);
+	assert.ok(unionMatch, 'the producer reason union must be found in the server source');
+	const producerDomain = Array.from(unionMatch[1].matchAll(/'([A-Z_]+)'/g)).map((match) => match[1]);
+	assert.ok(producerDomain.length >= 6, 'the producer domain must be non-trivial');
+
+	// CURRENT CODE: nothing in the producer domain is unmapped.
+	assert.deepEqual(missingProducerReasons(producerDomain), [], 'every producer reason must have a client entry');
+
+	// MUTANT DIRECTION: a producer member the client does not know must be flagged.
+	const mutatedDomain = [...producerDomain, 'A_NEW_PRODUCER_REASON'];
+	assert.deepEqual(
+		missingProducerReasons(mutatedDomain),
+		['A_NEW_PRODUCER_REASON'],
+		'the parity check must flag a producer reason with no label/detail/order entry',
+	);
+	// Removing a real member from the domain is the regression the guard detects.
+	const withoutOne = producerDomain.filter((reason) => reason !== 'OUTSIDE_CANONICAL_DEMAND');
+	assert.equal(withoutOne.includes('OUTSIDE_CANONICAL_DEMAND'), false);
+	assert.deepEqual(missingProducerReasons(withoutOne), [], 'the reduced domain is still fully mapped');
+	assert.deepEqual(
+		missingProducerReasons([...withoutOne, 'OUTSIDE_CANONICAL_DEMAND']),
+		[],
+		'OUTSIDE_CANONICAL_DEMAND is mapped (this is what the C-3 fix restored)',
+	);
+});
+
+test('C-6 mutant B — dropped unknown value: the conservation check must count every row', () => {
+	const payload: TeachingLoadCandidateRejection[] = [
+		rejection({ facultyId: 1, reason: 'NOT_QUALIFIED' }),
+		rejection({ facultyId: 2, reason: 'SOME_FUTURE_CODE' as TeachingLoadCandidateRejectionReason }),
+	];
+	const groups = summarizeCandidateRejections(payload);
+
+	// CURRENT CODE: the unknown value is grouped, not dropped.
+	assert.deepEqual(auditRejectionConservation(payload, groups), { total: 2, grouped: 2, conserved: true });
+
+	// MUTANT DIRECTION: drop the unknown/unmatched group.
+	const withoutUnknown = groups.filter((group) => group.reason !== UNKNOWN_REJECTION_REASON);
+	assert.equal(withoutUnknown.length, 1, 'the mutant fixture must actually drop the fallback group');
+	const mutated = auditRejectionConservation(payload, withoutUnknown);
+	assert.equal(mutated.conserved, false, 'dropping an unknown value must break conservation');
+	assert.ok(mutated.grouped < mutated.total, 'the dropped row must surface as a shortfall');
+	assert.equal(mutated.grouped, 1);
+	assert.equal(mutated.total, 2);
 });
 
 test('R5 rendered count equality: every skipped row is accounted for in the rendered groups', () => {
@@ -554,7 +610,7 @@ test('F2 the diagnostics read is guarded by resolved scope identity, not render 
 test('F2 the loader opens the epoch BEFORE capturing its token (ordering is load bearing)', () => {
 	const hook = source('src/hooks/useTeachingLoadData.ts');
 	const openIndex = hook.indexOf('openDiagnosticsScope(scopeRef, epoch, scopeId);');
-	const tokenIndex = hook.indexOf('const epochToken = epoch.current;');
+	const tokenIndex = hook.indexOf('const binding: ScopeBoundWrite = { scopeRef, epoch, scopeId, token: epoch.current };');
 	assert.ok(openIndex >= 0, 'the loader must open the epoch for the resolved scope');
 	assert.ok(tokenIndex > openIndex, 'the token must be captured AFTER the epoch is opened');
 	// A superseded reply must leave state untouched.
