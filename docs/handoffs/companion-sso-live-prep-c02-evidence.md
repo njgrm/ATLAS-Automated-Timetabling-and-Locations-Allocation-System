@@ -34,7 +34,7 @@ Capture boundary: **2026-09-15, ~04:05Z / ~12:05 Asia/Manila**, host
 | Branch | `work/companion-sso-live-prep-c02` | CURRENT_STATE |
 | Dispatch base (branch-additive base) | `6409a2a8c2977a7e96db114b1d1a2d84a0d01afb` | CURRENT_STATE |
 | Prompt-authoring base | `234046f80effa5b963295bb27f83a90020b4f544` | HISTORICAL |
-| Refreshed `origin/main` at executor turn | `53a781a4fdb6e254bd1277c47fcef0700e0e769d` | CURRENT_STATE |
+| Refreshed `origin/main` at executor turn | `53a781a4fdb6e254bd1277c47fcef0700e0e769d` (capture-boundary observation; superseded by the correction-time tip `0c20342394ca2ca800cecc6dd69825e07625c66d` — see §6.4 Correction 1) | HISTORICAL |
 | Merge-base with `origin/main` | `234046f80effa5b963295bb27f83a90020b4f544` | CURRENT_STATE |
 | Drift `234046f8..origin/main` | docs-only (10 files: `docs/plans/*`, `docs/prompts/term-cache-catchup-apply-2026-09-14.md`, `docs/reviews/workflow-foundation-wfc01/*`); no product tree | CURRENT_STATE |
 | Required ancestor `c989f03d` (merge) | `c989f03d67fa246ac8b168a59012a7615458be4f`, parents `a284d775` + `fbb9dc63`; `git merge-base --is-ancestor` exit 0 vs `origin/main` | CURRENT_STATE |
@@ -427,10 +427,10 @@ Resolved this turn from the deployed checkout and the supervisor CLI
 
 **Resolved `live:false`:** the status CLI prints `live:false` for both targets
 even though both ports listen and health is 200. Cause: `runStatus`
-(`ops/runtime/cli.mjs:63-72`) constructs a fresh in-process `Supervisor`,
+(`ops/runtime/cli.mjs:81-91`) constructs a fresh in-process `Supervisor`,
 restores only `ownedPids`/`state` from the state file, and leaves `this.children`
-empty; `Supervisor.getStatus()` computes `live` from `this.children`
-(`ops/runtime/lib/supervisor.mjs:371-401`, `:397`). A standalone `status`
+empty; `Supervisor.getStatus()` (`ops/runtime/lib/supervisor.mjs:375`) computes
+`live` at `:401` from that empty map. A standalone `status`
 invocation therefore always reports `live:false` by construction. It is a
 status-CLI artifact, **not** a liveness signal. Real liveness evidence is the
 HTTP probes and listener ownership above.
@@ -471,6 +471,22 @@ product tree** since the incumbent product pin `d44f29e0` (deployed release
 §2/§5.6/§8.1/§10/§11 now require recomputing and recording both deltas against
 the exact installed tip before install, with operator acknowledgment of the
 non-docs delta.
+
+### 6.5 Machine-state verification (read-only) (CURRENT_STATE)
+
+`docs/plans/atlas-delivery-cycles.json` (contractVersion `1.1.0`), read-only at
+correction time: `coordination.mode = MANUAL`; `coordination.activeCycleId =
+null`; `coordination.globalNextAction = "WF-C02 COMPLETE with pinned receipt and
+AUDIT_CLEAR; WF-C03 (Lane B) dispatch follows from the refreshed origin/main
+tip."`; `leases` is empty; `browserCustody.profiles[0].custody` and
+`browserCustody.logins` are both empty; the 6 `streams` entries contain no
+`COMPANION-SSO-LIVE-PREP-C02` entry. No lease and no browser-custody record
+touches this stream's docs, companion mirrors, disposable-database namespace,
+browser profile, runtime inventory, or SSO packet paths. This preparation cycle
+is **intentionally unregistered** in the machine state because the recovery
+boundary forbids register edits while another lane owns `origin/main`; the
+governing packet's Workflow-state requirement is satisfied by this read-only
+verification rather than a state write.
 
 ## 7. Public / browser preflight (no authentication) (CURRENT_STATE)
 

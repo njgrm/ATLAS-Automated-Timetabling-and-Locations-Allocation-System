@@ -99,10 +99,10 @@ drift.
 - Listeners: 5001 → PID **19792** (ATLAS server), 5174 → PID **19000**
   (production host); both `owned:true`.
 - **`live:false` resolution:** the status CLI always prints `live:false` for both
-  targets because `runStatus` (`ops/runtime/cli.mjs:63-72`) restores only
+  targets because `runStatus` (`ops/runtime/cli.mjs:81-91`) restores only
   `ownedPids`/`state` from the state file and leaves the in-process child map
-  empty; `getStatus()` derives `live` from that map
-  (`ops/runtime/lib/supervisor.mjs:371-401`). It is a status-CLI artifact, not a
+  empty; `getStatus()` (`ops/runtime/lib/supervisor.mjs:375`) derives `live` at
+  `:401` from that empty map. It is a status-CLI artifact, not a
   liveness signal. Liveness evidence is the HTTP probes and listener ownership.
 - Tailnet: `https://njgrm.buru-degree.ts.net/api/v1/health` 200;
   `https://njgrm.buru-degree.ts.net/` and `/login` 200.
@@ -143,6 +143,23 @@ ATLAS server keys (`D:\ATLAS-runtime-config\atlas-server.env`):
 | `ENROLLPRO_SSO_CLIENT_SECRET` | shared secret S1 (≥32 chars) | Flow A `Authorization: Bearer` |
 | `ENROLLPRO_SSO_CALLBACK_URL` | `https://dev-jegs.buru-degree.ts.net/api/auth/companion-sso/atlas/reverse/callback` | Flow B exact `redirect_uri` binding; MUST equal EnrollPro's computed redirect URI byte-for-byte |
 | `ATLAS_SSO_REVERSE_CLIENT_SECRET` | shared secret S2 (≥32 chars, distinct from S1) | Flow B inbound `Authorization: Bearer` |
+| `ENROLLPRO_PROXY_ORIGIN` | `https://dev-jegs.buru-degree.ts.net` (bare origin, **no path**) | Supervised launch gate of the pinned release (`ops/runtime/cli.mjs:36-39,46,97` → `ops/runtime/lib/enrollpro-origin.mjs:96-104`). **Owned/set by `ENROLLPRO-PROXY-RECOVERY-LIVE`** (or an explicit operator grant naming this key); this packet must not add or modify it |
+
+`ENROLLPRO_PROXY_ORIGIN` is not an SSO key, but the pinned release's supervised
+launch gate makes it a hard precondition of any restart: the gate
+(`assertLaunchEnrollProOrigin`, `ops/runtime/cli.mjs:36-39`) is called by
+`runStart` (`:46`) and `runRollback` (`:97`) and fails closed with
+`ENROLLPRO_PROXY_ORIGIN_MISSING` **before any child process is constructed**;
+`stop`/`status` intentionally do not call it (`:33-34`). The variable name comes
+from `ops/runtime/runtime-contract.json` → `upstream.enrollProOriginVariable`,
+and the value must be a bare `http(s)` origin with no path
+(`ops/runtime/lib/enrollpro-origin.mjs:96-104`; absent and malformed values fail
+closed). The incumbent release `3d916b26` has no such gate, which is why the
+current runtime starts without the key. It is currently **ABSENT** from
+`D:\ATLAS-runtime-config\atlas-server.env`; the audited, not-granted
+`docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md` is its owner and sets
+exactly this bare origin (and `ENROLLPRO_API=https://dev-jegs.buru-degree.ts.net/api`),
+and itself warns never to bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`.
 
 ATLAS client build input (baked into the bundle by Vite):
 
@@ -220,6 +237,17 @@ characters, and contain none of the placeholder markers
    SSO change alone). The operator MUST acknowledge the recorded non-docs delta
    for the exact tip being installed. If either delta cannot be computed or
    recorded, STOP with `PRECONDITION_RELEASE_DELTA_UNRECORDED` — do not install.
+7. **Proxy origin present for the supervised launch gate.** `ENROLLPRO_PROXY_ORIGIN`
+   MUST be PRESENT in `D:\ATLAS-runtime-config\atlas-server.env`, be a valid bare
+   `http(s)` origin with no path (`ops/runtime/lib/enrollpro-origin.mjs:96-104`),
+   and its origin MUST equal the reviewed EnrollPro origin
+   `https://dev-jegs.buru-degree.ts.net` used by §4/§5. The pinned release's
+   supervised launch gate (`ops/runtime/cli.mjs:36-39`, called at `:46` and `:97`)
+   fails closed with `ENROLLPRO_PROXY_ORIGIN_MISSING` before any child process is
+   constructed when the value is absent. This packet does **not** write the key;
+   it is owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` (or an explicit operator grant
+   naming it, §4). If the value is absent or not a valid bare origin, STOP with
+   `PRECONDITION_PROXY_ORIGIN_MISSING` — do not attempt the restart.
 
 ## 6. Exact switch set (nothing else may change)
 
@@ -251,8 +279,12 @@ rollbackLaunchMechanism:
    SHA-256; never print or commit values).
 2. **Four ATLAS keys, exactly.** Add `ENROLLPRO_BASE_URL`,
    `ENROLLPRO_SSO_CLIENT_SECRET`, `ENROLLPRO_SSO_CALLBACK_URL`,
-   `ATLAS_SSO_REVERSE_CLIENT_SECRET` per §4. No other key may be added, removed,
-   or modified. Do not use the legacy alias names.
+   `ATLAS_SSO_REVERSE_CLIENT_SECRET` per §4. This "no other key may be added,
+   removed, or modified" constraint scopes only the keys **this packet writes**
+   (those four SSO keys). The pre-existing `ENROLLPRO_PROXY_ORIGIN` and
+   `ENROLLPRO_API` values MUST remain intact; `ENROLLPRO_PROXY_ORIGIN` is a
+   supervised-launch precondition (§5.7) owned by `ENROLLPRO-PROXY-RECOVERY-LIVE`
+   and is **not** a key this packet writes. Do not use the legacy alias names.
 3. **Cross-system secret delivery (never exposes values).**
    - S1/S2 are generated once by the operator (≥32 chars, high entropy, no
      placeholder markers) and stored only in the two runtime configurations.
@@ -283,7 +315,10 @@ rollbackLaunchMechanism:
    ≥10 s; confirm no listener on 5001/5174 (any unknown listener → STOP, never
    broad-kill); re-capture the re-pointed task record; launch only via
    `schtasks /run /tn "ATLAS-Runtime-Supervisor"`. The new supervisor must not be
-   a descendant of the invoking shell.
+   a descendant of the invoking shell. The task-launched supervisor enforces the
+   §5.7 `ENROLLPRO_PROXY_ORIGIN` launch gate; if the release log shows
+   `ENROLLPRO_PROXY_ORIGIN_MISSING`, do not bypass it — STOP and report
+   `PRECONDITION_PROXY_ORIGIN_MISSING`.
 7. **Keep `ROLLOVER_AUTO_SYNC_ENABLED=false`.**
 8. **Confirm live route presence.** `POST /api/v1/auth/sso/exchange` with no
    Bearer returns `401 {"code":"COMPANION_SSO_CLIENT_INVALID",…}` (not 404), and
@@ -337,21 +372,29 @@ Any unexplained extra write in either system is an incident stop.
 1. Release identity: `git -C <newReleaseDir> rev-parse HEAD` equals the pinned
    tip and descends from `c989f03d`; supervisor state `releaseSha` matches;
    `atlas-client/dist` exists and was built with the §4 `VITE_ENROLLPRO_URL`;
-   and the §5.6 recorded deltas are present for this exact tip — the full
+   `ENROLLPRO_PROXY_ORIGIN` was recorded PRESENT as a valid bare origin (§5.7);
+   the launch evidence shows the task-launched supervisor spawned its children
+   with no `ENROLLPRO_PROXY_ORIGIN_MISSING` in the release log; and the §5.6
+   recorded deltas are present for this exact tip — the full
    `git diff --stat c989f03d..<pin>` and the non-docs
    `git diff --stat d44f29e0..<pin>` (the deployment's actual product delta, not
    SSO alone), acknowledged by the operator. A missing or unreproducible delta
    record fails this row.
-2. Mounted routes live: `POST /api/v1/auth/sso/exchange` and
-   `POST /api/v1/auth/sso/authorize` return 401 (not 404) on the Tailnet origin.
+2. Mounted routes live on the newly installed and restarted release:
+   `POST /api/v1/auth/sso/exchange` returns 401
+   `{"code":"COMPANION_SSO_CLIENT_INVALID",…}` (not 404) and
+   `POST /api/v1/auth/sso/authorize` returns 401 (not 404) on the Tailnet
+   origin, proving the release contains and has mounted the SSO source.
 3. Health/readiness: local `/api/v1/health` 200, `/api/v1/health/ready` 200;
    host `/__host/live` 200 and two consecutive `/__host/ready` 200; Tailnet
    `/api/v1/health` 200.
 4. Ownership: exactly one owner per port (5001/5174) matching the supervisor's
    recorded PIDs; supervisor is not a descendant of the invoking shell; the
    task record shows SYSTEM/ONSTART `PT0S`/IgnoreNew with action + working
-   directory at the new release; post-shell re-probe from a later shell shows
-   the same supervisor PID owning 5001/5174 and health 200.
+   directory at the new release; the release log shows the supervisor spawned
+   its children and contains no `ENROLLPRO_PROXY_ORIGIN_MISSING`;
+   post-shell re-probe from a later shell shows the same supervisor PID owning
+   5001/5174 and health 200.
 5. Rollover automation remains disabled (invariant; no rollover activity).
 6. Flow A — browser at `https://dev-jegs.buru-degree.ts.net/personnel/login`
    (origin asserted), EnrollPro-authenticated staff launches ATLAS; browser lands
@@ -450,8 +493,13 @@ Any unexplained extra write in either system is an incident stop.
 > replacement resident supervisor only through the registered SYSTEM task via
 > `schtasks /run /tn "ATLAS-Runtime-Supervisor"`, preserving ONSTART, `PT0S`,
 > IgnoreNew (incumbent at preflight: release `3d916b26`, as re-verified at
-> execution); run the packet's acceptance matrix including one ATLAS operator
-> login and one EnrollPro login with the §7 expected deltas in both systems,
+> execution; only after confirming `ENROLLPRO_PROXY_ORIGIN` is present in the
+> durable env as a valid bare origin owned by `ENROLLPRO-PROXY-RECOVERY-LIVE` —
+> this packet does not write that key; STOP with
+> `PRECONDITION_PROXY_ORIGIN_MISSING` if it is absent or invalid, and never
+> bypass `ENROLLPRO_PROXY_ORIGIN_MISSING`); run the packet's acceptance matrix
+> including one ATLAS operator login and one EnrollPro login with the §7
+> expected deltas in both systems,
 > desktop and mobile AppShell checks, the listed negative controls
 > (wrong role, wrong school/year, wrong redirect, wrong secret, expired/replayed
 > code, unreachable companion, open redirect), hash-only-at-rest proof, log
@@ -474,7 +522,11 @@ pinned tip and `rev-parse HEAD`; the recorded release deltas for that exact tip 
 `git diff --stat c989f03d..<pin>` and the non-docs
 `git diff --stat d44f29e0..<pin>` with their shortstat outputs (the full
 integrated-but-undeployed product delta, not SSO alone) and the operator's
-acknowledgment of the non-docs delta; the client build invocation with the
+acknowledgment of the non-docs delta; the recorded `ENROLLPRO_PROXY_ORIGIN`
+presence check (§5.7) — PRESENT in the durable env and a valid bare origin, key
+name and shape only, never the value — plus the launch evidence that the
+supervisor spawned its children with no `ENROLLPRO_PROXY_ORIGIN_MISSING`; the
+client build invocation with the
 `VITE_ENROLLPRO_URL` value; the environment backup path + size + SHA-256; the
 four added key names (names only); the EnrollPro-side key names changed and by
 whom (names only); the quiesce/start transcript and the

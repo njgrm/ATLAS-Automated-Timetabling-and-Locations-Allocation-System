@@ -28,12 +28,14 @@ Companion developer handoff:
 | Release-pin delta (corrected) | tip is **not** docs-only above `c989f03d`; see Correction 1 below |
 | Required ancestor | `c989f03d67fa246ac8b168a59012a7615458be4f` (COMPANION-SSO-C01 merge) is an ancestor of `origin/main` (exit 0) |
 | Commit 1 | `62da5e7b81c3ae6b7307d7db0537cb8f6c32386d` — `docs(sso): record companion SSO live-prep evidence` |
-| Commit 3 (tip) | this correction commit — `docs(sso): correct activation release-delta claim`; exact SHA in the executor return |
-| Candidate range | `6409a2a8...<tip>` (three additive commits) |
+| Commit 2 | `faa2422ea81df91e7a87a3529d6115f47b11bdea` — `docs(sso): prepare companion migration and runtime activation gates` |
+| Commit 3 | `61b1de5cbe1e9e305ef5d8d7b0e441dd320ab3ad` — `docs(sso): correct activation release-delta claim` |
+| Commit 4 (tip) | this correction commit — `docs(sso): gate activation on proxy origin and fix audit findings`; exact SHA in the executor return |
+| Candidate range | `6409a2a8...<tip>` (four additive commits) |
 | Directive `origin/main:AGENTS.md` LF-normalized SHA-256 | `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5` |
 | Directive recorded at prompt authoring | `0cf68d62d9c6c6bb37b737c6038118a8eed7efc2d403a2100de9d64f02c871d6` (superseded; newer wins) |
 
-Changed paths (all new, all within the owned set):
+Changed paths (five files; created by commits 1–2 and amended by the correction commits):
 
 1. `docs/handoffs/companion-sso-live-prep-c02-evidence.md`
 2. `docs/handoffs/companion-sso-live-prep-c02-executor.md`
@@ -184,7 +186,18 @@ asserted different from the configured database name; residue count 0 for the
 | Evidence corpus sync | The evidence doc §6.4 gained a compact "Correction 1" delta row so the evidence matches the corrected packet. |
 | Verification | `git diff --shortstat c989f03d 0c203423` = 299 files, 40938+/3034-; non-docs 230 files. `git diff --shortstat d44f29e0 0c203423 -- . ":(exclude)docs"` = 270 files, 39367+/2863-. `git diff --shortstat d44f29e0 0c203423` = 366 files, 54059+/2938-. `git diff --shortstat 53a781a4 0c203423` = 2 files, 48+/38- (docs-only). Lockfile SHA-256 recomputed and matched: `ecf06aef…b6e5`, `ce1ae84e…9f1e`. Docs-only; `git diff --check` exit 0; worktree clean. |
 
-## 10. Approval sentences (NOT GRANTED)
+## 10. Correction 2 (completion audit)
+
+| Finding | Detail | Fix | Verification |
+| --- | --- | --- | --- |
+| F1 (BLOCKING, safety gate) | The activation packet did not account for the re-pinned release's supervised launch gate, which requires `ENROLLPRO_PROXY_ORIGIN`. | Activation packet §4 gained an `ENROLLPRO_PROXY_ORIGIN` row (bare origin `https://dev-jegs.buru-degree.ts.net`, owned by `ENROLLPRO-PROXY-RECOVERY-LIVE`, not written by this packet) plus an explanatory paragraph; §5 gained precondition 7 (`PRECONDITION_PROXY_ORIGIN_MISSING`); §6.2 scopes the "no other key" rule to the four SSO keys this packet writes and requires `ENROLLPRO_PROXY_ORIGIN`/`ENROLLPRO_API` to remain intact; §6.6 references the gate and forbids bypassing `ENROLLPRO_PROXY_ORIGIN_MISSING`; §8 rows 1/2/4 require the recorded presence check, spawned children with no `ENROLLPRO_PROXY_ORIGIN_MISSING`, and the 401-not-404 mounted-route proof on the new release; §10 approval sentence adds the precondition without authorizing the key write; §11 requires the presence check in the return. | `ops/runtime/cli.mjs:36-39` `assertLaunchEnrollProOrigin`, called at `:46` (`runStart`) and `:97` (`runRollback`); `stop`/`status` exempt (`:33-34`). `ops/runtime/lib/enrollpro-origin.mjs:96-104` (`requireExplicit` → `ENROLLPRO_PROXY_ORIGIN_MISSING`). `ops/runtime/runtime-contract.json` → `upstream.enrollProOriginVariable = ENROLLPRO_PROXY_ORIGIN`. Incumbent `D:\ATLAS-runtime-supervised-3d916b26-20260912\ops\runtime\cli.mjs` has **no** gate/origin references (file read directly; the directory is not a safe git dir for this user). `ENROLLPRO_PROXY_ORIGIN` **ABSENT**, `ENROLLPRO_API` **PRESENT** in `D:\ATLAS-runtime-config\atlas-server.env`. Owner packet `origin/main:docs/prompts/enrollpro-proxy-recovery-live-2026-09-14.md:119,127,167-168` sets exactly the bare origin and warns never to bypass the missing-code. |
+| F2 (NON_BLOCKING) | Wrong `runStatus` citation `ops/runtime/cli.mjs:63-72`. | Corrected to `:81-91` in activation §3 and evidence §6.3. | Verified directly: `runStatus` block is lines 81–91. |
+| F3 (NON_BLOCKING) | Wrong `getStatus`/`live` citation `supervisor.mjs:371-401` / `:397`. | Corrected to `getStatus()` at `:375` and the `live:` computation at `:401` in activation §3 and evidence §6.3. | Verified directly: `getStatus() {` at line 375; `live: liveChildren[...]` at line 401. |
+| F4 (NON_BLOCKING) | The governing packet's authoring-time directive pin `0cf68d62…` is unreproducible. | Added a parenthetical recovery note at the pin (original value not rewritten): audit could not reproduce it under LF/raw/UTF-16LE/UTF-8-BOM/the packet base `234046f8`; the execution authority is `5f920670…`. | Planner-authorized edit (the governing packet is normally untouched); the `5f920670…` value was independently re-verified in R1. |
+| F5 (NON_BLOCKING) | Evidence §1 tagged `origin/main 53a781a4` as `CURRENT_STATE`. | Re-tagged `HISTORICAL` with the supersession note (capture-boundary observation superseded by correction-time tip `0c203423`; see §6.4 Correction 1). | Tag legend is defined in evidence §0. |
+| F6 (NON_BLOCKING) | The governing packet's Workflow-state verification of `docs/plans/atlas-delivery-cycles.json` was not recorded. | Added evidence §6.5 with the read-only observed values and the intentional-unregistered rationale. | `coordination.mode = MANUAL`, `activeCycleId = null`, `leases` empty, `browserCustody` custody/logins empty, 6 `streams` with no `COMPANION-SSO-LIVE-PREP-C02` entry. |
+
+## 11. Approval sentences (NOT GRANTED)
 
 - `COMPANION-SSO-MIGRATION-LIVE-C02` — exact sentence in section 9 of
   `docs/prompts/companion-sso-migration-live-c02-2026-09-15.md`; **NOT GRANTED**.
@@ -192,7 +205,7 @@ asserted different from the configured database name; residue count 0 for the
   `docs/prompts/companion-sso-runtime-activation-c02-2026-09-15.md`; **NOT
   GRANTED**.
 
-## 11. Return contract
+## 12. Return contract
 
 `REVIEW_REQUIRED`. Control returns to the primary planner for immutable-range
 validation and a fresh independent QA pass. The executor does not integrate,

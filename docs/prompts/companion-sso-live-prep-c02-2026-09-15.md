@@ -30,7 +30,14 @@ preparation row.
   live-configured.
 - Directive authority at prompt authoring:
   `origin/main:AGENTS.md`, LF-normalized SHA-256
-  `0cf68d62d9c6c6bb37b737c6038118a8eed7efc2d403a2100de9d64f02c871d6`.
+  `0cf68d62d9c6c6bb37b737c6038118a8eed7efc2d403a2100de9d64f02c871d6`
+  (recovery note, completion audit: this recorded authoring pin could not be
+  reproduced by independent audit under any tested normalization — LF-normalized,
+  raw, UTF-16LE, UTF-8-BOM, or the packet's own base `234046f8`. The authoritative
+  directive at execution is `origin/main:AGENTS.md`, LF-normalized SHA-256
+  `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5`, which
+  supersedes the recorded value and is also recorded in the executor handoff and
+  evidence doc).
 - Preparation worktrees belong under `E:/ATLAS-worktrees/`; do not create new
   worktrees on `D:`. Check free space before creation and again before any
   disposable PostgreSQL rehearsal.
