@@ -3,9 +3,15 @@
 //
 // The migration is a pure, deterministic function of the document plus the
 // workspace artifact bytes. It preserves every historical identity verbatim and
-// never rewrites receipts. The reproduction check starts from the literal
-// pre-migration committed bytes (`git show <accepted-base>:...`) and must land
-// on the committed 1.2.0 bytes exactly.
+// never rewrites receipts. The reproduction check derives the literal
+// pre-migration committed document mechanically from this checkout's own Git
+// history — the most recent commit whose version of the state path is still
+// 1.1.0 — and must land on the committed 1.2.0 bytes exactly.
+//
+// No pre-migration commit SHA is hard-coded. A pinned base is only truthful
+// while the registry stands still; on an integrated tree the registry has
+// advanced in parallel, so the reproduction must be derived from whatever
+// history this tree actually carries.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -16,8 +22,6 @@ import { migrateStateDocument, CONTRACT_VERSION, PREVIOUS_CONTRACT_VERSION } fro
 import { deriveReadiness } from "../lib/readiness.mjs";
 import { sha256Hex } from "../lib/util.mjs";
 
-// The accepted base of the WF-C05 cycle: the pre-migration committed document.
-const ACCEPTED_BASE = "387a1f6d0d1e4c44eb41125f717e2aa50797238f";
 const STATE_REL = "docs/plans/atlas-delivery-cycles.json";
 const COMMITTED_STATE = path.join(REPO_ROOT, ...STATE_REL.split("/"));
 
@@ -25,6 +29,62 @@ function gitShow(sha, relPath) {
   const res = spawnSync("git", ["-C", REPO_ROOT, "show", `${sha}:${relPath}`], { encoding: "utf8", windowsHide: true });
   assert.equal(res.status, 0, `git show failed: ${res.stderr}`);
   return res.stdout;
+}
+
+function tryGitShow(sha, relPath) {
+  const res = spawnSync("git", ["-C", REPO_ROOT, "show", `${sha}:${relPath}`], { encoding: "utf8", windowsHide: true });
+  return res.status === 0 ? res.stdout : null;
+}
+
+// Every commit that changed the state path, newest first, from HEAD.
+function gitLogShas(relPath) {
+  const res = spawnSync("git", ["-C", REPO_ROOT, "log", "--format=%H", "--", relPath], { encoding: "utf8", windowsHide: true });
+  assert.equal(res.status, 0, `git log -- ${relPath} failed: ${res.stderr}`);
+  return res.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function headSha() {
+  const res = spawnSync("git", ["-C", REPO_ROOT, "rev-parse", "HEAD"], { encoding: "utf8", windowsHide: true });
+  assert.equal(res.status, 0, `git rev-parse HEAD failed: ${res.stderr}`);
+  return res.stdout.trim();
+}
+
+function isAncestor(ancestor, descendant) {
+  const res = spawnSync("git", ["-C", REPO_ROOT, "merge-base", "--is-ancestor", ancestor, descendant], { encoding: "utf8", windowsHide: true });
+  assert.ok(res.status === 0 || res.status === 1, `git merge-base --is-ancestor failed: ${res.stderr}`);
+  return res.status === 0;
+}
+
+// The single 1.1.0 gate the derivation walks on. It is also exercised directly
+// by the adversarial control below so that the guard itself is load-bearing
+// rather than implicit in the loop.
+function isPreMigrationDocument(doc) {
+  return !!doc && typeof doc === "object" && doc.contractVersion === PREVIOUS_CONTRACT_VERSION;
+}
+
+// Mechanically derive the pre-migration committed document: walk the history of
+// the state path from HEAD backwards and take the most recent commit whose
+// committed document is still the previous contract. No SHA is hard-coded and
+// no commit is required to contain its own final SHA. Returns the commit, its
+// parsed document, and the newer commits that were examined and skipped.
+function derivePreMigrationCommit(relPath) {
+  const skipped = [];
+  for (const sha of gitLogShas(relPath)) {
+    const raw = tryGitShow(sha, relPath);
+    if (raw === null) continue;
+    let doc = null;
+    try {
+      doc = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (isPreMigrationDocument(doc)) return { sha, doc, skipped };
+    skipped.push({ sha, contractVersion: doc && doc.contractVersion });
+  }
+  return null;
 }
 
 // The migration is document-structural; the artifact pins are refreshed from the
@@ -85,18 +145,70 @@ test("a 1.1.0 document migrates to 1.2.0 and verifies clean by construction", (t
   assert.deepEqual(again.doc, migrated);
 });
 
-test("migrating the pre-migration committed document reproduces the committed bytes", () => {
-  const baseDoc = JSON.parse(gitShow(ACCEPTED_BASE, STATE_REL));
-  assert.equal(baseDoc.contractVersion, PREVIOUS_CONTRACT_VERSION, "the accepted base must be the 1.1.0 document");
-  assert.equal(baseDoc.registry.revision, 37, "the migration must not change the registry revision");
+test("migrating the derived pre-migration committed document reproduces the committed bytes", () => {
+  const head = headSha();
+  const derived = derivePreMigrationCommit(STATE_REL);
+  assert.ok(derived, `no commit in history carries a ${PREVIOUS_CONTRACT_VERSION} ${STATE_REL}`);
 
-  const { doc } = migrateStateDocument(baseDoc);
+  // The derived commit must be a real, strictly-newer-than-it ancestor of HEAD
+  // whose document is genuinely the pre-migration contract.
+  assert.notEqual(derived.sha, head, "the derived pre-migration commit must not be HEAD");
+  assert.ok(isAncestor(derived.sha, head), "the derived pre-migration commit must be an ancestor of HEAD");
+  assert.equal(derived.doc.contractVersion, PREVIOUS_CONTRACT_VERSION, "the derived document must be the pre-migration contract");
+
+  // The derivation must not be vacuous: at least one newer history entry was
+  // walked past, and the newest one is already the migrated contract.
+  assert.ok(derived.skipped.length > 0, "the derivation must walk past newer commits, not return the newest entry");
+  assert.equal(derived.skipped[0].contractVersion, CONTRACT_VERSION, "the newest state-path change must already be the migrated contract");
+
+  const revisionBefore = derived.doc.registry.revision;
+  const { doc } = migrateStateDocument(derived.doc);
   refreshArtifactPins(doc);
   const rendered = `${JSON.stringify(doc, null, 2)}\n`;
   const committed = fs.readFileSync(COMMITTED_STATE, "utf8");
 
   assert.equal(sha256(Buffer.from(rendered)), sha256(Buffer.from(committed)), "the migrated document must reproduce the committed bytes");
   assert.equal(rendered, committed);
-  assert.equal(doc.registry.revision, 37, "a version migration is not a transition and never advances the revision");
+  assert.equal(doc.registry.revision, revisionBefore, "a version migration is not a transition and never advances the revision");
   assert.equal(sha256(fs.readFileSync(COMMITTED_STATE)), sha256(Buffer.from(committed)));
+});
+
+test("the derivation's 1.1.0 guard rejects the committed HEAD document", () => {
+  // HEAD is already migrated to 1.2.0, so it must be rejected by the same
+  // predicate the derivation walks on. This is the control that proves the
+  // derivation actually tests the contract version instead of trusting a
+  // hard-coded base or the newest entry.
+  const headDoc = JSON.parse(gitShow("HEAD", STATE_REL));
+  assert.equal(headDoc.contractVersion, CONTRACT_VERSION, "the committed HEAD document must already be migrated");
+  assert.equal(isPreMigrationDocument(headDoc), false, "a 1.2.0 document must be rejected by the 1.1.0 guard");
+
+  // Migrating the already-migrated HEAD document is a no-op, so deriving from it
+  // would make the byte-identity assertion vacuous. The guard is exactly what
+  // forces the real 1.1.0 -> 1.2.0 path to run.
+  const noop = migrateStateDocument(headDoc);
+  assert.equal(noop.changed, false, "the committed 1.2.0 document must already be migrated, so it must never be the derivation's answer");
+
+  const derived = derivePreMigrationCommit(STATE_REL);
+  assert.notEqual(derived.sha, headSha(), "the guarded derivation must not select HEAD");
+  assert.equal(isPreMigrationDocument(derived.doc), true, "the derived document must pass the 1.1.0 guard");
+});
+
+test("a mutated migrated document fails the byte-identity reproduction", () => {
+  const derived = derivePreMigrationCommit(STATE_REL);
+  assert.ok(derived, `no commit in history carries a ${PREVIOUS_CONTRACT_VERSION} ${STATE_REL}`);
+  const { doc } = migrateStateDocument(derived.doc);
+  refreshArtifactPins(doc);
+
+  // Baseline: the unmutated migration reproduces the committed bytes.
+  const committed = fs.readFileSync(COMMITTED_STATE, "utf8");
+  const baseline = `${JSON.stringify(doc, null, 2)}\n`;
+  assert.equal(sha256(Buffer.from(baseline)), sha256(Buffer.from(committed)), "the baseline migration must reproduce the committed bytes");
+
+  // Adversarial: one altered gate counter must break byte-identity. If this
+  // still matched, the reproduction assertion would be vacuous.
+  const mutated = JSON.parse(JSON.stringify(doc));
+  mutated.streams[0].gates.classes.MANDATORY_SOURCE.passed += 1;
+  const mutatedRendered = `${JSON.stringify(mutated, null, 2)}\n`;
+  assert.notEqual(mutatedRendered, baseline, "the mutant must actually change the bytes");
+  assert.notEqual(sha256(Buffer.from(mutatedRendered)), sha256(Buffer.from(committed)), "a mutated migrated document must not reproduce the committed bytes");
 });
