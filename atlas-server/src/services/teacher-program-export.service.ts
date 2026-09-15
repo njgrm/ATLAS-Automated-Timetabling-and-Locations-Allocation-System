@@ -2,7 +2,9 @@
  * Teacher Program Export Workload Service
  *
  * Produces the export-ready data shape for the official teacher-program DOCX.
- * Separates actual teaching minutes from credited non-teaching minutes (ancillary, advisory, ARAL).
+ * Separates actual teaching minutes from credited non-teaching minutes (ancillary, advisory).
+ * ARAL Program is absent from the shape by operator decision (C05): it carries
+ * no load component, row, or label.
  */
 
 import { prisma } from '../lib/prisma.js';
@@ -15,8 +17,7 @@ export type WorkloadRowKind =
 	| 'TEACHING'
 	| 'BREAK'
 	| 'ANCILLARY'
-	| 'ADVISORY'
-	| 'ARAL';
+	| 'ADVISORY';
 
 export interface TeacherProgramWorkloadRow {
 	kind: WorkloadRowKind;
@@ -45,13 +46,12 @@ export interface TeacherProgramWorkloadSummary {
 	advisoryMinutes: number;
 	/** Advisory section label */
 	advisorySectionLabel: string | null;
-	/** ARAL Program credited minutes per week */
-	aralMinutes: number;
-	/** ARAL source status */
-	aralSource: 'CONFIGURED' | 'NOT_CONFIGURED';
 	/** Actual teaching minutes per week (sum of teaching entry durations) */
 	actualTeachingMinutes: number;
-	/** Total teaching load (teaching + ancillary + advisory + ARAL) */
+	/**
+	 * Total teaching load. C05 operator contract: ARAL carries no component, so
+	 * `Total = class advising duty + actual teaching load + ancillary work`.
+	 */
 	totalTeachingLoad: number;
 	/** Daily breakdown: day -> total minutes */
 	dailyTotals: Record<string, number>;
@@ -68,10 +68,35 @@ export interface TeacherProgramExportShape {
 		designationTitle: string | null;
 		undergraduateDegree: string | null;
 		postgraduateDegree: string | null;
+		/** Existing faculty image value (if any); the DOCX embeds it only when usable. */
+		avatarUrl: string | null;
 	};
 	schoolYear: {
 		id: number;
 		label: string;
+	};
+	/** Configurable branding; unset lines render as blank-line placeholders. */
+	branding: {
+		schoolName: string;
+		regionLine: string;
+		divisionLine: string;
+		districtLine: string;
+	};
+	/** Resolved selected ordered term; null only for legacy unscoped callers. */
+	term: {
+		index: number | null;
+		label: string;
+	};
+	/** Persisted run publication state (C05 T10/M23). */
+	publication: {
+		isPublished: boolean;
+		publishedAt: string | null;
+		revisionId: number | null;
+	};
+	/** Conditioned conventions derived from persisted scheduling policy. */
+	notes: {
+		/** True when policy defines the Monday HGP/PEACE window. */
+		hgpPeaceIncluded: boolean;
 	};
 	rows: TeacherProgramWorkloadRow[];
 	summary: TeacherProgramWorkloadSummary;
@@ -193,7 +218,7 @@ export async function buildTeacherProgramExportShape(params: {
 	}> | undefined) ?? [];
 
 	// 5. Load reference maps
-	const [subjects, rooms, buildings] = await Promise.all([
+	const [subjects, rooms, buildings, school] = await Promise.all([
 		db.subject.findMany({
 			where: { schoolId, isActive: true },
 			select: { id: true, name: true, code: true },
@@ -205,6 +230,10 @@ export async function buildTeacherProgramExportShape(params: {
 		db.building.findMany({
 			where: { schoolId },
 			select: { id: true, name: true },
+		}),
+		db.school.findUnique({
+			where: { id: schoolId },
+			select: { name: true },
 		}),
 	]);
 
@@ -430,13 +459,10 @@ export async function buildTeacherProgramExportShape(params: {
 		});
 	}
 
-	// 8e. ARAL Program — no data source exists
-	const aralMinutes = 0;
-	const aralSource: 'CONFIGURED' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
-
 	// 9. Compute summary
 	const teachingMinutes = facultyEntries.reduce((sum, e) => sum + (e.durationMinutes ?? 0), 0);
-	const totalTeachingLoad = teachingMinutes + ancillaryMinutesPerWeek + advisoryMinutesPerWeek + aralMinutes;
+	// C05 operator contract: no ARAL component. Total = advising + actual + ancillary.
+	const totalTeachingLoad = advisoryMinutesPerWeek + teachingMinutes + ancillaryMinutesPerWeek;
 
 	// Daily totals: teaching + break minutes per day
 	const dailyTotals: Record<string, number> = {};
@@ -451,12 +477,20 @@ export async function buildTeacherProgramExportShape(params: {
 		ancillaryLabels: ancillaryRoles,
 		advisoryMinutes: advisoryMinutesPerWeek,
 		advisorySectionLabel: faculty.advisedSectionName ?? null,
-		aralMinutes,
-		aralSource,
 		actualTeachingMinutes: teachingMinutes,
 		totalTeachingLoad,
 		dailyTotals,
 		warnings,
+	};
+
+	// C05 T10/M23 — publication state from the persisted run summary (the
+	// revision-effective summary for a published run).
+	const publicationRecord = runSummary?.publication as { revisionId?: unknown } | undefined;
+	const revisionId = Number(publicationRecord?.revisionId);
+	const publication = {
+		isPublished: runSummary?.isPublished === true,
+		publishedAt: typeof runSummary?.publishedAt === 'string' ? runSummary.publishedAt : null,
+		revisionId: Number.isInteger(revisionId) && revisionId > 0 ? revisionId : null,
 	};
 
 	return {
@@ -468,10 +502,28 @@ export async function buildTeacherProgramExportShape(params: {
 			designationTitle: faculty.designationTitle ?? null,
 			undergraduateDegree: faculty.undergraduateDegree ?? null,
 			postgraduateDegree: faculty.postgraduateDegree ?? null,
+			avatarUrl: faculty.avatarUrl ?? null,
 		},
 		schoolYear: {
 			id: schoolYearId,
 			label: mirror?.yearLabel ?? String(schoolYearId),
+		},
+		branding: {
+			// School identity comes from persisted configuration; region/division/
+			// district have no persisted ATLAS source yet, so they stay blank-line
+			// placeholders and are never invented.
+			schoolName: school?.name ?? '',
+			regionLine: '',
+			divisionLine: '',
+			districtLine: '',
+		},
+		term: {
+			index: termIndex ?? null,
+			label: termIndex != null ? `T${termIndex}` : '',
+		},
+		publication,
+		notes: {
+			hgpPeaceIncluded: policy?.enableFlagCeremony === true,
 		},
 		rows: sortTeacherProgramWorkloadRows(rows),
 		summary: workloadSummary,

@@ -9,6 +9,7 @@ import {
 	Document,
 	Packer,
 	Paragraph,
+	ImageRun,
 	Table,
 	TableRow,
 	TableCell,
@@ -106,10 +107,48 @@ function headerCell(text: string, width?: number): TableCell {
 export async function generateTeacherProgramDocx(
 	shape: TeacherProgramExportShape,
 ): Promise<Buffer> {
-	const { teacher, schoolYear, rows, summary } = shape;
+	const { teacher, schoolYear, branding, term, publication, notes, rows, summary } = shape;
+
+	// C05 T10/M23 — explicit publication state from persisted run data.
+	const publicationText = publication.isPublished
+		? `PUBLISHED${publication.revisionId != null ? ` — Revision ${publication.revisionId}` : ''}${publication.publishedAt ? ` (${publication.publishedAt.slice(0, 10)})` : ''}`
+		: 'NOT PUBLISHED — DRAFT/REVIEW';
+
+	function brandingLine(text: string): Paragraph {
+		return new Paragraph({
+			children: [
+				new TextRun({ text: text.length > 0 ? text : ' ', font: FONT_NAME, size: FONT_SIZE }),
+			],
+			alignment: AlignmentType.CENTER,
+			spacing: { after: 20 },
+		});
+	}
+
+	// C05 T6 — configurable branding block. Unset address lines render as
+	// blank-line placeholders; school identity is never invented.
+	const brandingParagraphs = [
+		brandingLine(branding.schoolName),
+		brandingLine(branding.regionLine || '________________________'),
+		brandingLine(branding.divisionLine || '________________________'),
+		brandingLine(branding.districtLine || '________________________'),
+	];
 
 	// ─── Title Block ───
 	const titleParagraphs = [
+		...brandingParagraphs,
+		new Paragraph({
+			children: [
+				new TextRun({
+					text: publicationText,
+					font: FONT_NAME,
+					size: 20, // 10pt
+					bold: true,
+					color: publication.isPublished ? '1F7A1F' : 'B00020',
+				}),
+			],
+			alignment: AlignmentType.CENTER,
+			spacing: { after: 120 },
+		}),
 		new Paragraph({
 			children: [
 				new TextRun({
@@ -125,7 +164,7 @@ export async function generateTeacherProgramDocx(
 		new Paragraph({
 			children: [
 				new TextRun({
-					text: `SY ${schoolYear.label}`,
+					text: term.label ? `SY ${schoolYear.label} — ${term.label}` : `SY ${schoolYear.label}`,
 					font: FONT_NAME,
 					size: 24, // 12pt
 					bold: true,
@@ -287,6 +326,25 @@ export async function generateTeacherProgramDocx(
 		layout: TableLayoutType.FIXED,
 	});
 
+	// C05 T6 — daily-total annotation convention: the reference documents state
+	// a single Monday–Friday total, with the HGP/PEACE note only when policy
+	// defines that window.
+	const weekdayTotal = dailyOrder.reduce((total, day) => total + (summary.dailyTotals[day] ?? 0), 0);
+	const hasAnyDaily = dailyOrder.some((day) => (summary.dailyTotals[day] ?? 0) > 0);
+	const dailyTotalNote = new Paragraph({
+		children: [
+			new TextRun({
+				text: hasAnyDaily
+					? `${weekdayTotal} mins. (Monday–Friday)${notes.hgpPeaceIncluded ? ' — Inclusive of HGP/PEACE Campaign (Monday)' : ''}`
+					: '',
+				font: FONT_NAME,
+				size: FONT_SIZE,
+				italics: true,
+			}),
+		],
+		spacing: { before: 80 },
+	});
+
 	// ─── Teaching Load Summary ───
 	const formatMin = (min: number) => {
 		const h = Math.floor(min / 60);
@@ -297,7 +355,6 @@ export async function generateTeacherProgramDocx(
 	const summaryRows = [
 		['Class Advising Duty', formatMin(summary.advisoryMinutes), summary.advisorySectionLabel ?? ''],
 		['Actual Teaching Load', formatMin(summary.actualTeachingMinutes), ''],
-		['ARAL Program', formatMin(summary.aralMinutes), summary.aralSource === 'NOT_CONFIGURED' ? '(Not configured)' : ''],
 		['Ancillary Work', formatMin(summary.ancillaryMinutes), summary.ancillaryLabels.join(', ') || ''],
 		['Total Teaching Load', formatMin(summary.totalTeachingLoad), ''],
 	];
@@ -358,9 +415,51 @@ export async function generateTeacherProgramDocx(
 		layout: TableLayoutType.FIXED,
 	});
 
+	// ─── Photo Placeholder ───
+	// C05 T6 — embed only when an existing faculty image value is a usable inline
+	// data URL. No schema change and no network fetch; otherwise a bordered
+	// placeholder box is rendered.
+	function avatarDataUrl(value: string | null): { base64: string; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null {
+		if (!value) return null;
+		const match = value.match(/^data:image\/(png|jpe?g|gif|bmp);base64,(.+)$/is);
+		if (!match) return null;
+		const extension = match[1].toLowerCase();
+		const type = extension === 'jpeg' || extension === 'jpg' ? 'jpg' : extension;
+		return { base64: match[2].replace(/\s+/g, ''), type: type as 'png' | 'jpg' | 'gif' | 'bmp' };
+	}
+	const avatar = avatarDataUrl(teacher.avatarUrl);
+	const photoCell = new TableCell({
+		width: { size: 1900, type: WidthType.DXA },
+		borders: BORDER_STYLE,
+		verticalAlign: VerticalAlign.CENTER,
+		children: avatar
+			? [new Paragraph({
+				children: [new ImageRun({
+					type: avatar.type,
+					data: Buffer.from(avatar.base64, 'base64'),
+					transformation: { width: 95, height: 115 },
+				})],
+				alignment: AlignmentType.CENTER,
+			})]
+			: [
+				new Paragraph({
+					children: [new TextRun({ text: 'PHOTO', font: FONT_NAME, size: FONT_SIZE, bold: true })],
+					alignment: AlignmentType.CENTER,
+				}),
+				new Paragraph({
+					children: [new TextRun({ text: '(2 x 2)', font: FONT_NAME, size: FONT_SIZE })],
+					alignment: AlignmentType.CENTER,
+				}),
+			],
+	});
+	const photoTable = new Table({
+		rows: [new TableRow({ children: [photoCell] })],
+		width: { size: 18, type: WidthType.PERCENTAGE },
+		layout: TableLayoutType.FIXED,
+	});
+
 	// ─── Signature Block ───
 	const signatureRows = [
-		['Checked by:', 'Teacher', teacher.fullName],
 		['Noted:', 'School Head', ''],
 		['Recommending Approval:', 'District Supervisor', ''],
 		['', 'CID Chief', ''],
@@ -405,9 +504,12 @@ export async function generateTeacherProgramDocx(
 					] : []),
 					new Paragraph({ spacing: { before: 200 } }),
 					dailyTotalTable,
+					dailyTotalNote,
 					new Paragraph({ spacing: { before: 200 } }),
 					summaryTable,
 					new Paragraph({ spacing: { before: 300 } }),
+					photoTable,
+					new Paragraph({ spacing: { before: 200 } }),
 					new Paragraph({
 						children: [
 							new TextRun({

@@ -71,6 +71,7 @@ test('teacher-program production builder keeps Monday-only breaks, numeric print
 				],
 			}),
 		},
+		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
 		enrollProSchoolYearMirror: { findFirst: async () => ({ yearLabel: '2026-2027' }) },
 		schedulingPolicy: { findFirst: async () => ({ enableRecess: false, enableFlagCeremony: true }) },
 		subject: { findMany: async () => [
@@ -106,6 +107,7 @@ test('published teacher-program shape normalizes nested production entries and e
 			advisedSectionName: null,
 		}) },
 		generationRun: { findFirst: async () => ({ id: 42, status: 'COMPLETED', summary: { isPublished: true, timetableDisplaySlots: [] }, draftEntries: [] }) },
+		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
 		enrollProSchoolYearMirror: { findFirst: async () => ({ yearLabel: '2026-2027' }) },
 		schedulingPolicy: { findFirst: async () => ({ enableRecess: false, enableFlagCeremony: false }) },
 		subject: { findMany: async () => [
@@ -157,6 +159,7 @@ test('XLSX production context resolves revision-effective published entries and 
 			id: 42, status: 'COMPLETED', summary: { isPublished: true, timetableDisplaySlots: [] },
 			draftEntries: [{ entryId: 'stale-draft', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45, termIndex: 1 }],
 		}) },
+		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
 		school: { findUnique: async () => ({ name: 'ATLAS School' }) },
 		enrollProSchoolYearMirror: { findFirst: async () => ({ yearLabel: '2026-2027' }) },
 		sectionMirror: { findMany: async () => [] },

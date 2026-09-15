@@ -6,7 +6,7 @@ import * as genService from '../services/generation.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
-import { exportSummaryWorkbook, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
+import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { buildTeacherProgramExportShape } from '../services/teacher-program-export.service.js';
 import { generateTeacherProgramDocx } from '../services/docx-export.service.js';
 import { generateClassProgramMatrix, validateSpecializationVisibility } from '../services/class-program-matrix.service.js';
@@ -51,6 +51,18 @@ function assertActorSchoolScope(req: Request, res: Response, schoolId: number): 
 type RequiredTermParse =
 	| { ok: true; requested: number | 'active' }
 	| { ok: false; code: string; message: string };
+
+/**
+ * BENEFICIARY-EXPORT-PARITY-C05 T9/M18 — one filename identity for official
+ * outputs: `<type>[-<entity>]-SY<year>-term<N>.<ext>`. The client mirrors this
+ * exact shape; the year token degrades to SY-UNLABELED when no persisted label
+ * exists rather than fabricating a school year.
+ */
+function exportFileStem(kind: string, entity: string | null, yearLabel: string, termIndex: number): string {
+	const year = yearLabel.length > 0 ? `SY${yearLabel.replace(/[^a-zA-Z0-9-]/g, '')}` : 'SY-UNLABELED';
+	const entityPart = entity ? `-${entity.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+	return `${kind}${entityPart}-${year}-term${termIndex}`;
+}
 
 /**
  * BENEFICIARY-EXPORT-PARITY-C05 T1/M1 — official outputs are selected-term
@@ -635,9 +647,10 @@ router.get(
 			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
 
 			const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId, termIndex });
+			const resolvedTerm = termIndex as number;
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			const termSuffix = termIndex != null ? `-term${termIndex}` : '';
-			res.setHeader('Content-Disposition', `attachment; filename="summary-teacher-schedule${termSuffix}.xlsx"`);
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('summary-teacher-schedule', null, yearLabel, resolvedTerm)}.xlsx"`);
 			res.send(buffer);
 		} catch (e: any) {
 			if (e?.message === 'RUN_NOT_FOUND') {
@@ -705,9 +718,10 @@ router.get(
 			}
 
 			const buffer = await exportClassProgramWorkbook({ schoolId, schoolYearId, runId, termIndex, specializationVisibility });
+			const resolvedTerm = termIndex as number;
+			const yearLabel = await resolveExportSchoolYearLabel(schoolId, schoolYearId);
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			const termSuffix = termIndex != null ? `-term${termIndex}` : '';
-			res.setHeader('Content-Disposition', `attachment; filename="class-program${termSuffix}.xlsx"`);
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('class-program', null, yearLabel, resolvedTerm)}.xlsx"`);
 			res.send(buffer);
 		} catch (e: any) {
 			if (e?.message === 'RUN_NOT_FOUND') {
@@ -774,9 +788,11 @@ router.get(
 
 			const docxBuffer = await generateTeacherProgramDocx(shape);
 
-			const safeName = shape.teacher.fullName.replace(/[^a-zA-Z0-9]/g, '_');
+			const resolvedTerm = termIndex as number;
 			res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-			res.setHeader('Content-Disposition', `attachment; filename="Teacher_Program_${safeName}.docx"`);
+			// T9/M18 — entity token is the faculty id so the client filename
+			// (which knows the id, not necessarily the display name) is identical.
+			res.setHeader('Content-Disposition', `attachment; filename="${exportFileStem('teacher-program', String(facultyId), shape.schoolYear.label, resolvedTerm)}.docx"`);
 			res.send(docxBuffer);
 		} catch (e: any) {
 			if (e?.message === 'FACULTY_NOT_FOUND') {

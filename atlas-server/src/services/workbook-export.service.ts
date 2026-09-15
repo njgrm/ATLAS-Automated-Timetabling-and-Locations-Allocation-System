@@ -102,6 +102,14 @@ type ExportContext = {
 	schoolName: string;
 	yearLabel: string;
 	runId: number;
+	/** Resolved selected ordered term for this output, when bound. */
+	termIndex: number | null;
+	/** Persisted run publication state (C05 T10/M23). */
+	publication: {
+		isPublished: boolean;
+		publishedAt: string | null;
+		revisionId: number | null;
+	};
 	subjectMap: Map<number, { id: number; name: string; code: string }>;
 	facultyMap: Map<number, { id: number; lastName: string | null; firstName: string | null; advisedSectionId: number | null }>;
 	roomMap: Map<number, RoomInfo>;
@@ -154,6 +162,20 @@ function isSpecializationSubject(subject: { name?: string | null; code?: string 
 		|| code.includes('SPECIALIZATION')
 		|| name.includes('SPECIALIZATION')
 		|| name.startsWith('SPECIAL PROGRAM ');
+}
+
+/**
+ * C05 T9/M18 — resolve the persisted school-year label used in official output
+ * filenames. Returns '' when no persisted label exists so the caller degrades to
+ * a stable token instead of fabricating a school year.
+ */
+export async function resolveExportSchoolYearLabel(schoolId: number, schoolYearId: number, client?: any): Promise<string> {
+	const db = (client ?? prisma) as typeof prisma;
+	const mirror = await db.enrollProSchoolYearMirror.findFirst({
+		where: { schoolId, enrollProSchoolYearId: schoolYearId },
+		select: { yearLabel: true },
+	});
+	return typeof mirror?.yearLabel === 'string' ? mirror.yearLabel.trim() : '';
 }
 
 export async function loadExportContext(options: ExportOptions): Promise<ExportContext> {
@@ -267,10 +289,24 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 		if (f.advisedSectionId) adviserMap.set(f.advisedSectionId, f.lastName ?? '');
 	}
 
+	// C05 T10/M23 — publication state from the persisted run summary (the
+	// revision-effective summary for a published run).
+	const publicationRecord = (summary as Record<string, unknown> | null)?.publication as { revisionId?: unknown } | undefined;
+	const revisionId = Number(publicationRecord?.revisionId);
+	const publication = {
+		isPublished: (summary as Record<string, unknown> | null)?.isPublished === true,
+		publishedAt: typeof (summary as Record<string, unknown> | null)?.publishedAt === 'string'
+			? ((summary as Record<string, unknown>).publishedAt as string)
+			: null,
+		revisionId: Number.isInteger(revisionId) && revisionId > 0 ? revisionId : null,
+	};
+
 	return {
 		schoolName: school?.name ?? '',
 		yearLabel: schoolYearMirror?.yearLabel ?? '',
 		runId,
+		termIndex: options.termIndex ?? null,
+		publication,
 		subjectMap,
 		facultyMap,
 		roomMap,
@@ -361,6 +397,20 @@ function interleaveSlots(periodSlots: TimeSlot[], breakSlots: TimeSlot[]): Array
 	return result;
 }
 
+/**
+ * C05 T10/M23 — every official output identifies its publication state from the
+ * run's persisted publication data. A draft/review run is never indistinguishable
+ * from a published one.
+ */
+function publicationMarker(ctx: ExportContext): string {
+	if (ctx.publication.isPublished) {
+		const revision = ctx.publication.revisionId != null ? ` — Revision ${ctx.publication.revisionId}` : '';
+		const publishedAt = ctx.publication.publishedAt ? ` (${ctx.publication.publishedAt.slice(0, 10)})` : '';
+		return `PUBLISHED${revision}${publishedAt}`;
+	}
+	return 'NOT PUBLISHED — DRAFT/REVIEW';
+}
+
 function addReportHeader(
 	sheet: ExcelJS.Workbook['worksheets'][number],
 	ctx: ExportContext,
@@ -369,6 +419,9 @@ function addReportHeader(
 	const headerRow = sheet.getRow(1);
 	headerRow.getCell(1).value = title;
 	headerRow.getCell(1).font = { bold: true, size: 14 };
+	// Branding: persisted school identity; unset lines stay blank, never invented.
+	headerRow.getCell(6).value = ctx.schoolName || '';
+	headerRow.getCell(6).font = { italic: true };
 
 	const metaRow = sheet.getRow(2);
 	metaRow.getCell(1).value = `School: ${ctx.schoolName}`;
@@ -379,6 +432,11 @@ function addReportHeader(
 	metaRow.getCell(3).font = { italic: true };
 	metaRow.getCell(4).value = `Generated: ${new Date().toISOString().split('T')[0]}`;
 	metaRow.getCell(4).font = { italic: true };
+	// Selected-term identity and explicit publication state.
+	metaRow.getCell(5).value = ctx.termIndex != null ? `Term: T${ctx.termIndex}` : '';
+	metaRow.getCell(5).font = { italic: true };
+	metaRow.getCell(6).value = publicationMarker(ctx);
+	metaRow.getCell(6).font = { italic: true, bold: true };
 }
 
 export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buffer> {
