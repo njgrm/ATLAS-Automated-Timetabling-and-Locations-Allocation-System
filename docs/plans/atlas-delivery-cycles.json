@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T16:33:18.302Z",
+    "lastUpdatedAt": "2026-09-15T16:34:08.890Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 81
+    "revision": 82
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1969,7 +1969,7 @@
       },
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T16:32:56.552Z",
+      "stateUpdatedAt": "2026-09-15T16:34:08.890Z",
       "nextAction": "Cycle closed COMPLETE with the wave-audited receipt.",
       "awaited": [],
       "running": [],
@@ -1990,8 +1990,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "e6b258979ccf1fb6c727a8a17dc1a893f4dda750",
-          "observedAt": "2026-09-15T16:16:23.233Z",
+          "sha": "2206e880a3a33bc79bb6f11482b0ed952d11a682",
+          "observedAt": "2026-09-15T16:34:08.890Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
