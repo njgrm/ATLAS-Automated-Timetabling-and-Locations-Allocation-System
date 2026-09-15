@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T12:31:28.514Z",
+    "lastUpdatedAt": "2026-09-15T12:54:36.245Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 60
+    "revision": 63
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1463,15 +1463,20 @@
       "kind": "STREAM",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 23,
+        "passed": 23,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 23,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 23,
+            "passed": 23,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -1490,20 +1495,21 @@
             "blocked": 0,
             "unperformed": 0
           }
-        },
-        "plan": {
-          "MANDATORY_SOURCE": 0,
-          "MANDATORY_LIVE": 0,
-          "DEFERRED_EXTERNAL": 0
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN"
+          }
+        ]
       },
       "corrections": [
         {
@@ -1511,8 +1517,8 @@
           "baseSha": "691a7c4a8e0587d6b9669aa332b764d7bc53b7b9",
           "candidateSha": "e052a564ee6065e166794ab30f94f81016add3b1",
           "reason": "WF-C04 packet 3.9 pre-integration refresh: the owning lane advanced past the registered snapshot (candidate 691a7c4a, observed 2026-09-15T06:35:56Z); the C05R1 teacher-program correction is in flight at observed tip e052a564. Registry refresh only; no QA verdict attaches to this range.",
-          "qaVerdict": null,
-          "qaSessionId": null,
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
@@ -1540,24 +1546,28 @@
       "artifacts": [],
       "closure": null,
       "objective": "Close the beneficiary/stakeholder output parity correction on branch work/beneficiary-export-parity-c05: fail closed on an empty selected-term renderable set (F1 EMPTY_SELECTED_TERM), complete room/summary/render parity, and bind published run identity. Executor handoff docs/handoffs/beneficiary-export-parity-c05-executor.md reports REVIEW_REQUIRED, revision 2, tally 23/23/0/0.",
-      "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T07:29:27.697Z",
-      "nextAction": "Owning lane owns the next transition: record the executor return for the C05R1 correction, then fresh independent QA over its frozen tip.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-15T12:54:36.245Z",
+      "nextAction": "Integrated at b14299cd (parents 4f14756b + b9490691; app product bytes identical to the QA-attested tree; registry/render conflicts resolved by taking origin/main's registry and re-applying transitions). Migration 0003 source-only, NOT applied. Push, then commission the bounded post-integration Wave Completion Auditor.",
       "awaited": [
-        "fresh independent QA over the corrected candidate"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/beneficiary-export-parity-c05",
         "branch": "work/beneficiary-export-parity-c05",
         "baseSha": "84dd537bb2a2c045b8518c35b3a5372142e0080c",
-        "candidateSha": "e052a564ee6065e166794ab30f94f81016add3b1",
-        "integrationSha": null,
+        "candidateSha": "7e5e97ae9408cd340e40a8466d38e6fc62c9084a",
+        "integrationSha": "b14299cd5b15dcec70bb56793f99eb699ce0fe10",
         "changedPaths": [
           "atlas-client/src/components/room-schedules/schedule-export.ts",
           "atlas-client/src/components/timetable/TimetableSimpleHeader.tsx",
+          "atlas-client/src/components/timetable/simple/ExportPresentationSettingsDialog.tsx",
+          "atlas-client/src/components/timetable/simple/SimpleBeneficiaryControls.tsx",
+          "atlas-client/src/components/timetable/simple/exportPresentationApi.ts",
           "atlas-client/src/components/timetable/simple/simpleExportRequests.ts",
           "atlas-client/src/lib/__tests__/timetable-c05-beneficiary-export.test.ts",
+          "atlas-client/src/lib/__tests__/timetable-c05r1-presentation-settings.test.ts",
           "atlas-client/src/lib/__tests__/timetable-term-export-c03r3.test.ts",
           "atlas-client/src/pages/RoomSchedules.tsx",
           "atlas-server/src/__tests__/export-presentation-postgres.test.ts",
@@ -1581,6 +1591,7 @@
           "atlas-server/src/services/workbook-export.service.ts",
           "docs/analysis/stakeholder-export-parity-audit-2026-09-14.md",
           "docs/handoffs/beneficiary-export-parity-c05-executor.md",
+          "docs/handoffs/beneficiary-export-parity-c05r1-executor.md",
           "docs/handoffs/stakeholder-export-parity-audit-c05.md",
           "docs/handoffs/tt-output-c03r-planner-result.md",
           "docs/prompts/beneficiary-export-parity-c05-recovery-adoption-2026-09-15.md",
@@ -1590,6 +1601,7 @@
           "docs/reference/atlas-runtime-source-of-truth-map.md",
           "docs/reference/atlas-teacher-program-output-contract-2026-09-15.md",
           "docs/reference/timetable-dynamic-workspace-and-warning-contract.md",
+          "docs/reviews/beneficiary-export-parity-c05r1/wave-completion-audit.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/lane-a.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/lane-b.md",
           "docs/reviews/stakeholder-export-parity-audit-c05/lane-c.md",
@@ -1601,16 +1613,16 @@
           "prisma/schema.prisma"
         ],
         "remoteObservation": {
-          "ref": "refs/remotes/origin/main",
-          "sha": "9b82a98f7c74ffecd34e2dae337d7a69c19d7fdf",
-          "observedAt": "2026-09-15T06:35:56.428Z",
-          "kind": "REMOTE_TRACKING_REF"
+          "ref": "refs/heads/integration/beneficiary-export-c05r1-20260915",
+          "sha": "b14299cd5b15dcec70bb56793f99eb699ce0fe10",
+          "observedAt": "2026-09-15T12:54:36.245Z",
+          "kind": "LOCAL_REF"
         }
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "IDLE",
           "writable": false
         },
         "executor": {
@@ -1619,8 +1631,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5b0e6263ffeuzNTCoTXzCbUQN",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
