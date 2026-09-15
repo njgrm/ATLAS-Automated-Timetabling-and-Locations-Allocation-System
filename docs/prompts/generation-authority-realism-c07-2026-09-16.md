@@ -277,7 +277,7 @@ control that the old behavior (base commit) fails.
 | C07-S08 | MANDATORY_SOURCE | R6 real availability | `buildGenerationPreflight` + `triggerGenerationRun` | persisted `UNAVAILABLE` slots are excluded from placement and the typed reason is surfaced; mutant M7 (`timeSlots: []`) fails |
 | C07-S09 | MANDATORY_SOURCE | R7 domain + version bump | `computeGenerationInputSnapshot` + `extractGenerationInputSnapshot` | snapshot emits a non-empty `availability` domain and the bumped version; a current-version snapshot missing the domain is rejected; mutant M8 (domain binding omitted) fails |
 | C07-S10 | MANDATORY_SOURCE | R7 post-run availability edit | `getRunDraft`/`getLatestRunDraft` (`inputState`) | after a completed run, a persisted availability edit reports `STALE` with `availability` in `changedDomains`; a pre-bump snapshot reports the version-mismatch stale reason, never `FRESH`; zero writes |
-| C07-S11 | MANDATORY_SOURCE | R7 write-time stale | `triggerGenerationRun` on a guarded disposable PostgreSQL | availability change between capture and commit → typed `SOURCE_AUTHORITY_STALE`, zero `COMPLETED` writes, unchanged run/audit/draft counts |
+| C07-S11 | MANDATORY_SOURCE | R7 write-time stale | `triggerGenerationRun` (write-instrumented, mock client) with the guarded disposable-PostgreSQL tier as supporting engine evidence | availability change between capture and commit → typed `SOURCE_AUTHORITY_STALE`, **zero `COMPLETED`/success writes** (no COMPLETED run status, no persisted draft entries for that run, no success audit, no completion notification); the pre-existing `FAILED` finalization of the aborted attempt is permitted but must be asserted explicitly so it is never mistaken for success |
 | C07-S12 | MANDATORY_SOURCE | R8 wording | subject form + coverage panel rendering | one shared copy authority; exact CLASSROOM/LABORATORY semantics; no unconditional "requires … facilities" label; client type-check/build green |
 | C07-S13 | MANDATORY_SOURCE | R9 accounting | committed test diff | every changed/removed assertion mapped with replacement coverage (F10 pair included); no unexplained removal; affected suites pass |
 | C07-S14 | MANDATORY_SOURCE | build + parity row | `tsc`/build (server + client) and the changed-producer/shape chain | both builds green; one `production-shape parity` row naming real producer, real consumer, conservation totals, negative control, result |
@@ -395,7 +395,7 @@ Client (`.../atlas-client`):
 ```
 npm run build
 npx tsx --test src/lib/__tests__/room-authority-copy.test.ts
-npx tsx --test src/lib/__tests__/ux-guardrails.test.ts
+npx tsx --test src/lib/__tests__/rollover-ui-guardrails.test.ts
 ```
 
 Disposable-PostgreSQL tier (C07-S11) uses the guarded pattern in
@@ -438,3 +438,39 @@ Do not self-accept, merge, push, or edit the register.
   (source+server tests, then client copy+test). No amend/rebase of handed-off history; corrections
   are additive commits on the same branch.
 - Include this packet file (already committed on the branch) in the reviewed range.
+
+## 13. R1 correction note (planner, 2026-09-16)
+
+The first candidate (`1b990716`, over base `750cafcb`) returned with two mandatory rows
+**BLOCKED** and one declared entry-point deviation. This section is the authority for the bounded
+R1 correction; it is additive and changes no other requirement.
+
+1. **C07-S05 / C07-S06 entry-point closure.** Those rows name the real `triggerGenerationRun`
+   (write-instrumented) as the production entry point; the first candidate exercised the real
+   producer + `constructBaseline`/`runHybridScheduler` + validator but not the trigger. R1 must
+   drive the real `triggerGenerationRun` with a mock client (same technique as
+   `generation-production-trigger-genc02r1.test.ts`) for fixture A and fixture B, and assert the
+   invariants on the **persisted** output (`draftEntries` / `violations` handed to the run update):
+   zero laboratory rooms and zero `ROOM_TYPE_MISMATCH` / `SPECIALIZED_ROOM_UNAVAILABLE` /
+   `ROOM_FEATURE_MISMATCH` in fixture A; laboratory occupancy in every applicable term in fixture B;
+   complete per-term T1/T2/T3 Science conservation in both.
+2. **C07-S10.** Exercise the declared surface: `getRunDraft` / `getLatestRunDraft` `inputState`.
+   With a persisted v3 run summary and a changed availability authority, `inputState.status` must be
+   `STALE` with `availability` in `changedDomains`; with a below-current summary it must be `STALE`
+   with `missingReason: 'SNAPSHOT_VERSION_MISMATCH'`, never `FRESH`. Instrument writes and prove the
+   read performs none.
+3. **C07-S11.** Drive the availability interleave through the real `triggerGenerationRun` (mock
+   client): the availability digest changes between the captured pre-scheduling snapshot and the
+   transaction-bound recomputation -> typed `SOURCE_AUTHORITY_STALE` with zero `COMPLETED`/success
+   writes as defined in §5. The disposable-PostgreSQL evidence already gathered (domain binding on a
+   real engine, zero residue) remains supporting engine evidence.
+4. **Identity negative control.** Add one assertion that a non-flag `CUSTOM` event row (for example
+   label `Reading Camp`) is never treated as a Monday-only Flag/HGP overlay, so the identity
+   predicate cannot misclassify an unrelated event.
+5. **Packet erratum applied.** The §10 client command list previously named a non-existent
+   `src/lib/__tests__/ux-guardrails.test.ts`; the existing analogue
+   `src/lib/__tests__/rollover-ui-guardrails.test.ts` replaces it. That was a packet defect, not a
+   candidate defect.
+
+Constraints unchanged: additive commits only on `work/generation-authority-realism-c07`, no
+rebase/amend, no push, no schema/live action, same owned/forbidden path lists.
