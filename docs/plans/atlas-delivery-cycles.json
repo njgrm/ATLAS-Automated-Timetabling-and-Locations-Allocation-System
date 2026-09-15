@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T17:48:19.843Z",
+    "lastUpdatedAt": "2026-09-15T18:02:27.235Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 92
+    "revision": 94
   },
   "coordination": {
     "mode": "MANUAL",
@@ -673,12 +673,10 @@
       "kind": "STREAM",
       "objective": "Set the durable EnrollPro origin and install release 54dce67b, restarting supervisor-owned 5001/5174.",
       "riskTier": "HIGH",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T17:48:19.843Z",
-      "nextAction": "Fresh Wave Completion Auditor over the integrated wave; then close the cycle with the receipt and record the remote observation.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T18:02:27.235Z",
+      "nextAction": "Closed COMPLETE (LIVE_ACCEPTED 20/20/0/0) with the wave-audited receipt; release 54dce67b serves supervised 5001/5174; every remaining live/HIGH action stays locked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/enrollpro-proxy-recovery-live-20260915",
@@ -713,8 +711,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f59d02a81ffeEydqzk78hVNAF5",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -756,8 +754,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f59e10b03ffeoYoWKv8DzVyuH1",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f59d02a81ffeEydqzk78hVNAF5",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -823,7 +821,12 @@
         }
       ],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/enrollpro-proxy-recovery-live.receipt.json",
+          "sha256": "0b4b78e05a6c15aa2bfeacd85d85bfab0c3de611bb9832b39cc9132c62b167ca"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",

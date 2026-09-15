@@ -1,0 +1,23 @@
+{
+  "receiptVersion": "1.1.0",
+  "generatedAt": "2026-09-15T18:02:34.042Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "5320b91d552598d0745b3ed74faed85ad7dff98e58966b4c743171dcfa575baf",
+  "status": "ok",
+  "streamId": "ENROLLPRO-PROXY-RECOVERY-LIVE",
+  "verified": {
+    "candidateSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
+    "integrationSha": "7ca366fa396ddb2d7cdfec0e40abcecd404b8445",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "readiness": "LIVE_ACCEPTED",
+    "artifacts": []
+  }
+}
