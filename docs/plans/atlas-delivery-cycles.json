@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T08:03:55.068Z",
+    "lastUpdatedAt": "2026-09-15T08:05:35.677Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 30
+    "revision": 31
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1659,9 +1659,9 @@
         }
       },
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T08:03:47.552Z",
+      "stateUpdatedAt": "2026-09-15T08:05:35.677Z",
       "objective": "WF-C04 atomic stream registration and live-lane reconciliation: add a named create-stream transition to the existing ops/workflow pipeline and reconcile the genuinely active ordinary lanes missing from the machine registry.",
-      "nextAction": "Closed COMPLETE and wave-audited AUDIT_CLEAR; worktree disposition RETIRE_AFTER_INTEGRATION; no HIGH action unlocked.",
+      "nextAction": "Closed COMPLETE and wave-audited AUDIT_CLEAR; remote observation recorded; worktree disposition RETIRE_AFTER_INTEGRATION; no HIGH action unlocked.",
       "awaited": [],
       "running": [],
       "git": {
@@ -1687,8 +1687,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "9530c7ea7c56febb4a3e31a62fafd0c011944a25",
-          "observedAt": "2026-09-15T07:30:14.152Z",
+          "sha": "37a887a06534c0d46be89957d3906620798a912e",
+          "observedAt": "2026-09-15T08:05:35.677Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
