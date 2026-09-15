@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T08:05:35.677Z",
+    "lastUpdatedAt": "2026-09-15T08:54:16.440Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 31
+    "revision": 33
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "WF-C04 is COMPLETE and wave-audited (AUDIT_CLEAR); no active cycle. ENROLLPRO-PROXY-RECOVERY-LIVE remains EXTERNALLY_BLOCKED pending an elevated execution context; TERM-CACHE-CATCHUP-APPLY, LIVE-GENERATION, LIVE-PUBLICATION, and every live Teaching Load or companion action remain locked."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "COMPANION-SSO-C03",
+    "globalNextAction": "COMPANION-SSO-C03 (CYCLE_ACTIVE): Phase 1 docs integration + truth reconciliation, then the Option-A reverse-SSO source correction with fresh QA, integration, push, and a fresh Wave Completion Audit. Every live/HIGH action (proxy-recovery install, SSO migration apply, runtime activation, term-cache, Teaching Load, generation, publication) remains locked."
   },
   "streams": [
     {
@@ -1734,6 +1734,117 @@
           "decision": "EXISTING",
           "sessionId": null,
           "reason": "Fresh cycle; the executor session id was not exposed to the registrant, so none is asserted."
+        }
+      }
+    },
+    {
+      "id": "COMPANION-SSO-C03",
+      "kind": "CYCLE",
+      "riskTier": "MEDIUM",
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "objective": "COMPANION-SSO-C03 (operator CYCLE ON, 2026-09-15, packet docs/prompts/companion-sso-docs-integration-option-a-c03-2026-09-15.md): integrate the accepted COMPANION-SSO-LIVE-PREP-C02 docs candidate (233ae67f) with a bounded integration-time truth reconciliation, then implement the ATLAS-owned Option-A reverse-SSO correction (map local roles to the EnrollPro contract vocabulary at POST /api/v1/auth/sso/exchange, guarantee valid non-empty assertion names via a typed service helper, close the mounted-test production-shape gap, document the SSO keys in atlas-server/.env.example), fresh-QA it, integrate, push, and close with a fresh Wave Completion Auditor. No HIGH action is authorized.",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T08:54:04.183Z",
+      "nextAction": "Phase 1: in E:/ATLAS-worktrees/integration-companion-sso-c03-20260915 merge the C02 docs candidate 233ae67f, apply the bounded truth reconciliation (fresh EnrollPro reachability + proxy elevation-stop truth + claim classification), run fresh docs QA over the resulting range, push; then Phase 2 executor dispatch for the Option-A source correction.",
+      "awaited": [
+        "fresh docs QA over the Phase-1 integrated range",
+        "Phase-2 executor return (REVIEW_REQUIRED)"
+      ],
+      "running": [
+        "planner: phase 1 docs integration and truth reconciliation"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/integration-companion-sso-c03-20260915",
+        "branch": "integration/companion-sso-c03-20260915",
+        "baseSha": "c6d83cb45f11c11ae98d3e3e26787f5341a30945",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "c6d83cb45f11c11ae98d3e3e26787f5341a30945",
+          "observedAt": "2026-09-15T08:54:04.183Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "Primary planner session owns this activated cycle; the harness exposed no session id, so none is asserted."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "Phase 2 source correction runs in a fresh bounded executor context."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "Each candidate requires a fresh independent QA context."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "Wave completion requires a fresh adversarial audit context."
         }
       }
     }
