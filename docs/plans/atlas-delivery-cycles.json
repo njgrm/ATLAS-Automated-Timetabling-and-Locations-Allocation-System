@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T18:03:59.933Z",
+    "lastUpdatedAt": "2026-09-15T18:30:20.926Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 95
+    "revision": 97
   },
   "coordination": {
     "mode": "MANUAL",
@@ -2393,8 +2393,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5a8a1c8cffe1NYtIxtf3BkidM",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -2427,8 +2427,8 @@
           "reason": "Wave-audit F1/F2 (BLOCKING): the R1 reproduction compared a history-derived expected document against the mutable working-tree register, so it failed once later transitions advanced revision 56 to 60. R2 makes the reproduction a statement about the immutable commit pair (08580306 1.1.0 -> 998c1d91 1.2.0) with pins read from the migration commit tree, plus a load-bearing checkout-stability control. Recorded by a disclosed validated planner state update because the transition set cannot reopen an INTEGRATED stream (WF-EVAL-C01 gap).",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5aaacdafffeCVlSDbns8pAZ77",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f5a8a1c8cffe1NYtIxtf3BkidM"
         }
       ],
       "successors": [],
@@ -2452,14 +2452,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T14:21:40.847Z",
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/wf-c05.receipt.json",
+          "sha256": "724d4b99784659dae6a9d0a6792ac771a04ed404d2fbec20f2bcb5fe9c41feb9"
+        }
+      },
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T18:30:20.926Z",
       "objective": "WF-C05 process hardening: lifecycle-traversal acceptance for every transition and record class, mandatory record-correction disclosure enforcement, predeclared gate classes that cannot be retroactively reclassified, source-only versus live readiness separation, directive rules for producer-to-consumer parity / unknown-value conservation / scope-epoch stale-response protection, and the seven named failing fixtures/mutants.",
-      "nextAction": "Dispatch one fresh Wave Completion Auditor over the corrected integrated wave 541516e7; on AUDIT_CLEAR commit the capsule, record the audit, close the cycle with the receipt, and record the remote observation.",
-      "awaited": [
-        "fresh Wave Completion Auditor over the corrected integrated wave"
-      ],
+      "nextAction": "Closed COMPLETE (SOURCE_ONLY gate plan, 11/11/0/0, AUDIT_CLEAR) with the wave-audited receipt; no live/HIGH action unlocked. The reconfigure/reopen-amend correction transition and the registry parent-delta test are recorded as a disclosed WF-EVAL-C01 successor gap.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-wf-c05-20260915",
@@ -2495,8 +2498,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5a8a1c8cffe1NYtIxtf3BkidM",
+          "status": "RETURNED",
           "writable": false
         }
       },
