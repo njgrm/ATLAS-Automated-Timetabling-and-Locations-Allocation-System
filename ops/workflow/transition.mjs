@@ -6,8 +6,13 @@
 //     --expect-revision <n> [--stream <id>] [--render <path>] [--now <iso>] \
 //     [transition-specific flags]
 //
+//   create-stream additionally takes exactly one --stream-spec <path> (a single
+//   schema-complete stream record) and --observed-origin-main <40-hex tip>.
+//
 // Exactly one JSON object is printed: status, summary, nextActions, artifacts,
 // errors. Exit codes: 0 ok, 1 transition/verification failure, 2 usage error.
+// A repeated flag is a usage error (USAGE_DUPLICATE_FLAG) rather than a silent
+// last-one-wins override.
 import process from "node:process";
 import { listTransitions, runTransition, TRANSITIONS } from "./lib/transition.mjs";
 
@@ -38,6 +43,11 @@ function parse(argv) {
     if (!token.startsWith("--")) return { ok: false, code: "USAGE_UNEXPECTED_ARGUMENT", message: `unexpected argument "${token}"` };
     const name = token.slice(2);
     if (!ALL_ALLOWED.has(name)) return { ok: false, code: "USAGE_UNKNOWN_FLAG", message: `unknown flag "${token}"` };
+    // A repeated flag is ambiguous input: reject it instead of letting the last
+    // occurrence silently win (an operator cannot tell which value was used).
+    if (Object.prototype.hasOwnProperty.call(values, name)) {
+      return { ok: false, code: "USAGE_DUPLICATE_FLAG", message: `flag "${token}" was provided more than once` };
+    }
     const next = argv[i + 1];
     if (next === undefined || next.startsWith("--")) {
       // Empty values are meaningful only for explicitly nullable lease fields.
@@ -70,6 +80,16 @@ if (!flags.state) {
 if (!flags["expect-revision"]) {
   emit(usageReport("USAGE_MISSING_EXPECT_REVISION", 'missing required flag "--expect-revision"'));
   process.exit(2);
+}
+// `create-stream` introduces two required flags whose absence is a usage error
+// (exit 2) rather than a transition failure, matching the base flags above.
+if (flags.transition === "create-stream") {
+  for (const name of TRANSITIONS["create-stream"].required) {
+    if (flags[name] === undefined || flags[name] === "") {
+      emit(usageReport(`USAGE_MISSING_${name.toUpperCase().replace(/-/g, "_")}`, `missing required flag "--${name}" for transition create-stream`));
+      process.exit(2);
+    }
+  }
 }
 
 const report = runTransition({ statePath: flags.state, transitionName: flags.transition, flags, now: flags.now || null });

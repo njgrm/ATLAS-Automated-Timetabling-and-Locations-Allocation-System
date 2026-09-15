@@ -17,6 +17,8 @@ import { sha256Hex, stageFileSync, commitStagedSync, discardStagedSync } from ".
 import { resolveRepoRoot, createGitMemo } from "./git.mjs";
 import { buildReceipt, receiptPathFor } from "./receipt.mjs";
 import { acquireLock, releaseLock } from "./lock.mjs";
+import { loadSchema, validateValue, isPlainObject } from "./schema.mjs";
+import { containsSecret } from "./redact.mjs";
 
 export const DEFAULT_RENDER_REL = "docs/plans/atlas-active-delivery-streams.generated.md";
 
@@ -75,6 +77,100 @@ function applyAwaitedRunning(stream, flags, defaults) {
   }
   if (!Array.isArray(stream.running) || stream.running.some((v) => typeof v !== "string")) {
     throw new TransitionError("TRANSITION_RUNNING_INVALID", "--running must be a JSON array of strings", "$.running");
+  }
+}
+
+// ---- create-stream input surface (WF-C04) ---------------------------------
+// A new stream arrives as exactly one reviewed JSON document containing one
+// schema-complete stream record. Arbitrary JSON Patch, JavaScript evaluation,
+// and partial mutation of existing streams are not expressible here: the file is
+// parsed as a single object, validated against the shipped `$defs.stream`
+// schema, and appended. The resulting candidate document then goes through the
+// same verifier, render, render-byte check, and atomic replace every other
+// transition uses, so a rejected spec leaves state, render, and receipt bytes
+// untouched.
+const OBSERVATION_REF = "refs/remotes/origin/main";
+const OBSERVATION_KIND = "REMOTE_TRACKING_REF";
+const SHA40_RE = /^[0-9a-f]{40}$/;
+
+// Resolve `--stream-spec` against the process working directory, never against
+// the state document, and never search a default location.
+function loadStreamSpec(specFlag) {
+  const specAbs = path.resolve(specFlag);
+  let bytes;
+  try {
+    bytes = fs.readFileSync(specAbs);
+  } catch (err) {
+    throw new TransitionError("CREATE_SPEC_UNREADABLE", `cannot read --stream-spec at ${specAbs}: ${err.message}`, "$.streamSpec");
+  }
+  const text = bytes.toString("utf8");
+  // Credential-shaped content is rejected before parsing and never echoed. The
+  // value is not printed in the error, the report, or any artifact.
+  if (containsSecret(text)) {
+    throw new TransitionError(
+      "CREATE_SPEC_SECRET_CONTENT",
+      "the stream spec contains credential-shaped content; the value is not echoed or written",
+      "$.streamSpec",
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    throw new TransitionError("CREATE_SPEC_PARSE_FAILED", `--stream-spec is not valid JSON: ${err.message}`, "$.streamSpec");
+  }
+  if (!isPlainObject(parsed)) {
+    throw new TransitionError("CREATE_SPEC_NOT_OBJECT", "--stream-spec must contain exactly one JSON object", "$.streamSpec");
+  }
+  return { specAbs, stream: parsed };
+}
+
+// Validate the spec against the same schema the state document uses. Unknown
+// keys anywhere in the record are reported with their exact path; every other
+// schema violation is summarized by code and path only, so no spec value can
+// leak into the report.
+function validateStreamSpec(stream) {
+  const loaded = loadSchema();
+  if (!loaded.ok) throw new TransitionError("CREATE_SPEC_SCHEMA_UNAVAILABLE", loaded.message, "$schema");
+  const streamSchema = loaded.schema && loaded.schema.$defs ? loaded.schema.$defs.stream : null;
+  if (!streamSchema) throw new TransitionError("CREATE_SPEC_SCHEMA_UNAVAILABLE", "the cycle-state schema does not define a stream record", "$schema");
+  const errors = [];
+  validateValue(streamSchema, stream, "$.stream", loaded.schema, errors);
+  if (errors.length === 0) return;
+  const unknown = errors.find((e) => e.code === "SCHEMA_UNKNOWN_KEY");
+  if (unknown) {
+    throw new TransitionError(
+      "CREATE_SPEC_UNKNOWN_KEY",
+      `unknown key at ${unknown.path}; a stream spec must be exactly a schema-complete stream record`,
+      unknown.path,
+    );
+  }
+  const summary = errors.map((e) => `${e.code} at ${e.path}`).join("; ");
+  throw new TransitionError("CREATE_SPEC_INVALID", `stream spec failed schema validation: ${summary}`, "$.streamSpec");
+}
+
+// Creation-time claim/evidence consistency. A record may not claim more activity
+// than it can evidence: RUNNING needs work named in `running[]`, PLANNED must
+// name nothing running, and an owner claiming ACTIVE needs a session id.
+// `PLANNED` + an ACTIVE lease and `PLANNED` + a dirty worktree are additionally
+// enforced on the final candidate document by the verifier
+// (`PLANNED_WITH_LIVE_LEASE`, `PLANNED_WITH_DIRTY_WORKTREE`).
+function assertClaimEvidenceConsistency(stream) {
+  if (stream.state === "RUNNING" && stream.running.length === 0) {
+    throw new TransitionError("CREATE_SPEC_CLAIM_INCONSISTENT", "state RUNNING requires a non-empty running[] list", "$.stream.running");
+  }
+  if (stream.state === "PLANNED" && stream.running.length > 0) {
+    throw new TransitionError("CREATE_SPEC_CLAIM_INCONSISTENT", "state PLANNED requires an empty running[] list", "$.stream.running");
+  }
+  for (const role of ["planner", "executor", "qa", "auditor"]) {
+    const owner = stream.owners ? stream.owners[role] : null;
+    if (owner && owner.status === "ACTIVE" && !nonEmpty(owner.sessionId)) {
+      throw new TransitionError(
+        "CREATE_SPEC_CLAIM_INCONSISTENT",
+        `owner ${role} claims status ACTIVE without a sessionId`,
+        `$.stream.owners.${role}.sessionId`,
+      );
+    }
   }
 }
 
@@ -265,6 +361,68 @@ export const TRANSITIONS = {
         kind,
       };
       return { state: undefined, defaults: null };
+    },
+  },
+
+  // Atomic registration of one new stream. `--observed-origin-main` is the only
+  // source of the machine-state evidence the created record carries, so an
+  // author cannot assert a remote tip it did not observe. The transition adds
+  // exactly one record; no other stream is touched.
+  "create-stream": {
+    scope: "create",
+    optional: ["stream-spec", "observed-origin-main"],
+    required: ["stream-spec", "observed-origin-main"],
+    apply(ctx) {
+      const { doc, flags, repoRoot, git, nowIso } = ctx;
+      if (flags.stream !== undefined) {
+        throw new TransitionError(
+          "TRANSITION_FLAG_NOT_APPLICABLE",
+          "flag --stream is not applicable to create-stream; the id comes from --stream-spec",
+          "$.flags.stream",
+        );
+      }
+      const { stream } = loadStreamSpec(flags["stream-spec"]);
+      validateStreamSpec(stream);
+
+      if (doc.streams.some((s) => s.id === stream.id)) {
+        throw new TransitionError(
+          "CREATE_SPEC_DUPLICATE_ID",
+          `stream "${stream.id}" is already defined in the state document`,
+          "$.stream.id",
+        );
+      }
+
+      const observed = flags["observed-origin-main"];
+      if (!SHA40_RE.test(observed)) {
+        throw new TransitionError(
+          "CREATE_SPEC_OBSERVED_SHA_INVALID",
+          "--observed-origin-main must be a lowercase 40-hex commit id",
+          "$.stream.git.remoteObservation.sha",
+        );
+      }
+      if (!git.shaExists(repoRoot, observed)) {
+        throw new TransitionError(
+          "CREATE_SPEC_OBSERVED_SHA_UNKNOWN",
+          `observed origin/main ${observed} is not a commit in this repository`,
+          "$.stream.git.remoteObservation.sha",
+        );
+      }
+      if (stream.git.remoteObservation !== null) {
+        throw new TransitionError(
+          "CREATE_SPEC_REMOTE_OBSERVATION_CONTRADICTORY",
+          "a stream spec must not carry git.remoteObservation; --observed-origin-main is the only source",
+          "$.stream.git.remoteObservation",
+        );
+      }
+
+      assertClaimEvidenceConsistency(stream);
+
+      const created = cloneDoc(stream);
+      created.git.remoteObservation = { ref: OBSERVATION_REF, sha: observed, observedAt: nowIso, kind: OBSERVATION_KIND };
+      // The tool owns the transition timestamp so a spec cannot backdate state.
+      created.stateUpdatedAt = nowIso;
+      doc.streams.push(created);
+      return { createdStreamId: created.id };
     },
   },
 
@@ -465,10 +623,11 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
 
     // Stream selection: explicit --stream, else unique stream in an eligible
     // state. Document-scoped transitions mutate top-level coordination and take
-    // no stream target.
+    // no stream target; `create-stream` appends a new record and selects nothing.
     const documentScoped = spec.scope === "document";
+    const createsStream = spec.scope === "create";
     let stream = null;
-    if (!documentScoped) {
+    if (!documentScoped && !createsStream) {
       if (nonEmpty(streamId)) {
         stream = doc.streams.find((s) => s.id === streamId);
         if (!stream) throw new TransitionError("TRANSITION_STREAM_UNKNOWN", `stream ${streamId} is not defined in the state document`, "$.stream");
@@ -485,11 +644,19 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
     }
 
     const candidate = cloneDoc(doc);
-    const candidateStream = documentScoped ? null : candidate.streams.find((s) => s.id === stream.id);
+    const candidateStream = documentScoped || createsStream ? null : candidate.streams.find((s) => s.id === stream.id);
     const ctx = { doc: candidate, stream: candidateStream, flags, repoRoot, git, nowIso, statePath: stateAbs };
     const outcome = spec.apply(ctx) || {};
 
-    if (!documentScoped) {
+    let createdStream = null;
+    if (createsStream) {
+      createdStream = candidate.streams.find((s) => s.id === outcome.createdStreamId) || null;
+      if (!createdStream) {
+        throw new TransitionError("CREATE_SPEC_INTERNAL", "the created stream was not appended to the candidate document", "$.streams");
+      }
+    }
+
+    if (!documentScoped && !createsStream) {
       if (outcome.state !== undefined && outcome.state !== null) {
         candidateStream.state = outcome.state;
       }
@@ -580,6 +747,12 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       summary.fromState = stream.state;
       summary.toState = candidateStream.state;
       nextActions = [{ streamId: candidateStream.id, nextAction: candidateStream.nextAction }];
+    } else if (createdStream) {
+      summary.streamId = createdStream.id;
+      summary.created = true;
+      summary.toState = createdStream.state;
+      summary.observation = createdStream.git.remoteObservation;
+      nextActions = [{ streamId: createdStream.id, nextAction: createdStream.nextAction }];
     } else {
       summary.coordination = candidate.coordination;
     }
