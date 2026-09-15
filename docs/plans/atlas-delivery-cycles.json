@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T14:21:40.847Z",
+    "lastUpdatedAt": "2026-09-15T14:28:51.761Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 68
+    "revision": 69
   },
   "coordination": {
     "mode": "MANUAL",
@@ -1840,6 +1840,11 @@
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 8,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
         "classes": {
           "MANDATORY_SOURCE": {
             "total": 8,
@@ -1862,16 +1867,11 @@
             "blocked": 0,
             "unperformed": 0
           }
-        },
-        "plan": {
-          "MANDATORY_SOURCE": 8,
-          "MANDATORY_LIVE": 0,
-          "DEFERRED_EXTERNAL": 0
         }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
+        "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
         "auditorVerdict": "PLANNER_DECISION_REQUIRED",
         "auditorSessionId": "ses_f5af99f31ffeVXFRg4giOTvy7E",
         "auditRequired": true,
@@ -1880,6 +1880,11 @@
             "round": 1,
             "verdict": "ACCEPT_READY",
             "sessionId": "ses_f5b130e2effe6zBR4fibdDO9A3"
+          },
+          {
+            "round": 2,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5"
           }
         ]
       },
@@ -1899,8 +1904,8 @@
           "baseSha": "d4e7581b2e79458c23abeefb60267776154337e8",
           "candidateSha": "b632b3f45ef3b2d40fc513ebe3ae77f86dda51a0",
           "reason": "C-6: operator-authorized exceptional final correction round (the live directive 76631646 governs at the unresolved closure boundary). Binds every sibling actor-school/year authority feed in useTeachingLoadData.ts to the dispatch scope (warm-cache, cold-success, fallback/catch, finally) through one ScopeBoundWrite currency predicate; adds a committed failing-first scope-transition control and the two committed R5 rendering mutants (removed producer member; dropped unknown value). C-4 and C-5 behavior preserved.",
-          "qaVerdict": null,
-          "qaSessionId": null,
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
@@ -1928,11 +1933,11 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make the Teaching Load operator workspace correct and comprehensible on branch work/tl-operator-workspace-c05: R3 canonical derived-demand truth, unit-coherent capacity/excess metrics (C-2), and producer/consumer rejection-reason parity plus diagnostics supersession (C-3). Executor handoff docs/handoffs/tl-operator-workspace-c05-executor.md reports REVIEW_REQUIRED.",
-      "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-15T13:54:11.763Z",
-      "nextAction": "Fresh independent QA at high over the C-6 correction candidate b632b3f4 (rule-2 sibling-feed binding plus rule-13 committed mutants); then clean current-main re-integration and a fresh Wave Completion Auditor at high before closure and receipt. Operator-authorized exceptional final round; no live/HIGH action is authorized.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-15T14:28:51.761Z",
+      "nextAction": "C-6 QA ACCEPT_READY over candidate b632b3f4 (eight verified mandatory source gates: C-6 scope-transition 7/7, the two committed rendering mutants load-bearing both directions, C-4 parity 5/5, C-5 cold-load 8/8, TL C05/R3 suites green, client tsc 0 plus production build, changed-path and C-4/C-5 preservation checks); integrate on current main and commission the fresh Wave Completion Auditor at high before closure.",
       "awaited": [
-        "fresh independent QA over the C-6 corrected candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -1967,7 +1972,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f5b130e2effe6zBR4fibdDO9A3",
+          "sessionId": "ses_f5aa60a54ffeYulHvXevM61Ms5",
           "status": "RETURNED",
           "writable": false
         },
