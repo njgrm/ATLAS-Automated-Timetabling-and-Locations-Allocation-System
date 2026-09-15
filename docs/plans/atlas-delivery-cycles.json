@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T20:55:10.133Z",
+    "lastUpdatedAt": "2026-09-15T22:24:45.139Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 111
+    "revision": 113
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "WF-SEED-TERM-CACHE-TL-C06-20260916 (MANUAL): Phase 0 WF-SEED-PIN-C01 COMPLETE (46d9499d, QA ACCEPT_READY) and Lane B TL-DIAGNOSTICS-LOADING-C06 COMPLETE (candidate b72dd3c6, QA ACCEPT_READY 14/14/0/0, merge 3d1b783b, receipt pinned). Lane A TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 is RUNNING and NOT approval-ready: the fresh independent pre-action review (ses_f592bbbb9ffebFKEDq2c4ZIf5D) returned CORRECTION_REQUIRED 13/8/5/0 and refuted the planner launch-owner finding (schtasks returns Access is denied, not not-found; launch owner UNVERIFIED, elevation required). Bounded correction pushed at aab401f1; the section-12 approval sentence is withheld. Awaited: E7/E8/E8b/E9 reconciliation and one fresh independent pre-action review of the corrected packet; one elevated read-only schtasks query settles launch ownership. Successor constraints: deployment blocked until prisma/migrations/0003_teacher_program_presentation is applied; any guarded migration approval must name both 0002_companion_sso_code and 0003; no cli.mjs rollback claim (previous=null); no deployment pin on 476157b1 or 809fa67b. The term-cache apply, migrations, deployment, restart, login, Teaching Load apply, generation and publication remain LOCKED and NOT granted."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B",
+    "globalNextAction": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B (CYCLE_ACTIVE): bounded source correction over origin/main 4160028f; packet docs/prompts/export-presentation-schema-guard-c06b-2026-09-16.md; worktree E:/ATLAS-worktrees/export-presentation-schema-guard-c06b (branch work/export-presentation-schema-guard-c06b, RETIRE_AFTER_INTEGRATION). Executor dispatch is next; then one fresh independent QA over the frozen range, ordinary integration and push, then one fresh Wave Completion Auditor. Locked and NOT granted: applying prisma/migrations/0003_teacher_program_presentation (or 0002/0003), deployment/release switch of the supervised 5001/5174 runtime, restart/task/env changes, term-cache catch-up apply, Teaching Load apply, generation, publication, login/browser acceptance, and every companion-repository edit."
   },
   "streams": [
     {
@@ -2967,6 +2967,146 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "no wave-completion auditor is planned unless QA exposes cross-stream ambiguity, authorization risk or post-QA candidate changes"
+        }
+      }
+    },
+    {
+      "id": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B",
+      "kind": "STREAM",
+      "riskTier": "MEDIUM",
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 17,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "objective": "Bounded export-presentation schema-guard correction per docs/prompts/export-presentation-schema-guard-c06b-2026-09-16.md: when migration 0003's presentation table (or one of its selected columns) is unavailable, the official teacher-program DOCX export and the mounted presentation settings routes must fail closed with a typed JSON 503 EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE, with no HTML, Prisma error text, stack detail, SQL identifier, or partial document bytes, while a present table still produces the normal DOCX.",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-15T22:24:27.286Z",
+      "nextAction": "Executor implements the bounded candidate in E:/ATLAS-worktrees/export-presentation-schema-guard-c06b (base = the packet/bookkeeping commit on work/export-presentation-schema-guard-c06b) and returns REVIEW_REQUIRED with the 17-row trace table; the planner then records the return and commissions one fresh independent QA over the frozen range.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for EXPORT-PRESENTATION-SCHEMA-GUARD-C06B",
+        "fresh independent QA over the frozen candidate range"
+      ],
+      "running": [
+        "executor implementation session on branch work/export-presentation-schema-guard-c06b (packet docs/prompts/export-presentation-schema-guard-c06b-2026-09-16.md)"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/export-presentation-schema-guard-c06b",
+        "branch": "work/export-presentation-schema-guard-c06b",
+        "baseSha": "4160028f95083d6842bcdc599925ca6aaa5ef441",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "4160028f95083d6842bcdc599925ca6aaa5ef441",
+          "observedAt": "2026-09-15T22:24:27.286Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "Stream created by the primary planner for the operator-activated EXPORT-PRESENTATION-SCHEMA-GUARD-C06B correction; this harness did not expose a planner session id, so none is asserted."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "A fresh bounded executor session is dispatched for the packet; the executor session id is recorded once the harness returns it."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "Independent QA must be a fresh context over the frozen base...candidate range, not the implementing session."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "One fresh read-only Wave Completion Auditor runs after integration of this error-boundary correction."
         }
       }
     }
