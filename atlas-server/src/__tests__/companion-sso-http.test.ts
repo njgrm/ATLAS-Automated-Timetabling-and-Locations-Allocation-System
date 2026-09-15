@@ -157,10 +157,14 @@ async function createOfficerAccount(overrides: Partial<{ employeeId: string | nu
 			schoolId: SCHOOL_ID,
 			email: `officer-${Date.now()}-${Math.random().toString(36).slice(2)}@deped.edu.ph`,
 			employeeId: overrides.employeeId === undefined ? uniqueEmployeeId() : overrides.employeeId,
+			// ATLAS stores lowercase roles (`officer`/`faculty`/`admin`). The default
+			// accountName carries two whitespace-separated tokens so the reverse
+			// assertion can resolve a non-empty firstName/lastName, matching the
+			// persisted identity shape the producer actually consumes.
 			accountName: overrides.accountName === undefined
-				? `n${Math.random().toString(36).slice(2, 9)}`.slice(0, 8)
+				? `Sso User${Math.random().toString(36).slice(2, 8)}`
 				: overrides.accountName,
-			role: overrides.role ?? 'SYSTEM_ADMIN',
+			role: overrides.role ?? 'officer',
 			passwordHash: 'not-a-real-hash',
 			isActive: overrides.isActive ?? true,
 		},
@@ -177,6 +181,118 @@ function sessionAuditCount(schoolId = SCHOOL_ID): Promise<number> {
 
 function codeConsumedAuditCount(schoolId = SCHOOL_ID): Promise<number> {
 	return prisma.auditLog.count({ where: { schoolId, action: 'COMPANION_SSO_CODE_CONSUMED' } });
+}
+
+/* ─── Local mirror of EnrollPro's reverse-exchange response contract ─────────── */
+
+/**
+ * Mirror of EnrollPro's `RoleEnum` (`shared/src/constants/index.ts:4-11`).
+ */
+const ENROLLPRO_ROLE_ENUM = ['SYSTEM_ADMIN', 'HEAD_REGISTRAR', 'CLASS_ADVISER', 'TEACHER', 'LEARNER', 'MRF'] as const;
+/** Mirror of EnrollPro's `companionSystemSchema` issuer set. */
+const ENROLLPRO_COMPANION_SYSTEMS = ['ATLAS', 'AIMS', 'SMART', 'MRF'] as const;
+
+type AssertionShape = {
+	success?: unknown;
+	issuer?: unknown;
+	identity?: {
+		subject?: unknown;
+		employeeId?: unknown;
+		lrn?: unknown;
+		firstName?: unknown;
+		middleName?: unknown;
+		lastName?: unknown;
+		roles?: unknown;
+	} | null;
+	activeSchoolYear?: { id?: unknown; yearLabel?: unknown } | null;
+	authenticatedAt?: unknown;
+};
+
+/** The exact, validated EnrollPro reverse-exchange response shape. */
+type ValidAssertion = {
+	success: true;
+	issuer: string;
+	identity: {
+		subject: string;
+		employeeId: string | null;
+		lrn: string | null;
+		firstName: string;
+		middleName: string | null;
+		lastName: string;
+		roles: string[];
+	};
+	activeSchoolYear: { id: number; yearLabel: string };
+	authenticatedAt: string;
+};
+
+function nonEmpty(value: unknown): value is string {
+	return typeof value === 'string' && value.length >= 1;
+}
+
+/**
+ * Local mirror of EnrollPro's `companionSsoReverseExchangeResponseSchema`
+ * (`shared/src/schemas/companion-sso.schema.ts:63-80` at `5887d685`). Returns
+ * every violation so the mounted proof validates the EXACT consumer contract
+ * rather than one convenient field.
+ */
+function reverseExchangeViolations(raw: unknown): string[] {
+	const errors: string[] = [];
+	if (!raw || typeof raw !== 'object') return ['response must be an object'];
+	const value = raw as AssertionShape;
+
+	if (value.success !== true) errors.push('success must be literal true');
+	if (typeof value.issuer !== 'string' || !(ENROLLPRO_COMPANION_SYSTEMS as readonly string[]).includes(value.issuer)) {
+		errors.push(`issuer must be one of ${ENROLLPRO_COMPANION_SYSTEMS.join('|')}`);
+	}
+
+	const identity = value.identity;
+	if (!identity || typeof identity !== 'object') {
+		errors.push('identity must be an object');
+	} else {
+		if (typeof identity.subject !== 'string' || identity.subject.length < 1 || identity.subject.length > 191) {
+			errors.push('identity.subject must be a 1..191 character string');
+		}
+		if (identity.employeeId !== null && typeof identity.employeeId !== 'string') {
+			errors.push('identity.employeeId must be string|null');
+		}
+		if (identity.lrn !== null && !(typeof identity.lrn === 'string' && /^\d{12}$/.test(identity.lrn))) {
+			errors.push('identity.lrn must be a 12-digit string|null');
+		}
+		if (!nonEmpty(identity.firstName)) errors.push('identity.firstName must be a non-empty string');
+		if (identity.middleName !== null && typeof identity.middleName !== 'string') {
+			errors.push('identity.middleName must be string|null');
+		}
+		if (!nonEmpty(identity.lastName)) errors.push('identity.lastName must be a non-empty string');
+		if (!Array.isArray(identity.roles) || identity.roles.length < 1) {
+			errors.push('identity.roles must be a non-empty array');
+		} else if (!identity.roles.every((role) => typeof role === 'string' && (ENROLLPRO_ROLE_ENUM as readonly string[]).includes(role))) {
+			errors.push(`identity.roles must only contain ${ENROLLPRO_ROLE_ENUM.join('|')}`);
+		}
+	}
+
+	const year = value.activeSchoolYear;
+	if (!year || typeof year !== 'object') {
+		errors.push('activeSchoolYear must be an object');
+	} else {
+		if (!Number.isInteger(year.id) || (year.id as number) <= 0) errors.push('activeSchoolYear.id must be a positive integer');
+		if (typeof year.yearLabel !== 'string') errors.push('activeSchoolYear.yearLabel must be a string');
+	}
+
+	if (
+		typeof value.authenticatedAt !== 'string'
+		|| Number.isNaN(Date.parse(value.authenticatedAt))
+		|| !/(Z|[+-]\d{2}:\d{2})$/.test(value.authenticatedAt)
+	) {
+		errors.push('authenticatedAt must be an offset-bearing ISO datetime');
+	}
+
+	return errors;
+}
+
+async function assertConsumerSchemaValid(response: Response, label: string): Promise<ValidAssertion> {
+	const raw = await response.json();
+	assert.deepEqual(reverseExchangeViolations(raw), [], `${label}: response must satisfy the EnrollPro reverse-exchange schema`);
+	return raw as ValidAssertion;
 }
 
 /* ─── Proof 1: Flow A happy path ───────────────────────────────────────────── */
@@ -204,7 +320,7 @@ test('COMPANION-SSO proof 1: Flow A happy path maps an existing account, audits 
 			const token = location.split('#atlasToken=')[1];
 			assert.ok(!location.includes('?'), 'the session token redirect must carry no query string');
 			const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { role: string; accountId: number; schoolId: number; authSource: string };
-			assert.equal(decoded.role, 'SYSTEM_ADMIN');
+			assert.equal(decoded.role, 'officer');
 			assert.equal(decoded.accountId, account.id);
 			assert.equal(decoded.schoolId, SCHOOL_ID);
 			assert.equal(decoded.authSource, 'local');
@@ -509,18 +625,19 @@ test('COMPANION-SSO proof 6: Flow B exchange returns the ATLAS assertion, consum
 
 	const response = await callExchange({ code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
 	assert.equal(response.status, 200);
-	const assertion = await response.json() as {
-		success: boolean; issuer: string;
-		identity: { subject: string; employeeId: string | null; roles: string[]; lrn: null; middleName: null };
-		activeSchoolYear: { id: number; yearLabel: string };
-		authenticatedAt: string;
-	};
+	// Mandatory consumer-schema control: the REAL mounted response must satisfy
+	// the full EnrollPro reverse-exchange contract (role enum, min-1 names,
+	// null middleName/lrn, positive year id, issuer, success), not just `roles[0]`.
+	const assertion = await assertConsumerSchemaValid(response, 'proof 6');
 	assert.equal(assertion.success, true);
 	assert.equal(assertion.issuer, 'ATLAS');
 	assert.equal(assertion.identity.subject, `ATLAS_USER:${account.id}`);
-	assert.equal(assertion.identity.roles[0], 'SYSTEM_ADMIN');
+	// The ATLAS-stored lowercase `officer` role must map to SYSTEM_ADMIN.
+	assert.deepEqual(assertion.identity.roles, ['SYSTEM_ADMIN']);
+	assert.equal(assertion.identity.employeeId, account.employeeId);
 	assert.equal(assertion.identity.lrn, null);
 	assert.equal(assertion.identity.middleName, null);
+	assert.ok(nonEmpty(assertion.identity.firstName) && nonEmpty(assertion.identity.lastName), 'assertion names must be non-empty');
 	assert.equal(assertion.activeSchoolYear.id, YEAR_ID);
 	assert.equal(assertion.activeSchoolYear.yearLabel, YEAR_LABEL);
 	assert.ok(!Number.isNaN(Date.parse(assertion.authenticatedAt)));
@@ -795,4 +912,50 @@ test('COMPANION-SSO proof 15: authorize rejects a privileged JWT without a usabl
 	response = await post(privilegedToken(account.id));
 	assert.equal(response.status, 200);
 	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID } }), 1);
+});
+
+/* ─── C03 Option A: producer role vocabulary + typed identity denials ───────── */
+
+test('COMPANION-SSO proof 16: lowercase ATLAS roles map to the exact EnrollPro vocabulary and unrepresentable identity fails typed 403', async () => {
+	await resetSchoolState();
+	await createActiveMirror();
+
+	// Lowercase `admin` → SYSTEM_ADMIN, consumer-schema-valid.
+	const admin = await createOfficerAccount({ role: 'admin' });
+	const adminCode = await issueCode(admin.id);
+	const adminResponse = await callExchange({ code: adminCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(adminResponse.status, 200);
+	const adminAssertion = await assertConsumerSchemaValid(adminResponse, 'admin');
+	assert.deepEqual(adminAssertion.identity.roles, ['SYSTEM_ADMIN']);
+
+	// Lowercase `faculty` → TEACHER, consumer-schema-valid.
+	const faculty = await createOfficerAccount({ role: 'faculty' });
+	const facultyCode = await issueCode(faculty.id);
+	const facultyResponse = await callExchange({ code: facultyCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(facultyResponse.status, 200);
+	const facultyAssertion = await assertConsumerSchemaValid(facultyResponse, 'faculty');
+	assert.deepEqual(facultyAssertion.identity.roles, ['TEACHER']);
+
+	// No faculty row and no persisted accountName → typed 403, zero success audit.
+	const unnamed = await createOfficerAccount({ role: 'officer', accountName: null });
+	const unnamedCode = await issueCode(unnamed.id);
+	const unnamedResponse = await callExchange({ code: unnamedCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(unnamedResponse.status, 403);
+	const unnamedBody = await unnamedResponse.json() as { code?: string; success?: unknown };
+	assert.equal(unnamedBody.code, 'COMPANION_SSO_IDENTITY_NAME_UNAVAILABLE');
+	assert.equal(unnamedBody.success, undefined, 'a typed denial must never carry an assertion body');
+
+	// Unmappable local role → typed 403 with the code in the route body.
+	const learner = await createOfficerAccount({ role: 'learner' });
+	const learnerCode = await issueCode(learner.id);
+	const learnerResponse = await callExchange({ code: learnerCode.code, clientId: 'enrollpro', redirectUri: REDIRECT_URI });
+	assert.equal(learnerResponse.status, 403);
+	const learnerBody = await learnerResponse.json() as { code?: string; success?: unknown };
+	assert.equal(learnerBody.code, 'COMPANION_SSO_ROLE_UNMAPPABLE');
+	assert.equal(learnerBody.success, undefined, 'a typed denial must never carry an assertion body');
+
+	// Each code was consumed exactly once, but only the two representable
+	// identities may have written a COMPANION_SSO_CODE_CONSUMED success audit.
+	assert.equal(await prisma.companionSsoCode.count({ where: { schoolId: SCHOOL_ID, consumedAt: { not: null } } }), 4);
+	assert.equal(await codeConsumedAuditCount(), 2, 'typed denials must write zero success-audit rows');
 });

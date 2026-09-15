@@ -166,6 +166,13 @@ router.post('/sso/exchange', async (req: Request, res: Response, next: NextFunct
 		}
 		res.json(result.assertion);
 	} catch (err) {
+		// Producer-side conformance failures (unmappable local role / no
+		// assertable name) surface as a typed 403 so EnrollPro reports a clear
+		// access denial instead of a retryable 503.
+		if (err instanceof CompanionSsoError) {
+			res.status(err.status).json({ code: err.code, message: err.message });
+			return;
+		}
 		next(err);
 	}
 });
