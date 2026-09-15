@@ -624,6 +624,14 @@ export async function getPublishedSchedulePayload(
 			startTime: entry.startTime,
 			endTime: entry.endTime,
 			durationMinutes: entry.durationMinutes,
+			// BENEFICIARY-EXPORT-PARITY-C05 T2 — the presentation projection must
+			// carry the entry's ordered-term identity so term-scoped consumers
+			// (teacher program, room program) can apply the strict filter instead
+			// of failing closed with TERM_FILTER_NOT_READY. A missing term stays
+			// `null` (never coerced to Term 1).
+			termIndex: typeof (entry as { termIndex?: unknown }).termIndex === 'number'
+				? (entry as { termIndex: number }).termIndex
+				: null,
 			subject: {
 				id: entry.subjectId,
 				code: subject?.code ?? `SUBJECT_${entry.subjectId}`,

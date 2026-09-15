@@ -60,6 +60,7 @@ import { SimpleExportErrorBanner, SimpleExportMenu, SimpleTermSwitcher } from '@
 import { dispatchSimpleExport, resolveSimpleExportRequest, type SimpleExportKind } from '@/components/timetable/simple/simpleExportRequests';
 import { SimpleDriftBanner } from '@/components/timetable/simple/SimpleDriftBanner';
 import { SimpleMoreMenuContent } from '@/components/timetable/simple/SimpleMoreMenuContent';
+import { ExportPresentationSettingsDialog } from '@/components/timetable/simple/ExportPresentationSettingsDialog';
 import type { RolloverStatus } from '@/lib/settings';
 
 type TimetableSimpleHeaderProps = {
@@ -98,6 +99,7 @@ function TimetableSimpleHeaderImpl({
 	const [readinessSheetOpenLocal, setReadinessSheetOpenLocal] = useState(false);
 	const [exportingKind, setExportingKind] = useState<SimpleExportKind | null>(null);
 	const [exportError, setExportError] = useState<{ kind: SimpleExportKind; message: string } | null>(null);
+	const [presentationSettingsOpen, setPresentationSettingsOpen] = useState(false);
 	const readinessSheetOpen = readinessSheetOpenProp ?? readinessSheetOpenLocal;
 	const setReadinessSheetOpen = onReadinessSheetOpenChange ?? setReadinessSheetOpenLocal;
 	const [blockerReasonFilter, setBlockerReasonFilter] = useState<string | null>(null);
@@ -234,17 +236,22 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	// term. "All terms" resolves to no request so nothing mixed-term is exported.
 	const exportRunId = context.draft?.runId ?? context.activeGeneratedRunId ?? null;
 	const exportFacultyId = context.viewMode === 'faculty' && context.entityFilter ? Number(context.entityFilter) : null;
+	// C05 T9/M18 — the persisted school-year label keeps client filenames
+	// byte-identical to the server `Content-Disposition` identity.
+	const exportYearLabel = context.schoolYearContext?.activeSchoolYearLabel ?? null;
 	const summaryExport = resolveSimpleExportRequest('summary-teacher-schedule', {
 		schoolId: context.schoolId,
 		schoolYearId: context.schoolYearId,
 		runId: exportRunId,
 		termFilter: context.termFilter,
+		yearLabel: exportYearLabel,
 	});
 	const classProgramExport = resolveSimpleExportRequest('class-program', {
 		schoolId: context.schoolId,
 		schoolYearId: context.schoolYearId,
 		runId: exportRunId,
 		termFilter: context.termFilter,
+		yearLabel: exportYearLabel,
 	});
 	const teacherProgramExport = resolveSimpleExportRequest('teacher-program', {
 		schoolId: context.schoolId,
@@ -252,6 +259,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		runId: exportRunId,
 		termFilter: context.termFilter,
 		facultyId: exportFacultyId,
+		yearLabel: exportYearLabel,
 	});
 
 	const handleSimpleExport = async (kind: SimpleExportKind) => {
@@ -450,6 +458,7 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 							needsTerm={context.termFilter === 'all'}
 							exportingKind={exportingKind}
 							onExport={(kind) => { void handleSimpleExport(kind); }}
+							onOpenPresentationSettings={() => setPresentationSettingsOpen(true)}
 						/>
 					) : null}
 
@@ -491,6 +500,16 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				onRetry={(kind) => { void handleSimpleExport(kind); }}
 				onDismiss={() => setExportError(null)}
 			/>
+
+			{hasGeneratedRun ? (
+				<ExportPresentationSettingsDialog
+					schoolId={context.schoolId}
+					schoolYearId={context.schoolYearId}
+					yearLabel={exportYearLabel}
+					open={presentationSettingsOpen}
+					onOpenChange={setPresentationSettingsOpen}
+				/>
+			) : null}
 
 			{/* Secondary row: hidden-row status controls (only when applicable) */}
 			{(context.policyAlignmentWarning || context.hiddenRowCount > 0) && (

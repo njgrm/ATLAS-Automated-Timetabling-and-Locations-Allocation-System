@@ -28,7 +28,24 @@ export type SimpleExportTarget = {
 	runId: number | null;
 	termFilter: 'all' | number;
 	facultyId?: number | null;
+	/**
+	 * C05 T9/M18 — persisted school-year label (e.g. `2026-2027`). The filename
+	 * token must match the server `exportFileStem` exactly, degrading to
+	 * `SY-UNLABELED` when no persisted label exists rather than fabricating one.
+	 */
+	yearLabel?: string | null;
 };
+
+/** Mirrors the server `exportFileStem` year token byte-for-byte. */
+function exportYearToken(yearLabel: string | null | undefined): string {
+	const value = (yearLabel ?? '').trim();
+	return value.length > 0 ? `SY${value.replace(/[^a-zA-Z0-9-]/g, '')}` : 'SY-UNLABELED';
+}
+
+/** Mirrors the server `exportFileStem` entity token byte-for-byte. */
+function exportEntityToken(entity: string): string {
+	return entity.replace(/[^a-zA-Z0-9]/g, '_');
+}
 
 function isResolvedTermIndex(termFilter: 'all' | number): termFilter is number {
 	return typeof termFilter === 'number'
@@ -55,12 +72,13 @@ export function resolveSimpleExportRequest(
 	const term = target.termFilter;
 	const base = `/api/v1/generation/${schoolId}/${schoolYearId}/runs/${runId}/export`;
 	const termParam = `termIndex=${term}`;
+	const yearToken = exportYearToken(target.yearLabel);
 
 	if (kind === 'summary-teacher-schedule') {
 		return {
 			kind,
 			url: `${base}/summary-teacher-schedule.xlsx?${termParam}`,
-			filename: `summary-teacher-schedule-run-${runId}-term${term}.xlsx`,
+			filename: `summary-teacher-schedule-${yearToken}-term${term}.xlsx`,
 			termIndex: term,
 		};
 	}
@@ -69,7 +87,7 @@ export function resolveSimpleExportRequest(
 		return {
 			kind,
 			url: `${base}/class-program.xlsx?${termParam}`,
-			filename: `class-program-run-${runId}-term${term}.xlsx`,
+			filename: `class-program-${yearToken}-term${term}.xlsx`,
 			termIndex: term,
 		};
 	}
@@ -79,7 +97,7 @@ export function resolveSimpleExportRequest(
 	return {
 		kind,
 		url: `${base}/teacher-program.docx?facultyId=${encodeURIComponent(String(facultyId))}&${termParam}`,
-		filename: `teacher-program-${facultyId}-term${term}.docx`,
+		filename: `teacher-program-${exportEntityToken(String(facultyId))}-${yearToken}-term${term}.docx`,
 		termIndex: term,
 	};
 }
@@ -98,7 +116,7 @@ export type SimpleExportDispatchDeps = {
  * "All terms" selection can never send an official all-term request.
  */
 export async function dispatchSimpleExport(
-	descriptor: SimpleExportDescriptor | null,
+	descriptor: { url: string; filename: string } | null,
 	deps: SimpleExportDispatchDeps = {},
 ): Promise<'downloaded' | 'skipped'> {
 	if (!descriptor) return 'skipped';

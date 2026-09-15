@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { withDataContext } from '../lib/data-context.js';
-import { buildEntryGrid, exportClassProgramWorkbook } from '../services/workbook-export.service.js';
+import { buildEntryGrid, exportClassProgramWorkbook, EXPORT_FIRST_BLOCK_ROW } from '../services/workbook-export.service.js';
 import { generateClassProgramMatrix } from '../services/class-program-matrix.service.js';
 import { buildTimetableShapeContract, constructBaseline } from '../services/schedule-constructor.js';
 import { getExpectedCanonicalSlots } from '../services/class-program-slot.service.js';
@@ -120,6 +120,7 @@ function cellText(sheet: any, row: number, col: number): string {
  */
 function makeFakeWorkbook() {
 	const sheets = new Map<string, any>();
+	const merges: Array<[number, number, number, number]> = [];
 	const workbook: any = {
 		creator: '',
 		worksheets: [] as any[],
@@ -128,6 +129,7 @@ function makeFakeWorkbook() {
 			const sheet: any = {
 				name,
 				columns: [] as any[],
+				pageSetup: undefined as any,
 				getRow: (index: number) => {
 					let row = rows.get(index);
 					if (!row) {
@@ -144,6 +146,9 @@ function makeFakeWorkbook() {
 					}
 					return row;
 				},
+				mergeCells: (top: number, left: number, bottom: number, right: number) => {
+					merges.push([top, left, bottom, right]);
+				},
 			};
 			sheets.set(name, sheet);
 			workbook.worksheets.push(sheet);
@@ -151,7 +156,7 @@ function makeFakeWorkbook() {
 		},
 		xlsx: { writeBuffer: async () => Buffer.from('fake-xlsx') },
 	};
-	return { workbook, sheets };
+	return { workbook, sheets, merges };
 }
 
 // ─── 1. buildEntryGrid keeps weekday in the key ───
@@ -172,6 +177,12 @@ test('buildEntryGrid separates same-interval Monday and Tuesday sessions and ret
 });
 
 // ─── 2. Class program layout executes through the real production loop ───
+
+// C05 T4/M9 layout contract: identity row, adviser row, header row, then data.
+// The block begins at EXPORT_FIRST_BLOCK_ROW, so the weekday header is two rows
+// below it and the first data row is one below the header.
+const HEADER_ROW = EXPORT_FIRST_BLOCK_ROW + 2;
+const FIRST_DATA_ROW = HEADER_ROW + 1;
 
 async function renderClassProgram(entries: Entry[], opts: { termIndex?: number; summary?: Record<string, unknown> } = {}) {
 	const client = makeClient(entries, opts);
@@ -194,16 +205,20 @@ test('class-program layout emits per-section weekday columns with exact per-day 
 		{ entryId: 'wed-ap', sectionId: 701, subjectId: 13, facultyId: 501, roomId: 601, day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
 	]);
 	assert.deepEqual(
-		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, 5, col)),
-		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+		[1, 2, 3, 4, 5, 6, 7, 8].map((col) => cellText(sheet, HEADER_ROW, col)),
+		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'TEACHER'],
 	);
-	assert.equal(cellText(sheet, 6, 1), '6:00 AM-6:45 AM');
-	assert.equal(sheet.getRow(6).getCell(2).value, 45);
-	assert.match(cellText(sheet, 6, 3), /^Mathematics\nDela Cruz, Juan$/);
-	assert.match(cellText(sheet, 6, 4), /^Science\nSantos, Maria$/);
-	assert.match(cellText(sheet, 6, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
-	assert.equal(cellText(sheet, 6, 6), '');
-	assert.equal(cellText(sheet, 6, 7), '');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 1), '6:00 AM-6:45 AM');
+	assert.equal(sheet.getRow(FIRST_DATA_ROW).getCell(2).value, 45);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 3), /^Mathematics\nDela Cruz, Juan$/);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 4), /^Science\nSantos, Maria$/);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 6), '');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 7), '');
+	// T4/M9 — dedicated TEACHER column carries day-tagged attribution when the
+	// weekdays differ (Mon Dela Cruz, Tue Santos, Wed Dela Cruz).
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 8), /Dela Cruz, Juan/);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 8), /Santos, Maria/);
 });
 
 test('class-program layout is Monday-scoped for flag events and term-scoped for rotation', async () => {
@@ -214,15 +229,15 @@ test('class-program layout is Monday-scoped for flag events and term-scoped for 
 			{ startTime: '06:00', endTime: '06:45' },
 		] } },
 	);
-	assert.equal(cellText(flagSheet, 6, 3), 'FLAG CEREMONY', 'Monday shows the flag event');
-	assert.match(cellText(flagSheet, 6, 4), /^Mathematics\n/, 'Tuesday first period stays teachable');
+	assert.equal(cellText(flagSheet, FIRST_DATA_ROW, 3), 'FLAG CEREMONY', 'Monday shows the flag event');
+	assert.match(cellText(flagSheet, FIRST_DATA_ROW, 4), /^Mathematics\n/, 'Tuesday first period stays teachable');
 
 	const termSheet = await renderClassProgram([
 		{ entryId: 't1-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1 },
 		{ entryId: 't2-sci', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'MONDAY', startTime: '06:45', endTime: '07:30', durationMinutes: 45, termIndex: 2 },
 	], { termIndex: 2 });
-	assert.equal(cellText(termSheet, 6, 3), '', 'term 1 class is absent from a term 2 layout');
-	assert.match(cellText(termSheet, 7, 3), /^Science\nSantos, Maria$/);
+	assert.equal(cellText(termSheet, FIRST_DATA_ROW, 3), '', 'term 1 class is absent from a term 2 layout');
+	assert.match(cellText(termSheet, FIRST_DATA_ROW + 1, 3), /^Science\nSantos, Maria$/);
 });
 
 test('class-program layout excludes HG/ARAL cells while keeping AP', async () => {
@@ -231,9 +246,9 @@ test('class-program layout excludes HG/ARAL cells while keeping AP', async () =>
 		{ entryId: 'aral', sectionId: 701, subjectId: 98, facultyId: 501, roomId: 601, day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
 		{ entryId: 'ap', sectionId: 701, subjectId: 13, facultyId: 501, roomId: 601, day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
 	]);
-	assert.equal(cellText(sheet, 6, 3), '', 'HG never becomes a cell');
-	assert.equal(cellText(sheet, 6, 4), '', 'ARAL never becomes a cell');
-	assert.match(cellText(sheet, 6, 5), /^Araling Panlipunan\n/, 'AP remains an ordinary subject');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 3), '', 'HG never becomes a cell');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 4), '', 'ARAL never becomes a cell');
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 5), /^Araling Panlipunan\n/, 'AP remains an ordinary subject');
 });
 
 // ─── 2b. Serialized XLSX round-trip (requires a complete exceljs tree) ───
@@ -253,18 +268,19 @@ test('class-program workbook emits per-section weekday columns with exact per-da
 	assert.ok(sheet, 'Grade 7 sheet exists');
 
 	assert.deepEqual(
-		[1, 2, 3, 4, 5, 6, 7].map((col) => cellText(sheet, 5, col)),
-		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
-		'header carries a weekday column per day',
+		[1, 2, 3, 4, 5, 6, 7, 8].map((col) => cellText(sheet, HEADER_ROW, col)),
+		['TIME', 'MINUTES', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'TEACHER'],
+		'header carries a weekday column per day plus the dedicated teacher column',
 	);
-	// Data row 6 is the 06:00-06:45 canonical class slot.
-	assert.equal(cellText(sheet, 6, 1), '6:00 AM-6:45 AM');
-	assert.equal(sheet.getRow(6).getCell(2).value, 45);
-	assert.match(cellText(sheet, 6, 3), /^Mathematics\nDela Cruz, Juan$/);
-	assert.match(cellText(sheet, 6, 4), /^Science\nSantos, Maria$/);
-	assert.match(cellText(sheet, 6, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
-	assert.equal(cellText(sheet, 6, 6), '');
-	assert.equal(cellText(sheet, 6, 7), '');
+	// The first data row is the 06:00-06:45 canonical class slot.
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 1), '6:00 AM-6:45 AM');
+	assert.equal(sheet.getRow(FIRST_DATA_ROW).getCell(2).value, 45);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 3), /^Mathematics\nDela Cruz, Juan$/);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 4), /^Science\nSantos, Maria$/);
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 5), /^Araling Panlipunan\nDela Cruz, Juan$/);
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 6), '');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 7), '');
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 8), /Dela Cruz, Juan/, 'Teacher column carries the teacher identity');
 });
 
 // ─── 3. Monday-only Flag/HGP appears only in Monday ───
@@ -285,9 +301,9 @@ test('class-program workbook renders a Monday-only flag event only in Monday and
 		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, runId: RUN_ID, client,
 	}));
 	const sheet = (await readWorkbook(buffer)).getWorksheet('Grade 7');
-	assert.equal(cellText(sheet, 6, 3), 'FLAG CEREMONY', 'Monday shows the flag event');
-	assert.match(cellText(sheet, 6, 4), /^Mathematics\nDela Cruz, Juan$/, 'Tuesday first period stays a teaching cell');
-	assert.equal(cellText(sheet, 6, 5), '');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 3), 'FLAG CEREMONY', 'Monday shows the flag event');
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 4), /^Mathematics\nDela Cruz, Juan$/, 'Tuesday first period stays a teaching cell');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 5), '');
 });
 
 // ─── 4. Term-selected export never mixes terms ───
@@ -302,8 +318,8 @@ test('class-program workbook selects the matching term subject and teacher witho
 		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, runId: RUN_ID, termIndex: 2, client,
 	}));
 	const sheet = (await readWorkbook(termTwo)).getWorksheet('Grade 7');
-	assert.equal(cellText(sheet, 6, 3), '', 'term 1 class is absent from a term 2 export');
-	assert.match(cellText(sheet, 7, 3), /^Science\nSantos, Maria$/, 'term 2 class is present');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 3), '', 'term 1 class is absent from a term 2 export');
+	assert.match(cellText(sheet, FIRST_DATA_ROW + 1, 3), /^Science\nSantos, Maria$/, 'term 2 class is present');
 
 	// Negative: a run without persisted term identity fails closed.
 	await assert.rejects(
@@ -328,9 +344,76 @@ test('class-program workbook excludes HG and ARAL cells while keeping AP', { ski
 		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, runId: RUN_ID, client,
 	}));
 	const sheet = (await readWorkbook(buffer)).getWorksheet('Grade 7');
-	assert.equal(cellText(sheet, 6, 3), '', 'HG never becomes a cell');
-	assert.equal(cellText(sheet, 6, 4), '', 'ARAL never becomes a cell');
-	assert.match(cellText(sheet, 6, 5), /^Araling Panlipunan\n/, 'AP remains an ordinary subject');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 3), '', 'HG never becomes a cell');
+	assert.equal(cellText(sheet, FIRST_DATA_ROW, 4), '', 'ARAL never becomes a cell');
+	assert.match(cellText(sheet, FIRST_DATA_ROW, 5), /^Araling Panlipunan\n/, 'AP remains an ordinary subject');
+});
+
+// ─── 2c. Class-program T4/M9 layout contract ───
+
+test('class-program layout emits the learner row, merged break bands, daily totals and approval block', async () => {
+	const sheet = await renderClassProgram(
+		[
+			{ entryId: 'mon-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+			{ entryId: 'mon-sci', sectionId: 701, subjectId: 12, facultyId: 502, roomId: 602, day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45 },
+		],
+		{ summary: { timetableDisplaySlots: [
+			{ startTime: '06:00', endTime: '06:45' },
+			{ startTime: '06:45', endTime: '07:30' },
+			{ startTime: '07:30', endTime: '08:15' },
+			{ startTime: '09:00', endTime: '09:15', isSpecialEvent: true, eventName: 'Health Break' },
+		] } },
+	);
+	// Learner/identity row: Grade + Section labels present, learner counts blank.
+	const identityRow = EXPORT_FIRST_BLOCK_ROW;
+	assert.match(cellText(sheet, identityRow, 1), /^GRADE 7 — SECTION: 7-Rizal$/);
+	assert.equal(cellText(sheet, identityRow, 3), 'No. of Learners — MALE:');
+	assert.equal(cellText(sheet, identityRow, 4), '', 'Male count stays blank (no authoritative source)');
+	assert.equal(cellText(sheet, identityRow, 5), 'FEMALE:');
+	assert.equal(cellText(sheet, identityRow, 6), '', 'Female count stays blank');
+	assert.equal(cellText(sheet, identityRow, 7), 'TOTAL:');
+	assert.equal(cellText(sheet, identityRow, 8), '', 'Total count stays blank');
+
+	// Adviser/room/term identity row.
+	assert.equal(cellText(sheet, identityRow + 1, 1), 'ADVISER: Dela Cruz');
+
+	// Break row: the 09:00-09:15 Health Break band is merged across Mon–Fri
+	// (rows: identity 8, adviser 9, header 10, class rows 11-13, break 14).
+	const breakRow = FIRST_DATA_ROW + 3;
+	assert.equal(cellText(sheet, breakRow, 3), 'HEALTH BREAK');
+
+	// Daily totals row: 3 class periods × 45 minutes reconcile exactly.
+	const totalsRow = breakRow + 1;
+	assert.equal(cellText(sheet, totalsRow, 1), 'TOTAL MINUTES PER DAY');
+	assert.equal(sheet.getRow(totalsRow).getCell(2).value, 135);
+	assert.equal(sheet.getRow(totalsRow).getCell(3).value, 135);
+
+	// Approval block after the section block with the contract role labels.
+	const approvalRow = totalsRow + 2;
+	assert.equal(cellText(sheet, approvalRow, 1), 'APPROVAL');
+	assert.deepEqual(
+		[1, 2, 3, 4].map((offset) => cellText(sheet, approvalRow + offset, 1)),
+		['Prepared by:', 'Reviewed by:', 'Recommending Approval:', 'Approved by:'],
+	);
+	assert.equal(cellText(sheet, approvalRow + 5, 1), 'Adviser:');
+});
+
+test('class-program layout merges weekday-agnostic break bands across Mon–Fri', async () => {
+	// C05 M16 — the export now fails closed on an empty selected-term renderable
+	// set, so this geometry control carries one real entry (rows are driven by the
+	// canonical slot structure, not by the entry count).
+	const client = makeClient([
+		{ entryId: 'mon-math', sectionId: 701, subjectId: 11, facultyId: 501, roomId: 601, day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45 },
+	], { summary: { timetableDisplaySlots: [
+		{ startTime: '06:00', endTime: '06:45' },
+		{ startTime: '09:00', endTime: '09:15', isSpecialEvent: true, eventName: 'Health Break' },
+	] } });
+	const { workbook, sheets, merges } = makeFakeWorkbook();
+	await withDataContext(client, () => exportClassProgramWorkbook({
+		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, runId: RUN_ID, client, workbookFactory: () => workbook,
+	}));
+	assert.ok(sheets.get('Grade 7'), 'Grade 7 sheet exists');
+	assert.deepEqual(merges, [[14, 3, 14, 7]], 'the break band merges the five weekday columns');
 });
 
 // ─── 6. Real constructBaseline control for the day-scope gap ───

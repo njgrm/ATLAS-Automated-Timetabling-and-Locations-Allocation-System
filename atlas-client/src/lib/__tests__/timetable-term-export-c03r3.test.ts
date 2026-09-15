@@ -23,22 +23,25 @@ import {
 	type SimpleExportDescriptor,
 } from '../../components/timetable/simple/simpleExportRequests';
 
+// C05 T9/M18 — fixtures use the current official identity
+// `<type>[-<entity>]-SY<year>-term<N>.<ext>` (the retired `*-run-<id>-term<N>`
+// shape would contradict the production resolver and mask a filename regression).
 const SUMMARY: SimpleExportDescriptor = {
 	kind: 'summary-teacher-schedule',
 	url: '/api/v1/generation/7/9/runs/42/export/summary-teacher-schedule.xlsx?termIndex=2',
-	filename: 'summary-teacher-schedule-run-42-term2.xlsx',
+	filename: 'summary-teacher-schedule-SY2026-2027-term2.xlsx',
 	termIndex: 2,
 };
 const CLASS_PROGRAM: SimpleExportDescriptor = {
 	kind: 'class-program',
 	url: '/api/v1/generation/7/9/runs/42/export/class-program.xlsx?termIndex=2',
-	filename: 'class-program-run-42-term2.xlsx',
+	filename: 'class-program-SY2026-2027-term2.xlsx',
 	termIndex: 2,
 };
 const TEACHER_PROGRAM: SimpleExportDescriptor = {
 	kind: 'teacher-program',
 	url: '/api/v1/generation/7/9/runs/42/export/teacher-program.docx?facultyId=502&termIndex=2',
-	filename: 'teacher-program-502-term2.docx',
+	filename: 'teacher-program-502-SY2026-2027-term2.docx',
 	termIndex: 2,
 };
 
@@ -140,5 +143,5 @@ test('C03R3: a successful official export downloads the exact term-bound file', 
 		triggerDownload: (url, filename) => downloads.push({ url, filename }),
 	});
 	assert.equal(outcome, 'downloaded');
-	assert.deepEqual(downloads, [{ url: 'blob:mock', filename: 'class-program-run-42-term2.xlsx' }]);
+	assert.deepEqual(downloads, [{ url: 'blob:mock', filename: 'class-program-SY2026-2027-term2.xlsx' }]);
 });

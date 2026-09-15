@@ -137,9 +137,12 @@ async function resolveSourceRun(
 		// like the reviewed workbook route; never the pre-revision draft JSON.
 		const resolvePublished = params.publishedRunResolver ?? resolvePublishedRun;
 		const published = await resolvePublished(schoolId, schoolYearId);
+		// BENEFICIARY-EXPORT-PARITY-C05 T3/M4 — the published-run identity must
+		// match the requested/selected run. A mismatch fails closed with the same
+		// typed error the workbook path raises, instead of silently returning an
+		// empty matrix for an explicit run or for the latest completed run.
 		if (published.source.runId !== run.id) {
-			if (runId != null) throw new Error('RUN_NOT_FOUND');
-			return null;
+			throw new Error('RUN_NOT_FOUND');
 		}
 		return {
 			runId: run.id,
@@ -210,25 +213,19 @@ export async function generateClassProgramMatrix(
 	// 4. Bind one effective run + selected ordered term.
 	const source = await resolveSourceRun(params);
 	if (!source) {
-		warnings.push('NO_SOURCE_RUN');
-		const mirror = await database.enrollProSchoolYearMirror.findFirst({
-			where: { schoolId, enrollProSchoolYearId: schoolYearId },
-			select: { yearLabel: true },
-		});
-		return {
-			gradeLevel: actualGrade,
-			schoolYear: mirror?.yearLabel ?? String(schoolYearId),
-			sourceRunId: null,
-			termIndex: termIndex ?? null,
-			timeRows,
-			columns: [],
-			warnings,
-		};
+		// BENEFICIARY-EXPORT-PARITY-C05 T3/G7 — never return a 200 header-only
+		// matrix. No bindable completed source run is a typed failure.
+		throw new Error('NO_SOURCE_RUN');
 	}
 
 	const sectionExternalIds = sections.map(s => s.externalId);
 	const allEntries = applyTermFilter(source.entries, termIndex)
 		.filter(e => sectionExternalIds.includes(e.sectionId));
+	if (allEntries.length === 0) {
+		// A completed source run with zero entries for the requested grade/term
+		// is not a valid official output; the caller must see a typed failure.
+		throw new Error('EMPTY_SOURCE_RUN');
+	}
 
 	// 5. Collect unique room and faculty IDs from entries for label maps
 	const roomIds = [...new Set(allEntries.map(e => e.roomId).filter((id): id is number => id != null && id > 0))];

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { getRoomScheduleView } from '../services/room-schedule.service.js';
+import { parseSupportedTermIndex, resolveRequestedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
 
 const router = Router();
 
@@ -52,7 +53,30 @@ router.get(
 				return;
 			}
 
-			const view = await getRoomScheduleView(schoolId, schoolYearId, roomId, source);
+			// C05 T8 — optional selected-term scope for the room read. Omitting it
+			// preserves the existing all-term view; an explicit value is validated
+			// through the verified ordered-term authority and applied strictly.
+			const termIndexRaw = req.query.termIndex;
+			let termIndex: number | undefined;
+			if (termIndexRaw != null && String(termIndexRaw).trim() !== '') {
+				const value = String(termIndexRaw).trim().toLowerCase();
+				const parsed = value === 'active' ? ('active' as const) : parseSupportedTermIndex(value);
+				if (parsed === null) {
+					res.status(400).json({ code: 'INVALID_TERM_INDEX', message: `termIndex must be 1..${MAX_ACADEMIC_TERM_INDEX}, or "active".` });
+					return;
+				}
+				try {
+					termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, parsed);
+				} catch (termError: any) {
+					if (typeof termError?.statusCode === 'number' && typeof termError?.code === 'string') {
+						res.status(termError.statusCode).json({ code: termError.code, message: termError.message });
+						return;
+					}
+					throw termError;
+				}
+			}
+
+			const view = await getRoomScheduleView(schoolId, schoolYearId, roomId, source, termIndex);
 			res.json(view);
 		} catch (e) { next(e); }
 	},

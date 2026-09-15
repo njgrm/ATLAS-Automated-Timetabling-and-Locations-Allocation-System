@@ -89,6 +89,7 @@ export async function getRoomScheduleView(
 	schoolYearId: number,
 	roomId: number,
 	source: { mode: 'LATEST' } | { mode: 'RUN'; runId: number } | { mode: 'DRAFT' },
+	termIndex?: number,
 ): Promise<RoomScheduleView> {
 	// 1) Fetch room with building
 	const room = await prisma.room.findFirst({
@@ -97,8 +98,10 @@ export async function getRoomScheduleView(
 	});
 	if (!room) throw err(404, 'ROOM_NOT_FOUND', `Room ${roomId} not found in school ${schoolId}.`);
 
-	// 2) Fetch policy to build dynamic time slots
-	const policy = await policyService.getOrCreatePolicy(schoolId, schoolYearId);
+	// 2) Fetch policy to build dynamic time slots. C05 T8/G11: use the passive
+	// reader so a read snapshot can never create/normalize a policy row or run
+	// the scheduling-policy DDL/backfill.
+	const policy = await policyService.resolveSchedulingPolicyForRead(schoolId, schoolYearId);
 	const roomSpecialEvents = await prisma.policySpecialEvent.findMany({
 		where: { schoolId, schoolYearId, enabled: true },
 		orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
@@ -219,6 +222,17 @@ export async function getRoomScheduleView(
 		sourceRunId = draft.runId;
 		sourceStatus = draft.status;
 		sourceGeneratedAt = draft.finishedAt ?? draft.createdAt;
+	}
+
+	// 3b) C05 T8 — optional selected-term scope. The strict per-term filter
+	// matches the export paths: a missing term identity on any entry fails
+	// closed, and the selected term never mixes another term's rotation. An
+	// absent termIndex keeps the existing all-term read behavior.
+	if (termIndex !== undefined) {
+		if (roomEntries.some((entry) => (entry as { termIndex?: unknown }).termIndex == null)) {
+			throw err(501, 'TERM_FILTER_NOT_READY', 'Some entries lack a reliable term identity; term-filtered room reads are unavailable.');
+		}
+		roomEntries = roomEntries.filter((entry) => entry.termIndex === termIndex);
 	}
 
 	// 4) Build index: day -> entries[]

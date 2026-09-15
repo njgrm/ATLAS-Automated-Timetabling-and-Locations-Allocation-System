@@ -4,7 +4,7 @@
  * binds every official download to that selected term.
  */
 
-import { AlertTriangle, Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, Download, Loader2, Settings2 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/ui/dropdown-menu';
@@ -60,6 +60,8 @@ type SimpleExportMenuProps = {
 	needsTerm: boolean;
 	exportingKind: SimpleExportKind | null;
 	onExport: (kind: SimpleExportKind) => void;
+	/** C05R1 — opens the editable teacher-program signatory settings editor. */
+	onOpenPresentationSettings?: () => void;
 };
 
 function ExportIcon({ spinning }: { spinning: boolean }) {
@@ -76,6 +78,7 @@ export function SimpleExportMenu({
 	needsTerm,
 	exportingKind,
 	onExport,
+	onOpenPresentationSettings,
 }: SimpleExportMenuProps) {
 	const exporting = exportingKind !== null;
 	return (
@@ -141,6 +144,14 @@ export function SimpleExportMenu({
 							Teacher program (.docx)
 						</DropdownMenuItem>
 					) : null}
+					<DropdownMenuItem
+						className="h-9 gap-2 text-xs"
+						data-testid="timetable-simple-export-signatories"
+						onSelect={(event) => { event.preventDefault(); (onOpenPresentationSettings ?? (() => {}))(); }}
+					>
+						<Settings2 className="size-3.5" aria-hidden="true" />
+						Teacher program signatories…
+					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
 			{needsTerm ? (
