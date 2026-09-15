@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T22:15:08.570Z",
+    "lastUpdatedAt": "2026-09-15T22:22:41.940Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 112
+    "revision": 113
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING, not approval-ready): elevated read-only re-verification SETTLED the launch owner - the ATLAS-Runtime-Supervisor task EXISTS and is Running (SYSTEM, At system start up, action/Start In = D:\\\\ATLAS-runtime-supervised-54dce67b-20260914; calibrated absent control exits 1 'cannot find the file specified'). The planner's earlier absence claim is retracted. Live: release 54dce67b, listeners 13244/13260, previous now NON-NULL, health/readiness/Tailnet 200, rollover disabled, env keyCount 14 with ENROLLPRO_PROXY_ORIGIN, /enrollpro-api/settings/public 404 freshly reproduced. BLOCKING: pre-state volatility (two supervisor restarts at 21:30:14Z and 21:31:04Z plus a preceding Prisma P1001 episode), so any apply must re-run the full preflight in the execution window and bind that pre-state. Directive pin corrected to raw/LF origin/main:AGENTS.md SHA-256 7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3 (the earlier ffd14520 value was computed through a lossy pipeline and is retracted). Awaited: one fresh independent pre-action review of the corrected packet; E8 Appendix A anchor. Term-cache apply, migrations, deployment, restart, login, Teaching Load apply, generation and publication remain LOCKED and NOT granted."
+    "globalNextAction": "TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING, NOT approval-ready; operator escalation). Launch owner SETTLED: ATLAS-Runtime-Supervisor task EXISTS and is Running (SYSTEM, At system start up, Enabled; calibrated absent control exits 1 'cannot find the file specified'). Second fresh pre-action review ses_f58dc165cffe2O0f8WZ5CNFt2k returned CORRECTION_REQUIRED 20/16/3/1 and REFUTED the planner's volatility narrative: the two logged starts (21:30:14.532Z and 21:31:04.221Z) are separated by a HOST REBOOT (LastBootUpTime 2026-09-16 05:30:45 +08) and the second is the ONSTART SYSTEM task run (Last Result 267009), so BOOT-RECOVERY DURABILITY IS PROVEN; the nearest Prisma P1001 was 2026-09-15T20:32:10.523Z, ~58 min earlier in the previous boot session, so the P1001 causality claim is WITHDRAWN. Also confirmed: previous is now NON-NULL, so cli.mjs rollback is reachable and would relaunch the identical release/sourceDir (54dce67b) - not a usable rollback to a prior artifact; the earlier previous=null claim is obsolete. Blocking: the apply-time runtime pre-state must be captured and bound INSIDE the execution window, and the packet's stale sections 2/4/11/11a/11b/12 need the bounded docs-only correction. Direct allocation pin: raw and LF origin/main:AGENTS.md SHA-256 7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3. Per the two-round auditor correction limit this lane is escalated to the operator; NO approval sentence is offered. Term-cache apply, migrations, deployment, restart, login, Teaching Load apply, generation and publication remain LOCKED and NOT granted."
   },
   "streams": [
     {
