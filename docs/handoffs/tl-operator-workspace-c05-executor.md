@@ -9,7 +9,7 @@
 | Frozen tip (incl. this handoff) | see the final tip recorded in the return message |
 | Branch | `work/tl-operator-workspace-c05` |
 | Worktree | `E:/ATLAS-worktrees/tl-operator-workspace-c05` |
-| Range | `0c203423..51800840`, 9 commits, 26 paths, +2740 / −595 |
+| Range | `0c203423..51800840`, 11 commits total (9 product/test + 2 handoff docs), 26 paths, +2740 / −595 |
 | Directive pin | LF-normalized `origin/main:AGENTS.md` SHA-256 `5F9206708A4763376DDA1943C1EAD28F49427ED1B1F0532AD25661F74ED3EBB5` (recomputed from `D:/ATLAS/AGENTS.md`; matched) |
 | Worktree disposition | `RETIRE_AFTER_INTEGRATION` (not retired here) |
 
