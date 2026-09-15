@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T23:02:17.467Z",
+    "lastUpdatedAt": "2026-09-15T23:10:40.093Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 126
+    "revision": 129
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B: QA ACCEPT_READY 17/17/0/0/0; candidate dbf1ed22 integrated at merge 0c2bd1c7 and pushed to origin/main. Next: record the integration and run one fresh Wave Completion Auditor, then close with the receipt. All HIGH actions stay locked and NOT granted: applying prisma/migrations/0002_companion_sso_code or 0003_teacher_program_presentation, deployment/release switch of the supervised 5001/5174 runtime, restart/task/env changes, term-cache catch-up apply, Teaching Load apply, generation, publication, login/browser acceptance, and every companion-repository edit."
+    "globalNextAction": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B: COMPLETE (SOURCE_ONLY). QA ACCEPT_READY 17/17/0/0/0 (ses_f58c1e341ffeQlLBjfIyc7I2t) over base d7743bd8 -> candidate dbf1ed22; integrated at merge 0c2bd1c7 and pushed; Wave Completion Audit AUDIT_CLEAR (ses_f58b48de1ffeOmPgV67ewyC5Ck, 0 blocking findings, F1-F6 non-blocking); closure receipt docs/plans/receipts/export-presentation-schema-guard-c06b.receipt.json (6ccaf7fb...). No integration step remains for this stream. Successor precondition carried from audit F1: any HIGH deployment packet that installs a revision containing prisma/migrations/0003_teacher_program_presentation must regenerate the Prisma client from that revision's own prisma/schema.prisma in the release directory AND assert typeof prisma.teacherProgramPresentationRevision.findFirst === 'function' on the deployed artifact before accepting the teacher-program export acceptance row; otherwise the EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE guard is inert and the official export silently renders blank signature blocks. Awaited elsewhere: AUTHZ-CLASS-TEMPLATE-C07 owns its own open correction round and the stale next-action clause in its register row (audit F2; that stream's field cannot be edited by this planner). All HIGH actions stay locked and NOT granted: applying prisma/migrations/0002_companion_sso_code or 0003_teacher_program_presentation, deployment/release switch of the supervised 5001/5174 runtime, restart/task/env changes, term-cache catch-up apply, Teaching Load apply, generation, publication, login/browser acceptance, and every companion-repository edit."
   },
   "streams": [
     {
@@ -3313,8 +3313,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f58c1e341ffeQlLBjfYIyc7I2t",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f58b48de1ffeOmPgV67ewyC5Ck",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -3346,14 +3346,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/export-presentation-schema-guard-c06b.receipt.json",
+          "sha256": "6ccaf7fba0fa95a81983cf573c567a68a69a52f0dc55fc707a3e39af4b1275d1"
+        }
+      },
       "objective": "Bounded export-presentation schema-guard correction per docs/prompts/export-presentation-schema-guard-c06b-2026-09-16.md: when migration 0003's presentation table (or one of its selected columns) is unavailable, the official teacher-program DOCX export and the mounted presentation settings routes must fail closed with a typed JSON 503 EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE, with no HTML, Prisma error text, stack detail, SQL identifier, or partial document bytes, while a present table still produces the normal DOCX.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T22:58:20.470Z",
-      "nextAction": "Integrated at merge 0c2bd1c7 over origin/main 76b2536f and pushed (origin/main 11cc1a24). Awaiting one fresh read-only Wave Completion Auditor over the integrated tree before the receipt-pinned closure.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T23:10:24.004Z",
+      "nextAction": "Closed COMPLETE with the wave-audited receipt. Source-only: the guard ships with origin/main; migration 0003 apply and every deployment/live action remain locked and NOT granted. Carry audit F1 as a mandatory precondition on the next HIGH deployment packet.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/export-presentation-schema-guard-c06b",
@@ -3391,8 +3394,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f58b48de1ffeOmPgV67ewyC5Ck",
+          "status": "RETURNED",
           "writable": false
         }
       },
