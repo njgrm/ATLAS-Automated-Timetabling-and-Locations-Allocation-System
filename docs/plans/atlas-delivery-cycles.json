@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T18:30:20.926Z",
+    "lastUpdatedAt": "2026-09-15T18:31:26.635Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 97
+    "revision": 98
   },
   "coordination": {
     "mode": "MANUAL",
@@ -2459,7 +2459,7 @@
         }
       },
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T18:30:20.926Z",
+      "stateUpdatedAt": "2026-09-15T18:31:26.635Z",
       "objective": "WF-C05 process hardening: lifecycle-traversal acceptance for every transition and record class, mandatory record-correction disclosure enforcement, predeclared gate classes that cannot be retroactively reclassified, source-only versus live readiness separation, directive rules for producer-to-consumer parity / unknown-value conservation / scope-epoch stale-response protection, and the seven named failing fixtures/mutants.",
       "nextAction": "Closed COMPLETE (SOURCE_ONLY gate plan, 11/11/0/0, AUDIT_CLEAR) with the wave-audited receipt; no live/HIGH action unlocked. The reconfigure/reopen-amend correction transition and the registry parent-delta test are recorded as a disclosed WF-EVAL-C01 successor gap.",
       "awaited": [],
@@ -2476,8 +2476,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "541516e7296acc51ed9d79b7f8632b027e3c3ba2",
-          "observedAt": "2026-09-15T14:21:40.845Z",
+          "sha": "d4bb51cc99a562f8988a68daae1e55a4f9823495",
+          "observedAt": "2026-09-15T18:31:26.635Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
