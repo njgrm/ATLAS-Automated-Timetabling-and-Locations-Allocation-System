@@ -6,7 +6,7 @@ import { buildTeacherProgramExportShape, sortTeacherProgramWorkloadRows } from '
 import { buildPeriodSlots, buildSpecialEventSlots } from '../services/schedule-constructor.js';
 import { loadExportContext } from '../services/workbook-export.service.js';
 
-test('canonical special-event builder defaults schema-shaped FLAG_OR_HGP to Monday and preserves explicit scope', () => {
+test('canonical special-event builder defaults schema-shaped FLAG_OR_HGP to Monday and rejects explicit non-Monday scope (C07-R3)', () => {
 	const base = {
 		maxConsecutiveTeachingMinutesBeforeBreak: 120,
 		minBreakMinutesAfterConsecutiveBlock: 15,
@@ -16,7 +16,9 @@ test('canonical special-event builder defaults schema-shaped FLAG_OR_HGP to Mond
 		specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '07:00', endTime: '07:30', enabled: true }],
 	};
 	assert.equal(buildSpecialEventSlots(base).find((slot) => slot.eventName === 'Flag Ceremony')?.dayOfWeek, 'MONDAY');
-	assert.equal(buildSpecialEventSlots({ ...base, specialEvents: [{ ...base.specialEvents[0], dayOfWeek: 'TUESDAY' }] }).find((slot) => slot.eventName === 'Flag Ceremony')?.dayOfWeek, 'TUESDAY');
+	// C07-R3 (was: "preserves explicit scope"): an explicit non-Monday Flag/HGP
+	// is REJECTED authority, never reinterpreted or rendered as a weekday overlay.
+	assert.equal(buildSpecialEventSlots({ ...base, specialEvents: [{ ...base.specialEvents[0], dayOfWeek: 'TUESDAY' }] }).find((slot) => slot.eventName === 'Flag Ceremony'), undefined);
 });
 
 test('fallback period builder keeps Monday-only flag boundaries available to other weekdays', () => {

@@ -12,6 +12,7 @@ import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots } from './s
 import { effectiveTermsOverlap, entryTermScope } from './effective-scheduled-resources.js';
 import * as policyService from './scheduling-policy.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
+import { isRejectedFlagCeremonyRow, resolveSpecialEventDayOfWeek } from '../lib/policy-special-events.js';
 
 // ─── Constants ───
 
@@ -106,17 +107,21 @@ export async function getRoomScheduleView(
 		where: { schoolId, schoolYearId, enabled: true },
 		orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
 	});
-	const mappedRoomSpecialEvents = roomSpecialEvents.map((se) => ({
-		eventType: se.eventType,
-		label: se.label,
-		startTime: se.startTime,
-		endTime: se.endTime,
-		// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
-		// derived from the canonical event identity (Flag/HGP is Monday-only).
-		dayOfWeek: se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined,
-		gradeGroup: se.gradeGroup,
-		programType: se.programType,
-	}));
+	const mappedRoomSpecialEvents = roomSpecialEvents
+		// R3: use the single shared Flag/HGP identity + day authority. A rejected
+		// (explicit non-Monday) row is never silently re-rendered as Monday.
+		.filter((se) => !isRejectedFlagCeremonyRow(se.eventType, null, se.label))
+		.map((se) => ({
+			eventType: se.eventType,
+			label: se.label,
+			startTime: se.startTime,
+			endTime: se.endTime,
+			// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
+			// derived from the canonical event identity (Flag/HGP is Monday-only).
+			dayOfWeek: resolveSpecialEventDayOfWeek(se.eventType, null, se.label) ?? undefined,
+			gradeGroup: se.gradeGroup,
+			programType: se.programType,
+		}));
 	const specialEventSlots = buildSpecialEventSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,

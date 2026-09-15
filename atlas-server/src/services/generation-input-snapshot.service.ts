@@ -5,10 +5,12 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { getDataContext } from '../lib/data-context.js';
 import { buildDerivedDemand } from './derived-demand.service.js';
 
-export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects' | 'derivedDemand';
+export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects' | 'derivedDemand' | 'availability';
 
-/** DEMAND-C01R2: `derivedDemand` is now a required freshness domain, so the shape is versioned honestly. */
-export const GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION = 2;
+/** DEMAND-C01R2: `derivedDemand` is a required freshness domain, so the shape is versioned honestly.
+ *  GENERATION-AUTHORITY-REALISM-C07 (R7): `availability` is now a required freshness domain —
+ *  a persisted faculty preference / availability edit must change the fingerprint. */
+export const GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION = 3;
 
 const REQUIRED_GENERATION_INPUT_DOMAINS: readonly GenerationInputDomain[] = [
 	'teachingLoad',
@@ -17,6 +19,7 @@ const REQUIRED_GENERATION_INPUT_DOMAINS: readonly GenerationInputDomain[] = [
 	'sections',
 	'subjects',
 	'derivedDemand',
+	'availability',
 ];
 
 export type GenerationInputDomainSnapshot = {
@@ -111,10 +114,13 @@ export function compareGenerationInputSnapshots(
 	}
 
 	if (runSnapshot.schemaVersion !== currentSnapshot.schemaVersion) {
+		// R7: an older run must fail CLOSED as stale, never `FRESH` and never
+		// silently reinterpreted. The distinct `SNAPSHOT_VERSION_MISMATCH` reason is
+		// retained so the UI can explain the version change truthfully.
 		return {
-			status: 'UNKNOWN',
-			message: 'ATLAS cannot compare this run because the input snapshot format changed after it was generated.',
-			actionHint: 'Keep reviewing the current draft, or regenerate when you need a draft checked with the current setup contract.',
+			status: 'STALE',
+			message: 'This draft was generated with an older input snapshot contract, so ATLAS cannot confirm it still matches the current setup.',
+			actionHint: 'Regenerate to bind the current availability, Teaching Load, policy, room, section, and subject contract.',
 			changedDomains: [],
 			checkedAt,
 			runFingerprint: runSnapshot.fingerprint,
@@ -167,6 +173,8 @@ export async function computeGenerationInputSnapshot(
 		subjectAggregate,
 		classTemplateAggregate,
 		classTemplateSubjectAggregate,
+		facultyPreferenceAggregate,
+		preferenceTimeSlotAggregate,
 	] = await Promise.all([
 		client.facultyMirror.aggregate({
 			where: { schoolId, isStale: false },
@@ -226,6 +234,16 @@ export async function computeGenerationInputSnapshot(
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },
 		}),
+		client.facultyPreference.aggregate({
+			where: { schoolId, schoolYearId },
+			_count: { _all: true },
+			_max: { id: true, updatedAt: true },
+		}),
+		client.preferenceTimeSlot.aggregate({
+			where: { facultyPreference: { schoolId, schoolYearId } },
+			_count: { _all: true },
+			_max: { id: true, createdAt: true },
+		}),
 	]);
 	// Exact row-content revision digests close the aggregate max/count blind spot:
 	// any scoped source-row mutation changes at least one domain fingerprint, even
@@ -236,6 +254,7 @@ export async function computeGenerationInputSnapshot(
 		rooms: string;
 		sections: string;
 		subjects: string;
+		availability: string;
 	}>>(`
 		SELECT
 			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
@@ -257,7 +276,11 @@ export async function computeGenerationInputSnapshot(
 				SELECT 'subject' AS "tableName", id, to_jsonb(s.*) AS row FROM subjects s WHERE school_id = $1 AND is_active = true
 				UNION ALL SELECT 'template', id, to_jsonb(t.*) FROM class_templates t WHERE school_id = $1 AND is_active = true
 				UNION ALL SELECT 'binding', cts.id, to_jsonb(cts.*) FROM class_template_subjects cts JOIN class_templates t ON t.id = cts.template_id WHERE t.school_id = $1
-			) x) AS "subjects"
+			) x) AS "subjects",
+			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
+				SELECT 'preference' AS "tableName", p.id, to_jsonb(p.*) AS row FROM faculty_preferences p WHERE p.school_id = $1 AND p.school_year_id = $2
+				UNION ALL SELECT 'slot', s.id, to_jsonb(s.*) FROM preference_time_slots s JOIN faculty_preferences p ON p.id = s.preference_id WHERE p.school_id = $1 AND p.school_year_id = $2
+			) x) AS "availability"
 	`, schoolId, schoolYearId);
 	const exact = exactRows[0];
 	if (!exact) throw new Error('GENERATION_INPUT_EXACT_DIGEST_UNAVAILABLE');
@@ -351,6 +374,15 @@ export async function computeGenerationInputSnapshot(
 			classTemplateSubjectMaxCreatedAt: iso(classTemplateSubjectAggregate._max.createdAt),
 		}),
 		derivedDemand: buildDomainSnapshot(derivedDemandSignals),
+		availability: buildDomainSnapshot({
+			exactRevisionDigest: exact.availability,
+			preferenceCount: facultyPreferenceAggregate._count._all,
+			preferenceMaxId: facultyPreferenceAggregate._max.id,
+			preferenceMaxUpdatedAt: iso(facultyPreferenceAggregate._max.updatedAt),
+			timeSlotCount: preferenceTimeSlotAggregate._count._all,
+			timeSlotMaxId: preferenceTimeSlotAggregate._max.id,
+			timeSlotMaxCreatedAt: iso(preferenceTimeSlotAggregate._max.createdAt),
+		}),
 	};
 
 	return {

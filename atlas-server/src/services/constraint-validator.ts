@@ -100,6 +100,15 @@ export interface ScheduledEntry {
 		capacityOverflowBypass?: boolean;
 		deferredRoomTypePreference?: boolean;
 		deferredPreferredRoomType?: RoomType;
+		/**
+		 * R5/D-E closed-set deviation reason recorded by the constructor when the
+		 * resolved room authority was not satisfied by a room of its own type.
+		 */
+		roomAuthorityDeviationReason?:
+			| 'HOME_ROOM_CONTRACT'
+			| 'PREFERRED_ROOM_UNUSABLE_NO_COMPATIBLE_ROOM'
+			| 'PREFERRED_ROOM_UNUSABLE_CAPACITY'
+			| 'PREFERRED_ROOM_UNUSABLE_NO_REQUIRED_FEATURES';
 		modularGroupId?: string;
 		modularAssignments?: Array<{
 			termIndex: 1 | 2 | 3 | 4;
@@ -471,49 +480,64 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 	}
 
-	// ── 5) Room/type incompatibility ──
+	// ── 5) Room/type incompatibility (R5: only on genuine preferred-room failure) ──
 	for (const e of ctx.entries) {
 		const room = roomMap.get(e.roomId);
 		const subject = subjectMap.get(e.subjectId);
 		if (!room || !subject) continue;
-		
+
+		// R5/D-E: the resolved authority is the persisted `Subject.preferredRoomType`.
+		// `ROOM_TYPE_MISMATCH` is emitted ONLY when the placed room type does not
+		// satisfy that authority AND the constructor recorded an auditable
+		// `PREFERRED_ROOM_UNUSABLE_*` reason. A satisfied authority and the
+		// documented classroom/home-room contract never emit it. `HARD` is reserved
+		// for an unsatisfied authority with NO recorded reason (a regression signal
+		// that must never occur in accepted fixtures).
+		const deviationReason = e.metadata?.roomAuthorityDeviationReason;
+		const recordedPreferredRoomFailure = deviationReason === 'PREFERRED_ROOM_UNUSABLE_NO_COMPATIBLE_ROOM'
+			|| deviationReason === 'PREFERRED_ROOM_UNUSABLE_CAPACITY'
+			|| deviationReason === 'PREFERRED_ROOM_UNUSABLE_NO_REQUIRED_FEATURES';
+		const documentedHomeRoomContract = deviationReason === 'HOME_ROOM_CONTRACT';
+		const isModularPoolAssignment = e.metadata?.roomAssignmentReason === 'MODULAR_POOL_ASSIGNED';
+
 		// Type match
-		if (room.type !== subject.preferredRoomType) {
-			const deferredRoomTypePreference = e.metadata?.deferredRoomTypePreference === true;
-			const isModularPoolAssignment = e.metadata?.roomAssignmentReason === 'MODULAR_POOL_ASSIGNED';
-			const shouldDeferRoomType = deferredRoomTypePreference || isModularPoolAssignment;
+		if (room.type !== subject.preferredRoomType && !documentedHomeRoomContract) {
+			const shouldDeferRoomType = recordedPreferredRoomFailure
+				|| isModularPoolAssignment
+				|| e.metadata?.deferredRoomTypePreference === true;
 			violations.push({
 				...base,
 				severity: shouldDeferRoomType ? 'SOFT' : 'HARD',
 				code: 'ROOM_TYPE_MISMATCH',
 				message: shouldDeferRoomType
-					? `Entry ${e.entryId}: room ${e.roomId} stays on the section homeroom contract even though subject ${e.subjectId} prefers "${subject.preferredRoomType}".`
-					: `Entry ${e.entryId}: room ${e.roomId} type "${room.type}" does not match subject ${e.subjectId} preferred type "${subject.preferredRoomType}".`,
+					? `Entry ${e.entryId}: room ${e.roomId} uses the documented home-room contract because subject ${e.subjectId} could not use its preferred "${subject.preferredRoomType}" room${deviationReason ? ` (${deviationReason})` : ''}.`
+					: `Entry ${e.entryId}: room ${e.roomId} type "${room.type}" does not match subject ${e.subjectId} preferred type "${subject.preferredRoomType}" and no deviation reason was recorded.`,
 				entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
 				meta: {
 					roomType: room.type,
 					preferredRoomType: subject.preferredRoomType,
 					deferredRoomTypePreference: shouldDeferRoomType,
 					deferredByModularPool: isModularPoolAssignment,
+					roomAuthorityDeviationReason: deviationReason ?? null,
+					attemptedRoomType: subject.preferredRoomType,
+					attemptedCapacity: e.cohortExpectedEnrollment ?? ctx.sectionEnrollment?.get(e.sectionId) ?? null,
 					roomAssignmentReason: e.metadata?.roomAssignmentReason,
 				},
 			});
 		}
 
-		// Feature match
+		// Feature match — same "genuine failure" rule; silent when no features are required.
 		if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
 			const roomFeatures = new Set(room.features || []);
 			const missing = subject.requiredFeatures.filter(f => !roomFeatures.has(f));
 			if (missing.length > 0) {
-				const deferredRoomTypePreference = e.metadata?.deferredRoomTypePreference === true;
-				const isModularPoolAssignment = e.metadata?.roomAssignmentReason === 'MODULAR_POOL_ASSIGNED';
-				const shouldDeferRoomFeatures = deferredRoomTypePreference || isModularPoolAssignment;
+				const shouldDeferRoomFeatures = isModularPoolAssignment || e.metadata?.deferredRoomTypePreference === true;
 				violations.push({
 					...base,
 					severity: shouldDeferRoomFeatures ? 'SOFT' : 'HARD',
 					code: 'ROOM_FEATURE_MISMATCH',
 					message: shouldDeferRoomFeatures
-						? `Entry ${e.entryId}: room ${e.roomId} remains on the section homeroom contract without required specialist features: ${missing.join(', ')}.`
+						? `Entry ${e.entryId}: room ${e.roomId} remains on the documented home-room contract without required specialist features: ${missing.join(', ')}.`
 						: `Entry ${e.entryId}: room ${e.roomId} lacks required features: ${missing.join(', ')}.`,
 					entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
 					meta: {
@@ -522,6 +546,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						missing,
 						deferredRoomTypePreference: shouldDeferRoomFeatures,
 						deferredByModularPool: isModularPoolAssignment,
+						roomAuthorityDeviationReason: deviationReason ?? null,
 						roomAssignmentReason: e.metadata?.roomAssignmentReason,
 					},
 				});

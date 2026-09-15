@@ -25,7 +25,7 @@ function requireDisposableTarget(): void {
 function snapshot(schoolId: number, schoolYearId: number, fingerprint = 'fixture-input-v1'): GenerationInputSnapshot {
 	const domain = { fingerprint: 'fixture-domain-v1', signals: {} };
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		schoolId,
 		schoolYearId,
 		computedAt: NOW.toISOString(),
@@ -37,6 +37,7 @@ function snapshot(schoolId: number, schoolYearId: number, fingerprint = 'fixture
 			sections: domain,
 			subjects: domain,
 			derivedDemand: domain,
+			availability: domain,
 		},
 	};
 }

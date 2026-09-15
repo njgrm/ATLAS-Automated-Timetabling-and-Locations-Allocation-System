@@ -27,7 +27,14 @@ import {
 	matchesSubjectOwnershipDepartment,
 } from './subject-ownership.service.js';
 import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
-import { getEffectiveEvents, type SpecialEventRowLike } from '../lib/policy-special-events.js';
+import {
+	getEffectiveEvents,
+	isFlagCeremonyEvent,
+	isRejectedFlagCeremonyRow,
+	resolveFlagCeremonyDayAuthority,
+	resolveSpecialEventDayOfWeek,
+	type SpecialEventRowLike,
+} from '../lib/policy-special-events.js';
 import {
 	evaluateCandidateInvariants,
 	intervalsOverlap,
@@ -242,6 +249,9 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 		if (hasShiftEvents) {
 			// Use shift-specific events for blocked windows
 			for (const evt of policy.specialEvents!) {
+				// R3: an explicit non-Monday Flag/HGP row is rejected authority and
+				// never contributes any window.
+				if (isRejectedFlagCeremonyRow(evt.eventType, evt.dayOfWeek, evt.label)) continue;
 				// A day-scoped event is rendered on that day while the same
 				// time boundary remains a valid class slot for the other
 				// weekdays. FLAG_OR_HGP rows historically omitted dayOfWeek in
@@ -323,12 +333,16 @@ function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
 	if (hasShiftEvents) {
 		// Use shift-specific events directly
 		for (const evt of policy.specialEvents!) {
+			// R3: a Flag/HGP row persisted with an explicit non-Monday day is
+			// rejected authority — it is never rendered as a Wednesday/Thursday
+			// ceremony overlay.
+			if (isRejectedFlagCeremonyRow(evt.eventType, evt.dayOfWeek, evt.label)) continue;
 			events.push({
 				startTime: evt.startTime,
-		endTime: evt.endTime,
-		isSpecialEvent: true,
-		eventName: evt.label,
-				dayOfWeek: evt.dayOfWeek ?? (evt.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined),
+				endTime: evt.endTime,
+				isSpecialEvent: true,
+				eventName: evt.label,
+				dayOfWeek: resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label) ?? undefined,
 			});
 		}
 	} else {
@@ -390,36 +404,52 @@ export interface DayScopedEventWindow {
  * Schema-shaped `FLAG_OR_HGP` rows historically omitted `dayOfWeek`; their
  * canonical contract is Monday. Events without an explicit day and without the
  * Flag/HGP identity (recess, lunch) apply to every weekday.
+ *
+ * Re-exported from the single shared authority in `lib/policy-special-events.ts`
+ * (R3) so every consumer — constructor, room view, published view, preflight —
+ * resolves Flag/HGP identity and day scope identically.
  */
-export function resolveSpecialEventDayOfWeek(
-	eventType: string | null | undefined,
-	dayOfWeek: string | null | undefined,
-	label: string | null | undefined,
-): string | null {
-	const explicitDay = (dayOfWeek ?? '').trim().toUpperCase();
-	if (explicitDay) return explicitDay;
-	const normalizedType = (eventType ?? '').trim().toUpperCase();
-	const normalizedLabel = (label ?? '').trim().toUpperCase();
-	if (normalizedType === 'FLAG_OR_HGP' || normalizedLabel.includes('FLAG')) return 'MONDAY';
-	return null;
-}
+export { resolveSpecialEventDayOfWeek };
 
 /**
  * Day-scoped non-schedulable windows. A Monday-only event must block candidate
  * construction on Monday while leaving the identical interval eligible on every
  * other instructional weekday.
+ *
+ * R3: a Flag/HGP row persisted with an explicit non-Monday day is REJECTED
+ * authority. It is excluded here (no non-Monday day-scoped window, no
+ * non-Monday overlay) so a bypassed preflight cannot silently schedule a
+ * Wednesday/Thursday ceremony.
+ *
+ * R2: when canonical CLASS rows are supplied, the window is snapped to the
+ * single containing CLASS row (the underlying advisory-section period) so the
+ * overlay occupies exactly that period. A window that no canonical CLASS row
+ * contains — or that more than one contains — yields no synthesized window;
+ * the preflight reports the typed `FLAG_CEREMONY_SCOPE_INVALID` blocker.
  */
-export function buildDayScopedEventWindows(policy?: PolicyInput): DayScopedEventWindow[] {
+export function buildDayScopedEventWindows(
+	policy?: PolicyInput,
+	canonicalClassRows?: Array<{ startTime: string; endTime: string }>,
+): DayScopedEventWindow[] {
 	if (!policy) return [];
 	const windows: DayScopedEventWindow[] = [];
 	const hasShiftEvents = policy.specialEvents && policy.specialEvents.length > 0;
 	if (hasShiftEvents) {
 		for (const evt of policy.specialEvents!) {
-			const day = resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label);
+			const flagAuthority = resolveFlagCeremonyDayAuthority(evt.eventType, evt.dayOfWeek, evt.label);
+			if (flagAuthority.explicitNonMonday) continue;
+			const day = flagAuthority.day ?? resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label);
 			if (!day) continue;
-			windows.push({ day, startTime: evt.startTime, endTime: evt.endTime, label: evt.label });
+			const snapped = flagAuthority.day ? resolveContainingClassRow(canonicalClassRows, evt.startTime, evt.endTime) : undefined;
+			if (flagAuthority.day && canonicalClassRows && canonicalClassRows.length > 0 && !snapped) continue;
+			windows.push({
+				day,
+				startTime: snapped?.startTime ?? evt.startTime,
+				endTime: snapped?.endTime ?? evt.endTime,
+				label: evt.label,
+			});
 		}
-	} else if (policy.enableFlagCeremony ?? true) {
+	} else if ((policy.enableFlagCeremony ?? true) && !(canonicalClassRows && canonicalClassRows.length > 0)) {
 		windows.push({
 			day: 'MONDAY',
 			startTime: policy.flagCeremonyStartTime ?? '07:00',
@@ -428,6 +458,26 @@ export function buildDayScopedEventWindows(policy?: PolicyInput): DayScopedEvent
 		});
 	}
 	return windows;
+}
+
+/**
+ * The single canonical CLASS row that fully contains `[startTime, endTime]`.
+ * Returns `undefined` when zero or more than one CLASS row contains the window,
+ * which callers treat as unresolved authority (never synthesize an interval).
+ */
+export function resolveContainingClassRow(
+	classRows: Array<{ startTime: string; endTime: string }> | undefined,
+	startTime: string,
+	endTime: string,
+): { startTime: string; endTime: string } | undefined {
+	if (!classRows || classRows.length === 0) return undefined;
+	const windowStart = timeToMinutes(startTime);
+	const windowEnd = timeToMinutes(endTime);
+	if (windowEnd <= windowStart) return undefined;
+	const containing = classRows.filter(
+		(row) => timeToMinutes(row.startTime) <= windowStart && timeToMinutes(row.endTime) >= windowEnd,
+	);
+	return containing.length === 1 ? containing[0] : undefined;
 }
 
 export function isIntervalBlockedByDayScopedEvent(
@@ -524,15 +574,38 @@ export function buildTimetableShapeContract(input: {
 				isSpecialEvent: true,
 				eventName: row.subjectLabel ?? undefined,
 			}))
+	// R2/R3: the Monday Flag/HGP overlay is an OVERLAY on the underlying
+	// advisory-section period. Its interval must equal the single canonical CLASS
+	// row that contains the persisted window; it never creates a second interval,
+	// an extra period slot, extra minutes, or extra demand. A Flag/HGP row with an
+	// explicit non-Monday day is rejected authority and is dropped here so a
+	// bypassed preflight cannot render a Wednesday/Thursday ceremony.
+	const canonicalFlagIntervals = new Set(
+		canonicalRows
+			.filter((row) => isFlagCeremonyEvent(null, row.subjectLabel))
+			.map((row) => `${row.startTime}-${row.endTime}`),
+	);
 	const policyFlagSlots = effectiveSpecialEvents
-		.filter((event) => event.eventType === 'FLAG_OR_HGP' || /FLAG CEREMONY/i.test(event.label))
-		.map((event) => ({
-			startTime: event.startTime,
-			endTime: event.endTime,
-			isSpecialEvent: true,
-			eventName: event.label,
-			dayOfWeek: event.dayOfWeek ?? 'MONDAY',
-		}));
+		.filter((event) => isFlagCeremonyEvent(event.eventType, event.label))
+		.filter((event) => !isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek, event.label))
+		.flatMap((event) => {
+			const snapped = hasCanonicalRows
+				? resolveContainingClassRow(canonicalClassRows, event.startTime, event.endTime)
+				: undefined;
+			// Never synthesize an overlay interval that no canonical row defines.
+			if (hasCanonicalRows && !snapped) return [];
+			const startTime = snapped?.startTime ?? event.startTime;
+			const endTime = snapped?.endTime ?? event.endTime;
+			if (canonicalFlagIntervals.has(`${startTime}-${endTime}`)) return [];
+			return [{
+				startTime,
+				endTime,
+				isSpecialEvent: true,
+				eventName: event.label,
+				dayOfWeek: 'MONDAY',
+			}];
+		})
+		.slice(0, 1);
 	const specialEventSlots = hasCanonicalRows
 		? mergeDisplaySlots(canonicalSpecialEventSlots, policyFlagSlots)
 		: buildSpecialEventSlots(policyForShape);
@@ -742,6 +815,19 @@ export type RoomAssignmentReason =
 	| 'FACULTY_SLOT_UNAVAILABLE'
 	| 'POLICY_SLOT_BLOCKED'
 	| 'FALLBACK_UNRESOLVED';
+
+/**
+ * R5/D-E closed-set deviation vocabulary recorded on an entry when the resolved
+ * room authority was not satisfied by a room of its own type. `HOME_ROOM_CONTRACT`
+ * marks the documented classroom/home-room contract where the authority IS
+ * satisfied; the `PREFERRED_ROOM_UNUSABLE_*` values mark genuine preferred-room
+ * failure and are the ONLY reasons that may raise `ROOM_TYPE_MISMATCH`.
+ */
+export type RoomAuthorityDeviationReason =
+	| 'HOME_ROOM_CONTRACT'
+	| 'PREFERRED_ROOM_UNUSABLE_NO_COMPATIBLE_ROOM'
+	| 'PREFERRED_ROOM_UNUSABLE_CAPACITY'
+	| 'PREFERRED_ROOM_UNUSABLE_NO_REQUIRED_FEATURES';
 
 export type HomeRoomFallbackCause =
 	| 'HOME_ROOM_OCCUPIED'
@@ -1893,18 +1979,16 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
 				const requestedRoomType = item.roomTypePreference;
-				const deferSpecializedRoomTypePreference =
-					useHomeRoomPriority
-					&& item.entryKind === 'SECTION'
-					&& requestedRoomType != null
-					&& requestedRoomType !== 'CLASSROOM';
+				// R4/D-A: no room type is ever inferred and no specialized authority is
+				// silently deferred to a classroom. An unresolvable item reports its
+				// truthful room-resource result.
 				unassignedItems.push({
 					sectionId: item.sectionId,
 					subjectId: item.subjectId,
 					gradeLevel: item.gradeLevel,
 					session: s + 1,
 					reason: 'NO_QUALIFIED_FACULTY',
-					roomAssignmentReason: !deferSpecializedRoomTypePreference && item.roomTypePreference && ['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM'].includes(item.roomTypePreference)
+					roomAssignmentReason: requestedRoomType && SPECIALIZED_ROOM_TYPES.has(requestedRoomType)
 						? 'SPECIALIZED_ROOM_UNAVAILABLE'
 						: 'FALLBACK_UNRESOLVED',
 					facultyId: null,
@@ -2087,20 +2171,40 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				}
 				if (candidates.length === 0) continue;
 
+				// R4/D-A: room authority is data-driven — the resolved authority comes
+				// only from the persisted `Subject.preferredRoomType` (or the cohort's
+				// own `preferredRoomType`). No code path consults the subject code,
+				// name, rotationFamily, weekly minutes, curriculum content, or the
+				// presence of laboratory rooms. The former unconditional
+				// specialized-room deferral (which forced CLASSROOM for any
+				// non-classroom authority under HOME_ROOM_FIRST) is removed.
 				const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;
-				const deferSpecializedRoomTypePreference =
-					useHomeRoomPriority
-					&& item.entryKind === 'SECTION'
-					&& requestedRoomType !== 'CLASSROOM';
-				const effectiveRoomTypePreference = deferSpecializedRoomTypePreference ? 'CLASSROOM' : requestedRoomType;
-				let compatibleRooms = roomsByType.get(effectiveRoomTypePreference) ?? [];
-				const isSpecializedDemand = effectiveRoomTypePreference !== 'CLASSROOM';
+				let compatibleRooms = (roomsByType.get(requestedRoomType) ?? [])
+					.filter((room) => isRoomGradeScopeCompatible(room, item.gradeLevel));
+				const isSpecializedDemand = requestedRoomType !== 'CLASSROOM';
 				let sameZoneStandardRooms: RoomInput[] = [];
 				let broaderStandardRooms: RoomInput[] = [];
+				// R5/D-E: the auditable deviation reason recorded on the entry when a
+				// specialized authority cannot be satisfied by its own room type.
+				let roomAuthorityDeviationReason: RoomAuthorityDeviationReason | undefined;
+
+				const homeRoomAllowed = useHomeRoomPriority
+					&& preferredHomeRoom != null
+					&& preferredHomeRoom.type === 'CLASSROOM'
+					&& !preferredHomeRoom.isSharedFacility
+					&& isRoomGradeScopeCompatible(preferredHomeRoom, item.gradeLevel);
+
+				const featuresOf = (room: RoomInput) => new Set(room.features || []);
+				const requiredFeatures = subject.requiredFeatures ?? [];
 
 				if (!isSpecializedDemand) {
+					// D-A: CLASSROOM authority may use only grade-scope-compatible,
+					// non-shared CLASSROOM teaching rooms plus the section's documented
+					// home room. The old non-classroom "overflow relief" pool is removed:
+					// a capacity/type shortfall is reported truthfully and never absorbed
+					// by a laboratory or other specialist room.
 					compatibleRooms = compatibleRooms.filter(
-						(room) => room.type === 'CLASSROOM' && !room.isSharedFacility && isRoomGradeScopeCompatible(room, item.gradeLevel),
+						(room) => room.type === 'CLASSROOM' && !room.isSharedFacility,
 					);
 
 					if (preferredHomeRoomId != null) {
@@ -2120,11 +2224,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							.slice(0, MAX_CROSS_BUILDING_FALLBACK_ROOMS);
 						sawCrossBuildingFallbackOptions = broaderStandardRooms.length > 0;
 
-						const homeRoomAllowed = preferredHomeRoom != null
-							&& preferredHomeRoom.type === 'CLASSROOM'
-							&& !preferredHomeRoom.isSharedFacility
-							&& isRoomGradeScopeCompatible(preferredHomeRoom, item.gradeLevel);
-						const homeRoomCandidate = homeRoomAllowed ? [preferredHomeRoom] : [];
+						const homeRoomCandidate = homeRoomAllowed ? [preferredHomeRoom!] : [];
 						compatibleRooms = [...homeRoomCandidate, ...sameZoneStandardRooms, ...broaderStandardRooms];
 
 						if (homeRoomCandidate.length === 0 && sameZoneStandardRooms.length === 0 && broaderStandardRooms.length === 0) {
@@ -2138,28 +2238,44 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 					const hasCapacityCompliantClassroom = compatibleRooms.some((room) => roomCanFitEnrollment(room.capacity, item.enrolledCount));
 					sawCapacityOverflow = compatibleRooms.length > 0 && !hasCapacityCompliantClassroom;
-					if (!hasCapacityCompliantClassroom) {
-						const overflowRooms = teachingRooms
-							.filter((room) => !room.isSharedFacility)
-							.filter((room) => room.type !== 'CLASSROOM')
-							.filter((room) => roomCanFitEnrollment(room.capacity, item.enrolledCount))
-							.filter((room) => isRoomGradeScopeCompatible(room, item.gradeLevel))
-							.sort((left, right) => {
-								const leftZoneMatch = preferredZone != null && (left.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;
-								const rightZoneMatch = preferredZone != null && (right.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;
-								if (leftZoneMatch !== rightZoneMatch) return leftZoneMatch - rightZoneMatch;
-								return left.id - right.id;
-							});
-						compatibleRooms = [...compatibleRooms, ...overflowRooms];
+					roomAuthorityDeviationReason = 'HOME_ROOM_CONTRACT';
+				} else {
+					// Specialized authority: attempt compatible rooms of its own type
+					// first (type, grade scope, capacity, features). Only if none is
+					// usable at the evaluated slot does the documented home-room
+					// contract apply — and the entry must then record the auditable
+					// deviation reason.
+					const specializedRooms = compatibleRooms;
+					const capacityCompliant = specializedRooms.filter((room) =>
+						roomCanFitEnrollment(room.capacity, item.enrolledCount),
+					);
+					const featureCompliant = requiredFeatures.length > 0
+						? capacityCompliant.filter((room) => requiredFeatures.every((feature) => featuresOf(room).has(feature)))
+						: capacityCompliant;
+					if (specializedRooms.length === 0) {
+						roomAuthorityDeviationReason = 'PREFERRED_ROOM_UNUSABLE_NO_COMPATIBLE_ROOM';
+					} else if (capacityCompliant.length === 0) {
+						roomAuthorityDeviationReason = 'PREFERRED_ROOM_UNUSABLE_CAPACITY';
+					} else if (featureCompliant.length === 0) {
+						roomAuthorityDeviationReason = 'PREFERRED_ROOM_UNUSABLE_NO_REQUIRED_FEATURES';
 					}
-				} else if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
-					compatibleRooms = compatibleRooms.filter((room) => {
-						const buildingId = room.buildingId;
-						if (!buildingId) return true;
-						const buildingGradeLevel = buildingGradeMap.get(buildingId);
-						if (buildingGradeLevel === null) return true;
-						return buildingGradeLevel === item.gradeLevel;
-					});
+					sawCapacityOverflow = specializedRooms.length > 0 && capacityCompliant.length === 0;
+					compatibleRooms = featureCompliant.length > 0
+						? featureCompliant
+						: (homeRoomAllowed && preferredHomeRoom ? [preferredHomeRoom] : []);
+					if (compatibleRooms.length === 0 && !roomAuthorityDeviationReason) {
+						roomAuthorityDeviationReason = 'PREFERRED_ROOM_UNUSABLE_NO_COMPATIBLE_ROOM';
+					}
+					if (specializedRooms.length > 0 && buildingGradeMap.size > 0) {
+						const filtered = compatibleRooms.filter((room) => {
+							const buildingId = room.buildingId;
+							if (!buildingId) return true;
+							const buildingGradeLevel = buildingGradeMap.get(buildingId);
+							if (buildingGradeLevel === null) return true;
+							return buildingGradeLevel === item.gradeLevel;
+						});
+						if (filtered.length > 0) compatibleRooms = filtered;
+					}
 				}
 
 				if (compatibleRooms.length === 0) {
@@ -2252,7 +2368,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							if (!invariantVerdict.accepted) continue;
 						}
 
-						if (!deferSpecializedRoomTypePreference && subject.requiredFeatures && subject.requiredFeatures.length > 0) {
+						if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
 							const roomFeatures = new Set(room.features || []);
 							if (!subject.requiredFeatures.every((feature) => roomFeatures.has(feature))) continue;
 						}
@@ -2344,8 +2460,14 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 									fallbackTier,
 									fallbackTrace: preferredHomeRoomId != null ? ['HOME_ROOM', 'SAME_ZONE', 'CROSS_BUILDING'] : undefined,
 									capacityOverflowBypass: capacityOverrideUsedForPlacement || undefined,
-									deferredRoomTypePreference: deferSpecializedRoomTypePreference || undefined,
-									deferredPreferredRoomType: deferSpecializedRoomTypePreference ? requestedRoomType : undefined,
+									// R5/D-E: closed-set auditable reason. A satisfied specialized
+									// authority carries no deviation; a CLASSROOM authority carries
+									// the documented classroom/home-room contract marker; an
+									// unsatisfied specialized authority carries the recorded
+									// PREFERRED_ROOM_UNUSABLE_* reason.
+									roomAuthorityDeviationReason: isSpecializedDemand && room.type === requestedRoomType
+										? undefined
+										: roomAuthorityDeviationReason,
 								},
 						});
 
@@ -2416,12 +2538,11 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				else if (sessionFailureReasons.has('ROOM_CAPACITY_EXCEEDED')) reason = 'ROOM_CAPACITY_EXCEEDED';
 				else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM')) reason = 'NO_COMPATIBLE_ROOM';
 
+				// R4/D-A: the resolved authority is the data-driven room type. There is
+				// no unconditional specialized-room deferral: an unsatisfied
+				// specialized authority is reported as SPECIALIZED_ROOM_UNAVAILABLE.
 				const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;
-				const deferSpecializedRoomTypePreference =
-					useHomeRoomPriority
-					&& item.entryKind === 'SECTION'
-					&& requestedRoomType !== 'CLASSROOM';
-				const isSpecializedDemand = !deferSpecializedRoomTypePreference && SPECIALIZED_ROOM_TYPES.has(requestedRoomType);
+				const isSpecializedDemand = SPECIALIZED_ROOM_TYPES.has(requestedRoomType);
 				const roomAssignmentReason: RoomAssignmentReason = isSpecializedDemand
 					? 'SPECIALIZED_ROOM_UNAVAILABLE'
 					: reason === 'NO_QUALIFIED_FACULTY'
