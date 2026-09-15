@@ -21,6 +21,8 @@ export const VERIFY_CLI = path.join(WORKFLOW_DIR, "verify-cycle.mjs");
 export const RENDER_CLI = path.join(WORKFLOW_DIR, "render-register.mjs");
 export const TRANSITION_CLI = path.join(WORKFLOW_DIR, "transition.mjs");
 export const CHECKPOINT_CLI = path.join(WORKFLOW_DIR, "checkpoint.mjs");
+export const STATUS_CLI = path.join(WORKFLOW_DIR, "status.mjs");
+export const CUSTODY_CLI = path.join(WORKFLOW_DIR, "custody.mjs");
 export const SCHEMA_FILE = path.join(WORKFLOW_DIR, "schema", "cycle-state.schema.json");
 export const REPO_ROOT = path.resolve(WORKFLOW_DIR, "..", "..");
 

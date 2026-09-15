@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.1.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T12:00:04+08:00",
+    "lastUpdatedAt": "2026-09-15T05:33:09.223Z",
     "lastUpdatedBy": "primary-planner",
-    "revision": 12
+    "revision": 15
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -402,6 +402,159 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "the serialized wave requires a fresh adversarial audit after integration"
+        }
+      }
+    },
+    {
+      "id": "WF-C03",
+      "kind": "CYCLE",
+      "objective": "Make local agent operations observable and browser-profile custody exclusive: an atomic bounded heartbeat store, a hook-only OpenCode plugin, truthful session liveness with workflow:status, and an exclusive custody lease that fails closed and never auto-clears uncertain custody.",
+      "riskTier": "MEDIUM",
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T05:33:09.223Z",
+      "nextAction": "Closed COMPLETE; worktree disposition RETIRE_AFTER_INTEGRATION; no HIGH action unlocked.",
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/workflow-observability-c03",
+        "branch": "work/workflow-observability-c03",
+        "baseSha": "53a781a4fdb6e254bd1277c47fcef0700e0e769d",
+        "candidateSha": "5e5476c7622a8edcb182049956bb571a439ba9bf",
+        "integrationSha": "445ab6aac4d6baef6e8bd76fb7f664a9be24ad09",
+        "remoteObservation": null,
+        "changedPaths": [
+          ".opencode/plugins/atlas-observability.ts",
+          "docs/handoffs/wf-c03-executor.md",
+          "ops/workflow/README.md",
+          "ops/workflow/__tests__/compaction-recovery.test.mjs",
+          "ops/workflow/__tests__/custody.test.mjs",
+          "ops/workflow/__tests__/harness.mjs",
+          "ops/workflow/__tests__/liveness-status.test.mjs",
+          "ops/workflow/__tests__/lock-stampede.test.mjs",
+          "ops/workflow/__tests__/observability-atomicity.test.mjs",
+          "ops/workflow/__tests__/observability.test.mjs",
+          "ops/workflow/__tests__/plugin-load.test.mjs",
+          "ops/workflow/__tests__/render-controls.test.mjs",
+          "ops/workflow/__tests__/seed.test.mjs",
+          "ops/workflow/__tests__/transition.test.mjs",
+          "ops/workflow/custody.mjs",
+          "ops/workflow/lib/args.mjs",
+          "ops/workflow/lib/custody.mjs",
+          "ops/workflow/lib/liveness.mjs",
+          "ops/workflow/lib/lock.mjs",
+          "ops/workflow/lib/observability.mjs",
+          "ops/workflow/lib/redact.mjs",
+          "ops/workflow/lib/util.mjs",
+          "ops/workflow/status.mjs",
+          "package.json"
+        ]
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "ses_f5cac23d4ffeiz0IpQLpevwpJY",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": "ses_f5ca6e75effe2AQGIYwrUOqGfi",
+          "status": "RETURNED",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 20,
+        "passed": 20,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f5cac23d4ffeiz0IpQLpevwpJY",
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5ca6e75effe2AQGIYwrUOqGfi",
+        "auditRequired": true
+      },
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "53a781a4fdb6e254bd1277c47fcef0700e0e769d",
+          "candidateSha": "5e5476c7622a8edcb182049956bb571a439ba9bf",
+          "reason": "QA round 1 returned CORRECTION_REQUIRED 20/19/1/0 (F1): an unreadable custody record was conflated with free custody. R1 (c7e4610f) made every custody read discriminate ABSENT/OK/UNREADABLE and fail closed with CUSTODY_UNREADABLE, never auto-clearing uncertain custody. R2 (5e5476c7, planner-directed, test-only) replaced racy reused owner pids with the impossible pid 2147480000 in three fixtures. Fresh round-2 QA ACCEPT_READY 20/20/0/0 on the frozen tip; the docs-only capsule commit 7aa48e22 sits above the frozen product tip.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f5cac23d4ffeiz0IpQLpevwpJY",
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f5ca6e75effe2AQGIYwrUOqGfi"
+        }
+      ],
+      "successors": [
+        {
+          "streamId": "WF-C04",
+          "unlocked": true,
+          "reason": "Register limitation: the transition CLI has no atomic create-stream/record-stream operation, so registering this terminal stream record required a direct machine-state seed edit. WF-C04 shall add atomic create-stream/record-stream support plus an optional redacted read-only custody summary; the local Git-common-dir custody lease remains the sole operational lease authority and transient browser-session ownership must not be committed into machine state."
+        }
+      ],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [
+        {
+          "path": "docs/reviews/workflow-observability-c03/wave-completion-audit.md",
+          "sha256": "0d45028d045065fd0f40507a9f9be3b7ee90ec9aad66804488e9926b55f37638"
+        }
+      ],
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/wf-c03.receipt.json",
+          "sha256": "a5492e00bc34869d9764a941dff35b0e8366e1e72ea0cd849ef896e015750471"
+        }
+      },
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "primary planner owns this lane's integration, closure, and register record"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the lane executor session produced the frozen candidate and its two bounded corrections"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "each candidate requires a fresh independent QA context"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the wave requires a fresh adversarial audit after integration"
         }
       }
     },
