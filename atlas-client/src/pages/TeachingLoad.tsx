@@ -27,6 +27,8 @@ import { TeachingLoadRepairQueue } from '@/components/faculty-assignments/Teachi
 import { TeachingLoadDraftActionBar } from '@/components/faculty-assignments/TeachingLoadDraftActionBar';
 import { TeachingLoadGuidedModePlaceholder } from '@/components/faculty-assignments/TeachingLoadGuidedModePlaceholder';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
+import { TeachingLoadTruthPanel } from '@/components/faculty-assignments/TeachingLoadTruthPanel';
+import { buildTeachingLoadTruthModel } from '@/lib/teaching-load-authority-truth';
 import { useTeachingLoadRepairQueue } from '@/hooks/useTeachingLoadRepairQueue';
 import { useTeachingLoadRouteIntent } from '@/hooks/useTeachingLoadRouteIntent';
 import { RolloverGuidanceCard } from '@/components/runtime/RolloverGuidanceCard';
@@ -587,6 +589,25 @@ export default function TeachingLoad() {
 
 	const departmentOptions = ui.departmentFacetOptions;
 
+	// Canonical truth surface. Every value is derived from the server contracts;
+	// nothing here re-computes demand, policy, or qualification authority.
+	const placeholderFacultyIds = useMemo(
+		() => new Set(data.faculty.filter((member) => member.isPlaceholder).map((member) => member.id)),
+		[data.faculty],
+	);
+	const truthModel = useMemo(
+		() => buildTeachingLoadTruthModel({
+			diagnostics: data.authorityDiagnostics,
+			placeholderFacultyIds,
+			workloadPolicyStatus: data.workloadPolicyStatus,
+		}),
+		[data.authorityDiagnostics, data.workloadPolicyStatus, placeholderFacultyIds],
+	);
+	const truthUnresolvedReasons = useMemo(
+		() => (data.authorityDiagnostics?.unresolvedReasons ?? []).map((reason) => ({ code: reason.code, message: reason.message })),
+		[data.authorityDiagnostics],
+	);
+
 	if (data.error && data.dataSource === 'none') {
 		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
@@ -654,6 +675,17 @@ export default function TeachingLoad() {
 								<RolloverGuidanceCard compact schoolId={data.schoolId} />
 							</div>
 						)}
+
+						{/* Summary-first canonical truth. Details (names, reasons) stay on
+							demand so an older scheduler is never handed a diagnostic wall. */}
+						<div className="shrink-0 px-3 pt-1 lg:px-5 [@media(max-height:640px)]:hidden">
+							<TeachingLoadTruthPanel
+								model={truthModel}
+								loading={data.loading || data.authorityDiagnosticsLoading}
+								sourceRevision={data.authorityDiagnostics?.sourceRevision ?? null}
+								unresolvedReasons={truthUnresolvedReasons}
+							/>
+						</div>
 
 						{/* Phase 4.1: the standalone TeachingLoadTaskGuide is removed.
 							Its "next step" prompt duplicated the repair queue, and its
