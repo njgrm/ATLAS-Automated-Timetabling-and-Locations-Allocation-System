@@ -8,27 +8,37 @@
 `5f9206708a4763376dda1943c1ead28f49427ed1b1f0532ad25661f74ed3ebb5` (blob
 `a372b5b52b4e9e756cb1689abe8689a8edd2d898`) — matches the packet pin.
 **Risk tier:** MEDIUM source/client/tests/docs with a HIGH-class future migration apply (not performed).
+**Mechanically reconciled against git at `a2a6dc35` (2026-09-15 16:30 Asia/Manila).** Every commit SHA/subject, range endpoint and pin, changed-path list and count, suite/gate count, stakeholder/contract hash, and cross-reference in this handoff was re-verified against `git log`/`git diff`/`Get-FileHash` in one pass during QA round 2; the final tip pin lives in the last docs-only commit.
 
 ## 1. Immutable range
 
-| Item | SHA |
+Rebuilt verbatim from `git log --oneline 691a7c4a..HEAD` (one row per commit, exact subject):
+
+| Commit | Subject |
 |---|---|
-| Dispatch base | `076b4b2d` |
+| `076b4b2d` | `docs(exports): carry C05R1 governing packet and teacher-program contract into the candidate range` — dispatch base (not a correction commit) |
+| `e052a564` | `fix(exports): align teacher program with beneficiary schedule authority` |
+| `f1e74b14` | `feat(exports): editable teacher-program signatory settings in the download area` |
+| `c7533e4a` | `test(exports): instrument the draft export zero-write path` |
+| `0b48b1a1` | `fix(exports): state the reference per-day teaching total in the load block` |
+| `a715b84e` | `docs(exports): classify the teacher-program contract and record the C05R1 handoff` |
+| `af2a54f9` | `docs(exports): pin the C05R1 final source candidate SHA in the handoff` |
+| `af3b10a6` | `docs(exports): correct C05R1 handoff path inventory and contract cross-reference` |
+| `a2a6dc35` | `docs(exports): pin the C05R1 QA-round-1 correction tip in the handoff` |
+| Round-2 reconciliation commit | `docs(exports): reconcile the C05R1 handoff against git (QA round 2)` — SHA pinned in the final docs commit |
+
+| Derived pin | Value |
+|---|---|
 | Prior frozen candidate | `691a7c4a` |
-| Correction commit 1 (projection/arithmetic/template/signatory authority + tests/prisma source) | `e052a564` |
-| Correction commit 2 (client signatory editor + API module + client suite) | `f1e74b14` |
-| Correction commit 3 (instrumented draft-export zero-write control) | `c7533e4a` |
-| Correction commit 4 (reference per-day totals convention in the load block) | `0b48b1a1` |
-| Correction commit 5 (contract classification) + 6 (this handoff) | `a715b84e` |
-| Correction commits 7–8 (docs-only QA round 1: F1 path inventory + F2 contract cross-reference/classification, then this pin) | `af3b10a6` + the docs-only pin commit directly above it |
 | Final **source** candidate (last product/test commit) | `0b48b1a1` |
-| Final **tip** (docs-only over the source candidate) | `af3b10a6` (F1/F2 correction) plus the docs-only pin commit directly above it |
-| Cumulative range | `076b4b2d..af3b10a6` (the pin commit above changes only this pin row) |
+| Frozen product/docs state before this docs-only round | `a2a6dc35` |
+| Cumulative range (product + docs) | `076b4b2d..a2a6dc35` |
 | Immutable correction range (prior candidate → source candidate) | `691a7c4a..0b48b1a1` |
+| Final tip pin | lives in the **last docs-only commit** (it changes only the reconciliation-commit row above) |
 
 No amend, rebase, reset, squash, merge, or push. Every commit is additive.
 
-## 2. Changed paths (cumulative `076b4b2d..HEAD`)
+## 2. Changed paths (cumulative `076b4b2d..a2a6dc35`, 20 paths, verified with `git diff --name-status`)
 
 **Server product (5):** `atlas-server/src/services/teacher-program-export.service.ts`,
 `atlas-server/src/services/docx-export.service.ts`,
@@ -41,11 +51,13 @@ No amend, rebase, reset, squash, merge, or push. Every commit is additive.
 `timetable-output-export-c03.test.ts`, `tt-output-c03r-route.test.ts`,
 `tt-output-c05-beneficiary-parity.test.ts`.
 
-_Inventory verified mechanically against `git diff --name-only
-691a7c4a..af2a54f9`: 21 paths (6 server tests). `tt-output-c03r.test.ts` is
+_Inventory verified mechanically against `git diff --name-status
+076b4b2d..a2a6dc35` (20 paths: 10 A / 10 M) and `git diff --name-only
+691a7c4a..af2a54f9` (21 paths, 6 server tests). `tt-output-c03r.test.ts` is
 **not** in the range — its blob is identical at `691a7c4a` and `af2a54f9`
 (`21b3eaf44f4a144682aea48cb97bb26ae02a0a19`); it is listed in §7 only as an
-unchanged regression rerun._
+unchanged regression rerun. `docs/prompts/beneficiary-export-parity-c05r1-teacher-program-correction-2026-09-15.md`
+is not in the cumulative range (it was carried by the dispatch base `076b4b2d`)._
 
 **Client (4 + 1 test):** `components/timetable/simple/exportPresentationApi.ts` (new),
 `components/timetable/simple/ExportPresentationSettingsDialog.tsx` (new),
@@ -218,7 +230,7 @@ assertion.
 | ID | Class | Note |
 |---|---|---|
 | R1 | NON_BLOCKING | Region/division/district identity lines and DepEd/school logo images are absent (no persisted ATLAS source; never invented). SUCCESSOR: EnrollPro branding contract. |
-| R2 | NON_BLOCKING | `001a` page-border corner ornaments and the template's plain (unmerged) break rows differ from the contract-mandated single border and merged bands. Contract wins. |
+| R2 | NON_BLOCKING | The template's decorative page-border corner ornaments and its plain (unmerged) break rows differ from the contract-mandated single page border and merged break bands. Contract wins. |
 | R3 | NON_BLOCKING | Continuation (multi-page) rendering was not exercised: the canonical fixture fits one page. The six-column header is `tableHeader:true`; no fixed-position content. |
 | R4 | NON_BLOCKING | Published/archived signatory binding uses the append-only revision effective at `publishedAt` (immutable revision binding), not a JSON snapshot embedded in the publication record. Meets contract §4.5. |
 | R5 | NON_BLOCKING | Default-printer `Device` port suffix was re-resolved by `SetDefaultPrinter` (`winspool,Ne03:` → `PORTPROMPT:`); the printer name is restored. Environment-only. |
@@ -227,11 +239,13 @@ assertion.
 
 ## 11. `origin/main` drift and predicted integration conflicts
 
-- `origin/main` at handoff: **`9530c7ea7c56febb4a3e31a62fafd0c011944a25`** (advanced from `9b82a98f` at dispatch); branch 25 ahead / 53 behind `84dd537b`.
-- `origin/main` re-verified during the docs-only correction: **`c6d83cb45f11c11ae98d3e3e26787f5341a30945`**; branch 27 ahead / 57 behind `84dd537b`. The merge-base is unchanged at **`84dd537bb2a2c045b8518c35b3a5372142e0080c`**.
-- `origin/main` moved 4 more commits between the handoff and this correction; the overlap lint below was re-run against the newer tip and still holds.
-- Merge-base with this tip: **`84dd537bb2a2c045b8518c35b3a5372142e0080c`**; branch is 25 ahead / 53 behind.
-- Overlap lint (`84dd537b..origin/main` changed paths ∩ my cumulative paths): **no overlapping paths** → predicted same-file merge conflicts: **none**.
+**Single drift snapshot.** The binding boundary is the timestamp below; `origin/main` moves, so any later reading supersedes it.
+
+- As of **2026-09-15 16:30 Asia/Manila** (host TZ Singapore, same UTC+8 offset), fetched `origin/main` = **`c6d83cb45f11c11ae98d3e3e26787f5341a30945`**.
+- Merge-base with this branch = **`84dd537bb2a2c045b8518c35b3a5372142e0080c`**.
+- `git rev-list --left-right --count origin/main...HEAD` measured at `a2a6dc35` = **`57	29`** (57 commits only on `origin/main`; 29 commits only on this branch).
+- This docs-only round adds two commits on this branch and none to `origin/main`, so at the final pin tip the same command reads **`57	31`**.
+- Overlap lint (`git diff --name-only 84dd537b..origin/main` ∩ my cumulative paths) re-run against this snapshot: **no overlapping paths** → predicted same-file merge conflicts: **none**.
 - Remaining risks: (a) both branches add files under `prisma/migrations/` — origin currently has no `0003_*`, so no collision today; (b) `prisma/schema.prisma` and `atlas-server/src/app.ts` are single-site additive edits that union cleanly; (c) `docs/plans/**` on `origin/main` is a WF lane surface this range does not touch.
 
 ## 12. Integration / push / deployment status
@@ -245,7 +259,7 @@ contains no generated render, screenshot, or scratch file.
 
 ## 13. Single next action
 
-Primary planner: verify the immutable range (`076b4b2d..af3b10a6`; product/test
+Primary planner: verify the immutable range (`076b4b2d..a2a6dc35`; product/test
 range `691a7c4a..0b48b1a1`), then commission fresh independent QA on the frozen
 candidate (control 12/13 render evidence and the per-day totals convention are
 the highest-value re-checks). Do not integrate or push from this handoff; the
