@@ -495,6 +495,41 @@ runtime packet. None of them is authorized by this packet.
   The deployment candidate basis is the exact final `origin/main` after Lane B
   integration, as recorded in the cycle register.
 
+## 11b. SUPERSEDING runtime boundary — elevated read-only re-verification (2026-09-16)
+
+The §2 runtime rows are SUPERSEDED by this section (they recorded an unelevated
+enumeration miss and a superseded PID set). Settled facts, from an elevated
+read-only context:
+
+| Item | Verified value |
+|---|---|
+| Scheduled task | `\ATLAS-Runtime-Supervisor` — **EXISTS**, `Status: Running`, `Run As User: SYSTEM`, `Schedule Type: At system start up`, `Scheduled Task State: Enabled`, `Last Run Time: 16/09/2026 5:30:57 am`, `Last Result: 267009`. Durable launch owner ESTABLISHED. |
+| Task action / Start In | `C:\Program Files\nodejs\node.exe "D:\ATLAS-runtime-supervised-54dce67b-20260914\ops\runtime\cli.mjs" start` / `D:\ATLAS-runtime-supervised-54dce67b-20260914`. Calibrated control on the same elevated context: `schtasks /query /tn "ATLAS-NoSuchTask-XYZ" /fo LIST /v` exits **1** with `ERROR: The system cannot find the file specified.`, whereas this task exits **0** with full detail — so absence was never inferable from the earlier `Access is denied`. |
+| Release checkout | `releaseSha=54dce67b8392cbce09aa810813c37f9c87a67159`, `sourceDir=D:\ATLAS-runtime-supervised-54dce67b-20260914`, `productPin=d44f29e04d359ad9b18e4443b0fd4fed1daeaecd` |
+| Listeners / owned PIDs | 5001 -> pid `13244`, 5174 -> pid `13260`, exactly one owner per port; equal to supervisor `ownedPids` |
+| Supervisor state | `state=running`, `startedAt=2026-09-15T17:25:41.742Z`, `updatedAt=2026-09-15T21:31:17.535Z`, and **`previous` is now NON-NULL** (prior running state, ownedPids server `12800` / client `12816`, `updatedAt=2026-09-15T21:30:16.677Z`). The earlier `previous=null` capture is obsolete. |
+| Liveness / readiness | local `GET /api/v1/health` 200 (`{"status":"ok","service":"atlas"}`); `/api/v1/health/ready` 200 (`database: ok`); Tailnet health 200 |
+| Rollover automation | Disabled (`ROLLOVER_AUTO_SYNC_ENABLED=false`, supervisor log) |
+| Durable env | `D:\ATLAS-runtime-config\atlas-server.env`, `keyCount: 14` (not 13), includes `ENROLLPRO_PROXY_ORIGIN` and `ENROLLPRO_API`. Values are never printed, recorded, or quoted. |
+
+**PRE-STATE VOLATILITY — BLOCKING for any HIGH apply.** The supervisor log shows
+two consecutive restarts inside ~50 seconds: `2026-09-15T21:30:14.532Z`
+(server `12800` / client `12816`, healthy `21:30:16.678Z`), then
+`2026-09-15T21:31:04.221Z` (server `13244` / client `13260`, healthy
+`21:31:17.548Z`), preceded by a Prisma `P1001` "Can't reach database server at
+`localhost:5432`" episode. Any apply must therefore re-run the entire §4
+preflight at execution time and bind the pre-state verified in that same window;
+no snapshot in this packet may be treated as the apply-time pre-state.
+
+**Observed, freshly reproduced (2026-09-16):**
+`http://localhost:5001/enrollpro-api/settings/public` returns **404**, not 502.
+Recorded as current, not historical. (Earlier direct-origin
+`https://dev-jegs.buru-degree.ts.net/api/settings/public` remains 200.)
+
+The note immediately below this heading predates the elevated re-verification;
+the preconditions it named are resolved by this section, and §12 remains
+withheld pending one fresh independent pre-action review of this revision.
+
 ## 12. Copy-ready HIGH approval sentence (NOT GRANTED)
 
 **NOT GRANTABLE in the current revision.** The §2 launch-owner row is an
