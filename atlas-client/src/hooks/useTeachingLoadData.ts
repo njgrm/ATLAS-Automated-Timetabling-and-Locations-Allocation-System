@@ -51,6 +51,38 @@ import type {
 } from '@/types';
 
 /**
+ * C-6: the single scope-binding authority shared by every authority feed that
+ * `fetchData` writes (faculty, subjects, sections, assigned-classes, coverage,
+ * policy, the page loading flag, and the C-5 diagnostics read).
+ *
+ * A binding is the resolved scope identity plus the epoch token captured at
+ * dispatch. It is deliberately a plain value, so a reply's currency can be
+ * checked without React effect ordering ever being load bearing.
+ */
+export type ScopeBoundWrite = {
+	scopeRef: { current: string | null };
+	epoch: ScopeEpoch;
+	scopeId: string;
+	token: number;
+};
+
+/** True while `binding` still belongs to the scope in force. */
+export function isScopeCurrent(binding: ScopeBoundWrite): boolean {
+	return binding.scopeRef.current === binding.scopeId && binding.epoch.isCurrent(binding.token);
+}
+
+/**
+ * C-6: apply a sibling authority-feed write only when the dispatching scope is
+ * still the one in force. Returns true when the write was applied; false means an
+ * obsolete-scope reply was discarded and NOTHING was written.
+ */
+export function commitScopeBoundWrite(binding: ScopeBoundWrite, write: () => void): boolean {
+	if (!isScopeCurrent(binding)) return false;
+	write();
+	return true;
+}
+
+/**
  * C-5 (F2-COLD-LOAD). Open a new diagnostics epoch when — and only when — the
  * RESOLVED scope actually changed.
  *
@@ -107,8 +139,8 @@ export async function loadAuthorityDiagnosticsForScope(
 
 	// Open the epoch for the resolved scope BEFORE capturing the token.
 	openDiagnosticsScope(scopeRef, epoch, scopeId);
-	const epochToken = epoch.current;
-	const isCurrent = () => scopeRef.current === scopeId && epoch.isCurrent(epochToken);
+	const binding: ScopeBoundWrite = { scopeRef, epoch, scopeId, token: epoch.current };
+	const isCurrent = () => isScopeCurrent(binding);
 
 	setLoading(true);
 	let outcome: AuthorityDiagnosticsLoadOutcome;
@@ -205,6 +237,10 @@ export function useTeachingLoadData() {
 		let schoolYearId: number | null = null;
 		let resolvedSchoolId: number | null = null;
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
+		// C-6: the scope this fetch is bound to. Null until the actor school/year
+		// resolves; an unresolved fetch is not scope-bound and is never blocked.
+		let scopeBinding: ScopeBoundWrite | null = null;
+		const scopeBindingIsCurrent = () => scopeBinding == null || isScopeCurrent(scopeBinding);
 
 		try {
 			// Actor school first: the authenticated session owns the school scope.
@@ -230,6 +266,19 @@ export function useTeachingLoadData() {
 			yearContextSource = schoolYearContext.source;
 			setActiveTermIndex(schoolYearContext.activeTerm?.termIndex ?? null);
 
+			// C-6: bind this fetch to the resolved scope BEFORE any reply can be
+			// consumed. Opening the epoch here (not in an effect) keeps a cold load
+			// from self-invalidating, and gives every sibling authority feed below a
+			// single currency check so an obsolete reply writes nothing.
+			const resolvedScopeId = `${school}:${schoolYearId}`;
+			openDiagnosticsScope(diagnosticsScopeRef, diagnosticsEpochRef.current, resolvedScopeId);
+			scopeBinding = {
+				scopeRef: diagnosticsScopeRef,
+				epoch: diagnosticsEpochRef.current,
+				scopeId: resolvedScopeId,
+				token: diagnosticsEpochRef.current.current,
+			};
+
 			if (!forceRefresh) {
 				const cachedSummary = getCachedFacultyAssignmentsSummary(school, schoolYearId, {
 					maxAgeMs: 3 * 60 * 1000,
@@ -237,7 +286,7 @@ export function useTeachingLoadData() {
 				const cachedSubjects = getCachedSubjects(school, { maxAgeMs: 3 * 60 * 1000 });
 				const cachedSections = getCachedSectionSummary(school, schoolYearId, { maxAgeMs: 3 * 60 * 1000 });
 
-				if (cachedSummary && cachedSubjects && cachedSections) {
+				if (cachedSummary && cachedSubjects && cachedSections && scopeBindingIsCurrent()) {
 					setActiveSchoolYearId(schoolYearId);
 					setFaculty(cachedSummary.data.faculty);
 					setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
@@ -310,29 +359,35 @@ export function useTeachingLoadData() {
 				contractWarnings: Array.isArray((sectionsRes.data as any)?.contractWarnings) ? (sectionsRes.data as any).contractWarnings : [],
 			};
 
-			setActiveSchoolYearId(schoolYearId);
-			setFaculty(normalizedSummary.faculty);
-			setSavedOwnershipIndex(normalizedSummary.ownershipIndex);
-			setCoverageTotals(normalizedSummary.coverageTotals ?? null);
-			setWorkloadPolicy(normalizedSummary.workloadPolicy ?? null);
-			setWorkloadPolicyStatus(normalizedSummary.workloadPolicyStatus ?? 'UNCONFIGURED');
-			setSubjects(normalizedSubjects);
-			setSectionSummary(normalizedSectionSummary as SectionSummaryResponse);
-			setSectionAssignedClassesIndex(sectionAssignedClassesRes.data);
-			setCachedFacultyAssignmentsSummary(school, schoolYearId, normalizedSummary);
-			setCachedSubjects(school, normalizedSubjects);
-			setCachedSectionSummary(school, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
-			const isUpstreamContext = isUpstreamBackedSchoolYearSource(yearContextSource);
-			const isUpstreamBacked = isUpstreamContext && normalizedSectionSummary.source === 'enrollpro';
-			setDataSource(isUpstreamBacked ? 'live' : 'cached');
-			setDegradedNotice(
-				isUpstreamBacked
-					? null
-					: isUpstreamContext
-					? 'Teaching load context is sourced from ATLAS mirror. EnrollPro connection is active.'
-					: 'Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.',
-			);
-			setError(null);
+			// C-6: an obsolete-scope reply must not write ANY sibling authority feed.
+			// Every setter below (faculty, subjects, sections, assigned-classes,
+			// coverage, policy, dataSource, notice, error) is gated on the scope that
+			// dispatched this request still being the one in force.
+			if (scopeBindingIsCurrent()) {
+				setActiveSchoolYearId(schoolYearId);
+				setFaculty(normalizedSummary.faculty);
+				setSavedOwnershipIndex(normalizedSummary.ownershipIndex);
+				setCoverageTotals(normalizedSummary.coverageTotals ?? null);
+				setWorkloadPolicy(normalizedSummary.workloadPolicy ?? null);
+				setWorkloadPolicyStatus(normalizedSummary.workloadPolicyStatus ?? 'UNCONFIGURED');
+				setSubjects(normalizedSubjects);
+				setSectionSummary(normalizedSectionSummary as SectionSummaryResponse);
+				setSectionAssignedClassesIndex(sectionAssignedClassesRes.data);
+				setCachedFacultyAssignmentsSummary(school, schoolYearId, normalizedSummary);
+				setCachedSubjects(school, normalizedSubjects);
+				setCachedSectionSummary(school, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
+				const isUpstreamContext = isUpstreamBackedSchoolYearSource(yearContextSource);
+				const isUpstreamBacked = isUpstreamContext && normalizedSectionSummary.source === 'enrollpro';
+				setDataSource(isUpstreamBacked ? 'live' : 'cached');
+				setDegradedNotice(
+					isUpstreamBacked
+						? null
+						: isUpstreamContext
+						? 'Teaching load context is sourced from ATLAS mirror. EnrollPro connection is active.'
+						: 'Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.',
+				);
+				setError(null);
+			}
 
 			// Canonical read-only truth surface. Non-fatal by design: a diagnostics
 			// failure must not break the assignment workspace, and it must never be
@@ -362,7 +417,11 @@ export function useTeachingLoadData() {
 			const cachedSubjects = resolvedSchoolId ? getCachedSubjects(resolvedSchoolId) : null;
 			const cachedSections = schoolYearId && resolvedSchoolId ? getCachedSectionSummary(resolvedSchoolId, schoolYearId) : null;
 
-			if (schoolYearId && cachedSummary && cachedSubjects && cachedSections) {
+			// C-6: a superseded fetch must not overwrite or clear the current scope's
+			// state — including its fallback notice, error, and loading flag.
+			if (!scopeBindingIsCurrent()) {
+				// Obsolete scope: the newer fetch owns the workspace state.
+			} else if (schoolYearId && cachedSummary && cachedSubjects && cachedSections) {
 				setActiveSchoolYearId(schoolYearId);
 				setFaculty(cachedSummary.data.faculty);
 				setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
@@ -386,7 +445,9 @@ export function useTeachingLoadData() {
 				setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
 			}
 		} finally {
-			setLoading(false);
+			// C-6: a superseded fetch must not clear a loading flag that now belongs
+			// to the newer fetch for the current scope.
+			if (scopeBindingIsCurrent()) setLoading(false);
 		}
 	}, [isOnline]);
 
