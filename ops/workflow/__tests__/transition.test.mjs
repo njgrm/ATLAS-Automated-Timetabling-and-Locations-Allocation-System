@@ -144,6 +144,8 @@ test("a full closure lifecycle reaches a stable state with one observation and n
     "--qa-verdict", "ACCEPT_READY",
     "--qa-session", "ses-qa-1",
     "--gates", "5/5/0/0/0",
+    "--gates-classes", "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "--gates-plan", "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
   ]);
   assert.equal(qa.status, 0, qa.stdout + qa.stderr);
   doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
@@ -229,6 +231,8 @@ test("an invalid transition for the current state fails closed", () => {
     "qa-verdict": "ACCEPT_READY",
     "qa-session": "ses-qa-1",
     gates: "5/5/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "gates-plan": "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
   });
   assert.equal(result.status, "fail");
   assert.deepEqual(reportCodes(result), ["TRANSITION_INVALID_STATE"]);
@@ -320,6 +324,8 @@ test("a mid-write failure leaves state, render, and receipt byte-identical", () 
           "qa-verdict": "ACCEPT_READY",
           "qa-session": "s",
           gates: "5/5/0/0/0",
+          "gates-classes": "MANDATORY_SOURCE=5/5/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+          "gates-plan": "MANDATORY_SOURCE=5,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
         });
         assert.equal(result.status, "fail", `${fault} must fail`);
         assert.deepEqual(reportCodes(result), ["FAULT_INJECTED"]);
@@ -436,7 +442,7 @@ test("R2-T1 a CYCLE_ACTIVE stream cannot record-integration until coordination m
   const renderPath = path.join(repo.dir, "docs", "plans", "atlas-active-delivery-streams.generated.md");
 
   assert.equal(inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha }).status, "ok");
-  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t1-qa", gates: "13/13/0/0/0" }).status, "ok");
+  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t1-qa", gates: "13/13/0/0/0", "gates-classes": "MANDATORY_SOURCE=13/13/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0", "gates-plan": "MANDATORY_SOURCE=13,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0" }).status, "ok");
 
   const stateBefore = fs.readFileSync(statePath);
   const renderBefore = readOrNull(renderPath);
@@ -463,7 +469,7 @@ test("R2-T2 a CYCLE_ACTIVE stream closes end-to-end once coordination moves", ()
   assert.equal(verified().status, 0, "initial CYCLE_ACTIVE document must verify");
   assert.equal(inProcess(statePath, "record-executor-return", { stream: "ORD-1", "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha }).status, "ok");
   assert.equal(verified().status, 0);
-  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t2-qa", gates: "13/13/0/0/0" }).status, "ok");
+  assert.equal(inProcess(statePath, "record-qa-result", { stream: "ORD-1", "expect-revision": "2", "qa-verdict": "ACCEPT_READY", "qa-session": "ses-r2t2-qa", gates: "13/13/0/0/0", "gates-classes": "MANDATORY_SOURCE=13/13/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0", "gates-plan": "MANDATORY_SOURCE=13,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0" }).status, "ok");
   assert.equal(verified().status, 0);
   assert.equal(inProcess(statePath, "coordination-update", { "expect-revision": "3", mode: "MANUAL" }).status, "ok");
   assert.equal(verified().status, 0);

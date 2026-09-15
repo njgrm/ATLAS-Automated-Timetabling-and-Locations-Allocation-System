@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.1.0",
+  "contractVersion": "1.2.0",
   "registry": {
     "lastUpdatedAt": "2026-09-15T09:21:51.291Z",
     "lastUpdatedBy": "primary-planner",
@@ -111,14 +111,54 @@
         "passed": 23,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 23,
+            "passed": 23,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 23,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f607299e6ffeZkGs0fgBELDS5C",
         "auditorVerdict": "AUDIT_CLEAR",
         "auditorSessionId": "ses_f6061f82effeG93vM9t2z7iqjB",
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f609c69e3ffeBW5SDmOoUA4QCf"
+          },
+          {
+            "round": 2,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f607299e6ffeZkGs0fgBELDS5C"
+          }
+        ]
       },
       "corrections": [
         {
@@ -176,7 +216,7 @@
       "artifacts": [
         {
           "path": "ops/workflow/schema/cycle-state.schema.json",
-          "sha256": "2a1ba1b1586da4dc64d26b82044e19173a718f7eea93392d54ae470d0e4bc5bd"
+          "sha256": "af435c562a42f259e38d9cd919ae6081fc6e02c6718b6ff4500dd86aa71e81e7"
         },
         {
           "path": "docs/handoffs/wf-c01-executor.md",
@@ -328,14 +368,49 @@
         "passed": 25,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 25,
+            "passed": 25,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 25,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF",
         "auditorVerdict": "AUDIT_CLEAR",
         "auditorSessionId": "ses_f5f03ab62ffeVEyJlNSS9Ikiit",
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5f0eb566ffeAE0B0A66kbiNxF"
+          }
+        ]
       },
       "corrections": [
         {
@@ -476,14 +551,49 @@
         "passed": 20,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 20,
+            "passed": 20,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 20,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5cac23d4ffeiz0IpQLpevwpJY",
         "auditorVerdict": "AUDIT_CLEAR",
         "auditorSessionId": "ses_f5ca6e75effe2AQGIYwrUOqGfi",
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5cac23d4ffeiz0IpQLpevwpJY"
+          }
+        ]
       },
       "corrections": [
         {
@@ -637,14 +747,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [],
@@ -776,14 +915,43 @@
         "passed": 16,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 16,
+            "passed": 16,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 16,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": "AUDIT_CLEAR",
         "auditorSessionId": "ses_f5f4a3a0dffeHzUy3g2mM1rlqD",
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [
@@ -914,14 +1082,49 @@
         "passed": 14,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 14,
+            "passed": 14,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 14,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f6030850affeiZPOm2tfO9G3En",
         "auditorVerdict": "AUDIT_CLEAR",
         "auditorSessionId": "ses_f600a4fc2ffe7gph36LvkM5zHj",
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f6030850affeiZPOm2tfO9G3En"
+          }
+        ]
       },
       "corrections": [
         {
@@ -1034,14 +1237,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": false
+        "auditRequired": false,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [],
@@ -1140,14 +1372,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": false
+        "auditRequired": false,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [],
@@ -1206,14 +1467,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": []
       },
       "corrections": [
         {
@@ -1371,14 +1661,49 @@
         "passed": 5,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 5,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5bb25208ffekI4ETTVf3sLYRu",
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5bb25208ffekI4ETTVf3sLYRu"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -1486,14 +1811,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [],
@@ -1621,14 +1975,49 @@
         "passed": 21,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 21,
+            "passed": 21,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 21,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f5c15227cffeaIOVS3mROJmX4R",
         "auditorVerdict": "AUDIT_CLEAR",
         "auditorSessionId": "ses_f5bfbc9a7ffenduP4D1rMNo0AX",
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f5c15227cffeaIOVS3mROJmX4R"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -1746,14 +2135,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [],
@@ -1857,14 +2275,43 @@
         "passed": 0,
         "failed": 0,
         "blocked": 0,
-        "unperformed": 0
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
       },
       "review": {
         "qaVerdict": null,
         "qaSessionId": null,
         "auditorVerdict": null,
         "auditorSessionId": null,
-        "auditRequired": true
+        "auditRequired": true,
+        "qaRounds": []
       },
       "corrections": [],
       "successors": [],

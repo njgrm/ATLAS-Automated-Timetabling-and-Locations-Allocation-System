@@ -44,7 +44,7 @@ Every CLI prints exactly one JSON document with the top-level keys `status`,
 `summary`, `nextActions`, `artifacts`, `errors`. Identical input produces
 byte-identical stdout and byte-identical rendered output.
 
-## Contract (`contractVersion` 1.1.0)
+## Contract (`contractVersion` 1.2.0)
 
 - Schema: `ops/workflow/schema/cycle-state.schema.json` (JSON Schema 2020-12,
   `additionalProperties: false` everywhere). The verifier always loads this file
@@ -113,7 +113,10 @@ Named transitions: `record-executor-return`, `record-correction`,
 planner closure sequence is:
 
 1. `record-executor-return` (derives `changedPaths` from `git diff base...candidate`)
-2. `record-qa-result` (`--qa-verdict`, `--qa-session`, `--gates total/passed/failed/blocked/unperformed`)
+2. `record-qa-result` (`--qa-verdict`, `--qa-session`, `--gates
+   total/passed/failed/blocked/unperformed`, required `--gates-classes
+   MANDATORY_SOURCE=t/p/f/b/u,MANDATORY_LIVE=t/p/f/b/u,DEFERRED_EXTERNAL=t/p/f/b/u`,
+   optional increase-only `--gates-plan CLASS=n,...`)
 3. `coordination-update --mode MANUAL` — **required while the closing stream is the
    active cycle.** If `coordination.activeCycleId` still names the closing stream
    when it moves to `INTEGRATED`/`COMPLETE`, that stream becomes terminal and the
@@ -145,6 +148,8 @@ two optional flags:
 - `--observed-ref <ref>` — defaults to `refs/remotes/origin/main`. The kind is
   derived exactly as `record-remote-observation` derives it:
   `REMOTE_TRACKING_REF` for a `refs/remotes/` ref, otherwise `LOCAL_REF`.
+  Supplying `--observed-ref` **without** `--observed-remote` fails closed with
+  `TRANSITION_OBSERVED_REF_WITHOUT_REMOTE` and writes nothing.
 
 The observed sha **may equal** the integration sha: an observation of the
 integration commit itself is a valid downstream-or-equal snapshot, and the
@@ -157,6 +162,63 @@ the flag the candidate document is rejected with `TRANSITION_RESULT_INVALID`
 `remoteObservation` is `null` integrates without the flag exactly as before, and
 `create-stream`'s storage semantics are unchanged. `record-remote-observation`
 remains the post-integration refresh.
+
+### Predeclared gate classes, QA rounds, and readiness
+
+`streams[].gates` carries a predeclared per-class plan plus the five class
+tallies:
+
+```json
+"gates": {
+  "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0,
+  "plan": { "MANDATORY_SOURCE": 0, "MANDATORY_LIVE": 0, "DEFERRED_EXTERNAL": 0 },
+  "classes": {
+    "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+    "MANDATORY_LIVE":   { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+    "DEFERRED_EXTERNAL":{ "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+  }
+}
+```
+
+- `GATES_ARITHMETIC` requires each top-level counter to equal the sum of the
+  three classes, and each class total to equal its own four counters.
+- `GATE_PLAN_MISMATCH` requires `classes[c].total <= plan[c]` always, and
+  `classes[c].total === plan[c]` at an acceptance/closure claim
+  (`ACCEPT_READY`/`INTEGRATION_READY`/`INTEGRATED`/`COMPLETE`, `qaVerdict
+  ACCEPT_READY`, or `auditorVerdict AUDIT_CLEAR`), so a predeclared gate cannot
+  be quietly deferred or dropped from the arithmetic.
+- `ACCEPT_READY_DIRTY_GATES` requires `gates.total > 0`, a fully passed
+  `MANDATORY_SOURCE` class, and zero failed/blocked `MANDATORY_LIVE` gates.
+  Unperformed `MANDATORY_LIVE` gates are allowed at `ACCEPT_READY` (that is a
+  source-only acceptance).
+- `COMPLETE_MANDATORY_GATES_UNPASSED` additionally requires every
+  `MANDATORY_LIVE` gate to have passed with zero unperformed.
+
+`streams[].review.qaRounds` is a required, bounded (max 24) history of
+`{ round, verdict, sessionId }`. `QA_ROUNDS_INCONSISTENT` requires the rounds to
+be exactly `1..n` with the last round matching `review.qaVerdict`/`qaSessionId`.
+`CORRECTION_NOT_RECORDED` fails an acceptance/closure claim that discloses a
+`CORRECTION_REQUIRED` round with no `corrections[]` round at or after it, and
+`record-qa-result` rejects recording `ACCEPT_READY` after `CORRECTION_REQUIRED`
+without a recorded correction at the current candidate
+(`TRANSITION_CORRECTION_NOT_RECORDED`, zero mutation).
+
+Readiness (`lib/readiness.mjs`) is the single derivation shared by the verifier,
+the renderer's `Readiness` column, and the closure receipt: `SOURCE_ONLY` when no
+`MANDATORY_LIVE` gate was predeclared, `LIVE_PENDING` while any is
+failed/blocked/unperformed, and `LIVE_ACCEPTED` only when all passed. A
+source-only acceptance is never rendered or attested as deployment or live
+readiness. Closure receipts mint `receiptVersion` **1.1.0** with a required
+`verified.readiness`; legacy `1.0.0` receipts remain valid and compare only the
+five gate scalars. A 1.1.0 receipt whose readiness differs from the stream's
+derivation is `RECEIPT_READINESS_MISMATCH`.
+
+`lib/migrate.mjs` upgrades earlier documents deterministically. The 1.1.0 ->
+1.2.0 step synthesizes `gates.plan`/`gates.classes` from the existing gate
+counters (all existing gates become `MANDATORY_SOURCE`, so nothing is fabricated
+or deferred) and `review.qaRounds` from `corrections[]` plus the final review
+verdict, preserving every historical identity and never rewriting receipts. A
+version migration is not a transition: `registry.revision` is unchanged.
 
 `coordination-update` is document-scoped (no `--stream` required) and takes
 `--mode MANUAL|CYCLE_ACTIVE`, `--active-cycle-id <stream-id|null>`, and

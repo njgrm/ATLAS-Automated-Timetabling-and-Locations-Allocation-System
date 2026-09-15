@@ -157,9 +157,9 @@ export function writeJson(filePath, value) {
   return filePath;
 }
 
-export function makeReceipt({ statePathAsGiven, stateBytes, streamId, candidateSha, integrationSha, qaVerdict, auditorVerdict, gates, artifacts }) {
-  return {
-    receiptVersion: "1.0.0",
+export function makeReceipt({ statePathAsGiven, stateBytes, streamId, candidateSha, integrationSha, qaVerdict, auditorVerdict, gates, artifacts, readiness, receiptVersion }) {
+  const receipt = {
+    receiptVersion: receiptVersion || "1.0.0",
     generatedAt: "2026-09-14T02:00:00Z",
     statePath: statePathAsGiven,
     stateSha256: sha256(Buffer.from(stateBytes)),
@@ -174,6 +174,8 @@ export function makeReceipt({ statePathAsGiven, stateBytes, streamId, candidateS
       artifacts: artifacts || [],
     },
   };
+  if (readiness !== undefined) receipt.verified.readiness = readiness;
+  return receipt;
 }
 
 export function writeReceipt(repo, relPath, receipt) {
@@ -216,7 +218,10 @@ export function copyWorkflowToTemp() {
     verifyCli: path.join(dir, "workflow", "verify-cycle.mjs"),
     renderCli: path.join(dir, "workflow", "render-register.mjs"),
     transitionCli: path.join(dir, "workflow", "transition.mjs"),
+    statusCli: path.join(dir, "workflow", "status.mjs"),
     schemaFile: path.join(dir, "workflow", "schema", "cycle-state.schema.json"),
     libRender: path.join(dir, "workflow", "lib", "render.mjs"),
+    libLiveness: path.join(dir, "workflow", "lib", "liveness.mjs"),
+    libReadiness: path.join(dir, "workflow", "lib", "readiness.mjs"),
   };
 }

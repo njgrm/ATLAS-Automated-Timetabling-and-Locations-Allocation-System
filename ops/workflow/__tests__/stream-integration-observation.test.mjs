@@ -59,8 +59,20 @@ function runningSpec(repo, overrides = {}) {
     qa: { sessionId: null, status: "NONE", writable: false },
     auditor: { sessionId: null, status: "NONE", writable: false },
   };
-  spec.gates = { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 };
-  spec.review = { qaVerdict: null, qaSessionId: null, auditorVerdict: null, auditorSessionId: null, auditRequired: false };
+  spec.gates = {
+    total: 0,
+    passed: 0,
+    failed: 0,
+    blocked: 0,
+    unperformed: 0,
+    plan: { MANDATORY_SOURCE: 0, MANDATORY_LIVE: 0, DEFERRED_EXTERNAL: 0 },
+    classes: {
+      MANDATORY_SOURCE: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+      MANDATORY_LIVE: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+      DEFERRED_EXTERNAL: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+    },
+  };
+  spec.review = { qaVerdict: null, qaSessionId: null, auditorVerdict: null, auditorSessionId: null, auditRequired: false, qaRounds: [] };
   spec.git = {
     worktree: null,
     branch: "work/new-1",
@@ -116,6 +128,8 @@ function advanceToAcceptReady(repo, name) {
     "qa-verdict": "ACCEPT_READY",
     "qa-session": "ses-r1-qa",
     gates: "1/1/0/0/0",
+    "gates-classes": "MANDATORY_SOURCE=1/1/0/0/0,MANDATORY_LIVE=0/0/0/0/0,DEFERRED_EXTERNAL=0/0/0/0/0",
+    "gates-plan": "MANDATORY_SOURCE=1,MANDATORY_LIVE=0,DEFERRED_EXTERNAL=0",
   });
   assert.equal(qa.status, "ok", JSON.stringify(qa.errors));
   return statePath;
@@ -266,6 +280,25 @@ test("record-integration rejects malformed, unknown, and non-downstream observat
   }
 });
 
+test("record-integration rejects --observed-ref without --observed-remote with zero mutation", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const statePath = advanceToAcceptReady(repo, "state-ref-without-remote.json");
+  const stateBefore = fs.readFileSync(statePath);
+  const renderBefore = readOrNull(path.join(repo.dir, ...RENDER_REL.split("/")));
+
+  const result = inProcess(statePath, "record-integration", {
+    stream: "NEW-1",
+    "expect-revision": "4",
+    integration: repo.integrationSha,
+    "observed-ref": "refs/heads/main",
+  });
+  assert.equal(result.status, "fail", "a ref without an observed commit id must fail closed");
+  assert.deepEqual(codesOf(result), ["TRANSITION_OBSERVED_REF_WITHOUT_REMOTE"]);
+  assert.deepEqual(fs.readFileSync(statePath), stateBefore, "the rejected integration must not mutate state");
+  assert.deepEqual(readOrNull(path.join(repo.dir, ...RENDER_REL.split("/"))), renderBefore, "the rejected integration must not mutate the render");
+});
+
 test("--observed-remote is not applicable to other transitions", (t) => {
   const repo = createTempRepo();
   t.after(() => cleanupRepo(repo.dir));
@@ -299,8 +332,27 @@ test("a stream whose observation is null still integrates without the flag", (t)
       qa: { sessionId: null, status: "NONE", writable: false },
       auditor: { sessionId: null, status: "NONE", writable: false },
     };
-    d.streams[0].gates = { total: 2, passed: 2, failed: 0, blocked: 0, unperformed: 0 };
-    d.streams[0].review = { qaVerdict: "ACCEPT_READY", qaSessionId: "ses-existing-qa", auditorVerdict: null, auditorSessionId: null, auditRequired: false };
+    d.streams[0].gates = {
+      total: 2,
+      passed: 2,
+      failed: 0,
+      blocked: 0,
+      unperformed: 0,
+      plan: { MANDATORY_SOURCE: 2, MANDATORY_LIVE: 0, DEFERRED_EXTERNAL: 0 },
+      classes: {
+        MANDATORY_SOURCE: { total: 2, passed: 2, failed: 0, blocked: 0, unperformed: 0 },
+        MANDATORY_LIVE: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+        DEFERRED_EXTERNAL: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+      },
+    };
+    d.streams[0].review = {
+      qaVerdict: "ACCEPT_READY",
+      qaSessionId: "ses-existing-qa",
+      auditorVerdict: null,
+      auditorSessionId: null,
+      auditRequired: false,
+      qaRounds: [{ round: 1, verdict: "ACCEPT_READY", sessionId: "ses-existing-qa" }],
+    };
     d.streams[0].git = {
       worktree: null,
       branch: "work/ordinary",

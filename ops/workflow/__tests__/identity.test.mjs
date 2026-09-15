@@ -130,7 +130,7 @@ test("migration preserves every historical identity and drops the ambiguous scal
   const { doc, changed, changes } = migrateStateDocument(legacy);
   assert.equal(changed, true);
   assert.ok(changes.length > 0);
-  assert.equal(doc.contractVersion, "1.1.0");
+  assert.equal(doc.contractVersion, "1.2.0");
   assert.equal(doc.registry.revision, 1);
   assert.deepEqual(doc.leases, []);
   const gitBlock = doc.streams[0].git;

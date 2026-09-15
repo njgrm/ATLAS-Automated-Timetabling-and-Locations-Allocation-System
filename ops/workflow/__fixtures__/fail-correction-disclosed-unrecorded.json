@@ -1,0 +1,91 @@
+{
+  "contractVersion": "1.2.0",
+  "registry": {
+    "lastUpdatedAt": "2026-09-15T09:05:00+08:00",
+    "lastUpdatedBy": "fixture",
+    "revision": 1
+  },
+  "coordination": {
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": null
+  },
+  "streams": [
+    {
+      "id": "CD-1",
+      "kind": "STREAM",
+      "objective": "A disclosed CORRECTION_REQUIRED QA round with an empty corrections trail.",
+      "riskTier": "MEDIUM",
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-15T09:05:00+08:00",
+      "nextAction": null,
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": "work/cd-1",
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
+      },
+      "owners": {
+        "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+        "executor": { "sessionId": null, "status": "RETURNED", "writable": false },
+        "qa": { "sessionId": "ses-qa-2", "status": "RETURNED", "writable": false },
+        "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+      },
+      "gates": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": { "MANDATORY_SOURCE": 2, "MANDATORY_LIVE": 0, "DEFERRED_EXTERNAL": 0 },
+        "classes": {
+          "MANDATORY_SOURCE": { "total": 2, "passed": 2, "failed": 0, "blocked": 0, "unperformed": 0 },
+          "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+          "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+        }
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses-qa-2",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": [
+          { "round": 1, "verdict": "CORRECTION_REQUIRED", "sessionId": "ses-qa-1" },
+          { "round": 2, "verdict": "ACCEPT_READY", "sessionId": "ses-qa-2" }
+        ]
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" },
+        "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" },
+        "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" },
+        "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }
+      }
+    }
+  ],
+  "leases": [],
+  "browserCustody": { "profiles": [], "logins": [] }
+}

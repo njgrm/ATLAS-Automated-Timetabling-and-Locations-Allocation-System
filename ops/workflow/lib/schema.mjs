@@ -26,6 +26,7 @@ export const SUPPORTED_KEYWORDS = new Set([
   "pattern",
   "items",
   "minItems",
+  "maxItems",
   "minimum",
   "maximum",
   "minLength",
@@ -150,6 +151,9 @@ export function validateValue(schema, value, valuePath, root, errors) {
   if (Array.isArray(value)) {
     if (typeof schema.minItems === "number" && value.length < schema.minItems) {
       errors.push({ code: "SCHEMA_MIN_ITEMS", message: `array shorter than ${schema.minItems}`, path: valuePath });
+    }
+    if (typeof schema.maxItems === "number" && value.length > schema.maxItems) {
+      errors.push({ code: "SCHEMA_MAX_ITEMS", message: `array longer than ${schema.maxItems}`, path: valuePath });
     }
     if (schema.items !== undefined) {
       value.forEach((item, i) => validateValue(schema.items, item, `${valuePath}[${i}]`, root, errors));

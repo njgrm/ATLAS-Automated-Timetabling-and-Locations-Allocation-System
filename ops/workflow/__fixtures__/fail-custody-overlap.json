@@ -1,30 +1,170 @@
 {
-  "contractVersion": "1.1.0",
-  "registry": { "lastUpdatedAt": "2026-09-14T10:40:00+08:00", "lastUpdatedBy": "fixture", "revision": 1 },
-  "coordination": { "mode": "MANUAL", "activeCycleId": null, "globalNextAction": null },
-  "streams": [{
-    "id": "CU-1", "kind": "STREAM", "objective": "Custody overlap fixture.", "riskTier": "LOW",
-    "state": "RUNNING", "stateUpdatedAt": "2026-09-14T10:40:00+08:00", "nextAction": "Continue.",
-    "awaited": [], "running": ["w"],
-    "git": { "worktree": null, "branch": null, "baseSha": null, "candidateSha": null, "integrationSha": null, "remoteObservation": null, "changedPaths": [] },
-    "owners": { "planner": { "sessionId": null, "status": "NONE", "writable": false }, "executor": { "sessionId": null, "status": "NONE", "writable": false }, "qa": { "sessionId": null, "status": "NONE", "writable": false }, "auditor": { "sessionId": null, "status": "NONE", "writable": false } },
-    "gates": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
-    "review": { "qaVerdict": null, "qaSessionId": null, "auditorVerdict": null, "auditorSessionId": null, "auditRequired": false },
-    "corrections": [], "successors": [], "requires": [],
-    "blocker": { "kind": "NONE", "detail": "", "safeWorkRemaining": false, "safeWorkItems": [] },
-    "approval": { "required": false, "presentedReady": false, "granted": false, "operatorIdentity": null, "approvedAt": null, "boundary": null, "approvedActions": [], "requiredObservationIds": [], "execution": null },
-    "observations": [], "artifacts": [], "closure": null,
-    "sessionRouting": { "planner": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "executor": { "decision": "EXISTING", "sessionId": null, "reason": "fixture" }, "qa": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" }, "auditor": { "decision": "FRESH_REQUIRED", "sessionId": null, "reason": "fixture" } }
-  }],
+  "contractVersion": "1.2.0",
+  "registry": {
+    "lastUpdatedAt": "2026-09-14T10:40:00+08:00",
+    "lastUpdatedBy": "fixture",
+    "revision": 1
+  },
+  "coordination": {
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": null
+  },
+  "streams": [
+    {
+      "id": "CU-1",
+      "kind": "STREAM",
+      "objective": "Custody overlap fixture.",
+      "riskTier": "LOW",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-14T10:40:00+08:00",
+      "nextAction": "Continue.",
+      "awaited": [],
+      "running": [
+        "w"
+      ],
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": null,
+        "candidateSha": null,
+        "integrationSha": null,
+        "remoteObservation": null,
+        "changedPaths": []
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        },
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": false,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "fixture"
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "fixture"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fixture"
+        }
+      }
+    }
+  ],
   "leases": [],
   "browserCustody": {
-    "profiles": [{
-      "profilePath": "C:\\profiles\\playwright",
-      "custody": [
-        { "owner": "role-a", "status": "ACTIVE", "startedAt": "2026-09-14T10:38:00+08:00", "endedAt": null },
-        { "owner": "role-b", "status": "ACTIVE", "startedAt": "2026-09-14T10:39:00+08:00", "endedAt": null }
-      ]
-    }],
+    "profiles": [
+      {
+        "profilePath": "C:\\profiles\\playwright",
+        "custody": [
+          {
+            "owner": "role-a",
+            "status": "ACTIVE",
+            "startedAt": "2026-09-14T10:38:00+08:00",
+            "endedAt": null
+          },
+          {
+            "owner": "role-b",
+            "status": "ACTIVE",
+            "startedAt": "2026-09-14T10:39:00+08:00",
+            "endedAt": null
+          }
+        ]
+      }
+    ],
     "logins": []
   }
 }

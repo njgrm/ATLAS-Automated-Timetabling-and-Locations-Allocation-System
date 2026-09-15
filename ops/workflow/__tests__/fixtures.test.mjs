@@ -40,6 +40,16 @@ const RECEIPT_FIXTURES = {
     qaVerdict: "ACCEPT_READY",
     auditorVerdict: null,
   },
+  "fail-receipt-readiness-live.json": {
+    receiptRel: "receipt-readiness-live.json",
+    streamId: "RR-1",
+    gates: { total: 5, passed: 5, failed: 0, blocked: 0, unperformed: 0 },
+    qaVerdict: "ACCEPT_READY",
+    auditorVerdict: null,
+    // A 1.1.0 receipt that attests live readiness for a source-only stream.
+    receiptVersion: "1.1.0",
+    readiness: "LIVE_ACCEPTED",
+  },
 };
 
 function prepareFixture(name, repo) {
@@ -59,6 +69,8 @@ function prepareFixture(name, repo) {
     qaVerdict: spec.qaVerdict,
     auditorVerdict: spec.auditorVerdict,
     gates: spec.gates,
+    receiptVersion: spec.receiptVersion,
+    readiness: spec.readiness,
   });
   const receiptSha = writeReceipt(repo, spec.receiptRel, receipt);
   fs.writeFileSync(statePath, substitute(raw, { ...subs, RECEIPT_SHA: receiptSha }));

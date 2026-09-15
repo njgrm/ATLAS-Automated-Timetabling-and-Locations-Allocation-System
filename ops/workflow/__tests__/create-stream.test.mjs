@@ -29,7 +29,7 @@ import {
   sha256,
 } from "./harness.mjs";
 import { runTransition } from "../lib/transition.mjs";
-import { createGitMemo } from "../lib/git.mjs";
+import { createGitMemo, gitCommonDir } from "../lib/git.mjs";
 import { registerSnapshot } from "../lib/liveness.mjs";
 
 const memo = createGitMemo();
@@ -81,8 +81,20 @@ function makeSpec(repo, overrides = {}) {
     qa: { sessionId: null, status: "NONE", writable: false },
     auditor: { sessionId: null, status: "NONE", writable: false },
   };
-  spec.gates = { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 };
-  spec.review = { qaVerdict: null, qaSessionId: null, auditorVerdict: null, auditorSessionId: null, auditRequired: false };
+  spec.gates = {
+    total: 0,
+    passed: 0,
+    failed: 0,
+    blocked: 0,
+    unperformed: 0,
+    plan: { MANDATORY_SOURCE: 0, MANDATORY_LIVE: 0, DEFERRED_EXTERNAL: 0 },
+    classes: {
+      MANDATORY_SOURCE: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+      MANDATORY_LIVE: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+      DEFERRED_EXTERNAL: { total: 0, passed: 0, failed: 0, blocked: 0, unperformed: 0 },
+    },
+  };
+  spec.review = { qaVerdict: null, qaSessionId: null, auditorVerdict: null, auditorSessionId: null, auditRequired: false, qaRounds: [] };
   spec.git = {
     worktree: null,
     branch: "work/new-1",
@@ -687,11 +699,19 @@ test("the created stream is read through the canonical registry with no second l
   assert.equal(snapshot.byId.get("NEW-1").state, "REVIEW_REQUIRED");
   assert.equal(snapshot.byId.size, doc.streams.length, "the snapshot is derived from streams[], not a private list");
 
-  const commonDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfc04-common-"));
-  t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
+  // The explicit --common-dir must be the state document's own Git common
+  // directory (WF-C05 scope-epoch guard); a foreign scope fails closed.
+  const commonDir = gitCommonDir(repo.dir);
+  assert.ok(commonDir, "the disposable repository must expose a Git common directory");
   const status = runCli(STATUS_CLI, ["--state", statePath, "--json", "--common-dir", commonDir], { cwd: repo.dir });
   assert.equal(status.status, 0, status.stdout + status.stderr);
   assert.equal(status.json.summary.registerRevision, doc.registry.revision);
   const nextActionScopes = status.json.nextActions.map((entry) => entry.scope);
   assert.ok(nextActionScopes.includes("NEW-1"), "workflow:status must surface the created stream's next action");
+
+  const foreignDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfc05-foreign-common-"));
+  t.after(() => fs.rmSync(foreignDir, { recursive: true, force: true }));
+  const foreign = runCli(STATUS_CLI, ["--state", statePath, "--json", "--common-dir", foreignDir], { cwd: repo.dir });
+  assert.equal(foreign.status, 1, "a foreign --common-dir must fail closed");
+  assert.deepEqual(errorCodes(foreign), ["STATUS_SCOPE_MISMATCH"]);
 });
