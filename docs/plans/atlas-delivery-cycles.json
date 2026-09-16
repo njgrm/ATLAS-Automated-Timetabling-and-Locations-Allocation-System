@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T14:17:21.375Z",
+    "lastUpdatedAt": "2026-09-16T14:35:36.436Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 194
+    "revision": 196
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -4440,8 +4440,8 @@
       "objective": "Lane B of TT-WARNING-REALISM-C07R1 (parent cycle). Client warning and publish-readiness truth: SimplePublishReadinessSheet must render run-wide blocker truth and never say Ready to publish from a selected-term list while another term blocks; selected-term issue rails stay selected-term scoped and are visibly labeled so run-wide and selected-term counts are never mixed under one unexplained total; every displayed action works (no-op Review issue buttons removed, resolvable violations routed to the correct term/entity/repair surface, aggregate warnings exposing every affected entry or navigating to a real grouped repair view); Treat as Hard and Blocks publish render only for codes in the server-owned promotable allowlist; ExplainabilityDrawer uses server publication semantics so HARD alone never means Publish blocker for a non-publication-blocking code; PublishChecklistContent groups real production violation codes rather than reason keys or test-only codes; dead UI/config/type residue for retired distance, unreachable vacant and retired warning families is removed and types.d.ts is reconciled or removed as a second authority; and accessible controls, 44px mobile targets, keyboard navigation, responsive layout, Simple-first navigation and term-switching state hygiene are preserved. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
       "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-16T14:17:21.375Z",
-      "nextAction": "Accepted ordinary candidate 63b351ac; integrate on integration/tt-warning-realism-c07r1 after Lane A.",
+      "stateUpdatedAt": "2026-09-16T14:35:36.436Z",
+      "nextAction": "Accepted candidate b8a1b1cf; re-integrate on integration/tt-warning-realism-c07r1 over Lane A.",
       "awaited": [
         "planner validates the immutable range and integration boundary"
       ],
@@ -4450,7 +4450,7 @@
         "worktree": "E:/ATLAS-worktrees/tt-warning-surface-c07b",
         "branch": "work/tt-warning-surface-c07b",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
-        "candidateSha": "63b351acd50682b75a7b5c24ae1e70b8b3b5fdf7",
+        "candidateSha": "b8a1b1cfebf5866eafe3c6f6a7cf65461dcf1264",
         "integrationSha": null,
         "changedPaths": [
           "atlas-client/src/components/ExplainabilityDrawer.tsx",
@@ -4494,7 +4494,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f5573181bffeU0KrHN2d7PFWhK",
+          "sessionId": "ses_f55621898ffesN0Ei4Fm18CqLZ",
           "status": "RETURNED",
           "writable": false
         },
@@ -4541,7 +4541,7 @@
       },
       "review": {
         "qaVerdict": "ACCEPT_READY",
-        "qaSessionId": "ses_f5573181bffeU0KrHN2d7PFWhK",
+        "qaSessionId": "ses_f55621898ffesN0Ei4Fm18CqLZ",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": false,
@@ -4560,6 +4560,11 @@
             "round": 3,
             "verdict": "ACCEPT_READY",
             "sessionId": "ses_f5573181bffeU0KrHN2d7PFWhK"
+          },
+          {
+            "round": 4,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f55621898ffesN0Ei4Fm18CqLZ"
           }
         ]
       },
@@ -4581,6 +4586,16 @@
           "reason": "Correction round 2 (root-cause closure): separate the hard-violation authority (run-wide blockingHard plus HARD-severity selected-term groups) from the unresolved-queue authority so the block sentence never over-claims hard blockers or double-counts unresolved sessions; producer-shaped unresolved-only/hard-only/mixed/clean fixtures and fold/revert/contradiction mutants.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f5573181bffeU0KrHN2d7PFWhK",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 3,
+          "baseSha": "63b351acd50682b75a7b5c24ae1e70b8b3b5fdf7",
+          "candidateSha": "b8a1b1cfebf5866eafe3c6f6a7cf65461dcf1264",
+          "reason": "Integration-coupling closure (R3): replace the fragile assertion that pinned the pre-C07A generation.service.ts literal with a version-agnostic assertion of the same F5 contract, verified to pass standalone on Lane B and on the Lane A+Lane B union.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f55621898ffesN0Ei4Fm18CqLZ",
           "auditorVerdict": null,
           "auditorSessionId": null
         }
