@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T13:43:06.378Z",
+    "lastUpdatedAt": "2026-09-16T14:21:14.681Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 184
+    "revision": 188
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "PUBLISHED-IMMUTABILITY-C08R1",
-    "globalNextAction": "CYCLE_ACTIVE on PUBLISHED-IMMUTABILITY-C08R1 (successor correction for the C08 wave-audit B1/B2 blockers): executor implements docs/prompts/published-immutability-c08r1-2026-09-16.md additively; planner then validates, commissions fresh QA, re-integrates, and runs a fresh Wave Completion Auditor. Source-only: no live login/deploy/restart/db/generation/publication/migration action."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "PUBLISHED-IMMUTABILITY-C08R1 accepted (QA ACCEPT_READY 8/8/0/0/0) and integrated; pending fresh Wave Completion Auditor. Live generation, publication, deployment, migration, term-cache, and Teaching Load actions remain LOCKED behind separate HIGH approvals."
   },
   "streams": [
     {
@@ -4303,8 +4303,8 @@
       "kind": "CYCLE",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 8,
+        "passed": 8,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -4315,8 +4315,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 8,
+            "passed": 8,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -4338,12 +4338,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f55733bdbffeGXhjE4e8sc8HdC",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f55733bdbffeGXhjE4e8sc8HdC"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -4372,28 +4378,28 @@
       "artifacts": [],
       "closure": null,
       "objective": "Successor correction closing the two BLOCKING findings of the PUBLISHED-IMMUTABILITY-C08 Wave Completion Audit without regressing the frozen-publication contract: (B1) make the snapshot-consistency gate accept the real producer's contained/snapped Flag/HGP display slot using containment + day-scope authority and a real-producer positive control, and (B2) stop faculty-sync invalidation from re-asserting isPublished=true on a superseded run, preserving informational markers and the destructive path for unpublished runs.",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T13:43:06.378Z",
-      "nextAction": "Executor implements docs/prompts/published-immutability-c08r1-2026-09-16.md additively in E:/ATLAS-worktrees/published-immutability-c08 and returns REVIEW_REQUIRED; the planner then records the return and commissions one fresh independent QA over the frozen R1 range.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T14:21:14.681Z",
+      "nextAction": "One fresh read-only Wave Completion Auditor reviews the re-integrated origin/main tree 46603a31; then the planner records the audit and closes the cycle.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the PUBLISHED-IMMUTABILITY-C08R1 correction",
-        "fresh independent QA over the frozen R1 candidate",
-        "fresh Wave Completion Auditor over the re-integrated tree"
+        "fresh Wave Completion Auditor"
       ],
-      "running": [
-        "executor correction session on branch work/published-immutability-c08 (packet docs/prompts/published-immutability-c08r1-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
-        "branch": "work/published-immutability-c08",
-        "baseSha": "f84e43c3fda49bc2ad3bdf85cd4974b1c1b3c6d9",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "worktree": "E:/ATLAS-worktrees/integration-published-immutability-c08",
+        "branch": "integration/published-immutability-c08",
+        "baseSha": "5436ce96ae3bd35d68ca586d8e6c9e9ec46be61b",
+        "candidateSha": "8dc0da89fa4a044982bb2a43943dfff0008972cb",
+        "integrationSha": "46603a31417fa11230abdd01cad331b21136d1c5",
+        "changedPaths": [
+          "atlas-server/src/__tests__/published-immutability-c08.test.ts",
+          "atlas-server/src/services/generation.service.ts",
+          "atlas-server/src/services/published-identity-snapshot.service.ts"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "f84e43c3fda49bc2ad3bdf85cd4974b1c1b3c6d9",
-          "observedAt": "2026-09-16T13:42:51.790Z",
+          "sha": "46603a31417fa11230abdd01cad331b21136d1c5",
+          "observedAt": "2026-09-16T14:21:14.681Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -4401,16 +4407,16 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f558762e6ffeHgjNHVglRUQLWN",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f55733bdbffeGXhjE4e8sc8HdC",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
