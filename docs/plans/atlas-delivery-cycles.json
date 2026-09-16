@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:50:39.015Z",
+    "lastUpdatedAt": "2026-09-16T04:50:54.331Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 152
+    "revision": 153
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3658,11 +3658,11 @@
       "kind": "CYCLE",
       "objective": "Retire the exact evolving stream-inventory equality pin in ops/workflow/__tests__/seed.test.mjs and replace it with a generic, mutation-verified contract: an immutable five-stream core baseline, no literal enumeration of the live inventory, production-verifier mutation coverage of uniqueness/schema/state/Git-identity/audit/receipt/lease/remote-observation invariants for every registered stream, a failing-first regression that adds a well-formed stream through the real create-stream operation on a cloned registry, and negative mutants for malformed/duplicate/field-incomplete newly created streams. No product, client, server, prisma or runtime file changes; no deployment, database, generation or publication action.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T04:50:39.015Z",
-      "nextAction": "Fresh independent QA (ses_f579612f2ffevkg7Cu5WFM7IC6) returned ACCEPT_READY 18/18/0/0 over the accepted content at 11c8bdbf; the replayed candidate b8be79ef is byte-identical (blobs ddc7de1a and 188bb30a). Next: record the QA result, integrate, run workflow:test on the integrated tree, then the fresh Wave Completion Auditor.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-16T04:50:54.331Z",
+      "nextAction": "QA ACCEPT_READY 18/18/0/0/0 recorded for the replayed candidate b8be79ef. Next: integrate to origin/main, run workflow:test on the clean integrated tree, then commission the fresh Wave Completion Auditor.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -3694,8 +3694,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f579612f2ffevkg7Cu5WFM7IC6",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -3705,8 +3705,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 18,
+        "passed": 18,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -3717,8 +3717,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 18,
+            "passed": 18,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -3740,12 +3740,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f579612f2ffevkg7Cu5WFM7IC6",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f579612f2ffevkg7Cu5WFM7IC6"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
