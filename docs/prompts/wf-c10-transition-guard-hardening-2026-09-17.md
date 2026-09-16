@@ -87,6 +87,23 @@ non-reproducing `ffd14520...`; correct them at the next lawful register write.
 Verify junction/reuse identity by LF-normalized `package-lock.json` sha256, not
 raw checkout bytes. The CRLF form produced a false mismatch.
 
+### 3.7 Packet-pin checkout stability (adds to the pin lint in §3.5)
+
+A HIGH approval packet is hash-pinned by `record-approval --packet-sha256`, so
+its bytes must be identical in every checkout. Two required parts:
+
+- The attribute set already forces LF on checkout for `ops/workflow/**`,
+  `docs/plans/**`, `docs/handoffs/**`, `docs/reviews/**`, `.opencode/agents/**`
+  and `.opencode/plugins/**`, but **not** for `docs/prompts/**`, where every HIGH
+  packet lives. The 2026-09-17 decisions commit adds
+  `docs/prompts/** text eol=lf` (committed blobs were already LF, so the rule is
+  content-neutral). Prove the attribute by a materialization regression in the
+  WF-C01 R1 pattern: pin a `docs/prompts/**` blob hash, re-materialize the file at
+  CRLF, and assert the pinned LF-normalized hash and the blob hash are unchanged.
+- The pin convention must be `blob <git-sha1> + LF-SHA-256 <hash> + the exact
+  reproducing command`, matching the `AGENTS.md` convention, so a pin never
+  depends on the working-copy bytes alone.
+
 Do NOT re-implement the register revision-window reservation: WF-C09 R2 adds it
 (§R2.10, window 218→227). Verify it landed and test it; do not duplicate it.
 
