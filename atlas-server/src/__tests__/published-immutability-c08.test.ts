@@ -514,10 +514,17 @@ async function main() {
 
 		// ── G02/M10 — the export route's term authority for a published run is the
 		// FROZEN ordered-term contract; the live mirror cache is gone for this year.
-		const frozenExportTerm = await withDataContext(prisma, () => resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, 2));
-		checkEqual(frozenExportTerm, 2, 'G02 archived export term resolves through the FROZEN ordered-term contract');
-		const frozenActiveExportTerm = await withDataContext(prisma, () => resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, 'active'));
-		checkEqual(frozenActiveExportTerm, 1, 'G02 frozen contract resolves the persisted active term order');
+		// Each control is non-fatal so a mutant yields a control FAIL, not an abort.
+		let frozenExportTerm: number | undefined;
+		let frozenExportTermError: any = null;
+		try { frozenExportTerm = await withDataContext(prisma, () => resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, 2)); } catch (error) { frozenExportTermError = error; }
+		check(!frozenExportTermError, `G02 archived export term resolves through the FROZEN ordered-term contract (error: ${frozenExportTermError?.code ?? 'none'})`);
+		checkEqual(frozenExportTerm, 2, 'G02 archived export term value is the requested term');
+		let frozenActiveExportTerm: number | undefined;
+		let frozenActiveExportTermError: any = null;
+		try { frozenActiveExportTerm = await withDataContext(prisma, () => resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, 'active')); } catch (error) { frozenActiveExportTermError = error; }
+		check(!frozenActiveExportTermError, `G02 frozen contract resolves the persisted active term order (error: ${frozenActiveExportTermError?.code ?? 'none'})`);
+		checkEqual(frozenActiveExportTerm, 1, 'G02 frozen active term order is the persisted value');
 		let frozenOutOfContract = '';
 		try {
 			await withDataContext(prisma, () => resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, 4));
