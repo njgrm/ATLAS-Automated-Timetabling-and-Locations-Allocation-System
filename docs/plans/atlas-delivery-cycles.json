@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T14:46:57.034Z",
+    "lastUpdatedAt": "2026-09-16T15:02:29.786Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 207
+    "revision": 209
   },
   "coordination": {
     "mode": "MANUAL",
@@ -4456,12 +4456,10 @@
       "kind": "CYCLE",
       "objective": "Planner-led parallel two-lane source-only correction cycle on origin/main c950e6944f148343b8c864bea5aa080bd6a19426: Lane A (TT-WARNING-COUNT-C07A) makes the server warning authority and counts stakeholder-realistic and truthful (consecutive-limit emitted once per violating block with a period-aligned configurable default, idle-gap excluding configured Health Break/Lunch and outside-shift time, reconciled break/consecutive families, retired unreachable vacant/overcompressed/early-late preference residue, full removal of FACULTY_EXCESSIVE_TRAVEL_DISTANCE, truthful adjacency rules kept, corrected SPECIALIZED_ROOM_UNAVAILABLE / LACKING_FACULTY / INCOMPLETE_MODULAR_GROUP / ZONE_IMBALANCE_WARNING classifications, and identical results across generation/manual-edit/quick-place/pre-generation/sync/publication-readiness recomputation). Lane B (TT-WARNING-SURFACE-C07B) makes the client warning and publish-readiness surface tell the truth (run-wide publish gate in SimplePublishReadinessSheet, selected-term rails visibly labeled and never mixed with run-wide totals, every displayed action real and correctly routed, Treat-as-Hard/Blocks-publish only for the server-owned promotable allowlist, ExplainabilityDrawer on server publication semantics, PublishChecklistContent grouped by real production violation codes, dead distance/vacant/preference residue removed, and types.d.ts reconciled or removed as a second authority). Serialized clean integration, fresh independent QA per frozen lane, and one fresh Wave Completion Audit over the union. No browser login, live data mutation, deployment, generation, publication, migration, schema, runtime restart/task/env change, companion edit, or any HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T14:46:57.034Z",
-      "nextAction": "Integrated union; fresh Wave Completion Auditor pending.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-16T15:02:29.786Z",
+      "nextAction": "Closed COMPLETE with the wave audit AUDIT_CLEAR; all live/HIGH actions remain locked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
@@ -4562,8 +4560,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f55501c9fffeJcUWgMRUb7W0P7",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -4605,8 +4603,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "union:ses_f558318ecffeH58JcBuiKl3lDO+ses_f55621898ffesN0Ei4Fm18CqLZ",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f55501c9fffeJcUWgMRUb7W0P7",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -4642,7 +4640,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/tt-warning-realism-c07r1.receipt.json",
+          "sha256": "f9d72283683ce9afdf56c8517464159535b4a3dcf09f3b53dc724b1cf5ecf473"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
