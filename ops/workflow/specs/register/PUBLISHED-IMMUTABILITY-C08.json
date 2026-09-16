@@ -1,0 +1,107 @@
+{
+  "id": "PUBLISHED-IMMUTABILITY-C08",
+  "kind": "CYCLE",
+  "riskTier": "MEDIUM",
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 26,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "Freeze publication identity/term/display/event authority into the base PublishedScheduleRevision.metadata JSON without a migration",
+      "Resolve frozen-first on every published read and official export with an honest LEGACY_LIVE_PROJECTION state",
+      "Repair current-year isActiveSchoolYear/isHistorical metadata and the :termId route family",
+      "Make faculty synchronization non-destructive to published runs"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "objective": "Make one published revision a historically reproducible artifact: freeze subject/faculty/room/building/section/specialization/cohort/display-slot/special-event/policy/ordered-term identity into the publication revision JSON at publish time, resolve frozen-first on every public, authenticated, archived, and official-export consumer with an honest legacy state, repair current-year active/historical metadata and the :termId route family, and stop routine synchronization from unpublishing or failing a published run, while preserving the serializable/CAS/replay/audit/notification and draft-published separation strengths.",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-16T00:00:00Z",
+  "nextAction": "Executor implements the bounded PUBLISHED-IMMUTABILITY-C08 packet docs/prompts/published-immutability-c08-2026-09-16.md in E:/ATLAS-worktrees/published-immutability-c08 (base = the packet/bookkeeping commit on work/published-immutability-c08) and returns REVIEW_REQUIRED with the 26-row trace table; the planner then records the return and commissions one fresh independent QA over the frozen range.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return for the PUBLISHED-IMMUTABILITY-C08 candidate",
+    "fresh independent QA over the frozen PUBLISHED-IMMUTABILITY-C08 candidate",
+    "fresh Wave Completion Auditor over the integrated wave"
+  ],
+  "running": [
+    "executor implementation session on branch work/published-immutability-c08 (packet docs/prompts/published-immutability-c08-2026-09-16.md)"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
+    "branch": "work/published-immutability-c08",
+    "baseSha": null,
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": true },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Stream created by the primary planner for the operator-activated PUBLISHED-IMMUTABILITY-C08 cycle; this harness did not expose a planner session id, so none is asserted."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "A fresh bounded high-reasoning executor session is dispatched for the packet; the executor session id is recorded once the harness returns it."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "Independent high-reasoning QA must be a fresh context over the frozen base...candidate range, not the implementing session."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "One fresh read-only Wave Completion Auditor runs after integration of this publication-authority correction."
+    }
+  }
+}

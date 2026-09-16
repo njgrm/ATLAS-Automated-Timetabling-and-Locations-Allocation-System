@@ -2,6 +2,7 @@ import type ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
 import { resolvePublishedRun } from './published-schedule.service.js';
+import { frozenCanonicalSlots, type PublishedIdentitySnapshot } from './published-identity-snapshot.service.js';
 
 export type ExportOptions = {
 	schoolId: number;
@@ -13,7 +14,7 @@ export type ExportOptions = {
 	/** Disposable read-only client for source-level export contract tests. */
 	client?: any;
 	/** Disposable published-run resolver for source-level export contract tests. */
-	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ source: { runId: number }; entries: ScheduledEntry[]; summary: Record<string, unknown> | null }>;
+	publishedRunResolver?: (schoolId: number, schoolYearId: number) => Promise<{ source: { runId: number }; entries: ScheduledEntry[]; summary: Record<string, unknown> | null; snapshot?: PublishedIdentitySnapshot | null }>;
 	/** Disposable workbook factory for layout contract tests (no XLSX dependency). */
 	workbookFactory?: () => ExcelJS.Workbook | Promise<ExcelJS.Workbook>;
 };
@@ -126,6 +127,10 @@ export type ExportContext = {
 	adviserMap: Map<number, string>;
 	displaySlots: TimeSlot[];
 	entries: ScheduledEntry[];
+	/** C08 — the frozen publication snapshot for a published run, or null for a legacy/draft source. */
+	frozenSnapshot: PublishedIdentitySnapshot | null;
+	/** C08 — the section roster authority (frozen for a published run, live otherwise). */
+	sections: Array<{ id: number; externalId: number; name: string; gradeLevelId: number; gradeLevelName?: string | null; programType?: string | null }>;
 };
 
 async function createWorkbook(options?: ExportOptions): Promise<ExcelJS.Workbook> {
@@ -216,6 +221,7 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 
 	let summary = run.summary as Record<string, unknown> | null;
 	let entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
+	let frozenSnapshot: PublishedIdentitySnapshot | null = null;
 
 	// A published export must use the revision-effective published source, not
 	// the pre-revision draft JSON stored on the generation run. The public
@@ -231,8 +237,19 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 		}
 		entries = published.entries as ScheduledEntry[];
 		summary = published.summary;
+		// C08 — a frozen publication resolves every human-readable identity from
+		// its snapshot; a legacy publication keeps live resolution.
+		frozenSnapshot = published.snapshot ?? null;
 	}
-	const displaySlots = (summary?.timetableDisplaySlots as TimeSlot[] | undefined) ?? [];
+	const displaySlots = frozenSnapshot
+		? frozenSnapshot.displaySlots.map((slot) => ({
+			startTime: slot.startTime,
+			endTime: slot.endTime,
+			isSpecialEvent: slot.kind === 'SPECIAL_EVENT',
+			eventName: slot.kind === 'SPECIAL_EVENT' ? slot.label : undefined,
+			dayOfWeek: slot.dayOfWeek ?? undefined,
+		}))
+		: (summary?.timetableDisplaySlots as TimeSlot[] | undefined) ?? [];
 
 	// Term filtering for export. The caller resolves `active` through the
 	// persisted verified EnrollPro term authority before reaching this service,
@@ -251,52 +268,96 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 	// Collect unique room IDs from entries
 	const roomIds = [...new Set(entries.map((e) => e.roomId).filter((id): id is number => id != null && id > 0))];
 
-	// Load all reference data in parallel
-	const [sections, faculty, subjects, rooms] = await Promise.all([
-		db.sectionMirror.findMany({
-			where: { schoolId, schoolYearId },
-			select: { id: true, externalId: true, name: true, gradeLevelId: true },
-		}),
-		db.facultyMirror.findMany({
-			where: { schoolId },
-			select: { id: true, lastName: true, firstName: true, advisedSectionId: true },
-		}),
-		db.subject.findMany({
-			where: { schoolId },
-			select: { id: true, name: true, code: true },
-		}),
-		roomIds.length > 0
-			? db.room.findMany({
-				where: { id: { in: roomIds } },
-				select: {
-					id: true,
-					name: true,
-					type: true,
-					floor: true,
-					building: { select: { id: true, name: true } },
-				},
-			})
-			: Promise.resolve([]),
-	]);
+	// C08 — frozen-first. For a published run, every human-readable identity is
+	// resolved from the frozen snapshot; no output rehydrates labels from current
+	// authority tables. Draft/unpublished exports keep live resolution.
+	let sections: Array<{ id: number; externalId: number; name: string; gradeLevelId: number; gradeLevelName?: string | null; programType?: string | null }>;
+	let subjectMap: Map<number, { id: number; name: string; code: string }>;
+	let facultyMap: Map<number, { id: number; lastName: string | null; firstName: string | null; advisedSectionId: number | null }>;
+	let roomMap: Map<number, RoomInfo>;
+	let adviserMap: Map<number, string>;
 
-	const subjectMap = new Map(subjects.map((s) => [s.id, s]));
-	const facultyMap = new Map(faculty.map((f) => [f.id, f]));
+	if (frozenSnapshot) {
+		sections = Object.entries(frozenSnapshot.sections).map(([key, value]) => ({
+			id: value.atlasId ?? Number(key),
+			externalId: Number(key),
+			name: value.name,
+			gradeLevelId: value.gradeLevelId ?? 0,
+			gradeLevelName: value.gradeLevelName ?? null,
+			programType: value.programType ?? null,
+		}));
+		subjectMap = new Map(Object.entries(frozenSnapshot.subjects).map(([key, value]) => [Number(key), { id: Number(key), name: value.name, code: value.code }]));
+		facultyMap = new Map(Object.entries(frozenSnapshot.faculty).map(([key, value]) => [Number(key), {
+			id: Number(key),
+			lastName: value.lastName,
+			firstName: value.firstName,
+			advisedSectionId: value.advisedSectionId ?? null,
+		}]));
+		roomMap = new Map<number, RoomInfo>();
+		for (const [key, value] of Object.entries(frozenSnapshot.rooms)) {
+			const id = Number(key);
+			const floorNumber = value.floor != null && value.floor.trim().length > 0 ? Number(value.floor) : null;
+			roomMap.set(id, {
+				id,
+				name: value.name,
+				type: value.type,
+				floor: Number.isFinite(floorNumber as number) ? floorNumber as number : null,
+				buildingId: value.buildingId ?? 0,
+				buildingName: value.buildingName ?? '',
+			});
+		}
+		adviserMap = new Map<number, string>();
+		for (const adviser of Object.values(frozenSnapshot.advisers ?? {})) {
+			if (Number.isInteger(adviser.sectionId)) adviserMap.set(adviser.sectionId, adviser.lastName);
+		}
+	} else {
+		const [liveSections, faculty, subjects, rooms] = await Promise.all([
+			db.sectionMirror.findMany({
+				where: { schoolId, schoolYearId },
+				select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
+			}),
+			db.facultyMirror.findMany({
+				where: { schoolId },
+				select: { id: true, lastName: true, firstName: true, advisedSectionId: true },
+			}),
+			db.subject.findMany({
+				where: { schoolId },
+				select: { id: true, name: true, code: true },
+			}),
+			roomIds.length > 0
+				? db.room.findMany({
+					where: { id: { in: roomIds } },
+					select: {
+						id: true,
+						name: true,
+						type: true,
+						floor: true,
+						building: { select: { id: true, name: true } },
+					},
+				})
+				: Promise.resolve([]),
+		]);
 
-	const roomMap = new Map<number, RoomInfo>();
-	for (const r of rooms) {
-		roomMap.set(r.id, {
-			id: r.id,
-			name: r.name,
-			type: r.type,
-			floor: r.floor,
-			buildingId: r.building.id,
-			buildingName: r.building.name,
-		});
-	}
+		sections = liveSections;
+		subjectMap = new Map(subjects.map((s) => [s.id, s]));
+		facultyMap = new Map(faculty.map((f) => [f.id, f]));
 
-	const adviserMap = new Map<number, string>();
-	for (const f of faculty) {
-		if (f.advisedSectionId) adviserMap.set(f.advisedSectionId, f.lastName ?? '');
+		roomMap = new Map<number, RoomInfo>();
+		for (const r of rooms) {
+			roomMap.set(r.id, {
+				id: r.id,
+				name: r.name,
+				type: r.type,
+				floor: r.floor,
+				buildingId: r.building.id,
+				buildingName: r.building.name,
+			});
+		}
+
+		adviserMap = new Map<number, string>();
+		for (const f of faculty) {
+			if (f.advisedSectionId) adviserMap.set(f.advisedSectionId, f.lastName ?? '');
+		}
 	}
 
 	// C05 T10/M23 — publication state from the persisted run summary (the
@@ -332,6 +393,8 @@ export async function loadExportContext(options: ExportOptions): Promise<ExportC
 		adviserMap,
 		displaySlots,
 		entries,
+		frozenSnapshot,
+		sections,
 	};
 }
 
@@ -543,10 +606,14 @@ export async function exportSummaryWorkbook(options: ExportOptions): Promise<Buf
 	// The injected test client is a partial read-only stub; keep the production
 	// Prisma delegate typing for callbacks and query results.
 	const db = (options.client ?? prisma) as typeof prisma;
-	const sections = await db.sectionMirror.findMany({
-		where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
-		select: { id: true, externalId: true, name: true, gradeLevelId: true },
-	});
+	// C08 — a published export renders the frozen section roster; only a
+	// draft/unpublished source reads the live mirror.
+	const sections = ctx.frozenSnapshot
+		? ctx.sections
+		: await db.sectionMirror.findMany({
+			where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
+			select: { id: true, externalId: true, name: true, gradeLevelId: true },
+		});
 
 	const sortedSections = [...sections].sort((a, b) => {
 		if (a.gradeLevelId !== b.gradeLevelId) return a.gradeLevelId - b.gradeLevelId;
@@ -741,10 +808,14 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 	// Prisma delegate typing for callbacks and query results.
 	const db = (options.client ?? prisma) as typeof prisma;
 
-	const sections = await db.sectionMirror.findMany({
-		where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
-		select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
-	});
+	// C08 — a published export renders the frozen section roster; only a
+	// draft/unpublished source reads the live mirror.
+	const sections = ctx.frozenSnapshot
+		? ctx.sections
+		: await db.sectionMirror.findMany({
+			where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
+			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
+		});
 
 	const sortedSections = [...sections].sort((a, b) => {
 		const gradeA = resolveSectionGradeLevel(a);
@@ -797,12 +868,16 @@ export async function exportClassProgramWorkbook(options: ExportOptions): Promis
 		const hasSpecialProgram = gradeSections.some(s => s.programType && s.programType !== 'REGULAR');
 		// Resolve the union of exact templates represented in this grade so mixed
 		// regular/special-program sheets retain every stakeholder-defined row.
-		const canonicalSlots = await resolveCanonicalSlotsForPrograms(
-			options.schoolId,
-			options.schoolYearId,
-			gradeLevel,
-			['REGULAR', ...gradeSections.map((section) => section.programType as any)],
-		);
+		// C08 — a published export renders the FROZEN template rows; only a
+		// draft/unpublished source re-reads `class_program_slots`.
+		const canonicalSlots = ctx.frozenSnapshot
+			? frozenCanonicalSlots(ctx.frozenSnapshot, gradeLevel, ['REGULAR', ...gradeSections.map((section) => section.programType)])
+			: await resolveCanonicalSlotsForPrograms(
+				options.schoolId,
+				options.schoolYearId,
+				gradeLevel,
+				['REGULAR', ...gradeSections.map((section) => section.programType as any)],
+			);
 
 		// Build ordered slot list from canonical slots
 		const classSlots = canonicalSlots

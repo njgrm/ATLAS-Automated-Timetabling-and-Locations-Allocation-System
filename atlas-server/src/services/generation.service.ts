@@ -1636,6 +1636,16 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	return buildDraftReport(run, schoolId, schoolYearId);
 }
 
+/**
+ * DEMAND/ROLLOVER mirror-reset protection for COMPLETED runs.
+ *
+ * PUBLISHED-IMMUTABILITY-C08 (D8) — routine faculty/subject/room/policy
+ * synchronization must never erase published history. A run carrying published
+ * markers is excluded from the destructive path: its `status`, `isPublished`,
+ * `publishedAt`, `publishedBy`, and published revision are preserved and the
+ * drift is recorded as a typed, audited successor condition. Unpublished
+ * COMPLETED runs keep today's invalidation behavior.
+ */
 export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearId: number) {
 	const [runs, activeFacultyIds] = await Promise.all([
 		db().generationRun.findMany({
@@ -1650,31 +1660,76 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 	const staleRunIds = staleRuns.map((run) => run.id);
 
 	if (staleRunIds.length === 0) {
-		return { invalidatedCount: 0, staleRunIds: [] as number[], unpublishedRunIds: [] as number[] };
+		return {
+			invalidatedCount: 0,
+			staleRunIds: [] as number[],
+			unpublishedRunIds: [] as number[],
+			driftedPublishedRunIds: [] as number[],
+		};
 	}
 
 	const reconciledAtIso = new Date().toISOString();
 	const unpublishedRunIds: number[] = [];
+	const driftedPublishedRunIds: number[] = [];
 	await db().$transaction(async (tx) => {
 		for (const run of staleRuns) {
 			const wasPublished = hasPublishedMarkers(run.summary);
+
+			if (wasPublished) {
+				// Synchronization must never unpublish a published run or mark it
+				// FAILED. Preserve the published identity and record typed drift.
+				//
+				// COPY-THROUGH, never assert: a current published run keeps
+				// `isPublished: true`, while a SUPERSEDED run keeps `isPublished:
+				// false` plus its `publishedAt`/`publishedBy` informational markers
+				// and its `publicationSuperseded*` pointers. Writing `isPublished:
+				// true` here resurrected a superseded run into a second current
+				// published run, which made every published read/export fail with
+				// `409 PUBLISHED_RUN_AMBIGUOUS` and regressed the supersession path.
+				const candidate = asSummaryRecord(run.summary);
+				const existingIntegrity = asSummaryRecord(candidate.publicationIntegrity);
+				const driftStaleFacultyIds = getStaleFacultyIdsForRun(run, activeFacultyIds);
+				const nextSummary = {
+					...candidate,
+					// `isPublished`/`publishedAt`/`publishedBy` are intentionally
+					// copied through unchanged.
+					publicationIntegrity: {
+						...existingIntegrity,
+						driftDetectedAt: reconciledAtIso,
+						driftReason: 'FACULTY_SYNC_DRIFT',
+						driftStaleFacultyIds,
+					},
+				};
+				await tx.generationRun.update({
+					where: { id: run.id },
+					data: { summary: nextSummary as object },
+				});
+				await tx.auditLog.create({
+					data: {
+						schoolId,
+						schoolYearId,
+						action: 'GENERATION_RUN_PUBLICATION_DRIFT_DETECTED',
+						actorId: 0,
+						targetIds: [run.id],
+						metadata: {
+							runId: run.id,
+							reason: 'FACULTY_SYNC_DRIFT',
+							detectedAt: reconciledAtIso,
+							preservedStatus: run.status,
+						} as object,
+					},
+				});
+				driftedPublishedRunIds.push(run.id);
+				continue;
+			}
+
 			const data: {
 				status: 'FAILED';
 				error: string;
-				summary?: object;
 			} = {
 				status: 'FAILED',
 				error: 'INVALIDATED_BY_MIRROR_RESET',
 			};
-
-			if (wasPublished) {
-				data.summary = buildUnpublishedSummary(run.summary, {
-					reason: 'INVALIDATED_BY_MIRROR_RESET',
-					previousStatus: run.status,
-					reconciledAtIso,
-				}) as object;
-				unpublishedRunIds.push(run.id);
-			}
 
 			await tx.generationRun.update({
 				where: { id: run.id },
@@ -1683,5 +1738,5 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 		}
 	});
 
-	return { invalidatedCount: staleRunIds.length, staleRunIds, unpublishedRunIds };
+	return { invalidatedCount: staleRunIds.length, staleRunIds, unpublishedRunIds, driftedPublishedRunIds };
 }

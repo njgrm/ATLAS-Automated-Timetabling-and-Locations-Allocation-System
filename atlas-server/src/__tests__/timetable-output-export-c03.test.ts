@@ -160,13 +160,23 @@ test('published teacher-program shape normalizes nested production entries and e
 			// run-binding requirement.
 			source: { runId: 42 },
 			entries: [
+			// C08 — the production published payload always carries the resolved
+			// display identity (subject code/name, section name/grade, room
+			// name/building); a published read never rehydrates live authority
+			// tables. The fixture mirrors that producer contract.
 			{
 				entryId: 'published-math', day: 'MONDAY', startTime: '07:30', endTime: '08:15', durationMinutes: 45,
-				subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 },
+				subject: { id: 11, code: 'MATH', name: 'Mathematics' },
+				section: { id: 701, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' },
+				faculty: { id: 501 },
+				room: { id: 601, name: 'Room 601', buildingName: 'Building A' },
 			},
 			{
 				entryId: 'published-hg', day: 'MONDAY', startTime: '08:15', endTime: '09:00', durationMinutes: 45,
-				subject: { id: 99 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 },
+				subject: { id: 99, code: 'HG', name: 'Homeroom Guidance' },
+				section: { id: 701, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' },
+				faculty: { id: 501 },
+				room: { id: 601, name: 'Room 601', buildingName: 'Building A' },
 			},
 		] }),
 	});

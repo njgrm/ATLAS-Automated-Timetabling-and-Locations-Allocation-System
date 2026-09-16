@@ -5,6 +5,7 @@ import { getUpstreamAuthToken } from '../middleware/upstream-auth.js';
 import * as genService from '../services/generation.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
 import { resolveRequestedTermIndex, parseSupportedTermIndex, MAX_ACADEMIC_TERM_INDEX } from '../services/academic-term.service.js';
+import { resolvePublishedRunTermIndex } from '../services/published-schedule.service.js';
 import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 import { exportSummaryWorkbook, exportClassProgramWorkbook, resolveExportSchoolYearLabel } from '../services/workbook-export.service.js';
 import { exportRoomProgramWorkbook } from '../services/room-program-export.service.js';
@@ -649,7 +650,9 @@ router.get(
 				res.status(400).json({ code: termParse.code, message: termParse.message });
 				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
+			// C08 (D5) — a published run resolves its export term through the FROZEN
+			// ordered-term contract; a draft/unpublished run keeps live authority.
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
 
 			const buffer = await exportSummaryWorkbook({ schoolId, schoolYearId, runId, termIndex });
 			const resolvedTerm = termIndex as number;
@@ -714,7 +717,9 @@ router.get(
 				res.status(400).json({ code: termParse.code, message: termParse.message });
 				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
+			// C08 (D5) — a published run resolves its export term through the FROZEN
+			// ordered-term contract; a draft/unpublished run keeps live authority.
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
 
 			const specializationVisibilityRaw = req.query.specializationVisibility as string | undefined;
 			let specializationVisibility: 'hidden' | 'visible' | undefined;
@@ -793,7 +798,9 @@ router.get(
 				res.status(400).json({ code: termParse.code, message: termParse.message });
 				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
+			// C08 (D5) — a published run resolves its export term through the FROZEN
+			// ordered-term contract; a draft/unpublished run keeps live authority.
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
 
 			const shape = await buildTeacherProgramExportShape({
 				schoolId,
@@ -892,7 +899,9 @@ router.get(
 				res.status(400).json({ code: termParse.code, message: termParse.message });
 				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
+			// C08 (D5) — a published run resolves its export term through the FROZEN
+			// ordered-term contract; a draft/unpublished run keeps live authority.
+			const termIndex = await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested);
 
 			// T7 — optional room scope; omit = every room with entries.
 			let scopedRoomId: number | undefined;
@@ -993,7 +1002,12 @@ router.get(
 				res.status(400).json({ code: termParse.code, message: termParse.message });
 				return;
 			}
-			const termIndex = await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
+			// C08 (D5) — a published run resolves its export term through the FROZEN
+			// ordered-term contract; a draft/unpublished (or not-yet-bound) run keeps
+			// live verified authority.
+			const termIndex = runId != null
+				? await resolvePublishedRunTermIndex(schoolId, schoolYearId, runId, termParse.requested)
+				: await resolveRequestedTermIndex(schoolId, schoolYearId, termParse.requested);
 
 			const matrix = await generateClassProgramMatrix({
 				schoolId,
