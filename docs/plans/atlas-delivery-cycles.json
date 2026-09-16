@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:18:37.337Z",
+    "lastUpdatedAt": "2026-09-16T04:19:11.928Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 121
+    "revision": 122
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -3122,7 +3122,7 @@
       "objective": "Planner-led bounded source cycle on work/generation-authority-realism-c07: (1) thread persisted PolicySpecialEvent authority into the shared shape-contract assembly and the real constructor input; (2) render the Monday Flag Ceremony/HGP as a day-scoped overlay on the configured underlying advisory-section period with no added ordinary demand, minutes, or period slots; (3) reject explicit non-Monday Flag/HGP authority with a typed blocker instead of silently reinterpreting it; (4) make room authority data-driven so the primary beneficiary's Science rotation resolves to CLASSROOM with zero laboratory occupancy and zero laboratory-derived warnings while a school-scoped explicit LABORATORY authority still reserves a laboratory; (5) emit ROOM_TYPE_MISMATCH only when the preferred room genuinely could not be used, with an auditable reason; (6) carry actual faculty availability slots into the real generation trigger instead of timeSlots: []; (7) add availability/preferences to the generation freshness snapshot, bump the snapshot contract, and fail older runs closed as stale. No live generation, deployment, publication, schema or shared-database mutation.",
       "riskTier": "MEDIUM",
       "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T04:18:37.337Z",
+      "stateUpdatedAt": "2026-09-16T04:19:11.928Z",
       "nextAction": "dispatch the bounded C07 executor packet and await REVIEW_REQUIRED",
       "awaited": [
         "fresh independent QA over the corrected candidate"
@@ -3132,7 +3132,7 @@
         "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
         "branch": "work/generation-authority-realism-c07",
         "baseSha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
-        "candidateSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
+        "candidateSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
         "integrationSha": null,
         "changedPaths": [
           "atlas-client/src/components/subjects/SubjectFormModal.tsx",
@@ -3267,6 +3267,16 @@
           "baseSha": "74e7cf002e9734e36097f36c2581f8977042e325",
           "candidateSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
           "reason": "Planner R2d decision record and independent verification evidence (packet section 15): decisive gates green, three line-level mutants fail the decisive production tests and were restored byte-exactly, pre-existing publication-concurrency guard reproduced identically on base and candidate.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 5,
+          "baseSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
+          "candidateSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
+          "reason": "Register/render record of the executor return and the four correction rounds; final reviewed tip for fresh independent QA.",
           "qaVerdict": null,
           "qaSessionId": null,
           "auditorVerdict": null,
