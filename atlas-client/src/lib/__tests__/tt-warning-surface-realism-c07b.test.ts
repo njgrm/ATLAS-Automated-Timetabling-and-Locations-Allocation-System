@@ -19,6 +19,14 @@
  *   F2 the publish task reaches the real publish-readiness surface (no
  *      corrected-but-unreachable component)
  *   F5 a placement blocker honors the destination unresolved reason
+ *
+ * Correction R2 (TT-WARNING-SURFACE-C07B) closes the whole sentence-authority
+ * contract with PRODUCER-SHAPED fixtures (real `unassignedItems`), because the
+ * R1 fixtures built from `draftReport()` had an empty unresolved queue and could
+ * not observe the fold of the queue into the hard-blocker count:
+ *   - the hard clause is driven only by the hard-violation authority;
+ *   - the unresolved clause is the only place unresolved groups appear;
+ *   - the sentence/summaryText never contradict the rendered run-wide gate.
  */
 
 import assert from 'node:assert/strict';
@@ -45,7 +53,7 @@ import type { LeftRailContentContext } from '../../components/timetable/timetabl
 import { ExplainabilityDrawer } from '../../components/ExplainabilityDrawer';
 import { ConstraintRow, SOFT_CONSTRAINT_LABELS, DEFAULT_CONSTRAINT_CONFIG } from '../../components/scheduling-policy/PolicyPanePrimitives';
 import { PublishChecklistContent, buildBlockerGroups, UNASSIGNED_GROUP_MAP } from '../../components/timetable/simple/SimpleTaskDrawerHelpers';
-import type { DraftReport, Violation, ViolationReport } from '../../types';
+import type { DraftReport, UnassignedItem, Violation, ViolationReport } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
 const repoRoot = resolve(clientRoot, '..');
@@ -904,4 +912,169 @@ test('mutant: hardcoding NO_AVAILABLE_SLOT for every placement blocker is detect
 			assert.equal(production, mutantFilter(), 'a NO_AVAILABLE_SLOT destination keeps the exact filter');
 		}
 	}
+});
+
+// ═════════════════════════ C07B CORRECTION R2 ═════════════════════════
+// The candidate folded the unresolved queue into the hard-blocker count
+// (`Math.max(groupBlockerCount, runWideBlockingHard)`), so two SOFT-reason
+// unresolved sessions rendered as "2 hard blockers" beside a panel reporting 0
+// run-wide blocking hard, and the same sessions were counted twice. R1 could not
+// detect it because every `draftReport()` fixture had empty `unassignedItems`.
+// These fixtures use the real producer shape and assert BOTH the rendered
+// sentence and `summaryText`.
+
+/** Producer-shaped `draft.unassignedItems` (the real `UnassignedItem` wire shape). */
+function unresolvedSessions(count: number, reason: UnassignedItem['reason'] = 'NO_AVAILABLE_SLOT'): UnassignedItem[] {
+	return Array.from({ length: count }, (_, index) => ({
+		sectionId: index + 1,
+		subjectId: index + 101,
+		gradeLevel: 8,
+		session: index + 1,
+		reason,
+		facultyId: index + 1,
+	}));
+}
+
+/** Read a rendered `data-testid` count out of the sheet markup. */
+function renderedCount(markup: string, testId: string): number {
+	const match = markup.match(new RegExp(`data-testid="${testId}"[^>]*>(\\d+)<`));
+	assert.ok(match, `the sheet renders ${testId}`);
+	return Number(match![1]);
+}
+
+/** The hard-blocker count a sentence states, or 0 when it states none. */
+function hardCountIn(sentence: string): number {
+	const match = sentence.match(/(\d+) hard blocker/);
+	return match ? Number(match[1]) : 0;
+}
+
+/** The unresolved-session count a sentence states, or 0 when it states none. */
+function unresolvedCountIn(sentence: string): number {
+	const match = sentence.match(/(\d+) unresolved session/);
+	return match ? Number(match[1]) : 0;
+}
+
+test('R2 (a) unresolved-only: two producer-shaped queue sessions report zero hard blockers', () => {
+	const draft = draftReport({ unassignedItems: unresolvedSessions(2) });
+	const runWide = { blockingHardCount: 0, unassignedCount: 2, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	assert.equal(readiness.totalHardBlockers, 0, 'the queue is SOFT — there is no hard violation to count');
+	assert.equal(readiness.totalUnresolved, 2);
+	assert.equal(readiness.blockerSentence, '2 unresolved sessions still need fixing before this schedule can be published.');
+	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard, 'summaryText agrees with the run-wide hard gate');
+	assert.doesNotMatch(readiness.summaryText, /hard blocker/);
+	assert.match(readiness.summaryText, /2 unresolved sessions still need fixing/);
+
+	const markup = renderSheet({ draft, violations: [], runWide });
+	assert.equal(blockerSentenceFromMarkup(markup), '2 unresolved sessions still need fixing before this schedule can be published.');
+	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 0, 'the panel hard gate is 0');
+	assert.doesNotMatch(markup, /hard blocker/, 'the sentence never contradicts the rendered 0 blocking hard gate');
+	assert.match(markup, /data-testid="timetable-simple-blocker-group"/, 'the affected queue sessions are still listed');
+});
+
+test('R2 (b) hard-only: the run-wide hard gate blocks and no unresolved claim is invented', () => {
+	const draft = draftReport({ unassignedItems: [] });
+	const runWide = { blockingHardCount: 2, unassignedCount: 0, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	assert.equal(readiness.totalHardBlockers, 2);
+	assert.equal(readiness.totalUnresolved, 0);
+	assert.equal(readiness.blockerSentence, '2 hard blockers still need fixing before this schedule can be published.');
+	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard);
+	assert.doesNotMatch(readiness.summaryText, /unresolved session/);
+
+	const markup = renderSheet({ draft, violations: [], runWide });
+	assert.equal(blockerSentenceFromMarkup(markup), '2 hard blockers still need fixing before this schedule can be published.');
+	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 2);
+	assert.equal(unresolvedCountIn(blockerSentenceFromMarkup(markup)), 0);
+});
+
+test('R2 (c) mixed: one hard blocker plus two unresolved sessions are counted once each', () => {
+	const draft = draftReport({ unassignedItems: unresolvedSessions(2) });
+	const runWide = { blockingHardCount: 1, unassignedCount: 2, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	// Three distinct problem sessions: one run-wide hard violation and two queue
+	// sessions. The fold claimed 2 hard + 2 unresolved, counting the queue twice.
+	assert.equal(readiness.totalHardBlockers, 1, 'the two SOFT queue sessions are never folded into the hard count');
+	assert.equal(readiness.totalUnresolved, 2);
+	assert.equal(readiness.totalHardBlockers + readiness.totalUnresolved, 3, 'each problem session is claimed exactly once');
+	assert.equal(readiness.blockerSentence, '1 hard blocker and 2 unresolved sessions still need fixing before this schedule can be published.');
+	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard);
+	assert.equal(unresolvedCountIn(readiness.summaryText), 2);
+
+	const markup = renderSheet({ draft, violations: [], runWide });
+	assert.equal(blockerSentenceFromMarkup(markup), '1 hard blocker and 2 unresolved sessions still need fixing before this schedule can be published.');
+	assert.equal(renderedCount(markup, 'timetable-simple-run-wide-blocking'), 1);
+});
+
+test('R2 (d) clean: a producer-shaped empty queue with a clean gate is ready to publish', () => {
+	const draft = draftReport({ unassignedItems: [] });
+	const runWide = { blockingHardCount: 0, unassignedCount: 0, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	assert.equal(readiness.totalHardBlockers, 0);
+	assert.equal(readiness.totalUnresolved, 0);
+	assert.equal(readiness.blockerSentence, '');
+	assert.match(readiness.summaryText, /Ready to publish/);
+	assert.equal(hardCountIn(readiness.summaryText), readiness.runWideBlockingHard);
+
+	const markup = renderSheet({ draft, violations: [], runWide });
+	assert.match(markup, /data-testid="timetable-simple-ready-to-publish"/);
+	assert.match(markup, /Ready to publish/);
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-blocker-sentence"/);
+});
+
+test('mutant: folding unresolved reason groups back into the hard-blocker count is detected', () => {
+	const draft = draftReport({ unassignedItems: unresolvedSessions(2) });
+	const runWide = { blockingHardCount: 0, unassignedCount: 2, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	// The candidate's rule: the rendered blocker-group sum fed the hard clause.
+	const mutantHard = Math.max(
+		readiness.blockerGroups.reduce((sum, group) => sum + group.count, 0),
+		readiness.runWideBlockingHard,
+	);
+	assert.equal(mutantHard, 2, 'the fold invents two hard blockers for a SOFT queue');
+	assert.notEqual(readiness.totalHardBlockers, mutantHard, 'production excludes the unresolved groups');
+	assert.equal(readiness.totalHardBlockers, 0);
+
+	// The mutant sentence beside the production panel's 0 blocking hard.
+	const mutantSentence = `${mutantHard} hard blockers and ${readiness.totalUnresolved} unresolved sessions still need fixing before this schedule can be published.`;
+	const mutantMarkup = renderToStaticMarkup(
+		createElement(MemoryRouter, null,
+			createElement('p', { 'data-testid': 'timetable-simple-blocker-sentence' }, mutantSentence),
+		),
+	);
+	assert.match(mutantMarkup, /2 hard blockers/, 'the mutant ships the contradiction');
+	assert.doesNotMatch(renderSheet({ draft, violations: [], runWide }), /hard blocker/, 'the production sheet never serializes it');
+});
+
+test('mutant: reverting the sentence to totalUnresolved alone is detected on a producer-shaped fixture', () => {
+	const draft = draftReport({ unassignedItems: [] });
+	const runWide = { blockingHardCount: 2, unassignedCount: 0, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	// The original F1 defect: the sentence counted unresolved sessions only.
+	const mutantSentence = (unresolved: number) =>
+		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.`;
+	assert.match(mutantSentence(readiness.totalUnresolved), /^0 sessions still need fixing/, 'the reverted rule ships the false zero claim');
+	assert.notEqual(readiness.blockerSentence, mutantSentence(readiness.totalUnresolved));
+	assert.equal(readiness.blockerSentence, '2 hard blockers still need fixing before this schedule can be published.');
+	assert.doesNotMatch(renderSheet({ draft, violations: [], runWide }), /0 sessions? still need fixing/);
+});
+
+test('mutant: a hard clause that contradicts the run-wide gate is detected', () => {
+	const draft = draftReport({ unassignedItems: unresolvedSessions(2) });
+	const runWide = { blockingHardCount: 0, unassignedCount: 2, softCount: 0 };
+	const readiness = deriveSimplePublishReadiness(draft, [], label('Section'), label('Subject'), label('Teacher'), runWide);
+
+	// A hard clause derived from the unresolved total contradicts runWideBlockingHard.
+	const contradictingHardCount = readiness.totalUnresolved;
+	assert.equal(readiness.runWideBlockingHard, 0);
+	assert.notEqual(contradictingHardCount, readiness.runWideBlockingHard, 'the contradicting clause would state 2 hard blockers beside a 0 gate');
+	assert.match(readiness.blockerSentence, /^2 unresolved sessions/, 'the production sentence carries no contradicting hard count');
+	assert.equal(hardCountIn(readiness.blockerSentence), readiness.runWideBlockingHard);
+	assert.doesNotMatch(readiness.summaryText, /hard blocker/);
 });

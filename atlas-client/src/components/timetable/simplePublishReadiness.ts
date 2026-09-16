@@ -69,16 +69,23 @@ export type WarningGroup = {
 };
 
 export type SimplePublishReadiness = {
+	/** Unresolved-queue sessions that must be placed before publication. */
 	totalUnresolved: number;
+	/**
+	 * Publication-blocking HARD violations only (C07B/R2). Threaded from the same
+	 * hard-violation authority as `runWideBlockingHard`; an unresolved reason
+	 * group is never folded in here.
+	 */
 	totalHardBlockers: number;
 	totalSoftWarnings: number;
 	blockerGroups: BlockerGroup[];
 	warningGroups: WarningGroup[];
 	/**
-	 * Truthful one-line reason the schedule cannot be published yet (C07B/F1).
-	 * Driven by the hard-blocker / unresolved pair, so a hard-blocker-only block
-	 * never claims that zero sessions need fixing and an unresolved-only block
-	 * never invents a hard blocker.
+	 * Truthful one-line reason the schedule cannot be published yet (C07B/F1/R2).
+	 * The hard clause is driven ONLY by the hard-violation authority and the
+	 * unresolved clause ONLY by the unresolved-queue authority, so a hard-only
+	 * block never claims that zero sessions need fixing and an unresolved-only
+	 * block never invents a hard blocker.
 	 */
 	blockerSentence: string;
 	summaryText: string;
@@ -579,10 +586,17 @@ export function deriveSimplePublishReadiness(
 		})
 		.sort((a, b) => b.count - a.count);
 
-	const groupBlockerCount = blockerGroups.reduce((sum, g) => sum + g.count, 0);
+	// `blockerGroups` is a RENDERING list. It deliberately carries both publish
+	// authorities (hard violations and the unresolved queue) so the operator sees
+	// every session to fix in one place, which is exactly why its raw sum is an
+	// invalid gate count. Split it back into its sources before counting.
+	const unresolvedGroupCount = blockerGroups
+		.filter((group) => group.scope === 'run-wide')
+		.reduce((sum, group) => sum + group.count, 0);
 	const warningGroups = buildWarningGroups(violations, sectionLabel, subjectLabel, facultyLabel);
 	const selectedTermWarningCount = warningGroups.reduce((sum, g) => sum + g.count, 0);
 
+	/** Allowlist-filtered HARD violations in the selected-term list. */
 	const selectedTermBlockingHard = violations.filter(isBlockingHardViolation).length;
 
 	// Run-wide authority. `counts.runWide.blockingHard` is the canonical gate;
@@ -593,12 +607,25 @@ export function deriveSimplePublishReadiness(
 		?? (draft != null ? selectedTermBlockingHard : 0);
 	const runWideUnassigned = runWide?.unassignedCount
 		?? summaryField(summary, 'unassignedCount')
-		?? unassignedItems.length;
+		?? (draft != null ? unresolvedGroupCount : 0);
 	const runWideSoft = runWide?.softCount
 		?? summaryField(summary, 'softViolationCount')
 		?? (draft != null ? selectedTermWarningCount : 0);
 
-	const totalHardBlockers = Math.max(groupBlockerCount, runWideBlockingHard);
+	// C07B/R2 — sentence authority contract. The rendered sentence and
+	// `summaryText` bind TWO INDEPENDENT authorities that must never be merged:
+	//   1. the hard-violation authority — the run-wide HARD gate plus the
+	//      HARD-severity selected-term violation groups; and
+	//   2. the unresolved-queue authority — the unresolved reason groups and the
+	//      run-wide unresolved requirement.
+	// The candidate folded (2) into (1) via `Math.max(groupBlockerCount, …)`, so
+	// two SOFT-reason unresolved sessions (`blockingHard = 0`, `unassignedCount =
+	// 2`) rendered as "2 hard blockers" beside a panel reporting 0 run-wide
+	// blocking hard, and the same sessions were counted twice. A blocker group is
+	// a hard blocker only when it was derived from a HARD violation; an unresolved
+	// group is never added to the hard count, and the unresolved clause is the only
+	// place it appears.
+	const totalHardBlockers = Math.max(selectedTermBlockingHard, runWideBlockingHard);
 	const totalUnresolved = Math.max(unassignedItems.length, runWideUnassigned);
 	const totalSoftWarnings = Math.max(selectedTermWarningCount, runWideSoft);
 	// The run-wide gate blocks on either a publication-blocking HARD violation or
