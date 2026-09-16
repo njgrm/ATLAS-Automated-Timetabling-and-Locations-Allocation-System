@@ -51,15 +51,13 @@ publication.
 
 | Item | Verified value |
 |---|---|
-| Scheduled task | **UNVERIFIED — ELEVATION REQUIRED (NOT "absent").** Re-verified read-only 2026-09-16 from an **unelevated** shell. Calibrated control: `schtasks /query /tn ATLAS-NoSuchTask-XYZ-2026 /fo LIST` → `ERROR: The system cannot find the file specified.`, while `schtasks /query /tn ATLAS-Runtime-Supervisor` (with **and** without `/v`) → `ERROR: Access is denied.`, and `ATLAS Daily Backup` succeeds with the same `/v` switch. The name therefore **resolves but is unreadable** by the unelevated caller — consistent with a SYSTEM-registered task ACL; a truly absent task reports "cannot find the file specified". Corroboration: (a) the resident supervisor's direct parent is `svchost.exe` PID 2380 = the **Task Scheduler** service; (b) the cycle register records the COMPLETE `ENROLLPRO-PROXY-RECOVERY-LIVE` action re-pointing this task and relaunching the resident supervisor via `schtasks /run /tn ATLAS-Runtime-Supervisor`, matching the live `startedAt`. **Boot-restart durability is UNVERIFIED, not disproven.** One elevated read-only `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v` settles it; until then no packet may assert the task exists **or** is absent. |
-| Task action | **NOT YET OBSERVED — requires the elevated read in the row above.** This apply does not depend on it: §10 forbids every runtime restart/task/env change, so the single request executes against the already-running resident process. |
-| Working directory | `D:\ATLAS-runtime-supervised-54dce67b-20260914` (superseded pin `3d916b26`); supervisor state `sourceDir` re-verified 2026-09-16 |
-| Supervisor process | Superseded capture PID `3132` is absent. Re-verified 2026-09-16: supervisor state `state=running`, `startedAt=2026-09-15T17:25:41.742Z`, `ownedPids` server `35988` / client `30192`, `previous: null`. |
-| Release checkout | Re-verified 2026-09-16: `releaseSha=54dce67b8392cbce09aa810813c37f9c87a67159` under `sourceDir=D:\ATLAS-runtime-supervised-54dce67b-20260914` (`productPin=d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`). Superseded pin `3d916b26`. |
-| Supervisor state | Re-verified 2026-09-16: `state=running`, `releaseSha=54dce67b…`, `ownedPids` server `35988` / client `30192`, `previous=null` (see rollback drift in §11). |
-| Listeners | Re-verified 2026-09-16: 5001 → PID `35988` (`node`), 5174 → PID `30192` (`node`), one owner per port; both match supervisor `ownedPids`. Superseded capture `19448`/`10880`. |
-| Automation invariant | `ROLLOVER_AUTO_SYNC_ENABLED=false` (supervisor status + runtime contract) |
-| Liveness / readiness | local `http://127.0.0.1:5001/api/v1/health` 200; `/api/v1/health/ready` 200 (`database: ok`); `https://njgrm.buru-degree.ts.net/api/v1/health` 200; Tailnet root 200 |
+| Scheduled task | `\ATLAS-Runtime-Supervisor` — **EXISTS and is the durable launch owner.** Elevated read-only `schtasks /query /tn "ATLAS-Runtime-Supervisor" /fo LIST /v` exits **0**: `Status: Running`, `Run As User: SYSTEM`, `Schedule Type: At system start up`, `Scheduled Task State: Enabled`. The calibrated known-absent control `ATLAS-NoSuchTask-XYZ` exits **1** with `ERROR: The system cannot find the file specified.` — absence is never inferable from an unelevated `Access is denied`. |
+| Task action / Start In | `C:\Program Files\nodejs\node.exe "D:\ATLAS-runtime-supervised-54dce67b-20260914\ops\runtime\cli.mjs" start` / `D:\ATLAS-runtime-supervised-54dce67b-20260914`. |
+| Working directory | `D:\ATLAS-runtime-supervised-54dce67b-20260914` (`sourceDir` confirmed by both the task and the supervisor state file). |
+| Release checkout | `releaseSha=54dce67b8392cbce09aa810813c37f9c87a67159`, `productPin=d44f29e04d359ad9b18e4443b0fd4fed1daeaecd`. |
+| Rollover automation | `ROLLOVER_AUTO_SYNC_ENABLED=false` (supervisor status + runtime contract). |
+| Liveness / readiness | Observed 200 (local health, local readiness with `database: ok`, Tailnet health) — **but see §4.0: these are capture-time values only.** |
+| Supervisor / listener identity | **Read at execution time only.** Every PID, `startedAt`, `updatedAt`, `previous` and listener value in this section is a superseded capture; §4.0 requires a fresh atomic capture immediately before any future apply. |
 
 Telemetry note (non-blocking, observed): the `cli.mjs status` snapshot reports
 `live:false` and a stale `startedAt`/`uptimeMs` even while direct probes return
@@ -83,7 +81,7 @@ Telemetry note (non-blocking, observed): the `cli.mjs status` snapshot reports
 
 - The deployed server reads its integration origin from the durable env key
   `ENROLLPRO_API` (`D:\ATLAS-runtime-config\atlas-server.env`, outside every
-  Git worktree; 13 keys; loaded verbatim into the server child process).
+  Git worktree; 14 keys; loaded verbatim into the server child process).
 - Current configured value at preparation: host `100.120.169.123:5002`, path
   `/api` (raw Tailnet EnrollPro integration origin, HTTP). This is the origin
   the live server actually calls today.
@@ -133,6 +131,42 @@ All steps below are read-only. Run them in order. If any step fails or differs,
 stop, record the exact disagreement, and return to the planner **without a
 login and without an apply request**.
 
+### 4.0 Atomic execution-window pre-state capture (mandatory, immediately before any future apply)
+
+This packet's captured identities are **prepared-time values only** and are
+superseded the moment the runtime changes. Immediately before any future apply —
+and before the single authorized login — the executor shall take ONE atomic
+read-only capture and bind the apply to it:
+
+1. **Registered task:** `schtasks /query /tn "ATLAS-Runtime-Supervisor" /fo LIST /v`
+   — literal action, start directory, status, schedule type, run-as principal.
+   (Record the known-absent control result too, so "not found" can never be
+   confused with an ACL-restricted read.)
+2. **Supervisor / release / sourceDir:** `<sourceDir>/ops/runtime/logs/supervisor-state.json`
+   — `state`, `releaseSha`, `sourceDir`, `startedAt`, `updatedAt`, `ownedPids`, `previous`.
+3. **Exact listeners:** 5001 and 5174, each with exactly one owning PID, and the
+   owning PIDs equal to `ownedPids.server` / `ownedPids.client`.
+4. **Health and readiness:** local `GET /api/v1/health` and
+   `GET /api/v1/health/ready` (dependency readiness, `database: ok`), plus
+   Tailnet `https://njgrm.buru-degree.ts.net/api/v1/health`.
+5. **Rollover automation state:** `ROLLOVER_AUTO_SYNC_ENABLED=false`.
+6. **EnrollPro reachability, direct and proxy:** the direct integration origin the
+   deployed server reads, and the ATLAS-side proxy path. The proxy path has
+   **alternated between 404 and 200 across observations**; it is execution-window
+   state, never durable truth. Record both literal statuses.
+7. **Mirror 223 cache values:** `term_contract_cache`, `term_contract_cached_at`,
+   `is_active`, `is_archived`, `updated_at`.
+8. **Fingerprint and confirmation text:** the recomputed `liveSemanticRevision`
+   and fingerprint, plus the exact `confirmationText` the apply will submit.
+9. **`TERM_CACHE_SYNC_APPLIED` audit count** and the audit/actor baselines.
+
+**Divergence rule.** If the captured pre-state differs materially from the
+reviewed values in this packet — any ordered term, semantic revision,
+fingerprint, confirmation text, mirror identity or count, database pre-state,
+runtime release/sourceDir, listener ownership, task identity, or automation
+state — the executor shall **stop and return `PLANNER_DECISION_REQUIRED`**. It
+shall not adapt, re-derive, or re-authorize the apply during execution.
+
 1. **Runtime identity.** (a) Attempt `schtasks /query /tn ATLAS-Runtime-Supervisor
    /fo LIST /v` and record the literal result. `Access is denied` is the
    **expected unelevated outcome** and is **not** a preflight failure and **not**
@@ -144,14 +178,17 @@ login and without an apply request**.
    `live`/`uptimeMs` fields are unreliable and are **not** authoritative.
    (c) Confirm 5001/5174 each have exactly one owner and the owning PIDs equal
    `ownedPids.server`/`ownedPids.client`. (d) Confirm
-   `ROLLOVER_AUTO_SYNC_ENABLED=false`. Stop only if (b)–(d) disagree with §2 or
-   health/readiness fails.
+   `ROLLOVER_AUTO_SYNC_ENABLED=false`. **Stop only if the values captured by
+   §4.0 are internally inconsistent, if `releaseSha`/`sourceDir` differ from the
+   reviewed release `54dce67b` / `D:\ATLAS-runtime-supervised-54dce67b-20260914`,
+   if any listener has zero or multiple owners, or if health/readiness fails.**
+   No superseded PID row in this packet may be used as a stop rule.
 2. **Health.** Confirm `GET /api/v1/health` 200, `GET /api/v1/health/ready` 200
    (dependency readiness, not just liveness), and Tailnet
    `https://njgrm.buru-degree.ts.net/api/v1/health` 200.
 3. **Deployment equivalence for the apply path.** Confirm the live checkout
    HEAD is contained in `origin/main` and that
-   `git diff --stat 3d916b26..<live HEAD> --` the seven apply-path files
+   `git diff --stat 54dce67b8392cbce09aa810813c37f9c87a67159..origin/main --` the seven apply-path files
    (`atlas-server/src/routes/runtime.router.ts`,
    `atlas-server/src/services/enrollpro-term-contract.service.ts`,
    `atlas-server/src/services/rollover-automation.service.ts`,
@@ -457,19 +494,32 @@ of this packet's evidence beyond the reviewed docs commit described in §11.
 - The head planner then commissions the fresh post-action Wave Completion
   Auditor (§8.7) and only afterwards may update the register, close the TT-TL
   runtime-acceptance cycle, or prepare generation/publication.
-- Runtime rollback is **NOT available through `cli.mjs`**: the live supervisor
-  state records `previous: null` and its state is source-directory local, so no
-  supervised reset path exists. Any future runtime packet must therefore state
-  rollback explicitly and durably: stop the new supervised release; restore the
-  machine source/release variables; **first settle the launch-owner state with
-  one elevated read-only `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v`**
-  (do not assume presence or absence), then re-point that task action and
-  working directory to `D:\ATLAS-runtime-supervised-54dce67b-20260914` and
-  relaunch through the registered SYSTEM task, ordered stop-then-start (never
-  zero-downtime), then re-prove ownership, health
-  and readiness. A packet that claims `cli.mjs` rollback availability is
-  invalid. The term-cache restore transaction above is unchanged and remains
-  the only rollback for the cache write itself.
+- **Runtime rollback truth.** `cli.mjs rollback` **cannot restore a prior
+  release here and must never be relied on as the rollback.** The live supervisor
+  state has `previous` **non-null**, but that prior record points at the *same*
+  release and the *same* `sourceDir` (`54dce67b8392cbce09aa810813c37f9c87a67159`
+  at `D:\ATLAS-runtime-supervised-54dce67b-20260914`), so the fail-closed
+  `ROLLBACK_UNAVAILABLE` guard does not fire and a rollback would appear to
+  succeed while restoring nothing older. Any future runtime packet must define
+  rollback explicitly as this ordered procedure:
+  1. **Stop the attempted operation safely** (abort the apply request path; do
+     not retry; leave the resident runtime serving).
+  2. **Restore the exact captured pre-action state** — the §4.0 execution-window
+     capture of task, supervisor/release/sourceDir, listeners, and environment.
+  3. **Re-point the registered SYSTEM task** to release `54dce67b` at
+     `D:\ATLAS-runtime-supervised-54dce67b-20260914` **when necessary** (only if
+     the task action or start directory was changed).
+  4. **Relaunch through the registered task** (`schtasks /run /tn
+     ATLAS-Runtime-Supervisor`) — never as a child of an attached shell, and
+     ordered stop-then-start because `ops/runtime/lib/supervisor.mjs` fails
+     `start` closed with `ALREADY_RUNNING` while owned PIDs are live. Never word
+     this as zero-downtime.
+  5. **Prove recovery:** exactly one owner per port on 5001 and 5174, health and
+     readiness 200, and the registered task identity/action/start directory equal
+     to the captured pre-action values.
+
+  The §9 term-cache restore transaction is unchanged and remains the only
+  rollback for the cache write itself.
 
 ## 11a. Validated successor constraints (recorded 2026-09-16)
 
@@ -484,13 +534,15 @@ runtime packet. None of them is authorized by this packet.
   migration approval must name BOTH migrations and their expected additive
   objects.
 - **(c) Rollback truth.** A future runtime packet must not claim `cli.mjs`
-  rollback is available (live state records `previous=null`). Rollback must be
-  the explicit ordered procedure recorded in §11, and that procedure must first
-  settle the current launch-owner state with one elevated read-only
-  `schtasks /query /tn ATLAS-Runtime-Supervisor /fo LIST /v` rather than
-  assuming presence or absence. Because `ops/runtime/lib/supervisor.mjs` fails
-  `start` closed with `ALREADY_RUNNING` while owned PIDs are live, the procedure
-  is ordered stop-then-start and must never be worded as zero-downtime.
+  rollback restores a prior release: live `previous` is non-null but points at
+  the same release and sourceDir (`54dce67b`), so the fail-closed guard does not
+  fire and nothing older is restored. Rollback must be the explicit ordered
+  procedure recorded in §11 (stop safely; restore the captured pre-action
+  state; re-point the registered SYSTEM task when necessary; relaunch through
+  the registered task; prove one owner per port, health, readiness and task
+  identity). Because `ops/runtime/lib/supervisor.mjs` fails `start` closed with
+  `ALREADY_RUNNING` while owned PIDs are live, the procedure is ordered
+  stop-then-start and must never be worded as zero-downtime.
 - **(d) Pin.** No deployment packet may be pinned to `476157b1` or `809fa67b`.
   The deployment candidate basis is the exact final `origin/main` after Lane B
   integration, as recorded in the cycle register.
@@ -512,34 +564,54 @@ read-only context:
 | Rollover automation | Disabled (`ROLLOVER_AUTO_SYNC_ENABLED=false`, supervisor log) |
 | Durable env | `D:\ATLAS-runtime-config\atlas-server.env`, `keyCount: 14` (not 13), includes `ENROLLPRO_PROXY_ORIGIN` and `ENROLLPRO_API`. Values are never printed, recorded, or quoted. |
 
-**PRE-STATE VOLATILITY — BLOCKING for any HIGH apply.** The supervisor log shows
-two consecutive restarts inside ~50 seconds: `2026-09-15T21:30:14.532Z`
-(server `12800` / client `12816`, healthy `21:30:16.678Z`), then
-`2026-09-15T21:31:04.221Z` (server `13244` / client `13260`, healthy
-`21:31:17.548Z`), preceded by a Prisma `P1001` "Can't reach database server at
-`localhost:5432`" episode. Any apply must therefore re-run the entire §4
-preflight at execution time and bind the pre-state verified in that same window;
-no snapshot in this packet may be treated as the apply-time pre-state.
+**Boot recovery is PROVEN (positive evidence).** The supervisor log records
+exactly three start banners: `2026-09-15T17:25:21.875Z` (server `35988` /
+client `30192`), `2026-09-15T21:30:14.532Z` (server `12800` / client `12816`),
+and `2026-09-15T21:31:04.221Z` (server `13244` / client `13260`). The
+second-to-last and last starts straddle a **host reboot**
+(`LastBootUpTime 2026-09-16 05:30:45 +08`), and the last start is the ONSTART
+SYSTEM task run (`Last Run Time 16/09/2026 5:30:57 am`, `Last Result 267009`).
+The boot task therefore demonstrably recovered the runtime, which closes the
+earlier "boot-restart durability UNVERIFIED" caveat. **Retraction:** the earlier
+"two consecutive restarts preceded by a Prisma `P1001` episode" narrative is
+**withdrawn** — there is no supervisor `Restarting after unexpected exit`,
+`Giving up`, `Stopped`, or rollback line, and the nearest `P1001` was
+`2026-09-15T20:32:10.523Z`, roughly 58 minutes earlier and in the previous boot
+session. Any remaining unsupervised start before the reboot is recorded as
+**unattributed**, not explained.
 
-**Observed, freshly reproduced (2026-09-16):**
-`http://localhost:5001/enrollpro-api/settings/public` returns **404**, not 502.
-Recorded as current, not historical. (Earlier direct-origin
-`https://dev-jegs.buru-degree.ts.net/api/settings/public` remains 200.)
+**No snapshot is the apply-time pre-state.** Every value in this section is a
+capture-time observation. Any apply must satisfy §4.0 by taking one atomic
+read-only capture immediately before the write and binding the apply to it; if
+that capture differs materially from the reviewed values, the executor stops and
+returns `PLANNER_DECISION_REQUIRED`.
 
-The note immediately below this heading predates the elevated re-verification;
-the preconditions it named are resolved by this section, and §12 remains
-withheld pending one fresh independent pre-action review of this revision.
+**Proxy reachability is execution-window state.**
+`http://localhost:5001/enrollpro-api/settings/public` has **alternated between
+404 and 200 across observations** and must not be treated as durable truth
+either way; §4.0 item 6 captures it, and the direct integration origin
+`https://dev-jegs.buru-degree.ts.net/api/settings/public` was observed 200.
+
+The launch-owner question is settled by this section, and the §2 runtime rows are
+superseded by it. §12 remains withheld pending exactly one fresh independent
+pre-action review of this corrected revision.
 
 ## 12. Copy-ready HIGH approval sentence (NOT GRANTED)
 
-**NOT GRANTABLE in the current revision.** The §2 launch-owner row is an
-unverified, elevation-limited observation, so §12 must not be offered until the
-correction round (E1–E5) is applied and §2 contains no self-declared BLOCKING
-row, and until one fresh independent pre-action review clears the corrected
-packet. The apply is otherwise executable: the resident runtime is live and
-healthy, the deployed release contains the reviewed apply route, and the seven
-apply-path files are unchanged between the deployed release and the reviewed
-`origin/main`.
+**Not offered until one fresh independent pre-action review is `ACCEPT_READY` on
+the corrected revision.** The corrective work identified by the second
+pre-action reviewer (F-A rollback truth, F-B superseded stop rules, F-C
+equivalence base, F-D retracted reboot/P1001 narrative, F-E execution-window
+pre-state binding) is applied in this revision; the remaining precondition is
+that review. The apply is otherwise executable: the resident runtime is live and
+healthy, the registered SYSTEM task is the durable launch owner, boot recovery
+is proven, the deployed release contains the reviewed apply route, and the seven
+apply-path files are unchanged between the deployed reviewed release `54dce67b`
+and the reviewed `origin/main`.
+
+The sentence below is a **draft**, not an offer. Its clause (1) — "differs from
+the packet's captured values" — is now bound by §4.0's atomic execution-window
+capture, not by any frozen capture in this packet.
 
 > I approve HIGH action TERM-CACHE-CATCHUP-APPLY-2026-09-14 against the live
 > supervised ATLAS runtime (release checkout
