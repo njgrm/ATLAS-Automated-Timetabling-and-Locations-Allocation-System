@@ -895,8 +895,34 @@ test('F5 UNASSIGNED_SECTION is a violation code, never a filterable item reason'
 	assert.ok(unionMatch, 'the server unassigned-reason union is present');
 	assert.ok(!unionMatch![0].includes('UNASSIGNED_SECTION'), 'the item-level union never contains UNASSIGNED_SECTION');
 	assert.ok(unionMatch![0].includes('NO_AVAILABLE_SLOT'), 'NO_AVAILABLE_SLOT is a real filterable reason');
-	// The code itself is only ever produced as a violation code.
-	assert.match(serverSource('atlas-server/src/services/generation.service.ts'), /code: isSpecializedUnavailable \? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION'/);
+
+	// R3 — the durable client authority. Deliberately version-agnostic across both
+	// the legacy generation-service ternary and the C07A truthful classifier that
+	// replaced it: the unresolved queue is filtered by `UnassignedReason`, whose
+	// wire union holds only real item-level causes and must never gain the
+	// `UNASSIGNED_SECTION` violation code.
+	// Block comments are removed first so a `;` inside an inline doc comment
+	// cannot truncate either union match.
+	const clientTypes = source('src/types.ts').replace(/\/\*[\s\S]*?\*\//g, '');
+	const itemReasonUnion = clientTypes.match(/export type UnassignedReason =[^;]*;/);
+	assert.ok(itemReasonUnion, 'the client UnassignedReason authority is present');
+	assert.ok(itemReasonUnion![0].includes('NO_AVAILABLE_SLOT'), 'NO_AVAILABLE_SLOT is a real filterable item reason');
+	assert.ok(!itemReasonUnion![0].includes('UNASSIGNED_SECTION'), 'UNASSIGNED_SECTION is never a filterable item reason');
+
+	// …while UNASSIGNED_SECTION is authoritative precisely as a *violation* code:
+	// a member of the client violation-code authority and of the server-mirrored
+	// publication allowlist.
+	const violationCodeUnion = clientTypes.match(/export type ViolationCode =[^;]*;/);
+	assert.ok(violationCodeUnion, 'the client ViolationCode authority is present');
+	assert.ok(violationCodeUnion![0].includes("'UNASSIGNED_SECTION'"), 'UNASSIGNED_SECTION is a violation code');
+	assert.equal(isPublicationBlockingCode('UNASSIGNED_SECTION'), true, 'UNASSIGNED_SECTION blocks publication');
+
+	// The generator produces UNASSIGNED_SECTION as a violation `code:` and never
+	// maps it onto a queue `reason:` — the semantic the legacy ternary and the
+	// C07A classifier both preserve.
+	const generationService = serverSource('atlas-server/src/services/generation.service.ts');
+	assert.ok(generationService.includes("'UNASSIGNED_SECTION'"), 'the generator produces the UNASSIGNED_SECTION violation code');
+	assert.doesNotMatch(generationService, /reason:\s*'UNASSIGNED_SECTION'/);
 });
 
 test('mutant: hardcoding NO_AVAILABLE_SLOT for every placement blocker is detected', () => {
