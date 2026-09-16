@@ -1,0 +1,101 @@
+{
+  "id": "SLOT-BREAK-AUTHORITY-C11",
+  "kind": "STREAM",
+  "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "After WF-TRANSITION-TERMINAL-RECONCILE-C09 releases its register revision window, register this stream atomically, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11 against docs/prompts/slot-break-authority-c11-2026-09-17.md.",
+  "awaited": [
+    "WF-TRANSITION-TERMINAL-RECONCILE-C09 reaching a terminal state (or releasing its register revision window 218-227), which is the registration prerequisite"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
+    "branch": "fix/slot-break-authority-c11",
+    "baseSha": "e852f972ac2c47d1bddbc50e08ea50e811c15e58",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 12,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is RUNNING and holds register revisions 218-227 by literal --expect-revision attestation. This stream must not register inside that window.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "dispatch the fresh source executor after registration"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle; no prior planner owns this stream."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the source correction runs in a fresh executor context in E:/ATLAS-worktrees/slot-break-authority-c11."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "fresh independent QA over the frozen candidate, including the real-producer fixture parity and the mutant control."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the stream changes the effective break/shift authority consumed by three validator paths, so a fresh adversarial Wave Completion Auditor is required after integration."
+    }
+  }
+}
