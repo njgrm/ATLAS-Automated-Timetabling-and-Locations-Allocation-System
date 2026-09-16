@@ -1,0 +1,105 @@
+{
+  "id": "PUBLISHED-IMMUTABILITY-C08R1",
+  "kind": "CYCLE",
+  "riskTier": "MEDIUM",
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 8,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "Accept the real producer's snapped Flag/HGP overlay in the snapshot-consistency gate",
+      "Stop re-asserting isPublished=true for a superseded run during faculty sync"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "objective": "Successor correction closing the two BLOCKING findings of the PUBLISHED-IMMUTABILITY-C08 Wave Completion Audit without regressing the frozen-publication contract: (B1) make the snapshot-consistency gate accept the real producer's contained/snapped Flag/HGP display slot using containment + day-scope authority and a real-producer positive control, and (B2) stop faculty-sync invalidation from re-asserting isPublished=true on a superseded run, preserving informational markers and the destructive path for unpublished runs.",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-16T00:00:00Z",
+  "nextAction": "Executor implements docs/prompts/published-immutability-c08r1-2026-09-16.md additively in E:/ATLAS-worktrees/published-immutability-c08 and returns REVIEW_REQUIRED; the planner then records the return and commissions one fresh independent QA over the frozen R1 range.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return for the PUBLISHED-IMMUTABILITY-C08R1 correction",
+    "fresh independent QA over the frozen R1 candidate",
+    "fresh Wave Completion Auditor over the re-integrated tree"
+  ],
+  "running": [
+    "executor correction session on branch work/published-immutability-c08 (packet docs/prompts/published-immutability-c08r1-2026-09-16.md)"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
+    "branch": "work/published-immutability-c08",
+    "baseSha": "f84e43c3fda49bc2ad3bdf85cd4974b1c1b3c6d9",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": true },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "Successor correction authored by the same primary planner session that owns the C08 cycle; this harness did not expose a planner session id, so none is asserted."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "The bounded R1 correction runs in a fresh executor context on the existing cycle worktree."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "Each R1 candidate requires a fresh independent QA context over the frozen range."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "The re-integrated wave requires one fresh adversarial Wave Completion Auditor."
+    }
+  }
+}

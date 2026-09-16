@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T13:41:47.365Z",
+    "lastUpdatedAt": "2026-09-16T13:43:06.378Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 181
+    "revision": 184
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "PUBLISHED-IMMUTABILITY-C08 accepted (QA ACCEPT_READY 26/26/0/0) and integrated; pending fresh Wave Completion Auditor over the integrated tree. Live generation, publication, deployment, migration, term-cache, and Teaching Load actions remain LOCKED behind separate HIGH approvals."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "PUBLISHED-IMMUTABILITY-C08R1",
+    "globalNextAction": "CYCLE_ACTIVE on PUBLISHED-IMMUTABILITY-C08R1 (successor correction for the C08 wave-audit B1/B2 blockers): executor implements docs/prompts/published-immutability-c08r1-2026-09-16.md additively; planner then validates, commissions fresh QA, re-integrates, and runs a fresh Wave Completion Auditor. Source-only: no live login/deploy/restart/db/generation/publication/migration action."
   },
   "streams": [
     {
@@ -4297,6 +4297,150 @@
           "reason": "One fresh read-only Wave Completion Auditor runs after integration of this publication-authority correction."
         }
       }
+    },
+    {
+      "id": "PUBLISHED-IMMUTABILITY-C08R1",
+      "kind": "CYCLE",
+      "riskTier": "MEDIUM",
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 8,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "Accept the real producer's snapped Flag/HGP overlay in the snapshot-consistency gate",
+          "Stop re-asserting isPublished=true for a superseded run during faculty sync"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "objective": "Successor correction closing the two BLOCKING findings of the PUBLISHED-IMMUTABILITY-C08 Wave Completion Audit without regressing the frozen-publication contract: (B1) make the snapshot-consistency gate accept the real producer's contained/snapped Flag/HGP display slot using containment + day-scope authority and a real-producer positive control, and (B2) stop faculty-sync invalidation from re-asserting isPublished=true on a superseded run, preserving informational markers and the destructive path for unpublished runs.",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T13:43:06.378Z",
+      "nextAction": "Executor implements docs/prompts/published-immutability-c08r1-2026-09-16.md additively in E:/ATLAS-worktrees/published-immutability-c08 and returns REVIEW_REQUIRED; the planner then records the return and commissions one fresh independent QA over the frozen R1 range.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the PUBLISHED-IMMUTABILITY-C08R1 correction",
+        "fresh independent QA over the frozen R1 candidate",
+        "fresh Wave Completion Auditor over the re-integrated tree"
+      ],
+      "running": [
+        "executor correction session on branch work/published-immutability-c08 (packet docs/prompts/published-immutability-c08r1-2026-09-16.md)"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
+        "branch": "work/published-immutability-c08",
+        "baseSha": "f84e43c3fda49bc2ad3bdf85cd4974b1c1b3c6d9",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "f84e43c3fda49bc2ad3bdf85cd4974b1c1b3c6d9",
+          "observedAt": "2026-09-16T13:42:51.790Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "Successor correction authored by the same primary planner session that owns the C08 cycle; this harness did not expose a planner session id, so none is asserted."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "The bounded R1 correction runs in a fresh executor context on the existing cycle worktree."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "Each R1 candidate requires a fresh independent QA context over the frozen range."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "The re-integrated wave requires one fresh adversarial Wave Completion Auditor."
+        }
+      }
     }
   ],
   "leases": [
@@ -4342,6 +4486,17 @@
       "state": "ACTIVE",
       "revision": 1,
       "updatedAt": "2026-09-16T06:50:24.833Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-published-immutability-c08r1",
+      "streamId": "PUBLISHED-IMMUTABILITY-C08R1",
+      "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
+      "role": "planner",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-16T13:43:06.378Z",
       "expiresAt": null
     }
   ],
