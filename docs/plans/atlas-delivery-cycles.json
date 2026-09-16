@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T05:54:02.254Z",
+    "lastUpdatedAt": "2026-09-16T06:07:37.015Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 171
+    "revision": 173
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3132,8 +3132,8 @@
       "objective": "Planner-led bounded source cycle on work/generation-authority-realism-c07: (1) thread persisted PolicySpecialEvent authority into the shared shape-contract assembly and the real constructor input; (2) render the Monday Flag Ceremony/HGP as a day-scoped overlay on the configured underlying advisory-section period with no added ordinary demand, minutes, or period slots; (3) reject explicit non-Monday Flag/HGP authority with a typed blocker instead of silently reinterpreting it; (4) make room authority data-driven so the primary beneficiary's Science rotation resolves to CLASSROOM with zero laboratory occupancy and zero laboratory-derived warnings while a school-scoped explicit LABORATORY authority still reserves a laboratory; (5) emit ROOM_TYPE_MISMATCH only when the preferred room genuinely could not be used, with an auditable reason; (6) carry actual faculty availability slots into the real generation trigger instead of timeSlots: []; (7) add availability/preferences to the generation freshness snapshot, bump the snapshot contract, and fail older runs closed as stale. No live generation, deployment, publication, schema or shared-database mutation.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T04:42:31.060Z",
-      "nextAction": "Dispatch the R3 bounded correction per docs/prompts/generation-authority-realism-c07-r3-correction-2026-09-16.md, then fresh QA, re-integration, and one fresh Wave Completion Auditor.",
+      "stateUpdatedAt": "2026-09-16T06:07:37.015Z",
+      "nextAction": "Cycle GENERATION-AUTHORITY-REALISM-C07R1 closed COMPLETE; worktrees retired non-forced, branches retained.",
       "awaited": [
         "bounded correction commit"
       ],
@@ -3950,8 +3950,8 @@
       "objective": "Correction-cycle closure of GENERATION-AUTHORITY-REALISM-C07 (historical INTEGRATED round preserved): accept the frozen R3 candidate c12c28ed that binds persisted policy_special_events into the generation freshness policy domain with enabled-agnostic digest plus count/max-id/max-updated signals (B1), re-evidences C07-S04 on the reachable persisted-shape Flag/HGP containment rejection and re-captions the non-Monday predicate as forward compatibility (B2), removes the cross-namespace TERM_AUTHORITY_STALE comparison so both authority reads pass through one shared deterministic canonical term-authority revision helper with concurrent-change detection and zero-write fail-closed paths (B3), and shares the label-aware day predicate (optional N2). No live, schema, deployment, generation, publication, migration, or data action.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-16T05:54:02.254Z",
-      "nextAction": "Commission exactly one fresh Wave Completion Auditor over the corrected integrated wave (candidate c12c28ed, integration merge be2d99a9, main 03dc9880); re-verify the B1 policy_special_events freshness invalidation, B2 reachable Flag/HGP containment, B3 unchanged mirror-223 cache with no TERM_AUTHORITY_STALE, changed-between-reads stale, JSON-key-order invariance, and zero-write blocker paths. Close only on AUDIT_CLEAR; every live/HIGH action stays locked, and live generation or publication must not be treated as unlocked merely because source R3 is accepted.",
+      "stateUpdatedAt": "2026-09-16T06:07:33.294Z",
+      "nextAction": "Closed COMPLETE with QA ACCEPT_READY 22/22/0/0/0, Wave Completion Auditor AUDIT_CLEAR, receipt pinned, final remote observation recorded, and worktree disposition RETIRE_AFTER_INTEGRATION pending completion in this turn. Every live and HIGH action remains locked.",
       "awaited": [],
       "running": [],
       "git": {
@@ -3990,8 +3990,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "03dc98808370e5f87e38c842ea40fb4efcafd50d",
-          "observedAt": "2026-09-16T05:39:17.566Z",
+          "sha": "7d6e731a99c76ddd44c916b12cad823621655fc6",
+          "observedAt": "2026-09-16T06:07:33.294Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -4161,9 +4161,9 @@
       "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
       "role": "executor",
       "sessionId": null,
-      "state": "IDLE",
-      "revision": 3,
-      "updatedAt": "2026-09-16T04:42:31.060Z",
+      "state": "RETURNED",
+      "revision": 4,
+      "updatedAt": "2026-09-16T06:07:37.015Z",
       "expiresAt": null
     }
   ],
