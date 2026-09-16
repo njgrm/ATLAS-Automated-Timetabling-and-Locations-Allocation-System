@@ -1,0 +1,23 @@
+{
+  "receiptVersion": "1.1.0",
+  "generatedAt": "2026-09-16T05:10:51.291Z",
+  "statePath": "docs/plans/atlas-delivery-cycles.json",
+  "stateSha256": "dd5517200bc4e43772d1f940348610a9556b6ebf82a228ee2ba1ec639dcd90f5",
+  "status": "ok",
+  "streamId": "WF-SEED-INVENTORY-C02",
+  "verified": {
+    "candidateSha": "b8be79efcf4bf3212e39af2ec0e3ce3f8838f1a6",
+    "integrationSha": "1f96ce8d9674c0bb2d887251dd6a81048717799c",
+    "qaVerdict": "ACCEPT_READY",
+    "auditorVerdict": "AUDIT_CLEAR",
+    "gates": {
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "blocked": 0,
+      "unperformed": 0
+    },
+    "readiness": "SOURCE_ONLY",
+    "artifacts": []
+  }
+}
