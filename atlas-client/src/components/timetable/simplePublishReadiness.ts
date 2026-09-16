@@ -1,4 +1,4 @@
-import type { DraftReport, UnassignedItem, Violation } from '@/types';
+import type { DraftReport, UnassignedItem, UnassignedReason, Violation } from '@/types';
 
 export type BlockerReason =
 	| 'FACULTY_OVERLOADED'
@@ -50,10 +50,22 @@ export type BlockerItem = {
 	nextStep: string;
 };
 
+export type WarningItem = {
+	sectionLabel: string;
+	subjectLabel: string;
+	facultyLabel: string;
+};
+
 export type WarningGroup = {
 	code: string;
 	plainLabel: string;
 	count: number;
+	/**
+	 * Every selected-term entry that produced `count` (C07B/F3). The aggregate
+	 * warning row expands into these entries so an operator sees exactly which
+	 * sessions are affected instead of a bare label + number.
+	 */
+	items: WarningItem[];
 };
 
 export type SimplePublishReadiness = {
@@ -62,6 +74,13 @@ export type SimplePublishReadiness = {
 	totalSoftWarnings: number;
 	blockerGroups: BlockerGroup[];
 	warningGroups: WarningGroup[];
+	/**
+	 * Truthful one-line reason the schedule cannot be published yet (C07B/F1).
+	 * Driven by the hard-blocker / unresolved pair, so a hard-blocker-only block
+	 * never claims that zero sessions need fixing and an unresolved-only block
+	 * never invents a hard blocker.
+	 */
+	blockerSentence: string;
 	summaryText: string;
 	hasBlockers: boolean;
 	hasWarnings: boolean;
@@ -75,6 +94,8 @@ export type SimplePublishReadiness = {
 	runWideUnassigned: number;
 	/** Run-wide SOFT count requiring acknowledgement. */
 	runWideSoft: number;
+	/** Sum of the listed per-code selected-term warning counts (C07B/F3). */
+	selectedTermWarningCount: number;
 	/** Selected-term violation count shown as supporting detail. */
 	selectedTermViolationCount: number;
 	/** Selected-term allowlist-filtered HARD count shown as supporting detail. */
@@ -346,6 +367,35 @@ export function resolveBlockerDestination(reason: string | null | undefined, hre
 	return { kind: 'review', href: href ?? null, code: reason ?? null, reason: null };
 }
 
+/**
+ * C07B/F5 — the unassigned-reason filter a placement blocker must apply.
+ *
+ * The unresolved queue is filtered by the item-level reason
+ * (`UnassignedItem.reason`), whose real wire union is
+ * `NO_QUALIFIED_FACULTY | FACULTY_OVERLOADED | NO_AVAILABLE_SLOT |
+ * NO_COMPATIBLE_ROOM | ROOM_CAPACITY_EXCEEDED` (see
+ * `schedule-constructor.ts` / `timetable-sync-setup.service.ts`). The hardcoded
+ * `NO_AVAILABLE_SLOT` default was wrong twice over: it hid unplaced sessions
+ * whose real reason differs, and `UNASSIGNED_SECTION` is a *violation code*, never
+ * an item reason, so filtering the queue by it would render zero rows and hide
+ * exactly the sessions the operator was sent to fix.
+ *
+ * Honor the destination reason whenever the queue can actually be filtered by it;
+ * a placement blocker whose reason carries no item-level authority keeps the full
+ * unresolved queue instead of narrowing it incorrectly.
+ */
+const FILTERABLE_UNASSIGNED_REASONS: ReadonlySet<string> = new Set<string>([
+	'NO_QUALIFIED_FACULTY',
+	'FACULTY_OVERLOADED',
+	'NO_AVAILABLE_SLOT',
+	'NO_COMPATIBLE_ROOM',
+]);
+
+export function resolvePlacementReasonFilter(destination: BlockerDestination): 'all' | UnassignedReason {
+	const reason = destination.reason;
+	return reason != null && FILTERABLE_UNASSIGNED_REASONS.has(reason) ? (reason as UnassignedReason) : 'all';
+}
+
 function resolveReason(item: UnassignedItem): string {
 	if (item.reason && item.reason in REASON_GROUPS) {
 		return item.reason;
@@ -450,21 +500,33 @@ function buildItemsFromViolations(
 	return groups;
 }
 
-function buildWarningGroups(violations: Violation[]): WarningGroup[] {
+function buildWarningGroups(
+	violations: Violation[],
+	sectionLabel: (id: number) => string,
+	subjectLabel: (id: number) => string,
+	facultyLabel: (id: number) => string,
+): WarningGroup[] {
 	// Soft warnings plus informational (non-allowlisted) HARD severities: both are
 	// reviewable but neither blocks publication.
 	const warningViolations = violations.filter((v) => v.severity === 'SOFT' || isInformationalHardViolation(v));
-	const counts = new Map<string, number>();
+	const groups = new Map<string, WarningItem[]>();
 
 	for (const v of warningViolations) {
-		counts.set(v.code, (counts.get(v.code) ?? 0) + 1);
+		const items = groups.get(v.code) ?? [];
+		items.push({
+			sectionLabel: v.entities.sectionId != null ? sectionLabel(v.entities.sectionId) : 'Unknown section',
+			subjectLabel: v.entities.subjectId != null ? subjectLabel(v.entities.subjectId) : 'Unknown subject',
+			facultyLabel: v.entities.facultyId != null ? facultyLabel(v.entities.facultyId) : 'No teacher assigned',
+		});
+		groups.set(v.code, items);
 	}
 
-	return Array.from(counts.entries())
-		.map(([code, count]) => ({
+	return Array.from(groups.entries())
+		.map(([code, items]) => ({
 			code,
 			plainLabel: VIOLATION_WARNING_LABELS[code] ?? humanizeCode(code),
-			count,
+			count: items.length,
+			items,
 		}))
 		.sort((a, b) => b.count - a.count);
 }
@@ -518,8 +580,8 @@ export function deriveSimplePublishReadiness(
 		.sort((a, b) => b.count - a.count);
 
 	const groupBlockerCount = blockerGroups.reduce((sum, g) => sum + g.count, 0);
-	const warningGroups = buildWarningGroups(violations);
-	const groupWarningCount = warningGroups.reduce((sum, g) => sum + g.count, 0);
+	const warningGroups = buildWarningGroups(violations, sectionLabel, subjectLabel, facultyLabel);
+	const selectedTermWarningCount = warningGroups.reduce((sum, g) => sum + g.count, 0);
 
 	const selectedTermBlockingHard = violations.filter(isBlockingHardViolation).length;
 
@@ -534,20 +596,35 @@ export function deriveSimplePublishReadiness(
 		?? unassignedItems.length;
 	const runWideSoft = runWide?.softCount
 		?? summaryField(summary, 'softViolationCount')
-		?? (draft != null ? groupWarningCount : 0);
+		?? (draft != null ? selectedTermWarningCount : 0);
 
 	const totalHardBlockers = Math.max(groupBlockerCount, runWideBlockingHard);
 	const totalUnresolved = Math.max(unassignedItems.length, runWideUnassigned);
-	const totalSoftWarnings = Math.max(groupWarningCount, runWideSoft);
+	const totalSoftWarnings = Math.max(selectedTermWarningCount, runWideSoft);
 	// The run-wide gate blocks on either a publication-blocking HARD violation or
 	// an unresolved/unassigned session requirement.
 	const hasBlockers = totalHardBlockers > 0 || totalUnresolved > 0;
+
+	// C07B/F1 — the blocked message is driven by the blocker/unresolved PAIR. The
+	// candidate previously derived it from `totalUnresolved` alone, so a
+	// hard-blocker-only block rendered "0 sessions still need fixing" while also
+	// listing affected sessions.
+	const blockerClauses: string[] = [];
+	if (totalHardBlockers > 0) {
+		blockerClauses.push(`${totalHardBlockers} hard blocker${totalHardBlockers === 1 ? '' : 's'}`);
+	}
+	if (totalUnresolved > 0) {
+		blockerClauses.push(`${totalUnresolved} unresolved session${totalUnresolved === 1 ? '' : 's'}`);
+	}
+	const blockerSentence = blockerClauses.length === 0
+		? ''
+		: `${blockerClauses.join(' and ')} ${totalHardBlockers + totalUnresolved === 1 ? 'still needs fixing' : 'still need fixing'} before this schedule can be published.`;
 
 	let summaryText: string;
 	if (!draft) {
 		summaryText = `No timetable generated yet\nGenerate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.`;
 	} else if (hasBlockers) {
-		summaryText = `Cannot publish yet\n${totalUnresolved} session${totalUnresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.\nFix blockers first. Warnings can be reviewed after blockers are clear.`;
+		summaryText = `Cannot publish yet\n${blockerSentence}\nFix blockers first. Warnings can be reviewed after blockers are clear.`;
 	} else if (totalSoftWarnings > 0) {
 		summaryText = `Ready except for warnings\nNo hard blockers remain. Review the warnings, then publish if the schedule is acceptable.`;
 	} else {
@@ -560,6 +637,7 @@ export function deriveSimplePublishReadiness(
 		totalSoftWarnings,
 		blockerGroups,
 		warningGroups,
+		blockerSentence,
 		summaryText,
 		hasBlockers,
 		hasWarnings: totalSoftWarnings > 0,
@@ -568,6 +646,7 @@ export function deriveSimplePublishReadiness(
 		runWideBlockingHard,
 		runWideUnassigned,
 		runWideSoft,
+		selectedTermWarningCount,
 		selectedTermViolationCount: violations.length,
 		selectedTermBlockingHard,
 		hasSelectedTermBlockers: blockerGroups.some((group) => group.scope === 'selected-term'),

@@ -7,7 +7,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
-import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
+import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type WarningGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
 import type { DraftReport, Violation } from '@/types';
 
 type RepairIdentity = {
@@ -140,6 +140,57 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 	);
 }
 
+/**
+ * C07B/F3 — the aggregate warning row. The candidate rendered a bare label +
+ * count, so the affected sessions were unreachable from the readiness surface.
+ * Like the blocker rows, the row now expands into every affected entry.
+ */
+function WarningGroupRow({ group }: { group: WarningGroup }) {
+	const [expanded, setExpanded] = useState(false);
+	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+	return (
+		<div
+			className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs"
+			data-testid="timetable-simple-warning-row"
+			data-warning-code={group.code}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<span className="text-amber-800">{group.plainLabel}</span>
+				<Badge variant="outline" className="h-5 text-[0.65rem]" data-testid="timetable-simple-warning-count">
+					{group.count} session{group.count === 1 ? '' : 's'} affected
+				</Badge>
+			</div>
+			{group.items.length > 0 && (
+				<div className="mt-1.5 space-y-1">
+					{visibleItems.map((item, index) => (
+						<div
+							key={index}
+							className="rounded-lg border border-amber-100 bg-white/60 px-2 py-1 text-xs"
+							data-testid="timetable-simple-warning-item"
+						>
+							<p className="font-medium text-amber-900">{item.sectionLabel} · {item.subjectLabel}</p>
+							<p className="text-amber-700">{item.facultyLabel}</p>
+						</div>
+					))}
+					{group.items.length > 3 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-11 gap-1 px-2 text-xs text-amber-800"
+							onClick={() => setExpanded((value) => !value)}
+							aria-expanded={expanded}
+							data-testid="timetable-simple-warning-expand"
+						>
+							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
+						</Button>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 export type SimplePublishReadinessSheetBodyProps = {
 	readiness: SimplePublishReadiness;
 	onNavigate: (href: string, reason?: string) => void;
@@ -200,8 +251,8 @@ export function SimplePublishReadinessSheetBody({
 						<>
 							<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900">
 								<p className="text-sm font-semibold">Cannot publish yet</p>
-								<p className="mt-1 text-xs">
-									{readiness.totalUnresolved} session{readiness.totalUnresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.
+								<p className="mt-1 text-xs" data-testid="timetable-simple-blocker-sentence">
+									{readiness.blockerSentence}
 								</p>
 								<p className="mt-1 text-xs text-red-700">Fix blockers first. Warnings can be reviewed after blockers are clear.</p>
 							</div>
@@ -224,11 +275,13 @@ export function SimplePublishReadinessSheetBody({
 					{readiness.warningGroups.length > 0 && (
 						<div className="space-y-1.5" data-testid="timetable-simple-warning-group">
 							<p className="text-xs font-semibold text-muted-foreground">Warnings ({readiness.totalSoftWarnings})</p>
+							{readiness.totalSoftWarnings > readiness.selectedTermWarningCount && (
+								<p className="text-[0.65rem] text-muted-foreground" data-testid="timetable-simple-warning-scope-note">
+									Showing {readiness.selectedTermWarningCount} of {readiness.totalSoftWarnings} run-wide warnings in the selected term.
+								</p>
+							)}
 							{readiness.warningGroups.map((wg) => (
-								<div key={wg.code} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs">
-									<span className="text-amber-800">{wg.plainLabel}</span>
-									<Badge variant="outline" className="h-5 text-[0.65rem]">{wg.count}</Badge>
-								</div>
+								<WarningGroupRow key={wg.code} group={wg} />
 							))}
 						</div>
 					)}

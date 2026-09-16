@@ -42,13 +42,14 @@ import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
-import { resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
+import { resolveBlockerDestination, resolvePlacementReasonFilter } from '@/components/timetable/simplePublishReadiness';
 import { UnassignedInsertionWorkflow } from '@/components/timetable/UnassignedInsertionWorkflow';
 import {
 	chooseRecommendedTask,
 	hasPivotValue,
 	firstPivotValue,
 	readinessLabel,
+	resolvePublishTaskDispatch,
 	SimpleFiltersContent,
 	SimpleScheduleControls,
 	SimpleScheduleSheet,
@@ -206,12 +207,16 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 	const handlePublishClick = () => {
 		if (isRunPublished) return;
 		// R7 — the shared capability model is the production guard, not a local count.
-		if (!capabilities.gates.publication.enabled) {
-			setReadinessSheetOpen(true);
+		// C07B/F2 — with the gate open the publish task is a real readiness surface:
+		// the task drawer renders the publish checklist (run-wide gate + grouped
+		// blockers + the Publish action) instead of leaving that component dead.
+		if (resolvePublishTaskDispatch(capabilities.gates.publication.enabled) === 'publish-task') {
+			context.setPresentationMode('workflow');
+			context.setPublishAcknowledged(false);
+			onTaskChange('publish');
 			return;
 		}
-		context.setPublishAcknowledged(false);
-		context.setShowPublishDialog(true);
+		setReadinessSheetOpen(true);
 	};
 
 	const handleLifecycleAction = () => {
@@ -339,12 +344,9 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 		}
 		if (task === 'publish') {
 			// R7 — one shared publication gate for the task action too.
-			if (!capabilities.gates.publication.enabled) {
-				setReadinessSheetOpen(true);
-				return;
-			}
-			context.setPublishAcknowledged(false);
-			context.setShowPublishDialog(true);
+			// C07B/F2 — one dispatcher: the task and the lifecycle action land on the
+			// same readiness surface.
+			handlePublishClick();
 		}
 	};
 
@@ -802,8 +804,12 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						return;
 					}
 					if (destination.kind === 'placement') {
-						context.setUnassignedReasonFilter('NO_AVAILABLE_SLOT');
-						setBlockerReasonFilter('NO_AVAILABLE_SLOT');
+						// C07B/F5 — honor the exact unresolved reason the resolver carried
+						// (`UNASSIGNED_SECTION` vs `NO_AVAILABLE_SLOT`) so the queue is never
+						// filtered down to a reason that hides the affected sessions.
+						const reasonFilter = resolvePlacementReasonFilter(destination);
+						context.setUnassignedReasonFilter(reasonFilter);
+						setBlockerReasonFilter(reasonFilter);
 						void startTask('place-unresolved');
 						return;
 					}

@@ -574,3 +574,21 @@ export function chooseRecommendedTask(tasks: SimpleTaskDefinition[], context: Sc
 	if (context.requestPendingCount > 0) return tasks.find((task) => task.id === 'review-issues') ?? tasks[0];
 	return tasks.find((task) => task.id === 'publish') ?? tasks[0];
 }
+
+/**
+ * C07B/F2 — where the `publish` task must land.
+ *
+ * The publish task is a real publish-readiness surface, not a dead branch:
+ *  - gate open  → `publish-task`: the task drawer renders `PublishChecklistContent`
+ *    (run-wide gate + grouped blockers + the Publish action);
+ *  - gate closed → `readiness-sheet`: the read-only `SimplePublishReadinessSheet`
+ *    explains why publishing is unavailable.
+ *
+ * The candidate never armed the task (the old dispatcher opened the publish
+ * dialog directly), which left the corrected checklist component unreachable.
+ */
+export type PublishTaskDispatch = 'publish-task' | 'readiness-sheet';
+
+export function resolvePublishTaskDispatch(publicationEnabled: boolean): PublishTaskDispatch {
+	return publicationEnabled ? 'publish-task' : 'readiness-sheet';
+}

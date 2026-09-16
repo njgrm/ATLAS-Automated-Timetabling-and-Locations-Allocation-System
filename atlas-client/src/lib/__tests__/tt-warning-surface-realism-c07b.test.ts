@@ -11,6 +11,14 @@
  *   B5 ExplainabilityDrawer uses server publication semantics
  *   B6 PublishChecklistContent groups real production codes
  *   B7 retired-code client residue is gone
+ *
+ * Correction R1 (TT-WARNING-SURFACE-C07B) adds rendered controls for:
+ *   F1 the blocked sentence is driven by the HARD/unresolved pair (never
+ *      "0 sessions still need fixing" while listing affected sessions)
+ *   F3 aggregate warning rows expose every affected entry
+ *   F2 the publish task reaches the real publish-readiness surface (no
+ *      corrected-but-unreachable component)
+ *   F5 a placement blocker honors the destination unresolved reason
  */
 
 import assert from 'node:assert/strict';
@@ -27,8 +35,11 @@ import {
 	isInformationalHardViolation,
 	isPublicationBlockingCode,
 	resolveBlockerDestination,
+	resolvePlacementReasonFilter,
 } from '../../components/timetable/simplePublishReadiness';
 import { SimplePublishReadinessSheetContent } from '../../components/timetable/SimplePublishReadinessSheet';
+import { TimetableTaskDrawer } from '../../components/timetable/TimetableTaskDrawer';
+import { resolvePublishTaskDispatch } from '../../components/timetable/simple/SimpleHeaderHelpers';
 import { GeneratedViolationsPanel } from '../../components/timetable/GeneratedRunRailPanels';
 import type { LeftRailContentContext } from '../../components/timetable/timetableContexts.types';
 import { ExplainabilityDrawer } from '../../components/ExplainabilityDrawer';
@@ -37,8 +48,12 @@ import { PublishChecklistContent, buildBlockerGroups, UNASSIGNED_GROUP_MAP } fro
 import type { DraftReport, Violation, ViolationReport } from '../../types';
 
 const clientRoot = resolve(import.meta.dirname, '../../..');
+const repoRoot = resolve(clientRoot, '..');
 function source(path: string): string {
 	return readFileSync(resolve(clientRoot, path), 'utf8');
+}
+function serverSource(path: string): string {
+	return readFileSync(resolve(repoRoot, path), 'utf8');
 }
 function mountedRoutes(): Set<string> {
 	const app = source('src/App.tsx');
@@ -590,4 +605,303 @@ test('mutant: restoring reason-key-only grouping is detected', () => {
 	const groups = buildBlockerGroups(productionInput, label('Section'), label('Subject'), label('Teacher'));
 	assert.equal(groups.length, 1, 'the production grouping keeps them');
 	assert.equal(groups[0].count, 2);
+});
+
+// ═════════════════════════ C07B CORRECTION R1 ═════════════════════════
+// The candidate's blocked message counted `totalUnresolved` alone, so a
+// hard-blocker-only block rendered "0 sessions still need fixing" while listing
+// affected sessions. These controls exercise the same rendered surface.
+
+/** The draft shape the QA reproduction used: run-wide blockers, zero unresolved. */
+function diagnosticsDraft(): DraftReport {
+	return draftReport({
+		unassignedItems: [],
+		summary: {
+			resourceDiagnostics: {
+				unassignedBySubjectGrade: [
+					{ subjectId: 2, subjectCode: 'SCI', gradeLevel: 8, count: 2, reasons: { NO_COMPATIBLE_ROOM: 2 } },
+				],
+			},
+		},
+	});
+}
+
+function blockerSentenceFromMarkup(markup: string): string {
+	const match = markup.match(/data-testid="timetable-simple-blocker-sentence"[^>]*>([\s\S]*?)<\/p>/);
+	assert.ok(match, 'a blocked sheet must render the blocker sentence');
+	return match![1];
+}
+
+function softViolations(count: number): Violation[] {
+	return Array.from({ length: count }, (_, index) =>
+		violation('FACULTY_FLOOR_TRANSITION', 'SOFT', { sectionId: index + 1, subjectId: 7, facultyId: index + 1 }),
+	);
+}
+
+// ── F1 — the rendered block message is truthful in every gate branch ──
+
+test('F1 rendered (a): run-wide hard blockers with zero unresolved sessions never claim zero sessions need fixing', () => {
+	const markup = renderSheet({
+		draft: diagnosticsDraft(),
+		violations: [],
+		runWide: { blockingHardCount: 2, unassignedCount: 0, softCount: 0 },
+	});
+	// The gate blocks AND the affected sessions are listed…
+	assert.match(markup, /Cannot publish yet/);
+	assert.match(markup, /data-testid="timetable-simple-blocker-group"/);
+	assert.match(markup, /sessions affected/);
+	// …so the sentence must name the hard blockers, never the false zero claim.
+	assert.equal(
+		blockerSentenceFromMarkup(markup),
+		'2 hard blockers still need fixing before this schedule can be published.',
+	);
+	assert.doesNotMatch(markup, /0 sessions? still need fixing/);
+	assert.doesNotMatch(markup, /session[s]? still need fixing/);
+});
+
+test('F1 rendered (b): a selected-term-only allowlisted HARD with a clean run-wide gate stays truthful', () => {
+	const markup = renderSheet({
+		violations: [violation('ROOM_TIME_CONFLICT', 'HARD', { sectionId: 1, subjectId: 2, facultyId: 3 })],
+		runWide: { blockingHardCount: 0, unassignedCount: 0, softCount: 0 },
+	});
+	assert.match(markup, /data-blocker-scope="selected-term"/);
+	assert.equal(
+		blockerSentenceFromMarkup(markup),
+		'1 hard blocker still needs fixing before this schedule can be published.',
+	);
+	assert.doesNotMatch(markup, /0 sessions? still need fixing/);
+});
+
+test('F1 rendered (c): the fully clean gate says Ready to publish', () => {
+	const markup = renderSheet({ violations: [], runWide: { blockingHardCount: 0, unassignedCount: 0, softCount: 0 } });
+	assert.match(markup, /data-testid="timetable-simple-ready-to-publish"/);
+	assert.match(markup, /Ready to publish/);
+	assert.doesNotMatch(markup, /Cannot publish yet/);
+});
+
+test('F1 rendered: an unresolved-only block names the sessions and invents no hard blocker', () => {
+	const markup = renderSheet({
+		violations: [],
+		runWide: { blockingHardCount: 0, unassignedCount: 3, softCount: 0 },
+	});
+	assert.match(markup, /Cannot publish yet/);
+	assert.equal(
+		blockerSentenceFromMarkup(markup),
+		'3 unresolved sessions still need fixing before this schedule can be published.',
+	);
+	assert.doesNotMatch(markup, /hard blocker/);
+});
+
+test('F1 summaryText is driven by the same hard/unresolved pair', () => {
+	const hardOnly = deriveSimplePublishReadiness(
+		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 2, unassignedCount: 0, softCount: 0 },
+	);
+	assert.equal(hardOnly.totalUnresolved, 0, 'the run-wide unresolved count is genuinely zero');
+	assert.equal(hardOnly.totalHardBlockers, 2, 'the run-wide hard gate is what blocks');
+	assert.match(hardOnly.summaryText, /Cannot publish yet\n2 hard blockers still need fixing before this schedule can be published\./);
+	assert.doesNotMatch(hardOnly.summaryText, /0 sessions still need fixing/);
+
+	const unresolvedOnly = deriveSimplePublishReadiness(
+		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 0, unassignedCount: 2, softCount: 0 },
+	);
+	assert.match(unresolvedOnly.summaryText, /2 unresolved sessions still need fixing/);
+	assert.doesNotMatch(unresolvedOnly.summaryText, /hard blocker/);
+
+	const both = deriveSimplePublishReadiness(
+		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 1, unassignedCount: 2, softCount: 0 },
+	);
+	assert.match(both.summaryText, /1 hard blocker and 2 unresolved sessions still need fixing/);
+	assert.equal(both.blockerSentence, '1 hard blocker and 2 unresolved sessions still need fixing before this schedule can be published.');
+});
+
+test('mutant: deriving the block sentence from totalUnresolved alone is detected', () => {
+	// The candidate's rule: the sentence counted unresolved sessions only.
+	const mutantSentence = (unresolved: number) =>
+		`${unresolved} session${unresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.`;
+	const readiness = deriveSimplePublishReadiness(
+		draftReport(), [], label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 2, unassignedCount: 0, softCount: 0 },
+	);
+	assert.match(mutantSentence(readiness.totalUnresolved), /^0 sessions still need fixing/, 'the mutant ships the false zero claim');
+	assert.notEqual(readiness.blockerSentence, mutantSentence(readiness.totalUnresolved), 'production is not the unresolved-only mutant');
+
+	const mutantMarkup = renderToStaticMarkup(
+		createElement(MemoryRouter, null,
+			createElement('p', { 'data-testid': 'timetable-simple-blocker-sentence' }, mutantSentence(readiness.totalUnresolved)),
+		),
+	);
+	assert.match(mutantMarkup, /0 sessions still need fixing/, 'the mutant markup carries the contradiction');
+	assert.doesNotMatch(
+		renderSheet({ draft: diagnosticsDraft(), runWide: { blockingHardCount: 2, unassignedCount: 0, softCount: 0 } }),
+		/0 sessions still need fixing/,
+		'the production sheet never carries it',
+	);
+});
+
+// ── F3 — aggregate warning rows expose every affected entry ──
+
+test('F3 every aggregate warning row exposes its affected entries with conserved counts', () => {
+	const softs = softViolations(5);
+	const readiness = deriveSimplePublishReadiness(
+		draftReport(), softs, label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 0, unassignedCount: 0, softCount: 5 },
+	);
+	assert.equal(readiness.warningGroups.length, 1);
+	assert.equal(readiness.warningGroups[0].count, 5);
+	assert.equal(readiness.warningGroups[0].items.length, 5, 'count and exposed entries agree — no warning is dropped');
+	assert.equal(readiness.selectedTermWarningCount, 5);
+	assert.deepEqual(readiness.warningGroups[0].items[0], {
+		sectionLabel: 'Section 1',
+		subjectLabel: 'Subject 7',
+		facultyLabel: 'Teacher 1',
+	});
+
+	const markup = renderSheet({ violations: softs, runWide: { blockingHardCount: 0, unassignedCount: 0, softCount: 5 } });
+	assert.match(markup, /data-testid="timetable-simple-warning-row"/);
+	assert.equal(
+		(markup.match(/data-testid="timetable-simple-warning-item"/g) ?? []).length,
+		3,
+		'the first three affected entries render immediately',
+	);
+	assert.match(markup, /data-testid="timetable-simple-warning-expand"[^>]*>Show 2 more</, 'the remaining entries stay reachable');
+	assert.match(markup, /5 sessions affected/);
+	assert.doesNotMatch(markup, /data-testid="timetable-simple-warning-scope-note"/, 'an equal run-wide total needs no scope note');
+});
+
+test('F3 the warning rows state their scope when the run-wide total exceeds the selected term', () => {
+	const softs = softViolations(2);
+	const readiness = deriveSimplePublishReadiness(
+		draftReport(), softs, label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 0, unassignedCount: 0, softCount: 5 },
+	);
+	assert.equal(readiness.selectedTermWarningCount, 2);
+	const markup = renderSheet({ violations: softs, runWide: { blockingHardCount: 0, unassignedCount: 0, softCount: 5 } });
+	assert.match(
+		markup,
+		/data-testid="timetable-simple-warning-scope-note"[^>]*>Showing 2 of 5 run-wide warnings in the selected term\./,
+	);
+});
+
+test('mutant: the label+count-only aggregate warning row drops the affected entries', () => {
+	const readiness = deriveSimplePublishReadiness(
+		draftReport(), softViolations(4), label('Section'), label('Subject'), label('Teacher'),
+		{ blockingHardCount: 0, unassignedCount: 0, softCount: 4 },
+	);
+	const group = readiness.warningGroups[0];
+	// The candidate's markup: a label and a number, nothing else.
+	const mutantMarkup = `<div class="flex items-center justify-between"><span>${group.plainLabel}</span><span>${group.count}</span></div>`;
+	assert.doesNotMatch(mutantMarkup, /data-testid="timetable-simple-warning-item"/, 'the mutant exposes no entry');
+	assert.equal(group.items.length, group.count, 'production keeps one entry per counted warning');
+	const production = renderSheet({ violations: softViolations(4), runWide: { blockingHardCount: 0, unassignedCount: 0, softCount: 4 } });
+	assert.match(production, /data-testid="timetable-simple-warning-item"/);
+	assert.match(production, /Show 1 more/);
+});
+
+// ── F2 — the publish task reaches a real publish-readiness surface ──
+
+test('F2 the publish task dispatch is the production rule, not a dead branch', () => {
+	assert.equal(resolvePublishTaskDispatch(true), 'publish-task', 'an open gate arms the publish task');
+	assert.equal(resolvePublishTaskDispatch(false), 'readiness-sheet', 'a closed gate opens the read-only sheet');
+	// Mutant: the candidate opened the dialog without ever arming the task.
+	const mutantDispatch = () => 'readiness-sheet';
+	assert.notEqual(resolvePublishTaskDispatch(true), mutantDispatch(), 'the mutant keeps the checklist unreachable');
+	assert.equal(resolvePublishTaskDispatch(false), mutantDispatch());
+});
+
+test('F2 rendered: the publish task renders the real publish checklist', () => {
+	const markup = renderToStaticMarkup(
+		createElement(MemoryRouter, null,
+			createElement(TimetableTaskDrawer, {
+				task: 'publish',
+				onTaskChange: () => {},
+				leftRailContentContext: {} as never,
+				hardCount: 2,
+				blockingHardCount: 2,
+				softCount: 0,
+				violationScopeLabel: 'Term 1',
+				unassignedCount: 0,
+				assignedCount: 5,
+				runId: 42,
+				isPreGenerationWorkspace: false,
+				onPublish: () => {},
+				violations: [violation('ROOM_TIME_CONFLICT', 'HARD', { sectionId: 1, subjectId: 2, facultyId: 3 })],
+				sectionLabel: label('Section'),
+				subjectLabel: label('Subject'),
+				facultyLabel: label('Teacher'),
+			}),
+		),
+	);
+	assert.match(markup, /data-testid="timetable-task-drawer"/);
+	assert.match(markup, /data-testid="timetable-publish-readiness-summary"/);
+	assert.match(markup, /Blocking hard violations \(run-wide\): 2/);
+	assert.match(markup, /data-testid="timetable-publish-blocked-reason"/);
+	assert.match(markup, /Publish schedule/);
+});
+
+test('F2 the header routes the publish task to that surface through the shared dispatcher', () => {
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(
+		header,
+		/resolvePublishTaskDispatch\(capabilities\.gates\.publication\.enabled\) === 'publish-task'[\s\S]{0,240}onTaskChange\('publish'\)/,
+		'the shared dispatcher arms the publish task',
+	);
+	assert.doesNotMatch(header, /setUnassignedReasonFilter\('NO_AVAILABLE_SLOT'\)/);
+	const drawer = source('src/components/timetable/TimetableTaskDrawer.tsx');
+	assert.match(
+		drawer,
+		/task === 'swap-sessions'[\s\S]*?<PublishChecklistContent/,
+		'the drawer renders the publish checklist after the other task branches',
+	);
+	assert.match(drawer, /publish: \{\s*\n\s*title: 'Publish schedule'/);
+	assert.match(source('src/components/timetable/simple/SimpleHeaderHelpers.tsx'), /export function resolvePublishTaskDispatch/);
+});
+
+// ── F5 — a placement blocker honors the destination reason ──
+
+test('F5 a placement blocker honors the destination reason instead of a hardcoded one', () => {
+	const slot = resolveBlockerDestination('NO_AVAILABLE_SLOT', '/timetable');
+	assert.equal(slot.kind, 'placement');
+	assert.equal(slot.reason, 'NO_AVAILABLE_SLOT');
+	assert.equal(resolvePlacementReasonFilter(slot), 'NO_AVAILABLE_SLOT', 'the exact destination reason is honored');
+
+	const section = resolveBlockerDestination('UNASSIGNED_SECTION', '/timetable');
+	assert.equal(section.kind, 'placement');
+	assert.equal(section.reason, 'UNASSIGNED_SECTION');
+	assert.notEqual(resolvePlacementReasonFilter(section), 'NO_AVAILABLE_SLOT', 'the hardcoded slot filter is gone');
+	assert.equal(resolvePlacementReasonFilter(section), 'all', 'no wrong narrowing that would hide the unplaced sessions');
+
+	const header = source('src/components/timetable/TimetableSimpleHeader.tsx');
+	assert.match(header, /const reasonFilter = resolvePlacementReasonFilter\(destination\)/);
+	assert.match(header, /context\.setUnassignedReasonFilter\(reasonFilter\)/);
+});
+
+test('F5 UNASSIGNED_SECTION is a violation code, never a filterable item reason', () => {
+	// Evidence for the disposition above: the server-side `UnassignedItem.reason`
+	// union (the only values the unresolved queue can be filtered by) never
+	// contains UNASSIGNED_SECTION.
+	const constructorSource = serverSource('atlas-server/src/services/schedule-constructor.ts');
+	const unionMatch = constructorSource.match(/reason: 'NO_QUALIFIED_FACULTY'[^;]*?;/);
+	assert.ok(unionMatch, 'the server unassigned-reason union is present');
+	assert.ok(!unionMatch![0].includes('UNASSIGNED_SECTION'), 'the item-level union never contains UNASSIGNED_SECTION');
+	assert.ok(unionMatch![0].includes('NO_AVAILABLE_SLOT'), 'NO_AVAILABLE_SLOT is a real filterable reason');
+	// The code itself is only ever produced as a violation code.
+	assert.match(serverSource('atlas-server/src/services/generation.service.ts'), /code: isSpecializedUnavailable \? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION'/);
+});
+
+test('mutant: hardcoding NO_AVAILABLE_SLOT for every placement blocker is detected', () => {
+	const mutantFilter = () => 'NO_AVAILABLE_SLOT';
+	for (const reason of ['NO_AVAILABLE_SLOT', 'UNASSIGNED_SECTION']) {
+		const destination = resolveBlockerDestination(reason, '/timetable');
+		const production = resolvePlacementReasonFilter(destination);
+		if (reason === 'UNASSIGNED_SECTION') {
+			assert.equal(mutantFilter(), 'NO_AVAILABLE_SLOT');
+			assert.notEqual(production, mutantFilter(), 'the hardcoded filter hides the unplaced sessions');
+			assert.equal(production, 'all');
+		} else {
+			assert.equal(production, mutantFilter(), 'a NO_AVAILABLE_SLOT destination keeps the exact filter');
+		}
+	}
 });
