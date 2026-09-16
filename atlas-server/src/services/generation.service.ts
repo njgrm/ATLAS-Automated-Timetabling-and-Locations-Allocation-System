@@ -1622,17 +1622,26 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 			if (wasPublished) {
 				// Synchronization must never unpublish a published run or mark it
 				// FAILED. Preserve the published identity and record typed drift.
+				//
+				// COPY-THROUGH, never assert: a current published run keeps
+				// `isPublished: true`, while a SUPERSEDED run keeps `isPublished:
+				// false` plus its `publishedAt`/`publishedBy` informational markers
+				// and its `publicationSuperseded*` pointers. Writing `isPublished:
+				// true` here resurrected a superseded run into a second current
+				// published run, which made every published read/export fail with
+				// `409 PUBLISHED_RUN_AMBIGUOUS` and regressed the supersession path.
 				const candidate = asSummaryRecord(run.summary);
 				const existingIntegrity = asSummaryRecord(candidate.publicationIntegrity);
+				const driftStaleFacultyIds = getStaleFacultyIdsForRun(run, activeFacultyIds);
 				const nextSummary = {
 					...candidate,
-					isPublished: true,
-					// `publishedAt`/`publishedBy` are intentionally copied through.
+					// `isPublished`/`publishedAt`/`publishedBy` are intentionally
+					// copied through unchanged.
 					publicationIntegrity: {
 						...existingIntegrity,
 						driftDetectedAt: reconciledAtIso,
 						driftReason: 'FACULTY_SYNC_DRIFT',
-						driftStaleFacultyIds: getStaleFacultyIdsForRun(run, activeFacultyIds),
+						driftStaleFacultyIds,
 					},
 				};
 				await tx.generationRun.update({

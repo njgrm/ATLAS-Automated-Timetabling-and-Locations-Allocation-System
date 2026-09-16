@@ -132,13 +132,16 @@ async function main() {
 		resolvePublishedRunTermIndex,
 	} = await import('../services/published-schedule.service.js');
 	const { resolveRequestedTermIndex } = await import('../services/academic-term.service.js');
-	const { readPublishedIdentitySnapshot, snapshotDigest } = await import('../services/published-identity-snapshot.service.js');
+	const { readPublishedIdentitySnapshot, snapshotDigest, assertSnapshotConsistency } = await import('../services/published-identity-snapshot.service.js');
 	const { loadExportContext, exportSummaryWorkbook, exportClassProgramWorkbook } = await import('../services/workbook-export.service.js');
 	const { exportRoomProgramWorkbook } = await import('../services/room-program-export.service.js');
 	const { generateClassProgramMatrix } = await import('../services/class-program-matrix.service.js');
 	const { buildTeacherProgramExportShape } = await import('../services/teacher-program-export.service.js');
 	const { invalidateStaleCompletedRuns } = await import('../services/generation.service.js');
 	const { getExpectedCanonicalSlots } = await import('../services/class-program-slot.service.js');
+	const { buildRunTimetableShapeContracts } = await import('../services/generation-shape-assembly.service.js');
+	const { buildUnionDisplaySlots } = await import('../services/schedule-constructor.js');
+	const { toConstructorSpecialEvents } = await import('../services/generation-preflight.service.js');
 
 	const prisma: any = createTestPrismaClient();
 	const FIXTURE_NAME = `PUBLISHED-IMMUTABILITY-C08 FIXTURE — SAFE TO DELETE — ${Date.now()}`;
@@ -285,8 +288,16 @@ async function main() {
 		await prisma.instructionalCohort.create({
 			data: { schoolId, schoolYearId, cohortCode: 'COH1', specializationCode: 'SPEC1', specializationName: 'Specialization One', gradeLevel: 7, memberSectionIds: [sectionExternalId], expectedEnrollment: 40, isActive: true },
 		});
-		await prisma.policySpecialEvent.create({
-			data: { schoolId, schoolYearId, eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '07:00', endTime: '07:30', enabled: true, sortOrder: 0 },
+		// Production-shaped special-event authority (mirrors the canonical C07
+		// fixture): the Flag/HGP overlay plus the health/lunch break rows the
+		// class-program template declares. The real producer derives the run's
+		// display slots from exactly these persisted rows.
+		await prisma.policySpecialEvent.createMany({
+			data: [
+				{ schoolId, schoolYearId, eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP', startTime: '07:00', endTime: '07:30', gradeGroup: null, programType: null, enabled: true, sortOrder: 1 },
+				{ schoolId, schoolYearId, eventType: 'HEALTH_BREAK', label: 'Health Break', startTime: '09:00', endTime: '09:15', gradeGroup: '7-8', programType: null, enabled: true, sortOrder: 2 },
+				{ schoolId, schoolYearId, eventType: 'LUNCH_BREAK', label: 'Lunch Break', startTime: '12:15', endTime: '13:00', gradeGroup: '7-8', programType: null, enabled: true, sortOrder: 3 },
+			],
 		});
 		// Signatory revision effective at publication time (the frozen published
 		// program must keep rendering this revision after later edits).
@@ -315,10 +326,37 @@ async function main() {
 			entry('CHEM-T2-MON', chem.id, 2, 'MONDAY', rotationInterval),
 			entry('PHYS-T3-MON', physics.id, 3, 'MONDAY', rotationInterval),
 		];
-		const timetableDisplaySlots = [
-			...classSlots.map((slot: any) => ({ startTime: slot.startTime, endTime: slot.endTime, isSpecialEvent: false })),
-			{ startTime: '07:00', endTime: '07:30', isSpecialEvent: true, eventName: 'Flag Ceremony', dayOfWeek: 'MONDAY' },
-		];
+		// R1 — the run's display slots are produced by the REAL producer
+		// (`buildRunTimetableShapeContracts` + `buildUnionDisplaySlots`), never a
+		// hand-written list. The persisted FLAG_OR_HGP window (07:00-07:30) is
+		// snapped by `resolveContainingClassRow` to its containing canonical CLASS
+		// row (06:45-07:30): the canonical shape the snapshot-consistency gate must
+		// accept. The previous hand-written `07:00-07:30` special slot is a shape
+		// the producer cannot emit and had masked the false rejection.
+		const canonicalSlotRows = getExpectedCanonicalSlots(7, 'REGULAR').map((slot: any) => ({
+			startTime: slot.startTime,
+			endTime: slot.endTime,
+			subjectFamily: slot.subjectFamily ?? null,
+			subjectLabel: slot.subjectLabel ?? null,
+			rowKind: slot.rowKind,
+		}));
+		const persistedSpecialEvents = await prisma.policySpecialEvent.findMany({
+			where: { schoolId, schoolYearId, enabled: true },
+			orderBy: [{ sortOrder: 'asc' }],
+		});
+		const timetableShapeContracts = buildRunTimetableShapeContracts({
+			sectionsByGrade: [{ gradeLevelId: 17, sections: [{ programType: 'REGULAR' }] }],
+			gradeWindows: [{ gradeLevel: 7, programType: 'REGULAR', startTime: '06:00', endTime: '13:00' }],
+			templateProfiles: [{ programType: 'REGULAR', periodLengthMinutes: 45, periodsPerDay: 8 }],
+			canonicalSlots: new Map<string, any>([['7:REGULAR', canonicalSlotRows]]),
+			policy: {
+				periodLengthMinutes: 45,
+				periodsPerDay: 8,
+				showSpecialEventsInGrid: true,
+				specialEvents: toConstructorSpecialEvents(persistedSpecialEvents),
+			} as any,
+		});
+		const timetableDisplaySlots = buildUnionDisplaySlots(timetableShapeContracts);
 
 		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, prisma);
 		const run = await prisma.generationRun.create({
@@ -614,8 +652,36 @@ async function main() {
 		}
 		checkEqual(crossSchoolCode, 'PUBLISHED_RUN_NOT_FOUND', 'G06 cross-school published read fails closed');
 
-		// ── Gate 5: faculty sync never unpublishes or orphans the revision ──
-		section('G05. routine faculty synchronization is non-destructive and audited');
+		// ── Gate 5 / R2: faculty sync never unpublishes, orphans, or resurrects ──
+		section('G05/R2. faculty synchronization is non-destructive, audited, and never re-publishes a superseded run');
+		// R2 — a SUPERSEDED run: `isPublished:false` while keeping the informational
+		// `publishedAt`/`publishedBy` markers and the supersession pointers exactly
+		// as `publishSchedule`'s replacement path leaves them. It references the same
+		// (soon to be deactivated) faculty, so routine sync drifts it too.
+		const supersededPublishedAt = new Date(NOW.getTime() - 3_600_000).toISOString();
+		const supersededRun = await prisma.generationRun.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				status: 'COMPLETED',
+				runType: 'FULL',
+				triggeredBy: ACTOR,
+				finishedAt: new Date(NOW.getTime() - 3_600_000),
+				summary: {
+					inputSnapshot,
+					timetableDisplaySlots,
+					isPublished: false,
+					publishedAt: supersededPublishedAt,
+					publishedBy: ACTOR,
+					publicationSupersededAt: new Date(NOW.getTime() - 1_800_000).toISOString(),
+					publicationSupersededByRunId: runId,
+				},
+				violations: [],
+				unassignedItems: [],
+				draftEntries,
+				version: 1,
+			},
+		});
 		const beforeDriftRun = await prisma.generationRun.findUnique({ where: { id: runId }, select: { status: true, summary: true, version: true } });
 		const beforeDriftSummary = beforeDriftRun?.summary as Record<string, unknown>;
 		await prisma.facultyMirror.update({ where: { id: facultyId }, data: { isActiveForScheduling: false } });
@@ -633,21 +699,67 @@ async function main() {
 		checkEqual(driftAudit, 1, 'G05 drift is audited exactly once');
 		const revisionIntact = await prisma.publishedScheduleRevision.count({ where: { id: revisionId, sourceRunId: runId, reason: 'INITIAL_PUBLICATION' } });
 		checkEqual(revisionIntact, 1, 'G05 published revision is not orphaned');
-		// Non-fatal: a mutant that restores the destructive unpublication makes
-		// this read fail closed; that must be a named control FAIL, not an abort.
+
+		// R2 (a) exactly one current published run after synchronization.
+		const currentPublishedCount = await prisma.generationRun.count({
+			where: { schoolId, schoolYearId, summary: { path: ['isPublished'], equals: true } },
+		});
+		checkEqual(currentPublishedCount, 1, 'R2 exactly one run is isPublished===true after synchronization');
+		// R2 (b) the superseded run stays unpublished with its markers preserved.
+		const afterSupersededRun = await prisma.generationRun.findUnique({ where: { id: supersededRun.id }, select: { status: true, summary: true } });
+		const afterSupersededSummary = afterSupersededRun?.summary as Record<string, unknown>;
+		const afterSupersededIntegrity = afterSupersededSummary?.publicationIntegrity as Record<string, unknown> | undefined;
+		checkEqual(afterSupersededSummary?.isPublished, false, 'R2 superseded run stays isPublished:false through synchronization');
+		checkEqual(afterSupersededSummary?.publishedAt, supersededPublishedAt, 'R2 superseded run keeps its publishedAt informational marker');
+		checkEqual(afterSupersededSummary?.publishedBy, ACTOR, 'R2 superseded run keeps its publishedBy informational marker');
+		checkEqual(afterSupersededSummary?.publicationSupersededByRunId, runId, 'R2 superseded run keeps its supersession pointer');
+		checkEqual(afterSupersededIntegrity?.driftReason, 'FACULTY_SYNC_DRIFT', 'R2 superseded run records the typed drift reason');
+		// R2 (c) neither run is FAILED.
+		checkEqual(afterSupersededRun?.status, 'COMPLETED', 'R2 superseded run stays COMPLETED (never FAILED)');
+		checkEqual(afterDriftRun?.status, 'COMPLETED', 'R2 current published run stays COMPLETED (never FAILED)');
+		check(!invalidation.unpublishedRunIds.includes(supersededRun.id), 'R2 superseded run is excluded from the destructive path');
+		check(invalidation.driftedPublishedRunIds.includes(supersededRun.id), 'R2 superseded run records a typed drift marker');
+		// R2 (d) exactly one drift audit per drifted run.
+		checkEqual(await prisma.auditLog.count({ where: { schoolId, action: 'GENERATION_RUN_PUBLICATION_DRIFT_DETECTED', targetIds: { has: supersededRun.id } } }), 1, 'R2 superseded run drift audited exactly once');
+		checkEqual(await prisma.auditLog.count({ where: { schoolId, action: 'GENERATION_RUN_PUBLICATION_DRIFT_DETECTED', targetIds: { has: runId } } }), 1, 'R2 current published run drift audited exactly once');
+		// R2 (e) the published read resolves exactly one candidate: no
+		// `409 PUBLISHED_RUN_AMBIGUOUS`. Non-fatal so the mutant that re-asserts
+		// `isPublished:true` yields a named control FAIL, not a suite abort.
 		let stillFrozenAfterSync: any = null;
 		try { stillFrozenAfterSync = await read(); } catch (error) {
-			check(false, `G05 published artifact is still readable after synchronization drift (error: ${(error as { code?: string }).code ?? 'error'})`);
+			check(false, `G05/R2 published artifact is still readable after synchronization drift (error: ${(error as { code?: string }).code ?? 'error'})`);
 		}
 		if (stillFrozenAfterSync) {
 			checkEqual(publicDigest(stillFrozenAfterSync), capturedPublic, 'G05 published artifact identity is unchanged after synchronization drift');
+			check(Array.isArray(stillFrozenAfterSync.entries) && stillFrozenAfterSync.entries.length === 18, 'R2 published read resolves one unambiguous candidate');
 		}
 
-		// ── Frozen snapshot consistency gate ──
-		section('G01b. frozen snapshot consistency gate rejects contradictory publishes');
-		const { assertSnapshotConsistency } = await import('../services/published-identity-snapshot.service.js');
-		check(Boolean(frozenSnapshot), 'G01b snapshot available for the consistency control');
+		// ── R1: the canonical REAL-PRODUCER Flag/HGP overlay is accepted ──
+		section('R1. real-producer display slots satisfy the frozen snapshot consistency gate');
+		check(Boolean(frozenSnapshot), 'R1 snapshot available for the consistency control');
+		const frozenDigestBaseline = snapshotDigest(frozenSnapshot!);
+		const realFlagSlot = timetableDisplaySlots.find((slot: any) => /flag|hgp/i.test(slot.eventName ?? ''));
+		check(Boolean(realFlagSlot), 'R1 real producer emits exactly one Flag/HGP overlay slot');
+		checkEqual(realFlagSlot?.startTime, '06:45', 'R1 real-producer flag overlay snaps to the containing canonical CLASS row start');
+		checkEqual(realFlagSlot?.endTime, '07:30', 'R1 real-producer flag overlay snaps to the containing canonical CLASS row end');
+		checkEqual(realFlagSlot?.dayOfWeek, 'MONDAY', 'R1 real-producer flag overlay stays day-scoped to Monday');
+		check(!timetableDisplaySlots.some((slot: any) => slot.isSpecialEvent === true && slot.startTime === '07:00' && slot.endTime === '07:30'), 'R1 real producer never emits the raw 07:00-07:30 window as a display slot');
+		const frozenFlagSlot = frozenSnapshot!.displaySlots.find((slot) => slot.kind === 'SPECIAL_EVENT' && /flag|hgp/i.test(slot.label));
+		checkEqual(frozenFlagSlot?.startTime, '06:45', 'R1 frozen flag display slot carries the containing canonical interval start');
+		checkEqual(frozenFlagSlot?.endTime, '07:30', 'R1 frozen flag display slot carries the containing canonical interval end');
+		checkEqual(frozenFlagSlot?.dayOfWeek, 'MONDAY', 'R1 frozen flag display slot is day-scoped MONDAY');
+		const frozenFlagEvent = frozenSnapshot!.specialEvents.find((event) => /FLAG|HGP/i.test(event.eventType) || /flag|hgp/i.test(event.label));
+		checkEqual(frozenFlagEvent?.startTime, '07:00', 'R1 frozen flag event keeps its raw persisted window start');
+		checkEqual(frozenFlagEvent?.endTime, '07:30', 'R1 frozen flag event keeps its raw persisted window end');
+		checkEqual(frozenFlagEvent?.dayOfWeek, 'MONDAY', 'R1 frozen flag event resolves its Monday day scope');
+		let realProducerGateError: any = null;
+		try { assertSnapshotConsistency(frozenSnapshot!); } catch (error) { realProducerGateError = error; }
+		check(!realProducerGateError, `R1 canonical real-producer snapshot builds (error: ${realProducerGateError?.code ?? 'none'})`);
+
+		// ── G01b / R1-MUTANT: containment + day-scope authority ──
+		section('G01b/R1-MUTANT. nulled SPECIAL_EVENT day scope is rejected with DAY_SCOPED_EVENT_NOT_DAY_SCOPED');
 		let inconsistentCode = '';
+		let inconsistentKinds: string[] = [];
 		try {
 			assertSnapshotConsistency({
 				...frozenSnapshot!,
@@ -657,8 +769,33 @@ async function main() {
 			} as any);
 		} catch (error) {
 			inconsistentCode = (error as { code?: string }).code ?? '';
+			inconsistentKinds = ((error as { details?: { contradictions?: Array<{ kind?: string }> } }).details?.contradictions ?? []).map((item) => String(item.kind));
 		}
-		checkEqual(inconsistentCode, 'PUBLICATION_SNAPSHOT_INCONSISTENT', 'G01b day-scoped event contradicted by a week-spanning slot is rejected');
+		checkEqual(inconsistentCode, 'PUBLICATION_SNAPSHOT_INCONSISTENT', 'G01b/R1-MUTANT nulled SPECIAL_EVENT day scope is rejected with the typed 422');
+		check(inconsistentKinds.includes('DAY_SCOPED_EVENT_NOT_DAY_SCOPED'), `G01b/R1-MUTANT carries DAY_SCOPED_EVENT_NOT_DAY_SCOPED (${inconsistentKinds.join(',')})`);
+		// Byte-exact restore proof: the mutant operated on a copy; the frozen
+		// artifact must be unchanged.
+		check(snapshotDigest(frozenSnapshot!) === frozenDigestBaseline, 'R1-MUTANT restore: frozen snapshot digest is byte-identical after the day-scope mutant');
+
+		// Containment must still reject a genuinely missing interval (an event no
+		// display slot contains), so the relaxation is not fail-open.
+		let missingIntervalCode = '';
+		let missingIntervalKinds: string[] = [];
+		try {
+			assertSnapshotConsistency({
+				...frozenSnapshot!,
+				specialEvents: [
+					...frozenSnapshot!.specialEvents,
+					{ eventType: 'CUSTOM', label: 'Unbacked band', gradeGroup: null, programType: null, startTime: '15:00', endTime: '15:30', sortOrder: 99, dayOfWeek: null },
+				],
+			} as any);
+		} catch (error) {
+			missingIntervalCode = (error as { code?: string }).code ?? '';
+			missingIntervalKinds = ((error as { details?: { contradictions?: Array<{ kind?: string }> } }).details?.contradictions ?? []).map((item) => String(item.kind));
+		}
+		checkEqual(missingIntervalCode, 'PUBLICATION_SNAPSHOT_INCONSISTENT', 'R1 an event no display slot contains is still rejected');
+		check(missingIntervalKinds.includes('EVENT_INTERVAL_MISSING'), `R1 unbacked event carries EVENT_INTERVAL_MISSING (${missingIntervalKinds.join(',')})`);
+		check(snapshotDigest(frozenSnapshot!) === frozenDigestBaseline, 'R1 missing-interval mutant does not mutate the frozen snapshot (byte-exact)');
 		check(snapshotDigest(frozenSnapshot!).length > 0, 'G01b frozen snapshot digest is deterministic');
 
 		// ── Gate 9: disposable database cleanup ──
