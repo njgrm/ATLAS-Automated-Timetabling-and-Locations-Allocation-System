@@ -84,8 +84,6 @@ interface TriggerOptions {
 	 * satisfied.
 	 */
 	scenario?: 'default' | 'dedicatedSpecialized';
-	/** Subject id whose stored FacultySubject scope is deliberately out of roster. */
-	unqualifiedSubjectId?: number;
 	/** Subject id that deliberately has no Teaching Load ownership row. */
 	noOwnershipForSubject?: number;
 	/** Faculty id given zero effective weekly capacity (produces FACULTY_OVERLOADED). */
@@ -155,16 +153,12 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 		}
 	}
 	const schedulableSubjectIds = subjects.map((subject: any) => subject.id as number);
-	const unqualifiedSubjectId = options.unqualifiedSubjectId ?? null;
-	// R2 control: an out-of-roster stored scope keeps the preflight's teaching-load
-	// coverage satisfied (a scope row exists for the owner/subject pair) while
-	// leaving the constructor without any qualified candidate for that pair.
 	const facultySubjects = faculty.flatMap((member) =>
 		schedulableSubjectIds.map((subjectId, index) => ({
 			facultyId: member.id,
 			subjectId,
-			gradeLevels: subjectId === unqualifiedSubjectId ? [] : [7],
-			sectionIds: subjectId === unqualifiedSubjectId ? [7777] : [SECTION_ID],
+			gradeLevels: [7],
+			sectionIds: [SECTION_ID],
 			id: member.id * 100 + index,
 		})),
 	);
