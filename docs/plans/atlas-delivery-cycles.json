@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T05:36:57.173Z",
+    "lastUpdatedAt": "2026-09-16T05:39:17.566Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 167
+    "revision": 168
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3949,11 +3949,11 @@
       "kind": "CYCLE",
       "objective": "Correction-cycle closure of GENERATION-AUTHORITY-REALISM-C07 (historical INTEGRATED round preserved): accept the frozen R3 candidate c12c28ed that binds persisted policy_special_events into the generation freshness policy domain with enabled-agnostic digest plus count/max-id/max-updated signals (B1), re-evidences C07-S04 on the reachable persisted-shape Flag/HGP containment rejection and re-captions the non-Monday predicate as forward compatibility (B2), removes the cross-namespace TERM_AUTHORITY_STALE comparison so both authority reads pass through one shared deterministic canonical term-authority revision helper with concurrent-change detection and zero-write fail-closed paths (B3), and shares the label-aware day predicate (optional N2). No live, schema, deployment, generation, publication, migration, or data action.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-16T05:36:57.173Z",
-      "nextAction": "Integrate the frozen R3 candidate c12c28ed from the clean integration boundary and commission exactly one fresh Wave Completion Auditor over the corrected integrated wave; every live/HIGH action stays locked.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T05:39:17.566Z",
+      "nextAction": "Commission exactly one fresh Wave Completion Auditor over the corrected integrated wave (candidate c12c28ed, integration merge be2d99a9, main 03dc9880); re-verify the B1 policy_special_events freshness invalidation, B2 reachable Flag/HGP containment, B3 unchanged mirror-223 cache with no TERM_AUTHORITY_STALE, changed-between-reads stale, JSON-key-order invariance, and zero-write blocker paths. Close only on AUDIT_CLEAR; every live/HIGH action stays locked, and live generation or publication must not be treated as unlocked merely because source R3 is accepted.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -3961,7 +3961,7 @@
         "branch": "work/generation-authority-realism-c07",
         "baseSha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
         "candidateSha": "c12c28ed4afaef059c3a9564693339fdfe0d8f42",
-        "integrationSha": null,
+        "integrationSha": "be2d99a9698f6c1793c96643dd23a6fd98f58a1b",
         "changedPaths": [
           "atlas-client/src/components/subjects/SubjectFormModal.tsx",
           "atlas-client/src/lib/__tests__/room-authority-copy.test.ts",
@@ -3992,8 +3992,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "45adf6517a0662b726e3e45ccf8dd287d457909a",
-          "observedAt": "2026-09-16T05:36:40.671Z",
+          "sha": "03dc98808370e5f87e38c842ea40fb4efcafd50d",
+          "observedAt": "2026-09-16T05:39:17.566Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -4001,7 +4001,7 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
           "sessionId": "ses_f58c49727ffeTiZX5gjG41KQcs",
