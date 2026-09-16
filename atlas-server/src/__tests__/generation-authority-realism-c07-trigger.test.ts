@@ -76,7 +76,26 @@ interface TriggerOptions {
 	runFindManyResult?: unknown[];
 	/** Persisted run returned by `generationRun.findUnique` (C07-S10 latest run). */
 	runFindUniqueResult?: unknown;
+	/**
+	 * R2/F9 control: use a dedicated scenario whose only specialized subject is
+	 * ROBOTICS (no Science name, code, or rotation family), optionally with an
+	 * out-of-roster FacultySubject scope so the constructor has NO qualified
+	 * candidate for that pair while the preflight's teaching-load coverage stays
+	 * satisfied.
+	 */
+	scenario?: 'default' | 'dedicatedSpecialized';
+	/** Subject id whose stored FacultySubject scope is deliberately out of roster. */
+	unqualifiedSubjectId?: number;
+	/** Subject id that deliberately has no Teaching Load ownership row. */
+	noOwnershipForSubject?: number;
+	/** Faculty id given zero effective weekly capacity (produces FACULTY_OVERLOADED). */
+	zeroCapacityFacultyId?: number;
+	/** Add an ARAL subject that would create Site-A demand if the preflight allowed it. */
+	addNonSchedulableDemand?: boolean;
 }
+
+const ROBOTICS_SUBJECT_ID = 31;
+const ARAL_SUBJECT_ID = 41;
 
 function buildTriggerClient(options: TriggerOptions = {}) {
 	const writes: Array<{ name: string; args: any }> = [];
@@ -98,26 +117,63 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 	};
 	const sections = [section];
 
-	const subjects = [
-		{ id: 11, code: 'MATH', name: 'Mathematics', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
-		{ id: 12, code: 'ENG', name: 'English', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
-		{ id: 13, code: 'SCI_BIO', name: 'Science Biology', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 1, minMinutesPerWeek: 90, preferredRoomType: scienceAuthority, requiredFeatures: scienceFeatures, isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
-		{ id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 2, minMinutesPerWeek: 90, preferredRoomType: scienceAuthority, requiredFeatures: scienceFeatures, isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
-		{ id: 15, code: 'SCI_ES', name: 'Science Earth Science', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: 'SCIENCE', modularOrder: 3, minMinutesPerWeek: 90, preferredRoomType: scienceAuthority, requiredFeatures: scienceFeatures, isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: 'SCIENCE' },
-		// Identity negative control: an ordinary CUSTOM event must never be mistaken
-		// for the Monday-only Flag/HGP overlay.
-		{ id: 21, code: 'CUSTOM_READING', name: 'Reading Camp', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'], rotationFamily: null, modularOrder: null, minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', requiredFeatures: [], isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false, interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null },
+	const base = (overrides: Record<string, unknown>) => ({
+		name: 'Subject', schedulingDisposition: 'SCHEDULED_TEACHING', gradeLevels: [7], programScopes: ['REGULAR'],
+		rotationFamily: null, modularOrder: null, minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', requiredFeatures: [],
+		isActive: true, ownerDepartment: null, qualificationPriority: 'DEPARTMENT_FIRST', interSectionEnabled: false,
+		interSectionGradeLevels: [], allowedSpecializations: [], modularGroupId: null, ...overrides,
+	});
+	const scienceSubjects = [
+		base({ id: 13, code: 'SCI_BIO', name: 'Science Biology', rotationFamily: 'SCIENCE', modularOrder: 1, preferredRoomType: scienceAuthority, requiredFeatures: scienceFeatures, modularGroupId: 'SCIENCE' }),
+		base({ id: 14, code: 'SCI_CHEM', name: 'Science Chemistry', rotationFamily: 'SCIENCE', modularOrder: 2, preferredRoomType: scienceAuthority, requiredFeatures: scienceFeatures, modularGroupId: 'SCIENCE' }),
+		base({ id: 15, code: 'SCI_ES', name: 'Science Earth Science', rotationFamily: 'SCIENCE', modularOrder: 3, preferredRoomType: scienceAuthority, requiredFeatures: scienceFeatures, modularGroupId: 'SCIENCE' }),
 	];
+	const commonSubjects = [
+		base({ id: 11, code: 'MATH', name: 'Mathematics' }),
+		base({ id: 12, code: 'ENG', name: 'English' }),
+	];
+	// Identity negative control: an ordinary CUSTOM event must never be mistaken
+	// for the Monday-only Flag/HGP overlay.
+	const extraSubjects = [base({ id: 21, code: 'CUSTOM_READING', name: 'Reading Camp', minMinutesPerWeek: 45 })];
+	const dedicatedSubjects = [
+		base({ id: 11, code: 'MATH', name: 'Mathematics' }),
+		// No Science name, code, or rotation family — a specialized authority that
+		// can only be honoured from persisted data.
+		base({ id: ROBOTICS_SUBJECT_ID, code: 'ROBOTICS', name: 'Robotics Club', preferredRoomType: 'LABORATORY', minMinutesPerWeek: 45 }),
+	];
+	const subjects = options.scenario === 'dedicatedSpecialized'
+		? dedicatedSubjects
+		: [...commonSubjects, ...scienceSubjects, ...extraSubjects];
+	if (options.addNonSchedulableDemand) {
+		subjects.push(base({ id: ARAL_SUBJECT_ID, code: 'ARAL', name: 'Araling Panlipunan', schedulingDisposition: 'SCHEDULED_TEACHING', minMinutesPerWeek: 45 }));
+	}
 
 	const faculty = [71, 72, 73, 74].map((id, index) => ({ id, externalId: id, firstName: 'F', lastName: `${index}`, department: 'REGULAR', maxHoursPerWeek: 40, ancillaryMinutesPerWeek: 0, isActiveForScheduling: true, isStale: false, canTeachOutsideDepartment: true }));
-	const schedulableSubjectIds = [11, 12, 13, 14, 15, 21];
+	if (options.zeroCapacityFacultyId != null) {
+		for (const member of faculty) {
+			if (member.id === options.zeroCapacityFacultyId) member.maxHoursPerWeek = 0;
+		}
+	}
+	const schedulableSubjectIds = subjects.map((subject: any) => subject.id as number);
+	const unqualifiedSubjectId = options.unqualifiedSubjectId ?? null;
+	// R2 control: an out-of-roster stored scope keeps the preflight's teaching-load
+	// coverage satisfied (a scope row exists for the owner/subject pair) while
+	// leaving the constructor without any qualified candidate for that pair.
 	const facultySubjects = faculty.flatMap((member) =>
-		schedulableSubjectIds.map((subjectId, index) => ({ facultyId: member.id, subjectId, gradeLevels: [7], sectionIds: [SECTION_ID], id: member.id * 100 + index })),
+		schedulableSubjectIds.map((subjectId, index) => ({
+			facultyId: member.id,
+			subjectId,
+			gradeLevels: subjectId === unqualifiedSubjectId ? [] : [7],
+			sectionIds: subjectId === unqualifiedSubjectId ? [7777] : [SECTION_ID],
+			id: member.id * 100 + index,
+		})),
 	);
-	const ownership = schedulableSubjectIds.map((subjectId, index) => ({
-		id: index + 1, subjectId, sectionId: SECTION_ID,
-		facultyId: faculty[index % faculty.length].id, facultySubjectId: index + 1,
-	}));
+	const ownership = schedulableSubjectIds
+		.filter((subjectId) => subjectId !== (options.noOwnershipForSubject ?? null))
+		.map((subjectId, index) => ({
+			id: index + 1, subjectId, sectionId: SECTION_ID,
+			facultyId: faculty[index % faculty.length].id, facultySubjectId: index + 1,
+		}));
 
 	const rooms = [
 		{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], floor: 1, buildingId: 301, buildingZoneId: 'Z1', building: { gradeScope: [7] } },
@@ -228,6 +284,42 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 
 function trigger(client: any) {
 	return withDataContext(client, () => triggerGenerationRun(SCHOOL_ID, SCHOOL_YEAR_ID, ACTOR_ID, { enforceShiftWindows: false }));
+}
+
+/**
+ * Minimal real `ConstructorInput` used by the R2/F9 constructor-level controls.
+ * `constructBaseline` is the exact function the real trigger calls.
+ */
+function buildConstructorInputFixture(shapes: unknown, overrides: {
+	subject: Record<string, unknown>;
+	facultySubjects: unknown[];
+	pairOwners: Record<string, number>;
+	demandOverride?: unknown[];
+}) {
+	return {
+		schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, roomingStrategy: 'HOME_ROOM_FIRST',
+		sectionsByGrade: [{
+			gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7,
+			sections: [{ mirrorId: SECTION_MIRROR_ID, id: SECTION_ID, name: '7-A', maxCapacity: 50, enrolledCount: 40, gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', homeRoomId: 201, buildingZoneId: 'Z1' }],
+		}],
+		subjects: [overrides.subject],
+		faculty: [{ id: 71, maxHoursPerWeek: 30, department: 'REGULAR' }],
+		facultySubjects: overrides.facultySubjects,
+		rooms: [
+			{ id: 201, type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, buildingId: 301, buildingZoneId: 'Z1', buildingGradeScope: [7], features: [] },
+			{ id: 301, type: 'LABORATORY', isTeachingSpace: true, isSharedFacility: false, capacity: 50, buildingId: 302, buildingZoneId: 'Z2', buildingGradeScope: [7], features: [] },
+		],
+		preferences: [],
+		policy: { maxConsecutiveTeachingMinutesBeforeBreak: 120, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480, earliestStartTime: '06:00', latestEndTime: '13:00', periodLengthMinutes: 45, periodsPerDay: 8, enableRecess: false, enableLunchWindow: false },
+		buildings: [{ id: 301, name: 'Grade 7 Academic Wing' }, { id: 302, name: 'Science Building' }],
+		timetableShapes: shapes,
+		demandOverride: overrides.demandOverride ?? [{
+			sectionId: SECTION_ID, subjectId: overrides.subject.id, subjectCode: overrides.subject.code,
+			gradeLevel: 7, sessionsPerWeek: 1, durationPerSession: 45, enrolledCount: 40, entryKind: 'SECTION',
+			roomTypePreference: overrides.subject.preferredRoomType, homeRoomId: 201,
+		}],
+		pairOwners: overrides.pairOwners,
+	};
 }
 
 // ─── C07-S05 / S06: the real trigger persists the room-authority contract ───
@@ -435,7 +527,151 @@ test('C07-S10. getRunDraft / getLatestRunDraft report a changed availability aut
 	assert.equal(freshDraft.inputState?.status, 'FRESH');
 });
 
-// ─── Identity negative control ─────────────────────────────────────────────
+// ─── R2 / F9: non-room failures must never be reported as room results ─────
+
+test('C07-R2a. a specialized authority with NO available (overloaded) faculty persists a non-room reason and a HARD UNASSIGNED_SECTION violation through the real trigger', async () => {
+	// The owner is present (so the preflight stays satisfied) but has zero
+	// effective weekly capacity, so the specialized authority cannot be served by
+	// any qualified faculty. The refusal is a workload failure, not a room result.
+	const harness = buildTriggerClient({
+		scenario: 'dedicatedSpecialized',
+		zeroCapacityFacultyId: 72,
+	});
+	await trigger(harness.client);
+	const payload = harness.completedPayload();
+	assert.ok(payload, 'the trigger must complete with a truthful result');
+
+	const roboticsUnassigned = (payload.unassignedItems as any[]).filter((item) => item.subjectId === ROBOTICS_SUBJECT_ID);
+	assert.ok(roboticsUnassigned.length > 0, 'the unserveable specialized subject must be reported as unassigned');
+	assert.ok(
+		roboticsUnassigned.every((item) => item.reason === 'FACULTY_OVERLOADED'),
+		`expected FACULTY_OVERLOADED, saw ${[...new Set(roboticsUnassigned.map((item) => item.reason))].join(', ')}`,
+	);
+	assert.ok(
+		roboticsUnassigned.every((item) => item.roomAssignmentReason === 'FACULTY_SLOT_UNAVAILABLE'),
+		`a workload refusal is not a room result; saw ${[...new Set(roboticsUnassigned.map((item) => item.roomAssignmentReason))].join(', ')}`,
+	);
+
+	const violations = payload.violations as any[];
+	const roboticsViolations = violations.filter((violation) => violation.entities?.subjectId === ROBOTICS_SUBJECT_ID);
+	assert.ok(roboticsViolations.length > 0);
+	assert.ok(
+		roboticsViolations.every((violation) => violation.code === 'UNASSIGNED_SECTION' && violation.severity === 'HARD'),
+		`a genuine data/workload blocker must stay HARD; saw ${[...new Set(roboticsViolations.map((violation) => `${violation.code}/${violation.severity}`))].join(', ')}`,
+	);
+	assert.equal(
+		violations.some((violation) => violation.code === 'SPECIALIZED_ROOM_UNAVAILABLE'), false,
+		'a workload refusal must never be laundered into a SOFT room warning',
+	);
+});
+
+test('C07-R2a2. the constructor reports NO_QUALIFIED_FACULTY (not a room result) for a specialized authority with no qualified candidate', async () => {
+	const { buildRunTimetableShapeContracts } = await import('../services/generation-shape-assembly.service.js');
+	const { constructBaseline } = await import('../services/schedule-constructor.js');
+	const shapes = buildRunTimetableShapeContracts({
+		sectionsByGrade: [{ gradeLevelId: 17, sections: [{ programType: 'REGULAR' }] }],
+		gradeWindows: [{ gradeLevel: 7, programType: 'REGULAR', startTime: '06:00', endTime: '13:00' }],
+		templateProfiles: [{ programType: 'REGULAR', periodLengthMinutes: 45, periodsPerDay: 8 }],
+		canonicalSlots: new Map([['7:REGULAR', getExpectedCanonicalSlots(7, 'REGULAR').map((slot) => ({
+			startTime: slot.startTime, endTime: slot.endTime, subjectFamily: slot.subjectFamily ?? null, subjectLabel: slot.subjectLabel ?? null, rowKind: slot.rowKind,
+		}))]]),
+		policy: { periodLengthMinutes: 45, periodsPerDay: 8 } as any,
+	});
+	const specializedInput: any = buildConstructorInputFixture(shapes, {
+		// A specialized authority whose pair has no qualified faculty and no owner.
+		subject: { id: 31, code: 'ROBOTICS', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [7], requiredFeatures: [], programScopes: ['REGULAR'] },
+		facultySubjects: [],
+		pairOwners: {},
+	});
+	const specializedResult = constructBaseline(specializedInput);
+	const specializedUnassigned = specializedResult.unassignedItems.filter((item) => item.subjectId === 31);
+	assert.equal(specializedUnassigned.length, 1);
+	assert.equal(specializedUnassigned[0].reason, 'NO_QUALIFIED_FACULTY');
+	assert.equal(specializedUnassigned[0].roomAssignmentReason, 'NO_QUALIFIED_FACULTY', 'a missing teacher is not a room result');
+});
+
+test('C07-R2b. an unresolved demand item whose subject is absent from the subject map reports NO_QUALIFIED_FACULTY (Site A)', async () => {
+	const { buildRunTimetableShapeContracts } = await import('../services/generation-shape-assembly.service.js');
+	const { constructBaseline } = await import('../services/schedule-constructor.js');
+	const shapes = buildRunTimetableShapeContracts({
+		sectionsByGrade: [{ gradeLevelId: 17, sections: [{ programType: 'REGULAR' }] }],
+		gradeWindows: [{ gradeLevel: 7, programType: 'REGULAR', startTime: '06:00', endTime: '13:00' }],
+		templateProfiles: [{ programType: 'REGULAR', periodLengthMinutes: 45, periodsPerDay: 8 }],
+		canonicalSlots: new Map([['7:REGULAR', getExpectedCanonicalSlots(7, 'REGULAR').map((slot) => ({
+			startTime: slot.startTime, endTime: slot.endTime, subjectFamily: slot.subjectFamily ?? null, subjectLabel: slot.subjectLabel ?? null, rowKind: slot.rowKind,
+		}))]]),
+		policy: { periodLengthMinutes: 45, periodsPerDay: 8 } as any,
+	});
+	const ghostInput: any = buildConstructorInputFixture(shapes, {
+		subject: { id: 11, code: 'MATH', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7], requiredFeatures: [], programScopes: ['REGULAR'] },
+		facultySubjects: [{ facultyId: 71, subjectId: 11, gradeLevels: [7], sectionIds: [SECTION_ID] }],
+		pairOwners: { [`11:${SECTION_ID}`]: 71 },
+		// subject 999 is deliberately absent from `subjects` (Site A).
+		demandOverride: [{ sectionId: SECTION_ID, subjectId: 999, subjectCode: 'GHOST', gradeLevel: 7, sessionsPerWeek: 1, durationPerSession: 45, enrolledCount: 40, entryKind: 'SECTION', roomTypePreference: 'LABORATORY', homeRoomId: 201 }],
+	});
+	const result = constructBaseline(ghostInput);
+	const ghost = result.unassignedItems.filter((item) => item.subjectId === 999);
+	assert.equal(ghost.length, 1);
+	assert.equal(ghost[0].reason, 'NO_QUALIFIED_FACULTY');
+	assert.equal(ghost[0].roomAssignmentReason, 'NO_QUALIFIED_FACULTY', 'a missing subject is not a room result');
+});
+
+test('C07-R2c. the real trigger cannot reach Site A or an ownerless pair: the preflight fails closed instead', async () => {
+	// (i) A non-schedulable (ARAL) subject that would create Site-A demand is
+	// rejected by the preflight rather than scheduled without a subject binding.
+	const aralHarness = buildTriggerClient({ addNonSchedulableDemand: true });
+	await assert.rejects(trigger(aralHarness.client), (error: any) => {
+		assert.equal(error.code, 'GENERATION_PREFLIGHT_BLOCKED');
+		const codes = (error.details?.blockers ?? []).map((blocker: { code: string }) => blocker.code);
+		assert.ok(codes.includes('NON_SCHEDULABLE_SUBJECT_DEMAND'), `expected NON_SCHEDULABLE_SUBJECT_DEMAND, saw ${codes.join(', ')}`);
+		return true;
+	});
+	assert.equal(aralHarness.sequence().length, 0, 'a blocked preflight performs zero writes');
+
+	// (ii) An ownerless derived pair is rejected by the preflight too, so the
+	// constructor can never see an ownerless pair through the real trigger.
+	const ownerlessHarness = buildTriggerClient({ scenario: 'dedicatedSpecialized', noOwnershipForSubject: ROBOTICS_SUBJECT_ID });
+	await assert.rejects(trigger(ownerlessHarness.client), (error: any) => {
+		assert.equal(error.code, 'GENERATION_PREFLIGHT_BLOCKED');
+		const codes = (error.details?.blockers ?? []).map((blocker: { code: string }) => blocker.code);
+		assert.ok(codes.includes('TL_DEMAND_UNCOVERED'), `expected TL_DEMAND_UNCOVERED, saw ${codes.join(', ')}`);
+		return true;
+	});
+	assert.equal(ownerlessHarness.sequence().length, 0, 'a blocked preflight performs zero writes');
+});
+
+test('C07-R2d. settled room contract re-asserted: CLASSROOM Science stays in classrooms, LABORATORY authority stays data-driven, no inference from name/code/rotation', async () => {
+	// (1) Science configured CLASSROOM: zero laboratory reservations, zero laboratory warnings.
+	const classroomHarness = buildTriggerClient({ scienceAuthority: 'CLASSROOM' });
+	await trigger(classroomHarness.client);
+	const classroomPayload = classroomHarness.completedPayload();
+	assert.ok(classroomPayload);
+	assert.equal((classroomPayload.draftEntries as any[]).filter((entry) => SPECIALIST_ROOM_IDS.includes(entry.roomId)).length, 0);
+	assert.equal((classroomPayload.violations as any[]).some((violation) => violation.code === 'SPECIALIZED_ROOM_UNAVAILABLE' || violation.code === 'ROOM_TYPE_MISMATCH' || violation.code === 'ROOM_FEATURE_MISMATCH'), false);
+
+	// (2) Explicit LABORATORY authority on the same Science family: honoured per term.
+	const labHarness = buildTriggerClient({ scienceAuthority: 'LABORATORY' });
+	await trigger(labHarness.client);
+	const labPayload = labHarness.completedPayload();
+	assert.ok(labPayload);
+	const labEntries = (labPayload.draftEntries as any[]).filter((entry) => SCIENCE_SUBJECT_IDS.includes(entry.subjectId));
+	assert.ok(labEntries.length > 0);
+	assert.ok(labEntries.every((entry) => LAB_ROOM_IDS.includes(entry.roomId)));
+
+	// (3) A specialized authority with NO Science name/code/rotation family is still
+	// honoured from persisted data alone (no inference), and the Science rotation
+	// members would stay in classrooms if their authority said so.
+	assert.equal((labPayload.draftEntries as any[]).filter((entry) => entry.subjectId === ROBOTICS_SUBJECT_ID).length, 0, 'the dedicated scenario subject is not part of this fixture');
+	const dedicated = buildTriggerClient({ scenario: 'dedicatedSpecialized' });
+	await trigger(dedicated.client);
+	const dedicatedPayload = dedicated.completedPayload();
+	assert.ok(dedicatedPayload);
+	const roboticsEntries = (dedicatedPayload.draftEntries as any[]).filter((entry) => entry.subjectId === ROBOTICS_SUBJECT_ID);
+	assert.ok(roboticsEntries.length > 0, 'a specialized authority must be honoured from persisted data with no name/code inference');
+	assert.ok(roboticsEntries.every((entry) => LAB_ROOM_IDS.includes(entry.roomId)), 'the ROBOTICS laboratory authority must reserve a laboratory');
+	assert.equal((dedicatedPayload.draftEntries as any[]).filter((entry) => entry.subjectId === 11).every((entry) => entry.roomId === 201 || entry.roomId === 202), true, 'the CLASSROOM subject stays in classrooms');
+});
+
 
 test('C07-R3 identity negative control. a non-flag CUSTOM event (Reading Camp) is never treated as a Monday-only Flag/HGP overlay', async () => {
 	const { buildDayScopedEventWindows, buildSpecialEventSlots } = await import('../services/schedule-constructor.js');

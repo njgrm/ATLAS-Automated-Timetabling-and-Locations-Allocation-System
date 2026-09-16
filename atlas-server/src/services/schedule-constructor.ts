@@ -1978,19 +1978,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			: [];
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
-				const requestedRoomType = item.roomTypePreference;
-				// R4/D-A: no room type is ever inferred and no specialized authority is
-				// silently deferred to a classroom. An unresolvable item reports its
-				// truthful room-resource result.
+				// R2/F9 (Site A): a demand item with no subject binding is a data
+				// failure, never a room result. The room reason must stay consistent
+				// with the pushed `reason` — `SPECIALIZED_ROOM_UNAVAILABLE` would
+				// launder a genuine hard blocker into a SOFT room warning.
 				unassignedItems.push({
 					sectionId: item.sectionId,
 					subjectId: item.subjectId,
 					gradeLevel: item.gradeLevel,
 					session: s + 1,
 					reason: 'NO_QUALIFIED_FACULTY',
-					roomAssignmentReason: requestedRoomType && SPECIALIZED_ROOM_TYPES.has(requestedRoomType)
-						? 'SPECIALIZED_ROOM_UNAVAILABLE'
-						: 'FALLBACK_UNRESOLVED',
+					roomAssignmentReason: 'NO_QUALIFIED_FACULTY',
 					facultyId: null,
 					entryKind: item.entryKind,
 					programType: item.programType ?? null,
@@ -2538,22 +2536,23 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				else if (sessionFailureReasons.has('ROOM_CAPACITY_EXCEEDED')) reason = 'ROOM_CAPACITY_EXCEEDED';
 				else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM')) reason = 'NO_COMPATIBLE_ROOM';
 
-				// R4/D-A: the resolved authority is the data-driven room type. There is
-				// no unconditional specialized-room deferral: an unsatisfied
-				// specialized authority is reported as SPECIALIZED_ROOM_UNAVAILABLE.
+				// R2/F9 (Site B): the room reason is ordered by the OBSERVED failure
+				// cause; the resolved room authority qualifies only the room path. A
+				// faculty/data failure must never be reported as a room result, because
+				// `generation.service.ts` maps SPECIALIZED_ROOM_UNAVAILABLE to a SOFT
+				// room warning and would launder a genuine hard blocker.
 				const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;
 				const isSpecializedDemand = SPECIALIZED_ROOM_TYPES.has(requestedRoomType);
-				const roomAssignmentReason: RoomAssignmentReason = isSpecializedDemand
-					? 'SPECIALIZED_ROOM_UNAVAILABLE'
-					: reason === 'NO_QUALIFIED_FACULTY'
-						? 'NO_QUALIFIED_FACULTY'
-						: sawDailyHardLimit || sawConsecutiveHardLimit
-							? 'POLICY_SLOT_BLOCKED'
-							: reason === 'FACULTY_OVERLOADED' || sawFacultySlotUnavailable
+				const roomPathExhausted = reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED';
+				const roomAssignmentReason: RoomAssignmentReason = reason === 'NO_QUALIFIED_FACULTY'
+					? 'NO_QUALIFIED_FACULTY'
+					: sawDailyHardLimit || sawConsecutiveHardLimit
+						? 'POLICY_SLOT_BLOCKED'
+						: reason === 'FACULTY_OVERLOADED' || sawFacultySlotUnavailable
 							? 'FACULTY_SLOT_UNAVAILABLE'
-								: reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED'
-									? 'ROOM_PATH_EXHAUSTED'
-									: 'FALLBACK_UNRESOLVED';
+							: roomPathExhausted
+								? (isSpecializedDemand ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'ROOM_PATH_EXHAUSTED')
+								: 'FALLBACK_UNRESOLVED';
 				const homeRoomFallbackCause: HomeRoomFallbackCause | undefined = preferredHomeRoomId != null
 					? (sawDailyHardLimit
 						? 'FACULTY_DAILY_LIMIT_EXCEEDED'
