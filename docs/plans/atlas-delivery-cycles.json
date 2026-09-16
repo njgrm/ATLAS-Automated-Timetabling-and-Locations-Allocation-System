@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T21:41:43.325Z",
+    "lastUpdatedAt": "2026-09-16T21:54:24.736Z",
     "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 245
+    "revision": 249
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -4367,8 +4367,8 @@
       },
       "objective": "Successor correction closing the two BLOCKING findings of the PUBLISHED-IMMUTABILITY-C08 Wave Completion Audit without regressing the frozen-publication contract: (B1) make the snapshot-consistency gate accept the real producer's contained/snapped Flag/HGP display slot using containment + day-scope authority and a real-producer positive control, and (B2) stop faculty-sync invalidation from re-asserting isPublished=true on a superseded run, preserving informational markers and the destructive path for unpublished runs.",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-16T14:42:32.155Z",
-      "nextAction": "PUBLISHED-IMMUTABILITY-C08R1 closed COMPLETE (QA ACCEPT_READY 8/8/0/0/0; Wave Completion Audit AUDIT_CLEAR 8/8/0/0/0). Residuals: F1 FACULTY-SYNC-PUBLICATION-CAS-C01; F2 interval hardening folded into F1; F3 owned by TERM-CACHE-CATCHUP-APPLY-REFRESH-C01; F4 owned by the defaulting-scope backlog lane. All HIGH actions remain LOCKED.",
+      "stateUpdatedAt": "2026-09-16T21:54:24.736Z",
+      "nextAction": "Closed COMPLETE (QA ACCEPT_READY 8/8/0/0/0; Wave Completion Audit AUDIT_CLEAR 8/8/0/0/0). Residuals reconfigured: F1 (routine-sync unguarded writes) and F2 (timeToMinutes coercion) are now CLOSED by the successor FACULTY-SYNC-PUBLICATION-CAS-C01 (candidate d0b02c4e, integration 476dd8de, COMPLETE with AUDIT_CLEAR 14/14/0/0, receipt docs/plans/receipts/faculty-sync-publication-cas-c01.receipt.json); F3 remains owned by TERM-CACHE-CATCHUP-APPLY-REFRESH-C01; F4 (faculty.router.ts:76/99 body-derived school scope with a schoolYearId default of 1) is owned only by the prose label defaulting-scope backlog lane and still has NO registered stream - recorded as an owner gap. All HIGH actions remain LOCKED.",
       "awaited": [],
       "running": [],
       "git": {
@@ -5509,12 +5509,10 @@
       "kind": "CYCLE",
       "objective": "Guarantee that a published GenerationRun can never be un-published or orphaned by routine faculty/subject/room/policy synchronization: add a version compare-and-swap to the published-run status transition in the routine-sync path, return a typed and singly-audited successor condition instead of erasing history, make the reported invalidation counters truthful, and fold in the F2 fail-closed interval hardening in the frozen-snapshot consistency gate. Source and tests only; publication and generation remain separately HIGH-gated.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T21:41:43.325Z",
-      "nextAction": "Integrated at 476dd8de (clean automatic union over 6f110733); merged product tree byte-identical to the reviewed candidate d0b02c4e. One fresh Wave Completion Auditor is required before closure.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-16T21:54:05.556Z",
+      "nextAction": "Closed COMPLETE: candidate d0b02c4e (base 16e70be2, 4 attributed paths) accepted by fresh QA ses_f53e99f22ffe7aNFISfntJka6b (ACCEPT_READY 14/14/0/0/0) and integrated at 476dd8de (clean automatic union over 6f110733; merged product tree byte-identical to the candidate); fresh Wave Completion Auditor ses_f53d42368ffeTfZZGRSh1M0NFE returned AUDIT_CLEAR 14/14/0/0 with zero blocking findings. Routine-sync drift and destructive writes are now version-CAS-guarded, the counters are truthful, and the R3 interval gate is fail-closed with producer parity. Auditor residuals, all NON_BLOCKING: F-1 the committed interleave controls do not assert the publication audit/revision cardinality (that invariant is independently proven by the byte-identical published-immutability-c08.test.ts:477 and publication-contract-postgres-concurrency.test.ts:290) and the executor ledger over-attributes that citation; F-2 two truly simultaneous routine syncs can each rewrite the drift summary and add a drift audit row because R1.4 mandates a drift CAS without a version increment - publication state is provably unaffected, and the failing-first remedy is prepared as successor FACULTY-SYNC-DRIFT-CONCURRENCY-C02; F-3 faculty.router.ts:76/99 still derives schoolId from the request body with a schoolYearId default of 1, owned by the packet-designated defaulting-scope lane that still has NO registered stream (recorded owner gap); F-4 create-stream specs retain their registration snapshot by design; F-5 the executor lease was returned at revision 247. No HIGH action, deployment, login, database apply, generation, publication, migration, or companion edit was executed or unlocked.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
@@ -5552,8 +5550,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53d42368ffeTfZZGRSh1M0NFE",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -5595,8 +5593,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f53e99f22ffe7aNFISfntJka6b",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f53d42368ffeTfZZGRSh1M0NFE",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -5628,7 +5626,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/faculty-sync-publication-cas-c01.receipt.json",
+          "sha256": "268957009a9340fb2fd2c223d7f32d3516c90b57384157a6d369bb704a96250a"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "FRESH_REQUIRED",
@@ -5906,9 +5909,9 @@
       "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T20:49:27.921Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-16T21:53:46.758Z",
       "expiresAt": null
     },
     {
