@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T05:14:31.187Z",
+    "lastUpdatedAt": "2026-09-16T05:24:08.690Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 158
+    "revision": 160
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3504,12 +3504,10 @@
       "kind": "STREAM",
       "objective": "Bounded correction round for AUTHZ-CLASS-TEMPLATE-C07 closing the two accepted blocking findings of its Wave Completion Audit while preserving every previously accepted gate: (R2) bind class-template subject bundles to the actor school so a foreign subjectId can no longer be bound and then projected through the actor's own GET, and (R3) stop atlas-client Audit.tsx from claiming section coverage when the template list is empty after the write-on-read removal. Fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T23:42:34.046Z",
-      "nextAction": "Correction integrated at merge d15be919 over 19f21729...dd8faf6b; merged-tree combined gates green (server and client tsc+build, guard suite 136/0, disposable c07 suite 111/0 with zero residue, client helper suite 7/0). Fresh Wave Completion Auditor returned AUDIT_CLEAR 12/12/0/0/0 with non-blocking register/documentation findings (capsule docs/reviews/authz-class-template-c07r1/wave-completion-audit.md). Next: apply the docs-only reconciliation, close with the receipt, retire both cycle worktrees (RETIRE_AFTER_INTEGRATION), and keep AUTHZ-CLASS-TEMPLATE-LIVE NOT granted. Recorded successor awaiting dispatch: AUTHZ-CLASS-TEMPLATE-EMPTY-BUNDLE (matched class template with an empty subject bundle still yields a verified/green section-coverage claim; display-only; dispatch with the first operator-activated cycle that owns the class-template client surface).",
-      "awaited": [
-        "close the cycle and pin the closure receipt"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-16T05:23:26.157Z",
+      "nextAction": "Closed COMPLETE on the corrected tree. Correction candidate dd8faf6b over base 19f21729, integrated at merge d15be919 (still an ancestor of origin/main), QA ACCEPT_READY 12/12/0/0/0, fresh Wave Completion Auditor AUDIT_CLEAR 12/12/0/0/0, merged-tree combined gates green, workflow:test 287/287 on the first run from the clean cycle worktree. Packet: docs/prompts/authz-class-template-c07-2026-09-16.md. Capsules: docs/reviews/authz-class-template-c07/wave-completion-audit.md (round-1 CORRECTION_REQUIRED, historical) and docs/reviews/authz-class-template-c07r1/wave-completion-audit.md (closing AUDIT_CLEAR). Locked HIGH successor AUTHZ-CLASS-TEMPLATE-LIVE registered; no packet and no approval exist.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/authz-class-template-c07",
@@ -3629,7 +3627,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/authz-class-template-c07r1.receipt.json",
+          "sha256": "4cccf533d0323b09ebf657bba8128cdcdec399bfbf7fe0c8c6f1ed1ff1e1c484"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
@@ -3799,6 +3802,145 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "the integrated wave requires a fresh adversarial audit context."
+        }
+      }
+    },
+    {
+      "id": "AUTHZ-CLASS-TEMPLATE-LIVE",
+      "kind": "STREAM",
+      "objective": "Locked HIGH successor of AUTHZ-CLASS-TEMPLATE-C07R1: deploy a release containing the corrected class-template authority boundary (actor-school authority on both GET routes, school-bound item read, zero-write reads, explicit privileged idempotent audited initialization, actor-school binding on every mutation route) so the supervised 5001/5174 runtime stops serving the pre-fix unauthenticated cross-tenant write-on-read route. No packet, no approval and no deployment action exists or is implied by this registration.",
+      "riskTier": "HIGH",
+      "state": "PLANNED",
+      "stateUpdatedAt": "2026-09-16T05:24:08.690Z",
+      "nextAction": "Author the HIGH deployment packet first: exact target release containing d15be919, launchOwner, launchMechanism, rollbackLaunchOwner and rollbackLaunchMechanism (durable resident owner, never an attached shell), the stop-start-health or proven alternate-port sequence, a read-only acceptance matrix (anonymous GET /api/v1/class-templates and GET /:id return 401 with a class_templates count delta of zero; health and readiness 200; rollback startable), and the exact approval sentence. Then obtain one fresh independent pre-action review and return the approval sentence to the operator. No deployment, restart, task/env change, login or database action is authorized before that approval.",
+      "awaited": [],
+      "running": [],
+      "git": {
+        "worktree": null,
+        "branch": null,
+        "baseSha": "b00da67e4cbc2ed87e61a0ec5cdd0df1b6e00196",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "b00da67e4cbc2ed87e61a0ec5cdd0df1b6e00196",
+          "observedAt": "2026-09-16T05:24:08.690Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 0,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "APPROVAL",
+        "detail": "No deployment packet, no independent pre-action review and no operator approval exist. The live runtime (release 54dce67b) still serves the pre-fix unauthenticated cross-tenant write-on-read class-template route (deployed router blob 2b77bbee equals base 917da8be). Nothing is granted.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author the HIGH deployment packet with launch/rollback ownership and the exact approval sentence",
+          "one fresh independent pre-action review of that packet",
+          "record the live pre-state and the read-only acceptance matrix"
+        ]
+      },
+      "approval": {
+        "required": true,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the deployment cycle requires its own operator-activated planner context with register custody; this registration transfers no custody"
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "no executor is dispatched; a deployment executor may only be dispatched after exact approval"
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the packet requires one fresh independent pre-action review before any approval request"
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the deployment wave requires a fresh Wave Completion Auditor after execution"
         }
       }
     }
