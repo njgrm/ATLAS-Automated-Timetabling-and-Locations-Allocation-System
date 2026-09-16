@@ -591,3 +591,81 @@ Residuals carried to QA: in-process mutants M1–M8 (predicate/input reproductio
 runs); D-C zero-row strictness; D-E severity semantics; stale npm script
 `test:hybrid-scheduler` pointing at a non-existent test file; `preference-wellbeing` npm target
 absent at base.
+
+## 17. Post-apply amendment — B3 false `TERM_AUTHORITY_STALE` and the record correction (2026-09-16)
+
+### Record correction (supersedes one stale planner statement)
+
+**`TERM-CACHE-CATCHUP-APPLY` is no longer "NOT GRANTED".** The term-cache catch-up apply executed
+successfully at main ancestor `818439c2`; its valid write is retained, and mirror 223 now contains the
+reviewed ordered T1/T2/T3 authority. No second apply, replay, rollback, or login is authorized. Any
+register row or report still describing that apply as ungranted is stale and must be reconciled by
+the next authorized register transition (the machine register is currently under
+`WF-SEED-INVENTORY-C02` custody, so no transition is made in this amendment).
+
+### B3 — the live apply exposed a cross-namespace comparison that emits a false hard blocker
+
+`generation-preflight.service.ts:670-690` performs a second authority read and compares the **stored
+upstream** string against the **local canonical derived** revision:
+
+```ts
+const persistedRevision = (authorityMirror?.termContractCache as { semanticRevision?: unknown } | null)?.semanticRevision;
+if (typeof persistedRevision === 'string' && persistedRevision !== derived.termStructure.semanticRevision) {
+    blockers.push({ code: 'TERM_AUTHORITY_STALE', ... });
+}
+```
+
+Those two values are produced from different payloads and are **not interchangeable**:
+`enrollpro-term-contract.service.ts:168-170` (`semanticRevisionFor`) hashes the upstream normalized
+structure, while `derived-demand.service.ts:924-936` (`canonicalTermStructureRevision`) hashes a
+canonical `{schoolId, schoolYearId, format, sorted terms}` payload; `derived-demand.service.ts:938-944`
+already documents that the stored string must not be trusted as the binding revision because
+PostgreSQL JSONB reorders object keys. With the now-valid mirror-223 cache the comparison therefore
+blocks a healthy runtime with a false `TERM_AUTHORITY_STALE`.
+
+### B3 required correction (bounded)
+
+1. **Remove** the direct comparison between the stored upstream `semanticRevision` and the canonical
+   derived revision at `generation-preflight.service.ts:670-690`.
+2. **One shared canonical helper.** Both the first cached structure consumed by derived demand
+   (`derived-demand.service.ts:1049` via `normalizePersistedTermStructure`) and the second authority
+   read used for the concurrency/staleness check must pass through the **same** normalizer and
+   revision helper (`normalizePersistedTermStructure` → `canonicalTermStructureRevision`). The
+   preflight's second read must compare canonical revision ↔ canonical revision
+   (`persisted.structure.revision` vs `derived.termStructure.semanticRevision`), never a stored
+   string vs a computed one.
+3. **Canonical payload completeness and determinism.** `canonicalTermStructureRevision` must include
+   every term-authority field that affects generation or its selected-term outputs — at minimum
+   `identity`, `displayLabel`, `order`, and the term start/end boundaries where the persisted
+   normalized structure retains them (extend the normalizer to retain and validate them if it
+   currently discards them). The payload must be built field-by-field with an explicit, sorted
+   ordering (sort by `order`, deterministic tie-break) and must never depend on JSONB object-key
+   order.
+4. **Preserve concurrency protection.**
+   - unchanged canonical authority ⇒ no `TERM_AUTHORITY_STALE`;
+   - authority changed between the first and second read ⇒ typed `TERM_AUTHORITY_STALE`;
+   - malformed, missing, foreign-school, wrong-year, duplicate, out-of-order, or otherwise
+     unnormalizable authority ⇒ the existing typed fail-closed blocker path (map the normalizer
+     failure to a typed blocker; do not invent new codes and do not throw);
+   - every rejection performs **zero** writes.
+5. **Provenance only.** The upstream `semanticRevision` may remain as untrusted provenance metadata,
+   but must never be compared with, substituted for, or used to derive the canonical revision.
+
+### B3 failing-first controls (mandatory)
+
+Using a production-shaped cached snapshot equivalent to live mirror 223 — school 1, year 9,
+`TRIMESTER`, ordered `T1`/`T2`/`T3` with labels and dates, upstream
+`semanticRevision a51b62a26e27416c3d1295697f144d7ae5de5c56bb6a5e0d25bcb0c24dd8abb9`:
+
+1. Prove the **current** code emits the false `TERM_AUTHORITY_STALE` for that unchanged snapshot.
+2. Prove the **corrected** code emits **no** stale blocker for it.
+3. Change one generation-relevant term-authority field between the first and second read and prove
+   typed `TERM_AUTHORITY_STALE`.
+4. Prove deterministic equivalence under JSON object-key reordering of the persisted cache payload.
+5. Add a **mutant restoring the cross-namespace comparison**; the focused suite must fail.
+6. Assert zero writes on every blocker path.
+
+Scope discipline: B3 touches the term-authority comparison and the canonical revision payload only.
+Do not absorb rollover, publication, term-cache, or warning-recalibration work; `academic-term`,
+`runtime-context`, and `derived-demand` consumers of the shared helper must keep working with their
+existing typed behaviour.
