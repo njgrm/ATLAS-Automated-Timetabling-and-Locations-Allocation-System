@@ -26,7 +26,10 @@ import { isSubjectAllowedForSectionProgram } from './subject-program-scope.servi
 import {
 	matchesSubjectOwnershipDepartment,
 } from './subject-ownership.service.js';
-import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
+import {
+	resolveMaxConsecutiveTeachingMinutesBeforeBreak,
+	resolvePolicyPlacementSemantics,
+} from './scheduling-policy.service.js';
 import {
 	getEffectiveEvents,
 	isFlagCeremonyEvent,
@@ -535,7 +538,13 @@ export function buildTimetableShapeContract(input: {
 	);
 
 	const policyForShape: PolicyInput = {
-		maxConsecutiveTeachingMinutesBeforeBreak: input.basePolicy?.maxConsecutiveTeachingMinutesBeforeBreak ?? 180,
+		// C07A-R1: the shape policy consumes the ONE canonical slot-aligned
+		// threshold. The former `?? 180` literal diverged from the validator's
+		// resolved default; the resolver now derives it from the same authority.
+		maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+			input.basePolicy,
+			input.periodLengthMinutes,
+		),
 		minBreakMinutesAfterConsecutiveBlock: input.basePolicy?.minBreakMinutesAfterConsecutiveBlock ?? 20,
 		maxTeachingMinutesPerDay: input.basePolicy?.maxTeachingMinutesPerDay ?? 420,
 		earliestStartTime: input.startTime,
@@ -1355,8 +1364,40 @@ function timeToMinutes(t: string): number {
 
 // ─── Main constructor ───
 
+/**
+ * C07A-R1: resolve the ONE canonical slot-aligned consecutive-teaching threshold
+ * for every constructor read.
+ *
+ * The persisted legacy constant (`LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES`, 120)
+ * is the pre-C07 hardcoded value and is not expressible as a whole number of
+ * 45-minute periods. `resolveMaxConsecutiveTeachingMinutesBeforeBreak` derives
+ * the period-aligned default (45 × 3 = 135) for it and honors an explicitly
+ * configured, slot-expressible value verbatim. Routing the constructor input
+ * through this helper keeps the constructor, the validator, and the policy
+ * read/display on the SAME effective value, so the constructor can no longer
+ * refuse a third legitimate period while the validator stays silent.
+ *
+ * Exported so the decisive control can exercise the exact production derivation
+ * `constructBaseline` applies.
+ */
+export function resolveConstructorPolicy(policy?: PolicyInput): PolicyInput | undefined {
+	if (!policy) return policy;
+	return {
+		...policy,
+		maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+			policy,
+			policy.periodLengthMinutes,
+		),
+	};
+}
+
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
-	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes, pairOwners } = input;
+	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy: rawPolicy, lockedEntries, gradeWindows, timetableShapes, pairOwners } = input;
+	// C07A-R1: the constructor consumes the ONE canonical slot-aligned
+	// consecutive-teaching threshold so it can never disagree with the validator
+	// or the policy read. Resolving here (in addition to the preflight assembly)
+	// also covers every direct `constructBaseline` caller.
+	const policy = resolveConstructorPolicy(rawPolicy) ?? rawPolicy;
 	const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
 
 	// Build period slots dynamically from the active policy day shape.

@@ -890,6 +890,10 @@ function buildSyntheticPolicy(schoolId: number, schoolYearId: number) {
 		schoolId,
 		schoolYearId,
 		...POLICY_DEFAULTS,
+		// C07A-R1: route the synthetic row through the ONE canonical resolver so a
+		// synthesized policy reports the same effective consecutive threshold the
+		// validator and constructor enforce.
+		maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(POLICY_DEFAULTS),
 		constraintConfig: null as unknown as null,
 		createdAt: new Date(),
 		updatedAt: new Date(),
@@ -1093,11 +1097,21 @@ export async function resolveSchedulingPolicyForRead(
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		});
 		if (!existing) return buildSyntheticPolicy(schoolId, schoolYearId);
+		// C07A-R1: the read/display value must equal the enforced value. A persisted
+		// legacy 120 is normalized through the ONE canonical resolver, so the editor
+		// can never display a threshold the validator/constructor do not use.
+		const base = {
+			...existing,
+			maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+				existing,
+				existing.periodLengthMinutes,
+			),
+		};
 		const normalized = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
 		if (normalized !== existing.constraintConfig && normalized != null) {
-			return { ...existing, constraintConfig: normalized };
+			return { ...base, constraintConfig: normalized };
 		}
-		return existing;
+		return base;
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			return buildSyntheticPolicy(schoolId, schoolYearId);

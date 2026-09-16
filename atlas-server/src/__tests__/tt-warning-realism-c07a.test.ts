@@ -38,9 +38,15 @@ import {
 	isPromotableConstraintCode,
 	resolveDefaultMaxConsecutiveTeachingMinutes,
 	resolveMaxConsecutiveTeachingMinutesBeforeBreak,
+	resolveSchedulingPolicyForRead,
 } from '../services/scheduling-policy.service.js';
 import { countBlockingHardViolations } from '../services/publication-contract.service.js';
-import { buildPreflightValidatorContext } from '../services/generation-preflight.service.js';
+import { buildPreflightConstructorInput, buildPreflightValidatorContext } from '../services/generation-preflight.service.js';
+import {
+	buildTimetableShapeContract,
+	constructBaseline,
+	resolveConstructorPolicy,
+} from '../services/schedule-constructor.js';
 import { buildValidatorCtx } from '../services/manual-edit.service.js';
 import { buildPreGenerationValidatorContext } from '../services/pre-generation-draft.service.js';
 import { resolveUnassignedViolationCode } from '../services/generation.service.js';
@@ -920,4 +926,224 @@ test('window authority: the persisted policy row and shift-specific special even
 	assert.ok(authority.breakWindows.filter((window) => window.gradeLevel === 7).length >= 1);
 	assert.ok(authority.breakWindows.filter((window) => window.gradeLevel === 9).length >= 1);
 	assert.equal(authority.shiftWindows.length, 1);
+});
+
+// ─── C07A-R1: ONE canonical consecutive threshold at every consumer ─────────
+//
+// Root cause (verified at the reviewed candidate): the resolver was applied only
+// inside the validator. The schedule constructor read the RAW persisted value
+// (`?? 180` on the shape-policy leg) and the policy read/display returned the raw
+// row, so a legacy 120 refused a third contiguous 45-minute period in the
+// constructor while the validator stayed silent. These controls bind the real
+// constructor, the real preflight constructor input, and the real passive policy
+// reader to the ONE resolver.
+
+const C07A_SECTION = 200;
+const C07A_SUBJECT = 100;
+
+/**
+ * Minimal real-constructor fixture: one Grade 7 section, one 45-minute CLASSROOM
+ * subject, one faculty member unavailable TUESDAY–FRIDAY. Every session must
+ * therefore land on MONDAY, so the third contiguous 45-minute period (135 min) is
+ * the exact boundary the consecutive check decides.
+ */
+function constructorThresholdFixture(
+	policyOverrides: Record<string, unknown>,
+	options: { latestEndTime?: string; sessionsPerWeek?: number } = {},
+) {
+	const sessionsPerWeek = options.sessionsPerWeek ?? 3;
+	return {
+		schoolId: SCHOOL,
+		schoolYearId: YEAR,
+		roomingStrategy: 'UNIVERSAL' as const,
+		sectionsByGrade: [{
+			gradeLevelId: 17,
+			gradeLevelName: 'Grade 7',
+			displayOrder: 7,
+			sections: [{
+				id: C07A_SECTION, name: '7-A', maxCapacity: 50, enrolledCount: 40,
+				gradeLevelId: 17, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR',
+			}],
+		}],
+		subjects: [{
+			id: C07A_SUBJECT, code: 'SCI', name: 'Science', minMinutesPerWeek: sessionsPerWeek * 45,
+			preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7], requiredFeatures: [] as string[],
+		}],
+		cohorts: [],
+		faculty: [{ id: 1, maxHoursPerWeek: 40 }],
+		facultySubjects: [{ facultyId: 1, subjectId: C07A_SUBJECT, gradeLevels: [7], sectionIds: [C07A_SECTION] }],
+		rooms: [{
+			id: 2001, type: 'CLASSROOM' as const, isTeachingSpace: true, isSharedFacility: false,
+			capacity: 50, features: [] as string[], floor: 1, buildingId: 1, buildingZoneId: 'Z1',
+		}],
+		preferences: [{
+			facultyId: 1,
+			status: 'SUBMITTED',
+			// A persisted UNAVAILABLE window is a HARD exclusion and is never relaxed.
+			timeSlots: ['TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'].map((day) => ({
+				day, startTime: '06:00', endTime: '18:00', preference: 'UNAVAILABLE',
+			})),
+		}],
+		policy: {
+			periodLengthMinutes: 45,
+			periodsPerDay: 8,
+			minBreakMinutesAfterConsecutiveBlock: 15,
+			maxTeachingMinutesPerDay: 480,
+			earliestStartTime: '06:00',
+			latestEndTime: options.latestEndTime ?? '08:15',
+			enableRecess: false,
+			enableLunchWindow: false,
+			enableFlagCeremony: false,
+			enforceConsecutiveBreakAsHard: true,
+			...policyOverrides,
+		},
+		demandOverride: [{
+			sectionId: C07A_SECTION, subjectId: C07A_SUBJECT, subjectCode: 'SCI', gradeLevel: 7,
+			sessionsPerWeek, durationPerSession: 45, enrolledCount: 40,
+			entryKind: 'SECTION' as const, roomTypePreference: 'CLASSROOM' as const,
+		}],
+	} as unknown as Parameters<typeof constructBaseline>[0];
+}
+
+test('C07A-R1: constructor and validator resolve the SAME effective threshold for a legacy 120 row (135)', () => {
+	const legacy = { maxConsecutiveTeachingMinutesBeforeBreak: LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES, periodLengthMinutes: 45 };
+	const effective = resolveMaxConsecutiveTeachingMinutesBeforeBreak(legacy, 45);
+	assert.equal(effective, 135, 'the retired legacy constant resolves to 3 x 45');
+	assert.equal(effective, resolveConstructorPolicy(legacy as never)?.maxConsecutiveTeachingMinutesBeforeBreak);
+
+	// Real constructor: all three contiguous Monday periods are placed.
+	const constructed = constructBaseline(constructorThresholdFixture(legacy));
+	assert.equal(constructed.assignedCount, 3);
+	assert.equal(constructed.unassignedCount, 0, 'the constructor must not refuse the third contiguous 45-minute period');
+	assert.equal(constructed.policyBlockedCount, 0);
+
+	// Real validator: the same three contiguous periods are silent.
+	const validated = validateHardConstraints(primaryContext([
+		entry({ entryId: 'r1-p1', ...P1 }),
+		entry({ entryId: 'r1-p2', ...P2 }),
+		entry({ entryId: 'r1-p3', ...P3 }),
+	], { policy: { ...legacy, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480, earliestStartTime: '06:00', latestEndTime: '14:30', enforceConsecutiveBreakAsHard: true } }));
+	assert.equal(counts(validated, 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'), 0);
+	assert.equal(counts(validated, 'FACULTY_BREAK_REQUIREMENT_VIOLATED'), 0);
+});
+
+test('C07A-R1 mutant: a raw sub-slot threshold refuses the third contiguous period (the pre-fix outcome)', () => {
+	// Pre-fix, the constructor compared the block minutes against the RAW persisted
+	// value; with legacy 120 that refuses 3 x 45 = 135.
+	const raw = LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES;
+	const blockMinutes = 3 * 45;
+	assert.ok(blockMinutes > raw, 'the raw read refuses the canonical three-period block');
+	assert.equal(blockMinutes > resolveMaxConsecutiveTeachingMinutesBeforeBreak({ maxConsecutiveTeachingMinutesBeforeBreak: raw, periodLengthMinutes: 45 }, 45), false);
+
+	// Reproduce that outcome through the real constructor with a genuinely enforced
+	// sub-slot threshold (an explicit non-aligned value is honored verbatim).
+	const mutant = constructBaseline(constructorThresholdFixture({ maxConsecutiveTeachingMinutesBeforeBreak: 100 }));
+	assert.equal(mutant.assignedCount, 2, 'the third contiguous period is refused');
+	assert.equal(mutant.unassignedCount, 1);
+	assert.equal(mutant.unassignedItems[0]?.reason, 'NO_AVAILABLE_SLOT');
+	assert.equal(mutant.unassignedItems[0]?.roomAssignmentReason, 'POLICY_SLOT_BLOCKED');
+
+	// The same fixture with the legacy 120 resolves and places all three — so the
+	// mutant above is the exact outcome a raw 120 read would have produced.
+	const fixed = constructBaseline(constructorThresholdFixture({ maxConsecutiveTeachingMinutesBeforeBreak: raw }));
+	assert.equal(fixed.assignedCount, 3);
+	assert.equal(fixed.unassignedCount, 0);
+});
+
+test('C07A-R1: an explicit slot-aligned value (180) is honored by the constructor, the shape policy, and the validator', () => {
+	const explicit = { maxConsecutiveTeachingMinutesBeforeBreak: 180, periodLengthMinutes: 45 };
+	assert.equal(resolveMaxConsecutiveTeachingMinutesBeforeBreak(explicit, 45), 180);
+	assert.equal(resolveConstructorPolicy(explicit as never)?.maxConsecutiveTeachingMinutesBeforeBreak, 180);
+
+	const shape = buildTimetableShapeContract({
+		gradeLevel: 7,
+		programType: 'REGULAR',
+		startTime: '06:00',
+		endTime: '09:00',
+		periodLengthMinutes: 45,
+		periodsPerDay: 4,
+		basePolicy: { ...explicit, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480, earliestStartTime: '06:00', latestEndTime: '09:00' },
+	});
+	assert.equal(shape.periodSlots.length, 4);
+
+	// Real constructor: four contiguous Monday periods are all placed at 180.
+	const constructed = constructBaseline(constructorThresholdFixture(
+		explicit,
+		{ latestEndTime: '09:00', sessionsPerWeek: 4 },
+	));
+	assert.equal(constructed.assignedCount, 4);
+	assert.equal(constructed.unassignedCount, 0);
+
+	// Real validator: four contiguous periods are silent at 180.
+	const validated = validateHardConstraints(primaryContext([
+		entry({ entryId: 'ex-p1', ...P1 }),
+		entry({ entryId: 'ex-p2', ...P2 }),
+		entry({ entryId: 'ex-p3', ...P3 }),
+		entry({ entryId: 'ex-p4', ...P4 }),
+	], {
+		policy: { ...explicit, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480, earliestStartTime: '06:00', latestEndTime: '14:30', enforceConsecutiveBreakAsHard: true },
+	}));
+	assert.equal(counts(validated, 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'), 0);
+});
+
+test('C07A-R1: the real generation constructor input carries the resolved threshold, never the raw legacy row', () => {
+	const assembly = {
+		scope: { schoolId: SCHOOL, schoolYearId: YEAR },
+		derived: { totalsByTerm: {} },
+		sectionsByGrade: [],
+		schedulableSubjects: [],
+		cohorts: [],
+		faculty: [],
+		facultySubjects: [],
+		roomsWithGradeScope: [],
+		preferences: [],
+		policyRow: {
+			id: 1,
+			periodLengthMinutes: 45,
+			maxConsecutiveTeachingMinutesBeforeBreak: LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES,
+			minBreakMinutesAfterConsecutiveBlock: 15,
+			maxTeachingMinutesPerDay: 480,
+			earliestStartTime: '06:00',
+			latestEndTime: '14:30',
+		},
+		policy: { present: true, id: 1, periodLengthMinutes: 45, periodsPerDay: 10 },
+		specialEvents: [],
+		retained: { lockedEntries: [] },
+		enforceShiftWindows: false,
+		gradeWindows: [],
+		buildings: [],
+		classTemplatePeriods: {},
+		timetableShapeContracts: [],
+		demand: [],
+		pairOwners: {},
+	} as unknown as Parameters<typeof buildPreflightConstructorInput>[0];
+
+	const input = buildPreflightConstructorInput(assembly);
+	assert.equal(input.policy?.maxConsecutiveTeachingMinutesBeforeBreak, 135);
+	assert.notEqual(input.policy?.maxConsecutiveTeachingMinutesBeforeBreak, LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES);
+});
+
+test('C07A-R1: resolveSchedulingPolicyForRead reports the same effective threshold enforcement uses', async () => {
+	const legacyRow = {
+		id: 1, schoolId: SCHOOL, schoolYearId: YEAR,
+		periodLengthMinutes: 45,
+		maxConsecutiveTeachingMinutesBeforeBreak: LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES,
+		constraintConfig: {},
+	};
+	const read = await resolveSchedulingPolicyForRead(SCHOOL, YEAR, {
+		schedulingPolicy: { findUnique: async () => legacyRow },
+	} as unknown as Parameters<typeof resolveSchedulingPolicyForRead>[2]);
+	assert.equal(read.maxConsecutiveTeachingMinutesBeforeBreak, 135, 'the read/display value equals the enforced value');
+	assert.equal(read.maxConsecutiveTeachingMinutesBeforeBreak, resolveMaxConsecutiveTeachingMinutesBeforeBreak(legacyRow, 45));
+
+	const explicit = await resolveSchedulingPolicyForRead(SCHOOL, YEAR, {
+		schedulingPolicy: { findUnique: async () => ({ ...legacyRow, maxConsecutiveTeachingMinutesBeforeBreak: 180 }) },
+	} as unknown as Parameters<typeof resolveSchedulingPolicyForRead>[2]);
+	assert.equal(explicit.maxConsecutiveTeachingMinutesBeforeBreak, 180, 'an explicit slot-aligned value is preserved on read');
+
+	const synthetic = await resolveSchedulingPolicyForRead(SCHOOL, YEAR, {
+		schedulingPolicy: { findUnique: async () => null },
+	} as unknown as Parameters<typeof resolveSchedulingPolicyForRead>[2]);
+	assert.equal(synthetic.maxConsecutiveTeachingMinutesBeforeBreak, resolveDefaultMaxConsecutiveTeachingMinutes(POLICY_DEFAULTS.periodLengthMinutes));
+	assert.equal(synthetic.maxConsecutiveTeachingMinutesBeforeBreak, 135, 'the synthetic row reports the slot-aligned default');
 });

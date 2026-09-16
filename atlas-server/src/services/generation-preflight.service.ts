@@ -46,7 +46,7 @@ import {
 import { normalizePersistedTermStructure } from './derived-demand.service.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
-import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
+import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveMaxConsecutiveTeachingMinutesBeforeBreak, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
 import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
@@ -1266,6 +1266,15 @@ export function buildPreflightConstructorInput(
 			...(assembly.policyRow as any),
 			periodLengthMinutes: assembly.policy.periodLengthMinutes,
 			periodsPerDay: assembly.policy.periodsPerDay,
+			// C07A-R1: the constructor consumes the ONE canonical slot-aligned
+			// consecutive-teaching threshold. The raw persisted row may still carry
+			// the retired 120-minute constant; the resolver normalizes it to the
+			// period-aligned default so the constructor cannot disagree with the
+			// validator/editor.
+			maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+				assembly.policyRow as any,
+				assembly.policy.periodLengthMinutes,
+			),
 			specialEvents: toConstructorSpecialEvents(assembly.specialEvents),
 		} as ConstructorInput['policy'],
 		lockedEntries: options.lockedEntries ?? assembly.retained.lockedEntries,
