@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T06:52:31.058Z",
+    "lastUpdatedAt": "2026-09-16T07:42:06.115Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 179
+    "revision": 183
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -4284,23 +4284,30 @@
       "kind": "STREAM",
       "objective": "Lane A of TT-WARNING-REALISM-C07R1 (parent cycle). Server warning authority and count realism: emit FACULTY_CONSECUTIVE_LIMIT_EXCEEDED once per violating contiguous teaching block (not once per member) with a period/slot-aligned configurable default that allows the canonical three consecutive 45-minute periods (135 min) before warning; make FACULTY_EXCESSIVE_IDLE_GAP exclude configured Health Break and Lunch windows and count only genuine unscheduled gaps inside the teacher's applicable shift (never cross-shift or outside-shift time); reconcile FACULTY_BREAK_REQUIREMENT_VIOLATED with the consecutive rule so a canonical break equality resets the block; retire unreachable vacant/overcompressed/early-late preference families unless a real operator control and production consumer exist; remove every producer/config/display residue of FACULTY_EXCESSIVE_TRAVEL_DISTANCE; keep truthful cross-building, insufficient-transition-buffer and cross-floor adjacency rules based on building identity, floors, chronological adjacency and available transition time; stop missing subject/qualified faculty from being reported as SPECIALIZED_ROOM_UNAVAILABLE; keep ROOM_CAPACITY_EXCEEDED SOFT and never a hard blocker; give LACKING_FACULTY and INCOMPLETE_MODULAR_GROUP truthful severity and actionable authority; make ZONE_IMBALANCE_WARNING carry resolvable entities/actions or retire it; and keep identical code/severity/entity results across generation, manual edit, Quick Place, pre-generation placement, sync/setup and publication-readiness recomputation. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T06:51:54.270Z",
-      "nextAction": "Executor implements docs/prompts/tt-warning-count-c07a-2026-09-16.md in E:/ATLAS-worktrees/tt-warning-count-c07a and returns REVIEW_REQUIRED; the planner then validates the immutable range and dispatches fresh independent QA.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-16T07:41:42.768Z",
+      "nextAction": "Lane A candidate frozen; planner validates and dispatches fresh independent QA.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the TT-WARNING-COUNT-C07A candidate",
-        "fresh independent QA over the frozen TT-WARNING-COUNT-C07A candidate"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "executor implementation session on branch work/tt-warning-count-c07a (packet docs/prompts/tt-warning-count-c07a-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tt-warning-count-c07a",
         "branch": "work/tt-warning-count-c07a",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
-        "candidateSha": null,
+        "candidateSha": "4b94d3d193adfd08d791ec36708f10ed99ac5683",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/timetable-warning-authority-c04.test.ts",
+          "atlas-server/src/__tests__/tt-warning-realism-c07a.test.ts",
+          "atlas-server/src/services/constraint-validator.ts",
+          "atlas-server/src/services/generation-preflight.service.ts",
+          "atlas-server/src/services/generation.service.ts",
+          "atlas-server/src/services/manual-edit.service.ts",
+          "atlas-server/src/services/pre-generation-draft.service.ts",
+          "atlas-server/src/services/scheduling-policy.service.ts",
+          "atlas-server/src/services/warning-window-authority.service.ts"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "c950e6944f148343b8c864bea5aa080bd6a19426",
@@ -4315,8 +4322,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5700bc33ffeZoIvpjpV6PrpN9",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
@@ -4426,23 +4433,41 @@
       "kind": "STREAM",
       "objective": "Lane B of TT-WARNING-REALISM-C07R1 (parent cycle). Client warning and publish-readiness truth: SimplePublishReadinessSheet must render run-wide blocker truth and never say Ready to publish from a selected-term list while another term blocks; selected-term issue rails stay selected-term scoped and are visibly labeled so run-wide and selected-term counts are never mixed under one unexplained total; every displayed action works (no-op Review issue buttons removed, resolvable violations routed to the correct term/entity/repair surface, aggregate warnings exposing every affected entry or navigating to a real grouped repair view); Treat as Hard and Blocks publish render only for codes in the server-owned promotable allowlist; ExplainabilityDrawer uses server publication semantics so HARD alone never means Publish blocker for a non-publication-blocking code; PublishChecklistContent groups real production violation codes rather than reason keys or test-only codes; dead UI/config/type residue for retired distance, unreachable vacant and retired warning families is removed and types.d.ts is reconciled or removed as a second authority; and accessible controls, 44px mobile targets, keyboard navigation, responsive layout, Simple-first navigation and term-switching state hygiene are preserved. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T06:52:12.459Z",
-      "nextAction": "Executor implements docs/prompts/tt-warning-surface-c07b-2026-09-16.md in E:/ATLAS-worktrees/tt-warning-surface-c07b and returns REVIEW_REQUIRED; the planner then validates the immutable range and dispatches fresh independent QA.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-16T07:42:06.115Z",
+      "nextAction": "Lane B candidate frozen; planner validates and dispatches fresh independent QA.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the TT-WARNING-SURFACE-C07B candidate",
-        "fresh independent QA over the frozen TT-WARNING-SURFACE-C07B candidate"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "executor implementation session on branch work/tt-warning-surface-c07b (packet docs/prompts/tt-warning-surface-c07b-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tt-warning-surface-c07b",
         "branch": "work/tt-warning-surface-c07b",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
-        "candidateSha": null,
+        "candidateSha": "ddec3adde96728a8dbdc3caa395da7a1da8a38b0",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-client/src/components/ExplainabilityDrawer.tsx",
+          "atlas-client/src/components/PolicyImpactSummary.tsx",
+          "atlas-client/src/components/SchedulingPolicyPane.tsx",
+          "atlas-client/src/components/scheduling-policy/PolicyPanePrimitives.tsx",
+          "atlas-client/src/components/timetable/GeneratedRunRailPanels.tsx",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspaceBody.tsx",
+          "atlas-client/src/components/timetable/SimplePublishReadinessSheet.tsx",
+          "atlas-client/src/components/timetable/TimetableShared.tsx",
+          "atlas-client/src/components/timetable/TimetableSimpleHeader.tsx",
+          "atlas-client/src/components/timetable/TimetableTaskDrawer.tsx",
+          "atlas-client/src/components/timetable/buildScheduleReviewWorkspaceContexts.ts",
+          "atlas-client/src/components/timetable/simple/SimpleTaskDrawerHelpers.tsx",
+          "atlas-client/src/components/timetable/simplePublishReadiness.ts",
+          "atlas-client/src/components/timetable/timetableContexts.types.ts",
+          "atlas-client/src/hooks/useScheduleReviewWorkspaceState.ts",
+          "atlas-client/src/hooks/useTimetableData.ts",
+          "atlas-client/src/lib/__tests__/tt-warning-surface-realism-c07b.test.ts",
+          "atlas-client/src/types.d.ts"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "c950e6944f148343b8c864bea5aa080bd6a19426",
@@ -4457,8 +4482,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f57009bd6ffeuIXJ4B341ZX01z",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
@@ -4603,10 +4628,10 @@
       "streamId": "TT-WARNING-COUNT-C07A",
       "worktree": "E:/ATLAS-worktrees/tt-warning-count-c07a",
       "role": "executor",
-      "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T06:51:54.270Z",
+      "sessionId": "ses_f5700bc33ffeZoIvpjpV6PrpN9",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-16T07:41:42.768Z",
       "expiresAt": null
     },
     {
@@ -4614,10 +4639,10 @@
       "streamId": "TT-WARNING-SURFACE-C07B",
       "worktree": "E:/ATLAS-worktrees/tt-warning-surface-c07b",
       "role": "executor",
-      "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T06:52:12.459Z",
+      "sessionId": "ses_f57009bd6ffeuIXJ4B341ZX01z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-16T07:42:06.115Z",
       "expiresAt": null
     }
   ],
