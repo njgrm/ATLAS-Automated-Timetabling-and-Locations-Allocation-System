@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T21:28:42.302Z",
-    "lastUpdatedBy": "primary-planner:slot-break-c11-executor-return",
-    "revision": 242
+    "lastUpdatedAt": "2026-09-16T21:36:33.366Z",
+    "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
+    "revision": 244
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5509,22 +5509,25 @@
       "kind": "CYCLE",
       "objective": "Guarantee that a published GenerationRun can never be un-published or orphaned by routine faculty/subject/room/policy synchronization: add a version compare-and-swap to the published-run status transition in the routine-sync path, return a typed and singly-audited successor condition instead of erasing history, make the reported invalidation counters truthful, and fold in the F2 fail-closed interval hardening in the frozen-snapshot consistency gate. Source and tests only; publication and generation remain separately HIGH-gated.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T20:49:27.921Z",
-      "nextAction": "Executor implements the bounded CAS correction in E:/ATLAS-worktrees/faculty-sync-cas-c01 per docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md as amended by planner amendment A1 (base re-pinned 544bbf81 -> 16e70be2; gate 10 and the run-resolver entry of gate 11 corrected to real suites; R2.3b unpublishedRunIds truthfulness added) and returns REVIEW_REQUIRED with the frozen candidate SHA; then the planner validates the immutable range and commissions one fresh independent QA.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-16T21:36:33.366Z",
+      "nextAction": "Fresh QA ACCEPT_READY 14/14/0/0/0 over 16e70be2...d0b02c4e (4 attributed paths); the planner integrates the accepted candidate on integration/faculty-sync-cas-c01-20260917 and then commissions one fresh Wave Completion Auditor before closure. QA non-blocking residuals F1-F6 are adjudicated with the closure.",
       "awaited": [
-        "executor REVIEW_REQUIRED return from worktree E:/ATLAS-worktrees/faculty-sync-cas-c01 on branch fix/faculty-sync-publication-cas"
+        "planner validates the immutable range and integration boundary"
       ],
-      "running": [
-        "executor (high) in E:/ATLAS-worktrees/faculty-sync-cas-c01 on fix/faculty-sync-publication-cas, fast-forwarded to the re-pinned base 16e70be2; packet docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md as amended by planner amendment A1"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
         "branch": "fix/faculty-sync-publication-cas",
         "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
-        "candidateSha": null,
+        "candidateSha": "d0b02c4ead9e4a011827d6db2dd915cbaee45dc8",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/faculty-sync-publication-cas-c01.test.ts",
+          "atlas-server/src/services/generation.service.ts",
+          "atlas-server/src/services/published-identity-snapshot.service.ts",
+          "docs/handoffs/faculty-sync-publication-cas-c01-executor.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "e9165036c989c891622c02bc768e73a8fb36e7de",
@@ -5539,13 +5542,13 @@
           "writable": true
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f54027992ffeQsovgbtqkOHgM5",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53e99f22ffe7aNFISfntJka6b",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -5555,8 +5558,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 14,
+        "passed": 14,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -5567,8 +5570,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 14,
+            "passed": 14,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -5590,12 +5593,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f53e99f22ffe7aNFISfntJka6b",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f53e99f22ffe7aNFISfntJka6b"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
