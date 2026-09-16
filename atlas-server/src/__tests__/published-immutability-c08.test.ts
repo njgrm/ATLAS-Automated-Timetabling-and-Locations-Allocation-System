@@ -397,9 +397,18 @@ async function main() {
 		checkEqual(allTerm.source.snapshotState, 'FROZEN', 'G01 published payload reports snapshotState=FROZEN');
 		check(Array.isArray(allTerm.source.snapshotGaps) && allTerm.source.snapshotGaps.length === 0, 'G01 no frozen-identity gaps for a fully-referenced artifact');
 
+		// Each per-term read is non-fatal: a mutant that removes the frozen
+		// ordered-term contract must produce a named control FAIL rather than
+		// aborting the disposable-PostgreSQL suite before the archived-term
+		// control is reached (same intent as the G02 frozen-export controls).
 		const termCodes = async (termIndex: number): Promise<string[]> => {
-			const payload = await read({ termIndex });
-			return payload.entries.map((e: any) => e.subject.code).sort();
+			try {
+				const payload = await read({ termIndex });
+				return payload.entries.map((e: any) => e.subject.code).sort();
+			} catch (error) {
+				check(false, `G03 term ${termIndex} resolves through the frozen ordered-term contract (error: ${(error as { code?: string }).code ?? 'error'})`);
+				return [];
+			}
 		};
 		const t1 = await termCodes(1);
 		const t2 = await termCodes(2);
@@ -624,8 +633,15 @@ async function main() {
 		checkEqual(driftAudit, 1, 'G05 drift is audited exactly once');
 		const revisionIntact = await prisma.publishedScheduleRevision.count({ where: { id: revisionId, sourceRunId: runId, reason: 'INITIAL_PUBLICATION' } });
 		checkEqual(revisionIntact, 1, 'G05 published revision is not orphaned');
-		const stillFrozenAfterSync = await read();
-		checkEqual(publicDigest(stillFrozenAfterSync), capturedPublic, 'G05 published artifact identity is unchanged after synchronization drift');
+		// Non-fatal: a mutant that restores the destructive unpublication makes
+		// this read fail closed; that must be a named control FAIL, not an abort.
+		let stillFrozenAfterSync: any = null;
+		try { stillFrozenAfterSync = await read(); } catch (error) {
+			check(false, `G05 published artifact is still readable after synchronization drift (error: ${(error as { code?: string }).code ?? 'error'})`);
+		}
+		if (stillFrozenAfterSync) {
+			checkEqual(publicDigest(stillFrozenAfterSync), capturedPublic, 'G05 published artifact identity is unchanged after synchronization drift');
+		}
 
 		// ── Frozen snapshot consistency gate ──
 		section('G01b. frozen snapshot consistency gate rejects contradictory publishes');
