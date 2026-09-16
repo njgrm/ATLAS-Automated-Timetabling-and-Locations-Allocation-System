@@ -1,0 +1,119 @@
+{
+  "id": "TT-WARNING-SURFACE-C07B",
+  "kind": "STREAM",
+  "objective": "Lane B of TT-WARNING-REALISM-C07R1 (parent cycle). Client warning and publish-readiness truth: SimplePublishReadinessSheet must render run-wide blocker truth and never say Ready to publish from a selected-term list while another term blocks; selected-term issue rails stay selected-term scoped and are visibly labeled so run-wide and selected-term counts are never mixed under one unexplained total; every displayed action works (no-op Review issue buttons removed, resolvable violations routed to the correct term/entity/repair surface, aggregate warnings exposing every affected entry or navigating to a real grouped repair view); Treat as Hard and Blocks publish render only for codes in the server-owned promotable allowlist; ExplainabilityDrawer uses server publication semantics so HARD alone never means Publish blocker for a non-publication-blocking code; PublishChecklistContent groups real production violation codes rather than reason keys or test-only codes; dead UI/config/type residue for retired distance, unreachable vacant and retired warning families is removed and types.d.ts is reconciled or removed as a second authority; and accessible controls, 44px mobile targets, keyboard navigation, responsive layout, Simple-first navigation and term-switching state hygiene are preserved. No live, schema, generation, publication, deployment or HIGH action.",
+  "riskTier": "MEDIUM",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-16T00:00:00Z",
+  "nextAction": "Executor implements docs/prompts/tt-warning-surface-c07b-2026-09-16.md in E:/ATLAS-worktrees/tt-warning-surface-c07b and returns REVIEW_REQUIRED; the planner then validates the immutable range and dispatches fresh independent QA.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return for the TT-WARNING-SURFACE-C07B candidate",
+    "fresh independent QA over the frozen TT-WARNING-SURFACE-C07B candidate"
+  ],
+  "running": [
+    "executor implementation session on branch work/tt-warning-surface-c07b (packet docs/prompts/tt-warning-surface-c07b-2026-09-16.md)"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/tt-warning-surface-c07b",
+    "branch": "work/tt-warning-surface-c07b",
+    "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "IDLE",
+      "writable": false
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 8,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": false,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "bounded client warning/publish-readiness truth correction in the Simple and Advanced timetable surfaces, PolicyPanePrimitives, ExplainabilityDrawer, SimpleTaskDrawerHelpers, the stale types.d.ts authority and their tests"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "the primary planner owns the parent cycle; this lane has no independent planner."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the bounded Lane B implementation runs in a fresh executor context on its own worktree."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the frozen Lane B candidate requires a fresh independent QA context."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the union wave audit is owned by the parent cycle."
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "id": "TT-WARNING-COUNT-C07A",
+  "kind": "STREAM",
+  "objective": "Lane A of TT-WARNING-REALISM-C07R1 (parent cycle). Server warning authority and count realism: emit FACULTY_CONSECUTIVE_LIMIT_EXCEEDED once per violating contiguous teaching block (not once per member) with a period/slot-aligned configurable default that allows the canonical three consecutive 45-minute periods (135 min) before warning; make FACULTY_EXCESSIVE_IDLE_GAP exclude configured Health Break and Lunch windows and count only genuine unscheduled gaps inside the teacher's applicable shift (never cross-shift or outside-shift time); reconcile FACULTY_BREAK_REQUIREMENT_VIOLATED with the consecutive rule so a canonical break equality resets the block; retire unreachable vacant/overcompressed/early-late preference families unless a real operator control and production consumer exist; remove every producer/config/display residue of FACULTY_EXCESSIVE_TRAVEL_DISTANCE; keep truthful cross-building, insufficient-transition-buffer and cross-floor adjacency rules based on building identity, floors, chronological adjacency and available transition time; stop missing subject/qualified faculty from being reported as SPECIALIZED_ROOM_UNAVAILABLE; keep ROOM_CAPACITY_EXCEEDED SOFT and never a hard blocker; give LACKING_FACULTY and INCOMPLETE_MODULAR_GROUP truthful severity and actionable authority; make ZONE_IMBALANCE_WARNING carry resolvable entities/actions or retire it; and keep identical code/severity/entity results across generation, manual edit, Quick Place, pre-generation placement, sync/setup and publication-readiness recomputation. No live, schema, generation, publication, deployment or HIGH action.",
+  "riskTier": "MEDIUM",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-16T00:00:00Z",
+  "nextAction": "Executor implements docs/prompts/tt-warning-count-c07a-2026-09-16.md in E:/ATLAS-worktrees/tt-warning-count-c07a and returns REVIEW_REQUIRED; the planner then validates the immutable range and dispatches fresh independent QA.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return for the TT-WARNING-COUNT-C07A candidate",
+    "fresh independent QA over the frozen TT-WARNING-COUNT-C07A candidate"
+  ],
+  "running": [
+    "executor implementation session on branch work/tt-warning-count-c07a (packet docs/prompts/tt-warning-count-c07a-2026-09-16.md)"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/tt-warning-count-c07a",
+    "branch": "work/tt-warning-count-c07a",
+    "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "IDLE",
+      "writable": false
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 10,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": false,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "bounded server warning-authority correction in constraint-validator, scheduling-policy, generation, manual-edit, pre-generation-draft, generation-preflight and their tests"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "the primary planner owns the parent cycle; this lane has no independent planner."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the bounded Lane A implementation runs in a fresh executor context on its own worktree."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the frozen Lane A candidate requires a fresh independent QA context."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the union wave audit is owned by the parent cycle."
+    }
+  }
+}

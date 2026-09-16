@@ -1,0 +1,125 @@
+{
+  "id": "TT-WARNING-REALISM-C07R1",
+  "kind": "CYCLE",
+  "objective": "Planner-led parallel two-lane source-only correction cycle on origin/main c950e6944f148343b8c864bea5aa080bd6a19426: Lane A (TT-WARNING-COUNT-C07A) makes the server warning authority and counts stakeholder-realistic and truthful (consecutive-limit emitted once per violating block with a period-aligned configurable default, idle-gap excluding configured Health Break/Lunch and outside-shift time, reconciled break/consecutive families, retired unreachable vacant/overcompressed/early-late preference residue, full removal of FACULTY_EXCESSIVE_TRAVEL_DISTANCE, truthful adjacency rules kept, corrected SPECIALIZED_ROOM_UNAVAILABLE / LACKING_FACULTY / INCOMPLETE_MODULAR_GROUP / ZONE_IMBALANCE_WARNING classifications, and identical results across generation/manual-edit/quick-place/pre-generation/sync/publication-readiness recomputation). Lane B (TT-WARNING-SURFACE-C07B) makes the client warning and publish-readiness surface tell the truth (run-wide publish gate in SimplePublishReadinessSheet, selected-term rails visibly labeled and never mixed with run-wide totals, every displayed action real and correctly routed, Treat-as-Hard/Blocks-publish only for the server-owned promotable allowlist, ExplainabilityDrawer on server publication semantics, PublishChecklistContent grouped by real production violation codes, dead distance/vacant/preference residue removed, and types.d.ts reconciled or removed as a second authority). Serialized clean integration, fresh independent QA per frozen lane, and one fresh Wave Completion Audit over the union. No browser login, live data mutation, deployment, generation, publication, migration, schema, runtime restart/task/env change, companion edit, or any HIGH action.",
+  "riskTier": "MEDIUM",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-16T00:00:00Z",
+  "nextAction": "Dispatch Lane A (TT-WARNING-COUNT-C07A) and Lane B (TT-WARNING-SURFACE-C07B) executor packets on their frozen worktrees, validate each immutable return, commission one fresh independent QA per lane, integrate serially on integration/tt-warning-realism-c07r1, then commission one fresh Wave Completion Auditor over the final union.",
+  "awaited": [
+    "Lane A executor REVIEW_REQUIRED return for the TT-WARNING-COUNT-C07A candidate",
+    "Lane B executor REVIEW_REQUIRED return for the TT-WARNING-SURFACE-C07B candidate",
+    "fresh independent QA per frozen lane candidate",
+    "fresh Wave Completion Auditor over the integrated union"
+  ],
+  "running": [
+    "parallel Lane A executor implementation on work/tt-warning-count-c07a",
+    "parallel Lane B executor implementation on work/tt-warning-surface-c07b",
+    "planner lease custody of the integration worktree integration/tt-warning-realism-c07r1"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
+    "branch": "integration/tt-warning-realism-c07r1",
+    "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "IDLE",
+      "writable": true
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 16,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "bounded server warning-authority and count realism correction in constraint-validator, scheduling-policy, generation, manual-edit, pre-generation and their tests",
+      "bounded client warning/publish-readiness truth correction in the Simple and Advanced timetable surfaces and their tests",
+      "serialized clean-main integration and one fresh adversarial wave audit"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "the primary planner owns this cycle's packets, verification, serialized integration, and closure; the harness exposed no session id, so none is asserted."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "each lane runs in its own fresh bounded executor context on its frozen worktree."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "each frozen lane candidate requires a fresh independent QA context."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the integrated union requires one fresh adversarial Wave Completion Auditor context."
+    }
+  }
+}
