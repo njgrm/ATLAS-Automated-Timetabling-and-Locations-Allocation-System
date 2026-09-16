@@ -23,7 +23,7 @@ import { buildDerivedDemand, toPerPairDemandItems } from './derived-demand.servi
 import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
-import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
+import { buildWarningWindowAuthority, type CanonicalSlotWindowSource } from './warning-window-authority.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
 
@@ -595,7 +595,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 	const policyRecordPromise = options.resolvedPolicyRecord !== undefined
 		? Promise.resolve(options.resolvedPolicyRecord as any)
 		: loadPolicyForDraftContext(schoolId, schoolYearId, options.readOnly);
-	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts, specialEvents] = await Promise.all([
+	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts, specialEvents, classProgramSlots] = await Promise.all([
 		sectionResultPromise,
 		db().facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -658,6 +658,14 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		db().policySpecialEvent.findMany({
 			where: { schoolId, schoolYearId, enabled: true },
 			orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+		}),
+		// SLOT-BREAK-AUTHORITY-C11: the canonical class-program grid is the
+		// break-window and shift-bound authority for every scope that has rows.
+		// Read-only; the same source the generation preflight consumes.
+		db().classProgramSlot.findMany({
+			where: { schoolId, schoolYearId, isActive: true },
+			select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true, subjectLabel: true, dayOfWeek: true },
+			orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
 		}),
 	]);
 
@@ -810,6 +818,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		policyRecord,
 		gradeWindows,
 		specialEvents: mappedSpecialEvents,
+		classProgramSlots,
 		placements,
 		periodSlots,
 		classPeriodSlots: fallbackClassPeriodSlots,
@@ -870,6 +879,12 @@ export interface PreGenerationValidatorContextSource {
 	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; gradeGroup?: string | null; programType?: string | null; enabled?: boolean }> | null;
 	/** C07A: persisted `GradeShiftWindow` rows (teaching-shift windows). */
 	gradeWindows?: Array<{ gradeLevel?: number | null; programType?: string | null; startTime: string; endTime: string }> | null;
+	/**
+	 * SLOT-BREAK-AUTHORITY-C11: persisted canonical `classProgramSlot` rows. When
+	 * a scope has canonical rows they become its break-window and shift-bound
+	 * authority; scopes without rows keep the policy-row/special-event path.
+	 */
+	classProgramSlots?: readonly CanonicalSlotWindowSource[] | null;
 	/** C07A: section roster used to resolve the applicable window scope. */
 	sectionsById?: ReadonlyMap<number, { displayOrder?: number | null; gradeLevelId?: number | null; programType?: string | null }>;
 	/**
@@ -916,6 +931,9 @@ export function buildPreGenerationValidatorContext(
 			enabled: event.enabled !== false,
 		})),
 		shiftWindows: ctx.gradeWindows ?? null,
+		// SLOT-BREAK-AUTHORITY-C11: canonical rows own the breaks and shift bounds
+		// for their scope on this leg too, so all three builders agree.
+		classProgramSlots: ctx.classProgramSlots ?? [],
 	});
 	return {
 		schoolId,
