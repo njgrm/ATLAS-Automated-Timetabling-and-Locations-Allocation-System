@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:17:01.780Z",
+    "lastUpdatedAt": "2026-09-16T04:30:08.682Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 138
+    "revision": 145
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3131,24 +3131,44 @@
       "kind": "CYCLE",
       "objective": "Planner-led bounded source cycle on work/generation-authority-realism-c07: (1) thread persisted PolicySpecialEvent authority into the shared shape-contract assembly and the real constructor input; (2) render the Monday Flag Ceremony/HGP as a day-scoped overlay on the configured underlying advisory-section period with no added ordinary demand, minutes, or period slots; (3) reject explicit non-Monday Flag/HGP authority with a typed blocker instead of silently reinterpreting it; (4) make room authority data-driven so the primary beneficiary's Science rotation resolves to CLASSROOM with zero laboratory occupancy and zero laboratory-derived warnings while a school-scoped explicit LABORATORY authority still reserves a laboratory; (5) emit ROOM_TYPE_MISMATCH only when the preferred room genuinely could not be used, with an auditable reason; (6) carry actual faculty availability slots into the real generation trigger instead of timeSlots: []; (7) add availability/preferences to the generation freshness snapshot, bump the snapshot contract, and fail older runs closed as stale. No live generation, deployment, publication, schema or shared-database mutation.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T22:37:38.000Z",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-16T04:30:08.682Z",
       "nextAction": "dispatch the bounded C07 executor packet and await REVIEW_REQUIRED",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the C07 candidate",
-        "fresh independent QA over the frozen C07 candidate",
-        "fresh Wave Completion Auditor over the integrated wave"
+        "planner validates the immutable range and integration boundary"
       ],
-      "running": [
-        "executor implementation session on branch work/generation-authority-realism-c07 (packet docs/prompts/generation-authority-realism-c07-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
         "branch": "work/generation-authority-realism-c07",
-        "baseSha": "4160028f95083d6842bcdc599925ca6aaa5ef441",
-        "candidateSha": null,
+        "baseSha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
+        "candidateSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-client/src/components/subjects/SubjectFormModal.tsx",
+          "atlas-client/src/lib/__tests__/room-authority-copy.test.ts",
+          "atlas-client/src/lib/room-authority-copy.ts",
+          "atlas-client/src/pages/Subjects.tsx",
+          "atlas-server/src/__tests__/derived-demand-correction-c01r2.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-availability.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-trigger.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07.test.ts",
+          "atlas-server/src/__tests__/publication-contract-postgres-concurrency.test.ts",
+          "atlas-server/src/__tests__/publication-contract-readiness.test.ts",
+          "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
+          "atlas-server/src/__tests__/timetable-shape-diagnostic-c02.test.ts",
+          "atlas-server/src/lib/policy-special-events.ts",
+          "atlas-server/src/services/constraint-validator.ts",
+          "atlas-server/src/services/generation-input-snapshot.service.ts",
+          "atlas-server/src/services/generation-preflight.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-schedule.service.ts",
+          "atlas-server/src/services/schedule-constructor.ts",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "docs/prompts/generation-authority-realism-c07-2026-09-16.md",
+          "ops/workflow/specs/register/GENERATION-AUTHORITY-REALISM-C07.json"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
@@ -3163,13 +3183,13 @@
           "writable": true
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f58c49727ffeTiZX5gjG41KQcs",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -3179,8 +3199,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 15,
+        "passed": 15,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -3191,15 +3211,15 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 14,
+            "passed": 14,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 1,
+            "passed": 1,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -3214,14 +3234,71 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq"
+          }
+        ]
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
+          "candidateSha": "363840cc8b1f2eac4197048b920c1f793cb9dc8d",
+          "reason": "R2 F9 warning-classification correction: a missing subject or NO_QUALIFIED_FACULTY condition is no longer reported as SPECIALIZED_ROOM_UNAVAILABLE, with a failing-first real-trigger control.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 2,
+          "baseSha": "363840cc8b1f2eac4197048b920c1f793cb9dc8d",
+          "candidateSha": "af3edb4fd67c99821d2565a90b22ca6e2136f7c6",
+          "reason": "R2b harness hygiene: removed the unexercised unqualifiedSubjectId option; no assertion or expectation changed.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 3,
+          "baseSha": "af3edb4fd67c99821d2565a90b22ca6e2136f7c6",
+          "candidateSha": "74e7cf002e9734e36097f36c2581f8977042e325",
+          "reason": "R2d availability enforcement: persisted UNAVAILABLE is a hard exclusion and can no longer be re-admitted by the HOME_ROOM_FIRST/cohort preference relaxation; decisive trigger-level control added.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 4,
+          "baseSha": "74e7cf002e9734e36097f36c2581f8977042e325",
+          "candidateSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
+          "reason": "Planner R2d decision record and independent verification evidence (packet section 15).",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 5,
+          "baseSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
+          "candidateSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
+          "reason": "Register/render record of the executor return and the correction rounds; final reviewed tip for fresh independent QA.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [],
       "requires": [],
       "blocker": {
