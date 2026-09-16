@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T20:43:25.973Z",
-    "lastUpdatedBy": "primary-planner:slot-break-c11-registration",
-    "revision": 239
+    "lastUpdatedAt": "2026-09-16T20:49:27.921Z",
+    "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
+    "revision": 240
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5500,6 +5500,145 @@
           "reason": "the stream changes the effective break/shift authority consumed by three validator paths, so a fresh adversarial Wave Completion Auditor is required after integration."
         }
       }
+    },
+    {
+      "id": "FACULTY-SYNC-PUBLICATION-CAS-C01",
+      "kind": "CYCLE",
+      "objective": "Guarantee that a published GenerationRun can never be un-published or orphaned by routine faculty/subject/room/policy synchronization: add a version compare-and-swap to the published-run status transition in the routine-sync path, return a typed and singly-audited successor condition instead of erasing history, make the reported invalidation counters truthful, and fold in the F2 fail-closed interval hardening in the frozen-snapshot consistency gate. Source and tests only; publication and generation remain separately HIGH-gated.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T20:49:27.921Z",
+      "nextAction": "Executor implements the bounded CAS correction in E:/ATLAS-worktrees/faculty-sync-cas-c01 per docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md as amended by planner amendment A1 (base re-pinned 544bbf81 -> 16e70be2; gate 10 and the run-resolver entry of gate 11 corrected to real suites; R2.3b unpublishedRunIds truthfulness added) and returns REVIEW_REQUIRED with the frozen candidate SHA; then the planner validates the immutable range and commissions one fresh independent QA.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return from worktree E:/ATLAS-worktrees/faculty-sync-cas-c01 on branch fix/faculty-sync-publication-cas"
+      ],
+      "running": [
+        "executor (high) in E:/ATLAS-worktrees/faculty-sync-cas-c01 on fix/faculty-sync-publication-cas, fast-forwarded to the re-pinned base 16e70be2; packet docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md as amended by planner amendment A1"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
+        "branch": "fix/faculty-sync-publication-cas",
+        "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "e9165036c989c891622c02bc768e73a8fb36e7de",
+          "observedAt": "2026-09-16T20:49:27.921Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 14,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "Operator routing for this cycle: new objective with no same-worktree planner lineage to resume; this session is the fresh planner."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "One fresh bounded executor for a new packet; no prior executor session carries this stream."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "One fresh independent QA verifier per frozen candidate range."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "One fresh Wave Completion Auditor after integration; publication-adjacent source change."
+        }
+      }
     }
   ],
   "leases": [
@@ -5600,6 +5739,17 @@
       "state": "ACTIVE",
       "revision": 1,
       "updatedAt": "2026-09-16T20:42:33.449Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-faculty-sync-cas-c01",
+      "streamId": "FACULTY-SYNC-PUBLICATION-CAS-C01",
+      "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-16T20:49:27.921Z",
       "expiresAt": null
     }
   ],
