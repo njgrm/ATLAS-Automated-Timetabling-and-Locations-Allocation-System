@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:31:04.918Z",
+    "lastUpdatedAt": "2026-09-16T04:41:21.590Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 146
+    "revision": 147
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3132,10 +3132,10 @@
       "objective": "Planner-led bounded source cycle on work/generation-authority-realism-c07: (1) thread persisted PolicySpecialEvent authority into the shared shape-contract assembly and the real constructor input; (2) render the Monday Flag Ceremony/HGP as a day-scoped overlay on the configured underlying advisory-section period with no added ordinary demand, minutes, or period slots; (3) reject explicit non-Monday Flag/HGP authority with a typed blocker instead of silently reinterpreting it; (4) make room authority data-driven so the primary beneficiary's Science rotation resolves to CLASSROOM with zero laboratory occupancy and zero laboratory-derived warnings while a school-scoped explicit LABORATORY authority still reserves a laboratory; (5) emit ROOM_TYPE_MISMATCH only when the preferred room genuinely could not be used, with an auditable reason; (6) carry actual faculty availability slots into the real generation trigger instead of timeSlots: []; (7) add availability/preferences to the generation freshness snapshot, bump the snapshot contract, and fail older runs closed as stale. No live generation, deployment, publication, schema or shared-database mutation.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T04:31:04.918Z",
+      "stateUpdatedAt": "2026-09-16T04:41:21.590Z",
       "nextAction": "Commission one fresh Wave Completion Auditor over the integrated wave 750cafcb...63275527 (merge 43399182, main 74595f97); every live/HIGH action stays locked.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded correction commit"
       ],
       "running": [],
       "git": {
@@ -3193,8 +3193,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5783f732ffeyGMZfEuQ9Qrf5Y",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -3236,8 +3236,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "CORRECTION_REQUIRED",
+        "auditorSessionId": "ses_f5783f732ffeyGMZfEuQ9Qrf5Y",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -3295,8 +3295,8 @@
           "reason": "Register/render record of the executor return and the correction rounds; final reviewed tip for fresh independent QA.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "CORRECTION_REQUIRED",
+          "auditorSessionId": "ses_f5783f732ffeyGMZfEuQ9Qrf5Y"
         }
       ],
       "successors": [],
