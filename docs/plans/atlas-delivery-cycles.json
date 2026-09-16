@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T15:05:28.214Z",
+    "lastUpdatedAt": "2026-09-16T15:11:16.918Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 211
+    "revision": 212
   },
   "coordination": {
     "mode": "MANUAL",
@@ -2822,8 +2822,8 @@
       "objective": "Fix the Teaching Load authority-diagnostics loading-state orphan in atlas-client/src/hooks/useTeachingLoadData.ts without weakening dispatch precedence or actor-school/year scope protection: loading ownership becomes dispatch-scoped, a stale dispatch cannot clear loading owned by a newer active dispatch, a newest dispatch that aborts before request binding terminates or transfers ownership, and newest success and newest typed failure each clear loading exactly once.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-15T20:46:15.967Z",
-      "nextAction": "QA ACCEPT_READY over 46d9499d...b72dd3c6 (mandatory source gates 14/14/0/0/0 = the ten required real-lifecycle controls including the load-bearing mutant, plus client tsc, client production build, git diff --check, and exact changed-path attribution; QA consolidated headline tally was 10/10/0/0). Next: move coordination off the active cycle, record the integration merge, close with the receipt, clear the lease, and push.",
+      "stateUpdatedAt": "2026-09-16T15:11:16.918Z",
+      "nextAction": "Closed COMPLETE (QA ACCEPT_READY 10/10/0/0 over base 46d9499d...candidate b72dd3c6: the ten required real-lifecycle controls including the load-bearing mutant, client tsc, client production build, git diff --check, and exact changed-path attribution) with integration 3d1b783b, the pinned closure receipt docs/plans/receipts/tl-diagnostics-loading-c06.receipt.json, the lease returned, and the result pushed. No return remains; every live/HIGH action stays locked.",
       "awaited": [],
       "running": [],
       "git": {
@@ -5229,8 +5229,8 @@
       "role": "executor",
       "sessionId": null,
       "state": "RETURNED",
-      "revision": 2,
-      "updatedAt": "2026-09-15T20:44:36.589Z",
+      "revision": 3,
+      "updatedAt": "2026-09-16T15:11:16.918Z",
       "expiresAt": null
     },
     {

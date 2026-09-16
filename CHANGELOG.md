@@ -1,5 +1,27 @@
 # Changelog
 
+## [2026-09-16] — Runtime Snapshot and Register Prose Reconciliation (docs-only)
+
+### Changed
+- Reconciled `docs/reference/atlas-runtime-source-of-truth-map.md` to the live
+  supervised release `54dce67b` (label `atlas-d44f29e0`, reviewed ancestor pin
+  `d44f29e0`, source directory `D:\ATLAS-runtime-supervised-54dce67b-20260914`):
+  added a verified current-live-runtime bullet, superseded the stale
+  `3d916b26` live-release claims on the TL-RR01, RR-TERM-CACHE-C01, and
+  ACTOR-SCOPE-C01 bullets, and recorded that the
+  `ENROLLPRO-PROXY-RECOVERY-LIVE` recovery was performed 2026-09-15
+  (`LIVE_ACCEPTED` 20/20).
+- Corrected the stale `TL-DIAGNOSTICS-LOADING-C06` register `nextAction`
+  through the atomic `lease-update` transition (registry revision 211 → 212);
+  the stream stays `COMPLETE` and no product/test/runtime behavior changed.
+
+### Notes
+- Docs and machine-register prose only: no product, test, runtime, database,
+  login, browser, or companion action.
+- One open item recorded: the boot-recovery task is not enumerable from a
+  non-elevated session, so durable supervisor restartability still requires one
+  elevated read-only confirmation before any `HIGH` runtime action.
+
 ## [2026-09-16] — TT-WARNING-REALISM-C07R1 Warning Authority and Publish-Readiness Truth
 
 ### Added
