@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T13:26:38.389Z",
+    "lastUpdatedAt": "2026-09-16T13:41:47.365Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 180
+    "revision": 181
   },
   "coordination": {
     "mode": "MANUAL",
@@ -4173,7 +4173,7 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f55a6ff98ffeluTlqiMi4YhnxT",
-        "auditorVerdict": null,
+        "auditorVerdict": "CORRECTION_REQUIRED",
         "auditorSessionId": null,
         "auditRequired": true,
         "qaRounds": [
@@ -4214,10 +4214,10 @@
       "closure": null,
       "objective": "Make one published revision a historically reproducible artifact: freeze subject/faculty/room/building/section/specialization/cohort/display-slot/special-event/policy/ordered-term identity into the publication revision JSON at publish time, resolve frozen-first on every public, authenticated, archived, and official-export consumer with an honest legacy state, repair current-year active/historical metadata and the :termId route family, and stop routine synchronization from unpublishing or failing a published run, while preserving the serializable/CAS/replay/audit/notification and draft-published separation strengths.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T13:26:38.389Z",
-      "nextAction": "One fresh read-only Wave Completion Auditor reviews the integrated origin/main tree f3537544; then the planner records the audit and closes the cycle.",
+      "stateUpdatedAt": "2026-09-16T13:41:47.365Z",
+      "nextAction": "Wave Completion Audit returned CORRECTION_REQUIRED (B1: the snapshot-consistency gate rejects the canonical rendered Flag/HGP overlay; B2: faculty sync re-asserts isPublished=true on a superseded run). The deterministic remedy is registered as successor PUBLISHED-IMMUTABILITY-C08R1.",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "bounded correction commit"
       ],
       "running": [],
       "git": {
@@ -4271,7 +4271,7 @@
         },
         "auditor": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "RETURNED",
           "writable": false
         }
       },
