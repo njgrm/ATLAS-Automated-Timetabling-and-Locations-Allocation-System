@@ -192,26 +192,49 @@ export function readPublishedIdentitySnapshot(value: unknown): PublishedIdentity
 
 // ─── Consistency gate (§3.4) ───
 
+function timeToMinutes(value: string): number {
+	const [hours, minutes] = value.split(':').map(Number);
+	return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+}
+
+/**
+ * True when `outer` fully contains `[inner.startTime, inner.endTime]` on the same
+ * clock. Mirrors `resolveContainingClassRow` (inclusive bounds); a degenerate
+ * window (`end <= start`) is never contained.
+ */
+function containsInterval(
+	outer: { startTime: string; endTime: string },
+	inner: { startTime: string; endTime: string },
+): boolean {
+	const innerStart = timeToMinutes(inner.startTime);
+	const innerEnd = timeToMinutes(inner.endTime);
+	if (innerEnd <= innerStart) return false;
+	return timeToMinutes(outer.startTime) <= innerStart && timeToMinutes(outer.endTime) >= innerEnd;
+}
+
 /**
  * Frozen display slots and frozen special events must be consistent. A day-scoped
  * event (e.g. the Monday-only Flag Ceremony/HGP overlay) must stay a day-scoped
  * overlay on its underlying configured interval; it must never appear as an
  * added week-spanning ordinary slot.
+ *
+ * Interval authority is CONTAINMENT, not string identity, because that is what
+ * the real producer does: `resolveContainingClassRow` snaps the Monday Flag/HGP
+ * overlay to the single canonical CLASS row that contains its persisted window
+ * (raw event `07:00-07:30` renders on frozen slot `06:45-07:30`). Exact matching
+ * rejected every canonical-shape publication with a false
+ * `PUBLICATION_SNAPSHOT_INCONSISTENT`.
  */
 export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): void {
-	const slotIntervals = new Map<string, FrozenDisplaySlot[]>();
-	for (const slot of snapshot.displaySlots) {
-		const key = `${slot.startTime}-${slot.endTime}`;
-		const list = slotIntervals.get(key) ?? [];
-		list.push(slot);
-		slotIntervals.set(key, list);
-	}
-
 	const contradictions: Array<Record<string, unknown>> = [];
+
+	// event → slots: an event window is satisfied when at least one display slot
+	// contains it; a day-scoped event additionally needs one containing slot on
+	// the same weekday.
 	for (const event of snapshot.specialEvents) {
 		const intervalKey = `${event.startTime}-${event.endTime}`;
-		const matching = slotIntervals.get(intervalKey);
-		if (!matching || matching.length === 0) {
+		const containing = snapshot.displaySlots.filter((slot) => containsInterval(slot, event));
+		if (containing.length === 0) {
 			// A frozen event with no underlying frozen interval would render as an
 			// added band the artifact never declared.
 			contradictions.push({ kind: 'EVENT_INTERVAL_MISSING', eventType: event.eventType, intervalKey });
@@ -219,7 +242,7 @@ export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): 
 		}
 		if (event.dayOfWeek == null) continue;
 		// A day-scoped event must be carried by a day-scoped slot for the same day.
-		const dayScoped = matching.some((slot) => slot.dayOfWeek === event.dayOfWeek);
+		const dayScoped = containing.some((slot) => slot.dayOfWeek === event.dayOfWeek);
 		if (!dayScoped) {
 			contradictions.push({
 				kind: 'DAY_SCOPED_EVENT_NOT_DAY_SCOPED',
@@ -234,14 +257,17 @@ export function assertSnapshotConsistency(snapshot: PublishedIdentitySnapshot): 
 		}
 	}
 
-	// A special-event display slot must be backed by a frozen special event, or by
-	// the frozen policy's own global break configuration when no explicit event
-	// row exists (`buildSpecialEventSlots` falls back to those policy fields).
+	// slot → events: a special-event display slot must be backed by a frozen
+	// special event window it contains (the same containment relation in
+	// reverse), or by the frozen policy's own global break configuration when no
+	// explicit event row exists (`buildSpecialEventSlots` falls back to those
+	// policy fields).
+	const globalEventIntervals = policyGlobalEventIntervals(snapshot.policy);
 	for (const slot of snapshot.displaySlots) {
 		if (slot.kind !== 'SPECIAL_EVENT') continue;
 		const intervalKey = `${slot.startTime}-${slot.endTime}`;
-		const backedByEvent = snapshot.specialEvents.some((event) => `${event.startTime}-${event.endTime}` === intervalKey);
-		if (!backedByEvent && !policyGlobalEventIntervals(snapshot.policy).has(intervalKey)) {
+		const backedByEvent = snapshot.specialEvents.some((event) => containsInterval(slot, event));
+		if (!backedByEvent && !globalEventIntervals.has(intervalKey)) {
 			contradictions.push({ kind: 'SPECIAL_EVENT_SLOT_UNBACKED', intervalKey, label: slot.label });
 		}
 	}
