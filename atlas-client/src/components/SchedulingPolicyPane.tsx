@@ -51,6 +51,7 @@ import {
 	SOFT_CONSTRAINT_LABELS,
 	WarningFamilyFields,
 } from '@/components/scheduling-policy/PolicyPanePrimitives';
+import { isPublicationBlockingCode } from '@/components/timetable/simplePublishReadiness';
 import { Badge } from '@/ui/badge';
 
 /* G��G��G�� Types G��G��G�� */
@@ -954,7 +955,8 @@ export default function SchedulingPolicyPane({
 					{/* COL 2: Per-Constraint Weights */}
 					<SectionCard title="Per-Constraint Weights">
 						<p className="text-[0.6875rem] text-muted-foreground">
-							Toggle, weight (1–10), and optionally promote soft constraints to hard.
+							Toggle and weight each soft constraint. Only structural conflicts the server allowlists may
+							block publication, so promotion is offered only where it is accepted.
 						</p>
 						<div className="space-y-2">
 							{Object.entries(SOFT_CONSTRAINT_LABELS).map(([code, info]) => {
@@ -966,6 +968,7 @@ export default function SchedulingPolicyPane({
 										label={info.label}
 										explanation={info.explanation}
 										config={cfg}
+										promotable={isPublicationBlockingCode(code)}
 										onToggleEnabled={(v) => updateConstraint(code, 'enabled', v)}
 										onWeightChange={(v) => updateConstraint(code, 'weight', v)}
 										onToggleTreatAsHard={(v) => updateConstraint(code, 'treatAsHard', v)}

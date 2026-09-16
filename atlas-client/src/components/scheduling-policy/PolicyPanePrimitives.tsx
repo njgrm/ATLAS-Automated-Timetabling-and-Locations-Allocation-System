@@ -151,6 +151,7 @@ export function ConstraintRow({
 	label,
 	explanation,
 	config,
+	promotable,
 	onToggleEnabled,
 	onWeightChange,
 	onToggleTreatAsHard,
@@ -159,6 +160,8 @@ export function ConstraintRow({
 	label: string;
 	explanation: string;
 	config: ConstraintOverride;
+	/** C07B/B4 — only the server-owned promotable allowlist may block publish. */
+	promotable: boolean;
 	onToggleEnabled: (v: boolean) => void;
 	onWeightChange: (v: number) => void;
 	onToggleTreatAsHard: (v: boolean) => void;
@@ -197,20 +200,29 @@ export function ConstraintRow({
 								aria-label={`${label} weight`}
 							/>
 						</div>
-						<div className="flex items-center justify-between gap-2">
-							<span className="text-[0.625rem] text-muted-foreground">Treat as Hard</span>
-							<div className="flex items-center gap-1.5">
-								{config.treatAsHard && (
-									<span className="text-[0.5625rem] text-red-600 font-medium">Blocks publish</span>
-								)}
-								<Switch
-									checked={config.treatAsHard}
-									onCheckedChange={onToggleTreatAsHard}
-									className={config.treatAsHard ? 'data-[state=checked]:bg-red-500' : undefined}
-									aria-label={`Treat ${label} as hard`}
-								/>
+						{promotable ? (
+							<div className="flex items-center justify-between gap-2">
+								<span className="text-[0.625rem] text-muted-foreground">Treat as Hard</span>
+								<div className="flex items-center gap-1.5">
+									{config.treatAsHard && (
+										<span className="text-[0.5625rem] text-red-600 font-medium">Blocks publish</span>
+									)}
+									<Switch
+										checked={config.treatAsHard}
+										onCheckedChange={onToggleTreatAsHard}
+										className={config.treatAsHard ? 'data-[state=checked]:bg-red-500' : undefined}
+										aria-label={`Treat ${label} as hard`}
+										data-testid="constraint-treat-as-hard"
+									/>
+								</div>
 							</div>
-						</div>
+						) : (
+							/* C07B/B4 — a non-allowlisted code can never block publish, so the
+							   promotion control is not offered (the server rejects it). */
+							<p className="text-[0.625rem] text-muted-foreground" data-testid="constraint-not-promotable">
+								Informational only — this check is never a publish blocker.
+							</p>
+						)}
 					</motion.div>
 				)}
 			</AnimatePresence>

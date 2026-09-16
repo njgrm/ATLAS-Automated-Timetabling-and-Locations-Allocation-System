@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink } from 'lucide-react';
 
 import { Button } from '@/ui/button';
+import { Badge } from '@/ui/badge';
+import { isBlockingHardViolation, resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
 import type { Violation } from '@/types';
 
 export type RepairOrigin = {
@@ -10,12 +12,15 @@ export type RepairOrigin = {
 	groupCount: number;
 };
 
+export type BlockerGroupScope = 'run-wide' | 'selected-term';
+
 export type BlockerGroup = {
 	reason: string;
 	plainLabel: string;
 	count: number;
 	actionLabel: string;
 	actionHref: string;
+	scope: BlockerGroupScope;
 	items: Array<{
 		sectionName: string;
 		subjectName: string;
@@ -24,27 +29,66 @@ export type BlockerGroup = {
 	}>;
 };
 
+/** Unassigned reason keys that actually occur on the wire. */
 export const UNASSIGNED_GROUP_MAP: Record<string, { plainLabel: string; actionLabel: string; actionHref: string; nextStep: string }> = {
 	FACULTY_OVERLOADED: { plainLabel: 'Teachers are overloaded', actionLabel: 'Review Teaching Load', actionHref: '/teaching-load', nextStep: 'Teacher workload is full. Move some classes or assign another teacher.' },
 	NO_QUALIFIED_FACULTY: { plainLabel: 'No qualified teacher is assigned', actionLabel: 'Assign a qualified teacher', actionHref: '/teaching-load', nextStep: 'No qualified teacher is assigned. Build or repair Teaching Load.' },
 	NO_AVAILABLE_SLOT: { plainLabel: 'No available time slot', actionLabel: 'Review timetable slots or policy', actionHref: '/timetable', nextStep: 'No allowed time slot was found. Try manual placement or review the scheduling policy.' },
 	NO_COMPATIBLE_ROOM: { plainLabel: 'No compatible room found', actionLabel: 'Review room setup', actionHref: '/map', nextStep: 'No compatible room was found. Review room setup.' },
 	ROOM_CAPACITY_EXCEEDED: { plainLabel: 'Room capacity exceeded', actionLabel: 'Review room assignment', actionHref: '/map', nextStep: 'The room is too small for this class. Choose a larger room.' },
+	UNASSIGNED_SECTION: { plainLabel: 'Session needs placement', actionLabel: 'Place this session', actionHref: '/timetable', nextStep: 'This session was not placed. Review the unresolved reason.' },
 };
+
+/**
+ * Real production HARD violation codes (C07B/B6). Grouping by the actual code
+ * means a structural blocker is never silently dropped for lacking a reason-key
+ * entry. Only allowlisted (publication-blocking) codes are grouped.
+ */
+export const HARD_VIOLATION_GROUP_MAP: Record<string, { plainLabel: string; actionLabel: string; actionHref: string; nextStep: string }> = {
+	FACULTY_TIME_CONFLICT: { plainLabel: 'Teacher double-booked', actionLabel: 'Open in review', actionHref: '/timetable', nextStep: 'This teacher is booked in two classes at once. Move one class to another slot.' },
+	ROOM_TIME_CONFLICT: { plainLabel: 'Room double-booked', actionLabel: 'Open in review', actionHref: '/timetable', nextStep: 'Two classes share this room at the same time. Move one to a different slot or room.' },
+	SECTION_TIME_CONFLICT: { plainLabel: 'Section double-booked', actionLabel: 'Open in review', actionHref: '/timetable', nextStep: 'This section has overlapping classes. Move one class so students are not double-booked.' },
+	FACULTY_OVERLOAD: { plainLabel: 'Teacher overloaded', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'This teacher exceeds their weekly maximum. Reassign some classes.' },
+	FACULTY_SUBJECT_NOT_QUALIFIED: { plainLabel: 'Teacher not qualified for subject', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'This teaching-load assignment does not cover the subject. Repair Teaching Load.' },
+	LACKING_FACULTY: { plainLabel: 'Missing faculty coverage', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'No teacher covers this subject/grade. Assign a qualified teacher.' },
+	INCOMPLETE_MODULAR_GROUP: { plainLabel: 'Incomplete modular group', actionLabel: 'Open in review', actionHref: '/timetable', nextStep: 'A modular group is missing sessions. Complete the group before publishing.' },
+	ROOM_TYPE_MISMATCH: { plainLabel: 'Room type mismatch', actionLabel: 'Review rooms', actionHref: '/map', nextStep: 'The subject needs a specific room type. Move it or update the room.' },
+	ROOM_FEATURE_MISMATCH: { plainLabel: 'Room missing a required feature', actionLabel: 'Review rooms', actionHref: '/map', nextStep: 'The assigned room lacks a required feature. Move the class or update the room.' },
+	FACULTY_DAILY_MAX_EXCEEDED: { plainLabel: 'Daily maximum exceeded', actionLabel: 'Open Teaching Load', actionHref: '/teaching-load', nextStep: 'This teacher exceeds the daily maximum. Move a class to another day.' },
+	UNASSIGNED_SECTION: { plainLabel: 'Session needs placement', actionLabel: 'Place this session', actionHref: '/timetable', nextStep: 'This session was not placed. Review the unresolved reason and place it.' },
+};
+
+const GROUP_CONFIG: Record<string, { plainLabel: string; actionLabel: string; actionHref: string; nextStep: string }> = {
+	...UNASSIGNED_GROUP_MAP,
+	...HARD_VIOLATION_GROUP_MAP,
+};
+
+const DEFAULT_GROUP_CONFIG = {
+	plainLabel: 'Needs review',
+	actionLabel: 'Open in review',
+	actionHref: '/timetable',
+	nextStep: 'Open the review rail and resolve this issue before publishing.',
+};
+
+function isGroupableBlocker(violation: Violation): boolean {
+	// A group is only a publication blocker when the server allowlist says so,
+	// or when the entry carries an explicit unassigned reason key.
+	return isBlockingHardViolation(violation) || Boolean(UNASSIGNED_GROUP_MAP[violation.code]);
+}
 
 export function buildBlockerGroups(
 	violations: Violation[],
 	sectionLabelFn: (id: number) => string,
 	subjectLabelFn: (id: number) => string,
 	facultyLabelFn: (id: number) => string,
+	scope: BlockerGroupScope = 'run-wide',
 ): BlockerGroup[] {
-	const hardViolations = violations.filter((v) => v.severity === 'HARD');
+	const hardViolations = violations.filter((v) => v.severity === 'HARD' && isGroupableBlocker(v));
 	const groups = new Map<string, BlockerGroup>();
 
 	for (const v of hardViolations) {
 		const code = v.code;
-		const groupConfig = UNASSIGNED_GROUP_MAP[code];
-		if (!groupConfig) continue;
+		const groupConfig = GROUP_CONFIG[code] ?? DEFAULT_GROUP_CONFIG;
 
 		if (!groups.has(code)) {
 			groups.set(code, {
@@ -53,6 +97,7 @@ export function buildBlockerGroups(
 				count: 0,
 				actionLabel: groupConfig.actionLabel,
 				actionHref: groupConfig.actionHref,
+				scope,
 				items: [],
 			});
 		}
@@ -82,7 +127,9 @@ export function PublishChecklistContent({
 	assignedCount,
 	unassignedCount,
 	hardCount,
+	blockingHardCount,
 	softCount,
+	violationScopeLabel,
 	violations,
 	sectionLabel,
 	subjectLabel,
@@ -90,12 +137,19 @@ export function PublishChecklistContent({
 	onPublish,
 	onReviewIssues,
 	onPlaceUnresolved,
+	onOpenTeachingLoad,
+	onOpenRoomSetup,
+	onSelectViolation,
 }: {
 	runId: number | null;
 	assignedCount: number;
 	unassignedCount: number;
 	hardCount: number;
+	/** Run-wide allowlist-filtered HARD count — the real publish gate (C07B/B6). */
+	blockingHardCount?: number;
 	softCount: number;
+	/** Term scope of the `violations` list, labelled explicitly (C07B/B2). */
+	violationScopeLabel?: string;
 	violations: Violation[];
 	sectionLabel: (id: number) => string;
 	subjectLabel: (id: number) => string;
@@ -103,11 +157,46 @@ export function PublishChecklistContent({
 	onPublish: () => void;
 	onReviewIssues: () => void;
 	onPlaceUnresolved: () => void;
+	onOpenTeachingLoad?: (href: string) => void;
+	onOpenRoomSetup?: () => void;
+	onSelectViolation?: (violation: Violation) => void;
 }) {
+	const scopeLabel = violationScopeLabel ?? 'Selected term';
 	const blockerGroups = useMemo(
-		() => buildBlockerGroups(violations, sectionLabel, subjectLabel, facultyLabel),
+		() => buildBlockerGroups(violations, sectionLabel, subjectLabel, facultyLabel, 'selected-term'),
 		[violations, sectionLabel, subjectLabel, facultyLabel],
 	);
+	// Fail-closed: when the run-wide allowlist count is unavailable, fall back to
+	// the total HARD count so an unknown code can never silently become publishable.
+	const runWideBlocking = typeof blockingHardCount === 'number' ? blockingHardCount : hardCount;
+	const publishDisabled = runId == null || runWideBlocking > 0 || unassignedCount > 0;
+
+	const navigateGroup = (group: BlockerGroup) => {
+		// B3 — resolve through the one shared destination resolver.
+		const destination = resolveBlockerDestination(group.reason, group.actionHref);
+		if (destination.kind === 'teaching-load' && onOpenTeachingLoad) {
+			onOpenTeachingLoad(destination.href ?? group.actionHref);
+			return;
+		}
+		if (destination.kind === 'rooms' && onOpenRoomSetup) {
+			onOpenRoomSetup();
+			return;
+		}
+		if (destination.kind === 'placement') {
+			onPlaceUnresolved();
+			return;
+		}
+		if (destination.kind === 'review') {
+			const match = destination.code
+				? violations.find((v) => v.code === destination.code && v.severity === 'HARD')
+					?? violations.find((v) => v.code === destination.code)
+				: undefined;
+			if (match) onSelectViolation?.(match);
+			onReviewIssues();
+			return;
+		}
+		onReviewIssues();
+	};
 
 	return (
 		<div className="space-y-3 p-3 text-sm">
@@ -118,17 +207,21 @@ export function PublishChecklistContent({
 				)}
 				<ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
 					<li>Assigned sessions: {assignedCount}</li>
-					<li>Unresolved sessions: {unassignedCount}</li>
-					<li>Hard blockers: {hardCount}</li>
-					<li>Warnings to review: {softCount}</li>
+					<li>Unresolved sessions (run-wide): {unassignedCount}</li>
+					<li>Blocking hard violations (run-wide): {runWideBlocking}</li>
+					<li>Hard violations total (run-wide): {hardCount}</li>
+					<li>Warnings to review (run-wide): {softCount}</li>
 				</ul>
+				<p className="mt-1 text-[0.6875rem] text-muted-foreground" data-testid="timetable-publish-scope-note">
+					Blockers listed below are scoped to {scopeLabel}; the publish gate above is always run-wide.
+				</p>
 			</div>
 
 			{blockerGroups.map((group) => (
-				<BlockerGroupCard key={group.reason} group={group} onNavigate={group.actionHref.includes('/teaching-load') ? onReviewIssues : onPlaceUnresolved} />
+				<BlockerGroupCard key={group.reason} group={group} onNavigate={() => navigateGroup(group)} />
 			))}
 
-			{unassignedCount > 0 && hardCount === 0 && (
+			{unassignedCount > 0 && runWideBlocking === 0 && (
 				<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
 					<p className="text-sm font-semibold">Sessions still unresolved</p>
 					<p className="mt-1 text-xs">{unassignedCount} session{unassignedCount === 1 ? '' : 's'} need placement before publishing.</p>
@@ -144,7 +237,7 @@ export function PublishChecklistContent({
 			</div>
 		)}
 
-		{softCount > 0 && hardCount === 0 && unassignedCount === 0 && (
+		{softCount > 0 && runWideBlocking === 0 && unassignedCount === 0 && (
 			<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
 				<p className="text-sm font-semibold">Warnings to review</p>
 				<p className="mt-1 text-xs">{softCount} warning{softCount === 1 ? '' : 's'} must be acknowledged before publish.</p>
@@ -167,7 +260,7 @@ export function PublishChecklistContent({
 				</div>
 			)}
 
-			{hardCount === 0 && unassignedCount === 0 && softCount === 0 && runId != null && (
+			{runWideBlocking === 0 && unassignedCount === 0 && softCount === 0 && runId != null && (
 				<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
 					<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 					<p className="text-sm">Schedule is clean and ready to publish.</p>
@@ -177,7 +270,7 @@ export function PublishChecklistContent({
 			<Button
 				type="button"
 				className="h-11 w-full"
-				disabled={runId == null || hardCount > 0 || unassignedCount > 0}
+				disabled={publishDisabled}
 				onClick={onPublish}
 			>
 				Publish schedule
@@ -190,13 +283,18 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
 	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
+	const scopeLabel = group.scope === 'run-wide' ? 'Run-wide' : 'Selected term';
+	const destination = resolveBlockerDestination(group.reason, group.actionHref);
 
 	return (
-		<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900" data-testid="timetable-publish-blocked-reason">
+		<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900" data-testid="timetable-publish-blocked-reason" data-blocker-scope={group.scope}>
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
 					<p className="text-sm font-semibold">{group.plainLabel}</p>
-					<p className="mt-0.5 text-xs text-red-700">{group.count} session{group.count === 1 ? '' : 's'} affected</p>
+					<p className="mt-0.5 text-xs text-red-700">
+						<Badge variant="outline" className="mr-1 h-4 px-1 text-[0.625rem] font-normal">{scopeLabel}</Badge>
+						{group.count} session{group.count === 1 ? '' : 's'} affected
+					</p>
 					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
 				<Button
@@ -205,6 +303,10 @@ export function BlockerGroupCard({ group, onNavigate }: { group: BlockerGroup; o
 					size="sm"
 					className="h-11 shrink-0 gap-1 px-3 text-xs"
 					onClick={onNavigate}
+					data-testid="timetable-publish-blocker-action"
+					data-blocker-reason={group.reason}
+					data-action-kind={destination.kind}
+					data-action-href={destination.href ?? ''}
 					aria-label={`${group.actionLabel}: ${group.plainLabel}, ${group.count} sessions affected`}
 				>
 					{group.actionLabel}

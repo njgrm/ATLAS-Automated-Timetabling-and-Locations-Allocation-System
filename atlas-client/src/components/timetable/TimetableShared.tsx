@@ -190,9 +190,6 @@ export function ViolationGroup({
 													{v.meta.totalIdleMinutes != null && v.meta.configuredThresholds != null && (
 														<div>Idle: {String(v.meta.totalIdleMinutes)} min · Limit: {String((v.meta.configuredThresholds as Record<string, unknown>).maxIdleGapMinutesPerDay ?? '?')} min</div>
 													)}
-													{v.meta.estimatedDistanceMeters != null && (
-														<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string, unknown>).maxWalkingDistanceMetersPerTransition ?? '?')}m` : ''}</div>
-													)}
 													{v.meta.gapMinutes != null && (
 														<div>Gap: {String(v.meta.gapMinutes)} min</div>
 													)}

@@ -19,6 +19,13 @@ export type LeftRailContentContext = {
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	isPreGenerationWorkspace: boolean;
 	hardViolationCount: number;
+	/** Run-wide blocking gate count (C07B/B2) — never mixed with the term list. */
+	runWideBlockingHardCount: number;
+	/**
+	 * Human label for the term scope of `violations` (e.g. "Term 2" or
+	 * "All terms"). Used to label the selected-term rail explicitly.
+	 */
+	violationScopeLabel: string;
 	topBlockers: Violation[];
 	violations: Violation[];
 	handleViolationSelect: (violation: Violation) => void;

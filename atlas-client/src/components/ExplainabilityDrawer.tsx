@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Violation, UnassignedItem, ViolationCode } from '@/types';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
+import { isBlockingHardViolation, isInformationalHardViolation } from '@/components/timetable/simplePublishReadiness';
 
 /* ─── Human-readable explanations per violation code ─── */
 
@@ -51,10 +52,6 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 	FACULTY_DAILY_MAX_EXCEEDED: {
 		why: "This teacher's total teaching minutes on this day exceed the daily maximum.",
 		fix: 'Move one of their classes on this day to a different day, or reassign to another teacher.',
-	},
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: {
-		why: 'Back-to-back classes are in buildings that are too far apart for a comfortable transition.',
-		fix: 'Schedule consecutive classes in the same building, or insert a buffer period between them.',
 	},
 	FACULTY_FLOOR_TRANSITION: {
 		why: 'A teacher moves between floors in the same building with too little time to make the transition.',
@@ -164,16 +161,25 @@ export function ExplainabilityDrawer({
 							) : violation ? (
 								<>
 									{/* Violation explanation */}
+									{(() => {
+										// C07B/B5 — publication semantics come from the server allowlist,
+										// never from HARD severity alone.
+										const blocksPublish = isBlockingHardViolation(violation);
+										const informationalHard = isInformationalHardViolation(violation);
+										return (
 									<div className="space-y-3">
 										<div className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium ${
-											violation.severity === 'HARD'
+											blocksPublish
 												? 'bg-red-50 text-red-700 border border-red-200'
 												: 'bg-amber-50 text-amber-700 border border-amber-200'
-										}`}>
+										}`} data-violation-severity={violation.severity} data-publish-blocker={blocksPublish ? 'true' : 'false'}>
 											<ShieldAlert className="size-3.5 shrink-0" />
-											{violation.severity === 'HARD' ? 'Hard Violation' : 'Soft Violation'}
-											{violation.severity === 'HARD' && (
-												<span className="ml-auto text-[0.625rem] opacity-75">Publish blocker</span>
+											{blocksPublish ? 'Hard Violation' : informationalHard ? 'Hard Violation (informational)' : 'Soft Violation'}
+											{blocksPublish && (
+												<span className="ml-auto text-[0.625rem] opacity-75" data-testid="explain-publish-blocker">Publish blocker</span>
+											)}
+											{informationalHard && (
+												<span className="ml-auto text-[0.625rem] opacity-75" data-testid="explain-not-publish-blocker">Not a publish blocker</span>
 											)}
 										</div>
 
@@ -214,6 +220,8 @@ export function ExplainabilityDrawer({
 											</div>
 										)}
 									</div>
+										);
+									})()}
 								</>
 							) : unassignedItem ? (
 								<>

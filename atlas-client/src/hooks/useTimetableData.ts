@@ -117,7 +117,6 @@ function buildTimetableErrorMessage(error: unknown, fallbackMessage: string): st
 }
 
 const WELLBEING_CODES: Set<ViolationCode> = new Set([
-	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
 	'FACULTY_FLOOR_TRANSITION',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',

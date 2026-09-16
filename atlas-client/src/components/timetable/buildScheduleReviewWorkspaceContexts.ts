@@ -139,7 +139,11 @@ export type ScheduleReviewWorkspaceBodyContext = {
 	setLeftTab: (value: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
 	violations: unknown[];
 	hardCount: number;
+	/** Run-wide allowlist-filtered HARD count (C07B/B2/B6). */
+	blockingHardCount: number;
 	softCount: number;
+	/** Term scope label for the `violations` list (C07B/B2). */
+	violationScopeLabel: string;
 	summary: { unassignedCount?: number; assignedCount?: number } | null;
 	roomRequestSummary: { counts?: { pending?: number } } | null;
 	openPublishDialog: () => void;

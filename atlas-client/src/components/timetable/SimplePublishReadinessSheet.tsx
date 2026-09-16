@@ -7,7 +7,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
-import { deriveSimplePublishReadiness, type SimplePublishReadiness, type BlockerGroup } from '@/components/timetable/simplePublishReadiness';
+import { deriveSimplePublishReadiness, resolveBlockerDestination, type SimplePublishReadiness, type BlockerGroup, type WarningGroup, type RunWidePublishAuthority } from '@/components/timetable/simplePublishReadiness';
 import type { DraftReport, Violation } from '@/types';
 
 type RepairIdentity = {
@@ -24,6 +24,12 @@ type SimplePublishReadinessSheetProps = {
 	sectionLabel: (id: number) => string;
 	subjectLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
+	/**
+	 * Run-wide publication authority (C07B/B1). Publication is always decided
+	 * run-wide (`counts.runWide.blockingHard` + the run's unassigned
+	 * requirement); the selected-term `violations` array is supporting detail.
+	 */
+	runWide?: RunWidePublishAuthority | null;
 	onNavigateToRepair: (href: string, reason?: string, identity?: RepairIdentity | null) => void;
 };
 
@@ -73,15 +79,23 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 	const [expanded, setExpanded] = useState(false);
 	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
 	const whyItMatters = group.items[0]?.nextStep ?? 'Fix this group before the schedule can be published.';
+	const scopeLabel = group.scope === 'run-wide' ? 'Run-wide' : 'Selected term';
+	const destination = resolveBlockerDestination(group.reason, group.actionHref);
 	return (
 		<div
 			className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900"
 			data-testid="timetable-simple-blocker-group"
+			data-blocker-scope={group.scope}
 		>
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
 					<p className="text-sm font-semibold">{group.plainLabel}</p>
-					<p className="mt-0.5 text-xs text-red-700">{group.count} session{group.count === 1 ? '' : 's'} affected</p>
+					<p className="mt-0.5 text-xs text-red-700">
+						<Badge variant="outline" className="mr-1 h-4 px-1 text-[0.625rem] font-normal" data-testid="timetable-simple-blocker-scope">
+							{scopeLabel}
+						</Badge>
+						{group.count} session{group.count === 1 ? '' : 's'} affected
+					</p>
 					<p className="mt-1 text-xs text-red-700">Why it matters: {whyItMatters}</p>
 				</div>
 				<Button
@@ -91,6 +105,9 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 					className="h-11 shrink-0 gap-1 px-3 text-xs"
 					onClick={() => onNavigate(group.actionHref, group.reason)}
 					data-testid="timetable-simple-blocker-next-action"
+					data-blocker-reason={group.reason}
+					data-action-kind={destination.kind}
+					data-action-href={destination.href ?? ''}
 					aria-label={`${group.actionLabel}: ${group.plainLabel}, ${group.count} sessions affected`}
 				>
 					{group.actionLabel}
@@ -123,27 +140,251 @@ function BlockerGroupRow({ group, onNavigate }: { group: BlockerGroup; onNavigat
 	);
 }
 
+/**
+ * C07B/F3 — the aggregate warning row. The candidate rendered a bare label +
+ * count, so the affected sessions were unreachable from the readiness surface.
+ * Like the blocker rows, the row now expands into every affected entry.
+ */
+function WarningGroupRow({ group }: { group: WarningGroup }) {
+	const [expanded, setExpanded] = useState(false);
+	const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+	return (
+		<div
+			className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs"
+			data-testid="timetable-simple-warning-row"
+			data-warning-code={group.code}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<span className="text-amber-800">{group.plainLabel}</span>
+				<Badge variant="outline" className="h-5 text-[0.65rem]" data-testid="timetable-simple-warning-count">
+					{group.count} session{group.count === 1 ? '' : 's'} affected
+				</Badge>
+			</div>
+			{group.items.length > 0 && (
+				<div className="mt-1.5 space-y-1">
+					{visibleItems.map((item, index) => (
+						<div
+							key={index}
+							className="rounded-lg border border-amber-100 bg-white/60 px-2 py-1 text-xs"
+							data-testid="timetable-simple-warning-item"
+						>
+							<p className="font-medium text-amber-900">{item.sectionLabel} · {item.subjectLabel}</p>
+							<p className="text-amber-700">{item.facultyLabel}</p>
+						</div>
+					))}
+					{group.items.length > 3 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-11 gap-1 px-2 text-xs text-amber-800"
+							onClick={() => setExpanded((value) => !value)}
+							aria-expanded={expanded}
+							data-testid="timetable-simple-warning-expand"
+						>
+							{expanded ? 'Show less' : `Show ${group.items.length - 3} more`}
+						</Button>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+export type SimplePublishReadinessSheetBodyProps = {
+	readiness: SimplePublishReadiness;
+	onNavigate: (href: string, reason?: string) => void;
+	onCopySummary: () => void;
+	onDownloadCsv: () => void;
+	onClose: () => void;
+};
+
+/**
+ * The readiness sheet body, separated from the Radix `Sheet` portal so the real
+ * rendered surface is directly testable (C07B). The sheet renders exactly this
+ * component; there is no second rendering path.
+ */
+export function SimplePublishReadinessSheetBody({
+	readiness,
+	onNavigate,
+	onCopySummary,
+	onDownloadCsv,
+	onClose,
+}: SimplePublishReadinessSheetBodyProps) {
+	return (
+		<>
+			<ScrollArea className="flex-1 overflow-auto" style={{ height: 'calc(100svh - 8rem)' }}>
+				<div className="space-y-3 p-4" data-testid="timetable-simple-publish-blocker-summary">
+					{!readiness.hasGeneratedRun && (
+						<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-simple-no-run-readiness">
+							<p className="text-sm font-semibold">No timetable generated yet</p>
+							<p className="mt-1 text-xs text-muted-foreground">Generate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
+						</div>
+					)}
+
+					{readiness.hasGeneratedRun && (
+						<div
+							className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground"
+							data-testid="timetable-simple-readiness-scope"
+						>
+							<p className="font-semibold text-foreground">Run-wide gate decides publication</p>
+							<p className="mt-1">
+								Run-wide: <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-blocking">{readiness.runWideBlockingHard}</span> blocking hard · <span className="font-medium text-foreground" data-testid="timetable-simple-run-wide-unassigned">{readiness.runWideUnassigned}</span> unresolved session{readiness.runWideUnassigned === 1 ? '' : 's'}
+							</p>
+							<p className="mt-0.5">
+								Selected term detail only: <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-count">{readiness.selectedTermViolationCount}</span> shown · <span className="font-medium text-foreground" data-testid="timetable-simple-selected-term-blocking">{readiness.selectedTermBlockingHard}</span> blocking hard
+							</p>
+						</div>
+					)}
+
+					{readiness.isClean && (
+						<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900" data-testid="timetable-simple-ready-to-publish">
+							<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+							<div>
+								<p className="text-sm font-semibold">Ready to publish</p>
+								<p className="mt-0.5 text-xs">No hard blockers or unresolved sessions remain run-wide.</p>
+							</div>
+						</div>
+					)}
+
+					{readiness.hasBlockers && (
+						<>
+							<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900">
+								<p className="text-sm font-semibold">Cannot publish yet</p>
+								<p className="mt-1 text-xs" data-testid="timetable-simple-blocker-sentence">
+									{readiness.blockerSentence}
+								</p>
+								<p className="mt-1 text-xs text-red-700">Fix blockers first. Warnings can be reviewed after blockers are clear.</p>
+							</div>
+
+							<div className="space-y-2">
+								{readiness.blockerGroups.map((group) => (
+									<BlockerGroupRow key={group.reason} group={group} onNavigate={onNavigate} />
+								))}
+							</div>
+						</>
+					)}
+
+					{readiness.hasWarnings && !readiness.hasBlockers && (
+						<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+							<p className="text-sm font-semibold">Ready except for warnings</p>
+							<p className="mt-1 text-xs">No hard blockers remain. Review the warnings, then publish if the schedule is acceptable.</p>
+						</div>
+					)}
+
+					{readiness.warningGroups.length > 0 && (
+						<div className="space-y-1.5" data-testid="timetable-simple-warning-group">
+							<p className="text-xs font-semibold text-muted-foreground">Warnings ({readiness.totalSoftWarnings})</p>
+							{readiness.totalSoftWarnings > readiness.selectedTermWarningCount && (
+								<p className="text-[0.65rem] text-muted-foreground" data-testid="timetable-simple-warning-scope-note">
+									Showing {readiness.selectedTermWarningCount} of {readiness.totalSoftWarnings} run-wide warnings in the selected term.
+								</p>
+							)}
+							{readiness.warningGroups.map((wg) => (
+								<WarningGroupRow key={wg.code} group={wg} />
+							))}
+						</div>
+					)}
+				</div>
+			</ScrollArea>
+
+			<div className="border-t px-4 py-3 space-y-2">
+				{readiness.hasBlockers || readiness.hasWarnings ? (
+					<div className="flex gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-9 flex-1 gap-1.5 text-xs"
+							onClick={onCopySummary}
+						>
+							<Copy className="size-3.5" aria-hidden="true" />
+							Copy summary
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-9 flex-1 gap-1.5 text-xs"
+							onClick={onDownloadCsv}
+						>
+							<Download className="size-3.5" aria-hidden="true" />
+							Download CSV
+						</Button>
+					</div>
+				) : null}
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="h-9 w-full gap-1.5 text-xs"
+					onClick={onClose}
+				>
+					Close
+				</Button>
+			</div>
+		</>
+	);
+}
+
 function SimplePublishReadinessSheetImpl({
 	open,
 	onOpenChange,
+	...contentProps
+}: SimplePublishReadinessSheetProps) {
+	return (
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="w-full max-w-md p-0 sm:max-w-lg"
+				data-testid="timetable-simple-publish-readiness-sheet"
+			>
+				<SheetHeader className="border-b px-4 py-3">
+					<SheetTitle className="text-base">Publish Readiness</SheetTitle>
+					<SheetDescription className="text-xs">
+						Why can't I publish?
+					</SheetDescription>
+				</SheetHeader>
+
+				<SimplePublishReadinessSheetContent
+					{...contentProps}
+					onRequestClose={() => onOpenChange(false)}
+				/>
+			</SheetContent>
+		</Sheet>
+	);
+}
+
+export type SimplePublishReadinessSheetContentProps = Omit<SimplePublishReadinessSheetProps, 'open' | 'onOpenChange'> & {
+	onRequestClose: () => void;
+};
+
+/**
+ * C07B — the production readiness surface. The Radix `SheetContent` portal
+ * renders exactly this component, so every gate, scope label and repair action
+ * asserted against this content is the real mounted UI.
+ */
+export function SimplePublishReadinessSheetContent({
 	draft,
 	violations,
 	sectionLabel,
 	subjectLabel,
 	facultyLabel,
+	runWide,
 	onNavigateToRepair,
-}: SimplePublishReadinessSheetProps) {
+	onRequestClose,
+}: SimplePublishReadinessSheetContentProps) {
 	const readiness = useMemo(
-		() => deriveSimplePublishReadiness(draft, violations, sectionLabel, subjectLabel, facultyLabel),
-		[draft, violations, sectionLabel, subjectLabel, facultyLabel],
+		() => deriveSimplePublishReadiness(draft, violations, sectionLabel, subjectLabel, facultyLabel, runWide),
+		[draft, violations, sectionLabel, subjectLabel, facultyLabel, runWide],
 	);
 
 	const handleNavigate = useCallback(
 		(href: string, reason?: string) => {
-			onOpenChange(false);
+			onRequestClose();
 			onNavigateToRepair(href, reason, resolveRepairIdentity(reason, draft, violations));
 		},
-		[onOpenChange, onNavigateToRepair, draft, violations],
+		[onRequestClose, onNavigateToRepair, draft, violations],
 	);
 
 	const summaryPlain = useMemo(() => {
@@ -151,14 +392,15 @@ function SimplePublishReadinessSheetImpl({
 		const lines: string[] = [];
 		lines.push(`Publish Readiness Report`);
 		if (runId) lines.push(`Run: #${runId}`);
-		lines.push(`Unresolved sessions: ${readiness.totalUnresolved}`);
+		lines.push(`Gate (run-wide): ${readiness.runWideBlockingHard} blocking hard, ${readiness.runWideUnassigned} unresolved`);
+		lines.push(`Selected term detail: ${readiness.selectedTermViolationCount} shown, ${readiness.selectedTermBlockingHard} blocking hard`);
 		lines.push(`Hard blockers: ${readiness.totalHardBlockers}`);
 		lines.push(`Soft warnings: ${readiness.totalSoftWarnings}`);
 		lines.push('');
 		if (readiness.hasBlockers) {
 			lines.push('Blocker causes:');
 			for (const group of readiness.blockerGroups) {
-				lines.push(`  ${group.plainLabel}: ${group.count} session${group.count === 1 ? '' : 's'}`);
+				lines.push(`  ${group.plainLabel}: ${group.count} session${group.count === 1 ? '' : 's'} (${group.scope})`);
 				lines.push(`    Action: ${group.actionLabel}`);
 				lines.push(`    Next step: ${group.items[0]?.nextStep ?? 'Review issue'}`);
 			}
@@ -201,114 +443,13 @@ function SimplePublishReadinessSheetImpl({
 	}, [draft?.runId, readiness]);
 
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent
-				side="right"
-				className="w-full max-w-md p-0 sm:max-w-lg"
-				data-testid="timetable-simple-publish-readiness-sheet"
-			>
-				<SheetHeader className="border-b px-4 py-3">
-					<SheetTitle className="text-base">Publish Readiness</SheetTitle>
-					<SheetDescription className="text-xs">
-						Why can't I publish?
-					</SheetDescription>
-				</SheetHeader>
-
-				<ScrollArea className="flex-1 overflow-auto" style={{ height: 'calc(100svh - 8rem)' }}>
-					<div className="space-y-3 p-4" data-testid="timetable-simple-publish-blocker-summary">
-						{!readiness.hasGeneratedRun && (
-							<div className="rounded-xl border border-slate-200 bg-muted/30 p-3 text-foreground" data-testid="timetable-simple-no-run-readiness">
-								<p className="text-sm font-semibold">No timetable generated yet</p>
-								<p className="mt-1 text-xs text-muted-foreground">Generate a timetable before reviewing publish readiness. Preview and readiness checks alone cannot be published.</p>
-							</div>
-						)}
-
-						{readiness.isClean && (
-							<div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
-								<CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-								<div>
-									<p className="text-sm font-semibold">Ready to publish</p>
-									<p className="mt-0.5 text-xs">No hard blockers or unresolved sessions remain.</p>
-								</div>
-							</div>
-						)}
-
-						{readiness.hasBlockers && (
-							<>
-								<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900">
-									<p className="text-sm font-semibold">Cannot publish yet</p>
-									<p className="mt-1 text-xs">
-										{readiness.totalUnresolved} session{readiness.totalUnresolved === 1 ? '' : 's'} still need fixing before this schedule can be published.
-									</p>
-									<p className="mt-1 text-xs text-red-700">Fix blockers first. Warnings can be reviewed after blockers are clear.</p>
-								</div>
-
-								<div className="space-y-2">
-									{readiness.blockerGroups.map((group) => (
-										<BlockerGroupRow key={group.reason} group={group} onNavigate={handleNavigate} />
-									))}
-								</div>
-							</>
-						)}
-
-						{readiness.hasWarnings && !readiness.hasBlockers && (
-							<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
-								<p className="text-sm font-semibold">Ready except for warnings</p>
-								<p className="mt-1 text-xs">No hard blockers remain. Review the warnings, then publish if the schedule is acceptable.</p>
-							</div>
-						)}
-
-						{readiness.warningGroups.length > 0 && (
-							<div className="space-y-1.5" data-testid="timetable-simple-warning-group">
-								<p className="text-xs font-semibold text-muted-foreground">Warnings ({readiness.totalSoftWarnings})</p>
-								{readiness.warningGroups.map((wg) => (
-									<div key={wg.code} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs">
-										<span className="text-amber-800">{wg.plainLabel}</span>
-										<Badge variant="outline" className="h-5 text-[0.65rem]">{wg.count}</Badge>
-									</div>
-								))}
-							</div>
-						)}
-					</div>
-				</ScrollArea>
-
-			<div className="border-t px-4 py-3 space-y-2">
-				{readiness.hasBlockers || readiness.hasWarnings ? (
-					<div className="flex gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-9 flex-1 gap-1.5 text-xs"
-							onClick={handleCopySummary}
-						>
-							<Copy className="size-3.5" aria-hidden="true" />
-							Copy summary
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-9 flex-1 gap-1.5 text-xs"
-							onClick={handleDownloadCsv}
-						>
-							<Download className="size-3.5" aria-hidden="true" />
-							Download CSV
-						</Button>
-					</div>
-				) : null}
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-9 w-full gap-1.5 text-xs"
-					onClick={() => onOpenChange(false)}
-				>
-					Close
-				</Button>
-			</div>
-			</SheetContent>
-		</Sheet>
+		<SimplePublishReadinessSheetBody
+			readiness={readiness}
+			onNavigate={handleNavigate}
+			onCopySummary={handleCopySummary}
+			onDownloadCsv={handleDownloadCsv}
+			onClose={onRequestClose}
+		/>
 	);
 }
 
