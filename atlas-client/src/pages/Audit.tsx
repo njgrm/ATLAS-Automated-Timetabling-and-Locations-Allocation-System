@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { useActorSchoolScope } from '@/lib/actor-scope-session';
+import { assessSectionCoverage, type SectionCoverageAssessment } from '@/lib/audit-section-coverage';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -89,6 +90,7 @@ export default function Audit() {
 	const [prefAudit, setPrefAudit] = useState<any[]>([]);
 	const [sections, setSections] = useState<any[]>([]);
 	const [templates, setTemplates] = useState<any[]>([]);
+	const [sectionCoverage, setSectionCoverage] = useState<SectionCoverageAssessment | null>(null);
 	const [rooms, setRooms] = useState<any[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
@@ -184,11 +186,20 @@ export default function Audit() {
 				setSections([]);
 			}
 
-			if (templateRes.status === 'fulfilled') {
-				setTemplates(templateRes.value.data.templates ?? []);
-			} else {
-				reasons.push('Class templates are unavailable.');
-				setTemplates([]);
+			// A fulfilled-but-EMPTY class-template read is not proof of coverage:
+			// `assessSectionCoverage` decides whether section coverage can be
+			// verified at all and, when it cannot, supplies the degraded reason and
+			// the non-green UNRESOLVED finding the section-coverage group must show.
+			const loadedTemplates = templateRes.status === 'fulfilled' ? (templateRes.value.data.templates ?? []) : [];
+			const coverage = assessSectionCoverage({
+				templates: loadedTemplates,
+				available: templateRes.status === 'fulfilled',
+				sections: secRes.status === 'fulfilled' ? (secRes.value.data.sections ?? []) : [],
+			});
+			setTemplates(loadedTemplates);
+			setSectionCoverage(coverage);
+			if (coverage.degradedReason) {
+				reasons.push(coverage.degradedReason);
 			}
 
 			if (roomRes.status === 'fulfilled') {
@@ -395,17 +406,22 @@ export default function Audit() {
 		})),
 	];
 
-	const sectionFindings: Finding[] = rosterGaps.map((gap, index) => ({
-		id: `section-gap-${gap.sectionId}-${gap.subjectId}-${index}`,
-		title: `${gap.sectionName} is missing ${gap.subjectName}`,
-		blockedLabel: 'This section is not fully covered.',
-		detail: `Grade ${gap.gradeLevel} section has no assigned teacher for ${gap.subjectCode}.`,
-		why: 'Every section needs complete subject coverage before scheduling review is meaningful.',
-		actionLabel: 'Assign teacher',
-		route: `/teaching-load?sectionId=${gap.sectionId}&subjectId=${gap.subjectId}`,
-		repairTarget: 'teaching-load',
-		severity: 'blocker',
-	}));
+	const unresolvedCoverageFinding: Finding | null = sectionCoverage?.unresolvedFinding ?? null;
+
+	const sectionFindings: Finding[] = [
+		...(unresolvedCoverageFinding ? [unresolvedCoverageFinding] : []),
+		...rosterGaps.map((gap, index) => ({
+			id: `section-gap-${gap.sectionId}-${gap.subjectId}-${index}`,
+			title: `${gap.sectionName} is missing ${gap.subjectName}`,
+			blockedLabel: 'This section is not fully covered.',
+			detail: `Grade ${gap.gradeLevel} section has no assigned teacher for ${gap.subjectCode}.`,
+			why: 'Every section needs complete subject coverage before scheduling review is meaningful.',
+			actionLabel: 'Assign teacher',
+			route: `/teaching-load?sectionId=${gap.sectionId}&subjectId=${gap.subjectId}`,
+			repairTarget: 'teaching-load',
+			severity: 'blocker' as FindingSeverity,
+		})),
+	];
 
 	const facilityFindings: Finding[] = facilityGaps.map((subject, index) => ({
 		id: `facility-gap-${subject.id}-${index}`,

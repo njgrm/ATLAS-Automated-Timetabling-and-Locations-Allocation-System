@@ -77,6 +77,55 @@ export class PresentationProfileError extends Error {
 	}
 }
 
+// ─── Missing-schema guard (EXPORT-PRESENTATION-SCHEMA-GUARD-C06B) ───
+
+/**
+ * The teacher-program presentation revision store lives in migration
+ * `0003_teacher_program_presentation`, which may not be applied on a
+ * deployment yet. When its table (Prisma `P2021`) or one of its columns
+ * (Prisma `P2022`) is absent, every consumer must fail closed with this one
+ * typed, non-leaking response instead of surfacing the raw Prisma failure.
+ *
+ * This constant is the single client-facing message for the export route, the
+ * presentation settings routes, and any future consumer.
+ */
+export const EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE = 'EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE';
+
+export const EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_MESSAGE =
+	'Teacher-program presentation settings are unavailable because the required presentation schema has not been provisioned on this deployment. No official document can be produced until an administrator applies the pending schema migration.';
+
+/**
+ * Translate ONLY a Prisma `P2021` (table does not exist) or `P2022` (column does
+ * not exist) raised by a teacher-program presentation revision store call.
+ *
+ * Every other failure — `P2002`/`P2034` conflicts, validation errors, a plain
+ * `Error`, a future Prisma code — propagates byte-identically to the caller, so
+ * the existing `PRESENTATION_PROFILE_STALE` mapping and every unrelated
+ * authority (for example `assertActiveSchoolYear`, which reads a core table
+ * outside migration 0003) stay intact. The guard is deliberately applied only
+ * to the revision store calls, never to a surrounding core-schema read.
+ */
+async function withPresentationSchemaGuard(operation: () => Promise<any>): Promise<any> {
+	try {
+		return await operation();
+	} catch (error) {
+		const code = (error as { code?: unknown } | null)?.code;
+		if (code === 'P2021' || code === 'P2022') {
+			// Server-side diagnosis only: the swallowed upstream Prisma failure
+			// must stay diagnosable while the client response stays typed.
+			console.error(
+				`[export-presentation] teacher-program presentation revision store is unavailable (Prisma ${String(code)}); migration 0003_teacher_program_presentation is not applied on this deployment.`,
+			);
+			throw new PresentationProfileError(
+				503,
+				EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_CODE,
+				EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE_MESSAGE,
+			);
+		}
+		throw error;
+	}
+}
+
 // ─── Canonical titles (never invented names) ───
 
 export const SIGNATORY_ROLE_TITLES = {
@@ -200,11 +249,11 @@ export async function readEffectiveSignatoryProfile(params: {
 	// An injected read-only fixture may omit the delegate entirely; an absent
 	// store is an empty profile, never an invented person.
 	if (typeof db?.teacherProgramPresentationRevision?.findFirst !== 'function') return emptySignatoryProfile();
-	const row = await db.teacherProgramPresentationRevision.findFirst({
+	const row = await withPresentationSchemaGuard(() => db.teacherProgramPresentationRevision.findFirst({
 		where: { schoolId: params.schoolId, schoolYearId: params.schoolYearId },
 		orderBy: { revision: 'desc' },
 		select: PROFILE_SELECT,
-	});
+	}));
 	return row ? rowToProfile(row) : emptySignatoryProfile();
 }
 
@@ -223,7 +272,7 @@ export async function readSignatoryProfileAsOfPublication(params: {
 	const publishedAt = params.publishedAt instanceof Date ? params.publishedAt : new Date(params.publishedAt);
 	if (Number.isNaN(publishedAt.getTime())) return emptySignatoryProfile();
 	if (typeof db?.teacherProgramPresentationRevision?.findFirst !== 'function') return emptySignatoryProfile();
-	const row = await db.teacherProgramPresentationRevision.findFirst({
+	const row = await withPresentationSchemaGuard(() => db.teacherProgramPresentationRevision.findFirst({
 		where: {
 			schoolId: params.schoolId,
 			schoolYearId: params.schoolYearId,
@@ -231,7 +280,7 @@ export async function readSignatoryProfileAsOfPublication(params: {
 		},
 		orderBy: { revision: 'desc' },
 		select: PROFILE_SELECT,
-	});
+	}));
 	return row ? rowToProfile(row) : emptySignatoryProfile();
 }
 
@@ -344,10 +393,10 @@ export async function saveSignatoryProfile(params: {
 
 	await assertActiveSchoolYear({ schoolId, schoolYearId, client: params.client });
 
-	const current = await db.teacherProgramPresentationRevision.findFirst({
+	const current = await withPresentationSchemaGuard(() => db.teacherProgramPresentationRevision.findFirst({
 		where: { schoolId, schoolYearId },
 		orderBy: { revision: 'desc' },
-	});
+	}));
 	const currentRevision = (current?.revision as number | undefined) ?? 0;
 	if (currentRevision !== expectedRevision) {
 		throw new PresentationProfileError(409, 'PRESENTATION_PROFILE_STALE', 'The presentation profile changed since it was loaded. Reload before saving.', {
@@ -369,10 +418,10 @@ export async function saveSignatoryProfile(params: {
 	const run = async (tx: any): Promise<SaveSignatoryProfileResult> => {
 		// Re-read the complete qualifying set inside the transaction so the CAS
 		// is bound to a stable revision under concurrency.
-		const latest = await tx.teacherProgramPresentationRevision.findFirst({
+		const latest = await withPresentationSchemaGuard(() => tx.teacherProgramPresentationRevision.findFirst({
 			where: { schoolId, schoolYearId },
 			orderBy: { revision: 'desc' },
-		});
+		}));
 		const latestRevision = (latest?.revision as number | undefined) ?? 0;
 		if (latestRevision !== expectedRevision) {
 			throw new PresentationProfileError(409, 'PRESENTATION_PROFILE_STALE', 'The presentation profile changed during the save. Reload before saving.', {
@@ -399,7 +448,7 @@ export async function saveSignatoryProfile(params: {
 			},
 		});
 
-		const created = await tx.teacherProgramPresentationRevision.create({
+		const created = await withPresentationSchemaGuard(() => tx.teacherProgramPresentationRevision.create({
 			data: {
 				schoolId,
 				schoolYearId,
@@ -408,7 +457,7 @@ export async function saveSignatoryProfile(params: {
 				createdBy: actorId,
 				auditId: audit.id,
 			},
-		});
+		}));
 
 		return {
 			revision: nextRevision,
