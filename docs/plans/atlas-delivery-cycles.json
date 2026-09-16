@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T18:46:46.164Z",
-    "lastUpdatedBy": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
-    "revision": 233
+    "lastUpdatedAt": "2026-09-16T19:50:51.107Z",
+    "lastUpdatedBy": "primary-planner:wf-c09-closure",
+    "revision": 237
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is INTEGRATED in source at merge fc5c1f2a (candidate 938e3063, QA ACCEPT_READY 22/22/0/0/0, merged-tree gates green) and awaits the fresh Wave Completion Auditor. Next in queue: register and dispatch WF-C10-TRANSITION-GUARD-HARDENING, then CONSOLIDATED-DEPLOYMENT-C10, before any MIG-APPLY-0002-0003 registration. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
+    "globalNextAction": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE; no live/HIGH action is unlocked. Successor order: (1) register and dispatch WF-C10-TRANSITION-GUARD-HARDENING; (2) register and dispatch SLOT-BREAK-AUTHORITY-C11; (3) register and apply MIG-APPLY-0002-0003 only after WF-C10 is landed and terminal, a fresh independent pre-action review, and the operator's exact approval; (4) prepare and execute CONSOLIDATED-DEPLOYMENT-C10 only after MIG-APPLY has applied and SLOT-BREAK and WF-C10 are integrated, with its own fresh pre-action review and exact approval. FACULTY-SYNC-PUBLICATION-CAS-C01 is required before publication only. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -5196,12 +5196,10 @@
       "kind": "STREAM",
       "objective": "Extend the ops/workflow delivery-cycle authority with three sanctioned atomic transitions and one preventive verifier rule so the machine register can state the truth it currently cannot express: (1) abandon-stream exits an orphaned RUNNING (or PLANNED) declaration to PLANNED with running: [] only when there is zero ACTIVE lease and no heartbeat inside the configured staleness window, and fails closed otherwise; (2) resolve-decision is the documented terminal exit for DECISION_REQUIRED to SUPERSEDED or CLOSED, recording the resolver and the resolution text, requiring a named non-dead replacement for SUPERSEDED, and clearing awaited; (3) reconcile-stream atomically sets awaited, running, blocker.* and nextAction on any state except RUNNING without changing state; and (4) the verifier emits a typed RUNNING_WITHOUT_LIVE_EVIDENCE error for a RUNNING declaration backed by neither an ACTIVE lease nor a fresh heartbeat, with atomic lease creation at create-stream time and a declared, monotone, candidate-must-improve repair-read so an already-orphaned live register can be repaired through the transitions rather than hand-edited. The candidate also reconciles five real register residues through those transitions: TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING to truthful PLANNED), TT-WARNING-COUNT-C07A (DECISION_REQUIRED to SUPERSEDED with awaited cleared), TL-DIAGNOSTICS-LOADING-C06 (blocker.safeWorkRemaining false), and the stale forward-looking nextAction on WF-C02 and WF-SEED-PIN-C01.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T18:46:46.164Z",
-      "nextAction": "Integrated at merge fc5c1f2a3e13fe16b896d7fca4cc4bbdaf4ce575 over origin/main e852f972 (clean auto-union; merged-tree gates 327/327, verify 0 errors, render:check ok). Awaiting the fresh Wave Completion Auditor; do not deploy or run any live action from this stream.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-16T19:50:51.107Z",
+      "nextAction": "Closed COMPLETE with the wave-audited receipt; no return remains.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09",
@@ -5253,8 +5251,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f544a7e03ffevMfojgbrZt8PdZ",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -5296,8 +5294,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f548d4283ffes97alF22y3qQ0s",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f544a7e03ffevMfojgbrZt8PdZ",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -5329,7 +5327,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/wf-transition-terminal-reconcile-c09.receipt.json",
+          "sha256": "94e65b3eb8aab1ed678f1afcb0d43df24a3e49a5875fb65864de7b0d75226280"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
@@ -5438,9 +5441,9 @@
       "worktree": "E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T16:02:08.747Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-16T19:50:28.550Z",
       "expiresAt": null
     }
   ],
