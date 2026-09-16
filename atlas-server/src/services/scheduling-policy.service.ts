@@ -61,11 +61,33 @@ export async function validateAncillaryLoadImmutable(
 
 // ─── Default values ───
 
+/**
+ * C07A — the consecutive-teaching limit is a SLOT-ALIGNED policy value.
+ *
+ * The default is the authoritative period length (`periodLengthMinutes`, 45)
+ * times the allowed number of consecutive teaching periods. It is never a
+ * school-specific minute constant: `resolveMaxConsecutiveTeachingMinutesBeforeBreak`
+ * derives it from the resolved policy row and honors an explicitly configured,
+ * slot-aligned persisted threshold verbatim.
+ */
+export const DEFAULT_ALLOWED_CONSECUTIVE_PERIODS = 3;
+
+/**
+ * The pre-C07 hardcoded threshold. It is not slot-aligned for a 45-minute
+ * period and was never exposed as an operator control; a persisted row that
+ * still carries exactly this value therefore falls back to the slot-aligned
+ * default instead of silently blocking three legitimate periods.
+ */
+export const LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES = 120;
+
 export const POLICY_DEFAULTS = {
 	teacherMoveEnabled: true,
 	periodLengthMinutes: 45,
 	periodsPerDay: 10,
-	maxConsecutiveTeachingMinutesBeforeBreak: 120,
+	// 3 consecutive 45-minute periods (135 min). Kept literal so `as const`
+	// preserves the narrowed type; `resolveDefaultMaxConsecutiveTeachingMinutes`
+	// derives and the C07A suite asserts the derivation.
+	maxConsecutiveTeachingMinutesBeforeBreak: 135,
 	minBreakMinutesAfterConsecutiveBlock: 15,
 	maxTeachingMinutesPerDay: 480,
 	earliestStartTime: '06:00',
@@ -167,9 +189,6 @@ export const CONSTRAINT_NOT_PROMOTABLE = 'CONSTRAINT_NOT_PROMOTABLE';
 export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },
-	// Retired metric travel warning: kept only so legacy persisted runs render.
-	// It has no producer and is never promotable to a hard publication blocker.
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: false, weight: 4, treatAsHard: false },
 	FACULTY_FLOOR_TRANSITION: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { enabled: true, weight: 4, treatAsHard: false },
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { enabled: true, weight: 3, treatAsHard: false },
@@ -179,6 +198,13 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
 	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
+	// C07A — modular-group structural families. Both are on the promotion
+	// allowlist (their producer is a deterministic group/term computation), so
+	// they carry an explicit default config: an operator may disable them and an
+	// allowlisted `treatAsHard` may promote them, exactly like every other
+	// allowlisted code. Without an entry they were silently unconfigurable.
+	LACKING_FACULTY: { enabled: true, weight: 5, treatAsHard: false },
+	INCOMPLETE_MODULAR_GROUP: { enabled: true, weight: 5, treatAsHard: false },
 };
 
 // ─── Warning-family decoupling (R3 / contract §6.3) ───
@@ -257,6 +283,72 @@ export function resolveWarningFamilyPolicy(row: WarningFamilySource): WarningFam
 		floorTransitionThreshold: positiveIntOr(row?.floorTransitionThreshold, WARNING_FAMILY_DEFAULTS.floorTransitionThreshold),
 		floorTransitionBufferMinutes: positiveIntOr(row?.floorTransitionBufferMinutes, WARNING_FAMILY_DEFAULTS.floorTransitionBufferMinutes),
 	};
+}
+
+// ─── Slot-aligned consecutive-teaching threshold (C07A) ───
+
+/**
+ * Slot-aligned default: the authoritative period length times the allowed
+ * number of consecutive teaching periods (45 × 3 = 135 min).
+ */
+export function resolveDefaultMaxConsecutiveTeachingMinutes(periodLengthMinutes?: unknown): number {
+	const period = positiveIntOr(periodLengthMinutes, POLICY_DEFAULTS.periodLengthMinutes) || POLICY_DEFAULTS.periodLengthMinutes;
+	return period * DEFAULT_ALLOWED_CONSECUTIVE_PERIODS;
+}
+
+/**
+ * Resolve the effective `maxConsecutiveTeachingMinutesBeforeBreak`.
+ *
+ * Rules (in order):
+ *   1. Absent / non-numeric persisted value → slot-aligned default
+ *      (`periodLengthMinutes × DEFAULT_ALLOWED_CONSECUTIVE_PERIODS`).
+ *   2. Persisted value that is an exact multiple of the authoritative period
+ *      length → honored verbatim (an explicitly configured slot-aligned limit).
+ *   3. Persisted value equal to the retired non-slot-aligned constant
+ *      (`LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES`, 120) → normalized to the
+ *      slot-aligned default, because that value is the pre-C07 hardcoded
+ *      constant and is not expressible as a whole number of periods.
+ *   4. Any other explicitly configured minute count → honored verbatim.
+ */
+export function resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+	row: { maxConsecutiveTeachingMinutesBeforeBreak?: unknown; periodLengthMinutes?: unknown } | null | undefined,
+	periodLengthMinutes?: unknown,
+): number {
+	const period = positiveIntOr(periodLengthMinutes, positiveIntOr(row?.periodLengthMinutes, POLICY_DEFAULTS.periodLengthMinutes))
+		|| POLICY_DEFAULTS.periodLengthMinutes;
+	const fallback = period * DEFAULT_ALLOWED_CONSECUTIVE_PERIODS;
+	const raw = Number(row?.maxConsecutiveTeachingMinutesBeforeBreak);
+	if (!Number.isInteger(raw) || raw <= 0) return fallback;
+	if (raw % period === 0) return raw;
+	if (raw === LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES) return fallback;
+	return raw;
+}
+
+/**
+ * C07A-R1 — operator display projection for the consecutive-teaching threshold.
+ *
+ * The operator policy read/display boundary (the policy GET response and the PUT
+ * response) must return the SAME effective value the constructor, preflight, and
+ * validator enforce. This projects an existing row through the ONE canonical
+ * resolver for the RETURNED object only: the persisted row keeps its stored
+ * bytes, and no new persisted value is computed. `getOrCreatePolicy` and
+ * `upsertPolicy` — the exact functions `scheduling-policy.router.ts` returns —
+ * both pass their result through this helper, so a persisted legacy 120 at
+ * 45-minute periods is displayed as the enforced 135.
+ */
+export interface SchedulingPolicyDisplayRow {
+	maxConsecutiveTeachingMinutesBeforeBreak?: unknown;
+	periodLengthMinutes?: unknown;
+}
+
+export function withResolvedConsecutiveTeachingThreshold<T extends SchedulingPolicyDisplayRow>(row: T): T {
+	return {
+		...row,
+		maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+			row,
+			row.periodLengthMinutes,
+		),
+	} as T;
 }
 
 // ─── Exported policy shape (for cross-service use) ───
@@ -825,6 +917,10 @@ function buildSyntheticPolicy(schoolId: number, schoolYearId: number) {
 		schoolId,
 		schoolYearId,
 		...POLICY_DEFAULTS,
+		// C07A-R1: route the synthetic row through the ONE canonical resolver so a
+		// synthesized policy reports the same effective consecutive threshold the
+		// validator and constructor enforce.
+		maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(POLICY_DEFAULTS),
 		constraintConfig: null as unknown as null,
 		createdAt: new Date(),
 		updatedAt: new Date(),
@@ -969,18 +1065,21 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 		if (existing) {
 			const normalizedConstraintConfig = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
 			if (normalizedConstraintConfig !== existing.constraintConfig && normalizedConstraintConfig != null) {
-				return await db().schedulingPolicy.update({
+				return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.update({
 					where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 					data: { constraintConfig: normalizedConstraintConfig as Prisma.InputJsonValue },
-				});
+				}));
 			}
-			return existing;
+			// C07A-R1: the operator GET/PUT boundary returns the EFFECTIVE threshold,
+			// never the raw persisted row. A legacy 120 at 45-minute periods is
+			// displayed as the enforced 135 while the stored bytes stay 120.
+			return withResolvedConsecutiveTeachingThreshold(existing);
 		}
 
 		// Auto-create with defaults
-		return await db().schedulingPolicy.create({
+		return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.create({
 			data: { schoolId, schoolYearId, ...POLICY_DEFAULTS },
-		});
+		}));
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			if (!schemaDriftWarned) {
@@ -1028,11 +1127,15 @@ export async function resolveSchedulingPolicyForRead(
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		});
 		if (!existing) return buildSyntheticPolicy(schoolId, schoolYearId);
+		// C07A-R1: the read/display value must equal the enforced value. A persisted
+		// legacy 120 is normalized through the ONE canonical resolver, so the editor
+		// can never display a threshold the validator/constructor do not use.
+		const base = withResolvedConsecutiveTeachingThreshold(existing);
 		const normalized = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
 		if (normalized !== existing.constraintConfig && normalized != null) {
-			return { ...existing, constraintConfig: normalized };
+			return { ...base, constraintConfig: normalized };
 		}
-		return existing;
+		return base;
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			return buildSyntheticPolicy(schoolId, schoolYearId);
@@ -1220,11 +1323,15 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 
 	try {
 		await ensureSchedulingPolicyColumns();
-		return await db().schedulingPolicy.upsert({
+		// C07A-R1: the PUT response is an operator display boundary. Return the
+		// EFFECTIVE threshold so the editor can never show a value the validator /
+		// constructor do not enforce. Persistence is untouched: the upsert above
+		// still stores exactly the validated input value.
+		return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.upsert({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			create: { schoolId, schoolYearId, ...prismaData },
 			update: prismaData,
-		});
+		}));
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			throw err(

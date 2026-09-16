@@ -23,6 +23,7 @@ import { buildDerivedDemand, toPerPairDemandItems } from './derived-demand.servi
 import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
+import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import { assertUndoHead, getDraftUndoStrategy } from './timetable-undo-contract.js';
 
@@ -477,7 +478,6 @@ const HUMAN_VIOLATION_TITLES: Partial<Record<string, string>> = {
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Load Exceeded',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit Exceeded',
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Too Many Building Transitions',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
@@ -809,6 +809,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		buildings,
 		policyRecord,
 		gradeWindows,
+		specialEvents: mappedSpecialEvents,
 		placements,
 		periodSlots,
 		classPeriodSlots: fallbackClassPeriodSlots,
@@ -833,6 +834,7 @@ export interface PreGenerationValidatorContextSource {
 	sectionEnrollment: Map<number, number>;
 	policyRecord: {
 		maxConsecutiveTeachingMinutesBeforeBreak: number;
+		periodLengthMinutes?: number;
 		minBreakMinutesAfterConsecutiveBlock: number;
 		maxTeachingMinutesPerDay: number;
 		earliestStartTime: string;
@@ -844,6 +846,16 @@ export interface PreGenerationValidatorContextSource {
 		avoidEarlyFirstPeriod: boolean;
 		avoidLateLastPeriod: boolean;
 		enableVacantAwareConstraints: boolean;
+		/** C07A: the persisted period length drives the slot-aligned consecutive default. */
+		lunchStartTime?: string;
+		lunchEndTime?: string;
+		enableLunchWindow?: boolean;
+		enableFlagCeremony?: boolean;
+		flagCeremonyStartTime?: string;
+		flagCeremonyEndTime?: string;
+		enableRecess?: boolean;
+		recessStartTime?: string;
+		recessEndTime?: string;
 		targetFacultyDailyVacantMinutes: number;
 		targetSectionDailyVacantPeriods: number;
 		maxCompressedTeachingMinutesPerDay: number;
@@ -854,6 +866,23 @@ export interface PreGenerationValidatorContextSource {
 		constraintConfig: unknown;
 	};
 	buildings: Array<{ id: number }>;
+	/** C07A: persisted `PolicySpecialEvent` rows (break windows) from the draft context. */
+	specialEvents?: Array<{ eventType: string; label: string; startTime: string; endTime: string; gradeGroup?: string | null; programType?: string | null; enabled?: boolean }> | null;
+	/** C07A: persisted `GradeShiftWindow` rows (teaching-shift windows). */
+	gradeWindows?: Array<{ gradeLevel?: number | null; programType?: string | null; startTime: string; endTime: string }> | null;
+	/** C07A: section roster used to resolve the applicable window scope. */
+	sectionsById?: ReadonlyMap<number, { displayOrder?: number | null; gradeLevelId?: number | null; programType?: string | null }>;
+	/**
+	 * C07A — optional window authority. When supplied by the real draft context
+	 * (persisted policy row, `PolicySpecialEvent` rows, `GradeShiftWindow` rows,
+	 * section roster) the validator excludes configured breaks and cross-shift
+	 * time from idle. When absent no window restriction is applied.
+	 */
+	windowAuthority?: {
+		breakWindows: NonNullable<ValidatorContext['breakWindows']>;
+		shiftWindows: NonNullable<ValidatorContext['shiftWindows']>;
+		sectionScope: NonNullable<ValidatorContext['sectionScope']>;
+	};
 }
 
 /**
@@ -867,6 +896,27 @@ export function buildPreGenerationValidatorContext(
 	ctx: PreGenerationValidatorContextSource,
 ): ValidatorContext {
 	const families = resolveWarningFamilyPolicy(ctx.policyRecord);
+	// C07A: break/shift window authority from the same persisted sources the
+	// generation path uses. Derived once per context build; no new store.
+	const windowAuthority = ctx.windowAuthority ?? buildWarningWindowAuthority({
+		sections: [...(ctx.sectionsById?.entries() ?? [])].map(([id, section]) => ({
+			id,
+			gradeLevel: Number(section.displayOrder ?? section.gradeLevelId ?? 0),
+			programType: section.programType ?? null,
+		})),
+		policyRow: ctx.policyRecord,
+		specialEvents: (ctx.specialEvents ?? []).map((event) => ({
+			eventType: event.eventType,
+			label: event.label,
+			startTime: event.startTime,
+			endTime: event.endTime,
+			gradeGroup: event.gradeGroup ?? null,
+			programType: event.programType ?? null,
+			dayOfWeek: (event as { dayOfWeek?: string | null }).dayOfWeek ?? null,
+			enabled: event.enabled !== false,
+		})),
+		shiftWindows: ctx.gradeWindows ?? null,
+	});
 	return {
 		schoolId,
 		schoolYearId,
@@ -882,6 +932,7 @@ export function buildPreGenerationValidatorContext(
 		sectionEnrollment: ctx.sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: ctx.policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+			periodLengthMinutes: ctx.policyRecord.periodLengthMinutes,
 			minBreakMinutesAfterConsecutiveBlock: ctx.policyRecord.minBreakMinutesAfterConsecutiveBlock,
 			maxTeachingMinutesPerDay: ctx.policyRecord.maxTeachingMinutesPerDay,
 			earliestStartTime: ctx.policyRecord.earliestStartTime,
@@ -911,6 +962,9 @@ export function buildPreGenerationValidatorContext(
 		},
 		buildings: ctx.buildings,
 		roomBuildings: ctx.rooms.map((room) => ({ roomId: room.id, buildingId: room.buildingId })),
+		breakWindows: windowAuthority.breakWindows,
+		shiftWindows: windowAuthority.shiftWindows,
+		sectionScope: windowAuthority.sectionScope,
 		constraintConfig: {
 			...DEFAULT_CONSTRAINT_CONFIG,
 			...(ctx.policyRecord.constraintConfig as Record<string, { enabled: boolean; weight: number; treatAsHard: boolean }> ?? {}),

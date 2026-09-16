@@ -16,6 +16,7 @@ import {
 } from './constraint-validator.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { resolveSchedulingPolicyForRead, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
+import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
@@ -208,7 +209,7 @@ export async function loadRunContext(
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
 	const unassignedItems = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
 
-	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
+	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot, policySpecialEvents, gradeShiftWindows] = await Promise.all([
 		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true },
@@ -257,6 +258,17 @@ export async function loadRunContext(
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			select: { payload: true },
 		}),
+		// C07A: the same authoritative break-window sources the generation path
+		// uses. Read-only; no new store, no write on this read snapshot.
+		client.policySpecialEvent.findMany({
+			where: { schoolId, schoolYearId, enabled: true },
+			select: { eventType: true, label: true, startTime: true, endTime: true, gradeGroup: true, programType: true, enabled: true, sortOrder: true },
+			orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+		}),
+		client.gradeShiftWindow.findMany({
+			where: { schoolId, schoolYearId },
+			select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
+		}),
 	]);
 
 	// Build name lookup maps
@@ -283,6 +295,20 @@ export async function loadRunContext(
 	const sectionGradeLevel = new Map(
 		snapshotPayload.flatMap((grade) => grade.sections.map((section) => [section.id, grade.displayOrder] as const)),
 	);
+	// C07A: break/shift window authority for the validator. Built from the
+	// persisted policy row, the persisted special-event rows, the persisted grade
+	// shift windows, and the section snapshot — identical sources to the
+	// generation path, resolved through one shared resolver.
+	const windowAuthority = buildWarningWindowAuthority({
+		sections: snapshotPayload.flatMap((grade) => grade.sections.map((section) => ({
+			id: section.id,
+			gradeLevel: grade.displayOrder,
+			programType: (section as { programType?: string | null }).programType ?? null,
+		}))),
+		policyRow: policyRecord,
+		specialEvents: policySpecialEvents,
+		shiftWindows: gradeShiftWindows,
+	});
 
 	return {
 		run,
@@ -300,6 +326,7 @@ export async function loadRunContext(
 		subjectNameDetailMap,
 		sectionEnrollment,
 		sectionGradeLevel,
+		windowAuthority,
 	};
 }
 
@@ -426,6 +453,7 @@ export function buildValidatorCtx(
 ): ValidatorContext {
 	const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings, sectionEnrollment } = refData;
 	const families = resolveWarningFamilyPolicy(policyRecord);
+	const windowAuthority = refData.windowAuthority ?? { breakWindows: [], shiftWindows: [], sectionScope: new Map() };
 	return {
 		schoolId,
 		schoolYearId,
@@ -451,6 +479,7 @@ export function buildValidatorCtx(
 		sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+			periodLengthMinutes: policyRecord.periodLengthMinutes,
 			minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
 			maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
 			earliestStartTime: policyRecord.earliestStartTime,
@@ -480,6 +509,9 @@ export function buildValidatorCtx(
 		},
 		buildings,
 		roomBuildings: rooms.map((r) => ({ roomId: r.id, buildingId: r.buildingId })),
+		breakWindows: windowAuthority.breakWindows,
+		shiftWindows: windowAuthority.shiftWindows,
+		sectionScope: windowAuthority.sectionScope,
 		constraintConfig: {
 			...DEFAULT_CONSTRAINT_CONFIG,
 			...(policyRecord.constraintConfig as Record<string, { enabled: boolean; weight: number; treatAsHard: boolean }> ?? {}),
@@ -741,7 +773,6 @@ const VIOLATION_TITLES: Record<string, string> = {
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
 	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
@@ -863,15 +894,6 @@ export function buildHumanConflicts(
 					delta = `Target: ${m.standardDailyMinutes} min · Observed: ${m.dailyMinutes} min · Δ +${Number(m.dailyMinutes) - Number(m.standardDailyMinutes)} min`;
 				} else {
 					detail = `${fName} exceeds the standard daily teaching target`;
-				}
-				break;
-			}
-			case 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE': {
-				const m = v.meta;
-				if (m?.estimatedDistanceMeters != null) {
-					const limit = m?.configuredThresholds ? (m.configuredThresholds as Record<string, unknown>).maxWalkingDistanceMetersPerTransition : undefined;
-					detail = `${fName} travels ~${m.estimatedDistanceMeters}m between classes${dayLabel ? ` on ${dayLabel}` : ''}`;
-					if (limit != null) delta = `Limit: ${limit}m · Observed: ~${m.estimatedDistanceMeters}m · Δ +${Number(m.estimatedDistanceMeters) - Number(limit)}m`;
 				}
 				break;
 			}

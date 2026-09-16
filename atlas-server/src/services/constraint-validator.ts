@@ -15,7 +15,17 @@ import {
  */
 
 import type { RoomType } from '@prisma/client';
-import { isPromotableConstraintCode, resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
+import {
+	isPromotableConstraintCode,
+	resolveMaxConsecutiveTeachingMinutesBeforeBreak,
+	resolvePolicyPlacementSemantics,
+} from './scheduling-policy.service.js';
+import {
+	type BreakWindowRef,
+	type SectionScopeRef,
+	type ShiftWindowRef,
+	normalizeWarningProgramType,
+} from './warning-window-authority.service.js';
 import {
 	expandEffectiveScheduledResources,
 	findEffectiveFacultyOverlaps,
@@ -38,7 +48,6 @@ export const VIOLATION_CODES = [
 	'FACULTY_BREAK_REQUIREMENT_VIOLATED',
 	'FACULTY_DAILY_STANDARD_EXCEEDED',
 	'FACULTY_DAILY_MAX_EXCEEDED',
-	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
 	'FACULTY_FLOOR_TRANSITION',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
@@ -147,7 +156,15 @@ export interface SubjectRef {
 }
 
 export interface PolicyRef {
-	maxConsecutiveTeachingMinutesBeforeBreak: number;
+	/**
+	 * Explicit consecutive-teaching threshold in minutes. When absent (or when
+	 * the persisted value is the retired non-slot-aligned constant) the
+	 * slot-aligned default `periodLengthMinutes × allowedConsecutivePeriods` is
+	 * derived — see `resolveMaxConsecutiveTeachingMinutesBeforeBreak`.
+	 */
+	maxConsecutiveTeachingMinutesBeforeBreak?: number;
+	/** Authoritative slot length; the consecutive threshold derives from it. */
+	periodLengthMinutes?: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;
 	earliestStartTime: string;
@@ -221,6 +238,26 @@ export interface ValidatorContext {
 	buildings?: BuildingRef[];
 	roomBuildings?: RoomBuildingRef[];
 	constraintConfig?: Record<string, ConstraintOverrideRef>;
+	/**
+	 * C07A — configured non-teaching (break) windows: recess, lunch, flag
+	 * ceremony, and the shift-specific `PolicySpecialEvent` break rows. Time
+	 * inside these windows is never counted as idle and a gap fully covered by a
+	 * configured break resets the consecutive block.
+	 *
+	 * When absent/empty the legacy behavior is preserved (no window is excluded):
+	 * an absent authority means "not configured", never "no break exists".
+	 */
+	breakWindows?: BreakWindowRef[];
+	/**
+	 * C07A — applicable teaching-shift windows (persisted `GradeShiftWindow`
+	 * rows). Only time inside a window that applies to BOTH bounding entries is
+	 * counted as idle, so cross-shift time is never reported as idle.
+	 *
+	 * When absent/empty no shift restriction is applied (legacy full-gap count).
+	 */
+	shiftWindows?: ShiftWindowRef[];
+	/** sectionId → grade/program scope used to resolve which windows apply. */
+	sectionScope?: Map<number, SectionScopeRef>;
 }
 
 // ─── Violation output ───
@@ -259,6 +296,43 @@ const timesOverlap = intervalsOverlap;
 
 export function evaluateManualCandidateInvariants(input: TimetableCandidateInvariantInput) {
 	return evaluateCandidateInvariants(input);
+}
+
+/**
+ * C07A — one constraint-override contract for every emitted violation.
+ *
+ * The validator's own violations and the violations injected by the generation
+ * service (unassigned sessions, modular-group warnings, zone balance) must obey
+ * the SAME configured authority: a disabled SOFT constraint is dropped, an
+ * allowlisted `treatAsHard` promotes a SOFT constraint to HARD, and the
+ * configured weight is attached. A non-allowlisted `treatAsHard` never promotes
+ * (R4 trust boundary).
+ */
+export function applyConstraintOverrides(
+	violations: Violation[],
+	constraintConfig: Record<string, ConstraintOverrideRef> | null | undefined,
+): Violation[] {
+	if (!constraintConfig) return violations;
+	const result: Violation[] = [];
+	for (const v of violations) {
+		const override = constraintConfig[v.code];
+		if (!override) {
+			// No override for this code — keep as-is (hard constraints, etc.)
+			result.push(v);
+			continue;
+		}
+		// If override disables this constraint and the violation is SOFT, drop it
+		if (!override.enabled && v.severity === 'SOFT') continue;
+		const severity = (override.treatAsHard && v.severity === 'SOFT' && isPromotableConstraintCode(v.code))
+			? 'HARD' as const
+			: v.severity;
+		result.push({
+			...v,
+			severity,
+			meta: { ...v.meta, constraintWeight: override.weight },
+		});
+	}
+	return result;
 }
 
 function timeToMinutes(t: string): number {
@@ -330,6 +404,161 @@ function parseFacultyDayTermKey(key: string): { facultyId: number; day: string }
 function parseSectionDayTermKey(key: string): { sectionId: number; day: string } {
 	const [sectionId, day] = key.split(TERM_KEY_SEP);
 	return { sectionId: Number(sectionId), day };
+}
+
+// ─── C07A window authority helpers ───
+
+interface MinuteInterval {
+	start: number;
+	end: number;
+}
+
+/**
+ * Total length of the union of `intervals` clipped to `[start, end)`.
+ * Deterministic: intervals are sorted and merged before measurement.
+ */
+function coveredMinutes(intervals: MinuteInterval[], start: number, end: number): number {
+	if (intervals.length === 0 || end <= start) return 0;
+	const sorted = [...intervals].sort((left, right) => left.start - right.start || left.end - right.end);
+	let covered = 0;
+	let cursor = start;
+	for (const interval of sorted) {
+		const from = Math.max(interval.start, start);
+		const to = Math.min(interval.end, end);
+		if (to <= from) continue;
+		if (from > cursor) cursor = from;
+		if (to > cursor) {
+			covered += to - cursor;
+			cursor = to;
+		}
+		if (cursor >= end) break;
+	}
+	return covered;
+}
+
+function scopeMatches(
+	window: { gradeLevel?: number | null; programType?: string | null },
+	scope: SectionScopeRef | null,
+): boolean {
+	if (window.gradeLevel != null) {
+		if (scope == null || window.gradeLevel !== scope.gradeLevel) return false;
+		if (window.programType != null) {
+			if (normalizeWarningProgramType(window.programType) !== normalizeWarningProgramType(scope.programType)) return false;
+		}
+		return true;
+	}
+	if (window.programType != null) {
+		if (scope == null || normalizeWarningProgramType(window.programType) !== normalizeWarningProgramType(scope.programType)) return false;
+	}
+	return true;
+}
+
+function shiftWindowKey(window: MinuteInterval): string {
+	return `${window.start}-${window.end}`;
+}
+
+function toMinuteInterval(window: { startTime: string; endTime: string }): MinuteInterval | null {
+	const start = timeToMinutes(window.startTime);
+	const end = timeToMinutes(window.endTime);
+	return end > start ? { start, end } : null;
+}
+
+/**
+ * Break windows applicable to one entry on one weekday. A window with no
+ * `dayOfWeek` applies every weekday; Flag/HGP is Monday-only.
+ */
+function breakWindowsForEntry(
+	ctx: ValidatorContext,
+	entry: ScheduledEntry,
+	day: string,
+): MinuteInterval[] {
+	const windows = ctx.breakWindows;
+	if (!windows || windows.length === 0) return [];
+	const scope = ctx.sectionScope?.get(entry.sectionId) ?? null;
+	const intervals: MinuteInterval[] = [];
+	for (const window of windows) {
+		if (!scopeMatches(window, scope)) continue;
+		const windowDay = (window.dayOfWeek ?? '').trim().toUpperCase();
+		if (windowDay && windowDay !== day) continue;
+		const interval = toMinuteInterval(window);
+		if (interval) intervals.push(interval);
+	}
+	return intervals;
+}
+
+/** Union of the break windows applicable to any entry of a faculty/day group. */
+function groupBreakIntervals(ctx: ValidatorContext, entries: ScheduledEntry[], day: string): MinuteInterval[] {
+	const intervals: MinuteInterval[] = [];
+	for (const entry of entries) intervals.push(...breakWindowsForEntry(ctx, entry, day));
+	return intervals;
+}
+
+/**
+ * Shift windows applicable to an entry. Returns `null` when the context carries
+ * no shift authority at all, which preserves the legacy full-gap behavior.
+ */
+function shiftWindowsForEntry(ctx: ValidatorContext, entry: ScheduledEntry): MinuteInterval[] | null {
+	const windows = ctx.shiftWindows;
+	if (!windows || windows.length === 0) return null;
+	const scope = ctx.sectionScope?.get(entry.sectionId) ?? null;
+	const intervals: MinuteInterval[] = [];
+	for (const window of windows) {
+		if (!scopeMatches(window, scope)) continue;
+		const interval = toMinuteInterval(window);
+		if (interval) intervals.push(interval);
+	}
+	return intervals;
+}
+
+/**
+ * Idle minutes for a gap between two consecutive entries on the same day.
+ *
+ *   - No shift authority → the whole gap is counted (legacy behavior).
+ *   - Shift authority present → only the portion inside a shift window that
+ *     applies to BOTH entries counts. Cross-shift time is therefore never
+ *     reported as idle.
+ *   - Configured break windows inside the counted region are always excluded.
+ */
+function idleMinutesForGap(
+	ctx: ValidatorContext,
+	prev: ScheduledEntry,
+	curr: ScheduledEntry,
+	day: string,
+	breakIntervals: MinuteInterval[],
+): number {
+	const gapStart = timeToMinutes(prev.endTime);
+	const gapEnd = timeToMinutes(curr.startTime);
+	if (gapEnd <= gapStart) return 0;
+
+	const prevShifts = shiftWindowsForEntry(ctx, prev);
+	const currShifts = shiftWindowsForEntry(ctx, curr);
+
+	let inShift: number;
+	if (prevShifts == null || currShifts == null) {
+		inShift = gapEnd - gapStart;
+	} else {
+		const shared = new Map<string, MinuteInterval>();
+		const currKeys = new Set(currShifts.map(shiftWindowKey));
+		for (const window of prevShifts) {
+			const key = shiftWindowKey(window);
+			if (currKeys.has(key)) shared.set(key, window);
+		}
+		inShift = coveredMinutes([...shared.values()], gapStart, gapEnd);
+	}
+
+	const breakCovered = Math.min(coveredMinutes(breakIntervals, gapStart, gapEnd), inShift);
+	return inShift - breakCovered;
+}
+
+/**
+ * True when the entire positive gap is covered by configured break windows —
+ * a canonical configured break. Such a gap satisfies the break requirement and
+ * must reset the consecutive block without emitting a violation.
+ */
+function isCanonicalBreakGap(breakIntervals: MinuteInterval[], gapStart: number, gapEnd: number): boolean {
+	const gap = gapEnd - gapStart;
+	if (gap <= 0) return false;
+	return coveredMinutes(breakIntervals, gapStart, gapEnd) >= gap;
 }
 
 // ─── Validator ───
@@ -627,6 +856,12 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		const severity = placementSemantics.enforceConsecutiveBreakAsHard ? 'HARD' as const : 'SOFT' as const;
 		const standardDailyLimitMinutes = 360;
 		const hardDailyLimitMinutes = placementSemantics.hardDailyLimitMinutes;
+		// C07A: slot-aligned default derived from the authoritative period length;
+		// an explicitly configured, slot-aligned persisted threshold is honored.
+		const maxConsecutiveMinutes = resolveMaxConsecutiveTeachingMinutesBeforeBreak(policy);
+		const resolvedPeriodMinutes = Number.isInteger(Number(policy.periodLengthMinutes)) && Number(policy.periodLengthMinutes) > 0
+			? Number(policy.periodLengthMinutes)
+			: 45;
 
 		// Group entries by faculty+day+term, sorted by startTime. Term identity is
 		// mandatory: a year-long entry repeating in every term must contribute its
@@ -639,6 +874,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		for (const [key, dayEntries] of facDayEntries) {
 			const { facultyId, day } = parseFacultyDayTermKey(key);
 			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+			const breakIntervals = groupBreakIntervals(ctx, sorted, day);
 
 			// 6a) Daily teaching target — warn above 6h, hard-block above 8h
 			const dailyMinutes = sorted.reduce((sum, e) => sum + e.durationMinutes, 0);
@@ -662,8 +898,31 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			}
 
 			// 6b) Consecutive teaching without break + break requirement
+			//
+			// C07A: exactly ONE violation is emitted per violating contiguous
+			// teaching block (the former per-entry emission produced one row per
+			// member period), and `entities.entryIds` names every member of that
+			// block. A gap that satisfies the break requirement — including a gap
+			// fully covered by a configured break window (Health Break, Lunch,
+			// Recess, Flag ceremony) — resets the block and emits nothing.
 			let consecutiveMinutes = 0;
 			let blockEntries: string[] = [];
+
+			const flushBlock = () => {
+				if (consecutiveMinutes <= maxConsecutiveMinutes) return;
+				violations.push({
+					...base, severity,
+					code: 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
+					message: `Faculty ${facultyId} has ${consecutiveMinutes} consecutive teaching min on ${day}, exceeds limit ${maxConsecutiveMinutes} min.`,
+					entities: { facultyId, day, entryIds: [...blockEntries] },
+					meta: {
+						consecutiveMinutes,
+						maxConsecutive: maxConsecutiveMinutes,
+						periodLengthMinutes: resolvedPeriodMinutes,
+						blockEntryIds: [...blockEntries],
+					},
+				});
+			};
 
 			for (let i = 0; i < sorted.length; i++) {
 				const entry = sorted[i];
@@ -675,10 +934,14 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				}
 
 				const prev = sorted[i - 1];
-				const gapMinutes = timeToMinutes(entry.startTime) - timeToMinutes(prev.endTime);
+				const prevEnd = timeToMinutes(prev.endTime);
+				const entryStart = timeToMinutes(entry.startTime);
+				const gapMinutes = entryStart - prevEnd;
+				const configuredBreakSatisfied = gapMinutes > 0 && isCanonicalBreakGap(breakIntervals, prevEnd, entryStart);
+				const breakSatisfied = gapMinutes >= policy.minBreakMinutesAfterConsecutiveBlock || configuredBreakSatisfied;
 
-				if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
-					// Gap exists but is insufficient — emit break-requirement violation
+				if (!breakSatisfied) {
+					// Gap exists but is insufficient — emit the break-requirement violation
 					if (gapMinutes > 0) {
 						violations.push({
 							...base, severity,
@@ -691,22 +954,15 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 					// Contiguous or gap too short — extend block
 					consecutiveMinutes += entry.durationMinutes;
 					blockEntries.push(entry.entryId);
-				} else {
-					// Gap is sufficient — reset
-					consecutiveMinutes = entry.durationMinutes;
-					blockEntries = [entry.entryId];
+					continue;
 				}
 
-				if (consecutiveMinutes > policy.maxConsecutiveTeachingMinutesBeforeBreak) {
-					violations.push({
-						...base, severity,
-						code: 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
-						message: `Faculty ${facultyId} has ${consecutiveMinutes} consecutive teaching min on ${day}, exceeds limit ${policy.maxConsecutiveTeachingMinutesBeforeBreak} min.`,
-						entities: { facultyId, day, entryIds: [...blockEntries] },
-						meta: { consecutiveMinutes, maxConsecutive: policy.maxConsecutiveTeachingMinutesBeforeBreak },
-					});
-				}
+				// Gap satisfies the configured break — close the block and restart
+				flushBlock();
+				consecutiveMinutes = entry.durationMinutes;
+				blockEntries = [entry.entryId];
 			}
+			flushBlock();
 		}
 	}
 
@@ -856,12 +1112,19 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				const { facultyId, day } = parseFacultyDayTermKey(key);
 				const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-				// 8a) Excessive idle gap: sum of gaps between consecutive classes
+				// 8a) Excessive idle gap
+				//
+				// C07A: idle time is only the genuine unscheduled time INSIDE the
+				// teacher's applicable shift. Configured break windows (Health
+				// Break, Lunch, Recess, Flag ceremony) are non-teaching time and are
+				// never counted; cross-shift and outside-shift gaps are never
+				// counted. When the context carries no window authority the legacy
+				// full-gap behavior is preserved.
 				if (idleEnabled) {
+					const breakIntervals = groupBreakIntervals(ctx, sorted, day);
 					let totalIdleMinutes = 0;
 					for (let i = 1; i < sorted.length; i++) {
-						const gap = timeToMinutes(sorted[i].startTime) - timeToMinutes(sorted[i - 1].endTime);
-						if (gap > 0) totalIdleMinutes += gap;
+						totalIdleMinutes += idleMinutesForGap(ctx, sorted[i - 1], sorted[i], day, breakIntervals);
 					}
 					if (totalIdleMinutes > tp.maxIdleGapMinutesPerDay) {
 						violations.push({
@@ -872,6 +1135,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 							meta: {
 								facultyId, day,
 								totalIdleMinutes,
+								excludedBreakWindows: breakIntervals.length,
 								configuredThresholds: { maxIdleGapMinutesPerDay: tp.maxIdleGapMinutesPerDay },
 							},
 						});
@@ -1005,31 +1269,9 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 
 	// ── 10) Apply constraintConfig overrides ──
 	// Filter out disabled soft constraints and promote treatAsHard; inject weight into meta.
-	const cc = ctx.constraintConfig;
 	let finalViolations = violations;
-	if (cc) {
-		finalViolations = [];
-		for (const v of violations) {
-			const override = cc[v.code];
-			if (!override) {
-				// No override for this code — keep as-is (hard constraints, etc.)
-				finalViolations.push(v);
-				continue;
-			}
-			// If override disables this constraint and the violation is SOFT, drop it
-			if (!override.enabled && v.severity === 'SOFT') continue;
-			// Promote to HARD only when the code is on the server-owned allowlist
-			// (R4). A non-allowlisted `treatAsHard` has no effect here even if a
-			// legacy persisted row still carries it.
-			const severity = (override.treatAsHard && v.severity === 'SOFT' && isPromotableConstraintCode(v.code))
-				? 'HARD' as const
-				: v.severity;
-			finalViolations.push({
-				...v,
-				severity,
-				meta: { ...v.meta, constraintWeight: override.weight },
-			});
-		}
+	if (ctx.constraintConfig) {
+		finalViolations = applyConstraintOverrides(violations, ctx.constraintConfig);
 	}
 
 	// ── Aggregate counts ──

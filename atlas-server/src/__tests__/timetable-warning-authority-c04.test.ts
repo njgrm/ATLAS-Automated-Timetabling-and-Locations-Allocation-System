@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 
 import {
 	validateHardConstraints,
+	VIOLATION_CODES,
 	type ScheduledEntry,
 	type ValidatorContext,
 } from '../services/constraint-validator.js';
@@ -97,8 +98,12 @@ test('R1: the validator emits zero FACULTY_EXCESSIVE_TRAVEL_DISTANCE even with d
 		},
 	);
 	const result = validateHardConstraints(ctx);
-	const travel = result.violations.filter((violation) => violation.code === 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE');
+	// C07A: the retired code is not even part of the ViolationCode union any more,
+	// so the filter compares against the literal string rather than the union.
+	const retiredCode = 'FACULTY_EXCESSIVE_TRAVEL' + '_DISTANCE';
+	const travel = result.violations.filter((violation) => (violation.code as string) === retiredCode);
 	assert.equal(travel.length, 0, 'the retired metric travel code must have no producer');
+	assert.equal((VIOLATION_CODES as readonly string[]).includes(retiredCode), false, 'the retired code must not be declared');
 	for (const violation of result.violations) {
 		assert.equal(
 			Object.prototype.hasOwnProperty.call(violation.meta ?? {}, 'estimatedDistanceMeters'),
@@ -113,8 +118,8 @@ test('R1 source control: the validator no longer reads Building.x/y or emits est
 	assert.equal(/estimatedDistanceMeters/.test(source), false, 'estimatedDistanceMeters must be removed');
 	assert.equal(/\.x\s*-\s*/.test(source), false, 'no building x-delta may remain');
 	assert.equal(/\.y\s*-\s*/.test(source), false, 'no building y-delta may remain');
-	// The code itself stays declared so legacy persisted runs still render.
-	assert.ok(source.includes("'FACULTY_EXCESSIVE_TRAVEL_DISTANCE'"));
+	// C07A: the code itself is fully retired (producer, config, and display label).
+	assert.equal(source.includes("'FACULTY_EXCESSIVE_TRAVEL_DISTANCE'"), false, 'the retired code must have no residue in the validator');
 });
 
 test('R1: a legacy persisted HARD travel violation can never block publication', () => {
@@ -485,13 +490,16 @@ test('R5: consecutive/idle/vacant are computed per term, not summed', () => {
 			enableIdleGapChecks: true,
 		},
 	}));
-	// 4 contiguous 45-minute periods per term: the running block reaches 135 and
-	// then 180 minutes, so each ordered term independently emits 2 violations
-	// (never a single 540-minute cross-term block). Term-aware grouping yields 6.
+	// 4 contiguous 45-minute periods per term: the block reaches 180 minutes in
+	// every ordered term. C07A emits exactly ONE violation per violating block
+	// (the former per-entry emission produced two per term), and the members of
+	// that block are named in `entities.entryIds`. Term-aware grouping therefore
+	// yields 3 — one per ordered term, never a single 540-minute cross-term block.
 	const consecutive = result.violations.filter((v) => v.code === 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED');
-	assert.equal(consecutive.length, 6, 'two term-aware consecutive violations per ordered term');
+	assert.equal(consecutive.length, 3, 'one term-aware consecutive violation per ordered term');
 	for (const violation of consecutive) {
-		assert.ok(Number((violation.meta as { consecutiveMinutes?: number })?.consecutiveMinutes) <= 180);
+		assert.equal(Number((violation.meta as { consecutiveMinutes?: number })?.consecutiveMinutes), 180);
+		assert.equal(violation.entities.entryIds?.length, 4, 'the block names every member period');
 	}
 	// Mutant: the former term-blind key merges all three terms into one faculty/day
 	// block. Reproduce that merge and show it fabricates one 540-minute block.
