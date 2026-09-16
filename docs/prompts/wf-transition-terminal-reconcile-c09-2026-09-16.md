@@ -253,6 +253,12 @@ without evidence, so extend `create-stream` with optional atomic lease creation:
 
 ### 3.5 The sanctioned repair-read (load-bearing — read this section twice)
 
+> **SUPERSEDED BY REVISION 2.** This entire section is replaced by §R2.5 of
+> `docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16-r2.md`. Read that
+> instead; the strict-subset-of-stream-ids rule below deadlocks once two
+> independent repairable defect classes coexist. The rest of this document stands
+> except where R2 explicitly replaces or adds a section.
+
 The new rule in §3.4 makes the **current live document** fail verification,
 because `TERM-CACHE-CATCHUP-APPLY-REFRESH-C01` is `RUNNING` with no `ACTIVE`
 lease and no heartbeat. `runTransition` refuses to read a current document that
@@ -358,6 +364,12 @@ stream id with the file's existing escaping helpers. `--check` must remain
 byte-exact and `renderRegister` must stay a pure function of its inputs.
 
 ## 4. Satisfiability constraints you must preserve
+
+> **SUPERSEDED BY REVISION 2.** The ordered sequence in this section is replaced
+> by §R2.4 of `docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16-r2.md`
+> (nine transitions, 218 → 227). The satisfiability facts below still apply. Also
+> note `WF-C01` pins `ops/workflow/schema/cycle-state.schema.json`, which is the
+> C1 defect R2 fixes with `refresh-artifact-pin`.
 
 These are the facts that make the required acceptance proofs possible. Do not
 design against them:
