@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T06:50:24.833Z",
+    "lastUpdatedAt": "2026-09-16T13:26:38.389Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 176
+    "revision": 180
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "PUBLISHED-IMMUTABILITY-C08",
-    "globalNextAction": "CYCLE_ACTIVE on PUBLISHED-IMMUTABILITY-C08: executor implements docs/prompts/published-immutability-c08-2026-09-16.md on work/published-immutability-c08; planner then validates the immutable range and commissions fresh independent high-reasoning QA, integrates on current origin/main, and runs a fresh Wave Completion Auditor. Source-only: no live login/deploy/restart/db/generation/publication/migration action."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "PUBLISHED-IMMUTABILITY-C08 accepted (QA ACCEPT_READY 26/26/0/0) and integrated; pending fresh Wave Completion Auditor over the integrated tree. Live generation, publication, deployment, migration, term-cache, and Teaching Load actions remain LOCKED behind separate HIGH approvals."
   },
   "streams": [
     {
@@ -4136,8 +4136,8 @@
       "kind": "CYCLE",
       "riskTier": "MEDIUM",
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 26,
+        "passed": 26,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -4148,8 +4148,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 26,
+            "passed": 26,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -4171,12 +4171,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f55a6ff98ffeluTlqiMi4YhnxT",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f55a6ff98ffeluTlqiMi4YhnxT"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -4207,28 +4213,43 @@
       "artifacts": [],
       "closure": null,
       "objective": "Make one published revision a historically reproducible artifact: freeze subject/faculty/room/building/section/specialization/cohort/display-slot/special-event/policy/ordered-term identity into the publication revision JSON at publish time, resolve frozen-first on every public, authenticated, archived, and official-export consumer with an honest legacy state, repair current-year active/historical metadata and the :termId route family, and stop routine synchronization from unpublishing or failing a published run, while preserving the serializable/CAS/replay/audit/notification and draft-published separation strengths.",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T06:50:24.833Z",
-      "nextAction": "Executor implements the bounded PUBLISHED-IMMUTABILITY-C08 packet docs/prompts/published-immutability-c08-2026-09-16.md in E:/ATLAS-worktrees/published-immutability-c08 (base = the packet/bookkeeping commit on work/published-immutability-c08) and returns REVIEW_REQUIRED with the 26-row trace table; the planner then records the return and commissions one fresh independent QA over the frozen range.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T13:26:38.389Z",
+      "nextAction": "One fresh read-only Wave Completion Auditor reviews the integrated origin/main tree f3537544; then the planner records the audit and closes the cycle.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the PUBLISHED-IMMUTABILITY-C08 candidate",
-        "fresh independent QA over the frozen PUBLISHED-IMMUTABILITY-C08 candidate",
-        "fresh Wave Completion Auditor over the integrated wave"
+        "fresh Wave Completion Auditor"
       ],
-      "running": [
-        "executor implementation session on branch work/published-immutability-c08 (packet docs/prompts/published-immutability-c08-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
-        "branch": "work/published-immutability-c08",
-        "baseSha": null,
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "worktree": "E:/ATLAS-worktrees/integration-published-immutability-c08",
+        "branch": "integration/published-immutability-c08",
+        "baseSha": "47e062a32f04266acaf84ebf8662d6d397566fcd",
+        "candidateSha": "37a5074ce661f3b3d036975845c55a964ddfc130",
+        "integrationSha": "f3537544c4378cdebe5ad9a5576f540110e1e6d4",
+        "changedPaths": [
+          "atlas-server/src/__tests__/publication-contract-readiness.test.ts",
+          "atlas-server/src/__tests__/published-immutability-c08.test.ts",
+          "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
+          "atlas-server/src/__tests__/tt-output-c03r-route.test.ts",
+          "atlas-server/src/__tests__/tt-output-c05-beneficiary-parity.test.ts",
+          "atlas-server/src/routes/generation.router.ts",
+          "atlas-server/src/routes/published-schedule.router.ts",
+          "atlas-server/src/services/academic-term.service.ts",
+          "atlas-server/src/services/class-program-matrix.service.ts",
+          "atlas-server/src/services/class-program-slot.service.ts",
+          "atlas-server/src/services/generation.service.ts",
+          "atlas-server/src/services/publication-contract.service.ts",
+          "atlas-server/src/services/published-identity-snapshot.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-program-export.service.ts",
+          "atlas-server/src/services/teacher-program-export.service.ts",
+          "atlas-server/src/services/workbook-export.service.ts",
+          "docs/handoffs/published-immutability-c08-executor.md"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "c950e6944f148343b8c864bea5aa080bd6a19426",
-          "observedAt": "2026-09-16T06:48:41.205Z",
+          "sha": "f3537544c4378cdebe5ad9a5576f540110e1e6d4",
+          "observedAt": "2026-09-16T13:26:38.389Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -4236,16 +4257,16 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f55ca8181ffeJptGOAW5Q5EWzH",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f55a6ff98ffeluTlqiMi4YhnxT",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
