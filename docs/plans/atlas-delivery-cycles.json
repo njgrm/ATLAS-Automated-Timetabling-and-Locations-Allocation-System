@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T14:45:21.805Z",
+    "lastUpdatedAt": "2026-09-16T14:46:57.034Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 201
+    "revision": 207
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "TT-WARNING-REALISM-C07R1",
-    "globalNextAction": "CYCLE TT-WARNING-REALISM-C07R1: both lanes ACCEPT_READY (Lane A successor TT-WARNING-COUNT-C07A-R1 candidate 107c5159 18/18; Lane B candidate b8a1b1cf 14/14). The union is integrated on integration/tt-warning-realism-c07r1 over origin/main 25e6987e and awaits the fresh Wave Completion Auditor. No live, HIGH, deployment, generation, publication, migration or database action is unlocked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "TT-WARNING-REALISM-C07R1 union integrated at 172c070d; one fresh Wave Completion Auditor is the only remaining step before closure. All live/HIGH actions remain locked."
   },
   "streams": [
     {
@@ -4456,31 +4456,92 @@
       "kind": "CYCLE",
       "objective": "Planner-led parallel two-lane source-only correction cycle on origin/main c950e6944f148343b8c864bea5aa080bd6a19426: Lane A (TT-WARNING-COUNT-C07A) makes the server warning authority and counts stakeholder-realistic and truthful (consecutive-limit emitted once per violating block with a period-aligned configurable default, idle-gap excluding configured Health Break/Lunch and outside-shift time, reconciled break/consecutive families, retired unreachable vacant/overcompressed/early-late preference residue, full removal of FACULTY_EXCESSIVE_TRAVEL_DISTANCE, truthful adjacency rules kept, corrected SPECIALIZED_ROOM_UNAVAILABLE / LACKING_FACULTY / INCOMPLETE_MODULAR_GROUP / ZONE_IMBALANCE_WARNING classifications, and identical results across generation/manual-edit/quick-place/pre-generation/sync/publication-readiness recomputation). Lane B (TT-WARNING-SURFACE-C07B) makes the client warning and publish-readiness surface tell the truth (run-wide publish gate in SimplePublishReadinessSheet, selected-term rails visibly labeled and never mixed with run-wide totals, every displayed action real and correctly routed, Treat-as-Hard/Blocks-publish only for the server-owned promotable allowlist, ExplainabilityDrawer on server publication semantics, PublishChecklistContent grouped by real production violation codes, dead distance/vacant/preference residue removed, and types.d.ts reconciled or removed as a second authority). Serialized clean integration, fresh independent QA per frozen lane, and one fresh Wave Completion Audit over the union. No browser login, live data mutation, deployment, generation, publication, migration, schema, runtime restart/task/env change, companion edit, or any HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T14:44:40.673Z",
-      "nextAction": "Dispatch Lane A (TT-WARNING-COUNT-C07A) and Lane B (TT-WARNING-SURFACE-C07B) executor packets on their frozen worktrees, validate each immutable return, commission one fresh independent QA per lane, integrate serially on integration/tt-warning-realism-c07r1, then commission one fresh Wave Completion Auditor over the final union.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T14:46:57.034Z",
+      "nextAction": "Integrated union; fresh Wave Completion Auditor pending.",
       "awaited": [
-        "Lane A executor REVIEW_REQUIRED return for the TT-WARNING-COUNT-C07A candidate",
-        "Lane B executor REVIEW_REQUIRED return for the TT-WARNING-SURFACE-C07B candidate",
-        "fresh independent QA per frozen lane candidate",
-        "fresh Wave Completion Auditor over the integrated union"
+        "fresh Wave Completion Auditor"
       ],
-      "running": [
-        "parallel Lane A executor implementation on work/tt-warning-count-c07a",
-        "parallel Lane B executor implementation on work/tt-warning-surface-c07b",
-        "planner lease custody of the integration worktree integration/tt-warning-realism-c07r1"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
         "branch": "integration/tt-warning-realism-c07r1",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "candidateSha": "172c070db4e27be4832519340c5f778609a29ceb",
+        "integrationSha": "172c070db4e27be4832519340c5f778609a29ceb",
+        "changedPaths": [
+          "CHANGELOG.md",
+          "atlas-client/src/components/ExplainabilityDrawer.tsx",
+          "atlas-client/src/components/PolicyImpactSummary.tsx",
+          "atlas-client/src/components/SchedulingPolicyPane.tsx",
+          "atlas-client/src/components/scheduling-policy/PolicyPanePrimitives.tsx",
+          "atlas-client/src/components/timetable/GeneratedRunRailPanels.tsx",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx",
+          "atlas-client/src/components/timetable/ScheduleReviewWorkspaceBody.tsx",
+          "atlas-client/src/components/timetable/SimplePublishReadinessSheet.tsx",
+          "atlas-client/src/components/timetable/TimetableShared.tsx",
+          "atlas-client/src/components/timetable/TimetableSimpleHeader.tsx",
+          "atlas-client/src/components/timetable/TimetableTaskDrawer.tsx",
+          "atlas-client/src/components/timetable/buildScheduleReviewWorkspaceContexts.ts",
+          "atlas-client/src/components/timetable/simple/SimpleHeaderHelpers.tsx",
+          "atlas-client/src/components/timetable/simple/SimpleTaskDrawerHelpers.tsx",
+          "atlas-client/src/components/timetable/simplePublishReadiness.ts",
+          "atlas-client/src/components/timetable/timetableContexts.types.ts",
+          "atlas-client/src/hooks/useScheduleReviewWorkspaceState.ts",
+          "atlas-client/src/hooks/useTimetableData.ts",
+          "atlas-client/src/lib/__tests__/tt-warning-surface-realism-c07b.test.ts",
+          "atlas-client/src/types.d.ts",
+          "atlas-server/src/__tests__/publication-contract-readiness.test.ts",
+          "atlas-server/src/__tests__/published-immutability-c08.test.ts",
+          "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
+          "atlas-server/src/__tests__/timetable-warning-authority-c04.test.ts",
+          "atlas-server/src/__tests__/tt-output-c03r-route.test.ts",
+          "atlas-server/src/__tests__/tt-output-c05-beneficiary-parity.test.ts",
+          "atlas-server/src/__tests__/tt-warning-realism-c07a.test.ts",
+          "atlas-server/src/routes/generation.router.ts",
+          "atlas-server/src/routes/published-schedule.router.ts",
+          "atlas-server/src/services/academic-term.service.ts",
+          "atlas-server/src/services/class-program-matrix.service.ts",
+          "atlas-server/src/services/class-program-slot.service.ts",
+          "atlas-server/src/services/constraint-validator.ts",
+          "atlas-server/src/services/generation-preflight.service.ts",
+          "atlas-server/src/services/generation.service.ts",
+          "atlas-server/src/services/manual-edit.service.ts",
+          "atlas-server/src/services/pre-generation-draft.service.ts",
+          "atlas-server/src/services/publication-contract.service.ts",
+          "atlas-server/src/services/published-identity-snapshot.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-program-export.service.ts",
+          "atlas-server/src/services/schedule-constructor.ts",
+          "atlas-server/src/services/scheduling-policy.service.ts",
+          "atlas-server/src/services/teacher-program-export.service.ts",
+          "atlas-server/src/services/warning-window-authority.service.ts",
+          "atlas-server/src/services/workbook-export.service.ts",
+          "docs/handoffs/published-immutability-c08-executor.md",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "docs/plans/receipts/published-immutability-c08r1.receipt.json",
+          "docs/prompts/published-immutability-c08-2026-09-16.md",
+          "docs/prompts/published-immutability-c08r1-2026-09-16.md",
+          "docs/prompts/tt-warning-count-c07a-2026-09-16.md",
+          "docs/prompts/tt-warning-count-c07a-correction-r1-2026-09-16.md",
+          "docs/prompts/tt-warning-surface-c07b-2026-09-16.md",
+          "docs/prompts/tt-warning-surface-c07b-correction-r1-2026-09-16.md",
+          "docs/prompts/tt-warning-surface-c07b-correction-r2-2026-09-16.md",
+          "docs/reference/atlas-runtime-source-of-truth-map.md",
+          "docs/reviews/published-immutability-c08r1/wave-completion-audit.md",
+          "ops/workflow/specs/register/PUBLISHED-IMMUTABILITY-C08.json",
+          "ops/workflow/specs/register/PUBLISHED-IMMUTABILITY-C08R1.json",
+          "ops/workflow/specs/register/TT-WARNING-COUNT-C07A-R1.json",
+          "ops/workflow/specs/register/TT-WARNING-COUNT-C07A.json",
+          "ops/workflow/specs/register/TT-WARNING-REALISM-C07R1.json",
+          "ops/workflow/specs/register/TT-WARNING-SURFACE-C07B.json"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "25e6987ea0c2be2d3ae02a2d9ba668135a9e0a37",
-          "observedAt": "2026-09-16T14:44:40.673Z",
+          "sha": "172c070db4e27be4832519340c5f778609a29ceb",
+          "observedAt": "2026-09-16T14:46:57.034Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -4488,16 +4549,16 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
           "sessionId": null,
-          "status": "NONE",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "union:ses_f558318ecffeH58JcBuiKl3lDO+ses_f55621898ffesN0Ei4Fm18CqLZ",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -4507,20 +4568,20 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 45,
+        "passed": 45,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 16,
+          "MANDATORY_SOURCE": 45,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 45,
+            "passed": 45,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -4542,12 +4603,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "union:ses_f558318ecffeH58JcBuiKl3lDO+ses_f55621898ffesN0Ei4Fm18CqLZ",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "union:ses_f558318ecffeH58JcBuiKl3lDO+ses_f55621898ffesN0Ei4Fm18CqLZ"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -4759,19 +4826,19 @@
       "kind": "STREAM",
       "objective": "Successor lane for TT-WARNING-COUNT-C07A (Lane A of TT-WARNING-REALISM-C07R1) after its fresh QA returned PLANNER_DECISION_REQUIRED on the split consecutive-threshold authority. The planner resolved the decision (a persisted maxConsecutiveTeachingMinutesBeforeBreak of 120 is the retired legacy constant, so the effective threshold is derived once through the canonical period-aligned resolver and only a genuinely explicit slot-expressible value is honored) and the bounded additive Correction R1 candidate bd6e9811 routes the effective threshold through the one canonical resolver at the schedule-constructor read/shape boundary and the policy read/display boundary, removing the raw read and the hardcoded ?? 180 fallback. The correction is the full Lane A server warning-authority contract over range c950e694...bd6e9811 (one warning per violating block with a period-aligned default; break-aware in-shift idle; reconciled break/consecutive families; retired FACULTY_EXCESSIVE_TRAVEL_DISTANCE residue; truthful unassigned/zone/capacity classification; parity across generation/manual/pre-generation). No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-16T14:45:09.680Z",
-      "nextAction": "Accepted ordinary candidate 107c5159; integrate on integration/tt-warning-realism-c07r1 over current origin/main.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T14:45:59.658Z",
+      "nextAction": "Integrated; fresh Wave Completion Auditor pending.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/tt-warning-count-c07a",
-        "branch": "work/tt-warning-count-c07a",
+        "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
+        "branch": "integration/tt-warning-realism-c07r1",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
         "candidateSha": "107c5159f13372707ce0ba7c4607d530d33ee3cb",
-        "integrationSha": null,
+        "integrationSha": "172c070db4e27be4832519340c5f778609a29ceb",
         "changedPaths": [
           "atlas-server/src/__tests__/timetable-warning-authority-c04.test.ts",
           "atlas-server/src/__tests__/tt-warning-realism-c07a.test.ts",
@@ -4786,8 +4853,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "25e6987ea0c2be2d3ae02a2d9ba668135a9e0a37",
-          "observedAt": "2026-09-16T14:44:48.606Z",
+          "sha": "172c070db4e27be4832519340c5f778609a29ceb",
+          "observedAt": "2026-09-16T14:45:59.658Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -4931,19 +4998,19 @@
       "kind": "STREAM",
       "objective": "Lane B of TT-WARNING-REALISM-C07R1 (parent cycle). Client warning and publish-readiness truth: SimplePublishReadinessSheet must render run-wide blocker truth and never say Ready to publish from a selected-term list while another term blocks; selected-term issue rails stay selected-term scoped and are visibly labeled so run-wide and selected-term counts are never mixed under one unexplained total; every displayed action works (no-op Review issue buttons removed, resolvable violations routed to the correct term/entity/repair surface, aggregate warnings exposing every affected entry or navigating to a real grouped repair view); Treat as Hard and Blocks publish render only for codes in the server-owned promotable allowlist; ExplainabilityDrawer uses server publication semantics so HARD alone never means Publish blocker for a non-publication-blocking code; PublishChecklistContent groups real production violation codes rather than reason keys or test-only codes; dead UI/config/type residue for retired distance, unreachable vacant and retired warning families is removed and types.d.ts is reconciled or removed as a second authority; and accessible controls, 44px mobile targets, keyboard navigation, responsive layout, Simple-first navigation and term-switching state hygiene are preserved. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-16T14:45:05.647Z",
-      "nextAction": "Accepted candidate b8a1b1cf; re-integrate on integration/tt-warning-realism-c07r1 over Lane A.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T14:46:03.704Z",
+      "nextAction": "Integrated; fresh Wave Completion Auditor pending.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
-        "worktree": "E:/ATLAS-worktrees/tt-warning-surface-c07b",
-        "branch": "work/tt-warning-surface-c07b",
+        "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
+        "branch": "integration/tt-warning-realism-c07r1",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
         "candidateSha": "b8a1b1cfebf5866eafe3c6f6a7cf65461dcf1264",
-        "integrationSha": null,
+        "integrationSha": "172c070db4e27be4832519340c5f778609a29ceb",
         "changedPaths": [
           "atlas-client/src/components/ExplainabilityDrawer.tsx",
           "atlas-client/src/components/PolicyImpactSummary.tsx",
@@ -4969,8 +5036,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "25e6987ea0c2be2d3ae02a2d9ba668135a9e0a37",
-          "observedAt": "2026-09-16T14:44:52.806Z",
+          "sha": "172c070db4e27be4832519340c5f778609a29ceb",
+          "observedAt": "2026-09-16T14:46:03.704Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
