@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T20:43:25.973Z",
-    "lastUpdatedBy": "primary-planner:slot-break-c11-registration",
-    "revision": 239
+    "lastUpdatedAt": "2026-09-16T21:24:09.621Z",
+    "lastUpdatedBy": "primary-planner:slot-break-c11-executor-return",
+    "revision": 240
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5361,24 +5361,27 @@
       "kind": "STREAM",
       "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T20:42:33.449Z",
-      "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11 (branch fix/slot-break-authority-c11, base 16e70be2) against docs/prompts/slot-break-authority-c11-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-16T21:24:09.621Z",
+      "nextAction": "Commission one fresh independent QA over the frozen candidate range 16e70be2..34c550df (6 paths), then integrate on integration/slot-break-authority-c11-20260917 and run one fresh Wave Completion Auditor.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11 frozen candidate",
-        "fresh independent QA over the frozen candidate range",
-        "clean current-main integration and fresh Wave Completion Audit"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "executor implementation session on branch fix/slot-break-authority-c11 (packet docs/prompts/slot-break-authority-c11-2026-09-17.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
         "branch": "fix/slot-break-authority-c11",
         "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
-        "candidateSha": null,
+        "candidateSha": "34c550dfc930ce561a4d0875f66b0ff7ca457a58",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "atlas-server/src/__tests__/slot-break-authority-c11.test.ts",
+          "atlas-server/src/services/generation-input-snapshot.service.ts",
+          "atlas-server/src/services/generation-preflight.service.ts",
+          "atlas-server/src/services/manual-edit.service.ts",
+          "atlas-server/src/services/pre-generation-draft.service.ts",
+          "atlas-server/src/services/warning-window-authority.service.ts"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
@@ -5393,8 +5396,8 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f54077e08ffeVqarqyV2XQ4L0T",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
