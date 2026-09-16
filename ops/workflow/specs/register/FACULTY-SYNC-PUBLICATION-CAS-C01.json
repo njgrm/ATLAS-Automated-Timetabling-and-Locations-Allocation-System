@@ -5,17 +5,17 @@
   "riskTier": "MEDIUM",
   "state": "RUNNING",
   "stateUpdatedAt": "2026-09-17T00:10:00+08:00",
-  "nextAction": "Executor implements the bounded CAS correction in E:/ATLAS-worktrees/faculty-sync-cas-c01 per docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md and returns REVIEW_REQUIRED with the frozen candidate SHA; then the planner validates the immutable range and commissions one fresh independent QA.",
+  "nextAction": "Executor implements the bounded CAS correction in E:/ATLAS-worktrees/faculty-sync-cas-c01 per docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md as amended by planner amendment A1 (base re-pinned 544bbf81 -> 16e70be2; gate 10 and the run-resolver entry of gate 11 corrected to real suites; R2.3b unpublishedRunIds truthfulness added) and returns REVIEW_REQUIRED with the frozen candidate SHA; then the planner validates the immutable range and commissions one fresh independent QA.",
   "awaited": [
     "executor REVIEW_REQUIRED return from worktree E:/ATLAS-worktrees/faculty-sync-cas-c01 on branch fix/faculty-sync-publication-cas"
   ],
   "running": [
-    "executor (high) in E:/ATLAS-worktrees/faculty-sync-cas-c01 on fix/faculty-sync-publication-cas; packet docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md"
+    "executor (high) in E:/ATLAS-worktrees/faculty-sync-cas-c01 on fix/faculty-sync-publication-cas, fast-forwarded to the re-pinned base 16e70be2; packet docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md as amended by planner amendment A1"
   ],
   "git": {
     "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
     "branch": "fix/faculty-sync-publication-cas",
-    "baseSha": "544bbf81d087098f9b5f28b9f598311f19c5288d",
+    "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
