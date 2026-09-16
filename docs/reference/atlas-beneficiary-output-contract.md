@@ -196,24 +196,109 @@ auto-creation/normalization, no DDL, no cache writes.
 12. Missing identity, term, run, faculty, room, or source authority fails
     closed.
 
-## 8. Open operator decisions
+## 8. Operator decisions (resolved 2026-09-17)
 
-- **D-B (room program shape)**: confirm the default room-program shape in §3.3
-  or provide the school's preferred form.
-- **D-C (class-program family)**: confirm the DNO single-section day-column
-  family as the official class-program layout (current correction target), and
-  whether the G7 all-sections section-column variant is also required.
-- **D-D (period/shift canonicalization)**: confirm the authoritative period
-  length(s), shift windows, and Friday/“*45 min only” conventions per grade as
-  persisted school configuration (references show multiple variants).
-- **D-E (learner counts)**: name the authoritative source for Male/Female/Total
-  (or confirm the fields stay blank until a source is integrated).
-- **D-F (class-program slot configuration)**: confirm that persisted
-  per-school/per-year `classProgramSlot` rows are the configuration authority
-  (the DNO catalog is only the default seed), and name the editing surface.
+All five previously open decisions are RESOLVED by the operator as of
+2026-09-17 and supersede the `DECISION_REQUIRED` entries recorded by the
+2026-09-14 stakeholder export parity audit.
 
-Open decisions do not block the C05 correction packet; each has a stated
-default and is recorded as `DECISION_REQUIRED` in the audit.
+- **D-B (room program shape) — RESOLVED.** The §3.3 default is the official v1
+  room-program form: one block or sheet per room, bounded to rooms with entries
+  in the selected term; header identifies school year, selected term, room, and
+  building; columns Time / Minutes / Monday-Friday; each occupied cell shows
+  Subject + Section + Teacher unambiguously stacked; configured Lunch and Health
+  Break rows render as banded rows; selected-term entries only; no cross-school
+  rows; same-term room collisions remain invalid while reuse in different terms
+  is valid; the official output is a server-generated printable export, not
+  merely an on-screen view or client-generated CSV. No beneficiary-supplied
+  room-program form exists; this default remains configurable for future
+  beneficiaries.
+- **D-C (class-program family) — RESOLVED.** The DNO single-section, day-column
+  family is the official v1 Class Program layout. The four observed DNO forms are
+  template variants: Grade 7/8 Regular (morning), Grade 7/8 Special Program,
+  Grade 9/10 Regular (afternoon), Grade 9/10 Special Program. Each section
+  receives its own printable page or bounded worksheet block; "G7, G7-Spec, G9,
+  G9-Spec" does NOT mean four sections on one page. All schedulable CLASS rows
+  are 45 minutes and the implementation must support Grades 7-10 through the
+  applicable morning/afternoon and regular/special template family. The Grade 7
+  all-sections section-column layout is NOT required in v1; it is recorded as a
+  deferred optional export variant.
+- **D-D (period/shift/break/Flag-HGP canonicalization) — RESOLVED, with
+  corrections.** Every schedulable CLASS row is 45 minutes. A global "10 periods
+  per day" rule must NOT be imposed; the canonical 2026-2027 template families
+  are Grades 7-8 Regular 8 CLASS rows, Grades 7-8 Special Program 10 CLASS rows,
+  Grades 9-10 Regular 8 CLASS rows, and Grades 9-10 Special Program 10 CLASS
+  rows. The canonical persisted break rows are Grades 7-8 Health Break
+  09:00-09:15 and Lunch Break 12:15-13:00, and Grades 9-10 Lunch Break
+  12:15-13:00 and Health Break 15:15-15:30. The legacy 11:55-12:55 lunch window
+  and other global recess/lunch fallbacks are NOT authoritative when canonical
+  `classProgramSlot` rows exist. The v1 default is the same canonical CLASS-row
+  structure Monday-Friday; no Friday-only shortened timetable is implemented for
+  SY2026-2027, and historical artifacts showing different Friday total-minute
+  arithmetic are superseded unless explicit persisted Friday rows are introduced
+  later. Flag Ceremony/HGP is a Monday-only overlay on the underlying
+  advisory-period CLASS row: it creates no additional period and no additional
+  demand or Teaching Load minutes, Tuesday-Friday retain the underlying ordinary
+  subject in that interval, and daily totals must not double-count the overlay.
+  The persisted `maxConsecutiveTeachingMinutesBeforeBreak = 120` is retired as
+  effective warning authority; the effective primary-beneficiary threshold is the
+  period-aligned three-period rule (3 x 45 = 135 minutes), emitted once per
+  violating contiguous block rather than once per entry. `classProgramSlot` rows
+  define the canonical grade/program time grid and therefore the effective shift
+  bounds where no separate `GradeShiftWindow` rows exist. `PolicySpecialEvent`
+  authority resolves as follows: use a valid persisted event where one exists;
+  where no Flag/HGP event row exists for the pilot configuration, apply the
+  defined Monday-only fallback snapped to exactly one underlying canonical CLASS
+  row; the fallback must never invent an unmatched interval or a five-day event;
+  an explicit non-Monday event, or an event spanning multiple canonical CLASS
+  rows, fails closed with a typed configuration blocker. **This fallback is a
+  required/successor behavior where not already implemented — the absence of
+  `PolicySpecialEvent` rows must not be reported as proof that the behavior
+  already exists.** Persisting explicit `GradeShiftWindow` or `PolicySpecialEvent`
+  rows is a separate bounded configuration write and is NOT authorized by these
+  decisions.
+- **D-E (learner counts) — RESOLVED.** Male, Female, and Total remain visibly
+  present but blank in every official Class Program export until an authoritative
+  learner-count source is integrated. The system shall not derive, estimate, copy
+  from historical documents, or emit placeholder numeric values.
+- **D-F (class-program slot configuration) — RESOLVED.** Persisted per-school /
+  per-year `classProgramSlot` rows are the runtime configuration authority; the
+  DNO 2026-2027 catalog (`STAKEHOLDER_DNO_2026_2027_45MIN_R2`) is only the
+  default seed used when establishing a new school/year configuration. Once
+  persisted rows exist, generation, timetable views, readiness, publication, and
+  official exports consume the persisted configuration. There is currently no
+  operator route or UI for editing `classProgramSlot` rows; the editing surface
+  is deferred to a successor Unified Admin / Scheduling Policy feature that must
+  provide preview, validation, actor-school authority, version/fingerprint
+  protection, and audited apply. It must not be built in the current
+  beneficiary-export wave.
+
+### 8.1 Persisted-state verification (2026-09-17)
+
+The live school 1 / school year 9 configuration already matches D-D: 182
+`classProgramSlot` rows across 16 grade x program scopes (Grades 7-10;
+REGULAR/STE/SPA/SPS) carrying the canonical 45-minute CLASS rows and the
+per-grade break rows above (09:00-09:15 and 12:15-13:00 for Grades 7-8;
+12:15-13:00 and 15:15-15:30 for Grades 9-10). `class-template.service.ts`
+already encodes `periodsPerDay` 8 for Regular and 10 for Special Program, so no
+global period count is imposed. No configuration write is required for the grid
+itself.
+
+### 8.2 Known defect against these decisions
+
+The effective break/shift authority does not consume `classProgramSlot`:
+`warning-window-authority.service.ts` builds `breakWindows` only from
+`resolvePolicyRowBreakWindows` (the persisted `SchedulingPolicy` lunch window;
+live value 11:55-12:55 gated by `enableLunchWindow`) and
+`resolveSpecialEventBreakWindows` (no live rows), and never reads the canonical
+slot grid. That authority feeds `generation-preflight.service.ts`,
+`manual-edit.service.ts`, and `pre-generation-draft.service.ts`. Consequence:
+the canonical lunch 12:15-13:00 is treated as teachable, the canonical Health
+Breaks are invisible, and the retired 11:55-12:55 window is applied. Tracked as
+`SLOT-BREAK-AUTHORITY-C11`. The generation input snapshot
+(`generation-input-snapshot.service.ts`) also does not yet cover
+`classProgramSlot`, so the same correction must extend the consumed-input
+fingerprint.
 
 ## 9. Non-goals
 

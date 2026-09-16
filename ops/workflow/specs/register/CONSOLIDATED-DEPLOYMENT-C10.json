@@ -1,0 +1,113 @@
+{
+  "id": "CONSOLIDATED-DEPLOYMENT-C10",
+  "kind": "STREAM",
+  "objective": "Deploy one release pinned at the accepted origin/main tip that includes the C07R1 authorization fix, published-revision immutability, warning realism, export parity, generation-authority realism and the R3 term-authority canonicalization; remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from the durable env; re-point and restart the registered ATLAS-Runtime-Supervisor task on ports 5001/5174; then run the 13-row acceptance matrix with exactly one authorized login and logout. No data mutation, generation, publication, Teaching Load apply, term-cache apply, rollover, migration, or companion change.",
+  "riskTier": "HIGH",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Wait for MIG-APPLY-0002-0003 to apply, SLOT-BREAK-AUTHORITY-C11 to integrate, and WF-C10-TRANSITION-GUARD-HARDENING to integrate; then freeze the pin, commission one fresh independent pre-action review of docs/prompts/consolidated-deployment-c10-2026-09-17.md, and only after that review passes return the packet's exact approval sentence.",
+  "awaited": [
+    "MIG-APPLY-0002-0003 applied and verified (the target code requires companion_sso_codes and teacher_program_presentation_revisions)",
+    "SLOT-BREAK-AUTHORITY-C11 integrated, or an explicit operator deferral that accepts retired-window warnings",
+    "WF-C10-TRANSITION-GUARD-HARDENING integrated so this HIGH gate can be recorded through record-approval and record-execution",
+    "one fresh independent pre-action review of the deployment packet",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/consolidated-deploy-c10",
+    "branch": "chore/consolidated-deploy-c10",
+    "baseSha": "f4ff7c8a8e5f058438af38e0c0684cb3ee394bef",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 3,
+      "MANDATORY_LIVE": 13,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "Dependency-blocked until MIG-APPLY-0002-0003 applies and SLOT-BREAK-AUTHORITY-C11 and WF-C10-TRANSITION-GUARD-HARDENING integrate. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the deployment packet and stream spec (done)",
+      "freeze the target pin once the prerequisites integrate",
+      "commission the fresh independent pre-action review",
+      "build and smoke the target on alternate ports"
+    ]
+  },
+  "approval": {
+    "required": true,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [
+      "build and install a release pinned at the reviewed accepted tip",
+      "remove the vestigial ATLAS_DEFAULT_SCHOOL_ID key from D:\\ATLAS-runtime-config\\atlas-server.env",
+      "re-point and restart the ATLAS-Runtime-Supervisor task on ports 5001/5174",
+      "one authorized login and logout for the acceptance matrix",
+      "symmetric rollback to 54dce67b (then 9d293879) only on a failed mandatory acceptance row"
+    ],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a HIGH shared-runtime deployment requires its own activated cycle and custody."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the deployment executor runs in a fresh context with the exact approved boundary."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "one fresh independent pre-action review before the approval, and post-action acceptance evidence review."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a HIGH runtime action requires a fresh adversarial Wave Completion Auditor after the deployment."
+    }
+  }
+}
