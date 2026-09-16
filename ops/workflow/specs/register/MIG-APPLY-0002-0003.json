@@ -1,0 +1,109 @@
+{
+  "id": "MIG-APPLY-0002-0003",
+  "kind": "STREAM",
+  "objective": "Apply exactly two additive reviewed migrations (0002_companion_sso_code sha256 c2502e3070a98e6a6ddf4a1568cf2b3368a5cc72db2983cd02d0311012e43baf; 0003_teacher_program_presentation sha256 b3270f02f16486f7b4e25538f80d675e42ba7cd6a9b704aebd3fff2593a764ee) to the live ATLAS database atlas_recovery_clean_rebuild_20260905 at host localhost:5432 through the canonical guarded wrapper (npm run migrate:guarded from atlas-server/), preceded by a verified fresh logical backup and an immediately re-measured pre-state, with the bounded 12-row post-action verification matrix and rollback limited to dropping the two new tables or restoring that backup. No deployment, runtime restart, product source, data mutation, seed, reset, generation, publication, task/env, or companion action; companion SSO activation and the consolidated deployment remain separate HIGH actions.",
+  "riskTier": "HIGH",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Dispatch one fresh independent pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md; on its pass return the packet's exact approval sentence, then execute the guarded apply (verified backup -> pre-state re-measure -> npm run migrate:guarded) and run the 12-row acceptance matrix.",
+  "awaited": [
+    "one fresh independent pre-action review of docs/prompts/mig-apply-0002-0003-2026-09-17.md",
+    "the operator's exact approval sentence (returned only after the pre-action review passes)",
+    "apply executor execution return and evidence candidate",
+    "fresh independent QA over the frozen evidence candidate",
+    "fresh Wave Completion Auditor over the integrated wave"
+  ],
+  "running": [
+    "pre-action preparation in E:/ATLAS-worktrees/mig-apply-0002-0003: isolated atlas-server dependency install (migration-guard suite) and the fresh independent pre-action review; no database action before the recorded approval"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/mig-apply-0002-0003",
+    "branch": "chore/mig-apply-0002-0003",
+    "baseSha": "544bbf81d087098f9b5f28b9f598311f19c5288d",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 4,
+      "MANDATORY_LIVE": 8,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "install the isolated atlas-server dependencies and verify npm run test:migration-guard",
+      "dispatch the fresh independent pre-action review over the packet",
+      "execute the approved guarded apply with its verified backup and 12-row verification matrix after the recorded approval",
+      "produce the evidence document and the frozen QA candidate"
+    ]
+  },
+  "approval": {
+    "required": true,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "EXISTING",
+      "sessionId": null,
+      "reason": "the activated MIG-APPLY-0002-0003 cycle's primary planner owns registration, review dispatch, approval recording, execution custody, integration, and push."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the approved guarded apply runs in a fresh executor context in E:/ATLAS-worktrees/mig-apply-0002-0003."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the packet and the frozen evidence candidate require fresh independent QA contexts (one pre-action review; one post-action verification)."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a HIGH live database action requires a fresh adversarial Wave Completion Auditor after integration."
+    }
+  }
+}
