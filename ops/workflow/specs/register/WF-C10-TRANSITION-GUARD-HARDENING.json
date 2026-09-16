@@ -17,7 +17,7 @@
   "git": {
     "worktree": "E:/ATLAS-worktrees/wf-c10-transition-guards",
     "branch": "work/wf-c10-transition-guard-hardening",
-    "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
+    "baseSha": "8a13ca8a4bbfb7b598a14c477a16f482f6730d64",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -36,7 +36,7 @@
     "blocked": 0,
     "unperformed": 0,
     "plan": {
-      "MANDATORY_SOURCE": 36,
+      "MANDATORY_SOURCE": 40,
       "MANDATORY_LIVE": 0,
       "DEFERRED_EXTERNAL": 0
     },
@@ -59,13 +59,14 @@
   "requires": [],
   "blocker": {
     "kind": "NONE",
-    "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE at origin/main 16e70be2 and its register revision window 218-227 is released (the live register declares no windows). No dependency or approval blocker remains; this stream is RUNNING and is backed by the ACTIVE lease created atomically at registration in the same transition, with the executor dispatched in the same planner turn. R1 folds in the five required deltas A1-A5 and corrects two R0 false premises: the plugin-load failure is missing ESM module semantics (.opencode/package.json is untracked, so the plugin is parsed as CommonJS under the root type=commonjs), not a missing dependency; and docs/prompts/** text eol=lf is already present in origin/main:.gitattributes, so only the materialization proof is outstanding.",
+    "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE and its register revision window 218-227 is released. The live register declares NO windows at all, because two peer cycles (SLOT-BREAK-AUTHORITY-C11 and FACULTY-SYNC-PUBLICATION-CAS-C01) are RUNNING and write the register concurrently; an exclusive WF-C10 reservation would refuse their legitimate stream-scoped transitions, so this stream declares none. The first registration attempt at revision 237 was superseded by those peer registrations (origin/main 16e70be2 -> 8a13ca8a, register revision 240) and never landed; this record is registered on top of revision 240. No dependency or approval blocker remains; this stream is RUNNING and is backed by the ACTIVE lease created atomically at registration in the same transition, with the executor dispatched in the same planner turn. R1 folds in the required deltas A1-A5 and corrects two R0 false premises: the plugin-load failure is missing ESM module semantics (.opencode/package.json is untracked, so the plugin is parsed as CommonJS under the root type=commonjs), not a missing dependency; and docs/prompts/** text eol=lf is already present in origin/main:.gitattributes, so only the materialization proof is outstanding. R1a adds the four broken documented workflow:* gate aliases.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
-      "author and register the stream, packet R1 and the corrected spec (done by the planner)",
+      "author and register the stream, packet R1/R1a and the corrected spec (done by the planner)",
       "dispatch one fresh bounded executor into E:/ATLAS-worktrees/wf-c10-transition-guards",
       "verify the WF-C09 R2 window-reservation contract and add the A1 through-terminal form",
-      "prove the A3 fresh-checkout hermeticity of the plugin-load gate"
+      "prove the A3 fresh-checkout hermeticity of the plugin-load gate",
+      "repair the four documented workflow:* gate aliases that exit 2 as published"
     ]
   },
   "approval": {

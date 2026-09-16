@@ -6,10 +6,13 @@ correcting two false premises in R0 (§3.3 root cause for A3; §3.7 already-land
 attribute). **R1a addendum, same day, after registration:** §3.11 (the documented
 gate aliases that do not run) was measured by the planner during the
 acceptance-satisfiability lint and is folded in now rather than left as a second
-correction round. It raises the mandatory source plan from 36 to 39 rows; the
-planner raises `gates.plan.MANDATORY_SOURCE` at `record-qa-result`, which is the
-only transition that owns the plan and may only increase it. The stream is
-registered and `RUNNING`; see §8 for the exact registration record.
+correction round. **R1b, same day, after the first registration was overtaken by
+two concurrent peer registrations:** §3.12 documents the two concurrency limits
+the live register exposed (a reservation is only correct for a sole register
+writer, and `coordination.activeCycleId` is single-valued), and §8 records the
+resulting registration decision. The mandatory source plan is 40 rows; the
+planner raises `gates.plan.MANDATORY_SOURCE` at `record-qa-result` if any row is
+added. The stream is registered and `RUNNING`; see §8.
 
 ## 0. Immutable identity
 
@@ -312,6 +315,33 @@ prove each repaired alias by a real invocation that records its exit code. If an
 alias is intentionally parameterized, it must accept the missing value as a
 pass-through argument and say so in the README.
 
+### 3.12 Concurrency limits of the reservation and of `coordination` (found by the planner at registration)
+
+This cycle's first registration attempt was overtaken live: while it ran locally,
+three commits landed on `origin/main` registering `SLOT-BREAK-AUTHORITY-C11` and
+`FACULTY-SYNC-PUBLICATION-CAS-C01` as `RUNNING` with bound `ACTIVE` leases, moving
+the register revision 237 → 240 and leaving **no** `registry.windows` at all.
+Two consequences must be documented truthfully (documentation only — no code
+change and no new mechanism):
+
+1. **A reservation is only correct when its holder is the sole active register
+   writer.** The holder predicate refuses every transition whose target stream is
+   not the window's stream (`lib/transition.mjs` `isWindowHolder`), so a WF-C10
+   reservation spanning 237..300 would have refused the two peer cycles'
+   legitimate `record-executor-return`/`record-qa-result` transitions. A
+   reservation therefore cannot be declared in the presence of concurrent cycles.
+   The A1 through-terminal form is still required and still correct for a
+   single-writer cycle; record the limitation next to the R2.10 section.
+2. **`coordination.activeCycleId` is single-valued** and cannot represent two or
+   more concurrent RUNNING cycles. This cycle's registration must therefore
+   **not** call `coordination-update` to steal the pointer: the first claimant
+   keeps it and the new cycle is represented by its own stream row. Document that
+   a second concurrent cycle is registered by `create-stream` alone.
+
+Do not invent a co-holder mechanism in this packet. The registration decision
+itself (declare no window, skip `coordination-update`) is taken by the planner and
+recorded in §8.
+
 ## 4. Acceptance matrix (each row a mandatory source gate)
 
 | # | Control | Expected |
@@ -355,11 +385,12 @@ pass-through argument and say so in the README.
 | 37 | §3.11 every documented `workflow:*` alias invoked as published from a clean checkout | `verify`, `render`, `render:check`, `status`, `checkpoint` exit 0; `custody` exits 0 or 2-for-help exactly as its README documents |
 | 38 | §3.11 alias repair is minimal and fail-closed | `package.json` changes only the `workflow:*` script strings; a wrong-working-directory invocation still fails closed |
 | 39 | §3.11 regression protection | a committed test fails if a future edit breaks an alias's documented invocation |
+| 40 | §3.12 concurrency limits documented | the README states the sole-writer precondition for a reservation and the single-valued `activeCycleId` limit beside the R2.10 section, with no new mechanism added |
 
-Rows 22–30, 16–17 and 37–39 are the A1–A5 and gate-alias deltas and are **not**
-satisfiable by re-running existing tests: each needs a new fixture. No row needs
-a credential, session, runtime, database, or network beyond the local Git object
-store.
+Rows 22–30, 16–17, 37–39 and 40 are the A1–A5, gate-alias and concurrency deltas
+and are **not** satisfiable by re-running existing tests: each needs a new fixture
+or a documentation edit. No row needs a credential, session, runtime, database, or
+network beyond the local Git object store.
 
 ## 5. Gates
 
@@ -397,15 +428,21 @@ directive from Git bytes.
 
 ## 8. Registration record (filled by the planner at registration)
 
-- Base (dispatch tip) / observed `origin/main`: recorded below and in
-  `streams[WF-C10-TRANSITION-GUARD-HARDENING].git`.
-- Reservation: `registry.windows[]` holds a bounded reservation from the
-  registration revision to a revision with a wide margin, because the
-  through-terminal form this packet adds does not exist until the candidate
-  lands. It auto-releases when this stream reaches a terminal state. The
-  through-terminal form is proven by fixtures so successors use it.
+- **No register reservation is declared.** The first attempt declared a bounded
+  reservation 237..300 and was overtaken by two concurrent peer registrations
+  (origin/main 16e70be2 → 8a13ca8a, register revision 237 → 240). An exclusive
+  reservation would refuse the peer cycles' legitimate stream-scoped transitions,
+  so this stream was registered without one. See §3.12; the through-terminal form
+  is proven by fixtures for future single-writer cycles.
+- **`coordination-update` is deliberately not called.** `activeCycleId` remains
+  the first claimant's (`SLOT-BREAK-AUTHORITY-C11`); this cycle is represented by
+  its own stream row. See §3.12.
 - Lease: one `ACTIVE` lease bound to this stream, role `executor`, created
   atomically with the record (a `RUNNING` spec without lease flags fails closed).
+- Registration revision, the recorded `git.remoteObservation` tip, and the
+  dispatch tip are recorded in the register and in the planner handoff. The
+  executor's worktree is created from the dispatch tip, and the return uses
+  `record-executor-return --base <that tip>` (A5).
 
 ## 9. Return contract
 
