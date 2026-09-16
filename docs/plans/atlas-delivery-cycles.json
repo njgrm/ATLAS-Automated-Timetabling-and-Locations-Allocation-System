@@ -1,23 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T17:41:32.503Z",
+    "lastUpdatedAt": "2026-09-16T18:46:46.164Z",
     "lastUpdatedBy": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
-    "revision": 227,
-    "windows": [
-      {
-        "streamId": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
-        "fromRevision": 218,
-        "toRevision": 227,
-        "holder": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
-        "declaredAt": "2026-09-16T17:40:53.628Z"
-      }
-    ]
+    "revision": 233
   },
   "coordination": {
-    "mode": "CYCLE_ACTIVE",
-    "activeCycleId": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
-    "globalNextAction": "WF-TRANSITION-TERMINAL-RECONCILE-C09 (CYCLE_ACTIVE, rev 218 base): executor implements docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md in E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09 (three new transitions, the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule with the declared monotone repair-read, create-stream atomic lease, optional resolution property, and the ordered seven-step real register repair at revisions 218-225), then fresh high QA, planner integration and push, then a fresh high Wave Completion Audit. Every live/HIGH action (term-cache apply, runtime/install, Teaching Load, generation, publication, migration) stays locked."
+    "mode": "MANUAL",
+    "activeCycleId": null,
+    "globalNextAction": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is INTEGRATED in source at merge fc5c1f2a (candidate 938e3063, QA ACCEPT_READY 22/22/0/0/0, merged-tree gates green) and awaits the fresh Wave Completion Auditor. Next in queue: register and dispatch WF-C10-TRANSITION-GUARD-HARDENING, then CONSOLIDATED-DEPLOYMENT-C10, before any MIG-APPLY-0002-0003 registration. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -5205,27 +5196,43 @@
       "kind": "STREAM",
       "objective": "Extend the ops/workflow delivery-cycle authority with three sanctioned atomic transitions and one preventive verifier rule so the machine register can state the truth it currently cannot express: (1) abandon-stream exits an orphaned RUNNING (or PLANNED) declaration to PLANNED with running: [] only when there is zero ACTIVE lease and no heartbeat inside the configured staleness window, and fails closed otherwise; (2) resolve-decision is the documented terminal exit for DECISION_REQUIRED to SUPERSEDED or CLOSED, recording the resolver and the resolution text, requiring a named non-dead replacement for SUPERSEDED, and clearing awaited; (3) reconcile-stream atomically sets awaited, running, blocker.* and nextAction on any state except RUNNING without changing state; and (4) the verifier emits a typed RUNNING_WITHOUT_LIVE_EVIDENCE error for a RUNNING declaration backed by neither an ACTIVE lease nor a fresh heartbeat, with atomic lease creation at create-stream time and a declared, monotone, candidate-must-improve repair-read so an already-orphaned live register can be repaired through the transitions rather than hand-edited. The candidate also reconciles five real register residues through those transitions: TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING to truthful PLANNED), TT-WARNING-COUNT-C07A (DECISION_REQUIRED to SUPERSEDED with awaited cleared), TL-DIAGNOSTICS-LOADING-C06 (blocker.safeWorkRemaining false), and the stale forward-looking nextAction on WF-C02 and WF-SEED-PIN-C01.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T17:40:53.628Z",
-      "nextAction": "Executor implements docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md in E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09: the three new transitions, the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule with the declared monotone repair-read and the create-stream atomic lease, the optional resolution property, and the ordered seven-step real register repair at revisions 218-225. It returns REVIEW_REQUIRED; the planner then validates the immutable range including the register delta and its revision arithmetic and dispatches fresh independent QA.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T18:46:46.164Z",
+      "nextAction": "Integrated at merge fc5c1f2a3e13fe16b896d7fca4cc4bbdaf4ce575 over origin/main e852f972 (clean auto-union; merged-tree gates 327/327, verify 0 errors, render:check ok). Awaiting the fresh Wave Completion Auditor; do not deploy or run any live action from this stream.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the WF-TRANSITION-TERMINAL-RECONCILE-C09 candidate",
-        "fresh independent QA over the frozen candidate"
+        "fresh Wave Completion Auditor"
       ],
-      "running": [
-        "executor implementation session on branch work/wf-transition-terminal-reconcile-c09 (packet docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09",
         "branch": "work/wf-transition-terminal-reconcile-c09",
-        "baseSha": "61efa8a1b4ba4598e25f7d37909f88a5b94a66b2",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "baseSha": "639c9a32feaa6d57fb9b5b4cd04e601a13021a34",
+        "candidateSha": "938e3063ec386f9440f9b864768929c13a963e38",
+        "integrationSha": "fc5c1f2a3e13fe16b896d7fca4cc4bbdaf4ce575",
+        "changedPaths": [
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "ops/workflow/README.md",
+          "ops/workflow/__fixtures__/pass-ordinary.json",
+          "ops/workflow/__tests__/coverage.test.mjs",
+          "ops/workflow/__tests__/identity.test.mjs",
+          "ops/workflow/__tests__/lifecycle-traversal.test.mjs",
+          "ops/workflow/__tests__/seed.test.mjs",
+          "ops/workflow/__tests__/stream-integration-observation.test.mjs",
+          "ops/workflow/__tests__/terminal-reconcile.test.mjs",
+          "ops/workflow/__tests__/transition.test.mjs",
+          "ops/workflow/lib/render.mjs",
+          "ops/workflow/lib/transition.mjs",
+          "ops/workflow/lib/verify.mjs",
+          "ops/workflow/render-register.mjs",
+          "ops/workflow/schema/cycle-state.schema.json",
+          "ops/workflow/transition.mjs",
+          "ops/workflow/verify-cycle.mjs"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "61efa8a1b4ba4598e25f7d37909f88a5b94a66b2",
-          "observedAt": "2026-09-16T16:01:01.804Z",
+          "sha": "fc5c1f2a3e13fe16b896d7fca4cc4bbdaf4ce575",
+          "observedAt": "2026-09-16T18:46:46.164Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -5236,13 +5243,13 @@
           "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f549486fdffeeOhLq6IDUY6U8q",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f548d4283ffes97alF22y3qQ0s",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -5252,20 +5259,20 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 22,
+        "passed": 22,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 20,
+          "MANDATORY_SOURCE": 22,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 22,
+            "passed": 22,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -5287,12 +5294,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f548d4283ffes97alF22y3qQ0s",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f548d4283ffes97alF22y3qQ0s"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
@@ -5300,13 +5313,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "the three sanctioned transitions and their negative fixtures in ops/workflow",
-          "the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule and the declared monotone repair-read",
-          "the create-stream atomic lease and the optional resolution property",
-          "the ordered seven-step real register repair at revisions 218-225"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
