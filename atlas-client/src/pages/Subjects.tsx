@@ -35,6 +35,7 @@ import {
 	ROOM_TYPE_LABELS,
 } from '@/lib/subject-constants';
 import type { RoomType, Subject, SubjectCoverageSummary, SubjectCoverageRow, TermAuthority } from '@/types';
+import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
 import { fetchSubjectCoverageSummary } from '@/lib/coverage';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
@@ -908,15 +909,21 @@ stats={subjectStats}
 									subjects AND for subjects with required room features
 									(audit Sub-6 -- the old code only gated on
 									preferredRoomType !== 'CLASSROOM', silently dropping
-									subjects that needed a feature but used a standard room). */}
+									subjects that needed a feature but used a standard room).
+									C07-R8: the wording comes from the single shared
+									room-authority copy authority. A CLASSROOM authority is
+									never labelled as an unconditional requirement; special-room
+									use is handled outside this timetable. */}
 								{((coverageSubject.preferredRoomType !== 'CLASSROOM') || (coverageSubject.requiredFeatures.length > 0)) && (
 									<div className="p-4 rounded-xl bg-muted/40 border border-muted/50 flex items-start gap-3 shadow-sm">
 										<MapIcon className="size-5 text-muted-foreground shrink-0 mt-0.5" />
 										<div className="space-y-1">
 											<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Resource requirements</p>
-											{coverageSubject.preferredRoomType !== 'CLASSROOM' ? (
-												<p className="text-sm font-medium">Requires <span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType] ?? coverageSubject.preferredRoomType}</span> facilities.</p>
-											) : null}
+											<p className="text-sm font-medium">
+												<span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType] ?? coverageSubject.preferredRoomType}</span>
+												{' — '}
+												{roomAuthoritySemantics(coverageSubject.preferredRoomType)}.
+											</p>
 											{coverageSubject.requiredFeatures.length > 0 ? (
 												<p className="text-sm font-medium">
 													Needs {coverageSubject.requiredFeatures.length} room feature{coverageSubject.requiredFeatures.length === 1 ? '' : 's'}:{' '}

@@ -3,6 +3,7 @@ import type { ScheduledEntry } from './constraint-validator.js';
 import { buildSpecialEventSlots } from './schedule-constructor.js';
 import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
 import { isTermIndexWithinContract, loadVerifiedOrderedTermContract } from './academic-term.service.js';
+import { isRejectedFlagCeremonyRow, resolveSpecialEventDayOfWeek } from '../lib/policy-special-events.js';
 
 const db = () => getDataContext();
 
@@ -536,17 +537,21 @@ export async function getPublishedSchedulePayload(
 		where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, enabled: true },
 		orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
 	});
-	const mappedPublishedSpecialEvents = publishedSpecialEvents.map((se) => ({
-		eventType: se.eventType,
-		label: se.label,
-		startTime: se.startTime,
-		endTime: se.endTime,
-		// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
-		// derived from the canonical event identity (Flag/HGP is Monday-only).
-		dayOfWeek: se.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : null,
-		gradeGroup: se.gradeGroup,
-		programType: se.programType,
-	}));
+	const mappedPublishedSpecialEvents = publishedSpecialEvents
+		// R3: use the single shared Flag/HGP identity + day authority. A rejected
+		// (explicit non-Monday) row is never silently re-rendered as Monday.
+		.filter((se) => !isRejectedFlagCeremonyRow(se.eventType, null, se.label))
+		.map((se) => ({
+			eventType: se.eventType,
+			label: se.label,
+			startTime: se.startTime,
+			endTime: se.endTime,
+			// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
+			// derived from the canonical event identity (Flag/HGP is Monday-only).
+			dayOfWeek: resolveSpecialEventDayOfWeek(se.eventType, null, se.label) ?? null,
+			gradeGroup: se.gradeGroup,
+			programType: se.programType,
+		}));
 
 	const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
 	const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));

@@ -21,6 +21,7 @@ import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
+import { roomAuthoritySemantics } from '@/lib/room-authority-copy';
 import { Info, Clock, Settings2, ShieldCheck, Layout, X, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
@@ -476,7 +477,13 @@ export function SubjectFormModal({
 										))}
 									</SelectContent>
 								</Select>
-								<p className="text-xs text-muted-foreground">Choose standard classroom unless this subject needs a specialized room.</p>
+								{/* C07-R8: the single shared room-authority copy authority explains
+									both persisted values. CLASSROOM is not an unconditional
+									requirement: special-room use is handled outside this timetable. */}
+								<p className="text-xs text-muted-foreground">
+									<strong className="font-semibold">Classroom</strong>: {roomAuthoritySemantics('CLASSROOM')}.{' '}
+									<strong className="font-semibold">Laboratory</strong>: {roomAuthoritySemantics('LABORATORY')}.
+								</p>
 							</div>
 
 							{/* SCA-01.2: isSeedable is hidden bootstrap metadata, not

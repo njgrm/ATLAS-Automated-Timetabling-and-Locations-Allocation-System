@@ -16,7 +16,7 @@ const FIXED_NOW = new Date('2030-01-02T03:04:05.000Z');
 function snapshot(fingerprint = 'current'): GenerationInputSnapshot {
 	const domain = { fingerprint: 'same', signals: {} };
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		schoolId: 51,
 		schoolYearId: 81,
 		computedAt: FIXED_NOW.toISOString(),
@@ -28,6 +28,7 @@ function snapshot(fingerprint = 'current'): GenerationInputSnapshot {
 			sections: domain,
 			subjects: domain,
 			derivedDemand: domain,
+			availability: domain,
 		},
 	};
 }
@@ -261,7 +262,7 @@ async function makeRoutePublishClient() {
 	const zeroAggregate = () => async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null, version: null, createdAt: null } });
 	const tx: any = {
 		$executeRawUnsafe: async () => 1,
-		$queryRawUnsafe: async () => [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb' }],
+		$queryRawUnsafe: async () => [{ teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb', availability: 'av' }],
 		enrollProSchoolYearMirror: {
 			findMany: async () => [{ enrollProSchoolYearId: 81 }],
 			findUnique: async ({ where }: any) => {
@@ -282,6 +283,8 @@ async function makeRoutePublishClient() {
 		subject: { aggregate: zeroAggregate(), findMany: async () => [] },
 		classTemplate: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		classTemplateSubject: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
+		facultyPreference: { aggregate: zeroAggregate() },
+		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		schoolYearOffering: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, version: null, updatedAt: null } }) },
 		offeringTermAssignment: { aggregate: async () => ({ _count: { _all: 0 }, _max: { id: null, createdAt: null } }) },
 		generationRun: {
