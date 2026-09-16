@@ -140,3 +140,41 @@ of product code; no worktree creation/removal.
 3. Generation and publication remain **locked** and require their own reviewed HIGH packets.
 4. A fresh **post-action Wave Completion Auditor** is required before closing TT-TL runtime
    acceptance or unlocking generation or publication.
+
+## 10. Post-action audit disclosures (added 2026-09-16, audit `ses_f579b207bffeIKWN5P1OoLac01`)
+
+The captured values above are **not rewritten**. The post-action Wave Completion Auditor returned
+`CORRECTION_REQUIRED` (tally `18 / 15 / 0 / 0`, reviewed `origin/main` `c3b70b3e`). The write is
+retained: §9 rollback is conditioned on a failed §8.1–8.3 verification, and those passed.
+
+**(a) §4.0 item 9 actor-baseline capture was OMITTED.** Packet §4.0 item 9 requires the audit count
+*and the audit/actor baselines*, and §8.3 requires proving actor 46 changed only in `last_login_at`
+and `updated_at`. Only the audit baseline was recorded; the actor baseline and the §8.3 assertion
+were missing here. Captured post hoc by the auditor: actor 46 `last_login_at 2026-09-16T03:57:22.456Z`,
+`updated_at 2026-09-16T03:57:26.375Z`, `failed_login_count 0`, `locked_until NULL`, `is_active true`,
+`school_id 1`, `officer`, `created_at 2026-09-06T16:55:04.939Z`, all other non-time columns unchanged.
+The auditor's schema-wide 2026-09-16 timestamp census across every public base table found only
+`audit_logs` 3, `atlas_auth_accounts` 1 and `enrollpro_school_year_mirrors` 1 rows — no other write
+anywhere in the schema. Substantive §8.3 result: **PASS**.
+
+**(b) Pre-state divergence was handled by in-place adjudication instead of `PLANNER_DECISION_REQUIRED`.**
+Two prepared-time values diverged from the execution-window capture: `audit_logs` high-water
+`793/242 -> 795/244`, and the actor-46 baseline `2026-09-14T09:27:55.967Z / 09:27:58.562Z ->
+2026-09-16T01:40:01.097Z` (the latter was **not disclosed at the time**, because the actor baseline
+was never captured). The approved sentence listed "database pre-state" among material divergences and
+required stopping with `PLANNER_DECISION_REQUIRED` rather than adapting. The planner proceeded on the
+adjudication that the audit high-water is a measurement baseline re-measured under §4.0/§4.4 rather
+than an apply input, and that every apply binding matched exactly. Auditor classification:
+**NON_BLOCKING for the data state and the legitimacy of the write** (no apply input was stale, nothing
+unauthorized was written), but **BLOCKING for a clean closure claim**, because the deviation must be
+recorded and acknowledged rather than silently normalized. **This deviation is hereby disclosed to the
+operator.**
+
+**(c) `TERM_AUTHORITY_STALE` is a false blocker; the write is retained and §9 is not triggered.**
+Independently confirmed: the comparison at `atlas-server/src/services/generation-preflight.service.ts:636-637`
+is unsatisfiable by construction, because the persisted `semanticRevisionFor` revision (lowercase,
+terms + labels + dates) and the canonical `canonicalTermStructureRevision` (uppercase, identity/order
+only) are different namespaces — contradicting the documented contract at
+`derived-demand.service.ts:938-944`. The branch was unreachable while `termContractCache` was `NULL`
+and became reachable only because of this authorized apply. A bounded source correction is registered
+as a successor.
