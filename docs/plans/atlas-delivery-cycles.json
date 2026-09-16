@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:50:16.194Z",
+    "lastUpdatedAt": "2026-09-16T04:50:39.015Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 151
+    "revision": 152
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3658,22 +3658,23 @@
       "kind": "CYCLE",
       "objective": "Retire the exact evolving stream-inventory equality pin in ops/workflow/__tests__/seed.test.mjs and replace it with a generic, mutation-verified contract: an immutable five-stream core baseline, no literal enumeration of the live inventory, production-verifier mutation coverage of uniqueness/schema/state/Git-identity/audit/receipt/lease/remote-observation invariants for every registered stream, a failing-first regression that adds a well-formed stream through the real create-stream operation on a cloned registry, and negative mutants for malformed/duplicate/field-incomplete newly created streams. No product, client, server, prisma or runtime file changes; no deployment, database, generation or publication action.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T04:50:16.194Z",
-      "nextAction": "Replay the WF-SEED-INVENTORY-C02 lifecycle on the released register: record the executor return (candidate byte-identical replay of 11c8bdbf), then QA ACCEPT_READY 18/18/0/0, integrate, run the fresh Wave Completion Auditor, and close with the receipt.",
+      "state": "REVIEW_REQUIRED",
+      "stateUpdatedAt": "2026-09-16T04:50:39.015Z",
+      "nextAction": "Fresh independent QA (ses_f579612f2ffevkg7Cu5WFM7IC6) returned ACCEPT_READY 18/18/0/0 over the accepted content at 11c8bdbf; the replayed candidate b8be79ef is byte-identical (blobs ddc7de1a and 188bb30a). Next: record the QA result, integrate, run workflow:test on the integrated tree, then the fresh Wave Completion Auditor.",
       "awaited": [
-        "planner records the executor return and the fresh QA acceptance for the replayed candidate"
+        "fresh independent QA over the frozen candidate"
       ],
-      "running": [
-        "planner: replaying the accepted WF-SEED-INVENTORY-C02 lifecycle on the refreshed integration boundary"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/wf-seed-inventory-c02",
         "branch": "work/wf-seed-inventory-c02",
         "baseSha": "2530f45b92d3fe1e5ae42df04170c1616d064f34",
-        "candidateSha": null,
+        "candidateSha": "b8be79efcf4bf3212e39af2ec0e3ce3f8838f1a6",
         "integrationSha": null,
-        "changedPaths": [],
+        "changedPaths": [
+          "docs/handoffs/wf-seed-inventory-c02-executor.md",
+          "ops/workflow/__tests__/seed.test.mjs"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
           "sha": "53d228a3bbdbc0433e777084da5c491b122bc439",
@@ -3688,9 +3689,9 @@
           "writable": true
         },
         "executor": {
-          "sessionId": null,
-          "status": "IDLE",
-          "writable": true
+          "sessionId": "ses_f57a58405ffedk69Vejj4fqUY0",
+          "status": "RETURNED",
+          "writable": false
         },
         "qa": {
           "sessionId": null,
