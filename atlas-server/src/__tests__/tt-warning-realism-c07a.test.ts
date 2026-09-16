@@ -50,6 +50,8 @@ import {
 import { buildValidatorCtx } from '../services/manual-edit.service.js';
 import { buildPreGenerationValidatorContext } from '../services/pre-generation-draft.service.js';
 import { resolveUnassignedViolationCode } from '../services/generation.service.js';
+import { withDataContext } from '../lib/data-context.js';
+import schedulingPolicyRouter from '../routes/scheduling-policy.router.js';
 import {
 	buildWarningWindowAuthority,
 	resolvePolicyRowBreakWindows,
@@ -1146,4 +1148,181 @@ test('C07A-R1: resolveSchedulingPolicyForRead reports the same effective thresho
 	} as unknown as Parameters<typeof resolveSchedulingPolicyForRead>[2]);
 	assert.equal(synthetic.maxConsecutiveTeachingMinutesBeforeBreak, resolveDefaultMaxConsecutiveTeachingMinutes(POLICY_DEFAULTS.periodLengthMinutes));
 	assert.equal(synthetic.maxConsecutiveTeachingMinutesBeforeBreak, 135, 'the synthetic row reports the slot-aligned default');
+});
+
+// ─── C07A-R2: the REAL operator policy read/display boundary ────────────────
+//
+// Root cause (verified on candidate bd6e9811): the resolver was wired into the
+// constructor, preflight, validator, and `resolveSchedulingPolicyForRead`, but
+// the real operator boundary was still raw. `scheduling-policy.router.ts`
+// returns `getOrCreatePolicy(...)` on GET and `upsertPolicy(...)` on PUT, and
+// both returned the persisted row VERBATIM — so the editor displayed a legacy
+// 120 while the constructor/validator enforced 135. `resolveSchedulingPolicyForRead`
+// has no route/display caller, so it could not satisfy the display outcome by
+// itself. These controls drive the REAL mounted route handlers (with the real
+// service functions and an injected data context) and prove displayed === enforced.
+
+type OperatorHandler = (req: unknown, res: unknown, next: (e: unknown) => void) => Promise<void>;
+
+interface RouterRouteLayer {
+	route?: {
+		path: string;
+		methods: Record<string, boolean>;
+		stack: Array<{ handle: OperatorHandler }>;
+	};
+}
+
+function operatorRouteHandler(method: 'get' | 'put'): OperatorHandler {
+	const layers = (schedulingPolicyRouter as unknown as { stack: RouterRouteLayer[] }).stack;
+	const layer = layers.find((entry) => entry.route?.path === '/:schoolId/:schoolYearId' && entry.route.methods?.[method] === true);
+	const route = layer?.route;
+	assert.ok(route, `the real ${method.toUpperCase()} /:schoolId/:schoolYearId route must be mounted`);
+	const handlers = route.stack;
+	return handlers[handlers.length - 1].handle;
+}
+
+interface CapturedResponse {
+	status?: number;
+	body?: { policy?: Record<string, unknown> };
+}
+
+function captureResponse(): { res: Record<string, unknown>; captured: CapturedResponse } {
+	const captured: CapturedResponse = {};
+	const res: Record<string, unknown> = {
+		status(code: number) { captured.status = code; return res; },
+		json(payload: { policy?: Record<string, unknown> }) { captured.body = payload; return res; },
+	};
+	return { res, captured };
+}
+
+interface PolicyRouteClientSink {
+	upsertArgs?: { create: Record<string, unknown>; update: Record<string, unknown> };
+}
+
+function makePolicyRouteClient(row: Record<string, unknown> | null, sink: PolicyRouteClientSink = {}) {
+	return {
+		$executeRawUnsafe: async () => 1,
+		schedulingPolicy: {
+			findUnique: async () => row,
+			create: async (args: { data: Record<string, unknown> }) => ({ id: 1, ...args.data }),
+			update: async (args: { data: Record<string, unknown> }) => ({ ...(row ?? {}), ...args.data }),
+			upsert: async (args: { create: Record<string, unknown>; update: Record<string, unknown> }) => {
+				sink.upsertArgs = args;
+				// Mirror the real Prisma return: the persisted row keeps the stored
+				// `period_length_minutes` (upsertPolicy never writes that column).
+				return { id: 1, schoolId: SCHOOL, schoolYearId: YEAR, periodLengthMinutes: 45, ...args.create, ...args.update };
+			},
+		},
+		gradeShiftWindow: { findMany: async () => [] },
+	};
+}
+
+async function invokeOperatorRoute(
+	method: 'get' | 'put',
+	client: unknown,
+	body?: unknown,
+): Promise<{ captured: CapturedResponse; thrown: unknown }> {
+	const { res, captured } = captureResponse();
+	let thrown: unknown = null;
+	const req = { params: { schoolId: String(SCHOOL), schoolYearId: String(YEAR) }, user: { role: 'officer' }, body };
+	await withDataContext(client, async () => {
+		try {
+			await operatorRouteHandler(method)(req, res, (e: unknown) => { thrown = e; });
+		} catch (e: unknown) {
+			thrown = e;
+		}
+	});
+	return { captured, thrown };
+}
+
+// A persisted pre-C07 row: the retired 120-minute constant at 45-minute periods.
+const OPERATOR_LEGACY_ROW = {
+	id: 1,
+	schoolId: SCHOOL,
+	schoolYearId: YEAR,
+	periodLengthMinutes: 45,
+	maxConsecutiveTeachingMinutesBeforeBreak: LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES,
+	constraintConfig: {},
+};
+
+test('C07A-R2: the operator GET displays the ENFORCED threshold for a persisted legacy 120 row', async () => {
+	const enforced = resolveMaxConsecutiveTeachingMinutesBeforeBreak(OPERATOR_LEGACY_ROW, 45);
+	assert.equal(enforced, 135, 'enforcement resolves the legacy 120 at 45-minute periods to 135');
+
+	const { captured, thrown } = await invokeOperatorRoute('get', makePolicyRouteClient(OPERATOR_LEGACY_ROW));
+	assert.equal(thrown, null, `the real GET handler must not throw (got ${String(thrown)})`);
+	const displayed = captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak;
+	assert.equal(displayed, 135, 'the GET response displays the enforced 135, not the raw persisted 120');
+	assert.equal(displayed, enforced, 'displayed === enforced at the real operator boundary');
+	assert.notEqual(displayed, OPERATOR_LEGACY_ROW.maxConsecutiveTeachingMinutesBeforeBreak, 'the raw persisted value must never be displayed');
+});
+
+test('C07A-R2: the operator PUT response displays the ENFORCED threshold while persistence stays raw', async () => {
+	const sink: PolicyRouteClientSink = {};
+	const { captured, thrown } = await invokeOperatorRoute(
+		'put',
+		makePolicyRouteClient(OPERATOR_LEGACY_ROW, sink),
+		{ maxConsecutiveTeachingMinutesBeforeBreak: LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES },
+	);
+	assert.equal(thrown, null, `the real PUT handler must not throw (got ${String(thrown)})`);
+	const displayed = captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak;
+	assert.equal(displayed, 135, 'the PUT response displays the enforced 135');
+	assert.equal(
+		displayed,
+		resolveMaxConsecutiveTeachingMinutesBeforeBreak({ maxConsecutiveTeachingMinutesBeforeBreak: LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES, periodLengthMinutes: 45 }, 45),
+		'displayed === enforced at the real operator boundary',
+	);
+	// Persistence semantics are UNCHANGED: the validated raw input is still what
+	// the upsert writes. Only the returned/displayed object is normalized.
+	assert.equal(sink.upsertArgs?.update.maxConsecutiveTeachingMinutesBeforeBreak, LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES, 'the stored row keeps the raw 120');
+	assert.equal(sink.upsertArgs?.create.maxConsecutiveTeachingMinutesBeforeBreak, LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES);
+});
+
+test('C07A-R2: an explicit slot-aligned 180 is preserved verbatim on GET and PUT', async () => {
+	const explicitRow = { ...OPERATOR_LEGACY_ROW, maxConsecutiveTeachingMinutesBeforeBreak: 180 };
+	const get = await invokeOperatorRoute('get', makePolicyRouteClient(explicitRow));
+	assert.equal(get.thrown, null, `the real GET handler must not throw (got ${String(get.thrown)})`);
+	assert.equal(get.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, 180, 'an explicit 180 survives the GET boundary');
+
+	const put = await invokeOperatorRoute('put', makePolicyRouteClient(OPERATOR_LEGACY_ROW), { maxConsecutiveTeachingMinutesBeforeBreak: 180 });
+	assert.equal(put.thrown, null, `the real PUT handler must not throw (got ${String(put.thrown)})`);
+	assert.equal(put.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, 180, 'an explicit 180 survives the PUT boundary');
+});
+
+test('C07A-R2: the default/absent case is period-aligned at the operator boundary', async () => {
+	// Persisted row with no usable value at the authoritative 45-minute period.
+	const absentRow = { ...OPERATOR_LEGACY_ROW, maxConsecutiveTeachingMinutesBeforeBreak: null };
+	const absent = await invokeOperatorRoute('get', makePolicyRouteClient(absentRow));
+	assert.equal(absent.thrown, null, `the real GET handler must not throw (got ${String(absent.thrown)})`);
+	assert.equal(absent.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, 135, 'absent resolves to 45 x 3');
+	assert.equal(absent.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, resolveDefaultMaxConsecutiveTeachingMinutes(45));
+
+	// A different authoritative period length scales the default.
+	const widerPeriodRow = { ...OPERATOR_LEGACY_ROW, periodLengthMinutes: 50, maxConsecutiveTeachingMinutesBeforeBreak: null };
+	const wider = await invokeOperatorRoute('get', makePolicyRouteClient(widerPeriodRow));
+	assert.equal(wider.thrown, null, `the real GET handler must not throw (got ${String(wider.thrown)})`);
+	assert.equal(wider.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, 150, 'the default follows the period length');
+
+	// No persisted row: the auto-created default row is likewise period-aligned.
+	const created = await invokeOperatorRoute('get', makePolicyRouteClient(null));
+	assert.equal(created.thrown, null, `the real GET handler must not throw (got ${String(created.thrown)})`);
+	assert.equal(created.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, resolveDefaultMaxConsecutiveTeachingMinutes(POLICY_DEFAULTS.periodLengthMinutes));
+	assert.equal(created.captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak, 135);
+});
+
+test('C07A-R2 mutant: reverting the operator boundary to the raw row fails the displayed === enforced control', async () => {
+	const enforced = resolveMaxConsecutiveTeachingMinutesBeforeBreak(OPERATOR_LEGACY_ROW, 45);
+	// Reproduce the pre-fix boundary: `getOrCreatePolicy` returned the existing row
+	// VERBATIM, so the operator GET/PUT boundary displayed the raw persisted 120.
+	const preFixDisplayed = { ...OPERATOR_LEGACY_ROW }.maxConsecutiveTeachingMinutesBeforeBreak;
+	assert.equal(preFixDisplayed, LEGACY_MAX_CONSECUTIVE_TEACHING_MINUTES, 'the raw boundary displays the legacy 120');
+	assert.notEqual(preFixDisplayed, enforced, 'the raw boundary violates displayed === enforced (120 !== 135)');
+
+	// The production boundary must NOT reproduce that mutant: it returns the
+	// enforced value and can never echo the raw persisted 120.
+	const { captured, thrown } = await invokeOperatorRoute('get', makePolicyRouteClient(OPERATOR_LEGACY_ROW));
+	assert.equal(thrown, null, `the real GET handler must not throw (got ${String(thrown)})`);
+	const displayed = captured.body?.policy?.maxConsecutiveTeachingMinutesBeforeBreak;
+	assert.equal(displayed, enforced, 'the production boundary returns the enforced value');
+	assert.notEqual(displayed, preFixDisplayed, 'reverting the boundary to the raw row would fail this assertion');
 });

@@ -324,6 +324,33 @@ export function resolveMaxConsecutiveTeachingMinutesBeforeBreak(
 	return raw;
 }
 
+/**
+ * C07A-R1 — operator display projection for the consecutive-teaching threshold.
+ *
+ * The operator policy read/display boundary (the policy GET response and the PUT
+ * response) must return the SAME effective value the constructor, preflight, and
+ * validator enforce. This projects an existing row through the ONE canonical
+ * resolver for the RETURNED object only: the persisted row keeps its stored
+ * bytes, and no new persisted value is computed. `getOrCreatePolicy` and
+ * `upsertPolicy` — the exact functions `scheduling-policy.router.ts` returns —
+ * both pass their result through this helper, so a persisted legacy 120 at
+ * 45-minute periods is displayed as the enforced 135.
+ */
+export interface SchedulingPolicyDisplayRow {
+	maxConsecutiveTeachingMinutesBeforeBreak?: unknown;
+	periodLengthMinutes?: unknown;
+}
+
+export function withResolvedConsecutiveTeachingThreshold<T extends SchedulingPolicyDisplayRow>(row: T): T {
+	return {
+		...row,
+		maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
+			row,
+			row.periodLengthMinutes,
+		),
+	} as T;
+}
+
 // ─── Exported policy shape (for cross-service use) ───
 
 export interface SchedulingPolicyData {
@@ -1038,18 +1065,21 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 		if (existing) {
 			const normalizedConstraintConfig = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
 			if (normalizedConstraintConfig !== existing.constraintConfig && normalizedConstraintConfig != null) {
-				return await db().schedulingPolicy.update({
+				return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.update({
 					where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 					data: { constraintConfig: normalizedConstraintConfig as Prisma.InputJsonValue },
-				});
+				}));
 			}
-			return existing;
+			// C07A-R1: the operator GET/PUT boundary returns the EFFECTIVE threshold,
+			// never the raw persisted row. A legacy 120 at 45-minute periods is
+			// displayed as the enforced 135 while the stored bytes stay 120.
+			return withResolvedConsecutiveTeachingThreshold(existing);
 		}
 
 		// Auto-create with defaults
-		return await db().schedulingPolicy.create({
+		return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.create({
 			data: { schoolId, schoolYearId, ...POLICY_DEFAULTS },
-		});
+		}));
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			if (!schemaDriftWarned) {
@@ -1100,13 +1130,7 @@ export async function resolveSchedulingPolicyForRead(
 		// C07A-R1: the read/display value must equal the enforced value. A persisted
 		// legacy 120 is normalized through the ONE canonical resolver, so the editor
 		// can never display a threshold the validator/constructor do not use.
-		const base = {
-			...existing,
-			maxConsecutiveTeachingMinutesBeforeBreak: resolveMaxConsecutiveTeachingMinutesBeforeBreak(
-				existing,
-				existing.periodLengthMinutes,
-			),
-		};
+		const base = withResolvedConsecutiveTeachingThreshold(existing);
 		const normalized = normalizeConstraintConfigPromotion(existing.constraintConfig as Prisma.JsonValue | null);
 		if (normalized !== existing.constraintConfig && normalized != null) {
 			return { ...base, constraintConfig: normalized };
@@ -1299,11 +1323,15 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 
 	try {
 		await ensureSchedulingPolicyColumns();
-		return await db().schedulingPolicy.upsert({
+		// C07A-R1: the PUT response is an operator display boundary. Return the
+		// EFFECTIVE threshold so the editor can never show a value the validator /
+		// constructor do not enforce. Persistence is untouched: the upsert above
+		// still stores exactly the validated input value.
+		return withResolvedConsecutiveTeachingThreshold(await db().schedulingPolicy.upsert({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			create: { schoolId, schoolYearId, ...prismaData },
 			update: prismaData,
-		});
+		}));
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
 			throw err(
