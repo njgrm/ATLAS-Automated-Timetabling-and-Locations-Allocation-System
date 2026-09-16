@@ -5,7 +5,7 @@
   "riskTier": "MEDIUM",
   "state": "PLANNED",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "After WF-TRANSITION-TERMINAL-RECONCILE-C09 releases its register revision window, register this stream atomically, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11 against docs/prompts/slot-break-authority-c11-2026-09-17.md.",
+  "nextAction": "At dispatch time (the WF-TRANSITION-TERMINAL-RECONCILE-C09 window is already released), set this spec's state to RUNNING with a populated running[], then register atomically with create-stream --lease-id lease-slot-break-authority-c11 --lease-role executor and activate the cycle; then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11 against docs/prompts/slot-break-authority-c11-2026-09-17.md. A PLANNED record may not hold an ACTIVE lease and no transition moves PLANNED to RUNNING.",
   "awaited": [],
   "running": [],
   "git": {

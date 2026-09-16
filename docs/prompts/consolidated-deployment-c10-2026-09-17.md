@@ -175,8 +175,23 @@ window and after `WF-C10-TRANSITION-GUARD-HARDENING` integrates. This packet is
 hash-pinned by `record-approval`, so record its pin as
 `blob <git-sha1> + LF-SHA-256 <hash> + the exact reproducing command` (never a
 working-copy-only hash; `docs/prompts/**` is LF-forced at checkout by the
-2026-09-17 decisions commit). Use
-`create-stream` with `ops/workflow/specs/register/CONSOLIDATED-DEPLOYMENT-C10.json`,
-then acquire one lease, then `record-approval` with the reviewed packet pin, then
-`record-execution` after the action. Re-read `registry.revision` before every
-transition; never guess a revision; never hand-edit the register.
+2026-09-17 decisions commit). Registration uses the atomic-lease form: a
+`PLANNED` record may not hold an `ACTIVE` lease (`PLANNED_WITH_LIVE_LEASE`),
+`lease-update` never changes a stream's state, and `create-stream` refuses lease
+flags unless the spec's state is `RUNNING`. So register at dispatch time with a
+`RUNNING` spec and one atomic
+
+```
+node ops/workflow/transition.mjs --transition create-stream \
+  --state docs/plans/atlas-delivery-cycles.json --expect-revision <R> \
+  --stream-spec ops/workflow/specs/register/CONSOLIDATED-DEPLOYMENT-C10.json \
+  --observed-origin-main <origin/main tip> \
+  --lease-id lease-consolidated-deployment-c10 --lease-role executor \
+  --by primary-planner:consolidated-deployment-c10-registration
+```
+
+followed by `coordination-update --mode CYCLE_ACTIVE --active-cycle-id
+CONSOLIDATED-DEPLOYMENT-C10 --by primary-planner:consolidated-deployment-c10-registration`,
+then `record-approval` with the reviewed packet pin, then `record-execution`
+after the action. Re-read `registry.revision` before every transition; never
+guess a revision; never hand-edit the register.
