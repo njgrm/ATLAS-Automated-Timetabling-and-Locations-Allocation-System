@@ -1,5 +1,41 @@
 # Changelog
 
+## [2026-09-16] — PUBLISHED-IMMUTABILITY-C08/C08R1 Published Revision Immutability
+
+### Added
+- Frozen published-identity snapshot stored in the base
+  `PublishedScheduleRevision.metadata.publishedIdentitySnapshot` JSON at
+  publication time (subject/faculty/section/room/building/specialization/
+  cohort/display-slot/special-event/policy/ordered-term identity). No migration.
+- `snapshotState: 'FROZEN' | 'LEGACY_LIVE_PROJECTION'` plus a typed `snapshotGaps`
+  list on published payloads; legacy revisions no longer claim immutable
+  reproduction.
+- Frozen-contract term authority for archived/published per-term reads and every
+  official export (`resolveRequestedTermIndexFromContract`).
+- New disposable-PostgreSQL suite `published-immutability-c08.test.ts` (real
+  `publishSchedule`, three-term MATH + BIO/CHEM/PHYSICS fixture, 10 live-mutation
+  categories, archived reads/exports, `:termId` family, replay, zero-residue).
+
+### Changed
+- Published reads and all official exports (public schedule, faculty schedule,
+  Section/Class Program, Teacher Program, Room Program, Summary workbook,
+  class-program matrix) resolve frozen values first; no live rehydration.
+- `GET /schools/:schoolId/schedules/published/:termId` treats `termId` as term
+  identity within the resolved published school year, never a `schoolYearId`.
+- Current-year published metadata corrected: active year reports
+  `isActiveSchoolYear: true`; archived years are never elected current.
+- Faculty synchronization no longer sets a published run to `FAILED` or clears
+  `isPublished`; drift is a typed audited marker that copies through.
+
+### Fixed
+- C08R1: the snapshot-consistency gate now accepts the real producer's
+  contained/snapped Monday Flag/HGP overlay (`06:45-07:30`) via containment +
+  day-scope authority, instead of exact interval identity (which rejected the
+  canonical production publication with 422).
+- C08R1: faculty-sync invalidation no longer re-asserts `isPublished: true` on a
+  superseded run (which produced two published runs and `PUBLISHED_RUN_AMBIGUOUS`
+  on every published read/export).
+
 ## [2026-09-14] — TT-SOURCE-FRESHNESS-C04 Source-Authority Binding
 
 ### Added
