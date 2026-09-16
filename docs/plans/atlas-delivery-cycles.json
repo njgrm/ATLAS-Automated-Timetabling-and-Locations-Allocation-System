@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T05:24:08.690Z",
+    "lastUpdatedAt": "2026-09-16T05:26:07.754Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 160
+    "revision": 163
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "TERM-CACHE-CATCHUP-APPLY-2026-09-14: operator ACKNOWLEDGED the F2 deviation (2026-09-16) and directed that the persisted term authority be RETAINED. Not retroactive authorization and NOT precedent: a divergence from an approved pre-state comparison is a STOP condition (PLANNER_DECISION_REQUIRED), not a planner judgement call. No rollback, replay, second login or further live mutation is authorized. No rollback was performed; the reviewed rollback trigger was not reached. Term-cache register custody RELEASED by the operator; the executed-but-not-closable machine-state limitation (no supported transition from HIGH_APPROVAL_REQUIRED to ACCEPTED/INTEGRATED for an executed HIGH action) remains recorded pending a workflow transition correction. RETAINED DATA: mirror 223 school 1 / year 9 carries term_contract_cache (semanticRevision a51b62a2..., TRIMESTER T1/T2/T3) and term_contract_cached_at 2026-09-16T03:59:21.236Z; audit 796 LOCAL_LOGIN_SUCCESS, 797 TERM_CACHE_SYNC_APPLIED. Authoritative stream record: docs/reviews/term-cache-catchup-apply-20260914/apply-execution-evidence.md sections 10-11. NEXT ORDINARY WORK: bounded TERM-AUTHORITY-STALE-C07 source correction at atlas-server/src/services/generation-preflight.service.ts:636-637 with a failing-first control, then fresh QA. STILL LOCKED: generation, publication, migrations 0002_companion_sso_code + 0003_teacher_program_presentation, deployment/restart/env change, Teaching Load apply, rollover sync/archive."
+    "globalNextAction": "AUTHZ-CLASS-TEMPLATE-C07 / C07R1 CLOSED: the class-template authority correction is COMPLETE. Round-1 candidate 19f21729 was integrated at f5731fc7 and its Wave Completion Auditor returned CORRECTION_REQUIRED (preserved as historical); the corrected round C07R1 (candidate dd8faf6b over base 19f21729, integration d15be919, still an ancestor of the observed tip) passed fresh QA ACCEPT_READY 12/12/0/0/0 and a fresh Wave Completion Auditor AUDIT_CLEAR 12/12/0/0/0, is closed COMPLETE with receipt docs/plans/receipts/authz-class-template-c07r1.receipt.json, and is pushed. workflow:test was green 287/287 on the first clean run from the cycle integration worktree. Capsules: docs/reviews/authz-class-template-c07/wave-completion-audit.md (labelled reconstruction, historical) and docs/reviews/authz-class-template-c07r1/wave-completion-audit.md. REGISTER CUSTODY RELEASED to GENERATION-AUTHORITY-REALISM-C07: this planner holds no lock, no ACTIVE lease and no open stream, and both class cycle worktrees are retired non-forced with branches preserved. STILL LOCKED: AUTHZ-CLASS-TEMPLATE-LIVE (HIGH deployment of the corrected authority, because the live release 54dce67b still serves the pre-fix unauthenticated cross-tenant write-on-read route, deployed router blob 2b77bbee) has no packet, no approval and no grant. TERM-CACHE-CATCHUP-APPLY-2026-09-14: operator ACKNOWLEDGED the F2 deviation (2026-09-16) and directed that the persisted term authority be RETAINED. Not retroactive authorization and NOT precedent: a divergence from an approved pre-state comparison is a STOP condition (PLANNER_DECISION_REQUIRED), not a planner judgement call. No rollback, replay, second login or further live mutation is authorized. No rollback was performed; the reviewed rollback trigger was not reached. Term-cache register custody RELEASED by the operator; the executed-but-not-closable machine-state limitation (no supported transition from HIGH_APPROVAL_REQUIRED to ACCEPTED/INTEGRATED for an executed HIGH action) remains recorded pending a workflow transition correction. RETAINED DATA: mirror 223 school 1 / year 9 carries term_contract_cache (semanticRevision a51b62a2..., TRIMESTER T1/T2/T3) and term_contract_cached_at 2026-09-16T03:59:21.236Z; audit 796 LOCAL_LOGIN_SUCCESS, 797 TERM_CACHE_SYNC_APPLIED. Authoritative stream record: docs/reviews/term-cache-catchup-apply-20260914/apply-execution-evidence.md sections 10-11. NEXT ORDINARY WORK: bounded TERM-AUTHORITY-STALE-C07 source correction at atlas-server/src/services/generation-preflight.service.ts:636-637 with a failing-first control, then fresh QA. STILL LOCKED: generation, publication, migrations 0002_companion_sso_code + 0003_teacher_program_presentation, deployment/restart/env change, Teaching Load apply, rollover sync/archive."
   },
   "streams": [
     {
@@ -2976,10 +2976,10 @@
       "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T23:43:07.808Z",
-      "nextAction": "Round-1 findings adjudication held; the bounded correction round was delivered as AUTHZ-CLASS-TEMPLATE-C07R1 (base 19f21729, candidate dd8faf6b, integrated at d15be919) whose fresh Wave Completion Auditor returned AUDIT_CLEAR 12/12/0/0/0. F2 subjectIds actor-school binding fixed on both write paths. F3 Audit.tsx false-green coverage for an empty template list fixed. F4 stale register next-action text rewritten. F1 live exposure CONFIRMED STILL LIVE: release 54dce67b serves the pre-fix unauthenticated write-on-read route (deployed router blob 2b77bbee equals base 917da8be); its only closure is a separately authored HIGH deployment packet under exact operator approval (locked successor AUTHZ-CLASS-TEMPLATE-LIVE, NOT granted, no packet prepared). Residual recorded: AUTHZ-CLASS-TEMPLATE-EMPTY-BUNDLE.",
+      "stateUpdatedAt": "2026-09-16T05:25:12.305Z",
+      "nextAction": "Historical round-1 integration boundary for the class-template authority correction; its Wave Completion Auditor returned CORRECTION_REQUIRED (F1 live exposure, F2 subjectIds cross-tenant disclosure, F3 Audit false-green coverage, F4 stale register text) and that verdict is preserved as historical. The corrected closing verdict is AUTHZ-CLASS-TEMPLATE-C07R1 (candidate dd8faf6b, integration d15be919, QA ACCEPT_READY 12/12/0/0/0, fresh Wave Completion Auditor AUDIT_CLEAR 12/12/0/0/0), closed COMPLETE with receipt docs/plans/receipts/authz-class-template-c07r1.receipt.json. No further work belongs to this stream; the only open item is the locked HIGH successor AUTHZ-CLASS-TEMPLATE-LIVE, which has no packet and no approval.",
       "awaited": [
-        "AUTHZ-CLASS-TEMPLATE-C07R1 delivered as AUDIT_CLEAR; remaining items are the docs-only reconciliation, the closure receipt and worktree retirement"
+        "AUTHZ-CLASS-TEMPLATE-C07R1 closed COMPLETE with its receipt; the only open item is the locked HIGH successor AUTHZ-CLASS-TEMPLATE-LIVE (no packet, no approval)"
       ],
       "running": [],
       "git": {
@@ -2997,8 +2997,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "f5731fc79c71140a34609eea4221022f9ccfd416",
-          "observedAt": "2026-09-15T22:52:31.051Z",
+          "sha": "fbb2367bbfcf0b8cbdecdb14a9c17964d5fea108",
+          "observedAt": "2026-09-16T05:25:12.305Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -3505,7 +3505,7 @@
       "objective": "Bounded correction round for AUTHZ-CLASS-TEMPLATE-C07 closing the two accepted blocking findings of its Wave Completion Audit while preserving every previously accepted gate: (R2) bind class-template subject bundles to the actor school so a foreign subjectId can no longer be bound and then projected through the actor's own GET, and (R3) stop atlas-client Audit.tsx from claiming section coverage when the template list is empty after the write-on-read removal. Fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-16T05:23:26.157Z",
+      "stateUpdatedAt": "2026-09-16T05:24:58.706Z",
       "nextAction": "Closed COMPLETE on the corrected tree. Correction candidate dd8faf6b over base 19f21729, integrated at merge d15be919 (still an ancestor of origin/main), QA ACCEPT_READY 12/12/0/0/0, fresh Wave Completion Auditor AUDIT_CLEAR 12/12/0/0/0, merged-tree combined gates green, workflow:test 287/287 on the first run from the clean cycle worktree. Packet: docs/prompts/authz-class-template-c07-2026-09-16.md. Capsules: docs/reviews/authz-class-template-c07/wave-completion-audit.md (round-1 CORRECTION_REQUIRED, historical) and docs/reviews/authz-class-template-c07r1/wave-completion-audit.md (closing AUDIT_CLEAR). Locked HIGH successor AUTHZ-CLASS-TEMPLATE-LIVE registered; no packet and no approval exist.",
       "awaited": [],
       "running": [],
@@ -3525,8 +3525,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "d15be91992bd1dfe190363366562c22456a1125f",
-          "observedAt": "2026-09-15T23:29:29.931Z",
+          "sha": "fbb2367bbfcf0b8cbdecdb14a9c17964d5fea108",
+          "observedAt": "2026-09-16T05:24:58.706Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
