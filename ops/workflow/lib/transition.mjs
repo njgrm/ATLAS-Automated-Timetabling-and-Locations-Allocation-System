@@ -11,7 +11,15 @@
 // state document, the rendered register, or any receipt file.
 import fs from "node:fs";
 import path from "node:path";
-import { verifyStateDocument, TERMINAL_STATES } from "./verify.mjs";
+import {
+  verifyStateDocument,
+  TERMINAL_STATES,
+  RESOLUTION_DISPOSITIONS,
+  REPAIRABLE_ERROR_CODES,
+  repairableErrorTuples,
+  resolveHeartbeats,
+  normalizeNowMs,
+} from "./verify.mjs";
 import { renderRegister, GENERATED_NOTICE } from "./render.mjs";
 import { sha256Hex, stageFileSync, commitStagedSync, discardStagedSync } from "./util.mjs";
 import { resolveRepoRoot, createGitMemo } from "./git.mjs";
@@ -19,6 +27,7 @@ import { buildReceipt, receiptPathFor } from "./receipt.mjs";
 import { acquireLock, releaseLock } from "./lock.mjs";
 import { loadSchema, validateValue, isPlainObject } from "./schema.mjs";
 import { containsSecret } from "./redact.mjs";
+import { DEFAULT_ACTIVE_WINDOW_MS, ageMs } from "./liveness.mjs";
 
 export const DEFAULT_RENDER_REL = "docs/plans/atlas-active-delivery-streams.generated.md";
 
@@ -255,6 +264,116 @@ export const QA_VERDICTS = ["ACCEPT_READY", "CORRECTION_REQUIRED", "PLANNER_DECI
 export const AUDITOR_VERDICTS = ["AUDIT_CLEAR", "CORRECTION_REQUIRED", "PLANNER_DECISION_REQUIRED"];
 export const LEASE_STATES = ["ACTIVE", "RETURNED", "IDLE", "ERROR", "STALE_UNCONFIRMED"];
 export const LEASE_ROLES = ["planner", "executor", "qa", "auditor"];
+export const BLOCKER_KINDS = ["NONE", "EXTERNAL", "DEPENDENCY", "APPROVAL", "INTERNAL"];
+
+// The complete schema-declared stream-state domain. `reconcile-stream` may edit
+// the residue of every state EXCEPT RUNNING: RUNNING is the one state whose
+// residue is itself a claim of live work, so it may only be exited through the
+// proof-gated `abandon-stream`, never edited in place.
+export const STREAM_STATES = [
+  "PLANNED",
+  "RUNNING",
+  "REVIEW_REQUIRED",
+  "CORRECTION_REQUIRED",
+  "ACCEPT_READY",
+  "INTEGRATION_READY",
+  "INTEGRATED",
+  "DECISION_REQUIRED",
+  "HIGH_APPROVAL_REQUIRED",
+  "BLOCKED",
+  "EXTERNALLY_BLOCKED",
+  "SUPERSEDED",
+  "CLOSED",
+  "COMPLETE",
+];
+export const RECONCILE_FROM_STATES = STREAM_STATES.filter((state) => state !== "RUNNING");
+
+// Parse a `--x <json array of strings>` flag with the same validation style the
+// existing `--awaited`/`--running` round-trip flags use.
+function parseStringArrayFlag(flagName, raw, code, errPath) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new TransitionError(code, `--${flagName} must be valid JSON: ${err.message}`, errPath);
+  }
+  if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "string")) {
+    throw new TransitionError(code, `--${flagName} must be a JSON array of strings`, errPath);
+  }
+  return parsed;
+}
+
+/** True when multiset `candidate` is a sub-multiset of multiset `current`. */
+export function isSubMultiset(candidate, current) {
+  const available = new Map();
+  for (const key of current) available.set(key, (available.get(key) || 0) + 1);
+  for (const key of candidate) {
+    const remaining = available.get(key) || 0;
+    if (remaining === 0) return false;
+    available.set(key, remaining - 1);
+  }
+  return true;
+}
+
+// ---- Registry revision windows (R2.10) ------------------------------------
+// A window reserves the revisions in [fromRevision, toRevision] for one holder.
+// Every transition checks before mutating: inside a held span, only the holder
+// may proceed. The holder's identity is an attestation at the same trust level
+// as `--by`; a window grants no state authority and never edits anything itself.
+const TERMINAL_WINDOW_RELEASE_STATES = new Set(["INTEGRATED", "COMPLETE", "CLOSED", "SUPERSEDED"]);
+
+function readWindows(doc) {
+  return Array.isArray(doc.registry.windows) ? doc.registry.windows : [];
+}
+
+/** Materialize `registry.windows` only when a window is actually being declared. */
+function ensureWindows(doc) {
+  if (!Array.isArray(doc.registry.windows)) doc.registry.windows = [];
+  return doc.registry.windows;
+}
+
+/** True when this transition is the window holder's own step. */
+function isWindowHolder(window, { by, targetStreamId }) {
+  if (nonEmpty(by) && by === window.holder) return true;
+  if (nonEmpty(targetStreamId) && targetStreamId === window.streamId) return true;
+  return false;
+}
+
+/**
+ * Fail closed (zero mutation, no receipt, render byte-identical) when the
+ * register revision falls inside a held span and the caller is not the holder.
+ * Runs before any candidate is produced.
+ */
+function assertRevisionWindowFree(doc, { by, targetStreamId }) {
+  for (const window of readWindows(doc)) {
+    if (!(window.fromRevision <= doc.registry.revision && doc.registry.revision <= window.toRevision)) continue;
+    if (isWindowHolder(window, { by, targetStreamId })) continue;
+    throw new TransitionError(
+      "TRANSITION_REVISION_WINDOW_HELD",
+      `revision ${doc.registry.revision} is reserved by "${window.holder}" (${window.streamId}, ${window.fromRevision}..${window.toRevision}); only the holder may transition inside the span`,
+      "$.registry.windows",
+    );
+  }
+}
+
+/**
+ * Automatic release: a window disappears in the same candidate in which its
+ * holder stream reaches a terminal state. The `windows` key stays lazily
+ * materialized: a document that declares no window keeps no empty key. Returns
+ * the number released.
+ */
+function releaseWindowsForTerminalHolders(doc) {
+  const windows = readWindows(doc);
+  const kept = windows.filter((window) => {
+    const holder = doc.streams.find((stream) => stream.id === window.streamId);
+    return !(holder && TERMINAL_WINDOW_RELEASE_STATES.has(holder.state));
+  });
+  if (kept.length !== windows.length) {
+    if (kept.length === 0) delete doc.registry.windows;
+    else doc.registry.windows = kept;
+  }
+  return windows.length - kept.length;
+}
 
 export const TRANSITIONS = {
   "record-executor-return": {
@@ -571,13 +690,275 @@ export const TRANSITIONS = {
     },
   },
 
+  // Atomic residue reconciliation with NO state change. Every state whose
+  // residue is not itself a claim of live work is reconcilable; RUNNING is
+  // excluded because its residue IS the live-work claim (§3.1).
+  "reconcile-stream": {
+    from: RECONCILE_FROM_STATES,
+    optional: [
+      "awaited",
+      "running",
+      "next-action",
+      "blocker-kind",
+      "blocker-detail",
+      "blocker-safe-work-remaining",
+      "blocker-safe-work-items",
+    ],
+    required: [],
+    apply(ctx) {
+      const { stream, flags } = ctx;
+      const applicable = [
+        "awaited",
+        "running",
+        "next-action",
+        "blocker-kind",
+        "blocker-detail",
+        "blocker-safe-work-remaining",
+        "blocker-safe-work-items",
+      ].filter((name) => flags[name] !== undefined);
+      if (applicable.length === 0) {
+        throw new TransitionError(
+          "TRANSITION_RECONCILE_NO_CHANGES",
+          "reconcile-stream requires at least one of --awaited, --running, --next-action, --blocker-kind, --blocker-detail, --blocker-safe-work-remaining, --blocker-safe-work-items",
+          "$.flags",
+        );
+      }
+
+      if (flags["blocker-kind"] !== undefined) {
+        if (!BLOCKER_KINDS.includes(flags["blocker-kind"])) {
+          throw new TransitionError(
+            "TRANSITION_BLOCKER_KIND_INVALID",
+            `--blocker-kind must be one of ${BLOCKER_KINDS.join(", ")}, got "${flags["blocker-kind"]}"`,
+            "$.blocker.kind",
+          );
+        }
+        stream.blocker.kind = flags["blocker-kind"];
+      }
+      if (flags["blocker-detail"] !== undefined) stream.blocker.detail = flags["blocker-detail"];
+      if (flags["blocker-safe-work-items"] !== undefined) {
+        stream.blocker.safeWorkItems = parseStringArrayFlag(
+          "blocker-safe-work-items",
+          flags["blocker-safe-work-items"],
+          "TRANSITION_BLOCKER_ITEMS_INVALID",
+          "$.blocker.safeWorkItems",
+        );
+      }
+      // Strict boolean: only the exact strings "true"/"false" are accepted, so
+      // `1`, `0`, `yes` and an empty value cannot be read as a boolean.
+      if (flags["blocker-safe-work-remaining"] !== undefined) {
+        const raw = flags["blocker-safe-work-remaining"];
+        if (raw !== "true" && raw !== "false") {
+          throw new TransitionError(
+            "TRANSITION_BLOCKER_FLAG_INVALID",
+            `--blocker-safe-work-remaining must be exactly "true" or "false", got "${raw}"`,
+            "$.blocker.safeWorkRemaining",
+          );
+        }
+        stream.blocker.safeWorkRemaining = raw === "true";
+      }
+      // Blocker fields apply individually; an unset field keeps its prior value.
+      // Enforcing the invariant here makes the transition trip-proof for the
+      // verifier's BLOCKER_INCONSISTENT instead of relying on it.
+      if (stream.blocker.safeWorkRemaining !== stream.blocker.safeWorkItems.length > 0) {
+        throw new TransitionError(
+          "TRANSITION_BLOCKER_INCONSISTENT",
+          "blocker.safeWorkRemaining must equal (blocker.safeWorkItems.length > 0) after reconciling",
+          "$.blocker",
+        );
+      }
+      return { state: undefined, defaults: null };
+    },
+  },
+
+  // The documented terminal exit for DECISION_REQUIRED: records who resolved
+  // the decision and what the resolution was, and clears the live-work residue.
+  "resolve-decision": {
+    from: ["DECISION_REQUIRED"],
+    optional: ["superseded-by", "next-action", "disposition", "resolver", "resolution"],
+    required: ["disposition", "resolver", "resolution", "next-action"],
+    apply(ctx) {
+      const { doc, stream, flags, nowIso } = ctx;
+      const disposition = flags.disposition;
+      if (!RESOLUTION_DISPOSITIONS.includes(disposition)) {
+        throw new TransitionError(
+          "TRANSITION_DISPOSITION_INVALID",
+          `--disposition must be one of ${RESOLUTION_DISPOSITIONS.join(", ")}, got "${disposition}"`,
+          "$.resolution.disposition",
+        );
+      }
+      const hasSupersededBy = flags["superseded-by"] !== undefined;
+      if (disposition === "SUPERSEDED" && !nonEmpty(flags["superseded-by"])) {
+        throw new TransitionError(
+          "TRANSITION_SUPERSEDED_BY_REQUIRED",
+          "--disposition SUPERSEDED requires --superseded-by <stream-id>: a superseded decision must name its replacement",
+          "$.resolution.supersededBy",
+        );
+      }
+      if (disposition === "CLOSED" && hasSupersededBy) {
+        throw new TransitionError(
+          "TRANSITION_SUPERSEDED_BY_NOT_APPLICABLE",
+          "--superseded-by is not applicable to --disposition CLOSED",
+          "$.resolution.supersededBy",
+        );
+      }
+      const supersededBy = nonEmpty(flags["superseded-by"]) ? flags["superseded-by"] : null;
+      if (supersededBy !== null) {
+        const replacement = doc.streams.find((candidate) => candidate.id === supersededBy);
+        if (!replacement) {
+          throw new TransitionError(
+            "TRANSITION_SUPERSEDED_BY_UNKNOWN",
+            `--superseded-by "${supersededBy}" is not a defined stream`,
+            "$.resolution.supersededBy",
+          );
+        }
+        if (replacement.id === stream.id) {
+          throw new TransitionError(
+            "TRANSITION_SUPERSEDED_BY_SELF",
+            "--superseded-by may not name the stream being resolved",
+            "$.resolution.supersededBy",
+          );
+        }
+        if (replacement.state === "SUPERSEDED" || replacement.state === "CLOSED") {
+          throw new TransitionError(
+            "TRANSITION_SUPERSEDED_BY_DEAD",
+            `--superseded-by "${supersededBy}" is ${replacement.state}; the replacement must not itself be resolved-away`,
+            "$.resolution.supersededBy",
+          );
+        }
+      }
+      stream.resolution = {
+        disposition,
+        resolver: flags.resolver,
+        text: flags.resolution,
+        resolvedAt: nowIso,
+        supersededBy,
+      };
+      stream.running = [];
+      stream.awaited = [];
+      return { state: disposition, defaults: null };
+    },
+  },
+
+  // The proof-gated exit from RUNNING (and a PLANNED re-abandon). It refuses
+  // while an ACTIVE lease or a fresh heartbeat still attests live work, so an
+  // unjustified RUNNING declaration can only be removed with evidence that the
+  // work is gone. The engine-level repair-read (R2.5) is what lets it read a
+  // document that still carries the liveness defect, and the monotonicity gate
+  // is what stops it from leaving an equal or larger defect behind.
+  "abandon-stream": {
+    from: ["RUNNING", "PLANNED"],
+    optional: ["awaited", "reason", "next-action"],
+    required: ["reason", "next-action"],
+    apply(ctx) {
+      const { stream, flags, heartbeats, unreadableHeartbeats, nowMs, activeWindowMs } = ctx;
+      const activeLease = (Array.isArray(ctx.doc.leases) ? ctx.doc.leases : []).find(
+        (lease) => lease.streamId === stream.id && lease.state === "ACTIVE",
+      );
+      if (activeLease) {
+        throw new TransitionError(
+          "TRANSITION_ABANDON_ACTIVE_LEASE",
+          `lease ${activeLease.id} is ACTIVE for ${stream.id}; a lease may only be returned after the stream has left RUNNING`,
+          "$.leases",
+        );
+      }
+      const naming = heartbeats.filter((record) => record && record.stream === stream.id);
+      const ages = naming.map((record) => ageMs(record, nowMs)).filter((age) => age !== null);
+      const freshestAgeMs = ages.length > 0 ? Math.min(...ages) : null;
+      if (freshestAgeMs !== null && freshestAgeMs <= activeWindowMs) {
+        throw new TransitionError(
+          "TRANSITION_ABANDON_FRESH_HEARTBEAT",
+          `a heartbeat naming ${stream.id} is ${freshestAgeMs}ms old, inside the ${activeWindowMs}ms active window; the stream is not abandoned`,
+          "$.blocker",
+        );
+      }
+      stream.running = [];
+      // An unreadable heartbeat file is not "a heartbeat newer than the window",
+      // so it does not block by itself; it is disclosed below and in the README.
+      return {
+        state: "PLANNED",
+        defaults: { awaited: [] },
+        heartbeatEvidence: {
+          recordsNamingStream: naming.length,
+          freshestAgeMs,
+          activeWindowMs,
+          unreadableFiles: unreadableHeartbeats,
+        },
+      };
+    },
+  },
+
+  // Refreshes exactly one stale artifact attestation on a settled stream. It
+  // exists because a sanctioned schema/source edit invalidates an existing pin
+  // and no other transition could repair an attestation. It may refresh an
+  // existing entry only: it can neither add nor remove a pin, and the caller
+  // must present the bytes whose hash it claims.
+  "refresh-artifact-pin": {
+    from: ["COMPLETE", "INTEGRATED", "CLOSED"],
+    fromErrorCode: "TRANSITION_ARTIFACT_STATE_FORBIDDEN",
+    optional: ["artifact-path", "artifact-sha256", "reason"],
+    required: ["artifact-path", "artifact-sha256", "reason"],
+    apply(ctx) {
+      const { stream, flags, repoRoot, statePath } = ctx;
+      if (!["COMPLETE", "INTEGRATED", "CLOSED"].includes(stream.state)) {
+        throw new TransitionError(
+          "TRANSITION_ARTIFACT_STATE_FORBIDDEN",
+          `refresh-artifact-pin requires a settled stream (COMPLETE, INTEGRATED, CLOSED); ${stream.id} is ${stream.state}`,
+          "$.state",
+        );
+      }
+      const artifactPath = flags["artifact-path"];
+      if (!/^[0-9a-f]{64}$/.test(flags["artifact-sha256"])) {
+        throw new TransitionError(
+          "TRANSITION_ARTIFACT_SHA_INVALID",
+          "--artifact-sha256 must be a lowercase 64-hex digest",
+          "$.artifacts",
+        );
+      }
+      const index = stream.artifacts.findIndex((artifact) => artifact.path === artifactPath);
+      if (index === -1) {
+        throw new TransitionError(
+          "TRANSITION_ARTIFACT_NOT_PINNED",
+          `stream ${stream.id} carries no artifacts[] entry for "${artifactPath}"; a pin may be refreshed, never created`,
+          "$.artifacts",
+        );
+      }
+      // The file is resolved against the repository root exactly as artifact
+      // verification resolves it, and the claimed digest must equal the current
+      // working-tree bytes: a caller cannot invent a hash or pin bytes absent.
+      const base = repoRoot || path.dirname(statePath);
+      const filePath = path.resolve(base, artifactPath.split("/").join(path.sep));
+      let bytes;
+      try {
+        bytes = fs.readFileSync(filePath);
+      } catch (err) {
+        throw new TransitionError(
+          "TRANSITION_ARTIFACT_HASH_MISMATCH",
+          `artifact ${artifactPath} could not be read: ${err.message}`,
+          "$.artifacts",
+        );
+      }
+      const actual = sha256Hex(bytes);
+      if (actual !== flags["artifact-sha256"]) {
+        throw new TransitionError(
+          "TRANSITION_ARTIFACT_HASH_MISMATCH",
+          `artifact ${artifactPath} sha256 ${actual} != --artifact-sha256 ${flags["artifact-sha256"]}`,
+          "$.artifacts",
+        );
+      }
+      // Exactly one digest changes; the path, the array length, and every other
+      // field are untouched.
+      stream.artifacts[index].sha256 = flags["artifact-sha256"];
+      return { state: undefined, defaults: null, artifactRefresh: { path: artifactPath, sha256: actual } };
+    },
+  },
+
   // Atomic registration of one new stream. `--observed-origin-main` is the only
   // source of the machine-state evidence the created record carries, so an
   // author cannot assert a remote tip it did not observe. The transition adds
   // exactly one record; no other stream is touched.
   "create-stream": {
     scope: "create",
-    optional: ["stream-spec", "observed-origin-main"],
+    optional: ["stream-spec", "observed-origin-main", "lease-id", "lease-role", "lease-session", "lease-expires", "lease-worktree", "register-window-to", "register-window-holder"],
     required: ["stream-spec", "observed-origin-main"],
     apply(ctx) {
       const { doc, flags, repoRoot, git, nowIso } = ctx;
@@ -624,12 +1005,96 @@ export const TRANSITIONS = {
 
       assertClaimEvidenceConsistency(stream);
 
+      // Optional atomic lease creation. A RUNNING declaration needs machine
+      // evidence; creating the record and its ACTIVE lease in one transition is
+      // the only way to satisfy the verifier's live-evidence rule through the
+      // registration path. Supplying lease flags for a non-RUNNING record fails
+      // early with its own typed code rather than relying on the verifier's
+      // PLANNED_WITH_LIVE_LEASE.
+      const leaseFlagNames = ["lease-id", "lease-role", "lease-session", "lease-expires", "lease-worktree"];
+      const anyLeaseFlag = leaseFlagNames.some((name) => flags[name] !== undefined);
+      let boundLease = null;
+      if (anyLeaseFlag) {
+        if (!nonEmpty(flags["lease-id"])) {
+          throw new TransitionError(
+            "TRANSITION_LEASE_ID_REQUIRED",
+            "--lease-role/--lease-session/--lease-expires/--lease-worktree require --lease-id",
+            "$.leases",
+          );
+        }
+        if (!nonEmpty(flags["lease-role"])) {
+          throw new TransitionError("TRANSITION_LEASE_ROLE_REQUIRED", "--lease-id requires --lease-role", "$.leases");
+        }
+        if (!LEASE_ROLES.includes(flags["lease-role"])) {
+          throw new TransitionError(
+            "TRANSITION_LEASE_ROLE_INVALID",
+            `--lease-role must be planner, executor, qa, or auditor, got "${flags["lease-role"]}"`,
+            "$.leases",
+          );
+        }
+        if (stream.state !== "RUNNING") {
+          throw new TransitionError(
+            "TRANSITION_CREATE_LEASE_STATE_INVALID",
+            `an atomic lease may only accompany a RUNNING record; "${stream.id}" is ${stream.state}`,
+            "$.leases",
+          );
+        }
+        if (doc.leases.some((lease) => lease.id === flags["lease-id"])) {
+          throw new TransitionError("TRANSITION_LEASE_DUPLICATE_ID", `lease "${flags["lease-id"]}" is already defined`, "$.leases");
+        }
+        boundLease = {
+          id: flags["lease-id"],
+          streamId: stream.id,
+          worktree: nonEmpty(flags["lease-worktree"]) ? flags["lease-worktree"] : stream.git.worktree || null,
+          role: flags["lease-role"],
+          sessionId: nonEmpty(flags["lease-session"]) ? flags["lease-session"] : null,
+          state: "ACTIVE",
+          revision: 1,
+          updatedAt: nowIso,
+          expiresAt: nonEmpty(flags["lease-expires"]) ? flags["lease-expires"] : null,
+        };
+      }
+
       const created = cloneDoc(stream);
       created.git.remoteObservation = { ref: OBSERVATION_REF, sha: observed, observedAt: nowIso, kind: OBSERVATION_KIND };
       // The tool owns the transition timestamp so a spec cannot backdate state.
       created.stateUpdatedAt = nowIso;
       doc.streams.push(created);
-      return { createdStreamId: created.id };
+      if (boundLease) doc.leases.push(boundLease);
+
+      // Optional register revision-window reservation awarded to the new stream.
+      // `fromRevision` is the register revision at declaration, so the span is
+      // anchored to the record the spec actually observed.
+      let declaredWindow = null;
+      if (flags["register-window-holder"] !== undefined && flags["register-window-to"] === undefined) {
+        throw new TransitionError(
+          "TRANSITION_WINDOW_FLAG_REQUIRED",
+          "--register-window-holder requires --register-window-to",
+          "$.registry.windows",
+        );
+      }
+      if (flags["register-window-to"] !== undefined) {
+        const toRevision = Number(flags["register-window-to"]);
+        if (!Number.isInteger(toRevision) || toRevision < 1) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_INVALID",
+            `--register-window-to must be a positive integer, got "${flags["register-window-to"]}"`,
+            "$.registry.windows",
+          );
+        }
+        const fromRevision = doc.registry.revision;
+        if (toRevision < fromRevision) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_INVALID",
+            `--register-window-to ${toRevision} is below the declaration revision ${fromRevision}`,
+            "$.registry.windows",
+          );
+        }
+        const holder = nonEmpty(flags["register-window-holder"]) ? flags["register-window-holder"] : created.id;
+        declaredWindow = { streamId: created.id, fromRevision, toRevision, holder, declaredAt: nowIso };
+        ensureWindows(doc).push(declaredWindow);
+      }
+      return { createdStreamId: created.id, boundLease, declaredWindow };
     },
   },
 
@@ -698,11 +1163,117 @@ export const TRANSITIONS = {
     },
   },
 
-  "lease-update": {    from: null,
-    optional: ["lease-id", "lease-state", "lease-role", "lease-session", "lease-worktree", "lease-expires", "next-action", "awaited", "running"],
-    required: ["lease-id", "lease-state", "lease-role"],
+  "lease-update": {
+    from: null,
+    // When a window operation is requested it names its own target stream, so the
+    // selector falls back to it; a caller never has to repeat `--stream`.
+    streamSelectorFlags: ["window-declare", "release-window"],
+    optional: [
+      "lease-id",
+      "lease-state",
+      "lease-role",
+      "lease-session",
+      "lease-worktree",
+      "lease-expires",
+      "next-action",
+      "awaited",
+      "running",
+      "window-declare",
+      "window-from",
+      "window-to",
+      "window-holder",
+      "release-window",
+    ],
+    required: [],
     apply(ctx) {
       const { doc, stream, flags, nowIso } = ctx;
+      const hasDeclare = flags["window-declare"] !== undefined;
+      const hasRelease = flags["release-window"] !== undefined;
+      const leaseFlagNames = ["lease-id", "lease-state", "lease-role", "lease-session", "lease-worktree", "lease-expires"];
+      const anyLeaseFlag = leaseFlagNames.some((name) => flags[name] !== undefined);
+      if (hasDeclare && hasRelease) {
+        throw new TransitionError(
+          "TRANSITION_WINDOW_FLAGS_CONFLICT",
+          "--window-declare and --release-window are mutually exclusive",
+          "$.registry.windows",
+        );
+      }
+      if (!hasDeclare && !hasRelease && !anyLeaseFlag) {
+        throw new TransitionError(
+          "TRANSITION_LEASE_UPDATE_NO_CHANGES",
+          "lease-update requires a lease operation or a window operation",
+          "$.flags",
+        );
+      }
+
+      let windowOutcome = null;
+      if (hasRelease) {
+        const windows = readWindows(doc);
+        const index = windows.findIndex((window) => window.streamId === flags["release-window"]);
+        if (index === -1) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_UNKNOWN",
+            `--release-window names no declared window for stream "${flags["release-window"]}"`,
+            "$.registry.windows",
+          );
+        }
+        const window = windows[index];
+        // Explicit release is always available and is the documented remedy for a
+        // stuck holder. The engine-level window check has already established
+        // that this is the holder's own step: `--release-window <streamId>` names
+        // the window's own stream, so the target-stream branch of the holder
+        // predicate is satisfied. A window is an attestation at `--by`'s trust
+        // level, never an authority of its own.
+        windows.splice(index, 1);
+        windowOutcome = { released: window.streamId, holder: window.holder };
+      } else if (hasDeclare) {
+        const streamId = flags["window-declare"];
+        const target = doc.streams.find((candidate) => candidate.id === streamId);
+        if (!target) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_UNKNOWN_STREAM",
+            `--window-declare names undefined stream "${streamId}"`,
+            "$.registry.windows",
+          );
+        }
+        if (readWindows(doc).some((window) => window.streamId === streamId)) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_DUPLICATE",
+            `stream "${streamId}" already holds a declared revision window`,
+            "$.registry.windows",
+          );
+        }
+        const toRevision = Number(flags["window-to"]);
+        if (!Number.isInteger(toRevision) || toRevision < 1) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_INVALID",
+            `--window-to must be a positive integer, got "${flags["window-to"]}"`,
+            "$.registry.windows",
+          );
+        }
+        const fromRevision = flags["window-from"] !== undefined ? Number(flags["window-from"]) : doc.registry.revision;
+        if (!Number.isInteger(fromRevision) || fromRevision < 1) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_INVALID",
+            `--window-from must be a positive integer, got "${flags["window-from"]}"`,
+            "$.registry.windows",
+          );
+        }
+        if (toRevision < fromRevision) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_INVALID",
+            `--window-to ${toRevision} is below --window-from ${fromRevision}`,
+            "$.registry.windows",
+          );
+        }
+        const holder = nonEmpty(flags["window-holder"]) ? flags["window-holder"] : streamId;
+        const declared = { streamId, fromRevision, toRevision, holder, declaredAt: nowIso };
+        ensureWindows(doc).push(declared);
+        windowOutcome = { declared };
+      }
+
+      if (!anyLeaseFlag) return { state: undefined, defaults: null, window: windowOutcome };
+
       const state = flags["lease-state"];
       if (!LEASE_STATES.includes(state)) {
         throw new TransitionError("TRANSITION_LEASE_STATE_INVALID", `--lease-state must be one of ${LEASE_STATES.join(", ")}`, "$.leases");
@@ -710,6 +1281,9 @@ export const TRANSITIONS = {
       const role = flags["lease-role"];
       if (!["planner", "executor", "qa", "auditor"].includes(role)) {
         throw new TransitionError("TRANSITION_LEASE_ROLE_INVALID", "--lease-role must be planner, executor, qa, or auditor", "$.leases");
+      }
+      if (!nonEmpty(flags["lease-id"])) {
+        throw new TransitionError("TRANSITION_FLAG_REQUIRED", "lease-update lease operations require --lease-id", "$.flags.lease-id");
       }
       const id = flags["lease-id"];
       let lease = doc.leases.find((l) => l.id === id);
@@ -726,7 +1300,7 @@ export const TRANSITIONS = {
           expiresAt: flags["lease-expires"] || null,
         };
         doc.leases.push(lease);
-        return { state: undefined, defaults: null };
+        return { state: undefined, defaults: null, window: windowOutcome };
       }
       if (lease.streamId !== stream.id) {
         throw new TransitionError("TRANSITION_LEASE_STREAM_MISMATCH", `lease ${id} belongs to stream ${lease.streamId}, not ${stream.id}`, "$.leases");
@@ -738,13 +1312,26 @@ export const TRANSITIONS = {
       lease.expiresAt = flags["lease-expires"] !== undefined ? flags["lease-expires"] : lease.expiresAt;
       lease.revision += 1;
       lease.updatedAt = nowIso;
-      return { state: undefined, defaults: null };
+      return { state: undefined, defaults: null, window: windowOutcome };
     },
   },
 };
 
 export function listTransitions() {
   return Object.keys(TRANSITIONS).sort();
+}
+
+/**
+ * The stream a transition targets: an explicit `--stream`, else the first
+ * declared selector flag a spec names (a window operation names its own stream).
+ * A spec that declares no selector flags behaves exactly as before.
+ */
+function resolveTargetStreamId(spec, flags) {
+  if (nonEmpty(flags.stream)) return flags.stream;
+  for (const name of spec.streamSelectorFlags || []) {
+    if (nonEmpty(flags[name])) return flags[name];
+  }
+  return flags.stream;
 }
 
 function report(status, summary, errors, artifacts = [], nextActions = []) {
@@ -776,8 +1363,11 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       return failReport("TRANSITION_FLAG_REQUIRED", `transition ${transitionName} requires --${name}`, `$.flags.${name}`, baseSummary);
     }
   }
+  // `now` and `active-window-ms` are base flags: they configure the clock and
+  // the liveness window of this invocation and are read by the engine and BOTH
+  // verifications, so they are never "not applicable" to a transition.
   for (const name of Object.keys(flags)) {
-    if (["expect-revision", "state", "transition", "render", "by", "stream"].includes(name)) continue;
+    if (["expect-revision", "state", "transition", "render", "by", "stream", "now", "active-window-ms"].includes(name)) continue;
     if (!(spec.optional || []).includes(name)) {
       return failReport("TRANSITION_FLAG_NOT_APPLICABLE", `flag --${name} is not applicable to transition ${transitionName}`, `$.flags.${name}`, baseSummary);
     }
@@ -786,7 +1376,22 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
     return failReport("TRANSITION_EXPECT_REVISION_INVALID", "an integer --expect-revision is required for the CAS check", "$.expect-revision", baseSummary);
   }
   const expectRevision = Number(flags["expect-revision"]);
-  const streamId = flags.stream;
+  // A malformed window is a hard failure, never a silent fallback to the
+  // configured default (that would make the liveness verdict unreproducible).
+  const activeWindowMs = flags["active-window-ms"] === undefined ? DEFAULT_ACTIVE_WINDOW_MS : Number(flags["active-window-ms"]);
+  if (!Number.isInteger(activeWindowMs) || activeWindowMs <= 0) {
+    return failReport(
+      "TRANSITION_ACTIVE_WINDOW_INVALID",
+      `--active-window-ms must be a positive integer, got "${flags["active-window-ms"]}"`,
+      "$.active-window-ms",
+      baseSummary,
+    );
+  }
+  const nowMs = normalizeNowMs(now);
+  if (nowMs === null) {
+    return failReport("TRANSITION_NOW_INVALID", `--now must be an ISO-8601 timestamp, got "${now}"`, "$.now", baseSummary);
+  }
+  const streamId = resolveTargetStreamId(spec, flags);
   const repoRoot = resolveRepoRoot(stateDir);
 
   const lock = acquireLock({ repoRoot, transition: transitionName, streamId, statePath: stateAbs });
@@ -814,11 +1419,29 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
     }
     // Share Git fact resolution between the current and candidate validations.
     const git = gitMemo || createGitMemo();
-    const current = verifyStateDocument(stateAbs, { gitMemo: git });
+    // One heartbeat read per transition, from the state document's own Git
+    // common directory. The store is disclosed for `abandon-stream` and passed
+    // to both verifications so the current and candidate liveness verdicts are
+    // computed from identical evidence.
+    const store = resolveHeartbeats({}, repoRoot);
+    const heartbeats = store.heartbeats;
+    const unreadableHeartbeats = store.unreadableCount;
+    const verifyOptions = { gitMemo: git, heartbeats, now: nowMs, activeWindowMs };
+
+    const current = verifyStateDocument(stateAbs, verifyOptions);
+    // The sanctioned repair-read (R2.5). One engine-level rule, one closed set:
+    // the current document may be read when EVERY error it reports is in the
+    // repairable set, and the candidate may then carry only a sub-multiset of
+    // those repairable errors. No transition name, no CLI flag, and no per-class
+    // toggle participates. Any non-repairable current error still fails closed.
     if (!current.ok) {
-      const first = current.errors[0] || { code: "STATE_INVALID", message: "state failed verification" };
-      throw new TransitionError("TRANSITION_STATE_INVALID", `current state is not verifier-clean: ${first.code}: ${first.message}`, first.path);
+      const others = current.errors.filter((error) => !REPAIRABLE_ERROR_CODES.has(error.code));
+      if (others.length > 0 || !current.doc) {
+        const first = others[0] || current.errors[0] || { code: "STATE_INVALID", message: "state failed verification", path: "$" };
+        throw new TransitionError("TRANSITION_STATE_INVALID", `current state is not verifier-clean: ${first.code}: ${first.message}`, first.path);
+      }
     }
+    const currentRepairable = current.ok ? [] : repairableErrorTuples(current.errors);
     const doc = current.doc;
     if (doc.registry.revision !== expectRevision) {
       throw new TransitionError(
@@ -846,13 +1469,23 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       }
 
       if (spec.from && !spec.from.includes(stream.state)) {
-        throw new TransitionError("TRANSITION_INVALID_STATE", `stream ${stream.id} is ${stream.state}; ${transitionName} requires one of ${spec.from.join(", ")}`, "$.state");
+        throw new TransitionError(
+          spec.fromErrorCode || "TRANSITION_INVALID_STATE",
+          `stream ${stream.id} is ${stream.state}; ${transitionName} requires one of ${spec.from.join(", ")}`,
+          "$.state",
+        );
       }
     }
 
+    // The register revision-window reservation is checked before any mutation:
+    // inside a held span, only the holder's own step may proceed. A refusal
+    // stages nothing, so the state document, the rendered register, and every
+    // receipt stay byte-identical.
+    assertRevisionWindowFree(doc, { by: flags.by, targetStreamId: stream ? stream.id : null });
+
     const candidate = cloneDoc(doc);
     const candidateStream = documentScoped || createsStream ? null : candidate.streams.find((s) => s.id === stream.id);
-    const ctx = { doc: candidate, stream: candidateStream, flags, repoRoot, git, nowIso, statePath: stateAbs };
+    const ctx = { doc: candidate, stream: candidateStream, flags, repoRoot, git, nowIso, statePath: stateAbs, heartbeats, unreadableHeartbeats, nowMs, activeWindowMs };
     const outcome = spec.apply(ctx) || {};
 
     let createdStream = null;
@@ -875,6 +1508,11 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
         throw new TransitionError("TRANSITION_NEXT_ACTION_REQUIRED", `state ${candidateStream.state} requires a non-empty --next-action`, "$.nextAction");
       }
     }
+
+    // Automatic window release: a reservation disappears in the same candidate
+    // in which its holder stream reaches a terminal state. Explicit release via
+    // `lease-update --release-window` remains the remedy for a stuck holder.
+    releaseWindowsForTerminalHolders(candidate);
 
     candidate.registry.revision = expectRevision + 1;
     candidate.registry.lastUpdatedAt = nowIso;
@@ -899,10 +1537,25 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       if (receiptBytes && receiptPath && path.resolve(filePath) === path.resolve(receiptPath)) return receiptBytes;
       return undefined;
     };
-    const validated = verifyStateDocument(stateAbs, { stateBytes: nextBytes, resolveReceiptBytes, gitMemo: git });
+    const validated = verifyStateDocument(stateAbs, { ...verifyOptions, stateBytes: nextBytes, resolveReceiptBytes });
     if (!validated.ok) {
-      const first = validated.errors[0] || { code: "STATE_INVALID", message: "candidate state failed verification" };
-      throw new TransitionError("TRANSITION_RESULT_INVALID", `candidate state failed verification: ${first.code}: ${first.message}`, first.path);
+      // Repair-read gate: the tolerance is granted only for a repairable sub-multiset.
+      // Any non-repairable candidate error, a newly introduced repairable defect,
+      // or an equal-or-greater repairable count when one already exists fails
+      // closed. With a clean current document the candidate must be clean too.
+      const candidateOthers = validated.errors.filter((error) => !REPAIRABLE_ERROR_CODES.has(error.code));
+      if (candidateOthers.length > 0) {
+        const first = candidateOthers[0];
+        throw new TransitionError("TRANSITION_RESULT_INVALID", `candidate state failed verification: ${first.code}: ${first.message}`, first.path);
+      }
+      if (!isSubMultiset(repairableErrorTuples(validated.errors), currentRepairable)) {
+        const first = validated.errors[0];
+        throw new TransitionError(
+          "TRANSITION_REPAIR_NOT_MONOTONE",
+          `the repair-read tolerance requires the candidate's repairable errors to be a sub-multiset of the current document's; current [${currentRepairable.join(", ")}] -> candidate [${repairableErrorTuples(validated.errors).join(", ")}] (first: ${first.code})`,
+          "$.state",
+        );
+      }
     }
 
     const markdown = renderRegister(candidate, sha256Hex(nextBytes));
@@ -954,15 +1607,23 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       summary.fromState = stream.state;
       summary.toState = candidateStream.state;
       if (outcome.observation) summary.observation = outcome.observation;
+      // `abandon-stream` must disclose the heartbeat evidence it relied on: a
+      // read-only refusal is only auditable when the evidence is reported.
+      if (outcome.heartbeatEvidence) summary.heartbeatEvidence = outcome.heartbeatEvidence;
+      if (outcome.artifactRefresh) summary.artifactRefresh = outcome.artifactRefresh;
+      if (outcome.window) summary.window = outcome.window;
       nextActions = [{ streamId: candidateStream.id, nextAction: candidateStream.nextAction }];
     } else if (createdStream) {
       summary.streamId = createdStream.id;
       summary.created = true;
       summary.toState = createdStream.state;
       summary.observation = createdStream.git.remoteObservation;
+      summary.boundLeaseId = outcome.boundLease ? outcome.boundLease.id : null;
+      if (outcome.declaredWindow) summary.window = { declared: outcome.declaredWindow };
       nextActions = [{ streamId: createdStream.id, nextAction: createdStream.nextAction }];
     } else {
       summary.coordination = candidate.coordination;
+      if (outcome.window) summary.window = outcome.window;
     }
     return report("ok", summary, [], artifacts, nextActions);
   } catch (err) {

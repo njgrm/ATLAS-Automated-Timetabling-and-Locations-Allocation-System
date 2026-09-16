@@ -144,7 +144,19 @@
       }
     }
   ],
-  "leases": [],
+  "leases": [
+    {
+      "id": "lease-ord-1",
+      "streamId": "ORD-1",
+      "worktree": null,
+      "role": "planner",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-14T10:00:00+08:00",
+      "expiresAt": null
+    }
+  ],
   "browserCustody": {
     "profiles": [],
     "logins": []

@@ -16,11 +16,16 @@
 import process from "node:process";
 import { listTransitions, runTransition, TRANSITIONS } from "./lib/transition.mjs";
 
-const BASE_FLAGS = new Set(["transition", "state", "expect-revision", "stream", "render", "by", "now"]);
+const BASE_FLAGS = new Set(["transition", "state", "expect-revision", "stream", "render", "by", "now", "active-window-ms"]);
 const ALL_ALLOWED = new Set(BASE_FLAGS);
 for (const spec of Object.values(TRANSITIONS)) {
   for (const name of [...(spec.required || []), ...(spec.optional || [])]) ALL_ALLOWED.add(name);
 }
+
+// `--now` and `--active-window-ms` drive the liveness verdict, so a malformed
+// value is a usage error (exit 2) rather than a silent fallback to the wall
+// clock and the default window.
+const ISO_ARG_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 function emit(report) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -80,6 +85,17 @@ if (!flags.state) {
 if (!flags["expect-revision"]) {
   emit(usageReport("USAGE_MISSING_EXPECT_REVISION", 'missing required flag "--expect-revision"'));
   process.exit(2);
+}
+if (flags.now !== undefined && !ISO_ARG_RE.test(flags.now)) {
+  emit(usageReport("USAGE_INVALID_NOW", `--now must be an ISO-8601 timestamp, got "${flags.now}"`));
+  process.exit(2);
+}
+if (flags["active-window-ms"] !== undefined) {
+  const windowMs = Number(flags["active-window-ms"]);
+  if (!Number.isInteger(windowMs) || windowMs <= 0) {
+    emit(usageReport("USAGE_INVALID_ACTIVE_WINDOW", `--active-window-ms must be a positive integer, got "${flags["active-window-ms"]}"`));
+    process.exit(2);
+  }
 }
 // `create-stream` introduces two required flags whose absence is a usage error
 // (exit 2) rather than a transition failure, matching the base flags above.

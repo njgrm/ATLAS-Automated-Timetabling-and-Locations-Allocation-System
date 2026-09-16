@@ -16,10 +16,47 @@ import {
   createGitMemo,
   normalizePath,
   worktreeStatusPorcelain,
+  gitCommonDir,
 } from "./git.mjs";
 import { sha256Hex } from "./util.mjs";
 import { validateClosureReceipt } from "./receipt.mjs";
 import { GATE_CLASSES } from "./readiness.mjs";
+import { DEFAULT_ACTIVE_WINDOW_MS, ageMs } from "./liveness.mjs";
+import { observabilityPaths, listHeartbeats } from "./observability.mjs";
+
+// The live-evidence rule and the resolution rule codes. Exported so a caller
+// (the transition engine, the coverage map) can name them without restating the
+// literal.
+export const RUNNING_WITHOUT_LIVE_EVIDENCE = "RUNNING_WITHOUT_LIVE_EVIDENCE";
+export const RESOLUTION_INCONSISTENT = "RESOLUTION_INCONSISTENT";
+export const RESOLUTION_SUPERSEDED_BY_UNKNOWN = "RESOLUTION_SUPERSEDED_BY_UNKNOWN";
+export const WINDOW_INVALID = "WINDOW_INVALID";
+export const WINDOW_UNKNOWN_STREAM = "WINDOW_UNKNOWN_STREAM";
+// The closed repairable-class set (R2.5). These are the only verifier errors a
+// transition may read on the CURRENT document and may still carry on the
+// candidate, and only when the candidate's repairable multiset is a sub-multiset
+// of the current one. Every other code is never tolerated.
+export const REPAIRABLE_ERROR_CODES = new Set([RUNNING_WITHOUT_LIVE_EVIDENCE, "ARTIFACT_HASH_MISMATCH"]);
+
+/**
+ * The sorted `code|path` tuples, with multiplicity, of the repairable errors in
+ * `errors`. Two independent repairable defect classes must be able to coexist
+ * during repair, so the comparison is over the whole multiset rather than over
+ * one class at a time (a per-class strict-subset rule deadlocks when the two
+ * classes guard each other).
+ */
+export function repairableErrorTuples(errors) {
+  return errors
+    .filter((error) => REPAIRABLE_ERROR_CODES.has(error.code))
+    .map((error) => `${error.code}|${error.path}`)
+    .sort();
+}
+// A malformed clock/window is never silently replaced by the wall clock.
+export const STATE_NOW_INVALID = "STATE_NOW_INVALID";
+export const STATE_ACTIVE_WINDOW_INVALID = "STATE_ACTIVE_WINDOW_INVALID";
+export const STATE_SCOPE_MISMATCH = "STATE_SCOPE_MISMATCH";
+export const RESOLUTION_DISPOSITIONS = ["SUPERSEDED", "CLOSED"];
+export const USER_RESOLVED_STATES = new Set(["SUPERSEDED", "CLOSED"]);
 
 const NEXT_ACTION_STATES = new Set([
   "PLANNED",
@@ -61,6 +98,92 @@ function sortedKeys(obj) {
 function setDiff(a, b) {
   const other = new Set(b);
   return a.filter((item) => !other.has(item));
+}
+
+// ---- Live-evidence helpers (RUNNING_WITHOUT_LIVE_EVIDENCE) -----------------
+//
+// A RUNNING declaration is a claim that work is in flight. It is only admitted
+// when the document itself carries machine evidence for it: an ACTIVE lease
+// bound to the stream, or a heartbeat record naming the stream that is inside
+// the configured window. `running[]` prose is a description, never evidence.
+
+/** Normalize `now` (Date | epoch ms | ISO string) to epoch ms, or null. */
+export function normalizeNowMs(now) {
+  if (now === undefined || now === null) return Date.now();
+  if (now instanceof Date) return Number.isNaN(now.getTime()) ? null : now.getTime();
+  if (typeof now === "number") return Number.isFinite(now) ? now : null;
+  if (typeof now === "string") {
+    const parsed = Date.parse(now);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/**
+ * Resolve the heartbeat store the liveness rule reads. An explicit
+ * `options.commonDir` must be the state document's own resolved Git common
+ * directory: a foreign store would let an unrelated repository's heartbeat
+ * satisfy a local RUNNING claim, which is the fail-open direction. When no Git
+ * repository is resolvable, or the store does not exist, the store is empty —
+ * that is the fail-closed direction for the rule.
+ */
+export function resolveHeartbeats(options, repoRoot) {
+  if (Array.isArray(options.heartbeats)) return { heartbeats: options.heartbeats, unreadableCount: 0, scopeError: null };
+  const expectedCommonDir = repoRoot ? gitCommonDir(repoRoot) : null;
+  const explicit = typeof options.commonDir === "string" && options.commonDir.trim().length > 0 ? options.commonDir : null;
+  if (explicit !== null) {
+    if (!expectedCommonDir || normalizePath(path.resolve(explicit)) !== normalizePath(expectedCommonDir)) {
+      return {
+        heartbeats: [],
+        unreadableCount: 0,
+        scopeError: {
+          code: STATE_SCOPE_MISMATCH,
+          message: `--common-dir ${explicit} is not the state document's resolved Git common directory ${expectedCommonDir || "(unresolved)"}; foreign observability state is never read as evidence for a local RUNNING claim`,
+          path: "$.commonDir",
+        },
+      };
+    }
+  }
+  const storeRoot = explicit || expectedCommonDir;
+  if (!storeRoot) return { heartbeats: [], unreadableCount: 0, scopeError: null };
+  const paths = observabilityPaths(storeRoot);
+  let files;
+  try {
+    files = fs.readdirSync(paths.sessionsDir).filter((name) => name.endsWith(".json"));
+  } catch {
+    return { heartbeats: [], unreadableCount: 0, scopeError: null };
+  }
+  const heartbeats = listHeartbeats(paths);
+  // A heartbeat file that yields no readable record is disclosed, never
+  // silently ignored: readHeartbeat treats a corrupt/oversized record as
+  // "no heartbeat" because heartbeats are advisory local monitoring state.
+  return { heartbeats, unreadableCount: Math.max(0, files.length - heartbeats.length), scopeError: null };
+}
+
+/**
+ * The exact set of stream ids whose RUNNING declaration is unevidenced. Shared
+ * with the transition engine's declared repair-read so the current-document
+ * tolerance and the candidate gate are computed from one implementation.
+ */
+export function runningWithoutLiveEvidence(doc, { heartbeats = [], nowMs = Date.now(), activeWindowMs = DEFAULT_ACTIVE_WINDOW_MS } = {}) {
+  const leases = Array.isArray(doc.leases) ? doc.leases : [];
+  const activeLeaseStreams = new Set(leases.filter((lease) => lease && lease.state === "ACTIVE").map((lease) => lease.streamId));
+  const freshHeartbeatStreams = new Set();
+  for (const record of heartbeats) {
+    if (!record || typeof record.stream !== "string") continue;
+    const age = ageMs(record, nowMs);
+    // `ageMs` returns null for an unparseable record; null must never coerce to
+    // "0 <= window" and be read as fresh.
+    if (age !== null && age <= activeWindowMs) freshHeartbeatStreams.add(record.stream);
+  }
+  const offending = new Set();
+  for (const stream of doc.streams) {
+    if (stream.state !== "RUNNING") continue;
+    if (activeLeaseStreams.has(stream.id)) continue;
+    if (freshHeartbeatStreams.has(stream.id)) continue;
+    offending.add(stream.id);
+  }
+  return offending;
 }
 
 export function verifyStateDocument(statePath, options = {}) {
@@ -146,6 +269,33 @@ export function verifyStateDocument(statePath, options = {}) {
   const repoRoot = resolveRepoRoot(stateDir);
   const streams = doc.streams;
   const push = (code, message, errPath) => errors.push({ code, message, path: errPath });
+
+  // Clock, window and heartbeat store for the live-evidence rule. These are
+  // consulted ONLY while the document declares a RUNNING stream: with zero
+  // RUNNING declarations the store and the clock are never read, so
+  // verification stays a pure function of (state bytes, Git facts, pinned
+  // artifact bytes) and `workflow:render:check` stays clock-independent.
+  const nowMs = normalizeNowMs(options.now);
+  if (nowMs === null) {
+    errors.push({ code: STATE_NOW_INVALID, message: `--now must be a Date, epoch milliseconds, or an ISO-8601 timestamp, got ${JSON.stringify(options.now)}`, path: "$.now" });
+  }
+  const activeWindowMs = options.activeWindowMs === undefined ? DEFAULT_ACTIVE_WINDOW_MS : options.activeWindowMs;
+  if (!Number.isInteger(activeWindowMs) || activeWindowMs <= 0) {
+    errors.push({
+      code: STATE_ACTIVE_WINDOW_INVALID,
+      message: `--active-window-ms must be a positive integer, got ${JSON.stringify(options.activeWindowMs)}`,
+      path: "$.activeWindowMs",
+    });
+  }
+  const hasRunningDeclaration = streams.some((stream) => stream.state === "RUNNING");
+  const resolvedStore = hasRunningDeclaration
+    ? resolveHeartbeats(options, repoRoot)
+    : { heartbeats: [], scopeError: null };
+  if (resolvedStore.scopeError) errors.push(resolvedStore.scopeError);
+  const heartbeats = resolvedStore.heartbeats;
+  const offendingRunningStreams = hasRunningDeclaration
+    ? runningWithoutLiveEvidence(doc, { heartbeats, nowMs: nowMs === null ? Date.now() : nowMs, activeWindowMs })
+    : new Set();
 
   // A caller (the atomic transition engine) may share a memo between the
   // current-state and candidate-state validations so unchanged Git facts are
@@ -447,7 +597,7 @@ export function verifyStateDocument(statePath, options = {}) {
       if (!Array.isArray(ids) || ids.length === 0) {
         push("HIGH_DEPENDENCY_MISSING", "presentedReady requires non-empty requiredObservationIds", `${sp}.approval.requiredObservationIds`);
       } else {
-        const now = options.now ? options.now.getTime() : Date.now();
+        const now = nowMs;
         ids.forEach((id) => {
           const obs = stream.observations.find((o) => o.id === id);
           if (!obs) {
@@ -530,6 +680,30 @@ export function verifyStateDocument(statePath, options = {}) {
         push("ARTIFACT_HASH_MISMATCH", `artifact ${artifact.path} sha256 ${actual} != ${artifact.sha256}`, `${sp}.artifacts[${ai}].sha256`);
       }
     });
+
+    // ---- Resolution (the documented terminal exit for DECISION_REQUIRED) ----
+    // `resolution === null` and an absent key are both "not resolved": no rule
+    // fires, so every historical or not-yet-resolved record stays valid.
+    const resolution = stream.resolution === undefined ? null : stream.resolution;
+    if (resolution !== null) {
+      if (resolution.disposition !== stream.state) {
+        push(
+          RESOLUTION_INCONSISTENT,
+          `resolution.disposition ${resolution.disposition} != stream state ${stream.state}`,
+          `${sp}.resolution`,
+        );
+      }
+      if (resolution.disposition === "SUPERSEDED" && resolution.supersededBy === null) {
+        push(RESOLUTION_INCONSISTENT, "resolution.disposition SUPERSEDED requires a non-null supersededBy", `${sp}.resolution.supersededBy`);
+      }
+      if (resolution.supersededBy !== null && !streamsById.has(resolution.supersededBy)) {
+        push(
+          RESOLUTION_SUPERSEDED_BY_UNKNOWN,
+          `resolution.supersededBy "${resolution.supersededBy}" is not a defined stream`,
+          `${sp}.resolution.supersededBy`,
+        );
+      }
+    }
   });
 
   // ---- Cross-stream writable worktree ownership ---------------------------
@@ -589,6 +763,36 @@ export function verifyStateDocument(statePath, options = {}) {
     const dirty = worktreeStatusPorcelain(stream.git.worktree);
     if (dirty !== null && dirty.trim().length > 0) {
       push("PLANNED_WITH_DIRTY_WORKTREE", `stream ${stream.id} is PLANNED with empty running but its owned worktree is dirty`, `${sp}.git.worktree`);
+    }
+  });
+
+  // ---- Live evidence for a RUNNING declaration -----------------------------
+  // RUNNING is the one state whose residue is a claim of live work, so the
+  // declaration must be backed by machine evidence: an ACTIVE lease bound to
+  // the stream, or a heartbeat record naming the stream inside the active
+  // window. `running[]` prose is a description and never evidence.
+  streams.forEach((stream, i) => {
+    if (!offendingRunningStreams.has(stream.id)) return;
+    push(
+      RUNNING_WITHOUT_LIVE_EVIDENCE,
+      `stream ${stream.id} declares RUNNING with no ACTIVE lease and no heartbeat within ${activeWindowMs}ms`,
+      `streams[${i}].state`,
+    );
+  });
+
+  // ---- Registry revision windows -------------------------------------------
+  // An optional, lazily-materialized reservation. A missing `windows` key and an
+  // empty array are equivalent: no window is declared and no rule fires. A window
+  // is only a reservation; it grants no authority and its `holder` is an
+  // attestation at the same trust level as the existing `--by` flag.
+  const windows = Array.isArray(doc.registry.windows) ? doc.registry.windows : [];
+  windows.forEach((window, wi) => {
+    const wp = `$.registry.windows[${wi}]`;
+    if (window.toRevision < window.fromRevision) {
+      push(WINDOW_INVALID, `revision window for "${window.streamId}" has toRevision ${window.toRevision} < fromRevision ${window.fromRevision}`, wp);
+    }
+    if (!streamsById.has(window.streamId)) {
+      push(WINDOW_UNKNOWN_STREAM, `revision window references undefined stream "${window.streamId}"`, `${wp}.streamId`);
     }
   });
 

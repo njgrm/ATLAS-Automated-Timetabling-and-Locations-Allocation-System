@@ -33,13 +33,38 @@ const checkIndex = rawArgs.indexOf("--check");
 const checkMode = checkIndex !== -1;
 if (checkMode) rawArgs.splice(checkIndex, 1);
 
-const parsed = parseArgs(rawArgs, { required: ["state", "output"], optional: [] });
+const parsed = parseArgs(rawArgs, { required: ["state", "output"], optional: ["now", "active-window-ms", "common-dir"] });
 if (!parsed.ok) {
   emit(usageReport(parsed));
   process.exit(2);
 }
 
-const result = verifyStateDocument(parsed.values.state);
+// Determinism plumbing parity with verify-cycle.mjs / status.mjs: the renderer
+// reads the same clock, window and heartbeat store the verifier does.
+const ISO_ARG_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+if (parsed.values.now !== undefined && !ISO_ARG_RE.test(parsed.values.now)) {
+  emit(usageReport({ code: "USAGE_INVALID_NOW", message: `--now must be an ISO-8601 timestamp, got "${parsed.values.now}"` }));
+  process.exit(2);
+}
+let activeWindowMs;
+if (parsed.values["active-window-ms"] !== undefined) {
+  activeWindowMs = Number(parsed.values["active-window-ms"]);
+  if (!Number.isInteger(activeWindowMs) || activeWindowMs <= 0) {
+    emit(
+      usageReport({
+        code: "USAGE_INVALID_ACTIVE_WINDOW",
+        message: `--active-window-ms must be a positive integer, got "${parsed.values["active-window-ms"]}"`,
+      }),
+    );
+    process.exit(2);
+  }
+}
+const verifyOptions = {};
+if (parsed.values.now !== undefined) verifyOptions.now = new Date(parsed.values.now);
+if (activeWindowMs !== undefined) verifyOptions.activeWindowMs = activeWindowMs;
+if (parsed.values["common-dir"] !== undefined) verifyOptions.commonDir = parsed.values["common-dir"];
+
+const result = verifyStateDocument(parsed.values.state, verifyOptions);
 if (!result.ok) {
   emit(buildReport(result));
   process.exit(1);

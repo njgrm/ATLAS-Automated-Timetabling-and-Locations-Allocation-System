@@ -9,7 +9,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getSharedRepo, stateDocFromFixture, verifyInProcess, SCHEMA_FILE } from "./harness.mjs";
+import { getSharedRepo, stateDocFromFixture, verifyInProcess, SCHEMA_FILE, createTempRepo, cleanupRepo, writeStateDoc } from "./harness.mjs";
+import { observabilityPaths, writeHeartbeat, buildHeartbeat } from "../lib/observability.mjs";
+import { gitCommonDir } from "../lib/git.mjs";
 
 const ISO = "2026-09-14T10:00:00+08:00";
 
@@ -40,7 +42,7 @@ function classedGates(source, live = { total: 0, passed: 0, failed: 0, blocked: 
   };
 }
 
-function runCase({ fixture = "pass-ordinary.json", mutate, schemaPatch, inRepo = true }) {
+function runCase({ fixture = "pass-ordinary.json", mutate, schemaPatch, inRepo = true, commonDir }) {
   const repo = getSharedRepo();
   const doc = stateDocFromFixture(fixture, repo, mutate);
   let options = {};
@@ -52,6 +54,7 @@ function runCase({ fixture = "pass-ordinary.json", mutate, schemaPatch, inRepo =
     fs.writeFileSync(schemaPath, JSON.stringify(schema));
     options = { schemaPath };
   }
+  if (commonDir !== undefined) options = { ...options, commonDir };
   const stateDir = inRepo ? repo.dir : fs.mkdtempSync(path.join(os.tmpdir(), "wfc02-outside-"));
   const statePath = path.join(stateDir, `coverage-${process.pid}-${Math.random().toString(16).slice(2)}.json`);
   fs.writeFileSync(statePath, `${JSON.stringify(doc, null, 2)}\n`);
@@ -215,6 +218,72 @@ const CASES = [
     },
   },
   {
+    code: "RUNNING_WITHOUT_LIVE_EVIDENCE",
+    mutate: (d) => {
+      // A RUNNING declaration with no ACTIVE lease and no heartbeat.
+      d.leases = [];
+    },
+  },
+  {
+    code: "RESOLUTION_INCONSISTENT",
+    mutate: (d) => {
+      d.streams[0].resolution = {
+        disposition: "CLOSED",
+        resolver: "planner-cycle-owner",
+        text: "resolved elsewhere",
+        resolvedAt: ISO,
+        supersededBy: null,
+      };
+    },
+  },
+  {
+    code: "RESOLUTION_INCONSISTENT",
+    mutate: (d) => {
+      // SUPERSEDED with a null replacement is inconsistent independently of the
+      // state comparison.
+      d.streams[0].state = "SUPERSEDED";
+      d.streams[0].resolution = {
+        disposition: "SUPERSEDED",
+        resolver: "planner-cycle-owner",
+        text: "superseded without naming the replacement",
+        resolvedAt: ISO,
+        supersededBy: null,
+      };
+    },
+  },
+  {
+    code: "RESOLUTION_SUPERSEDED_BY_UNKNOWN",
+    mutate: (d) => {
+      d.streams[0].state = "SUPERSEDED";
+      d.streams[0].resolution = {
+        disposition: "SUPERSEDED",
+        resolver: "planner-cycle-owner",
+        text: "superseded by an undefined stream",
+        resolvedAt: ISO,
+        supersededBy: "NOT-A-STREAM",
+      };
+    },
+  },
+  {
+    code: "STATE_SCOPE_MISMATCH",
+    mutate: (d) => {
+      d.leases = [];
+    },
+    commonDir: "C:/nonexistent-foreign-scope",
+  },
+  {
+    code: "WINDOW_INVALID",
+    mutate: (d) => {
+      d.registry.windows = [{ streamId: "ORD-1", fromRevision: 9, toRevision: 3, holder: "ORD-1", declaredAt: ISO }];
+    },
+  },
+  {
+    code: "WINDOW_UNKNOWN_STREAM",
+    mutate: (d) => {
+      d.registry.windows = [{ streamId: "NOT-A-STREAM", fromRevision: 1, toRevision: 3, holder: "NOT-A-STREAM", declaredAt: ISO }];
+    },
+  },
+  {
     code: "GIT_REPO_UNAVAILABLE",
     inRepo: false,
     mutate: (d, repo) => {
@@ -338,3 +407,81 @@ for (const testCase of CASES) {
     assert.ok(codes.includes(testCase.code), `expected ${testCase.code}, got ${JSON.stringify(codes)}`);
   });
 }
+
+// ---- RUNNING live evidence: the negative case plus two positive controls ----
+//
+// The rule is an error, not a warning, and it must not fire when either form of
+// machine evidence is present: an ACTIVE lease bound to the stream, or a
+// heartbeat naming it inside the active window.
+test("RUNNING_WITHOUT_LIVE_EVIDENCE fires on absence and stays silent on each evidence form", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const NOW = "2026-09-16T00:00:00.000Z";
+  const baseDoc = () => stateDocFromFixture("pass-ordinary.json", repo, (d) => (d.registry.revision = 1));
+
+  // Negative: no lease, no heartbeat.
+  const barePath = writeStateDoc(repo, "evidence-bare.json", stateDocFromFixture("pass-ordinary.json", repo, (d) => { d.leases = []; }));
+  const bare = verifyInProcess(barePath, { now: new Date(NOW) });
+  assert.equal(bare.ok, false);
+  assert.deepEqual(bare.errors.map((e) => e.code), ["RUNNING_WITHOUT_LIVE_EVIDENCE"]);
+
+  // Positive control 1: the committed fixture's ACTIVE lease.
+  const leasedPath = writeStateDoc(repo, "evidence-lease.json", baseDoc());
+  const leased = verifyInProcess(leasedPath, { now: new Date(NOW) });
+  assert.equal(leased.ok, true, JSON.stringify(leased.errors));
+  assert.deepEqual(leased.errors, []);
+
+  // Positive control 2: a fresh heartbeat in the document's own store.
+  const paths = observabilityPaths(gitCommonDir(repo.dir));
+  writeHeartbeat(paths, buildHeartbeat({ sessionId: "ses-fresh", role: "executor", stream: "ORD-1", status: "ACTIVE", updatedAt: NOW }, { now: NOW }));
+  const fresh = verifyInProcess(barePath, { now: new Date(NOW) });
+  assert.equal(fresh.ok, true, "a fresh heartbeat is live evidence");
+  assert.deepEqual(fresh.errors, []);
+
+  // Beyond the window it fires again, and widening the window admits it.
+  const stale = verifyInProcess(barePath, { now: new Date(Date.parse(NOW) + 300001) });
+  assert.deepEqual(stale.errors.map((e) => e.code), ["RUNNING_WITHOUT_LIVE_EVIDENCE"]);
+  const widened = verifyInProcess(barePath, { now: new Date(Date.parse(NOW) + 300001), activeWindowMs: 600000 });
+  assert.equal(widened.ok, true, "the configured window is what the rule reads");
+
+  // An empty store is the fail-closed direction, and an unresolvable repository
+  // is an empty store.
+  const noRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfc09-coverage-norepo-"));
+  const noRepoPath = path.join(noRepoDir, "state.json");
+  fs.writeFileSync(noRepoPath, `${JSON.stringify(JSON.parse(fs.readFileSync(barePath, "utf8")), null, 2)}\n`);
+  const noRepo = verifyInProcess(noRepoPath, { now: new Date(NOW) });
+  assert.deepEqual(noRepo.errors.map((e) => e.code), ["RUNNING_WITHOUT_LIVE_EVIDENCE"]);
+  fs.rmSync(noRepoDir, { recursive: true, force: true });
+});
+
+// ---- `resolution` is optional: absent and null are both "not resolved" ----
+test("a null or absent resolution fires no resolution rule", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const absent = stateDocFromFixture("pass-ordinary.json", repo, (d) => (d.registry.revision = 1));
+  const absentPath = writeStateDoc(repo, "resolution-absent.json", absent);
+  assert.equal(verifyInProcess(absentPath).ok, true, JSON.stringify(verifyInProcess(absentPath).errors));
+
+  const nulled = stateDocFromFixture("pass-ordinary.json", repo, (d) => {
+    d.registry.revision = 1;
+    d.streams[0].resolution = null;
+  });
+  const nulledPath = writeStateDoc(repo, "resolution-null.json", nulled);
+  assert.equal(verifyInProcess(nulledPath).ok, true, JSON.stringify(verifyInProcess(nulledPath).errors));
+
+  const resolved = stateDocFromFixture("pass-ordinary.json", repo, (d) => {
+    d.registry.revision = 1;
+    d.streams[0].state = "CLOSED";
+    d.streams[0].nextAction = null;
+    d.streams[0].resolution = {
+      disposition: "CLOSED",
+      resolver: "planner-cycle-owner",
+      text: "closed with no replacement",
+      resolvedAt: ISO,
+      supersededBy: null,
+    };
+  });
+  const resolvedPath = writeStateDoc(repo, "resolution-consistent.json", resolved);
+  const result = verifyInProcess(resolvedPath);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+});

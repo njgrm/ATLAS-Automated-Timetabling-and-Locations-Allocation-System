@@ -110,6 +110,11 @@ function advanceToAcceptReady(repo, name) {
     "stream-spec": specPath,
     "observed-origin-main": repo.candidateSha,
     "expect-revision": "1",
+    // A RUNNING declaration needs machine evidence: the record and its ACTIVE
+    // lease are created in one atomic transition.
+    "lease-id": "lease-new-1",
+    "lease-role": "executor",
+    "lease-session": "ses-fixture-executor",
   });
   assert.equal(created.status, "ok", JSON.stringify(created.errors));
   assert.equal(created.summary.created, true);

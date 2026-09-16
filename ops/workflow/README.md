@@ -109,8 +109,9 @@ optionally mint/pin the closure receipt -> atomic replace`
 
 Named transitions: `record-executor-return`, `record-correction`,
 `record-qa-result`, `create-stream`, `coordination-update`, `record-integration`,
-`record-audit`, `close-cycle`, `record-remote-observation`, `lease-update`. The
-planner closure sequence is:
+`record-audit`, `close-cycle`, `record-remote-observation`, `lease-update`,
+`reconcile-stream`, `resolve-decision`, `abandon-stream`, `refresh-artifact-pin`.
+The planner closure sequence is:
 
 1. `record-executor-return` (derives `changedPaths` from `git diff base...candidate`)
 2. `record-qa-result` (`--qa-verdict`, `--qa-session`, `--gates
@@ -349,6 +350,269 @@ is running for this repository, then remove the single `<lock>.claim` file and
 re-run. Never delete either file merely because it is old, and never delete a lock
 owned by a live process.
 
+## Terminal exits, residue reconciliation, and the RUNNING live-evidence rule (C09)
+
+Four transitions complete the terminal-authority surface: the three
+terminal/reconcile transitions below plus `refresh-artifact-pin` (documented with
+the repair-read). Names, flags, state sets and error codes are fixed contracts.
+
+### `reconcile-stream` — atomic residue reconciliation without a state change
+
+Stream-scoped, with `from` = every schema state **except `RUNNING`**, and at
+least one of `--awaited`, `--running`, `--next-action`, `--blocker-kind`,
+`--blocker-detail`, `--blocker-safe-work-remaining`, `--blocker-safe-work-items`.
+
+- Supplying none of them fails closed with `TRANSITION_RECONCILE_NO_CHANGES`
+  (zero mutation). Blocker fields apply individually: an unset field keeps its
+  prior value.
+- `--blocker-safe-work-remaining` is read strictly — only the exact strings
+  `true`/`false` are accepted; `1`, `0`, `yes`, empty and any other spelling fail
+  closed with `TRANSITION_BLOCKER_FLAG_INVALID`.
+- After applying, `blocker.safeWorkRemaining === (blocker.safeWorkItems.length > 0)`
+  is enforced with `TRANSITION_BLOCKER_INCONSISTENT`, so the transition is
+  trip-proof for the verifier's `BLOCKER_INCONSISTENT` instead of relying on it.
+  Setting `--blocker-kind NONE` on a `BLOCKED`/`EXTERNALLY_BLOCKED` stream still
+  trips the verifier's `BLOCKER_KIND_MISMATCH` and therefore fails with
+  `TRANSITION_RESULT_INVALID` before any write.
+- `state` never changes, and every field other than `awaited`, `running`,
+  `blocker`, `nextAction` and `stateUpdatedAt` is byte-identical. No receipt is
+  minted and `leases[]` is untouched.
+- **Why `RUNNING` is refused.** `RUNNING` is the one state whose residue *is* a
+  claim of live work. It may only be exited through the proof-gated
+  `abandon-stream`, never edited in place, so invoking `reconcile-stream` on a
+  `RUNNING` stream fails closed with `TRANSITION_INVALID_STATE`.
+
+### `resolve-decision` — the documented terminal exit for `DECISION_REQUIRED`
+
+Stream-scoped from `DECISION_REQUIRED` only. Required: `--disposition
+<SUPERSEDED|CLOSED>`, `--resolver`, `--resolution`, `--next-action`; optional
+`--superseded-by`.
+
+- `SUPERSEDED` **requires** `--superseded-by` (`TRANSITION_SUPERSEDED_BY_REQUIRED`);
+  `CLOSED` **rejects** it (`TRANSITION_SUPERSEDED_BY_NOT_APPLICABLE`). This is what
+  makes "mark it SUPERSEDED *with its replacement*" mechanically enforceable.
+- The replacement is validated against the candidate document before any write:
+  not defined → `TRANSITION_SUPERSEDED_BY_UNKNOWN`; equal to the stream being
+  resolved → `TRANSITION_SUPERSEDED_BY_SELF`; already `SUPERSEDED`/`CLOSED` →
+  `TRANSITION_SUPERSEDED_BY_DEAD`. An `INTEGRATED`/`CLOSED`-by-closure replacement
+  is deliberately accepted: a replacement is usually already integrated.
+- Effects, exactly: state → the disposition, `awaited` → `[]`, `running` → `[]`,
+  `nextAction` → `--next-action`, and
+  `resolution = { disposition, resolver, text, resolvedAt, supersededBy }`. Every
+  other field is unchanged, no receipt is minted, `leases[]` is untouched.
+- The verifier adds `RESOLUTION_INCONSISTENT` (resolution present but
+  `disposition !== state`, or `SUPERSEDED` with a null `supersededBy`) and
+  `RESOLUTION_SUPERSEDED_BY_UNKNOWN` (a `supersededBy` that names no stream).
+
+### `abandon-stream` — the proof-gated exit from `RUNNING`
+
+Stream-scoped, `from: ["RUNNING", "PLANNED"]`. Required `--reason`,
+`--next-action`; optional `--awaited`. `--running` is not accepted: the outcome
+is `running: []` by definition, and this transition exists precisely to remove a
+live-work claim.
+
+Preconditions, all fail-closed with zero mutation:
+
+1. **Zero `ACTIVE` lease.** Any `leases[]` entry with `streamId === <stream>` and
+   `state === "ACTIVE"` refuses with `TRANSITION_ABANDON_ACTIVE_LEASE`. This is
+   the in-document machine lease, not the local custody lease.
+2. **No fresh heartbeat.** No heartbeat record naming `stream` may have
+   `ageMs(record, now) <= activeWindowMs`, else
+   `TRANSITION_ABANDON_FRESH_HEARTBEAT`. The production helpers (`ageMs`,
+   `DEFAULT_ACTIVE_WINDOW_MS`, the observability reader) are reused rather than
+   re-implemented.
+
+The returned `summary.heartbeatEvidence` discloses the number of heartbeat
+records naming the stream, the freshest observed age, the effective window and
+the number of heartbeat files present but unreadable — a read-only refusal is
+only auditable when the evidence is reported.
+
+`blocker` is **not** touched: a `PLANNED` stream may legitimately carry an
+`APPROVAL` blocker, and erasing it here would silently delete a HIGH gate. No
+receipt is minted and every other field is unchanged.
+
+**Unreadable-heartbeat policy (deliberate).** An unreadable heartbeat file is not
+"a heartbeat newer than the window", so it does not block by itself; it is
+counted and disclosed in the summary. This matches the documented doctrine that
+heartbeats are advisory local monitoring state (unlike custody records, where an
+unreadable lease is uncertain custody and fails closed). It is never silently
+ignored.
+
+### The `RUNNING_WITHOUT_LIVE_EVIDENCE` verifier error
+
+`lib/verify.mjs` reports a typed **error** (not a warning) when
+`stream.state === "RUNNING"` and neither holds:
+
+- an `ACTIVE` lease exists with `streamId === stream.id`; or
+- a heartbeat record with `stream === stream.id` exists whose
+  `ageMs(record, now) <= activeWindowMs`.
+
+`running[]` prose is a description, never evidence. A `RUNNING` record can
+therefore no longer be *created* without evidence: `create-stream` accepts
+`--lease-id`, `--lease-role`, `--lease-session`, `--lease-expires` and
+`--lease-worktree`, and appends exactly one `ACTIVE` lease (`revision: 1`,
+`updatedAt` = transition time, `expiresAt: null` unless supplied, `worktree`
+defaulting to the created record's `git.worktree`, `sessionId` from
+`--lease-session` or `null`) in the same atomic transition. A `RUNNING` spec with
+no lease flags is refused by the engine-level monotonicity rule
+(`TRANSITION_REPAIR_NOT_MONOTONE`, naming `RUNNING_WITHOUT_LIVE_EVIDENCE`),
+because it would introduce a liveness defect; lease flags without
+`--lease-id`/`--lease-role` fail with
+`TRANSITION_LEASE_ID_REQUIRED`/`TRANSITION_LEASE_ROLE_REQUIRED`; lease flags
+on a non-`RUNNING` record fail with `TRANSITION_CREATE_LEASE_STATE_INVALID`.
+
+`resolution === null`, and an absent `resolution` key, are both "not resolved":
+no resolution rule fires, so every historical or not-yet-resolved record stays
+valid and the property remains optional.
+
+### Ordering invariants created by the rule
+
+1. **Repair before you need a clean document.** While the current document
+   carries a repairable defect, every transition may still read it under the
+   sub-multiset rule below, but only `abandon-stream` and `refresh-artifact-pin`
+   strictly reduce the repairable count. A document that carries the liveness
+   defect is only *clean* after the orphaned `RUNNING` declaration is abandoned,
+   so an operator repairing a real register abandons the orphan first and then
+   performs ordinary reconciliations.
+2. **A lease is returned only after the stream has left `RUNNING`.**
+   `lease-update --lease-state RETURNED` on a `RUNNING` stream would produce a
+   `RUNNING` declaration with no `ACTIVE` lease, which the verifier refuses; the
+   transition engine therefore refuses that write.
+
+### The sanctioned repair-read (R2.5 safety argument)
+
+`runTransition` refuses to read a current document that is not verifier-clean.
+Without an allowance, a document holding an orphaned `RUNNING` declaration or a
+stale artifact pin could never be repaired: every transition — including
+`abandon-stream` and `refresh-artifact-pin` — would be refused forever. The
+allowance is one **engine-level rule with one closed set**, not a CLI flag and
+not a transition-name special case:
+
+- `REPAIRABLE = { "RUNNING_WITHOUT_LIVE_EVIDENCE", "ARTIFACT_HASH_MISMATCH" }`.
+- The **current** document may be read if and only if *every* error reported for
+  it is in `REPAIRABLE`. Any other current-document error still fails with
+  `TRANSITION_STATE_INVALID` and zero mutation.
+- The **candidate** must contain no error outside `REPAIRABLE`, and its multiset
+  of repairable `code|path` tuples (sorted, with multiplicity) must be a
+  **sub-multiset** of the current document's. Violation fails closed with
+  `TRANSITION_REPAIR_NOT_MONOTONE` and zero mutation. If the current document has
+  no repairable errors, the candidate must have none.
+- Why a sub-multiset and not a strict subset: once two independent repairable
+  defect classes coexist — the mandated schema edit invalidates `WF-C01`'s pin
+  while an orphaned `RUNNING` declaration is still present — a per-class
+  strict-subset rule lets each class block the other and the document becomes
+  unrecoverable. Equal counts are therefore allowed **on an already-defective
+  document**: a transition that neither reduces nor introduces a repairable
+  defect publishes the document unchanged in that respect, and
+  `workflow:verify` still exits `1`.
+- Nothing can be hidden: no defect outside the closed set is tolerated, no
+  transition can introduce a repairable defect (a `RUNNING` `create-stream` with
+  no lease is refused), a clean current document still requires a clean
+  candidate, and `workflow:verify` stays red until the repairable count reaches
+  zero. `abandon-stream` and `refresh-artifact-pin` strictly reduce, so every
+  document is eventually repairable. With zero repairable errors the behaviour is
+  exactly as before.
+- The deadlock is never solved by weakening the candidate gate, hand-editing JSON,
+  or creating a fake `ACTIVE` lease.
+
+### `refresh-artifact-pin` — repairing a stale artifact attestation
+
+Refreshes exactly one stale `artifacts[].sha256` on a settled stream. It exists
+because a sanctioned schema/source edit invalidates an existing pin and no other
+transition could repair an attestation. Stream-scoped,
+`from: ["COMPLETE", "INTEGRATED", "CLOSED"]`; required `--artifact-path
+<repo-relative path>`, `--artifact-sha256 <lowercase 64-hex>` and `--reason`.
+
+Guards, each typed, fail-closed, zero mutation:
+
+1. the stream must already carry an `artifacts[]` entry for exactly that path →
+   `TRANSITION_ARTIFACT_NOT_PINNED` (a pin may be refreshed, never created);
+2. the file must exist and its current working-tree bytes must hash to exactly
+   `--artifact-sha256` → `TRANSITION_ARTIFACT_HASH_MISMATCH` (a caller cannot
+   invent a hash or pin bytes it does not have); a non-64-hex digest is
+   `TRANSITION_ARTIFACT_SHA_INVALID`;
+3. the state must be one of the three allowed → `TRANSITION_ARTIFACT_STATE_FORBIDDEN`.
+
+Effect: exactly one `artifacts[i].sha256` changes; the path, the array length,
+the state, and every other field are untouched apart from `stateUpdatedAt` and
+`registry`. No receipt is minted. The file is resolved against the repository
+root exactly as artifact verification resolves it.
+
+### Determinism and the live-evidence inputs
+
+`workflow:verify` and `workflow:render` accept `--now <iso>`,
+`--active-window-ms <n>` and `--common-dir <path>`; `workflow:transition` accepts
+`--now` and `--active-window-ms` as base flags so the engine and **both**
+verifications receive them. A malformed `--now` or `--active-window-ms` is a usage
+error (exit 2), never a silent fallback to the wall clock or the default window.
+The heartbeat store is resolved from `gitCommonDir(repoRoot)` plus the
+observability session-store path, overridable by `--common-dir`; an explicit
+`--common-dir` that is not the state document's own resolved Git common directory
+fails closed with `STATE_SCOPE_MISMATCH`, because foreign observability state may
+never satisfy a local `RUNNING` claim.
+
+Truthful determinism statement: the verifier and renderer are pure functions of
+(state bytes, Git facts, artifact bytes, the heartbeat store, `now`, the active
+window). **While a document declares a `RUNNING` stream**, `workflow:render:check`
+is clock- and store-sensitive, because the store is read. **With zero `RUNNING`
+declarations the store and the clock are not consulted at all**, so the same
+document verified and rendered under two different `--now` values produces
+byte-identical output. When no Git repository is resolvable, or the store does not
+exist, the store is empty — the fail-closed direction for the rule.
+
+### Register revision windows (R2.10)
+
+`registry.windows[]` is an optional reservation that names who may write for a
+span of register revisions:
+
+```json
+{ "streamId": "WF-C09", "fromRevision": 218, "toRevision": 227,
+  "holder": "WF-C09", "declaredAt": "<iso>" }
+```
+
+- **Declaration.** `create-stream` accepts `--register-window-to <revision>` and
+  `--register-window-holder <identity>` (required when `to` is present; default
+  holder = the created stream's id), and `lease-update` accepts the symmetric
+  already-created path `--window-declare <streamId> --window-to <revision>` with
+  optional `--window-from <revision>` (default: the current register revision)
+  and `--window-holder <identity>` (default: the named stream's id).
+  `fromRevision` is the register revision at declaration, so the span is anchored
+  to the record the caller actually observed.
+- **Check, in every transition before any mutation.** If a window satisfies
+  `fromRevision <= registry.revision <= toRevision` and it is not the invoking
+  holder's, the transition fails closed with `TRANSITION_REVISION_WINDOW_HELD`,
+  zero mutation, no receipt, render byte-identical. A transition is the holder's
+  own when `--by` equals the window's `holder`, **or** the transition's target
+  stream id equals the window's `streamId`. `holder` is an attestation at the same
+  trust level as `--by`; a window grants no state authority of its own.
+  Document-scoped transitions are subject to the same check, so a holder passes
+  `--by <holder>` for its own pre-integration `coordination-update`.
+- **Release.** Automatic: the window is removed in the same candidate in which
+  its holder stream reaches `INTEGRATED`, `COMPLETE`, `CLOSED` or `SUPERSEDED`.
+  Explicit: `lease-update --release-window <streamId>`, which names the window's
+  own stream and is therefore always available as the documented remedy for a
+  stuck holder. A window is never deleted by hand.
+- Verifier rules: `WINDOW_INVALID` (`toRevision < fromRevision`) and
+  `WINDOW_UNKNOWN_STREAM` (the window names no defined stream). A missing
+  `windows` key and `[]` both mean "no window is declared", and no rule fires.
+
+### Optional, declared, lazily-materialized properties
+
+`resolution` and `registry.windows` are the named pattern for **optional,
+declared, lazily-materialized** properties: each is listed in its parent's
+`properties` (so `additionalProperties: false` still rejects unknown keys) but
+deliberately **not** in `required`, and a missing key is equivalent to `null` /
+`[]`. Readers treat the absent form as "absent" and never fire a rule on it.
+
+The alternative — making either key required — would force a `contractVersion`
+bump plus a mechanical rewrite of every historical stream record, every fixture,
+and every `specs/register/*.json` create-stream spec: roughly 45 files of
+unrelated churn that would rewrite historical identity and buy no truth, because
+both properties are only meaningful on the records that actually use them.
+`contractVersion` therefore stays `1.2.0`, `lib/migrate.mjs` needs no new step,
+and no historical bytes change. `resolution: null` and a missing `windows` key are
+both treated as absent.
+
 ## Compaction checkpoint (A5)
 
 `ops/workflow/lib/checkpoint.mjs` (exposed by `workflow:checkpoint`) emits a
@@ -576,8 +840,17 @@ success it writes UTF-8 Markdown with LF newlines and a trailing newline.
 writing. Output is a pure function of the state file content plus its content
 SHA-256: no timestamps, no file paths, no environment values. Sections include
 registry revision, stream states, Git identity (including remote observations),
-leases, closure receipt pins, approvals, observations, custody, routing, and
-pinned artifacts.
+leases, closure receipt pins, resolutions, revision windows, approvals,
+observations, custody, routing, and pinned artifacts.
+
+The `## Resolutions` table (stream, disposition, resolver, superseded-by,
+resolved-at, resolution text) lists every stream whose `resolution` is non-null,
+sorted by stream id with the file's existing escaping helpers. The
+`## Revision windows` table (stream, from revision, to revision, holder, declared
+at) lists every declared `registry.windows[]` entry, sorted by stream id then
+revision span. The renderer also accepts `--now`, `--active-window-ms` and
+`--common-dir` so it reads exactly the live-evidence inputs the verifier reads;
+see "Determinism and the live-evidence inputs".
 
 ## Fixture harness and performance
 

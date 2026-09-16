@@ -171,10 +171,23 @@ test("a full closure lifecycle reaches a stable state with one observation and n
   ]);
   assert.equal(audited.status, 0, audited.stdout + audited.stderr);
 
+  // The RUNNING declaration's ACTIVE lease (`lease-ord-1`, carried by the base
+  // document) must be returned before closure: a COMPLETE stream may not retain
+  // a live lease (COMPLETE_WITH_LIVE_LEASE).
+  const released = transition(statePath, [
+    "--transition", "lease-update",
+    "--stream", "ORD-1",
+    "--expect-revision", "5",
+    "--lease-id", "lease-ord-1",
+    "--lease-state", "RETURNED",
+    "--lease-role", "planner",
+  ]);
+  assert.equal(released.status, 0, released.stdout + released.stderr);
+
   const closed = transition(statePath, [
     "--transition", "close-cycle",
     "--stream", "ORD-1",
-    "--expect-revision", "5",
+    "--expect-revision", "6",
     "--receipt", "docs/plans/receipts/cycle.json",
   ]);
   assert.equal(closed.status, 0, closed.stdout + closed.stderr);
@@ -187,7 +200,7 @@ test("a full closure lifecycle reaches a stable state with one observation and n
   const observed = transition(statePath, [
     "--transition", "record-remote-observation",
     "--stream", "ORD-1",
-    "--expect-revision", "6",
+    "--expect-revision", "7",
     "--ref", "refs/remotes/origin/main",
     "--observed-sha", repo.integrationSha,
   ]);
@@ -246,6 +259,9 @@ test("an ambiguous stream selection fails closed", () => {
   const second = JSON.parse(JSON.stringify(doc.streams[0]));
   second.id = "ORD-2";
   doc.streams.push(second);
+  // Both RUNNING declarations need their own live evidence or the current
+  // document would fail verification before the ambiguity is evaluated.
+  doc.leases.push({ ...doc.leases[0], id: "lease-ord-2", streamId: "ORD-2" });
   const statePath = writeStateDoc(repo, "state-ambiguous.json", doc);
   const result = inProcess(statePath, "record-executor-return", { "expect-revision": "1", base: repo.baseSha, candidate: repo.candidateSha });
   assert.equal(result.status, "fail");
@@ -399,11 +415,19 @@ test("S1c four real transition writers from a dead-owner lock commit exactly onc
 
 test("lease-update records a valid lease change and rejects invalid input", () => {
   const repo = getSharedRepo();
-  const statePath = writeStateDoc(repo, "state-lease.json", baseDoc(repo));
+  let doc = baseDoc(repo);
+  // The lease table below is built and asserted by this test, so the base
+  // document's own RUNNING evidence (the fixture's `lease-ord-1`) is removed
+  // and ORD-1 is moved off RUNNING: an ACTIVE lease on a RUNNING record is now
+  // legitimate evidence, not the fixture under test here.
+  doc.streams[0].state = "REVIEW_REQUIRED";
+  doc.streams[0].running = [];
+  doc.leases = [];
+  const statePath = writeStateDoc(repo, "state-lease.json", doc);
 
   const created = inProcess(statePath, "lease-update", { stream: "ORD-1", "expect-revision": "1", "lease-id": "L1", "lease-state": "ACTIVE", "lease-role": "executor", "lease-session": "s1" });
   assert.equal(created.status, "ok", JSON.stringify(created.errors));
-  let doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  doc = JSON.parse(fs.readFileSync(statePath, "utf8"));
   assert.equal(doc.leases.length, 1);
   assert.equal(doc.leases[0].streamId, "ORD-1");
   assert.equal(doc.leases[0].state, "ACTIVE");
@@ -558,14 +582,19 @@ test("R2-T2 a CYCLE_ACTIVE stream closes end-to-end once coordination moves", ()
   assert.equal(inProcess(statePath, "record-audit", { stream: "ORD-1", "expect-revision": "5", "auditor-verdict": "AUDIT_CLEAR", "auditor-session": "ses-r2t2-audit" }).status, "ok");
   assert.equal(verified().status, 0);
 
-  const closed = inProcess(statePath, "close-cycle", { stream: "ORD-1", "expect-revision": "6", receipt: "docs/plans/receipts/cycle-r2t2.json" });
+  // The base document's ACTIVE lease for ORD-1 is returned after the stream has
+  // left RUNNING and before closure.
+  assert.equal(inProcess(statePath, "lease-update", { stream: "ORD-1", "expect-revision": "6", "lease-id": "lease-ord-1", "lease-state": "RETURNED", "lease-role": "planner" }).status, "ok");
+  assert.equal(verified().status, 0);
+
+  const closed = inProcess(statePath, "close-cycle", { stream: "ORD-1", "expect-revision": "7", receipt: "docs/plans/receipts/cycle-r2t2.json" });
   assert.equal(closed.status, "ok", JSON.stringify(closed.errors));
   assert.ok(fs.existsSync(receiptPath), "the closure receipt must be minted");
   const afterClose = verified();
   assert.equal(afterClose.status, 0, afterClose.stdout);
   assert.deepEqual(afterClose.json.errors, [], "the minted receipt must validate against the COMPLETE state");
 
-  assert.equal(inProcess(statePath, "record-remote-observation", { stream: "ORD-1", "expect-revision": "7", ref: "refs/remotes/origin/main", "observed-sha": repo.integrationSha }).status, "ok");
+  assert.equal(inProcess(statePath, "record-remote-observation", { stream: "ORD-1", "expect-revision": "8", ref: "refs/remotes/origin/main", "observed-sha": repo.integrationSha }).status, "ok");
   const final = verified();
   assert.equal(final.status, 0, final.stdout);
   assert.deepEqual(final.json.errors, [], "the pinned receipt must still validate after the observation");

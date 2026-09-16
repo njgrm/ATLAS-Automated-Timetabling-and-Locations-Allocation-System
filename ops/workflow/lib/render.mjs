@@ -117,6 +117,35 @@ export function renderRegister(doc, stateSha256) {
   }
   lines.push("");
 
+  lines.push("## Resolutions");
+  lines.push("");
+  lines.push("| Stream | Disposition | Resolver | Superseded by | Resolved at | Resolution |");
+  lines.push("| --- | --- | --- | --- | --- | --- |");
+  for (const stream of streams) {
+    const resolution = stream.resolution === undefined ? null : stream.resolution;
+    if (resolution === null) continue;
+    lines.push(
+      `| ${cell(stream.id)} | ${cell(resolution.disposition)} | ${cell(resolution.resolver)} | ${cell(resolution.supersededBy ?? "")} | ${cell(resolution.resolvedAt)} | ${cell(resolution.text)} |`,
+    );
+  }
+  lines.push("");
+
+  lines.push("## Revision windows");
+  lines.push("");
+  lines.push("| Stream | From revision | To revision | Holder | Declared at |");
+  lines.push("| --- | --- | --- | --- | --- |");
+  const windows = [...(Array.isArray(doc.registry.windows) ? doc.registry.windows : [])].sort((a, b) => {
+    if (a.streamId !== b.streamId) return byId(a.streamId, b.streamId);
+    if (a.fromRevision !== b.fromRevision) return a.fromRevision - b.fromRevision;
+    return a.toRevision - b.toRevision;
+  });
+  for (const window of windows) {
+    lines.push(
+      `| ${cell(window.streamId)} | ${window.fromRevision} | ${window.toRevision} | ${cell(window.holder)} | ${cell(window.declaredAt)} |`,
+    );
+  }
+  lines.push("");
+
   lines.push("## Awaited and running");
   lines.push("");
   for (const stream of streams) {

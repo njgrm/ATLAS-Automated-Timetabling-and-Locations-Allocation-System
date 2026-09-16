@@ -474,6 +474,11 @@ function buildProbeFixture() {
   spec.observations = [];
   spec.artifacts = [];
   spec.closure = null;
+  // `resolution` is an optional property and `null` means "not resolved". The
+  // spec is templated from whichever committed record currently has a null
+  // candidateSha, so the probe states the absence explicitly and stays schema-
+  // valid and rule-clean whether or not the template carried the key.
+  spec.resolution = null;
   spec.blocker = { kind: "NONE", detail: "", safeWorkRemaining: false, safeWorkItems: [] };
   spec.approval = {
     required: false,
@@ -495,6 +500,14 @@ function buildProbeFixture() {
     "expect-revision": String(committed.registry.revision),
     render: renderPath,
   };
+  // A register revision may be reserved by a declared revision window (R2.10).
+  // A transition at a reserved revision must be the holder's own step, so the
+  // probe derives the covering window's holder from the registry itself rather
+  // than hard-coding an identity it does not own.
+  const coveringWindow = (Array.isArray(committed.registry.windows) ? committed.registry.windows : []).find(
+    (window) => window.fromRevision <= committed.registry.revision && committed.registry.revision <= window.toRevision,
+  );
+  if (coveringWindow) flags.by = coveringWindow.holder;
 
   const generatedBefore = fs.readFileSync(GENERATED);
 

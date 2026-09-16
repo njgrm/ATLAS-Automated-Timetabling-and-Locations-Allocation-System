@@ -119,6 +119,11 @@ test("migration preserves every historical identity and drops the ambiguous scal
     d.contractVersion = "1.0.0";
     delete d.registry.revision;
     delete d.leases;
+    // A 1.0.0 document predates the lease contract, so it cannot carry live
+    // evidence for a RUNNING declaration: the migrated document must not claim
+    // RUNNING without one (RUNNING_WITHOUT_LIVE_EVIDENCE).
+    d.streams[0].state = "PLANNED";
+    d.streams[0].running = [];
     d.streams[0].git.baseSha = repo.baseSha;
     d.streams[0].git.candidateSha = repo.candidateSha;
     d.streams[0].git.integrationSha = repo.integrationSha;

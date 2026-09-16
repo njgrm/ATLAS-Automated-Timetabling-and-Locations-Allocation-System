@@ -1,9 +1,18 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T16:02:34.085Z",
-    "lastUpdatedBy": "primary-planner:c09-registration",
-    "revision": 218
+    "lastUpdatedAt": "2026-09-16T17:41:32.503Z",
+    "lastUpdatedBy": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+    "revision": 227,
+    "windows": [
+      {
+        "streamId": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+        "fromRevision": 218,
+        "toRevision": 227,
+        "holder": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+        "declaredAt": "2026-09-16T17:40:53.628Z"
+      }
+    ]
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -17,7 +26,7 @@
       "objective": "Introduce the repository-owned machine-readable delivery-cycle state contract, a fail-closed verifier, a deterministic Markdown register renderer, and regression fixtures.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-14T19:40:30+08:00",
+      "stateUpdatedAt": "2026-09-16T17:41:03.020Z",
       "nextAction": null,
       "awaited": [],
       "running": [],
@@ -216,7 +225,7 @@
       "artifacts": [
         {
           "path": "ops/workflow/schema/cycle-state.schema.json",
-          "sha256": "af435c562a42f259e38d9cd919ae6081fc6e02c6718b6ff4500dd86aa71e81e7"
+          "sha256": "73747303bf2d0d72fec19277be090fe3afcf49606f6910faad389409bd78db7c"
         },
         {
           "path": "docs/handoffs/wf-c01-executor.md",
@@ -258,8 +267,8 @@
       "objective": "Make the WF-C01 workflow foundation operational: non-self-referential closure identity, atomic validated state transitions, real active-work leases, four least-privilege OpenCode roles, verified compaction, and a fast regression suite.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-14T18:02:40.169Z",
-      "nextAction": "Closed; WF-C03 dispatch follows from the refreshed origin/main tip.",
+      "stateUpdatedAt": "2026-09-16T17:41:27.877Z",
+      "nextAction": "Closed COMPLETE; no successor dispatch is outstanding from this stream.",
       "awaited": [],
       "running": [],
       "git": {
@@ -2532,8 +2541,8 @@
       "objective": "Remove the seed test's stream-specific conflation of the ENROLLPRO-PROXY-RECOVERY-LIVE evidence candidateSha with the deployed product release 54dce67b, preserve the general null-or-committed-40-hex candidateSha invariant, and add a load-bearing failing-first regression plus malformed/uncommitted negative controls.",
       "riskTier": "LOW",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T20:01:21.927Z",
-      "nextAction": "Integrated and pushed at 46d9499d; the docs-only register reconciliation of the WF-SEED-TERM-CACHE-TL-C06-20260916 cycle follows in the same planner turn.",
+      "stateUpdatedAt": "2026-09-16T17:41:32.503Z",
+      "nextAction": "Integrated and pushed at 46d9499d; the register reconciliation is complete and no return remains.",
       "awaited": [],
       "running": [],
       "git": {
@@ -2675,16 +2684,11 @@
       "kind": "STREAM",
       "objective": "Re-bind the existing term-cache catch-up apply packet to the currently verified live runtime and current ordered-term authority truth, perform a fresh read-only runtime/authority/database preflight, correct or supersede the stale runtime pin, and obtain one fresh independent pre-action review. No cache apply is executed.",
       "riskTier": "HIGH",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T20:02:16.270Z",
-      "nextAction": "Planner executes the read-only preflight (supervisor source-directory and release identity from the registered task/process, exactly one listener per port, local health and readiness, Tailnet health, rollover automation disabled, EnrollPro reachability, live term-authority semantic revision and fingerprint recomputation, mirror 223 cache fields and audit count, apply-route rejection controls), then corrects the packet and commissions one fresh independent pre-action review.",
-      "awaited": [
-        "planner read-only runtime and authority preflight result",
-        "fresh independent pre-action review of the refreshed packet"
-      ],
-      "running": [
-        "planner read-only preflight and packet refresh on docs/prompts/term-cache-catchup-apply-2026-09-14.md"
-      ],
+      "state": "PLANNED",
+      "stateUpdatedAt": "2026-09-16T17:41:07.723Z",
+      "nextAction": "Re-plan the TERM-CACHE-CATCHUP-APPLY refresh under a new operator-activated cycle; the apply itself stays locked.",
+      "awaited": [],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-wf-seed-term-cache-tl-c06-20260916",
         "branch": "integration/wf-seed-term-cache-tl-c06-20260916",
@@ -2770,14 +2774,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "read-only supervisor identity, listener, health, Tailnet and EnrollPro reachability preflight",
-          "live term-authority semantic revision and fingerprint recomputation",
-          "mirror 223 cache-field, timestamp, audit-count and signature recheck",
-          "deployed apply-route authority/fingerprint/confirmation/transaction/replay/zero-write control review",
-          "packet correction and one fresh independent pre-action review"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": true,
@@ -2822,7 +2820,7 @@
       "objective": "Fix the Teaching Load authority-diagnostics loading-state orphan in atlas-client/src/hooks/useTeachingLoadData.ts without weakening dispatch precedence or actor-school/year scope protection: loading ownership becomes dispatch-scoped, a stale dispatch cannot clear loading owned by a newer active dispatch, a newest dispatch that aborts before request binding terminates or transfers ownership, and newest success and newest typed failure each clear loading exactly once.",
       "riskTier": "MEDIUM",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-16T15:11:16.918Z",
+      "stateUpdatedAt": "2026-09-16T17:41:23.268Z",
       "nextAction": "Closed COMPLETE (QA ACCEPT_READY 10/10/0/0 over base 46d9499d...candidate b72dd3c6: the ten required real-lifecycle controls including the load-bearing mutant, client tsc, client production build, git diff --check, and exact changed-path attribution) with integration 3d1b783b, the pinned closure receipt docs/plans/receipts/tl-diagnostics-loading-c06.receipt.json, the lease returned, and the result pushed. No return remains; every live/HIGH action stays locked.",
       "awaited": [],
       "running": [],
@@ -2921,12 +2919,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "dispatch-scoped loading ownership in useTeachingLoadData.ts",
-          "real-lifecycle interleaving controls and the load-bearing mutant",
-          "client tsc and production build"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
@@ -4672,12 +4666,10 @@
       "kind": "STREAM",
       "objective": "Lane A of TT-WARNING-REALISM-C07R1 (parent cycle). Server warning authority and count realism: emit FACULTY_CONSECUTIVE_LIMIT_EXCEEDED once per violating contiguous teaching block (not once per member) with a period/slot-aligned configurable default that allows the canonical three consecutive 45-minute periods (135 min) before warning; make FACULTY_EXCESSIVE_IDLE_GAP exclude configured Health Break and Lunch windows and count only genuine unscheduled gaps inside the teacher's applicable shift (never cross-shift or outside-shift time); reconcile FACULTY_BREAK_REQUIREMENT_VIOLATED with the consecutive rule so a canonical break equality resets the block; retire unreachable vacant/overcompressed/early-late preference families unless a real operator control and production consumer exist; remove every producer/config/display residue of FACULTY_EXCESSIVE_TRAVEL_DISTANCE; keep truthful cross-building, insufficient-transition-buffer and cross-floor adjacency rules based on building identity, floors, chronological adjacency and available transition time; stop missing subject/qualified faculty from being reported as SPECIALIZED_ROOM_UNAVAILABLE; keep ROOM_CAPACITY_EXCEEDED SOFT and never a hard blocker; give LACKING_FACULTY and INCOMPLETE_MODULAR_GROUP truthful severity and actionable authority; make ZONE_IMBALANCE_WARNING carry resolvable entities/actions or retire it; and keep identical code/severity/entity results across generation, manual edit, Quick Place, pre-generation placement, sync/setup and publication-readiness recomputation. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "DECISION_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T14:44:44.527Z",
-      "nextAction": "RESOLVED_BY_PLANNER: the QA PLANNER_DECISION_REQUIRED finding (split consecutive-threshold authority) is resolved as determined by the settled policy - a persisted 120 is the retired legacy constant, so the effective threshold is derived once through the canonical period-aligned resolver and only a genuinely explicit slot-expressible value is honored. The bounded Correction R1 candidate bd6e9811 is carried by successor stream TT-WARNING-COUNT-C07A-R1. This stream is terminal at DECISION_REQUIRED with no return remaining.",
-      "awaited": [
-        "operator/planner decision"
-      ],
+      "state": "SUPERSEDED",
+      "stateUpdatedAt": "2026-09-16T17:41:17.533Z",
+      "nextAction": "Nothing further is owed by this stream; the replacement carries the correction.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tt-warning-count-c07a",
@@ -4780,10 +4772,8 @@
       "blocker": {
         "kind": "NONE",
         "detail": "",
-        "safeWorkRemaining": true,
-        "safeWorkItems": [
-          "bounded server warning-authority correction in constraint-validator, scheduling-policy, generation, manual-edit, pre-generation-draft, generation-preflight and their tests"
-        ]
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
       },
       "approval": {
         "required": false,
@@ -4820,6 +4810,13 @@
           "sessionId": null,
           "reason": "the union wave audit is owned by the parent cycle."
         }
+      },
+      "resolution": {
+        "disposition": "SUPERSEDED",
+        "resolver": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+        "text": "The split consecutive-threshold authority finding is resolved as determined by the settled policy and carried by the replacement stream.",
+        "resolvedAt": "2026-09-16T17:41:12.568Z",
+        "supersededBy": "TT-WARNING-COUNT-C07A-R1"
       }
     },
     {
@@ -5209,7 +5206,7 @@
       "objective": "Extend the ops/workflow delivery-cycle authority with three sanctioned atomic transitions and one preventive verifier rule so the machine register can state the truth it currently cannot express: (1) abandon-stream exits an orphaned RUNNING (or PLANNED) declaration to PLANNED with running: [] only when there is zero ACTIVE lease and no heartbeat inside the configured staleness window, and fails closed otherwise; (2) resolve-decision is the documented terminal exit for DECISION_REQUIRED to SUPERSEDED or CLOSED, recording the resolver and the resolution text, requiring a named non-dead replacement for SUPERSEDED, and clearing awaited; (3) reconcile-stream atomically sets awaited, running, blocker.* and nextAction on any state except RUNNING without changing state; and (4) the verifier emits a typed RUNNING_WITHOUT_LIVE_EVIDENCE error for a RUNNING declaration backed by neither an ACTIVE lease nor a fresh heartbeat, with atomic lease creation at create-stream time and a declared, monotone, candidate-must-improve repair-read so an already-orphaned live register can be repaired through the transitions rather than hand-edited. The candidate also reconciles five real register residues through those transitions: TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING to truthful PLANNED), TT-WARNING-COUNT-C07A (DECISION_REQUIRED to SUPERSEDED with awaited cleared), TL-DIAGNOSTICS-LOADING-C06 (blocker.safeWorkRemaining false), and the stale forward-looking nextAction on WF-C02 and WF-SEED-PIN-C01.",
       "riskTier": "MEDIUM",
       "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-16T16:02:08.747Z",
+      "stateUpdatedAt": "2026-09-16T17:40:53.628Z",
       "nextAction": "Executor implements docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md in E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09: the three new transitions, the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule with the declared monotone repair-read and the create-stream atomic lease, the optional resolution property, and the ordered seven-step real register repair at revisions 218-225. It returns REVIEW_REQUIRED; the planner then validates the immutable range including the register delta and its revision arithmetic and dispatches fresh independent QA.",
       "awaited": [
         "executor REVIEW_REQUIRED return for the WF-TRANSITION-TERMINAL-RECONCILE-C09 candidate",
