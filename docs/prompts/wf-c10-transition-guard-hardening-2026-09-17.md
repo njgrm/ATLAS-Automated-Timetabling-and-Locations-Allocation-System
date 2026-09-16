@@ -3,8 +3,13 @@
 Status: authored 2026-09-17 (Asia/Manila); **R1 revised 2026-09-17 by the primary
 planner before dispatch**, folding in the five required deltas A1–A5 and
 correcting two false premises in R0 (§3.3 root cause for A3; §3.7 already-landed
-attribute). The stream is registered and `RUNNING` before this packet is
-dispatched; see §8 for the exact registration record.
+attribute). **R1a addendum, same day, after registration:** §3.11 (the documented
+gate aliases that do not run) was measured by the planner during the
+acceptance-satisfiability lint and is folded in now rather than left as a second
+correction round. It raises the mandatory source plan from 36 to 39 rows; the
+planner raises `gates.plan.MANDATORY_SOURCE` at `record-qa-result`, which is the
+only transition that owns the plan and may only increase it. The stream is
+registered and `RUNNING`; see §8 for the exact registration record.
 
 ## 0. Immutable identity
 
@@ -40,6 +45,8 @@ Owned contract: `ops/workflow/**` plus the two OpenCode package-root files in
 
 - `ops/workflow/**` — transition CLI and `lib/`, `schema/`, `__tests__/`,
   `__fixtures__/`, `README.md`, and any new `ops/workflow/*.mjs` entry point.
+- `package.json` — **the `workflow:*` script block only** (§3.11). Change no
+  dependency, version, or other script.
 - `.opencode/package.json` — **new, tracked** (A3). See §3.3.
 - `.opencode/.gitignore` — **only** if required to stop a local ignore rule from
   hiding the tracked `.opencode/package.json`. Prefer tracking only
@@ -277,6 +284,34 @@ recorded), and **use it**: this stream's own executor return passes
 `--base <the dispatch tip named in §8>` so the recorded range is the true
 dispatch boundary rather than the spec's authoring-time base.
 
+### 3.11 The documented gate aliases must actually run (found by the planner at R1)
+
+Measured in `E:/ATLAS-worktrees/wf-c10-planner` on the committed tree, four of
+the six documented `workflow:*` npm aliases fail with a usage error because the
+alias does not pass `--state` (or, for `custody`, `--op`):
+
+| alias | documented as | measured |
+|---|---|---|
+| `workflow:verify` | the register verifier | **exit 2** `USAGE_MISSING_STATE` |
+| `workflow:render` | the register renderer | **exit 2** `USAGE_MISSING_STATE` |
+| `workflow:custody` | custody status | **exit 2** `USAGE_MISSING_OP` |
+| `workflow:checkpoint` | compaction checkpoint | **exit 2** `USAGE_MISSING_STATE` |
+| `workflow:render:check` | the render gate | exit 0 |
+| `workflow:status` | classification | exit 0 |
+
+The working aliases pass `--state` explicitly; the broken ones do not. A
+mandatory gate whose documented command cannot be invoked is a truth defect of
+the same class this cycle exists to remove: an operator or auditor following the
+README gets exit 2, and the temptation is to substitute a hand-typed invocation
+that no one re-verifies.
+
+Repair the aliases (prefer explicit `--state`/`--op` in `package.json`, matching
+the two working aliases — do **not** silently default the state path inside the
+CLIs, because a wrong-working-directory invocation must keep failing closed), and
+prove each repaired alias by a real invocation that records its exit code. If any
+alias is intentionally parameterized, it must accept the missing value as a
+pass-through argument and say so in the README.
+
 ## 4. Acceptance matrix (each row a mandatory source gate)
 
 | # | Control | Expected |
@@ -317,18 +352,22 @@ dispatch boundary rather than the spec's authoring-time base.
 | 34 | `workflow:verify` on the committed tree | exit 0 |
 | 35 | `workflow:render:check` | exit 0 |
 | 36 | `git diff --check` | clean |
+| 37 | §3.11 every documented `workflow:*` alias invoked as published from a clean checkout | `verify`, `render`, `render:check`, `status`, `checkpoint` exit 0; `custody` exits 0 or 2-for-help exactly as its README documents |
+| 38 | §3.11 alias repair is minimal and fail-closed | `package.json` changes only the `workflow:*` script strings; a wrong-working-directory invocation still fails closed |
+| 39 | §3.11 regression protection | a committed test fails if a future edit breaks an alias's documented invocation |
 
-Rows 22–30 and 16–17 are the A1–A5 deltas and are **not** satisfiable by
-re-running existing tests: each needs a new fixture. No row needs a credential,
-session, runtime, database, or network beyond the local Git object store.
+Rows 22–30, 16–17 and 37–39 are the A1–A5 and gate-alias deltas and are **not**
+satisfiable by re-running existing tests: each needs a new fixture. No row needs
+a credential, session, runtime, database, or network beyond the local Git object
+store.
 
 ## 5. Gates
 
-`ops/workflow` suite with one negative fixture per capability; `workflow:verify`
-exit 0; `workflow:render:check` exit 0; `git diff --check`; the A3
-fresh-checkout proof; fresh independent QA over the frozen candidate; clean
-current-main integration with exact candidate-tree parity; fresh Wave Completion
-Audit.
+`ops/workflow` suite with one negative fixture per capability; every documented
+`workflow:*` alias invoked as published; `workflow:verify` exit 0;
+`workflow:render:check` exit 0; `git diff --check`; the A3 fresh-checkout proof;
+fresh independent QA over the frozen candidate; clean current-main integration
+with exact candidate-tree parity; fresh Wave Completion Audit.
 
 ## 6. Baselines that must be quantified, not asserted
 
