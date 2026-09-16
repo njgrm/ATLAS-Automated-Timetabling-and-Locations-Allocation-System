@@ -231,7 +231,7 @@
       "properties": {
         "streamId": { "type": "string", "minLength": 1 },
         "fromRevision": { "type": "integer", "minimum": 1 },
-        "toRevision": { "type": "integer", "minimum": 1 },
+        "toRevision": { "type": ["integer", "null"], "minimum": 1 },
         "holder": { "type": "string", "minLength": 1 },
         "declaredAt": { "$ref": "#/$defs/isoRequired" }
       }
@@ -254,7 +254,10 @@
       "properties": {
         "performed": { "type": "boolean" },
         "actionsPerformed": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": ["string", "null"] }
+        "evidence": { "type": ["string", "null"] },
+        "outcome": { "type": ["string", "null"] },
+        "executedAt": { "$ref": "#/$defs/iso" },
+        "recordedBy": { "type": ["string", "null"] }
       }
     },
     "approval": {

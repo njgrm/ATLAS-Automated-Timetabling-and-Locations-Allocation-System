@@ -14,7 +14,7 @@
 // A repeated flag is a usage error (USAGE_DUPLICATE_FLAG) rather than a silent
 // last-one-wins override.
 import process from "node:process";
-import { listTransitions, runTransition, TRANSITIONS } from "./lib/transition.mjs";
+import { listTransitions, runTransition, TRANSITIONS, TRANSITION_BOOLEAN_FLAGS } from "./lib/transition.mjs";
 
 const BASE_FLAGS = new Set(["transition", "state", "expect-revision", "stream", "render", "by", "now", "active-window-ms"]);
 const ALL_ALLOWED = new Set(BASE_FLAGS);
@@ -54,6 +54,11 @@ function parse(argv) {
       return { ok: false, code: "USAGE_DUPLICATE_FLAG", message: `flag "${token}" was provided more than once` };
     }
     const next = argv[i + 1];
+    // Presence-only flags never consume the following token.
+    if (TRANSITION_BOOLEAN_FLAGS.has(name)) {
+      values[name] = true;
+      continue;
+    }
     if (next === undefined || next.startsWith("--")) {
       // Empty values are meaningful only for explicitly nullable lease fields.
       if (["lease-session", "lease-expires", "lease-worktree"].includes(name)) {

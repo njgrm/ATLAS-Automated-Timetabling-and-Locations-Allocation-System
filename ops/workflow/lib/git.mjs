@@ -44,6 +44,28 @@ export function shaExists(repoRoot, sha) {
   return res.ok;
 }
 
+// Existence of ANY Git object (blob, tree, commit, tag). Pin linting resolves a
+// 40-hex directive token as an object, not necessarily a commit.
+export function objectExists(repoRoot, sha) {
+  return runGit(["cat-file", "-e", sha], repoRoot).ok;
+}
+
+// The object type of a 40-hex token, or null when it does not resolve.
+export function objectType(repoRoot, sha) {
+  const res = runGit(["cat-file", "-t", sha], repoRoot);
+  return res.ok ? res.stdout.trim() || null : null;
+}
+
+// Raw blob bytes. A text decode/re-encode round trip must never be trusted for a
+// byte identity, so this path returns a Buffer with no encoding applied.
+export function catFileBlob(repoRoot, spec) {
+  const res = spawnSync("git", ["-C", repoRoot, "cat-file", "blob", spec], { windowsHide: true });
+  if (res.error || res.status !== 0) {
+    return { ok: false, stderr: res.error ? String(res.error.message || res.error) : String(res.stderr || "") };
+  }
+  return { ok: true, bytes: Buffer.isBuffer(res.stdout) ? res.stdout : Buffer.from(res.stdout || "", "utf8") };
+}
+
 // Resolve existence for many SHAs with a single `git cat-file --batch-check`.
 export function shaExistsMany(repoRoot, shas) {
   const result = new Map();

@@ -7,6 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -125,5 +126,55 @@ test("the installed OpenCode resolves this exact plugin file", (t) => {
   assert.ok(
     /file:\/\/\/[^"\s]*\.opencode\/plugins\/atlas-observability\.ts/.test(output),
     `the installed OpenCode (${reported}) must resolve .opencode/plugins/atlas-observability.ts into the plugin array`,
+  );
+});
+
+// WF-C10 section 3.3 (A3, rows 27-28). The plugin is an ESM module. The root
+// `package.json` is `"type": "commonjs"`, and with no nearer package root Node
+// parses the plugin's `import` statements as CommonJS, so the row fails with
+// `SyntaxError: Cannot use import statement outside a module`. Tracking
+// `.opencode/package.json` with `"type": "module"` is the fix; it is NOT a
+// missing dependency. These rows reproduce the real cause hermetically (a root
+// package scope that declares CommonJS, no node_modules anywhere) and prove the
+// fix is causal by removing exactly that one file from an identical tree.
+function buildCheckout(root, { rootPackageJson, openCodePackageJson }) {
+  if (rootPackageJson !== null) {
+    fs.writeFileSync(path.join(root, "package.json"), rootPackageJson);
+  }
+  fs.cpSync(path.join(REPO_ROOT, ".opencode", "plugins"), path.join(root, ".opencode", "plugins"), { recursive: true });
+  fs.cpSync(path.join(REPO_ROOT, "ops", "workflow", "lib"), path.join(root, "ops", "workflow", "lib"), { recursive: true });
+  if (openCodePackageJson !== null) {
+    fs.writeFileSync(path.join(root, ".opencode", "package.json"), openCodePackageJson);
+  }
+  return path.join(root, ".opencode", "plugins", "atlas-observability.ts");
+}
+
+test("A3 row 27: the tracked .opencode/package.json makes a fresh checkout load the plugin", async (t) => {
+  const trackedPath = path.join(REPO_ROOT, ".opencode", "package.json");
+  assert.ok(fs.existsSync(trackedPath), "the tracked OpenCode package root must exist");
+  const trackedBody = fs.readFileSync(trackedPath, "utf8");
+  assert.equal(JSON.parse(trackedBody).type, "module", 'the load-bearing field is "type": "module"');
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wfc10-fresh-checkout-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pluginPath = buildCheckout(root, { rootPackageJson: JSON.stringify({ type: "commonjs" }), openCodePackageJson: trackedBody });
+  assert.equal(fs.existsSync(path.join(root, ".opencode", "node_modules")), false, "a fresh checkout has no node_modules");
+
+  const mod = await import(pathToFileURL(pluginPath).href);
+  assert.equal(typeof mod.default, "function");
+  const hooks = await mod.default({ directory: root });
+  assert.deepEqual(Object.keys(hooks).sort(), ["event", "tool.execute.before"]);
+});
+
+test("A3 row 28: an identical tree without the tracked package root reproduces the failure", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wfc10-mutant-checkout-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // Identical tree and root package type; only `.opencode/package.json` is absent.
+  const pluginPath = buildCheckout(root, { rootPackageJson: JSON.stringify({ type: "commonjs" }), openCodePackageJson: null });
+
+  await assert.rejects(
+    () => import(pathToFileURL(pluginPath).href),
+    (error) => /Cannot use import statement outside a module/.test(String((error && error.message) || "")),
+    "without the tracked package root the identical tree must reproduce the ESM-in-CommonJS failure",
   );
 });

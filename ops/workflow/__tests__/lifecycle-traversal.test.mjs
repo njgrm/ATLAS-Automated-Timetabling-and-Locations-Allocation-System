@@ -56,6 +56,9 @@ const TRAVERSAL_COVERAGE = {
   "reconcile-stream": "reconcile the COMPLETE NEW-1 residue",
   "resolve-decision": "resolve the DECISION_REQUIRED NEW-2 record",
   "refresh-artifact-pin": "refresh the invalidated NEW-1 artifact pin",
+  "record-approval": "grant the NEW-4 HIGH gate against its reviewed packet pin",
+  "record-execution": "record the NEW-4 execution outcome without erasing the grant",
+  "withdraw-approval": "withdraw the ungranted NEW-5 HIGH gate back to PLANNED",
 };
 
 export function uncoveredTransitions(coverage) {
@@ -311,6 +314,83 @@ function fullTraversal(t) {
     "--reason", "the traversal edit invalidated the pinned bytes",
   ]);
   assert.equal(refreshed.status, 0, refreshed.stdout + refreshed.stderr);
+  rev += 1;
+
+  // ---- WF-C10 HIGH gate writers (sections 3.1-3.3) ----
+  // Two HIGH_APPROVAL_REQUIRED records are appended with their exact production
+  // shapes: NEW-4 is granted and executed, NEW-5 is withdrawn back to PLANNED.
+  const gateDoc = readJson(statePath);
+  const gateRecord = (id) => {
+    const record = JSON.parse(JSON.stringify(template));
+    record.id = id;
+    record.riskTier = "HIGH";
+    record.state = "HIGH_APPROVAL_REQUIRED";
+    record.nextAction = "Await the operator's exact approval sentence.";
+    record.awaited = ["operator approval"];
+    record.running = [];
+    record.owners = {
+      planner: { sessionId: null, status: "NONE", writable: false },
+      executor: { sessionId: null, status: "NONE", writable: false },
+      qa: { sessionId: null, status: "NONE", writable: false },
+      auditor: { sessionId: null, status: "NONE", writable: false },
+    };
+    record.git = { ...record.git, worktree: null, branch: null, integrationSha: null };
+    record.approval = {
+      required: true,
+      presentedReady: false,
+      granted: false,
+      operatorIdentity: null,
+      approvedAt: null,
+      boundary: null,
+      approvedActions: [],
+      requiredObservationIds: [],
+      execution: null,
+    };
+    record.blocker = { kind: "APPROVAL", detail: "Exact HIGH approval not yet returned.", safeWorkRemaining: false, safeWorkItems: [] };
+    record.resolution = null;
+    record.closure = null;
+    return record;
+  };
+  gateDoc.streams.push(gateRecord("NEW-4"), gateRecord("NEW-5"));
+  gateDoc.registry.revision = rev;
+  fs.writeFileSync(statePath, `${JSON.stringify(gateDoc, null, 2)}\n`);
+
+  const packetRel = "docs/prompts/wfc10-traversal-high-packet.md";
+  const packetAbs = path.join(repo.dir, ...packetRel.split("/"));
+  fs.mkdirSync(path.dirname(packetAbs), { recursive: true });
+  fs.writeFileSync(packetAbs, "# Traversal HIGH packet fixture\nNo directive pins are declared on this line.\n");
+  const packetSha = sha256(fs.readFileSync(packetAbs));
+  const traversalAction = "perform the approved traversal action";
+
+  const granted = run("record-approval", [
+    "--stream", "NEW-4",
+    "--expect-revision", String(rev),
+    "--packet-path", packetRel,
+    "--packet-sha256", packetSha,
+    "--operator-identity", "traversal-operator",
+    "--boundary", "the traversal HIGH boundary",
+    "--approved-actions", JSON.stringify([traversalAction]),
+  ]);
+  assert.equal(granted.status, 0, granted.stdout + granted.stderr);
+  rev += 1;
+
+  const executed = run("record-execution", [
+    "--stream", "NEW-4",
+    "--expect-revision", String(rev),
+    "--actions-performed", JSON.stringify([traversalAction]),
+    "--outcome", "the approved traversal action completed",
+  ]);
+  assert.equal(executed.status, 0, executed.stdout + executed.stderr);
+  rev += 1;
+
+  const withdrawn = run("withdraw-approval", [
+    "--stream", "NEW-5",
+    "--expect-revision", String(rev),
+    "--to-state", "PLANNED",
+    "--reason", "the operator withdrew the approval",
+    "--next-action", "Re-plan the withdrawn work",
+  ]);
+  assert.equal(withdrawn.status, 0, withdrawn.stdout + withdrawn.stderr);
   rev += 1;
 
   return { repo, statePath, specPath, shas, steps, receiptPath, integratedSha, correction1Sha, correction2Sha };

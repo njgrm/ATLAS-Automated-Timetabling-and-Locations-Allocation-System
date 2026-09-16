@@ -23,6 +23,8 @@ export const TRANSITION_CLI = path.join(WORKFLOW_DIR, "transition.mjs");
 export const CHECKPOINT_CLI = path.join(WORKFLOW_DIR, "checkpoint.mjs");
 export const STATUS_CLI = path.join(WORKFLOW_DIR, "status.mjs");
 export const CUSTODY_CLI = path.join(WORKFLOW_DIR, "custody.mjs");
+export const PINS_CLI = path.join(WORKFLOW_DIR, "pins.mjs");
+export const DEPS_CLI = path.join(WORKFLOW_DIR, "deps.mjs");
 export const SCHEMA_FILE = path.join(WORKFLOW_DIR, "schema", "cycle-state.schema.json");
 export const REPO_ROOT = path.resolve(WORKFLOW_DIR, "..", "..");
 
@@ -41,19 +43,30 @@ export function git(dir, args) {
 /**
  * Deterministic disposable repository built with one `git fast-import` process
  * (process creation dominates test time on this host):
- *   base commit       -> base.txt
+ *   base commit       -> base.txt, AGENTS.md
  *   candidate commit  -> candidate.txt (child of base)
  *   integration commit-> integration.txt (child of candidate)
- *   orphan commit     -> other.txt (unrelated root, refs/heads/other)
+ *   orphan commit     -> other.txt (unrelated root, refs/heads/other, NO AGENTS.md)
+ *
+ * `AGENTS.md` is present on every `main` commit and materialized in the working
+ * tree with identical bytes, so the production registration path's
+ * directive-copy guard (WF-C10 section 3.4) sees a copy that matches the
+ * observed tip. The orphan branch deliberately has no `AGENTS.md`, which is the
+ * DIRECTIVE_REMOTE_UNRESOLVED control.
  */
+export const AGENTS_FIXTURE_CONTENT =
+  "# ATLAS directive-copy fixture (WF-C10)\nThe operating copy must match the observed tip's AGENTS.md blob.\n";
+
 export function createTempRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wfc02-repo-"));
   git(dir, ["init", "-b", "main"]);
   const ident = "WF-C02 Fixture <wfc02@example.invalid> 1700000000 +0000";
+  const agentsBytes = Buffer.byteLength(AGENTS_FIXTURE_CONTENT, "utf8");
   const stream =
     [
       "blob", "mark :1", "data <<EOM", "base", "EOM",
-      "commit refs/heads/main", "mark :2", `author ${ident}`, `committer ${ident}`, "data <<EOM", "base", "EOM", "M 100644 :1 base.txt",
+      "blob", "mark :9", `data ${agentsBytes}`, AGENTS_FIXTURE_CONTENT,
+      "commit refs/heads/main", "mark :2", `author ${ident}`, `committer ${ident}`, "data <<EOM", "base", "EOM", "M 100644 :1 base.txt", "M 100644 :9 AGENTS.md",
       "blob", "mark :3", "data <<EOM", "candidate", "EOM",
       "commit refs/heads/main", "mark :4", `author ${ident}`, `committer ${ident}`, "data <<EOM", "candidate", "EOM", "from :2", "M 100644 :3 candidate.txt",
       "blob", "mark :5", "data <<EOM", "integration", "EOM",
@@ -66,6 +79,8 @@ export function createTempRepo() {
   if (res.status !== 0) {
     throw new Error(`git fast-import failed (${res.status}): ${res.stderr || res.stdout}`);
   }
+  // Materialize the directive copy so the operating-copy hash matches the blob.
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), AGENTS_FIXTURE_CONTENT);
   const revs = git(dir, ["rev-parse", "refs/heads/main~2", "refs/heads/main~1", "refs/heads/main", "refs/heads/other"]);
   const [baseSha, candidateSha, integrationSha, otherSha] = revs.split(/\r?\n/).map((line) => line.trim());
   return { dir, baseSha, candidateSha, integrationSha, otherSha };

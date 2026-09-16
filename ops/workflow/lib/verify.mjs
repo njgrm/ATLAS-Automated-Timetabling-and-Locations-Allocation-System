@@ -32,6 +32,7 @@ export const RESOLUTION_INCONSISTENT = "RESOLUTION_INCONSISTENT";
 export const RESOLUTION_SUPERSEDED_BY_UNKNOWN = "RESOLUTION_SUPERSEDED_BY_UNKNOWN";
 export const WINDOW_INVALID = "WINDOW_INVALID";
 export const WINDOW_UNKNOWN_STREAM = "WINDOW_UNKNOWN_STREAM";
+export const WINDOW_LAPSED = "WINDOW_LAPSED";
 // The closed repairable-class set (R2.5). These are the only verifier errors a
 // transition may read on the CURRENT document and may still carry on the
 // candidate, and only when the candidate's repairable multiset is a sub-multiset
@@ -788,11 +789,26 @@ export function verifyStateDocument(statePath, options = {}) {
   const windows = Array.isArray(doc.registry.windows) ? doc.registry.windows : [];
   windows.forEach((window, wi) => {
     const wp = `$.registry.windows[${wi}]`;
-    if (window.toRevision < window.fromRevision) {
+    // A bounded window must be a positive span. A through-terminal window
+    // (`toRevision === null`) has no upper bound and therefore can never be
+    // inverted, so `WINDOW_INVALID` is numeric-only.
+    if (typeof window.toRevision === "number" && window.toRevision < window.fromRevision) {
       push(WINDOW_INVALID, `revision window for "${window.streamId}" has toRevision ${window.toRevision} < fromRevision ${window.fromRevision}`, wp);
     }
-    if (!streamsById.has(window.streamId)) {
+    const holder = streamsById.get(window.streamId);
+    if (!holder) {
       push(WINDOW_UNKNOWN_STREAM, `revision window references undefined stream "${window.streamId}"`, `${wp}.streamId`);
+    } else if (typeof window.toRevision === "number" && window.toRevision < doc.registry.revision && !TERMINAL_STATES.has(holder.state)) {
+      // Lapse detection (A1). A bounded reservation whose `toRevision` is below
+      // the current register revision while its holder is still non-terminal is
+      // no longer protection: the WF-C09 reservation ended at 227 while that
+      // cycle's own closure transitions ran at 228-233, and two foreign pushes
+      // landed in the gap. A through-terminal window can never lapse.
+      push(
+        WINDOW_LAPSED,
+        `revision window for "${window.streamId}" ended at ${window.toRevision} but the register is at revision ${doc.registry.revision} and its holder is ${holder.state}; use the through-terminal form or release the window`,
+        `${wp}.toRevision`,
+      );
     }
   });
 

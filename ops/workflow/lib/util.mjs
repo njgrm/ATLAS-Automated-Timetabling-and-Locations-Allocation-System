@@ -7,6 +7,19 @@ export function sha256Hex(buffer) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
+// A pinned document identity is the LF-normalized SHA-256 of its bytes: a
+// checkout that rewrote LF to CRLF must never change a pin. The normalization is
+// exactly `\r\n` -> `\n` (the canonical reproduction command in every packet), so
+// a lone CR is preserved and the transform is idempotent.
+export function lfNormalizedText(bytes) {
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  return buffer.toString("utf8").replace(/\r\n/g, "\n");
+}
+
+export function lfSha256(bytes) {
+  return sha256Hex(Buffer.from(lfNormalizedText(bytes), "utf8"));
+}
+
 export function readBytes(filePath) {
   try {
     return { ok: true, bytes: fs.readFileSync(filePath) };

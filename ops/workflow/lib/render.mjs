@@ -137,11 +137,16 @@ export function renderRegister(doc, stateSha256) {
   const windows = [...(Array.isArray(doc.registry.windows) ? doc.registry.windows : [])].sort((a, b) => {
     if (a.streamId !== b.streamId) return byId(a.streamId, b.streamId);
     if (a.fromRevision !== b.fromRevision) return a.fromRevision - b.fromRevision;
+    // A through-terminal window (`toRevision: null`) has no upper bound and
+    // sorts after every bounded span; ordering stays deterministic.
+    if (a.toRevision === null) return b.toRevision === null ? 0 : 1;
+    if (b.toRevision === null) return -1;
     return a.toRevision - b.toRevision;
   });
   for (const window of windows) {
+    const toCell = window.toRevision === null ? "_through-terminal_" : window.toRevision;
     lines.push(
-      `| ${cell(window.streamId)} | ${window.fromRevision} | ${window.toRevision} | ${cell(window.holder)} | ${cell(window.declaredAt)} |`,
+      `| ${cell(window.streamId)} | ${window.fromRevision} | ${toCell} | ${cell(window.holder)} | ${cell(window.declaredAt)} |`,
     );
   }
   lines.push("");
