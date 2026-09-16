@@ -3,15 +3,21 @@
   "kind": "STREAM",
   "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
   "riskTier": "MEDIUM",
-  "state": "PLANNED",
+  "state": "RUNNING",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "At dispatch time (the WF-TRANSITION-TERMINAL-RECONCILE-C09 window is already released), set this spec's state to RUNNING with a populated running[], then register atomically with create-stream --lease-id lease-slot-break-authority-c11 --lease-role executor and activate the cycle; then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11 against docs/prompts/slot-break-authority-c11-2026-09-17.md. A PLANNED record may not hold an ACTIVE lease and no transition moves PLANNED to RUNNING.",
-  "awaited": [],
-  "running": [],
+  "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11 (branch fix/slot-break-authority-c11, base 16e70be2) against docs/prompts/slot-break-authority-c11-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11 frozen candidate",
+    "fresh independent QA over the frozen candidate range",
+    "clean current-main integration and fresh Wave Completion Audit"
+  ],
+  "running": [
+    "executor implementation session on branch fix/slot-break-authority-c11 (packet docs/prompts/slot-break-authority-c11-2026-09-17.md)"
+  ],
   "git": {
     "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
     "branch": "fix/slot-break-authority-c11",
-    "baseSha": "e852f972ac2c47d1bddbc50e08ea50e811c15e58",
+    "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
     "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
@@ -53,10 +59,11 @@
   "requires": [],
   "blocker": {
     "kind": "NONE",
-    "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is INTEGRATED at origin/main f037e114 and its register revision window 218-227 is released. This stream is PLANNED and has no live work claim. NOTE for its dispatch cycle: a PLANNED record may not hold an ACTIVE lease and no transition moves PLANNED to RUNNING, so registration-at-dispatch must use create-stream with a RUNNING spec and --lease-id/--lease-role in the same atomic transition (see WF-C10's annex).",
+    "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE at origin/main 16e70be2 and its register revision window is released. The spec is RUNNING and is backed by the ACTIVE executor lease created atomically at create-stream time on base 16e70be2.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
       "author the packet and stream spec (done)",
+      "provision and verify the isolated dependency tree (done)",
       "dispatch the fresh source executor after registration"
     ]
   },

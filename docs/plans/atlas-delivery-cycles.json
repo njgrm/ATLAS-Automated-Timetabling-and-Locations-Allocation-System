@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T19:50:51.107Z",
-    "lastUpdatedBy": "primary-planner:wf-c09-closure",
-    "revision": 237
+    "lastUpdatedAt": "2026-09-16T20:43:25.973Z",
+    "lastUpdatedBy": "primary-planner:slot-break-c11-registration",
+    "revision": 239
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE; no live/HIGH action is unlocked. Successor order: (1) register and dispatch WF-C10-TRANSITION-GUARD-HARDENING; (2) register and dispatch SLOT-BREAK-AUTHORITY-C11; (3) register and apply MIG-APPLY-0002-0003 only after WF-C10 is landed and terminal, a fresh independent pre-action review, and the operator's exact approval; (4) prepare and execute CONSOLIDATED-DEPLOYMENT-C10 only after MIG-APPLY has applied and SLOT-BREAK and WF-C10 are integrated, with its own fresh pre-action review and exact approval. FACULTY-SYNC-PUBLICATION-CAS-C01 is required before publication only. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "SLOT-BREAK-AUTHORITY-C11",
+    "globalNextAction": "SLOT-BREAK-AUTHORITY-C11 is RUNNING (base 16e70be2, lease-slot-break-authority-c11 ACTIVE, executor lease). Next: source executor returns REVIEW_REQUIRED, then fresh independent QA over the frozen candidate, clean current-main integration on integration/slot-break-authority-c11-20260917, and one fresh Wave Completion Auditor. WF-C10-TRANSITION-GUARD-HARDENING remains an independent successor available for a separate operator-activated cycle. Every live/HIGH action (term-cache apply, runtime install/restart, Teaching Load, generation, publication, migration) remains locked and NOT granted."
   },
   "streams": [
     {
@@ -5355,6 +5355,151 @@
           "reason": "this changes the delivery-cycle state authority, so a fresh Wave Completion Auditor is required after integration."
         }
       }
+    },
+    {
+      "id": "SLOT-BREAK-AUTHORITY-C11",
+      "kind": "STREAM",
+      "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T20:42:33.449Z",
+      "nextAction": "Await the source executor REVIEW_REQUIRED return for the frozen candidate in E:/ATLAS-worktrees/slot-break-authority-c11 (branch fix/slot-break-authority-c11, base 16e70be2) against docs/prompts/slot-break-authority-c11-2026-09-17.md; then validate the immutable range and commission one fresh independent QA over the complete base...candidate range, integrate on integration/slot-break-authority-c11-20260917 over the then-current origin/main, and commission one fresh Wave Completion Auditor. No runtime, DB, migration, generation, or publication action is unlocked by this stream.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the SLOT-BREAK-AUTHORITY-C11 frozen candidate",
+        "fresh independent QA over the frozen candidate range",
+        "clean current-main integration and fresh Wave Completion Audit"
+      ],
+      "running": [
+        "executor implementation session on branch fix/slot-break-authority-c11 (packet docs/prompts/slot-break-authority-c11-2026-09-17.md)"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
+        "branch": "fix/slot-break-authority-c11",
+        "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
+          "observedAt": "2026-09-16T20:42:33.449Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 12,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE at origin/main 16e70be2 and its register revision window is released. The spec is RUNNING and is backed by the ACTIVE executor lease created atomically at create-stream time on base 16e70be2.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author the packet and stream spec (done)",
+          "provision and verify the isolated dependency tree (done)",
+          "dispatch the fresh source executor after registration"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "new objective with its own cycle; no prior planner owns this stream."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the source correction runs in a fresh executor context in E:/ATLAS-worktrees/slot-break-authority-c11."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "fresh independent QA over the frozen candidate, including the real-producer fixture parity and the mutant control."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the stream changes the effective break/shift authority consumed by three validator paths, so a fresh adversarial Wave Completion Auditor is required after integration."
+        }
+      }
     }
   ],
   "leases": [
@@ -5444,6 +5589,17 @@
       "state": "RETURNED",
       "revision": 2,
       "updatedAt": "2026-09-16T19:50:28.550Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-slot-break-authority-c11",
+      "streamId": "SLOT-BREAK-AUTHORITY-C11",
+      "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-16T20:42:33.449Z",
       "expiresAt": null
     }
   ],
