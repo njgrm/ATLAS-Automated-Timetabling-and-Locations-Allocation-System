@@ -1,0 +1,102 @@
+{
+  "id": "WF-C10-TRANSITION-GUARD-HARDENING",
+  "kind": "STREAM",
+  "objective": "Make the machine register able to record HIGH gates and stale directives truthfully: add record-approval and record-execution with the HIGH_APPROVAL_REQUIRED exit, a directive-copy fail-closed check, a packet-artifact pin lint, and LF-normalized dependency-tree identity. Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "After WF-TRANSITION-TERMINAL-RECONCILE-C09 releases its register revision window, register this stream atomically, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/wf-c10-transition-guards against docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md.",
+  "awaited": [
+    "WF-TRANSITION-TERMINAL-RECONCILE-C09 reaching a terminal state (or releasing its register revision window 218-227), which is the registration prerequisite"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/wf-c10-transition-guards",
+    "branch": "work/wf-c10-transition-guard-hardening",
+    "baseSha": "f4ff7c8a8e5f058438af38e0c0684cb3ee394bef",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 20,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is RUNNING and holds register revisions 218-227 by literal --expect-revision attestation. This stream must not register inside that window.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "verify the WF-C09 R2 window-reservation contract once it lands",
+      "dispatch the fresh source executor after registration"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle; no prior planner owns this stream."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the workflow-contract implementation runs in a fresh executor context in E:/ATLAS-worktrees/wf-c10-transition-guards."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "a fail-closed contract change requires fresh independent QA over the frozen candidate."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the stream changes the register/transition contract, so a fresh adversarial Wave Completion Auditor is required after integration."
+    }
+  }
+}
