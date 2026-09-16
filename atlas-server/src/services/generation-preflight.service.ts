@@ -43,6 +43,7 @@ import {
 	type DerivedDemandSuccess,
 	type DerivedPerTermDemandLine,
 } from './derived-demand.service.js';
+import { normalizePersistedTermStructure } from './derived-demand.service.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
@@ -672,8 +673,13 @@ async function buildGenerationPreflightWithContext(
 			where: { schoolId_enrollProSchoolYearId: { schoolId, enrollProSchoolYearId: schoolYearId } },
 			select: { termContractCache: true, termContractCachedAt: true },
 		});
-		const persistedRevision = (authorityMirror?.termContractCache as { semanticRevision?: unknown } | null)?.semanticRevision;
-		if (typeof persistedRevision === 'string' && persistedRevision !== derived.termStructure.semanticRevision) {
+		// B3: the stored upstream `semanticRevision` is untrusted provenance (its
+		// hash is order-sensitive over a different payload and cannot round-trip
+		// through JSONB). The concurrency check therefore re-normalizes the SAME
+		// persisted structure the derived demand consumed and compares the two
+		// CANONICAL revisions: canonical ↔ canonical, never cross-namespace.
+		const persistedAuthority = normalizePersistedTermStructure(authorityMirror?.termContractCache, schoolId, schoolYearId);
+		if (!persistedAuthority.ok || persistedAuthority.structure.revision !== derived.termStructure.semanticRevision) {
 			blockers.push({
 				code: 'TERM_AUTHORITY_STALE',
 				category: 'DEMAND_AUTHORITY',
@@ -682,7 +688,9 @@ async function buildGenerationPreflightWithContext(
 				subjectId: null,
 				subjectCode: null,
 				entity: `Ordered term authority · school ${schoolId} · year ${schoolYearId}`,
-				reason: 'The persisted term authority revision does not match the canonical ordered-term revision.',
+				reason: persistedAuthority.ok
+					? 'The persisted ordered-term authority changed between the derived-demand read and the concurrency re-read.'
+					: `The persisted ordered-term authority could not be normalized: ${persistedAuthority.message}`,
 				owningSurface: 'EnrollPro term authority cache',
 				nextAction: 'Refresh and verify the ordered term authority, then re-run readiness.',
 			});

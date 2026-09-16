@@ -167,6 +167,7 @@ export async function computeGenerationInputSnapshot(
 		teachingLoadCycle,
 		policy,
 		gradeWindowAggregate,
+		specialEventAggregate,
 		roomAggregate,
 		buildingAggregate,
 		sectionAggregate,
@@ -200,6 +201,11 @@ export async function computeGenerationInputSnapshot(
 			select: { id: true, updatedAt: true },
 		}),
 		client.gradeShiftWindow.aggregate({
+			where: { schoolId, schoolYearId },
+			_count: { _all: true },
+			_max: { id: true, updatedAt: true },
+		}),
+		client.policySpecialEvent.aggregate({
 			where: { schoolId, schoolYearId },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
@@ -266,6 +272,7 @@ export async function computeGenerationInputSnapshot(
 			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
 				SELECT 'policy' AS "tableName", id, to_jsonb(p.*) AS row FROM scheduling_policies p WHERE school_id = $1 AND school_year_id = $2
 				UNION ALL SELECT 'window', id, to_jsonb(w.*) FROM grade_shift_windows w WHERE school_id = $1 AND school_year_id = $2
+				UNION ALL SELECT 'specialEvent', id, to_jsonb(e.*) FROM policy_special_events e WHERE e.school_id = $1 AND e.school_year_id = $2
 			) x) AS "policy",
 			(SELECT md5(COALESCE(string_agg(to_jsonb(x)::text, '|' ORDER BY x."tableName", x.id), '')) FROM (
 				SELECT 'building' AS "tableName", id, to_jsonb(b.*) AS row FROM buildings b WHERE school_id = $1 AND is_teaching_building = true
@@ -345,6 +352,14 @@ export async function computeGenerationInputSnapshot(
 			gradeWindowCount: gradeWindowAggregate._count._all,
 			gradeWindowMaxId: gradeWindowAggregate._max.id,
 			gradeWindowMaxUpdatedAt: iso(gradeWindowAggregate._max.updatedAt),
+			// B1: the persisted special-event rows are operative generation input
+			// (break windows, event slots, the Monday Flag/HGP overlay). Their count
+			// and max-id/updated-at signals are bound here so a post-run edit cannot
+			// leave a run reported FRESH. The arm is enabled-agnostic: a disabled row
+			// still changes the digest.
+			specialEventCount: specialEventAggregate._count._all,
+			specialEventMaxId: specialEventAggregate._max.id,
+			specialEventMaxUpdatedAt: iso(specialEventAggregate._max.updatedAt),
 		}),
 		rooms: buildDomainSnapshot({
 			exactRevisionDigest: exact.rooms,

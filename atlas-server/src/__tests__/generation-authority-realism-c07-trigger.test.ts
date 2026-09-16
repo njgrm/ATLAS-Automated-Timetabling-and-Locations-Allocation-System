@@ -90,6 +90,12 @@ interface TriggerOptions {
 	zeroCapacityFacultyId?: number;
 	/** Add an ARAL subject that would create Site-A demand if the preflight allowed it. */
 	addNonSchedulableDemand?: boolean;
+	/** Persisted special-event rows supplied to the preflight (B1). */
+	specialEventRows?: Array<Record<string, unknown>>;
+	/** `_max.id` returned by the ambient `policySpecialEvent.aggregate` (B1). */
+	capturedSpecialEventId?: number;
+	/** `_max.id` returned by the transaction-bound `policySpecialEvent.aggregate` (B1 interleave). */
+	transactionSpecialEventId?: number;
 	/**
 	 * R2d: mark the availability owner (faculty 72) UNAVAILABLE for EVERY canonical
 	 * Grade 7 REGULAR class period on every weekday, so the entire admissible grid
@@ -270,7 +276,16 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 		building: { findMany: async () => buildings, aggregate },
 		facultyPreference: { findMany: async () => preferenceRows, aggregate },
 		preferenceTimeSlot: { aggregate: async () => ({ _count: { _all: 1 }, _max: { id: 1, createdAt: new Date('2029-01-01') } }) },
-		policySpecialEvent: { findMany: async () => [] },
+		policySpecialEvent: {
+			findMany: async () => options.specialEventRows ?? [],
+			aggregate: async () => ({
+				_count: { _all: (options.specialEventRows ?? []).length },
+				_max: {
+					id: options.capturedSpecialEventId ?? null,
+					updatedAt: options.capturedSpecialEventId == null ? null : new Date('2030-01-01T00:00:00.000Z'),
+				},
+			}),
+		},
 		gradeShiftWindow: { findMany: async () => [], aggregate, createMany: record('gradeShiftWindow.createMany') },
 		classProgramSlot: {
 			findMany: async (args: any) => {
@@ -298,6 +313,18 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 		generationRun: { ...client.generationRun, update: record('tx.generationRun.update') },
 		auditLog: { ...client.auditLog, create: record('tx.auditLog.create') },
 		$queryRawUnsafe: async () => [digestRow(transactionAvailability, options.driftSubjectsInTransaction === true)],
+		// B1 interleave: the persisted special-event authority can drift between the
+		// captured pre-scheduling snapshot and the transaction-bound recomputation.
+		policySpecialEvent: {
+			...client.policySpecialEvent,
+			aggregate: async () => ({
+				_count: { _all: (options.specialEventRows ?? []).length },
+				_max: {
+					id: options.transactionSpecialEventId ?? options.capturedSpecialEventId ?? null,
+					updatedAt: (options.transactionSpecialEventId ?? options.capturedSpecialEventId) == null ? null : new Date('2030-01-01T00:00:00.000Z'),
+				},
+			}),
+		},
 	};
 
 	return {
@@ -502,6 +529,45 @@ test('C07-S11b. a non-availability covered-domain drift inside the transaction a
 	await assert.rejects(trigger(harness.client), (error: any) => error.code === 'SOURCE_AUTHORITY_STALE');
 	assert.equal(harness.txUpdateOf('COMPLETED'), undefined);
 	assert.equal(harness.updateOf('FAILED')?.args?.data?.status, 'FAILED');
+});
+
+// ─── B1: persisted special-event authority is bound into generation freshness ───
+
+test('B1 F1a. a post-run persisted special-event edit reports inputState STALE with policy in changedDomains, and zero writes', async () => {
+	const specialEventRow = { id: 5, schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, eventType: 'HEALTH_BREAK', label: 'Health Break', gradeGroup: null, programType: null, startTime: '09:00', endTime: '09:15', enabled: true, sortOrder: 1 };
+	const baseline = buildTriggerClient({ specialEventRows: [specialEventRow], capturedSpecialEventId: 5 });
+	const runSnapshot = await withDataContext(baseline.client, () => computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID));
+	const persistedRun = {
+		id: 91, status: 'COMPLETED', draftEntries: [], unassignedItems: [],
+		summary: { inputSnapshot: runSnapshot }, version: 3,
+		finishedAt: new Date('2030-01-01T00:00:00.000Z'), createdAt: new Date('2030-01-01T00:00:00.000Z'),
+	};
+
+	// Unchanged authority → FRESH (positive control).
+	const unchanged = buildTriggerClient({ specialEventRows: [specialEventRow], capturedSpecialEventId: 5, runFindFirstResult: persistedRun });
+	const unchangedDraft = await withDataContext(unchanged.client, () => getRunDraft(91, SCHOOL_ID, SCHOOL_YEAR_ID));
+	assert.equal(unchangedDraft.inputState?.status, 'FRESH');
+
+	// One persisted special-event edit → STALE with the `policy` domain changed.
+	const edited = buildTriggerClient({ specialEventRows: [{ ...specialEventRow, id: 6, endTime: '09:30' }], capturedSpecialEventId: 6, runFindFirstResult: persistedRun });
+	const editedDraft = await withDataContext(edited.client, () => getRunDraft(91, SCHOOL_ID, SCHOOL_YEAR_ID));
+	assert.equal(editedDraft.inputState?.status, 'STALE', 'a post-run special-event edit must never leave the run reported FRESH');
+	assert.ok(editedDraft.inputState?.changedDomains.includes('policy'), `policy must be a changed domain; saw ${(editedDraft.inputState?.changedDomains ?? []).join(', ')}`);
+	assert.deepEqual(edited.sequence(), [], 'a draft read performs zero writes');
+});
+
+test('B1 F1b. a persisted special-event change between the captured snapshot and the transaction-bound recomputation aborts with SOURCE_AUTHORITY_STALE and zero COMPLETED writes', async () => {
+	const specialEventRow = { id: 5, schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, eventType: 'HEALTH_BREAK', label: 'Health Break', gradeGroup: null, programType: null, startTime: '09:00', endTime: '09:15', enabled: true, sortOrder: 1 };
+	const harness = buildTriggerClient({ specialEventRows: [specialEventRow], capturedSpecialEventId: 5, transactionSpecialEventId: 6 });
+	await assert.rejects(trigger(harness.client), (error: any) => {
+		assert.equal(error.code, 'SOURCE_AUTHORITY_STALE');
+		return true;
+	});
+	assert.equal(harness.txUpdateOf('COMPLETED'), undefined, 'no COMPLETED run update may be attempted');
+	assert.equal(harness.completedPayload(), undefined, 'no persisted draft entries for the aborted run');
+	assert.equal(harness.auditActions().includes('GENERATION_RUN_COMPLETED'), false, 'no success audit');
+	assert.deepEqual(harness.auditActions(), ['GENERATION_RUN_FAILED']);
+	assert.equal(harness.updateOf('FAILED')?.args?.data?.status, 'FAILED', 'the pre-existing FAILED finalization is asserted explicitly');
 });
 
 // ─── C07-S10: the declared getRunDraft / getLatestRunDraft inputState surface ───

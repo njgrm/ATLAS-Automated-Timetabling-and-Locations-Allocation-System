@@ -339,8 +339,19 @@ function buildDiagnosticClient(options: DiagnosticClientOptions = {}) {
 	const termCache = options.terms === 'valid' || options.terms === undefined
 		? { schoolId: DIAGNOSTIC_SCHOOL_ID, schoolYear: { id: DIAGNOSTIC_YEAR_ID }, format: 'TRIMESTER', terms: DIAGNOSTIC_TERM_CONTRACT.terms, semanticRevision: 'D'.repeat(64) }
 		: options.terms === 'stale'
-			? { schoolId: DIAGNOSTIC_SCHOOL_ID, schoolYear: { id: DIAGNOSTIC_YEAR_ID }, format: 'TRIMESTER', terms: DIAGNOSTIC_TERM_CONTRACT.terms, semanticRevision: 'STALE' }
+			? { schoolId: DIAGNOSTIC_SCHOOL_ID, schoolYear: { id: DIAGNOSTIC_YEAR_ID }, format: 'TRIMESTER', terms: DIAGNOSTIC_TERM_CONTRACT.terms, semanticRevision: 'D'.repeat(64) }
 			: null;
+	// B3: the stale case is expressed as a CANONICAL change between the first
+	// (derived-demand) read and the second (concurrency) read of the same cache —
+	// never as a different upstream `semanticRevision`, which is provenance only.
+	const canonicallyChangedTermCache = options.terms === 'stale'
+		? {
+			schoolId: DIAGNOSTIC_SCHOOL_ID, schoolYear: { id: DIAGNOSTIC_YEAR_ID }, format: 'TRIMESTER',
+			terms: DIAGNOSTIC_TERM_CONTRACT.terms.map((term, index) => (index === 1 ? { ...term, displayLabel: 'Second Trimester (revised)' } : term)),
+			semanticRevision: 'D'.repeat(64),
+		}
+		: null;
+	let termCacheReads = 0;
 	const rooms = options.rooms === 'missing' ? [] : [{ id: 201, name: 'R201', type: 'CLASSROOM', isTeachingSpace: true, isSharedFacility: false, capacity: 50, features: [], buildingId: 301, buildingZoneId: 'Z1', building: { id: 301, name: 'Building 1', shortCode: 'B1', x: 0, y: 0, gradeScope: [7], isTeachingBuilding: true } }];
 	const ownership = options.includeOwnership === false ? [] : [{ id: 1, subjectId: 11, sectionId: 701, facultyId: 501, facultySubjectId: 1 }];
 	const facultySubjects = [...teachingSubjects.map((subject, index) => ({ id: index + 1, facultyId: 501, subjectId: subject.id, gradeLevels: [7], sectionIds: [701] }))];
@@ -355,7 +366,16 @@ function buildDiagnosticClient(options: DiagnosticClientOptions = {}) {
 		schedulingPolicy: { findUnique: async () => policy },
 		enrollProSchoolYearMirror: {
 			findMany: async () => [{ enrollProSchoolYearId: DIAGNOSTIC_YEAR_ID, yearLabel: '2031-2032' }],
-			findUnique: async () => options.terms === 'missing' ? { isActive: true, isArchived: false, termContractCache: null, termContractCachedAt: null } : { isActive: true, isArchived: false, termContractCache: termCache, termContractCachedAt: new Date('2031-01-01') },
+			findUnique: async () => {
+				if (options.terms === 'missing') return { isActive: true, isArchived: false, termContractCache: null, termContractCachedAt: null };
+				termCacheReads += 1;
+				return {
+					isActive: true,
+					isArchived: false,
+					termContractCache: canonicallyChangedTermCache && termCacheReads > 1 ? canonicallyChangedTermCache : termCache,
+					termContractCachedAt: new Date('2031-01-01'),
+				};
+			},
 		},
 		sectionMirror: { findMany: async () => sections, count: async () => sections.length },
 		subject: { findMany: async () => subjects },

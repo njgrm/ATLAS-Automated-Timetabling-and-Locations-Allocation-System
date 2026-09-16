@@ -317,7 +317,63 @@ test('C07-S08. the constructor input carries the persisted availability slots ve
 	assert.deepEqual(preference.timeSlots[0], { day: 'MONDAY', startTime: '06:00', endTime: '06:45', preference: 'UNAVAILABLE' });
 });
 
-test('C07-S04. an explicit non-Monday Flag/HGP row is rejected with FLAG_CEREMONY_SCOPE_INVALID even when enableFlagCeremony is false, with zero writes', async () => {
+// ─── C07-S04 (B2): the reachable persisted-shape evidence ──────────────────
+//
+// `policy_special_events` has NO day column: `toConstructorSpecialEvents` always
+// maps `dayOfWeek: null`. The production-reachable Flag/HGP rejection is therefore
+// the CONTAINMENT rule (a persisted window must be contained by exactly one
+// canonical CLASS row), not the explicit-non-Monday predicate.
+
+test('C07-S04 (B2). a persisted Flag/HGP window not contained by exactly one canonical CLASS row is rejected with no synthesized overlay', async () => {
+	for (const window of [
+		{ startTime: '07:00', endTime: '08:00', case: 'spans two canonical CLASS rows' },
+		{ startTime: '05:00', endTime: '05:45', case: 'contained by no canonical CLASS row (zero-row case)' },
+	]) {
+		const rows = persistedSpecialEvents(null, { startTime: window.startTime, endTime: window.endTime });
+		const { client, writes } = buildPreflightClient(rows);
+		const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+		const scopeBlockers = preflight.blockers.filter((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID');
+		assert.equal(scopeBlockers.length, 1, `${window.case}: expected exactly one typed blocker`);
+		assert.equal(scopeBlockers[0].category, 'POLICY_BLOCKER');
+		assert.equal(scopeBlockers[0].owningSurface, 'Scheduling policy / special events');
+		assert.ok(scopeBlockers[0].nextAction.length > 0);
+		assert.equal(preflight.ok, false);
+		// No synthesized overlay: the constructor/shape contract exposes no flag row.
+		for (const shape of preflight.assembly.timetableShapeContracts) {
+			assert.equal(
+				shape.displaySlots.filter((slot) => /flag|hgp/i.test(slot.eventName ?? '')).length, 0,
+				`${window.case}: a rejected window must never synthesize an overlay`,
+			);
+		}
+		assert.deepEqual(writes, [], `${window.case}: zero writes`);
+	}
+});
+
+test('C07-S04 (B2) positive control. a persisted Flag/HGP window contained by exactly one canonical CLASS row stays ready with the overlay snapped to that row', async () => {
+	const { client, writes } = buildPreflightClient(persistedSpecialEvents(null));
+	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
+	assert.equal(preflight.blockers.some((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID'), false, 'a contained window must not be rejected');
+	assert.equal(preflight.ok, true);
+	const overlays = preflight.assembly.timetableShapeContracts
+		.flatMap((shape) => shape.displaySlots)
+		.filter((slot) => /flag|hgp/i.test(slot.eventName ?? ''));
+	assert.equal(overlays.length, 1, 'exactly one snapped overlay is emitted');
+	assert.equal(overlays[0].startTime, '06:45');
+	assert.equal(overlays[0].endTime, '07:30');
+	assert.equal(overlays[0].dayOfWeek, 'MONDAY');
+	assert.deepEqual(writes, []);
+});
+
+// ─── C07-S04 forward-compatibility (NOT a persisted production path) ───────
+//
+// FORWARD COMPATIBILITY ONLY. `policy_special_events` has no day field and
+// `SpecialEventInput` carries none, so an explicit non-Monday persisted row
+// cannot exist today; this predicate requires a schema/migration decision before
+// it can ever be reached. It is retained so the constructor can never render a
+// weekday ceremony if such a field is introduced, and it is no longer the sole
+// `C07-S04` evidence (the persisted containment controls above are).
+
+test('C07-S04 forward-compat. an explicit non-Monday Flag/HGP row is rejected with FLAG_CEREMONY_SCOPE_INVALID even when enableFlagCeremony is false, with zero writes', async () => {
 	const { client, writes } = buildPreflightClient(persistedSpecialEvents('WEDNESDAY'));
 	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
 	const scopeBlockers = preflight.blockers.filter((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID');
@@ -329,18 +385,17 @@ test('C07-S04. an explicit non-Monday Flag/HGP row is rejected with FLAG_CEREMON
 	assert.deepEqual(writes, [], 'a rejected flag authority performs zero writes');
 });
 
-test('C07-S04 mutant M3: removing the persisted non-Monday validation would accept the Wednesday row (the validation is load-bearing)', async () => {
+test('C07-S04 forward-compat mutant M3: removing the explicit-day validation would accept the Wednesday row (the validation is load-bearing)', async () => {
 	// The old preflight only inspected the FIRST matching row and only when
 	// `enableFlagCeremony` was truthy. With that gate (`enableFlagCeremony === false`)
 	// the same WEDNESDAY row produced no blocker at all.
 	const { client } = buildPreflightClient(persistedSpecialEvents('WEDNESDAY'));
 	const preflight = await buildGenerationPreflight(SCHOOL_ID, SCHOOL_YEAR_ID, { client, termContract: TERM_CONTRACT, enforceShiftWindows: false });
 	assert.equal(preflight.assembly.policyRow?.enableFlagCeremony, false, 'the fixture disables the legacy flag on purpose');
-	assert.ok((preflight.assembly.policyRow as { enableFlagCeremony?: boolean })?.enableFlagCeremony === false);
 	assert.equal(preflight.blockers.some((blocker) => blocker.code === 'FLAG_CEREMONY_SCOPE_INVALID'), true);
 });
 
-test('C07-S04. the constructor and the two read projections drop a rejected non-Monday Flag/HGP row', () => {
+test('C07-S04 forward-compat. the constructor and the two read projections drop a rejected non-Monday Flag/HGP row', () => {
 	const rejected = { eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '07:00', endTime: '07:30', dayOfWeek: 'WEDNESDAY' };
 	assert.deepEqual(buildDayScopedEventWindows({
 		maxConsecutiveTeachingMinutesBeforeBreak: 120, minBreakMinutesAfterConsecutiveBlock: 15, maxTeachingMinutesPerDay: 480,
@@ -589,7 +644,7 @@ test('C07-S07. ROOM_TYPE_MISMATCH is emitted only on a recorded PREFERRED_ROOM_U
 
 // ─── D. Availability freshness domain + version (R7) ────────────────────────
 
-function buildSnapshotClient(availabilityDigest: string | undefined) {
+function buildSnapshotClient(availabilityDigest: string | undefined, specialEventId: number | null = null) {
 	const aggregate = async () => ({ _count: { _all: 0 }, _max: { id: null, updatedAt: null, version: null, createdAt: null } });
 	const row: Record<string, unknown> = { teachingLoad: 'tl', policy: 'pl', rooms: 'rm', sections: 'sc', subjects: 'sb' };
 	if (availabilityDigest !== undefined) row.availability = availabilityDigest;
@@ -600,6 +655,14 @@ function buildSnapshotClient(availabilityDigest: string | undefined) {
 		teachingLoadCycle: { findUnique: async () => null },
 		schedulingPolicy: { findUnique: async () => null },
 		gradeShiftWindow: { aggregate },
+		// B1: the persisted special-event authority signal.
+		policySpecialEvent: {
+			findMany: async () => [],
+			aggregate: async () => ({
+				_count: { _all: specialEventId == null ? 0 : 1 },
+				_max: { id: specialEventId, updatedAt: specialEventId == null ? null : new Date('2030-01-01T00:00:00.000Z') },
+			}),
+		},
 		room: { aggregate },
 		building: { aggregate },
 		sectionMirror: { aggregate },
@@ -624,6 +687,32 @@ test('C07-S09. the snapshot emits a non-empty availability domain at the bumped 
 	const after = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, buildSnapshotClient('av-2') as never);
 	assert.notEqual(before.domains.availability.fingerprint, after.domains.availability.fingerprint);
 	assert.notEqual(before.fingerprint, after.fingerprint);
+});
+
+test('B1. the policy freshness domain binds the persisted special-event authority (count/id/updated-at) and any edit changes the fingerprint', async () => {
+	const before = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, buildSnapshotClient('av-1', 5) as never);
+	assert.equal(before.schemaVersion, 3, 'B1 keeps the required-domain set, so the schema version is unchanged');
+	assert.ok(before.domains.policy, 'the policy domain must be present');
+	assert.equal(before.domains.policy.signals.specialEventCount, 1);
+	assert.equal(before.domains.policy.signals.specialEventMaxId, 5);
+	assert.equal(typeof before.domains.policy.signals.specialEventMaxUpdatedAt, 'string');
+
+	const after = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, buildSnapshotClient('av-1', 6) as never);
+	assert.notEqual(before.domains.policy.fingerprint, after.domains.policy.fingerprint, 'a persisted special-event edit must change the policy domain fingerprint');
+	assert.notEqual(before.fingerprint, after.fingerprint);
+
+	// Removing the authority entirely (no persisted rows) is also a change.
+	const empty = await computeGenerationInputSnapshot(SCHOOL_ID, SCHOOL_YEAR_ID, buildSnapshotClient('av-1', null) as never);
+	assert.equal(empty.domains.policy.signals.specialEventCount, 0);
+	assert.notEqual(empty.domains.policy.fingerprint, before.domains.policy.fingerprint);
+
+	// A policy-domain change is reported as exactly the `policy` domain.
+	const comparison = compareGenerationInputSnapshots(
+		extractGenerationInputSnapshot({ inputSnapshot: before })!,
+		after,
+	);
+	assert.equal(comparison.status, 'STALE');
+	assert.deepEqual(comparison.changedDomains, ['policy']);
 });
 
 test('C07-S09/S10 mutant M8. a current-version snapshot missing the availability domain is rejected, and a below-current snapshot is STALE (never FRESH)', () => {
