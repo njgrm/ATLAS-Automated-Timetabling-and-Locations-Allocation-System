@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T13:02:55.702Z",
+    "lastUpdatedAt": "2026-09-16T13:51:06.508Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 187
+    "revision": 190
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -4440,8 +4440,8 @@
       "objective": "Lane B of TT-WARNING-REALISM-C07R1 (parent cycle). Client warning and publish-readiness truth: SimplePublishReadinessSheet must render run-wide blocker truth and never say Ready to publish from a selected-term list while another term blocks; selected-term issue rails stay selected-term scoped and are visibly labeled so run-wide and selected-term counts are never mixed under one unexplained total; every displayed action works (no-op Review issue buttons removed, resolvable violations routed to the correct term/entity/repair surface, aggregate warnings exposing every affected entry or navigating to a real grouped repair view); Treat as Hard and Blocks publish render only for codes in the server-owned promotable allowlist; ExplainabilityDrawer uses server publication semantics so HARD alone never means Publish blocker for a non-publication-blocking code; PublishChecklistContent groups real production violation codes rather than reason keys or test-only codes; dead UI/config/type residue for retired distance, unreachable vacant and retired warning families is removed and types.d.ts is reconciled or removed as a second authority; and accessible controls, 44px mobile targets, keyboard navigation, responsive layout, Simple-first navigation and term-switching state hygiene are preserved. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
       "state": "CORRECTION_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T13:02:55.702Z",
-      "nextAction": "Bounded correction: make the rendered publish block message truthful when the run-wide gate blocks on hard violations with zero unresolved sessions, close B3 aggregate-warning exposure, and dispose of the unreachable PublishChecklistContent path.",
+      "stateUpdatedAt": "2026-09-16T13:51:06.508Z",
+      "nextAction": "Root-cause closure correction R2: the block sentence must draw its hard clause only from the hard-violation authority and represent unresolved reason groups only in the unresolved clause; add a producer-shaped unresolved-only fixture.",
       "awaited": [
         "bounded additive correction commit"
       ],
@@ -4493,7 +4493,7 @@
           "writable": false
         },
         "qa": {
-          "sessionId": "ses_f55cd66c0ffe8WPdoW4yQyEppN",
+          "sessionId": "ses_f559262d8ffeH3OA8bVtI4WXLx",
           "status": "RETURNED",
           "writable": false
         },
@@ -4504,23 +4504,23 @@
         }
       },
       "gates": {
-        "total": 8,
-        "passed": 7,
-        "failed": 0,
+        "total": 13,
+        "passed": 11,
+        "failed": 2,
         "blocked": 0,
-        "unperformed": 1,
+        "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 8,
+          "MANDATORY_SOURCE": 13,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 8,
-            "passed": 7,
-            "failed": 0,
+            "total": 13,
+            "passed": 11,
+            "failed": 2,
             "blocked": 0,
-            "unperformed": 1
+            "unperformed": 0
           },
           "MANDATORY_LIVE": {
             "total": 0,
@@ -4540,7 +4540,7 @@
       },
       "review": {
         "qaVerdict": "CORRECTION_REQUIRED",
-        "qaSessionId": "ses_f55cd66c0ffe8WPdoW4yQyEppN",
+        "qaSessionId": "ses_f559262d8ffeH3OA8bVtI4WXLx",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": false,
@@ -4549,6 +4549,11 @@
             "round": 1,
             "verdict": "CORRECTION_REQUIRED",
             "sessionId": "ses_f55cd66c0ffe8WPdoW4yQyEppN"
+          },
+          {
+            "round": 2,
+            "verdict": "CORRECTION_REQUIRED",
+            "sessionId": "ses_f559262d8ffeH3OA8bVtI4WXLx"
           }
         ]
       },
@@ -4605,18 +4610,18 @@
       "kind": "STREAM",
       "objective": "Successor lane for TT-WARNING-COUNT-C07A (Lane A of TT-WARNING-REALISM-C07R1) after its fresh QA returned PLANNER_DECISION_REQUIRED on the split consecutive-threshold authority. The planner resolved the decision (a persisted maxConsecutiveTeachingMinutesBeforeBreak of 120 is the retired legacy constant, so the effective threshold is derived once through the canonical period-aligned resolver and only a genuinely explicit slot-expressible value is honored) and the bounded additive Correction R1 candidate bd6e9811 routes the effective threshold through the one canonical resolver at the schedule-constructor read/shape boundary and the policy read/display boundary, removing the raw read and the hardcoded ?? 180 fallback. The correction is the full Lane A server warning-authority contract over range c950e694...bd6e9811 (one warning per violating block with a period-aligned default; break-aware in-shift idle; reconciled break/consecutive families; retired FACULTY_EXCESSIVE_TRAVEL_DISTANCE residue; truthful unassigned/zone/capacity classification; parity across generation/manual/pre-generation). No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T13:01:51.217Z",
-      "nextAction": "Planner validated the immutable range c950e694...bd6e9811 and commissions fresh independent QA over the corrected candidate.",
+      "state": "CORRECTION_REQUIRED",
+      "stateUpdatedAt": "2026-09-16T13:50:47.986Z",
+      "nextAction": "Dispatch fresh independent QA over c950e694...107c5159.",
       "awaited": [
-        "fresh independent QA over c950e694...bd6e9811"
+        "fresh independent QA over the corrected candidate"
       ],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/tt-warning-count-c07a",
         "branch": "work/tt-warning-count-c07a",
         "baseSha": "c950e6944f148343b8c864bea5aa080bd6a19426",
-        "candidateSha": "bd6e9811ad53342375c1bfd1f4aac8fab35f9c0e",
+        "candidateSha": "107c5159f13372707ce0ba7c4607d530d33ee3cb",
         "integrationSha": null,
         "changedPaths": [
           "atlas-server/src/__tests__/timetable-warning-authority-c04.test.ts",
@@ -4649,8 +4654,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f55aee476ffeu0RwV0YZ0UqyVj",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -4660,21 +4665,21 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
-        "failed": 0,
+        "total": 12,
+        "passed": 11,
+        "failed": 1,
         "blocked": 0,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 10,
+          "MANDATORY_SOURCE": 12,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
-            "failed": 0,
+            "total": 12,
+            "passed": 11,
+            "failed": 1,
             "blocked": 0,
             "unperformed": 0
           },
@@ -4695,14 +4700,31 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "CORRECTION_REQUIRED",
+        "qaSessionId": "ses_f55aee476ffeu0RwV0YZ0UqyVj",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": false,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "CORRECTION_REQUIRED",
+            "sessionId": "ses_f55aee476ffeu0RwV0YZ0UqyVj"
+          }
+        ]
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "bd6e9811ad53342375c1bfd1f4aac8fab35f9c0e",
+          "candidateSha": "107c5159f13372707ce0ba7c4607d530d33ee3cb",
+          "reason": "Correction R2: route the operator policy read/display boundary (GET getOrCreatePolicy and the PUT response in scheduling-policy.router.ts) through the canonical resolver so the editor displays the enforced value; add displayed==enforced controls for legacy 120, explicit 180, and default, with a raw-boundary mutant.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
       "successors": [],
       "requires": [],
       "blocker": {
