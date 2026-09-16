@@ -2,8 +2,21 @@ import { getDataContext } from '../lib/data-context.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import { buildSpecialEventSlots } from './schedule-constructor.js';
 import { POLICY_DEFAULTS } from './scheduling-policy.service.js';
-import { isTermIndexWithinContract, loadVerifiedOrderedTermContract } from './academic-term.service.js';
+import {
+	isTermIndexWithinContract,
+	loadVerifiedOrderedTermContract,
+	resolveRequestedTermIndex,
+	resolveRequestedTermIndexFromContract,
+} from './academic-term.service.js';
 import { isRejectedFlagCeremonyRow, resolveSpecialEventDayOfWeek } from '../lib/policy-special-events.js';
+import {
+	frozenReferenceMaps,
+	frozenTermContract,
+	readPublishedIdentitySnapshot,
+	snapshotGaps,
+	type PublishedIdentitySnapshot,
+	type SnapshotState,
+} from './published-identity-snapshot.service.js';
 
 const db = () => getDataContext();
 
@@ -22,6 +35,17 @@ type PublishedRunSource = {
 	activeRevisionEffectiveDate: string | null;
 	appliedRevisionIds: number[];
 	revisionMarker: string;
+	/** C08 — truthful immutability state of the resolved publication. */
+	snapshotState: SnapshotState;
+	/** C08 — frozen fields an entry references but the snapshot does not carry. */
+	snapshotGaps: string[];
+};
+
+export type PublishedRunResolution = {
+	source: PublishedRunSource;
+	entries: ScheduledEntry[];
+	summary: Record<string, unknown> | null;
+	snapshot: PublishedIdentitySnapshot | null;
 };
 
 type PublishedScheduleReadOptions = {
@@ -171,13 +195,31 @@ function buildRevisionMarker(params: {
 	].join('|');
 }
 
+/**
+ * Resolve the runtime-active, non-archived school year. An archived year is never
+ * elected current. Multiple active years fail closed rather than letting the read
+ * side pick one arbitrarily.
+ */
+export async function resolveActiveSchoolYearElection(schoolId: number): Promise<number | null> {
+	const mirrors = await db().enrollProSchoolYearMirror.findMany({
+		where: { schoolId, isActive: true, isArchived: false },
+		orderBy: [{ lastSyncedAt: 'desc' }, { updatedAt: 'desc' }],
+		select: { enrollProSchoolYearId: true },
+		take: 2,
+	});
+	if (mirrors.length > 1) {
+		throw err(409, 'ACTIVE_SCHOOL_YEAR_AMBIGUOUS', 'Multiple active school years are configured. Published schedule scope is ambiguous.');
+	}
+	return mirrors[0]?.enrollProSchoolYearId ?? null;
+}
+
 export async function resolvePublishedRun(
 	schoolId: number,
 	schoolYearId?: number,
 	options?: PublishedScheduleReadOptions,
 	filter?: { sectionId?: number; facultyId?: number; roomId?: number },
 	activeSchoolYearId?: number | null,
-) {
+): Promise<PublishedRunResolution> {
 	const { readDate, requestedDate } = resolveReadDate(options?.requestedDate);
 
 	const publishedRunCandidates = await db().generationRun.findMany({
@@ -295,22 +337,27 @@ export async function resolvePublishedRun(
 	const resolvedForDate = readDate.toISOString();
 	const activeRevisionEffectiveDate = activeRevision?.effectiveDate.toISOString() ?? null;
 
-	// Resolve school year label and active/historical status
-	const isActiveYear = activeSchoolYearId != null && publishedRunMeta.schoolYearId === activeSchoolYearId;
-	let schoolYearLabel: string | null = null;
-	if (activeSchoolYearId != null && publishedRunMeta.schoolYearId === activeSchoolYearId) {
-		const mirror = await db().enrollProSchoolYearMirror.findFirst({
-			where: { schoolId, enrollProSchoolYearId: publishedRunMeta.schoolYearId },
-			select: { yearLabel: true },
-		});
-		schoolYearLabel = mirror?.yearLabel ?? null;
-	} else {
-		const mirror = await db().enrollProSchoolYearMirror.findFirst({
-			where: { schoolId, enrollProSchoolYearId: publishedRunMeta.schoolYearId },
-			select: { yearLabel: true },
-		});
-		schoolYearLabel = mirror?.yearLabel ?? null;
-	}
+	// C08 — the base revision's frozen identity snapshot is the published
+	// artifact's authority. A publication without one is reported honestly as a
+	// legacy live projection and must never claim immutable reproduction.
+	const frozenSnapshot = readPublishedIdentitySnapshot(baseMetadata);
+	const snapshotState: SnapshotState = frozenSnapshot ? 'FROZEN' : 'LEGACY_LIVE_PROJECTION';
+
+	// Resolve the runtime-active school year. A caller-supplied election is
+	// authoritative; otherwise the service resolves it so both route families
+	// agree for the same scope. An archived year is never elected current.
+	const electedActiveYearId = activeSchoolYearId === undefined
+		? await resolveActiveSchoolYearElection(schoolId)
+		: activeSchoolYearId;
+	const isActiveYear = electedActiveYearId != null && publishedRunMeta.schoolYearId === electedActiveYearId;
+
+	const mirror = await db().enrollProSchoolYearMirror.findFirst({
+		where: { schoolId, enrollProSchoolYearId: publishedRunMeta.schoolYearId },
+		select: { yearLabel: true },
+	});
+	const schoolYearLabel = mirror?.yearLabel ?? null;
+
+	const resolvedEntries = applyPublishedRevisions(draftEntries, applicableRevisions);
 
 	return {
 		source: {
@@ -334,9 +381,12 @@ export async function resolvePublishedRun(
 				activeRevisionEffectiveDate,
 				resolvedForDate,
 			}),
+			snapshotState,
+			snapshotGaps: frozenSnapshot ? snapshotGaps(frozenSnapshot, resolvedEntries) : [],
 		} satisfies PublishedRunSource,
-		entries: applyPublishedRevisions(draftEntries, applicableRevisions),
+		entries: resolvedEntries,
 		summary: (publishedRunMeta.summary ?? null) as Record<string, unknown> | null,
+		snapshot: frozenSnapshot,
 	};
 }
 
@@ -529,43 +579,62 @@ export async function getPublishedSchedulePayload(
 		  })
 		: resolved.entries;
 
-	const policy = await db().schedulingPolicy.findUnique({
-		where: { schoolId_schoolYearId: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId } },
-	}) ?? POLICY_DEFAULTS;
+	// C08 — frozen-first. A published revision carrying a valid snapshot resolves
+	// every human-readable identity, the policy, the special events, and the
+	// term authority from the snapshot. A legacy publication honestly reports
+	// `LEGACY_LIVE_PROJECTION` and keeps today's live resolution.
+	const frozen = resolved.snapshot;
 
-	const publishedSpecialEvents = await db().policySpecialEvent.findMany({
-		where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, enabled: true },
-		orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
-	});
-	const mappedPublishedSpecialEvents = publishedSpecialEvents
-		// R3: use the single shared Flag/HGP identity + day authority. A rejected
-		// (explicit non-Monday) row is never silently re-rendered as Monday.
-		.filter((se) => !isRejectedFlagCeremonyRow(se.eventType, null, se.label))
-		.map((se) => ({
+	const policy = frozen
+		? frozen.policy
+		: (await db().schedulingPolicy.findUnique({
+			where: { schoolId_schoolYearId: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId } },
+		}) ?? POLICY_DEFAULTS);
+
+	const mappedPublishedSpecialEvents = frozen
+		? frozen.specialEvents.map((se) => ({
 			eventType: se.eventType,
 			label: se.label,
 			startTime: se.startTime,
 			endTime: se.endTime,
-			// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
-			// derived from the canonical event identity (Flag/HGP is Monday-only).
-			dayOfWeek: resolveSpecialEventDayOfWeek(se.eventType, null, se.label) ?? null,
+			dayOfWeek: se.dayOfWeek,
 			gradeGroup: se.gradeGroup,
 			programType: se.programType,
-		}));
+		}))
+		: (await db().policySpecialEvent.findMany({
+			where: { schoolId: resolved.source.schoolId, schoolYearId: resolved.source.schoolYearId, enabled: true },
+			orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }],
+		}))
+			// R3: use the single shared Flag/HGP identity + day authority. A rejected
+			// (explicit non-Monday) row is never silently re-rendered as Monday.
+			.filter((se) => !isRejectedFlagCeremonyRow(se.eventType, null, se.label))
+			.map((se) => ({
+				eventType: se.eventType,
+				label: se.label,
+				startTime: se.startTime,
+				endTime: se.endTime,
+				// `PolicySpecialEvent` has no persisted dayOfWeek column; day scope is
+				// derived from the canonical event identity (Flag/HGP is Monday-only).
+				dayOfWeek: resolveSpecialEventDayOfWeek(se.eventType, null, se.label) ?? null,
+				gradeGroup: se.gradeGroup,
+				programType: se.programType,
+			}));
 
 	const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
 	const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));
 	const facultyIds = Array.from(new Set(filteredEntries.map((entry) => entry.facultyId).filter((id): id is number => id != null)));
 	const roomIds = Array.from(new Set(filteredEntries.map((entry) => entry.roomId)));
 
-	const references = await loadReferenceMaps(
-		resolved.source.schoolId,
-		resolved.source.schoolYearId,
-		sectionIds,
-		subjectIds,
-		facultyIds,
-		roomIds
-	);
+	const references = frozen
+		? frozenReferenceMaps(frozen)
+		: await loadReferenceMaps(
+			resolved.source.schoolId,
+			resolved.source.schoolYearId,
+			sectionIds,
+			subjectIds,
+			facultyIds,
+			roomIds,
+		);
 
 	// Term filtering: apply after references are loaded
 	let termScope: 'all' | 'explicit' | 'active' = 'all';
@@ -576,7 +645,20 @@ export async function getPublishedSchedulePayload(
 	if (options?.termIndex !== undefined) {
 		const requestedTerm = options.termIndex;
 
-		if (requestedTerm === 'active') {
+		if (frozen) {
+			// C08 — a published run's term authority is the FROZEN ordered-term
+			// contract, never the live active/non-archived mirror cache. This is what
+			// makes archived per-term reads and every official export resolvable.
+			const frozenContract = frozenTermContract(frozen, resolved.source.schoolId, resolved.source.schoolYearId);
+			resolvedTermIndex = resolveRequestedTermIndexFromContract(
+				frozenContract,
+				resolved.source.schoolId,
+				resolved.source.schoolYearId,
+				requestedTerm,
+			) ?? null;
+			activeTermVerified = requestedTerm === 'active';
+			termScope = requestedTerm === 'active' ? 'active' : 'explicit';
+		} else if (requestedTerm === 'active') {
 			// The active term resolves only through the persisted, verified EnrollPro
 			// ordered contract and fails closed when it is unavailable.
 			const contract = await loadVerifiedOrderedTermContract(resolved.source.schoolId, resolved.source.schoolYearId);
@@ -679,9 +761,16 @@ export async function getPublishedSchedulePayload(
 		};
 	});
 
-	const summaryDisplaySlots = Array.isArray(resolved.summary?.timetableDisplaySlots)
-		? (resolved.summary?.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean; dayOfWeek?: string }>)
-		: [];
+	const summaryDisplaySlots = frozen
+		? frozen.displaySlots.map((slot) => ({
+			startTime: slot.startTime,
+			endTime: slot.endTime,
+			...(slot.kind === 'SPECIAL_EVENT' ? { eventName: slot.label, isSpecialEvent: true } : {}),
+			...(slot.dayOfWeek ? { dayOfWeek: slot.dayOfWeek } : {}),
+		}))
+		: Array.isArray(resolved.summary?.timetableDisplaySlots)
+			? (resolved.summary?.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean; dayOfWeek?: string }>)
+			: [];
 	const timeSlots = summaryDisplaySlots.length > 0
 		? summaryDisplaySlots
 		: Array.from(new Set(entries.map((entry) => `${entry.startTime}-${entry.endTime}`)))
@@ -699,7 +788,9 @@ export async function getPublishedSchedulePayload(
 			activeTermVerified,
 		},
 		timeSlots,
-		specialEvents: buildSpecialEventsPayload(policy, mappedPublishedSpecialEvents),
+		// C08 — frozen policy/special events feed the same deterministic slot
+		// builder the live path uses, so a frozen artifact reproduces byte-stably.
+		specialEvents: buildSpecialEventsPayload(policy as never, mappedPublishedSpecialEvents),
 		entries,
 	};
 }
@@ -728,4 +819,44 @@ export async function getPublishedFacultyScheduleByExternalId(schoolId: number, 
 		throw e;
 	}
 	return getPublishedSchedulePayload(schoolId, schoolYearId, options, { facultyId: mirror.id });
+}
+
+/**
+ * PUBLISHED-IMMUTABILITY-C08 (D5/§4.7) — official export term resolution.
+ *
+ * A PUBLISHED run resolves its requested term through the FROZEN ordered-term
+ * contract of its base publication revision, never through the live
+ * active/non-archived EnrollPro mirror cache. That is what makes an archived
+ * year's per-term exports resolvable after the live term cache is gone.
+ *
+ * A draft/unpublished run keeps the live verified authority unchanged.
+ */
+export async function resolvePublishedRunTermIndex(
+	schoolId: number,
+	schoolYearId: number,
+	runId: number,
+	requested: number | 'active' | undefined,
+): Promise<number | undefined> {
+	if (requested === undefined) return undefined;
+
+	const baseRevision = await db().publishedScheduleRevision.findFirst({
+		where: {
+			schoolId,
+			schoolYearId,
+			sourceRunId: runId,
+			reason: 'INITIAL_PUBLICATION',
+		},
+		orderBy: [{ effectiveDate: 'asc' }, { id: 'asc' }],
+		select: { metadata: true },
+	});
+	const snapshot = readPublishedIdentitySnapshot(baseRevision?.metadata);
+	if (snapshot) {
+		return resolveRequestedTermIndexFromContract(
+			frozenTermContract(snapshot, schoolId, schoolYearId),
+			schoolId,
+			schoolYearId,
+			requested,
+		);
+	}
+	return resolveRequestedTermIndex(schoolId, schoolYearId, requested);
 }

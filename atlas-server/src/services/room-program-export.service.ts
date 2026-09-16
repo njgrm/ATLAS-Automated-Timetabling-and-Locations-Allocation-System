@@ -79,10 +79,14 @@ export async function exportRoomProgramWorkbook(options: RoomProgramOptions): Pr
 	const ctx: ExportContext = await loadExportContext(options);
 	const db = (options.client ?? prisma) as typeof prisma;
 
-	const sections = await db.sectionMirror.findMany({
-		where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
-		select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true },
-	});
+	// C08 — a published export renders the frozen section roster; only a
+	// draft/unpublished source reads the live mirror.
+	const sections = ctx.frozenSnapshot
+		? ctx.sections
+		: await db.sectionMirror.findMany({
+			where: { schoolId: options.schoolId, schoolYearId: options.schoolYearId },
+			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true },
+		});
 	const sectionNameByExternalId = new Map<number, string>();
 	for (const section of sections) {
 		if (section.externalId != null) sectionNameByExternalId.set(section.externalId, section.name);

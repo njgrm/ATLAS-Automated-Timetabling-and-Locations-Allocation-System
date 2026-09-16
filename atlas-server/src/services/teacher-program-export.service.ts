@@ -241,8 +241,12 @@ async function resolveCanonicalIntervals(params: {
 	schoolYearId: number;
 	grades: number[];
 	displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string; dayOfWeek?: string }>;
+	/** C08 — frozen class-program rows for a published run; skips the live read. */
+	frozenSlotRows?: Array<{ startTime: string; endTime: string; rowKind: string; subjectLabel?: string | null; dayOfWeek?: string | null; gradeLevel: number }>;
+	/** C08 — frozen effective special events for a published run. */
+	frozenEventRows?: Array<{ label?: string | null; startTime: string; endTime: string; dayOfWeek?: string | null }>;
 }): Promise<CanonicalInterval[]> {
-	const { db, schoolId, schoolYearId, grades, displaySlots } = params;
+	const { db, schoolId, schoolYearId, grades, displaySlots, frozenSlotRows, frozenEventRows } = params;
 	const intervals = new Map<string, CanonicalInterval>();
 	const add = (interval: CanonicalInterval) => {
 		const key = `${interval.startTime}-${interval.endTime}`;
@@ -254,8 +258,24 @@ async function resolveCanonicalIntervals(params: {
 		}
 	};
 
-	// 1. Persisted class-program slots (canonical shift template).
-	if (grades.length > 0 && db.classProgramSlot?.findMany) {
+	// 1. Persisted class-program slots (canonical shift template) — or the frozen
+	// template rows for a published run.
+	if (frozenSlotRows) {
+		for (const slot of frozenSlotRows) {
+			if (!grades.includes(slot.gradeLevel)) continue;
+			if (slot.rowKind === 'CLASS') {
+				add({ startTime: slot.startTime, endTime: slot.endTime, kind: 'CLASS', label: null, dayOfWeek: null });
+			} else if (slot.rowKind === 'BREAK') {
+				add({
+					startTime: slot.startTime,
+					endTime: slot.endTime,
+					kind: 'EVENT',
+					label: slot.subjectLabel ?? 'Break',
+					dayOfWeek: slot.dayOfWeek ?? null,
+				});
+			}
+		}
+	} else if (grades.length > 0 && db.classProgramSlot?.findMany) {
 		try {
 			const slots = await db.classProgramSlot.findMany({
 				where: { schoolId, schoolYearId, isActive: true },
@@ -281,8 +301,18 @@ async function resolveCanonicalIntervals(params: {
 		}
 	}
 
-	// 2. Effective policy special events.
-	if (db.policySpecialEvent?.findMany) {
+	// 2. Effective policy special events — or the frozen effective rows.
+	if (frozenEventRows) {
+		for (const event of frozenEventRows) {
+			add({
+				startTime: event.startTime,
+				endTime: event.endTime,
+				kind: 'EVENT',
+				label: event.label ?? 'Special Event',
+				dayOfWeek: event.dayOfWeek ?? null,
+			});
+		}
+	} else if (db.policySpecialEvent?.findMany) {
 		try {
 			const events = await db.policySpecialEvent.findMany({
 				where: { schoolId, schoolYearId, enabled: true },
@@ -345,20 +375,18 @@ export async function buildTeacherProgramExportShape(params: {
 	publishedScheduleResolver?: (schoolId: number, facultyId: number, schoolYearId: number) => Promise<{
 		entries?: unknown[];
 		source?: { runId?: number } | null;
+		snapshot?: unknown;
 	}>;
 }): Promise<TeacherProgramExportShape> {
 	const { schoolId, schoolYearId, runId, facultyId, termIndex, client, publishedScheduleResolver } = params;
 	const db = (client ?? getDataContext() ?? prisma) as any;
+	// C08 — populated only for a published run from its frozen publication snapshot.
+	let frozenSnapshot: any = null;
 
-	// 1. Load faculty mirror
-	const faculty = await db.facultyMirror.findFirst({
-		where: { id: facultyId, schoolId, isStale: false },
-	});
-	if (!faculty) throw new Error('FACULTY_NOT_FOUND');
-
-	const fullName = [faculty.lastName, faculty.firstName].filter(Boolean).join(', ');
-
-	// 2. Load generation run
+	// 1. Load generation run first: whether it is published decides whether the
+	// teacher record must be scheduling-active (draft) or may have gone stale
+	// after publication. C08 — a stale faculty mirror must never erase a
+	// published teacher program.
 	const run = await db.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 		select: { id: true, status: true, summary: true, draftEntries: true },
@@ -368,36 +396,72 @@ export async function buildTeacherProgramExportShape(params: {
 	const isPublished = (run.summary as Record<string, unknown> | null)?.isPublished === true;
 	if (run.status !== 'COMPLETED' && !isPublished) throw new Error('RUN_NOT_COMPLETED');
 
+	// 2. Load faculty mirror (frozen-identity fallback for a published run).
+	let faculty = await db.facultyMirror.findFirst({
+		where: { id: facultyId, schoolId, isStale: false },
+	});
+	if (!faculty && isPublished) {
+		faculty = await db.facultyMirror.findFirst({
+			where: { id: facultyId, schoolId },
+		});
+	}
+	if (!faculty) throw new Error('FACULTY_NOT_FOUND');
+
+	const fullName = [faculty.lastName, faculty.firstName].filter(Boolean).join(', ');
+
 	// 3. Load school year label
 	const mirror = await db.enrollProSchoolYearMirror.findFirst({
 		where: { schoolId, enrollProSchoolYearId: schoolYearId },
 		select: { yearLabel: true },
 	});
 
-	// 4. Load scheduling policy (breaks + effective advisory-credit policy)
-	const policy = await db.schedulingPolicy.findFirst({
-		where: { schoolId, schoolYearId },
-		select: {
-			lunchStartTime: true,
-			lunchEndTime: true,
-			recessStartTime: true,
-			recessEndTime: true,
-			flagCeremonyStartTime: true,
-			flagCeremonyEndTime: true,
-			enableRecess: true,
-			enableFlagCeremony: true,
-			advisoryCreditMinutes: true,
-		},
-	});
+	// 4. Load scheduling policy (breaks + effective advisory-credit policy).
+	// C08 — a published run uses the FROZEN policy projection.
+	const livePolicy = frozenSnapshot?.policy && typeof frozenSnapshot.policy === 'object'
+		? frozenSnapshot.policy
+		: await db.schedulingPolicy.findFirst({
+			where: { schoolId, schoolYearId },
+			select: {
+				lunchStartTime: true,
+				lunchEndTime: true,
+				recessStartTime: true,
+				recessEndTime: true,
+				flagCeremonyStartTime: true,
+				flagCeremonyEndTime: true,
+				enableRecess: true,
+				enableFlagCeremony: true,
+				advisoryCreditMinutes: true,
+			},
+		});
+	const policy = livePolicy as {
+		lunchStartTime?: string | null;
+		lunchEndTime?: string | null;
+		recessStartTime?: string | null;
+		recessEndTime?: string | null;
+		flagCeremonyStartTime?: string | null;
+		flagCeremonyEndTime?: string | null;
+		enableRecess?: boolean | null;
+		enableFlagCeremony?: boolean | null;
+		advisoryCreditMinutes?: number | null;
+	} | null;
 
 	const runSummary = run.summary as Record<string, unknown> | null;
-	const displaySlots = (runSummary?.timetableDisplaySlots as Array<{
-		startTime: string;
-		endTime: string;
-		isSpecialEvent?: boolean;
-		eventName?: string;
-		dayOfWeek?: string;
-	}> | undefined) ?? [];
+	// C08 — a published run's display slots are the frozen slots.
+	const displaySlots = (frozenSnapshot?.displaySlots
+		? (frozenSnapshot.displaySlots as Array<{ startTime: string; endTime: string; label: string; kind: string; dayOfWeek: string | null }>).map((slot) => ({
+			startTime: slot.startTime,
+			endTime: slot.endTime,
+			isSpecialEvent: slot.kind === 'SPECIAL_EVENT',
+			eventName: slot.kind === 'SPECIAL_EVENT' ? slot.label : undefined,
+			dayOfWeek: slot.dayOfWeek ?? undefined,
+		}))
+		: (runSummary?.timetableDisplaySlots as Array<{
+			startTime: string;
+			endTime: string;
+			isSpecialEvent?: boolean;
+			eventName?: string;
+			dayOfWeek?: string;
+		}> | undefined) ?? []);
 
 	// 5. Load reference maps
 	const [subjects, rooms, buildings, school] = await Promise.all([
@@ -428,6 +492,12 @@ export async function buildTeacherProgramExportShape(params: {
 	const buildingMap = new Map<number, string>(buildings.map((b: any) => [b.id, b.name]));
 	void buildingMap;
 
+	// C08 — a published run's rendered identity comes from the frozen publication
+	// snapshot (`published.snapshot`) and the published payload's own embedded
+	// identity fields, never from the live authority maps loaded above. The frozen
+	// maps are applied as an override so no live table can change the artifact.
+	let frozenSectionByExternalId: Map<number, any> | null = null;
+
 	// 6. Extract teaching entries for this faculty from the run
 	type RunEntry = {
 		entryId: string;
@@ -447,8 +517,18 @@ export async function buildTeacherProgramExportShape(params: {
 	let facultyEntries: RunEntry[];
 	if (isPublished) {
 		const resolvePublished = publishedScheduleResolver ?? (async (resolvedSchoolId: number, resolvedFacultyId: number, resolvedSchoolYearId: number) => {
-			const { getPublishedFacultySchedule } = await import('./published-schedule.service.js');
-			return getPublishedFacultySchedule(resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId);
+			const { getPublishedFacultySchedule, resolvePublishedRun } = await import('./published-schedule.service.js');
+			// The projected faculty payload carries the presentation identities; the
+			// raw resolution carries the frozen publication snapshot (C08).
+			const [payload, resolved] = await Promise.all([
+				getPublishedFacultySchedule(resolvedSchoolId, resolvedFacultyId, resolvedSchoolYearId),
+				resolvePublishedRun(resolvedSchoolId, resolvedSchoolYearId),
+			]);
+			return {
+				entries: payload.entries as unknown[],
+				source: { runId: payload.source?.runId },
+				snapshot: resolved.snapshot,
+			};
 		});
 		const published = await resolvePublished(schoolId, facultyId, schoolYearId);
 		// BENEFICIARY-EXPORT-PARITY-C05 T2/M4 — the export URL is run-scoped and
@@ -457,6 +537,33 @@ export async function buildTeacherProgramExportShape(params: {
 		// requested run. This mirrors workbook-export.service.ts exactly.
 		if (published.source?.runId !== runId) {
 			throw new Error('RUN_NOT_FOUND');
+		}
+		// C08 — freeze the rendered identity from the publication snapshot and the
+		// published payload's own embedded identity fields.
+		frozenSnapshot = (published as { snapshot?: unknown }).snapshot ?? null;
+		for (const raw of published.entries ?? []) {
+			const value = raw as {
+				subject?: { id?: number | null; code?: string | null; name?: string | null } | null;
+				room?: { id?: number | null; name?: string | null; buildingName?: string | null } | null;
+				section?: { id?: number | null; externalId?: number | null; name?: string | null; gradeLevel?: number | null; gradeLevelName?: string | null; programType?: string | null } | null;
+			};
+			if (value.subject?.id != null) {
+				subjectMap.set(value.subject.id, { id: value.subject.id, name: value.subject.name ?? null, code: value.subject.code ?? null });
+			}
+			if (value.room?.id != null) {
+				roomMap.set(value.room.id, { name: value.room.name ?? '', buildingName: value.room.buildingName ?? '' });
+			}
+			if (value.section?.externalId != null) {
+				if (!frozenSectionByExternalId) frozenSectionByExternalId = new Map();
+				frozenSectionByExternalId.set(value.section.externalId, {
+					id: value.section.id ?? value.section.externalId,
+					externalId: value.section.externalId,
+					name: value.section.name ?? `Section ${value.section.externalId}`,
+					gradeLevelId: value.section.gradeLevel ?? 0,
+					gradeLevelName: value.section.gradeLevelName ?? null,
+					programType: value.section.programType ?? null,
+				});
+			}
 		}
 		facultyEntries = (published.entries ?? []).map((entry) => {
 			const value = entry as {
@@ -516,21 +623,29 @@ export async function buildTeacherProgramExportShape(params: {
 		throw error;
 	}
 
-	// 7. Load section mirrors for grade/section labels
+	// 7. Load section mirrors for grade/section labels. C08 — a published run
+	// renders the frozen section roster; no live mirror read can rewrite it.
 	const sectionIds = [...new Set(facultyEntries.map((e) => e.sectionId).filter((id): id is number => id != null))];
-	const sections = sectionIds.length > 0
-		? await db.sectionMirror.findMany({
-			where: {
-				OR: [
-					{ externalId: { in: sectionIds }, schoolId, schoolYearId },
-					{ id: { in: sectionIds }, schoolId, schoolYearId },
-				],
-			},
-			select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
-		})
-		: [];
-	const sectionByExternalId = new Map(sections.filter((s: any) => s.externalId != null).map((s: any) => [s.externalId, s]));
-	const sectionByLocalId = new Map(sections.map((s: any) => [s.id, s]));
+	let sectionByExternalId: Map<number, any>;
+	let sectionByLocalId: Map<number, any>;
+	if (frozenSectionByExternalId) {
+		sectionByExternalId = frozenSectionByExternalId;
+		sectionByLocalId = new Map<number, any>([...frozenSectionByExternalId.values()].map((section: any) => [section.id, section]));
+	} else {
+		const sections = sectionIds.length > 0
+			? await db.sectionMirror.findMany({
+				where: {
+					OR: [
+						{ externalId: { in: sectionIds }, schoolId, schoolYearId },
+						{ id: { in: sectionIds }, schoolId, schoolYearId },
+					],
+				},
+				select: { id: true, externalId: true, name: true, gradeLevelId: true, gradeLevelName: true, programType: true },
+			})
+			: [];
+		sectionByExternalId = new Map(sections.filter((s: any) => s.externalId != null).map((s: any) => [s.externalId, s]));
+		sectionByLocalId = new Map(sections.map((s: any) => [s.id, s]));
+	}
 	function resolveSection(sectionId: number | null): any | null {
 		if (sectionId == null) return null;
 		return sectionByExternalId.get(sectionId) ?? sectionByLocalId.get(sectionId) ?? null;
@@ -538,11 +653,24 @@ export async function buildTeacherProgramExportShape(params: {
 
 	// 8. Canonical shift intervals for the grades the teacher actually teaches.
 	const grades: number[] = [...new Set(
-		(sections as any[])
+		[...sectionByExternalId.values()]
 			.map((section: any) => parseGradeNumber(section))
 			.filter((grade): grade is number => typeof grade === 'number' && Number.isFinite(grade)),
 	)];
-	const canonicalIntervals = await resolveCanonicalIntervals({ db, schoolId, schoolYearId, grades, displaySlots });
+	const canonicalIntervals = await resolveCanonicalIntervals({
+		db,
+		schoolId,
+		schoolYearId,
+		grades,
+		displaySlots,
+		// C08 — a published run's shift template and effective events are frozen.
+		frozenSlotRows: frozenSnapshot?.classProgramSlots
+			? (frozenSnapshot.classProgramSlots as Array<{ startTime: string; endTime: string; rowKind: string; subjectLabel?: string | null; dayOfWeek?: string | null; gradeLevel: number }>)
+			: undefined,
+		frozenEventRows: frozenSnapshot?.specialEvents
+			? (frozenSnapshot.specialEvents as Array<{ label?: string | null; startTime: string; endTime: string; dayOfWeek?: string | null }>)
+			: undefined,
+	});
 	const intervalsByKey = new Map<string, CanonicalInterval>(
 		canonicalIntervals.map((interval) => [`${interval.startTime}-${interval.endTime}`, interval]),
 	);
@@ -787,8 +915,11 @@ export async function buildTeacherProgramExportShape(params: {
 	return {
 		teacher: {
 			id: faculty.id,
-			fullName,
-			employeeId: faculty.employeeId,
+			// C08 — the published teacher identity (display name / employee id) is
+			// the frozen publication value; only the profile-presentation fields
+			// that the frozen snapshot contract does not carry stay live.
+			fullName: (frozenSnapshot?.faculty?.[String(facultyId)]?.displayName as string | undefined) ?? fullName,
+			employeeId: (frozenSnapshot?.faculty?.[String(facultyId)]?.employeeId as string | null | undefined) ?? faculty.employeeId,
 			plantillaPosition: faculty.plantillaPosition ?? null,
 			designationTitle: faculty.designationTitle ?? null,
 			undergraduateDegree: faculty.undergraduateDegree ?? null,

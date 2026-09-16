@@ -11,6 +11,11 @@ import {
 } from './generation-input-snapshot.service.js';
 import { buildDerivedDemand } from './derived-demand.service.js';
 import { isPromotableConstraintCode } from './scheduling-policy.service.js';
+import {
+	PUBLISHED_IDENTITY_SNAPSHOT_KEY,
+	buildPublishedIdentitySnapshot,
+	type PublishedIdentitySnapshot,
+} from './published-identity-snapshot.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -46,6 +51,7 @@ type PublicationDependencies = {
 		schoolYearId: number,
 		client: Prisma.TransactionClient | PrismaClient,
 	) => Promise<GenerationInputSnapshot>;
+	buildIdentitySnapshot?: typeof buildPublishedIdentitySnapshot;
 };
 
 function fail(
@@ -164,6 +170,7 @@ export async function publishSchedule(
 	const client = getDataContext<PrismaClient>();
 	const now = dependencies.now ?? (() => new Date());
 	const computeSnapshot = dependencies.computeInputSnapshot ?? computeGenerationInputSnapshot;
+	const buildIdentitySnapshot = dependencies.buildIdentitySnapshot ?? buildPublishedIdentitySnapshot;
 	const publishEvent = dependencies.publishEvent ?? publishPublishedScheduleEvent;
 
 	const committed = await runSerializablePublicationTransaction(client, async (tx) => {
@@ -298,6 +305,27 @@ export async function publishSchedule(
 		}
 
 		const publishedAt = now();
+
+		// PUBLISHED-IMMUTABILITY-C08 — freeze the published artifact's identity
+		// from the SAME transaction and the SAME fresh read that the publication
+		// decision above already validated. The existing freshness comparison
+		// (`PUBLICATION_INPUTS_STALE`) bound this read to the run's input snapshot;
+		// the snapshot is therefore never derived from older data. Any inconsistency
+		// between frozen special events and frozen display slots fails closed with
+		// `PUBLICATION_SNAPSHOT_INCONSISTENT` and zero writes.
+		const summaryRecord = asRecord(run.summary) ?? {};
+		const publishedIdentitySnapshot: PublishedIdentitySnapshot = await buildIdentitySnapshot({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			client: tx,
+			entries: (run.draftEntries ?? []) as Array<Record<string, unknown>>,
+			inputFingerprint: currentSnapshot.fingerprint,
+			capturedAt: publishedAt.toISOString(),
+			summaryDisplaySlots: Array.isArray(summaryRecord.timetableDisplaySlots)
+				? summaryRecord.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean; dayOfWeek?: string | null }>
+				: undefined,
+		});
+
 		const priorPublishedRuns = await tx.generationRun.findMany({
 			where: {
 				schoolId: input.schoolId,
@@ -343,6 +371,7 @@ export async function publishSchedule(
 					publicationBase: true,
 					sourceRunVersion: run.version + 1,
 					inputFingerprint: currentSnapshot.fingerprint,
+					[PUBLISHED_IDENTITY_SNAPSHOT_KEY]: publishedIdentitySnapshot,
 				} as Prisma.InputJsonValue,
 			},
 		});
