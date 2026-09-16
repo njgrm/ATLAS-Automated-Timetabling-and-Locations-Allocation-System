@@ -82,8 +82,16 @@ owned by other streams and are **out of scope** here.
    runs, not *invalidated* runs.
 
 Two concrete harms a concurrent `publishSchedule` (`publication-contract.service.ts`)
-can cause because it is the only writer that advances `GenerationRun.version`
-(`:342-354` prior-run retire CAS, `:415-419` run CAS, both `version: { increment: 1 }`):
+can cause. `publishSchedule` is the only writer that advances `GenerationRun.version`
+**as part of the publication transition** (`:342-354` prior-run retire CAS,
+`:415-419` run CAS, both `version: { increment: 1 }`). Two other services advance
+the same field, each already behind its own CAS predicate and therefore outside
+this defect: `timetable-sync-setup.service.ts:849-856` (`where { id, version:
+expectedRunVersion }`, explicit `version: nextVersion`) and
+`timetable-teaching-load-repair.service.ts:1204-1211` (`where { id, version:
+expectedVersion }`, explicit `version: newVersion`). Routine sync is therefore
+the only writer that both advances nothing and asserts nothing, which is exactly
+why it can clobber a publication:
 
 - **Un-publish / resurrection:** sync classifies a currently published run `R`
   (version `N`) as stale; `publishSchedule` retires `R` (version `N` → `N+1`,
@@ -185,6 +193,36 @@ and `scripts/seed-realistic.ts:628`), `publication-contract.service.ts:342,415`
 reachable=false observation, not a fix). A reachable routine-sync writer without
 a guard must be included in R1; an unreachable one is recorded with its search
 evidence.
+
+Planner-verified pre-facts for that inventory (re-checked at `544bbf81`; the
+product tree is byte-identical back to `61efa8a1`):
+
+- `reconcileInvalidPublishedRunStates` (`generation.service.ts:125`) has **zero
+  callers**. The only repository hits for its name are the definition itself and
+  a narrative mention in
+  `docs/reviews/tt-source-freshness-c04-20260914/wave-completion-audit.md`. It is
+  an **inventory row only** and is **NOT part of this fix**. Its inner write at
+  `generation.service.ts:161` (`update where { id: run.id }`, no version
+  predicate) is reachable=false and must not be guarded here.
+- The repair in this packet is exactly **(a)** the two unguarded writes in
+  `invalidateStaleCompletedRuns` at `generation.service.ts:1703-1706` (drift
+  branch, no version predicate) and `:1734-1737` (destructive branch, no version
+  predicate and no pinned `status`), plus **(b)** the `invalidatedCount`
+  over-report at `:1741` (`staleRunIds.length` counts classified runs, not
+  invalidated runs). Nothing else in this packet is the defect.
+- Writers that advance `GenerationRun.version`: `publication-contract.service.ts`
+  (`:343`/`:351` retire CAS, `:416`/`:417` run CAS, both `{ increment: 1 }`),
+  `timetable-sync-setup.service.ts:849-856`, and
+  `timetable-teaching-load-repair.service.ts:1204-1211`; the latter two are
+  already CAS-guarded. `invalidateStaleCompletedRuns` advances nothing, so it
+  must gain the CAS.
+- The routine-sync caller is `faculty.service.ts:768`, whose declared result
+  shape is `invalidatedRuns: { invalidatedCount: number; staleRunIds: number[] }`
+  (`faculty.service.ts:58`, with the empty fast-path at `:533`).
+- The CAS field already exists: `prisma/schema.prisma:792` `version Int
+  @default(1)` on `model GenerationRun` (model opens at `:777`). **No migration is
+  needed or permitted.**
+
 
 ## 4. Mandatory failing-first controls
 
