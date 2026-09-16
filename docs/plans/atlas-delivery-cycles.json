@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T15:19:06.439Z",
-    "lastUpdatedBy": "head-planner",
-    "revision": 215
+    "lastUpdatedAt": "2026-09-16T16:02:34.085Z",
+    "lastUpdatedBy": "primary-planner:c09-registration",
+    "revision": 218
   },
   "coordination": {
-    "mode": "MANUAL",
-    "activeCycleId": null,
-    "globalNextAction": "TT-WARNING-REALISM-C07R1 closed COMPLETE at origin/main 6d3229ce (Lane A successor 107c5159 18/18; Lane B b8a1b1cf 14/14; wave audit AUDIT_CLEAR 13/13; receipt docs/plans/receipts/tt-warning-realism-c07r1.receipt.json). All live/HIGH actions remain locked; next work requires a new operator-activated cycle."
+    "mode": "CYCLE_ACTIVE",
+    "activeCycleId": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+    "globalNextAction": "WF-TRANSITION-TERMINAL-RECONCILE-C09 (CYCLE_ACTIVE, rev 218 base): executor implements docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md in E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09 (three new transitions, the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule with the declared monotone repair-read, create-stream atomic lease, optional resolution property, and the ordered seven-step real register repair at revisions 218-225), then fresh high QA, planner integration and push, then a fresh high Wave Completion Audit. Every live/HIGH action (term-cache apply, runtime/install, Teaching Load, generation, publication, migration) stays locked."
   },
   "streams": [
     {
@@ -5202,6 +5202,151 @@
           "reason": "the union wave audit is owned by the parent cycle."
         }
       }
+    },
+    {
+      "id": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+      "kind": "STREAM",
+      "objective": "Extend the ops/workflow delivery-cycle authority with three sanctioned atomic transitions and one preventive verifier rule so the machine register can state the truth it currently cannot express: (1) abandon-stream exits an orphaned RUNNING (or PLANNED) declaration to PLANNED with running: [] only when there is zero ACTIVE lease and no heartbeat inside the configured staleness window, and fails closed otherwise; (2) resolve-decision is the documented terminal exit for DECISION_REQUIRED to SUPERSEDED or CLOSED, recording the resolver and the resolution text, requiring a named non-dead replacement for SUPERSEDED, and clearing awaited; (3) reconcile-stream atomically sets awaited, running, blocker.* and nextAction on any state except RUNNING without changing state; and (4) the verifier emits a typed RUNNING_WITHOUT_LIVE_EVIDENCE error for a RUNNING declaration backed by neither an ACTIVE lease nor a fresh heartbeat, with atomic lease creation at create-stream time and a declared, monotone, candidate-must-improve repair-read so an already-orphaned live register can be repaired through the transitions rather than hand-edited. The candidate also reconciles five real register residues through those transitions: TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 (RUNNING to truthful PLANNED), TT-WARNING-COUNT-C07A (DECISION_REQUIRED to SUPERSEDED with awaited cleared), TL-DIAGNOSTICS-LOADING-C06 (blocker.safeWorkRemaining false), and the stale forward-looking nextAction on WF-C02 and WF-SEED-PIN-C01.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T16:02:08.747Z",
+      "nextAction": "Executor implements docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md in E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09: the three new transitions, the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule with the declared monotone repair-read and the create-stream atomic lease, the optional resolution property, and the ordered seven-step real register repair at revisions 218-225. It returns REVIEW_REQUIRED; the planner then validates the immutable range including the register delta and its revision arithmetic and dispatches fresh independent QA.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the WF-TRANSITION-TERMINAL-RECONCILE-C09 candidate",
+        "fresh independent QA over the frozen candidate"
+      ],
+      "running": [
+        "executor implementation session on branch work/wf-transition-terminal-reconcile-c09 (packet docs/prompts/wf-transition-terminal-reconcile-c09-2026-09-16.md)"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09",
+        "branch": "work/wf-transition-terminal-reconcile-c09",
+        "baseSha": "61efa8a1b4ba4598e25f7d37909f88a5b94a66b2",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "61efa8a1b4ba4598e25f7d37909f88a5b94a66b2",
+          "observedAt": "2026-09-16T16:01:01.804Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 20,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "the three sanctioned transitions and their negative fixtures in ops/workflow",
+          "the RUNNING_WITHOUT_LIVE_EVIDENCE verifier rule and the declared monotone repair-read",
+          "the create-stream atomic lease and the optional resolution property",
+          "the ordered seven-step real register repair at revisions 218-225"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns this cycle, validates the register delta and its revision arithmetic, integrates, and pushes."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the bounded workflow-authority implementation runs in a fresh executor context in its own worktree."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the frozen candidate requires a fresh independent QA context."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "this changes the delivery-cycle state authority, so a fresh Wave Completion Auditor is required after integration."
+        }
+      }
     }
   ],
   "leases": [
@@ -5280,6 +5425,17 @@
       "state": "RETURNED",
       "revision": 2,
       "updatedAt": "2026-09-16T15:19:00.094Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-wf-transition-terminal-reconcile-c09",
+      "streamId": "WF-TRANSITION-TERMINAL-RECONCILE-C09",
+      "worktree": "E:/ATLAS-worktrees/wf-transition-terminal-reconcile-c09",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-16T16:02:08.747Z",
       "expiresAt": null
     }
   ],
