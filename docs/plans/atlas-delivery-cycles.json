@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-15T23:29:29.931Z",
+    "lastUpdatedAt": "2026-09-16T03:30:29.020Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 134
+    "revision": 137
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B: COMPLETE (SOURCE_ONLY). QA ACCEPT_READY 17/17/0/0/0 (ses_f58c1e341ffeQlLBjfIyc7I2t) over base d7743bd8 -> candidate dbf1ed22; integrated at merge 0c2bd1c7 and pushed; Wave Completion Audit AUDIT_CLEAR (ses_f58b48de1ffeOmPgV67ewyC5Ck, 0 blocking findings, F1-F6 non-blocking); closure receipt docs/plans/receipts/export-presentation-schema-guard-c06b.receipt.json (6ccaf7fb...). No integration step remains for this stream. Successor precondition carried from audit F1: any HIGH deployment packet that installs a revision containing prisma/migrations/0003_teacher_program_presentation must regenerate the Prisma client from that revision's own prisma/schema.prisma in the release directory AND assert typeof prisma.teacherProgramPresentationRevision.findFirst === 'function' on the deployed artifact before accepting the teacher-program export acceptance row; otherwise the EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE guard is inert and the official export silently renders blank signature blocks. Awaited elsewhere: AUTHZ-CLASS-TEMPLATE-C07 owns its own open correction round and the stale next-action clause in its register row (audit F2; that stream's field cannot be edited by this planner). All HIGH actions stay locked and NOT granted: applying prisma/migrations/0002_companion_sso_code or 0003_teacher_program_presentation, deployment/release switch of the supervised 5001/5174 runtime, restart/task/env changes, term-cache catch-up apply, Teaching Load apply, generation, publication, login/browser acceptance, and every companion-repository edit."
+    "globalNextAction": "EXPORT-PRESENTATION-SCHEMA-GUARD-C06B: COMPLETE (SOURCE_ONLY). QA ACCEPT_READY 17/17/0/0/0 (ses_f58c1e341ffeQlLBjfIyc7I2t) over base d7743bd8 -> candidate dbf1ed22; integrated at merge 0c2bd1c7 and pushed; Wave Completion Audit AUDIT_CLEAR (ses_f58b48de1ffeOmPgV67ewyC5Ck, 0 blocking findings, F1-F6 non-blocking); closure receipt docs/plans/receipts/export-presentation-schema-guard-c06b.receipt.json (6ccaf7fb...). No integration step remains for this stream. Successor precondition carried from audit F1: any HIGH deployment packet that installs a revision containing prisma/migrations/0003_teacher_program_presentation must regenerate the Prisma client from that revision's own prisma/schema.prisma in the release directory AND assert typeof prisma.teacherProgramPresentationRevision.findFirst === 'function' on the deployed artifact before accepting the teacher-program export acceptance row; otherwise the EXPORT_PRESENTATION_SCHEMA_UNAVAILABLE guard is inert and the official export silently renders blank signature blocks. Awaited elsewhere: AUTHZ-CLASS-TEMPLATE-C07R1 (the class-template authority correction round) is integrated at d15be919 and its fresh Wave Completion Auditor returned AUDIT_CLEAR 12/12/0/0/0; its docs-only register reconciliation (awaited/next-action text, the round-1 capsule, and the recorded empty-bundle residual) is applied in this commit. AUTHZ-CLASS-TEMPLATE-LIVE (deploy the corrected class-template authority so the live release stops serving the pre-fix unauthenticated write-on-read route; deployed router blob 2b77bbee) remains a locked HIGH successor, NOT granted, with no packet prepared. All HIGH actions stay locked and NOT granted: applying prisma/migrations/0002_companion_sso_code or 0003_teacher_program_presentation, deployment/release switch of the supervised 5001/5174 runtime, restart/task/env changes, term-cache catch-up apply, Teaching Load apply, generation, publication, login/browser acceptance, and every companion-repository edit."
   },
   "streams": [
     {
@@ -2976,10 +2976,10 @@
       "objective": "Correct the deployed class-template authority boundary in atlas-server/src/routes/class-template.router.ts and atlas-server/src/services/class-template.service.ts: both GET routes gain authenticate + requirePrivilegedRole, a positive authenticated actor school and exact requested-school equality, GET /:id is bound to the template's owning school, every read performs zero writes (the ensureDefaultTemplates write-on-read is removed), the previously implicit default-template initialization becomes an explicit privileged, actor-school-scoped, idempotent, audited POST /class-templates/initialize command, the mutation routes (POST /, PATCH /:id, PUT /:id/subjects) gain the same actor-school binding with the owning-school check inside the write transaction, and no schoolId fallback constant is permitted anywhere. Proven by dispatch-free guard rows, guarded-disposable-database mounted authority rows, zero-write deltas, audited idempotent initialization, and load-bearing mutants. No deployment, login or live database action belongs to this cycle.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T23:02:17.467Z",
-      "nextAction": "Wave Completion Audit returned CORRECTION_REQUIRED (auditor task ses_f58b9c3ecffe4gjMsMO3g8sB7O). Accepted for one bounded correction round: F2 subjectIds are not bound to the actor school (a school-A officer can bind a school-B subjectId and read that foreign subject code/name back through their own GET /class-templates, a cross-school disclosure on this boundary); F3 atlas-client Audit.tsx renders a false green coverage claim when the template list is empty, which the new zero-write GET makes reachable; F4 the register nextAction was stale. F1 adjudication: the deployed release 54dce67b does still serve the pre-fix unauthenticated write-on-read route, but this cycle is explicitly forbidden to deploy, log in or touch live data, so the live exposure is recorded as an open HIGH risk whose only closure is a separately authored HIGH deployment packet with exact operator approval (locked successor AUTHZ-CLASS-TEMPLATE-LIVE, NOT granted).",
+      "stateUpdatedAt": "2026-09-15T23:43:07.808Z",
+      "nextAction": "Round-1 findings adjudication held; the bounded correction round was delivered as AUTHZ-CLASS-TEMPLATE-C07R1 (base 19f21729, candidate dd8faf6b, integrated at d15be919) whose fresh Wave Completion Auditor returned AUDIT_CLEAR 12/12/0/0/0. F2 subjectIds actor-school binding fixed on both write paths. F3 Audit.tsx false-green coverage for an empty template list fixed. F4 stale register next-action text rewritten. F1 live exposure CONFIRMED STILL LIVE: release 54dce67b serves the pre-fix unauthenticated write-on-read route (deployed router blob 2b77bbee equals base 917da8be); its only closure is a separately authored HIGH deployment packet under exact operator approval (locked successor AUTHZ-CLASS-TEMPLATE-LIVE, NOT granted, no packet prepared). Residual recorded: AUTHZ-CLASS-TEMPLATE-EMPTY-BUNDLE.",
       "awaited": [
-        "bounded correction commit"
+        "AUTHZ-CLASS-TEMPLATE-C07R1 delivered as AUDIT_CLEAR; remaining items are the docs-only reconciliation, the closure receipt and worktree retirement"
       ],
       "running": [],
       "git": {
@@ -3428,10 +3428,10 @@
       "objective": "Bounded correction round for AUTHZ-CLASS-TEMPLATE-C07 closing the two accepted blocking findings of its Wave Completion Audit while preserving every previously accepted gate: (R2) bind class-template subject bundles to the actor school so a foreign subjectId can no longer be bound and then projected through the actor's own GET, and (R3) stop atlas-client Audit.tsx from claiming section coverage when the template list is empty after the write-on-read removal. Fresh independent QA and a fresh Wave Completion Auditor over the corrected frozen candidate.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-15T23:29:29.931Z",
-      "nextAction": "Fresh independent QA returned ACCEPT_READY over 19f21729...dd8faf6b with mandatory source gates 12/12/0/0/0 (C01-C12 including the C06 subject-scope mutant and the C09 empty-list mutant). Next: integrate the accepted correction as a merge on origin/main, run the merged-tree combined gates, then commission exactly one fresh Wave Completion Auditor over the corrected final tree before closing with the receipt. Residuals disclosed: the GET subject projection is not defensively school-filtered (zero existing cross-school bindings measured), the Audit page stale-scope pattern is pre-existing, and two unrelated 2026-09-11/12 drill databases remain. Live deployment of the corrected source remains a separate locked HIGH action, NOT granted.",
+      "stateUpdatedAt": "2026-09-15T23:42:34.046Z",
+      "nextAction": "Correction integrated at merge d15be919 over 19f21729...dd8faf6b; merged-tree combined gates green (server and client tsc+build, guard suite 136/0, disposable c07 suite 111/0 with zero residue, client helper suite 7/0). Fresh Wave Completion Auditor returned AUDIT_CLEAR 12/12/0/0/0 with non-blocking register/documentation findings (capsule docs/reviews/authz-class-template-c07r1/wave-completion-audit.md). Next: apply the docs-only reconciliation, close with the receipt, retire both cycle worktrees (RETIRE_AFTER_INTEGRATION), and keep AUTHZ-CLASS-TEMPLATE-LIVE NOT granted. Recorded successor awaiting dispatch: AUTHZ-CLASS-TEMPLATE-EMPTY-BUNDLE (matched class template with an empty subject bundle still yields a verified/green section-coverage claim; display-only; dispatch with the first operator-activated cycle that owns the class-template client surface).",
       "awaited": [
-        "fresh Wave Completion Auditor"
+        "close the cycle and pin the closure receipt"
       ],
       "running": [],
       "git": {
@@ -3472,8 +3472,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5897fa6cffeeW9olUP4wR0Ii1",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -3515,8 +3515,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f58a1059dffeRklljd5L53YaoV",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5897fa6cffeeW9olUP4wR0Ii1",
         "auditRequired": true,
         "qaRounds": [
           {
