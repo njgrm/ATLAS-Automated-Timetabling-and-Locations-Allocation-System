@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T14:41:14.764Z",
+    "lastUpdatedAt": "2026-09-16T14:42:32.155Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 193
+    "revision": 194
   },
   "coordination": {
     "mode": "MANUAL",
@@ -4384,7 +4384,7 @@
       },
       "objective": "Successor correction closing the two BLOCKING findings of the PUBLISHED-IMMUTABILITY-C08 Wave Completion Audit without regressing the frozen-publication contract: (B1) make the snapshot-consistency gate accept the real producer's contained/snapped Flag/HGP display slot using containment + day-scope authority and a real-producer positive control, and (B2) stop faculty-sync invalidation from re-asserting isPublished=true on a superseded run, preserving informational markers and the destructive path for unpublished runs.",
       "state": "COMPLETE",
-      "stateUpdatedAt": "2026-09-16T14:41:00.523Z",
+      "stateUpdatedAt": "2026-09-16T14:42:32.155Z",
       "nextAction": "PUBLISHED-IMMUTABILITY-C08R1 closed COMPLETE (QA ACCEPT_READY 8/8/0/0/0; Wave Completion Audit AUDIT_CLEAR 8/8/0/0/0). Residuals: F1 FACULTY-SYNC-PUBLICATION-CAS-C01; F2 interval hardening folded into F1; F3 owned by TERM-CACHE-CATCHUP-APPLY-REFRESH-C01; F4 owned by the defaulting-scope backlog lane. All HIGH actions remain LOCKED.",
       "awaited": [],
       "running": [],
@@ -4401,8 +4401,8 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "46603a31417fa11230abdd01cad331b21136d1c5",
-          "observedAt": "2026-09-16T14:21:14.681Z",
+          "sha": "0fddbe24909795f6a690154737a7da7131a8fc30",
+          "observedAt": "2026-09-16T14:42:32.155Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
