@@ -562,7 +562,7 @@ test("row 16: reconcile-stream refuses RUNNING", (t) => {
   const report = assertNoMutation(statePath, renderPathFor(repo), () =>
     run(statePath, "reconcile-stream", ["--stream", "ORD-1", "--expect-revision", "1", "--next-action", "x"]),
   );
-  assert.deepEqual(codesOf(report), ["TRANSITION_INVALID_STATE"]);
+  assert.deepEqual(codesOf(report), ["TRANSITION_RECONCILE_RUNNING_FORBIDDEN"]);
   assert.match(report.errors[0].message, /reconcile-stream requires one of/);
 });
 
@@ -623,7 +623,7 @@ test("row 18: reconcile-stream refuses a no-op, an unknown stream, an invalid fr
 
   const runningPath = writeStateDoc(repo, "reconcile-invalid-state-runner.json", cleanRunningDoc(repo));
   const running = assertNoMutation(runningPath, renderPath, () => run(runningPath, "reconcile-stream", ["--stream", "ORD-1", "--expect-revision", "1", "--next-action", "x"]));
-  assert.deepEqual(codesOf(running), ["TRANSITION_INVALID_STATE"]);
+  assert.deepEqual(codesOf(running), ["TRANSITION_RECONCILE_RUNNING_FORBIDDEN"]);
 
   const stale = assertNoMutation(statePath, renderPath, () => run(statePath, "reconcile-stream", ["--stream", "ORD-1", "--expect-revision", "99", "--next-action", "x"]));
   assert.deepEqual(codesOf(stale), ["TRANSITION_STALE_REVISION"]);
@@ -1168,7 +1168,7 @@ test("in-process: the repair-read is one engine-level rule for every transition 
     flags: { stream: "ORD-1", "expect-revision": "1", "next-action": "x" },
     now: ISO,
   });
-  assert.deepEqual(codesOf(reconcile), ["TRANSITION_INVALID_STATE"], "the current document is readable; the from-state is what refuses");
+  assert.deepEqual(codesOf(reconcile), ["TRANSITION_RECONCILE_RUNNING_FORBIDDEN"], "the current document is readable; the from-state is what refuses");
   const record = runTransition({
     statePath,
     transitionName: "record-executor-return",

@@ -695,6 +695,7 @@ export const TRANSITIONS = {
   // excluded because its residue IS the live-work claim (§3.1).
   "reconcile-stream": {
     from: RECONCILE_FROM_STATES,
+    fromErrorCode: "TRANSITION_RECONCILE_RUNNING_FORBIDDEN",
     optional: [
       "awaited",
       "running",

@@ -380,7 +380,10 @@ least one of `--awaited`, `--running`, `--next-action`, `--blocker-kind`,
 - **Why `RUNNING` is refused.** `RUNNING` is the one state whose residue *is* a
   claim of live work. It may only be exited through the proof-gated
   `abandon-stream`, never edited in place, so invoking `reconcile-stream` on a
-  `RUNNING` stream fails closed with `TRANSITION_INVALID_STATE`.
+  `RUNNING` stream fails closed with the dedicated
+  `TRANSITION_RECONCILE_RUNNING_FORBIDDEN`. Because `RUNNING` is the only state
+  outside this transition's `from` set, that code is also what every
+  invalid-from-state invocation of `reconcile-stream` returns.
 
 ### `resolve-decision` — the documented terminal exit for `DECISION_REQUIRED`
 
