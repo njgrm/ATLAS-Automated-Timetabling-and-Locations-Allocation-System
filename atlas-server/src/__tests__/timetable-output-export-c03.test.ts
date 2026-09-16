@@ -33,8 +33,34 @@ test('fallback period builder keeps Monday-only flag boundaries available to oth
 	};
 	assert.deepEqual(buildPeriodSlots(policy).map((slot) => `${slot.startTime}-${slot.endTime}`), ['06:00-06:45', '06:45-07:30']);
 	assert.deepEqual(buildPeriodSlots({ ...policy, specialEvents: [{ ...policy.specialEvents[0], dayOfWeek: undefined }] }).map((slot) => `${slot.startTime}-${slot.endTime}`), ['06:00-06:45', '06:45-07:30']);
-	assert.deepEqual(buildPeriodSlots({ ...policy, specialEvents: [{ ...policy.specialEvents[0], eventType: 'RECESS', dayOfWeek: undefined }] }).map((slot) => `${slot.startTime}-${slot.endTime}`), ['06:45-07:30']);
+	// N2 (was: `['06:45-07:30']`): a row whose LABEL carries the flag-ceremony
+	// identity is Monday-only even when `eventType` is not FLAG_OR_HGP, because
+	// `buildPeriodSlots` now resolves the day through the same shared label-aware
+	// predicate as the shape contract. The morning boundary therefore stays
+	// available to the other weekdays instead of being blocked on all five.
+	assert.deepEqual(buildPeriodSlots({ ...policy, specialEvents: [{ ...policy.specialEvents[0], eventType: 'RECESS', dayOfWeek: undefined }] }).map((slot) => `${slot.startTime}-${slot.endTime}`), ['06:00-06:45', '06:45-07:30']);
 	assert.deepEqual(buildPeriodSlots({ ...policy, specialEvents: undefined, enableFlagCeremony: true }).map((slot) => `${slot.startTime}-${slot.endTime}`), ['06:00-06:45', '06:45-07:30']);
+});
+
+test('N2 F3. a non-schedulable CUSTOM row labelled as a flag ceremony does not block every weekday', () => {
+	const policy = {
+		periodLengthMinutes: 45,
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480,
+		earliestStartTime: '06:00',
+		latestEndTime: '08:00',
+		specialEvents: [{ eventType: 'CUSTOM', label: 'Flag Ceremony', startTime: '06:00', endTime: '06:45' }],
+	};
+	assert.deepEqual(
+		buildPeriodSlots(policy).map((slot) => `${slot.startTime}-${slot.endTime}`), ['06:00-06:45', '06:45-07:30'],
+		'a label-identity flag row is Monday-only, so its boundary stays a valid class slot for the other weekdays',
+	);
+	// A row that is neither flag-identity nor day-scoped still blocks every weekday.
+	assert.deepEqual(
+		buildPeriodSlots({ ...policy, specialEvents: [{ eventType: 'CUSTOM', label: 'Reading Camp', startTime: '06:00', endTime: '06:45' }] }).map((slot) => `${slot.startTime}-${slot.endTime}`),
+		['06:45-07:30'],
+	);
 });
 
 test('teacher-program production builder keeps Monday-only breaks, numeric print order, and reference-only exclusion', async () => {

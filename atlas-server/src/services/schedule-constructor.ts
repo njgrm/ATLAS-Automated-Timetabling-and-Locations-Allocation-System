@@ -254,9 +254,10 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 				if (isRejectedFlagCeremonyRow(evt.eventType, evt.dayOfWeek, evt.label)) continue;
 				// A day-scoped event is rendered on that day while the same
 				// time boundary remains a valid class slot for the other
-				// weekdays. FLAG_OR_HGP rows historically omitted dayOfWeek in
-				// persisted schema-shaped input, but their contract is Monday.
-				const eventDay = evt.dayOfWeek ?? (evt.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : undefined);
+				// weekdays. N2: resolve the day through the ONE shared label-aware
+				// authority so `buildPeriodSlots` and the shape contract cannot
+				// disagree about a label-identity flag row.
+				const eventDay = resolveSpecialEventDayOfWeek(evt.eventType, evt.dayOfWeek, evt.label) ?? undefined;
 				if (eventDay) continue;
 				blockedWindows.push({
 					start: timeToMinutes(evt.startTime),

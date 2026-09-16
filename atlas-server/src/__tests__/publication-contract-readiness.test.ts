@@ -277,6 +277,8 @@ async function makeRoutePublishClient() {
 		teachingLoadCycle: { findUnique: async () => null },
 		schedulingPolicy: { findUnique: async () => null },
 		gradeShiftWindow: { aggregate: zeroAggregate() },
+		// B1: the persisted special-event authority is bound into the policy domain.
+		policySpecialEvent: { findMany: async () => [], aggregate: zeroAggregate() },
 		room: { aggregate: zeroAggregate() },
 		building: { aggregate: zeroAggregate() },
 		sectionMirror: { aggregate: zeroAggregate(), findMany: async () => [] },

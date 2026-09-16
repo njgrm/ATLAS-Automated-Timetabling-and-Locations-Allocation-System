@@ -85,6 +85,10 @@ export interface DerivedTermInput {
 	identity: string;
 	displayLabel: string;
 	order: number;
+	/** Persisted term start boundary, retained when the verified snapshot carries it. */
+	startDate?: string | null;
+	/** Persisted term end boundary, retained when the verified snapshot carries it. */
+	endDate?: string | null;
 }
 
 export interface DerivedDemandInput {
@@ -927,11 +931,24 @@ export function canonicalTermStructureRevision(
 	format: 'TRIMESTER' | 'QUARTERS',
 	terms: DerivedTermInput[],
 ): string {
+	// Field-by-field payload with an explicit deterministic ordering (sort by
+	// `order`, tie-break by identity). Never derived from JSONB object-key order,
+	// and never from the upstream order-sensitive `semanticRevision`, which is
+	// untrusted provenance only.
+	const orderedTerms = terms
+		.map((term) => ({
+			identity: term.identity,
+			displayLabel: term.displayLabel,
+			order: term.order,
+			startDate: term.startDate ?? null,
+			endDate: term.endDate ?? null,
+		}))
+		.sort((left, right) => (left.order - right.order) || left.identity.localeCompare(right.identity));
 	return sha256Upper({
 		schoolId,
 		schoolYearId,
 		format,
-		terms: [...terms].sort((a, b) => a.order - b.order).map((term) => ({ identity: term.identity, order: term.order })),
+		terms: orderedTerms,
 	});
 }
 
@@ -967,10 +984,28 @@ export function normalizePersistedTermStructure(
 		const displayLabel = typeof item.displayLabel === 'string' && item.displayLabel.trim().length > 0 ? item.displayLabel : null;
 		const order = item.order === undefined ? index + 1 : item.order;
 		if (!identity || !displayLabel || order !== index + 1) return { ok: false, message: 'The saved EnrollPro term snapshot has malformed or out-of-order terms.' };
+		// Retain and validate the persisted term boundaries when the verified
+		// snapshot carries them; a malformed value fails closed rather than being
+		// silently dropped from the canonical revision.
+		const boundary = (value: unknown, field: string): string | null => {
+			if (value === undefined || value === null) return null;
+			if (typeof value !== 'string' || value.trim().length === 0) {
+				throw new Error(`The saved EnrollPro term snapshot has a malformed ${field} boundary.`);
+			}
+			return value.trim();
+		};
+		let startDate: string | null = null;
+		let endDate: string | null = null;
+		try {
+			startDate = boundary(item.startDate, 'start');
+			endDate = boundary(item.endDate, 'end');
+		} catch (error) {
+			return { ok: false, message: error instanceof Error ? error.message : String(error) };
+		}
 		const key = identity.trim().toUpperCase();
 		if (seen.has(key)) return { ok: false, message: 'The saved EnrollPro term snapshot has duplicate term identities.' };
 		seen.add(key);
-		terms.push({ identity, displayLabel, order: index + 1 });
+		terms.push({ identity, displayLabel, order: index + 1, startDate, endDate });
 	}
 	return {
 		ok: true,
