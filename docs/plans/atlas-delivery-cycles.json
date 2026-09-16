@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T15:11:16.918Z",
+    "lastUpdatedAt": "2026-09-16T15:19:06.439Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 212
+    "revision": 215
   },
   "coordination": {
     "mode": "MANUAL",
@@ -4214,11 +4214,9 @@
       "closure": null,
       "objective": "Make one published revision a historically reproducible artifact: freeze subject/faculty/room/building/section/specialization/cohort/display-slot/special-event/policy/ordered-term identity into the publication revision JSON at publish time, resolve frozen-first on every public, authenticated, archived, and official-export consumer with an honest legacy state, repair current-year active/historical metadata and the :termId route family, and stop routine synchronization from unpublishing or failing a published run, while preserving the serializable/CAS/replay/audit/notification and draft-published separation strengths.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T14:39:27.738Z",
-      "nextAction": "Wave Completion Audit returned CORRECTION_REQUIRED (B1: the snapshot-consistency gate rejects the canonical rendered Flag/HGP overlay; B2: faculty sync re-asserts isPublished=true on a superseded run). The deterministic remedy is registered as successor PUBLISHED-IMMUTABILITY-C08R1.",
-      "awaited": [
-        "bounded correction commit"
-      ],
+      "stateUpdatedAt": "2026-09-16T15:18:27.146Z",
+      "nextAction": "Historical round-1 integration boundary; its Wave Completion Auditor returned CORRECTION_REQUIRED 6/8 (B1 the snapshot-consistency gate rejected the canonical rendered Flag/HGP overlay; B2 faculty sync re-asserted isPublished=true on a superseded run) and that verdict is preserved as historical. The corrected closing verdict is PUBLISHED-IMMUTABILITY-C08R1 (candidate 8dc0da89, integration 46603a31, QA ACCEPT_READY 8/8/0/0/0, fresh Wave Completion Auditor AUDIT_CLEAR 8/8/0/0/0), closed COMPLETE with receipt docs/plans/receipts/published-immutability-c08r1.receipt.json at origin/main 25e6987e. No further work belongs to this stream.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-published-immutability-c08",
@@ -4830,11 +4828,9 @@
       "objective": "Successor lane for TT-WARNING-COUNT-C07A (Lane A of TT-WARNING-REALISM-C07R1) after its fresh QA returned PLANNER_DECISION_REQUIRED on the split consecutive-threshold authority. The planner resolved the decision (a persisted maxConsecutiveTeachingMinutesBeforeBreak of 120 is the retired legacy constant, so the effective threshold is derived once through the canonical period-aligned resolver and only a genuinely explicit slot-expressible value is honored) and the bounded additive Correction R1 candidate bd6e9811 routes the effective threshold through the one canonical resolver at the schedule-constructor read/shape boundary and the policy read/display boundary, removing the raw read and the hardcoded ?? 180 fallback. The correction is the full Lane A server warning-authority contract over range c950e694...bd6e9811 (one warning per violating block with a period-aligned default; break-aware in-shift idle; reconciled break/consecutive families; retired FACULTY_EXCESSIVE_TRAVEL_DISTANCE residue; truthful unassigned/zone/capacity classification; parity across generation/manual/pre-generation). No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T14:45:59.658Z",
-      "nextAction": "Integrated; fresh Wave Completion Auditor pending.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "stateUpdatedAt": "2026-09-16T15:19:00.094Z",
+      "nextAction": "Integrated in the parent union 172c070d and covered by the parent TT-WARNING-REALISM-C07R1 Wave Completion Auditor AUDIT_CLEAR 13/13 (session ses_f55501c9fffeJcUWgMRUb7W0P7); the parent closed COMPLETE at origin/main 4a034137 with receipt docs/plans/receipts/tt-warning-realism-c07r1.receipt.json. No return remains.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
@@ -5002,11 +4998,9 @@
       "objective": "Lane B of TT-WARNING-REALISM-C07R1 (parent cycle). Client warning and publish-readiness truth: SimplePublishReadinessSheet must render run-wide blocker truth and never say Ready to publish from a selected-term list while another term blocks; selected-term issue rails stay selected-term scoped and are visibly labeled so run-wide and selected-term counts are never mixed under one unexplained total; every displayed action works (no-op Review issue buttons removed, resolvable violations routed to the correct term/entity/repair surface, aggregate warnings exposing every affected entry or navigating to a real grouped repair view); Treat as Hard and Blocks publish render only for codes in the server-owned promotable allowlist; ExplainabilityDrawer uses server publication semantics so HARD alone never means Publish blocker for a non-publication-blocking code; PublishChecklistContent groups real production violation codes rather than reason keys or test-only codes; dead UI/config/type residue for retired distance, unreachable vacant and retired warning families is removed and types.d.ts is reconciled or removed as a second authority; and accessible controls, 44px mobile targets, keyboard navigation, responsive layout, Simple-first navigation and term-switching state hygiene are preserved. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T14:46:03.704Z",
-      "nextAction": "Integrated; fresh Wave Completion Auditor pending.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "stateUpdatedAt": "2026-09-16T15:19:06.439Z",
+      "nextAction": "Integrated in the parent union 172c070d and covered by the parent TT-WARNING-REALISM-C07R1 Wave Completion Auditor AUDIT_CLEAR 13/13 (session ses_f55501c9fffeJcUWgMRUb7W0P7); the parent closed COMPLETE at origin/main 4a034137 with receipt docs/plans/receipts/tt-warning-realism-c07r1.receipt.json. No return remains.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-tt-warning-realism-c07r1",
@@ -5251,8 +5245,8 @@
       "role": "planner",
       "sessionId": null,
       "state": "RETURNED",
-      "revision": 2,
-      "updatedAt": "2026-09-16T14:39:27.738Z",
+      "revision": 3,
+      "updatedAt": "2026-09-16T15:18:27.146Z",
       "expiresAt": null
     },
     {
@@ -5273,8 +5267,8 @@
       "role": "executor",
       "sessionId": null,
       "state": "RETURNED",
-      "revision": 1,
-      "updatedAt": "2026-09-16T14:45:05.647Z",
+      "revision": 2,
+      "updatedAt": "2026-09-16T15:19:06.439Z",
       "expiresAt": null
     },
     {
@@ -5284,8 +5278,8 @@
       "role": "executor",
       "sessionId": null,
       "state": "RETURNED",
-      "revision": 1,
-      "updatedAt": "2026-09-16T14:45:09.680Z",
+      "revision": 2,
+      "updatedAt": "2026-09-16T15:19:00.094Z",
       "expiresAt": null
     }
   ],
