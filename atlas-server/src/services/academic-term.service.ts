@@ -146,9 +146,25 @@ export async function resolveRequestedTermIndex(
 ): Promise<number | undefined> {
 	if (requested === undefined) return undefined;
 	const contract = await loadVerifiedOrderedTermContract(schoolId, schoolYearId, client);
+	return resolveRequestedTermIndexFromContract(contract, schoolId, schoolYearId, requested);
+}
+
+/**
+ * PUBLISHED-IMMUTABILITY-C08 — resolve a requested term filter against an
+ * already-resolved contract (the frozen published snapshot's ordered-term
+ * contract for published/archived consumers, or the live verified contract for
+ * draft work). The frozen contract is the term authority for a published run, so
+ * an archived year never depends on the live active/non-archived mirror cache.
+ */
+export function resolveRequestedTermIndexFromContract(
+	contract: LoadedAcademicTermContract | null,
+	schoolId: number,
+	schoolYearId: number,
+	requested: number | 'active',
+): number | undefined {
 	if (requested === 'active') {
 		if (!contract || contract.activeTermOrder == null) {
-			throw termError(501, 'TERM_FILTER_NOT_READY', 'The active term cannot be verified from the persisted EnrollPro term authority. Choose an explicit term or omit termIndex.');
+			throw termError(501, 'TERM_FILTER_NOT_READY', 'The active term cannot be verified from the published/frozen term authority. Choose an explicit term or omit termIndex.');
 		}
 		return contract.activeTermOrder;
 	}

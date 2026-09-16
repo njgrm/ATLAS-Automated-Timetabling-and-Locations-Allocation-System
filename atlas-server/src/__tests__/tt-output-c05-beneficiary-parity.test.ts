@@ -461,13 +461,16 @@ test('M10: the teacher-program DOCX carries branding, the role set, the load ide
 		client: teacherClient,
 		publishedScheduleResolver: async () => ({
 			source: { runId: RUN_ID },
+			// C08 — the production published payload always carries the resolved
+			// display identity; a published read never rehydrates live authority
+			// tables. The fixture mirrors that producer contract.
 			entries: [
-				{ entryId: 'd-mon', day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
-				{ entryId: 'd-tue', day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
-				{ entryId: 'd-wed', day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
-				{ entryId: 'd-thu', day: 'THURSDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
-				{ entryId: 'd-fri', day: 'FRIDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 601 } },
-				{ entryId: 'd-ap', day: 'THURSDAY', startTime: '06:45', endTime: '07:30', durationMinutes: 45, termIndex: 1, subject: { id: 13 }, section: { externalId: 701 }, faculty: { id: 501 }, room: { id: 602 } },
+				{ entryId: 'd-mon', day: 'MONDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11, code: 'MATH', name: 'Mathematics' }, section: { id: 1, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' }, faculty: { id: 501 }, room: { id: 601, name: '101', buildingName: 'Building A' } },
+				{ entryId: 'd-tue', day: 'TUESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11, code: 'MATH', name: 'Mathematics' }, section: { id: 1, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' }, faculty: { id: 501 }, room: { id: 601, name: '101', buildingName: 'Building A' } },
+				{ entryId: 'd-wed', day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11, code: 'MATH', name: 'Mathematics' }, section: { id: 1, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' }, faculty: { id: 501 }, room: { id: 601, name: '101', buildingName: 'Building A' } },
+				{ entryId: 'd-thu', day: 'THURSDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11, code: 'MATH', name: 'Mathematics' }, section: { id: 1, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' }, faculty: { id: 501 }, room: { id: 601, name: '101', buildingName: 'Building A' } },
+				{ entryId: 'd-fri', day: 'FRIDAY', startTime: '06:00', endTime: '06:45', durationMinutes: 45, termIndex: 1, subject: { id: 11, code: 'MATH', name: 'Mathematics' }, section: { id: 1, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' }, faculty: { id: 501 }, room: { id: 601, name: '101', buildingName: 'Building A' } },
+				{ entryId: 'd-ap', day: 'THURSDAY', startTime: '06:45', endTime: '07:30', durationMinutes: 45, termIndex: 1, subject: { id: 13, code: 'AP', name: 'Araling Panlipunan' }, section: { id: 1, externalId: 701, name: '7-Rizal', gradeLevel: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR' }, faculty: { id: 501 }, room: { id: 602, name: '102', buildingName: 'Building A' } },
 			],
 			summary: PUBLISHED_SUMMARY,
 		}),

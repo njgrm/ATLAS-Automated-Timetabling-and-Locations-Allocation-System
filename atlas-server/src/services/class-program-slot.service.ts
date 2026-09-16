@@ -436,6 +436,47 @@ export async function resolveCanonicalSlotsForPrograms(
 }
 
 /**
+ * PUBLISHED-IMMUTABILITY-C08 — resolve canonical slots from an already-loaded
+ * row set (the frozen publication snapshot) with the SAME exact-match,
+ * grade-generic-fallback, dedupe, and ordering semantics the live resolver uses.
+ * The frozen path never re-reads `class_program_slots`, so a later edit to the
+ * configured template cannot rewrite a published/archived class program.
+ */
+export function resolveCanonicalSlotsFromRows(
+	allRows: readonly ClassProgramSlotRow[],
+	gradeLevel: number,
+	programTypes: Array<ProgramType | null | undefined> = KNOWN_PROGRAM_TYPES,
+): ResolvedSlotRow[] {
+	const resolveForProgram = (programType: ProgramType | null): ResolvedSlotRow[] => {
+		const exactRows = allRows.filter(
+			(row) => row.gradeLevel === gradeLevel && (row.programType ?? null) === programType,
+		);
+		if (exactRows.length > 0) return exactRows.map((row) => ({ ...row, isExactMatch: true }));
+		if (programType != null && !KNOWN_PROGRAM_TYPES.includes(programType)) {
+			const fallbackRows = allRows.filter(
+				(row) => row.gradeLevel === gradeLevel && (row.programType ?? null) === null,
+			);
+			if (fallbackRows.length > 0) return fallbackRows.map((row) => ({ ...row, isExactMatch: false }));
+		}
+		return [];
+	};
+
+	const groups = [...new Set(programTypes.map((programType) => programType ?? 'REGULAR'))]
+		.map((programType) => resolveForProgram(programType as ProgramType));
+	const deduped = new Map<string, ResolvedSlotRow>();
+	for (const group of groups) {
+		for (const row of group) {
+			const key = `${row.startTime}-${row.endTime}-${row.rowKind}-${row.subjectLabel ?? ''}`;
+			if (!deduped.has(key)) deduped.set(key, row);
+		}
+	}
+	return [...deduped.values()].sort((left, right) => {
+		const startDiff = toMinutes(left.startTime) - toMinutes(right.startTime);
+		return startDiff !== 0 ? startDiff : toMinutes(left.endTime) - toMinutes(right.endTime);
+	});
+}
+
+/**
  * Get only schedulable class rows (excludes BREAK and CONFLICT).
  */
 export async function resolveSchedulableSlots(

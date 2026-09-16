@@ -154,6 +154,12 @@ function buildFakeModels(): Record<string, Record<string, unknown>> {
 			findFirst: async () => null,
 		}),
 		policySpecialEvent: readModel('policySpecialEvent', { findMany: async () => [] }),
+		// C08 — the export routes resolve a published run's selected term through
+		// its base publication revision; the harness run is unpublished, so the
+		// revision lookup honestly returns none and the live authority is used.
+		publishedScheduleRevision: readModel('publishedScheduleRevision', {
+			findFirst: async () => null,
+		}),
 	};
 }
 

@@ -106,6 +106,11 @@ function fakeClient(options: FakeOptions = {}) {
 		sectionMirror: { findMany: async () => [] },
 		subject: { findMany: async () => [] },
 		schedulingPolicy: { findUnique: async () => null },
+		// C08 — `publishSchedule` now also builds the frozen published-identity
+		// snapshot inside the same transaction, so the partial read stub must
+		// implement the delegates that builder reads. Entries are identity-free,
+		// so no subject/faculty/room/section/cohort read is reached.
+		policySpecialEvent: { findMany: async () => [] },
 		generationRun: {
 			findFirst: async ({ where }: any) => state.run.id === where.id
 				&& state.run.schoolId === where.schoolId

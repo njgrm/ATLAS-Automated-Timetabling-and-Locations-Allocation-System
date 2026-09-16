@@ -13,8 +13,13 @@
  */
 
 import { getDataContext } from '../lib/data-context.js';
-import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync } from './class-program-slot.service.js';
+import { resolveCanonicalSlotsForPrograms, normalizeGradeLevelSync, type ResolvedSlotRow } from './class-program-slot.service.js';
 import { resolvePublishedRun } from './published-schedule.service.js';
+import {
+	frozenCanonicalSlots,
+	frozenReferenceMaps,
+	type PublishedIdentitySnapshot,
+} from './published-identity-snapshot.service.js';
 
 const db = () => getDataContext();
 
@@ -40,6 +45,7 @@ export interface ClassProgramMatrixParams {
 		source: { runId: number };
 		entries: RawEntry[];
 		summary: Record<string, unknown> | null;
+		snapshot?: PublishedIdentitySnapshot | null;
 	}>;
 }
 
@@ -97,7 +103,7 @@ function isSpecializationSubject(subject: { name?: string | null; code?: string 
 
 async function resolveSourceRun(
 	params: ClassProgramMatrixParams,
-): Promise<{ runId: number; entries: RawEntry[]; summary: Record<string, unknown> | null } | null> {
+): Promise<{ runId: number; entries: RawEntry[]; summary: Record<string, unknown> | null; snapshot: PublishedIdentitySnapshot | null } | null> {
 	const { schoolId, schoolYearId, runId } = params;
 	const database = (params.client ?? db()) as ReturnType<typeof db>;
 
@@ -148,10 +154,11 @@ async function resolveSourceRun(
 			runId: run.id,
 			entries: published.entries as unknown as RawEntry[],
 			summary: published.summary,
+			snapshot: published.snapshot ?? null,
 		};
 	}
 
-	return { runId: run.id, entries: (run.draftEntries ?? []) as unknown as RawEntry[], summary };
+	return { runId: run.id, entries: (run.draftEntries ?? []) as unknown as RawEntry[], summary, snapshot: null };
 }
 
 function applyTermFilter(entries: RawEntry[], termIndex: number | undefined): RawEntry[] {
@@ -172,31 +179,54 @@ export async function generateClassProgramMatrix(
 	const warnings: string[] = [];
 	const database = (params.client ?? db()) as ReturnType<typeof db>;
 
+	// 0. Bind one effective run + selected ordered term first: a frozen publication
+	// is the authority for the section roster, the canonical template rows, and
+	// every rendered identity, so no live authority table is consulted for it.
+	const source = await resolveSourceRun(params);
+	if (!source) {
+		// BENEFICIARY-EXPORT-PARITY-C05 T3/G7 — never return a 200 header-only
+		// matrix. No bindable completed source run is a typed failure.
+		throw new Error('NO_SOURCE_RUN');
+	}
+	const frozen = source.snapshot;
+
 	// 1. Load all active sections for this grade
-	const sections = await database.sectionMirror.findMany({
-		where: {
-			schoolId,
-			schoolYearId,
-			gradeLevelName: `Grade ${actualGrade}`,
-			isActiveForScheduling: true,
-			isStale: false,
-		},
-		select: {
-			id: true,
-			externalId: true,
-			name: true,
-			programType: true,
-		},
-		orderBy: { name: 'asc' },
-	});
+	const sections = frozen
+		? Object.entries(frozen.sections)
+			.map(([key, value]) => ({
+				id: value.atlasId ?? Number(key),
+				externalId: Number(key),
+				name: value.name,
+				programType: value.programType,
+			}))
+			.filter((section) => Number.isInteger(section.externalId))
+			.sort((a, b) => a.name.localeCompare(b.name))
+		: await database.sectionMirror.findMany({
+			where: {
+				schoolId,
+				schoolYearId,
+				gradeLevelName: `Grade ${actualGrade}`,
+				isActiveForScheduling: true,
+				isStale: false,
+			},
+			select: {
+				id: true,
+				externalId: true,
+				name: true,
+				programType: true,
+			},
+			orderBy: { name: 'asc' },
+		});
 
 	// 2. Resolve the union of exact program templates represented in this grade.
-	const canonicalSlots = await resolveCanonicalSlotsForPrograms(
-		schoolId,
-		schoolYearId,
-		actualGrade,
-		['REGULAR', ...sections.map((section) => section.programType as any)],
-	);
+	const canonicalSlots: ResolvedSlotRow[] = frozen
+		? frozenCanonicalSlots(frozen, actualGrade, ['REGULAR', ...sections.map((section) => section.programType)])
+		: await resolveCanonicalSlotsForPrograms(
+			schoolId,
+			schoolYearId,
+			actualGrade,
+			['REGULAR', ...sections.map((section) => section.programType as any)],
+		);
 
 	if (sections.length === 0) {
 		warnings.push(`No active sections found for Grade ${actualGrade}`);
@@ -209,14 +239,6 @@ export async function generateClassProgramMatrix(
 		rowKind: slot.rowKind,
 		label: slot.subjectLabel ?? slot.rowKind,
 	}));
-
-	// 4. Bind one effective run + selected ordered term.
-	const source = await resolveSourceRun(params);
-	if (!source) {
-		// BENEFICIARY-EXPORT-PARITY-C05 T3/G7 — never return a 200 header-only
-		// matrix. No bindable completed source run is a typed failure.
-		throw new Error('NO_SOURCE_RUN');
-	}
 
 	const sectionExternalIds = sections.map(s => s.externalId);
 	const allEntries = applyTermFilter(source.entries, termIndex)
@@ -231,29 +253,38 @@ export async function generateClassProgramMatrix(
 	const roomIds = [...new Set(allEntries.map(e => e.roomId).filter((id): id is number => id != null && id > 0))];
 	const facultyIds = [...new Set(allEntries.map(e => e.facultyId).filter((id): id is number => id != null && id > 0))];
 
-	// 6. Load subject, faculty, and room maps for labels
-	const [subjects, faculty, rooms] = await Promise.all([
-		database.subject.findMany({
-			where: { schoolId, isActive: true },
-			select: { id: true, name: true, code: true },
-		}),
-		facultyIds.length > 0
-			? database.facultyMirror.findMany({
-				where: { id: { in: facultyIds }, schoolId, isStale: false },
-				select: { id: true, firstName: true, lastName: true },
-			})
-			: Promise.resolve([]),
-		roomIds.length > 0
-			? database.room.findMany({
-				where: { id: { in: roomIds } },
-				select: { id: true, name: true, building: { select: { name: true } } },
-			})
-			: Promise.resolve([]),
-	]);
-
-	const subjectMap = new Map(subjects.map(s => [s.id, s]));
-	const facultyMap = new Map(faculty.map(f => [f.id, `${f.lastName}, ${f.firstName}`]));
-	const roomMap = new Map(rooms.map(r => [r.id, `${r.building.name} / ${r.name}`]));
+	// 6. Load subject, faculty, and room maps for labels (frozen for a published run)
+	let subjectMap: Map<number, { id: number; name: string; code: string }>;
+	let facultyMap: Map<number, string>;
+	let roomMap: Map<number, string>;
+	if (frozen) {
+		const frozenMaps = frozenReferenceMaps(frozen);
+		subjectMap = new Map([...frozenMaps.subjectById].map(([id, subject]) => [id, { id, name: subject.name, code: subject.code }]));
+		facultyMap = new Map([...frozenMaps.facultyById].map(([id, member]) => [id, member.name]));
+		roomMap = new Map([...frozenMaps.roomById].map(([id, room]) => [id, `${room.building.name ?? ''} / ${room.name}`]));
+	} else {
+		const [subjects, faculty, rooms] = await Promise.all([
+			database.subject.findMany({
+				where: { schoolId, isActive: true },
+				select: { id: true, name: true, code: true },
+			}),
+			facultyIds.length > 0
+				? database.facultyMirror.findMany({
+					where: { id: { in: facultyIds }, schoolId, isStale: false },
+					select: { id: true, firstName: true, lastName: true },
+				})
+				: Promise.resolve([]),
+			roomIds.length > 0
+				? database.room.findMany({
+					where: { id: { in: roomIds } },
+					select: { id: true, name: true, building: { select: { name: true } } },
+				})
+				: Promise.resolve([]),
+		]);
+		subjectMap = new Map(subjects.map(s => [s.id, s]));
+		facultyMap = new Map(faculty.map(f => [f.id, `${f.lastName}, ${f.firstName}`]));
+		roomMap = new Map(rooms.map(r => [r.id, `${r.building.name} / ${r.name}`]));
+	}
 
 	// 7. Compute visible time rows (hidden mode omits specialization rows)
 	const hasSpecialProgramSections = sections.some(s => s.programType && s.programType !== 'REGULAR');
