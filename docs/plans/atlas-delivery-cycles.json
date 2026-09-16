@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T14:21:14.681Z",
+    "lastUpdatedAt": "2026-09-16T14:41:14.764Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 188
+    "revision": 193
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "PUBLISHED-IMMUTABILITY-C08R1 accepted (QA ACCEPT_READY 8/8/0/0/0) and integrated; pending fresh Wave Completion Auditor. Live generation, publication, deployment, migration, term-cache, and Teaching Load actions remain LOCKED behind separate HIGH approvals."
+    "globalNextAction": "PUBLISHED-IMMUTABILITY-C08 (INTEGRATED, historical: wave audit CORRECTION_REQUIRED B1/B2) was corrected by successor PUBLISHED-IMMUTABILITY-C08R1, closed COMPLETE (QA ACCEPT_READY 8/8/0/0/0; Wave Completion Audit AUDIT_CLEAR 8/8/0/0/0; receipt docs/plans/receipts/published-immutability-c08r1.receipt.json). Registered residuals: F1 concurrency CAS (successor FACULTY-SYNC-PUBLICATION-CAS-C01, owner primary planner; dispatch condition: next operator-activated cycle or before any live generation/publication unlock), F2 interval hardening (folded into F1), F3 live listener/release identity drift (owner TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 preflight), F4 faculty route body-scope defaulting (owner defaulting-scope backlog lane). All HIGH actions (generation, publication, deployment, migration, term-cache, Teaching Load apply) remain LOCKED behind separate approvals."
   },
   "streams": [
     {
@@ -4214,7 +4214,7 @@
       "closure": null,
       "objective": "Make one published revision a historically reproducible artifact: freeze subject/faculty/room/building/section/specialization/cohort/display-slot/special-event/policy/ordered-term identity into the publication revision JSON at publish time, resolve frozen-first on every public, authenticated, archived, and official-export consumer with an honest legacy state, repair current-year active/historical metadata and the :termId route family, and stop routine synchronization from unpublishing or failing a published run, while preserving the serializable/CAS/replay/audit/notification and draft-published separation strengths.",
       "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T13:41:47.365Z",
+      "stateUpdatedAt": "2026-09-16T14:39:27.738Z",
       "nextAction": "Wave Completion Audit returned CORRECTION_REQUIRED (B1: the snapshot-consistency gate rejects the canonical rendered Flag/HGP overlay; B2: faculty sync re-asserts isPublished=true on a superseded run). The deterministic remedy is registered as successor PUBLISHED-IMMUTABILITY-C08R1.",
       "awaited": [
         "bounded correction commit"
@@ -4340,8 +4340,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f55733bdbffeGXhjE4e8sc8HdC",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f5567dd8cffe35eR7tAi4LpFrz",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -4376,14 +4376,17 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/published-immutability-c08r1.receipt.json",
+          "sha256": "846303e16cc664a7e32f69499f945c7c350a601ff794842a2ab0c44ef8ffd80d"
+        }
+      },
       "objective": "Successor correction closing the two BLOCKING findings of the PUBLISHED-IMMUTABILITY-C08 Wave Completion Audit without regressing the frozen-publication contract: (B1) make the snapshot-consistency gate accept the real producer's contained/snapped Flag/HGP display slot using containment + day-scope authority and a real-producer positive control, and (B2) stop faculty-sync invalidation from re-asserting isPublished=true on a superseded run, preserving informational markers and the destructive path for unpublished runs.",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T14:21:14.681Z",
-      "nextAction": "One fresh read-only Wave Completion Auditor reviews the re-integrated origin/main tree 46603a31; then the planner records the audit and closes the cycle.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-16T14:41:00.523Z",
+      "nextAction": "PUBLISHED-IMMUTABILITY-C08R1 closed COMPLETE (QA ACCEPT_READY 8/8/0/0/0; Wave Completion Audit AUDIT_CLEAR 8/8/0/0/0). Residuals: F1 FACULTY-SYNC-PUBLICATION-CAS-C01; F2 interval hardening folded into F1; F3 owned by TERM-CACHE-CATCHUP-APPLY-REFRESH-C01; F4 owned by the defaulting-scope backlog lane. All HIGH actions remain LOCKED.",
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/integration-published-immutability-c08",
@@ -4420,8 +4423,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5567dd8cffe35eR7tAi4LpFrz",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -4489,9 +4492,9 @@
       "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
       "role": "planner",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T06:50:24.833Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-16T14:39:27.738Z",
       "expiresAt": null
     },
     {
@@ -4500,9 +4503,9 @@
       "worktree": "E:/ATLAS-worktrees/published-immutability-c08",
       "role": "planner",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-16T13:43:06.378Z",
+      "state": "RETURNED",
+      "revision": 2,
+      "updatedAt": "2026-09-16T14:39:10.734Z",
       "expiresAt": null
     }
   ],
