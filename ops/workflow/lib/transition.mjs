@@ -21,8 +21,10 @@ import {
   normalizeNowMs,
 } from "./verify.mjs";
 import { renderRegister, GENERATED_NOTICE } from "./render.mjs";
-import { sha256Hex, stageFileSync, commitStagedSync, discardStagedSync } from "./util.mjs";
+import { sha256Hex, lfSha256, stageFileSync, commitStagedSync, discardStagedSync } from "./util.mjs";
 import { resolveRepoRoot, createGitMemo } from "./git.mjs";
+import { resolveRepoRelativeFile } from "./paths.mjs";
+import { checkDirectiveCopy, gitPinResolvers, lintDirectivePins, isSha64 } from "./directive.mjs";
 import { buildReceipt, receiptPathFor } from "./receipt.mjs";
 import { acquireLock, releaseLock } from "./lock.mjs";
 import { loadSchema, validateValue, isPlainObject } from "./schema.mjs";
@@ -340,17 +342,32 @@ function isWindowHolder(window, { by, targetStreamId }) {
 }
 
 /**
+ * Membership test (A1). A through-terminal window (`toRevision === null`) spans
+ * from its declaration revision until the holder's terminal transition, so it is
+ * never bounded and can never lapse mid-cycle.
+ */
+function windowCoversRevision(window, revision) {
+  if (!(window.fromRevision <= revision)) return false;
+  if (window.toRevision === null || window.toRevision === undefined) return true;
+  return revision <= window.toRevision;
+}
+
+function windowSpan(window) {
+  return `${window.fromRevision}..${window.toRevision === null ? "through-terminal" : window.toRevision}`;
+}
+
+/**
  * Fail closed (zero mutation, no receipt, render byte-identical) when the
  * register revision falls inside a held span and the caller is not the holder.
  * Runs before any candidate is produced.
  */
 function assertRevisionWindowFree(doc, { by, targetStreamId }) {
   for (const window of readWindows(doc)) {
-    if (!(window.fromRevision <= doc.registry.revision && doc.registry.revision <= window.toRevision)) continue;
+    if (!windowCoversRevision(window, doc.registry.revision)) continue;
     if (isWindowHolder(window, { by, targetStreamId })) continue;
     throw new TransitionError(
       "TRANSITION_REVISION_WINDOW_HELD",
-      `revision ${doc.registry.revision} is reserved by "${window.holder}" (${window.streamId}, ${window.fromRevision}..${window.toRevision}); only the holder may transition inside the span`,
+      `revision ${doc.registry.revision} is reserved by "${window.holder}" (${window.streamId}, ${windowSpan(window)}); only the holder may transition inside the span`,
       "$.registry.windows",
     );
   }
@@ -374,6 +391,55 @@ function releaseWindowsForTerminalHolders(doc) {
   }
   return windows.length - kept.length;
 }
+
+// ---- Shared packet pin lint (section 3.5) ---------------------------------
+// One implementation for both enforcement points: `create-stream --packet-path`
+// (the registering stream's own packet) and `record-approval --packet-path` (the
+// HIGH packet whose digest is being bound). The same resolver backs
+// `pins.mjs check`, so the CLI and the engine cannot drift apart.
+function lintPacketFile(repoRoot, relPath, { unresolvedCode, pinCode }) {
+  const resolved = resolveRepoRelativeFile(repoRoot, relPath);
+  if (!resolved.ok) {
+    throw new TransitionError(unresolvedCode, `packet ${relPath}: ${resolved.message}`, "$.packetPath");
+  }
+  const errors = lintDirectivePins(resolved.bytes.toString("utf8"), gitPinResolvers(repoRoot));
+  if (errors.length > 0) {
+    const first = errors[0];
+    throw new TransitionError(
+      pinCode,
+      `packet ${relPath} fails directive-pin lint (${errors.length} error(s)): ${first.code} at ${first.path}`,
+      "$.packetPath",
+    );
+  }
+  return resolved;
+}
+
+// The verifier's "complete grant" definition, stated once. `record-execution`
+// refuses unless every field the verifier's HIGH_APPROVAL_INCOMPLETE /
+// HIGH_EXECUTION_WITHOUT_APPROVAL rules require is present and non-empty, plus a
+// non-empty approvedActions list (an execution must have something it may name).
+function isCompleteGrant(approval) {
+  return (
+    approval.required === true &&
+    approval.granted === true &&
+    nonEmpty(approval.operatorIdentity) &&
+    approval.approvedAt !== null &&
+    approval.approvedAt !== undefined &&
+    nonEmpty(approval.boundary) &&
+    Array.isArray(approval.approvedActions) &&
+    approval.approvedActions.length > 0
+  );
+}
+
+// States from which a HIGH gate may still be written or withdrawn. A settled
+// stream (COMPLETE/CLOSED/SUPERSEDED) may not be granted, executed, or withdrawn.
+const APPROVAL_FORBIDDEN_STATES = new Set(["COMPLETE", "CLOSED", "SUPERSEDED"]);
+const APPROVAL_FROM_STATES = STREAM_STATES.filter((state) => !APPROVAL_FORBIDDEN_STATES.has(state));
+const WITHDRAW_TARGET_STATES = ["INTEGRATION_READY", "PLANNED", "SUPERSEDED", "CLOSED"];
+
+// Presence-only transition flags. Every other flag consumes the next token; a
+// boolean flag never does. Exported so the CLI parser and the specs cannot drift.
+export const TRANSITION_BOOLEAN_FLAGS = new Set(["window-through-terminal", "register-window-through-terminal"]);
 
 export const TRANSITIONS = {
   "record-executor-return": {
@@ -664,6 +730,221 @@ export const TRANSITIONS = {
     },
   },
 
+  // ---- HIGH gate writers (sections 3.1-3.3) --------------------------------
+  // Before WF-C10 no transition wrote `approval.*`, so `approval.granted` could
+  // never be set through the sanctioned path while `lib/verify.mjs` already
+  // enforced HIGH_EXECUTION_WITHOUT_APPROVAL, HIGH_BOUNDARY_EXCEEDED and
+  // HIGH_APPROVAL_INCOMPLETE. These three close that gap. Each is a single-step
+  // revision-CAS transition under the same lock, staging, render,
+  // verification, and atomic-replace pipeline as every other: a refusal stages
+  // nothing, so state, render, and every receipt stay byte-identical.
+  "record-approval": {
+    from: APPROVAL_FROM_STATES,
+    fromErrorCode: "TRANSITION_APPROVAL_STATE_FORBIDDEN",
+    // The packet flags are optional at the spec level on purpose: a missing one
+    // must return the packet-specific refusal code below, not the generic
+    // TRANSITION_FLAG_REQUIRED.
+    optional: ["packet-path", "packet-sha256", "operator-identity", "boundary", "approved-actions"],
+    required: ["operator-identity", "boundary", "approved-actions"],
+    apply(ctx) {
+      const { stream, flags, repoRoot, nowIso } = ctx;
+      if (!nonEmpty(flags["packet-path"]) || !nonEmpty(flags["packet-sha256"])) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_PACKET_REQUIRED",
+          "record-approval requires --packet-path and --packet-sha256",
+          "$.approval.packet",
+        );
+      }
+      if (stream.approval.required !== true) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_NOT_REQUIRED",
+          `stream ${stream.id} does not declare approval.required; only a HIGH gate may be granted`,
+          "$.approval.required",
+        );
+      }
+      // Replay is idempotent, never additive: a second grant writes nothing.
+      if (stream.approval.granted === true) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_ALREADY_GRANTED",
+          `stream ${stream.id} already carries approval.granted === true; a grant is recorded once`,
+          "$.approval.granted",
+        );
+      }
+      if (!isSha64(flags["packet-sha256"])) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_PACKET_SHA_INVALID",
+          "--packet-sha256 must be a lowercase 64-hex digest",
+          "$.approval.packetSha256",
+        );
+      }
+      const packet = lintPacketFile(repoRoot, flags["packet-path"], {
+        unresolvedCode: "TRANSITION_APPROVAL_PACKET_UNRESOLVED",
+        pinCode: "TRANSITION_APPROVAL_PACKET_PIN_INVALID",
+      });
+      const actual = lfSha256(packet.bytes);
+      if (actual !== flags["packet-sha256"]) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_PACKET_HASH_MISMATCH",
+          `packet ${flags["packet-path"]} LF-normalized sha256 ${actual} != --packet-sha256 ${flags["packet-sha256"]}`,
+          "$.approval.packetSha256",
+        );
+      }
+      const approvedActions = parseStringArrayFlag(
+        "approved-actions",
+        flags["approved-actions"],
+        "TRANSITION_APPROVAL_ACTIONS_INVALID",
+        "$.approval.approvedActions",
+      );
+      if (approvedActions.length === 0 || approvedActions.some((action) => !nonEmpty(action))) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_ACTIONS_INVALID",
+          "--approved-actions must be a non-empty JSON array of non-empty strings",
+          "$.approval.approvedActions",
+        );
+      }
+      stream.approval.granted = true;
+      stream.approval.operatorIdentity = flags["operator-identity"];
+      stream.approval.approvedAt = nowIso;
+      stream.approval.boundary = flags.boundary;
+      stream.approval.approvedActions = approvedActions;
+      // `presentedReady` is deliberately NOT set here. Leaving it exactly as
+      // declared keeps the HIGH_DEPENDENCY_MISSING observation rules a separate
+      // concern: forcing it true would make a plain grant unsatisfiable unless
+      // every required observation were already PASS and unexpired.
+      return {
+        state: undefined,
+        defaults: null,
+        approval: { granted: true, packet: flags["packet-path"], packetSha256: actual, approvedActions },
+      };
+    },
+  },
+
+  "record-execution": {
+    from: APPROVAL_FROM_STATES,
+    fromErrorCode: "TRANSITION_EXECUTION_STATE_FORBIDDEN",
+    optional: ["actions-performed", "outcome"],
+    required: ["actions-performed", "outcome"],
+    apply(ctx) {
+      const { stream, flags, nowIso } = ctx;
+      if (!isCompleteGrant(stream.approval)) {
+        throw new TransitionError(
+          "TRANSITION_EXECUTION_WITHOUT_APPROVAL",
+          `stream ${stream.id} has no complete granted approval (required, granted, operatorIdentity, approvedAt, boundary, approvedActions)`,
+          "$.approval",
+        );
+      }
+      const actionsPerformed = parseStringArrayFlag(
+        "actions-performed",
+        flags["actions-performed"],
+        "TRANSITION_EXECUTION_ACTIONS_INVALID",
+        "$.approval.execution.actionsPerformed",
+      );
+      if (!nonEmpty(flags.outcome)) {
+        throw new TransitionError("TRANSITION_EXECUTION_OUTCOME_REQUIRED", "--outcome must be a non-empty string", "$.approval.execution.outcome");
+      }
+      const sanctioned = new Set(stream.approval.approvedActions);
+      const outside = actionsPerformed.filter((action) => !sanctioned.has(action));
+      if (outside.length > 0) {
+        throw new TransitionError(
+          "TRANSITION_EXECUTION_OUTSIDE_APPROVAL",
+          `performed action(s) outside approvedActions: ${outside.join(", ")}`,
+          "$.approval.execution.actionsPerformed",
+        );
+      }
+      if (stream.approval.execution && stream.approval.execution.performed === true) {
+        throw new TransitionError(
+          "TRANSITION_EXECUTION_ALREADY_RECORDED",
+          `stream ${stream.id} already records approval.execution.performed === true; execution is recorded once`,
+          "$.approval.execution",
+        );
+      }
+      // `evidence` is required by `$defs/approvalExecution` and predates this
+      // transition; the tool writes it null (no separate evidence artifact is
+      // claimed here) so the object stays schema-complete without inventing one.
+      stream.approval.execution = {
+        performed: true,
+        actionsPerformed,
+        evidence: null,
+        outcome: flags.outcome,
+        executedAt: nowIso,
+        recordedBy: nonEmpty(flags.by) ? flags.by : null,
+      };
+      return {
+        state: undefined,
+        defaults: null,
+        execution: { performed: true, actionsPerformed, executedAt: nowIso },
+      };
+    },
+  },
+
+  // The documented exit from HIGH_APPROVAL_REQUIRED. Verified at R0: no
+  // transition declared that state in a `from` list, so it was a dead end and
+  // TERM-CACHE-CATCHUP-APPLY was stuck in it in the live register.
+  "withdraw-approval": {
+    from: ["HIGH_APPROVAL_REQUIRED"],
+    fromErrorCode: "TRANSITION_WITHDRAW_STATE_FORBIDDEN",
+    optional: ["to-state", "reason", "next-action", "replacement"],
+    required: ["to-state", "reason", "next-action"],
+    apply(ctx) {
+      const { doc, stream, flags } = ctx;
+      const toState = flags["to-state"];
+      if (!WITHDRAW_TARGET_STATES.includes(toState)) {
+        throw new TransitionError(
+          "TRANSITION_WITHDRAW_TARGET_INVALID",
+          `--to-state must be one of ${WITHDRAW_TARGET_STATES.join(", ")}, got "${toState}"`,
+          "$.state",
+        );
+      }
+      if (stream.approval.granted === true) {
+        throw new TransitionError(
+          "TRANSITION_APPROVAL_ALREADY_GRANTED",
+          `stream ${stream.id} carries approval.granted === true; a granted approval is executed, never withdrawn`,
+          "$.approval.granted",
+        );
+      }
+      if (toState === "SUPERSEDED") {
+        if (!nonEmpty(flags.replacement)) {
+          throw new TransitionError(
+            "TRANSITION_WITHDRAW_REPLACEMENT_REQUIRED",
+            "--to-state SUPERSEDED requires --replacement <stream-id>: a withdrawn approval must name what replaces it",
+            "$.replacement",
+          );
+        }
+        const replacement = doc.streams.find((candidate) => candidate.id === flags.replacement);
+        if (!replacement) {
+          throw new TransitionError(
+            "TRANSITION_WITHDRAW_REPLACEMENT_UNKNOWN",
+            `--replacement "${flags.replacement}" is not a defined stream`,
+            "$.replacement",
+          );
+        }
+        if (replacement.id === stream.id) {
+          throw new TransitionError(
+            "TRANSITION_WITHDRAW_REPLACEMENT_SELF",
+            "--replacement may not name the stream being withdrawn",
+            "$.replacement",
+          );
+        }
+        if (replacement.state === "SUPERSEDED" || replacement.state === "CLOSED") {
+          throw new TransitionError(
+            "TRANSITION_WITHDRAW_REPLACEMENT_DEAD",
+            `--replacement "${flags.replacement}" is ${replacement.state}; the replacement must not itself be resolved-away`,
+            "$.replacement",
+          );
+        }
+      } else if (flags.replacement !== undefined) {
+        throw new TransitionError(
+          "TRANSITION_WITHDRAW_REPLACEMENT_NOT_APPLICABLE",
+          `--replacement is not applicable to --to-state ${toState}`,
+          "$.replacement",
+        );
+      }
+      stream.approval.presentedReady = false;
+      stream.approval.requiredObservationIds = [];
+      return { state: toState, defaults: null, withdrawal: { toState } };
+    },
+  },
+
   "record-remote-observation": {
     from: ["INTEGRATED", "COMPLETE"],
     optional: ["ref", "observed-sha", "ref-kind", "next-action", "awaited", "running"],
@@ -924,21 +1205,19 @@ export const TRANSITIONS = {
         );
       }
       // The file is resolved against the repository root exactly as artifact
-      // verification resolves it, and the claimed digest must equal the current
-      // working-tree bytes: a caller cannot invent a hash or pin bytes absent.
+      // verification resolves it, through the one shared repo-relative resolver,
+      // and the claimed digest must equal the current working-tree bytes: a
+      // caller cannot invent a hash or pin bytes absent.
       const base = repoRoot || path.dirname(statePath);
-      const filePath = path.resolve(base, artifactPath.split("/").join(path.sep));
-      let bytes;
-      try {
-        bytes = fs.readFileSync(filePath);
-      } catch (err) {
+      const resolved = resolveRepoRelativeFile(base, artifactPath);
+      if (!resolved.ok) {
         throw new TransitionError(
           "TRANSITION_ARTIFACT_HASH_MISMATCH",
-          `artifact ${artifactPath} could not be read: ${err.message}`,
+          `artifact ${artifactPath} could not be read: ${resolved.message}`,
           "$.artifacts",
         );
       }
-      const actual = sha256Hex(bytes);
+      const actual = sha256Hex(resolved.bytes);
       if (actual !== flags["artifact-sha256"]) {
         throw new TransitionError(
           "TRANSITION_ARTIFACT_HASH_MISMATCH",
@@ -959,7 +1238,7 @@ export const TRANSITIONS = {
   // exactly one record; no other stream is touched.
   "create-stream": {
     scope: "create",
-    optional: ["stream-spec", "observed-origin-main", "lease-id", "lease-role", "lease-session", "lease-expires", "lease-worktree", "register-window-to", "register-window-holder"],
+    optional: ["stream-spec", "observed-origin-main", "packet-path", "lease-id", "lease-role", "lease-session", "lease-expires", "lease-worktree", "register-window-to", "register-window-through-terminal", "register-window-holder"],
     required: ["stream-spec", "observed-origin-main"],
     apply(ctx) {
       const { doc, flags, repoRoot, git, nowIso } = ctx;
@@ -1005,6 +1284,31 @@ export const TRANSITIONS = {
       }
 
       assertClaimEvidenceConsistency(stream);
+
+      // Directive-copy fail-closed (section 3.4). A register write must run from
+      // a checkout whose operating `AGENTS.md` matches the directive at the tip
+      // the submitter observed. An unresolvable tip is never a silent skip: it is
+      // DIRECTIVE_REMOTE_UNRESOLVED, because the copy cannot be confirmed.
+      const directive = checkDirectiveCopy(repoRoot, observed);
+      if (!directive.ok) {
+        throw new TransitionError(
+          directive.code,
+          `${directive.message} (observed tip ${observed})`,
+          "$.stream.git.remoteObservation",
+        );
+      }
+
+      // Optional packet-pin lint of the registering stream's own packet
+      // (section 3.5). A packet whose directive pin reproduces at no tip — or
+      // whose declared pair disagrees — blocks registration.
+      let lintedPacket = null;
+      if (flags["packet-path"] !== undefined) {
+        const packet = lintPacketFile(repoRoot, flags["packet-path"], {
+          unresolvedCode: "TRANSITION_REGISTER_PACKET_UNRESOLVED",
+          pinCode: "TRANSITION_REGISTER_PACKET_PIN_INVALID",
+        });
+        lintedPacket = path.relative(repoRoot, packet.absPath).split(path.sep).join("/");
+      }
 
       // Optional atomic lease creation. A RUNNING declaration needs machine
       // evidence; creating the record and its ACTIVE lease in one transition is
@@ -1065,37 +1369,54 @@ export const TRANSITIONS = {
 
       // Optional register revision-window reservation awarded to the new stream.
       // `fromRevision` is the register revision at declaration, so the span is
-      // anchored to the record the spec actually observed.
+      // anchored to the record the spec actually observed. A reservation may be
+      // bounded (`--register-window-to`) or through-terminal
+      // (`--register-window-through-terminal`, `toRevision: null`). The
+      // through-terminal form is the default reservation for a single-writer
+      // cycle: a bounded span can lapse before the holder's own closure
+      // transitions (WF-C09 reserved 218..227 while its closure ran at 228-233).
       let declaredWindow = null;
-      if (flags["register-window-holder"] !== undefined && flags["register-window-to"] === undefined) {
+      const boundedTo = flags["register-window-to"] !== undefined;
+      const throughTerminal = flags["register-window-through-terminal"] !== undefined;
+      if (boundedTo && throughTerminal) {
         throw new TransitionError(
-          "TRANSITION_WINDOW_FLAG_REQUIRED",
-          "--register-window-holder requires --register-window-to",
+          "TRANSITION_WINDOW_FLAG_CONFLICT",
+          "--register-window-to and --register-window-through-terminal are mutually exclusive",
           "$.registry.windows",
         );
       }
-      if (flags["register-window-to"] !== undefined) {
-        const toRevision = Number(flags["register-window-to"]);
-        if (!Number.isInteger(toRevision) || toRevision < 1) {
-          throw new TransitionError(
-            "TRANSITION_WINDOW_INVALID",
-            `--register-window-to must be a positive integer, got "${flags["register-window-to"]}"`,
-            "$.registry.windows",
-          );
-        }
+      if (flags["register-window-holder"] !== undefined && !boundedTo && !throughTerminal) {
+        throw new TransitionError(
+          "TRANSITION_WINDOW_FLAG_REQUIRED",
+          "--register-window-holder requires --register-window-to or --register-window-through-terminal",
+          "$.registry.windows",
+        );
+      }
+      if (boundedTo || throughTerminal) {
         const fromRevision = doc.registry.revision;
-        if (toRevision < fromRevision) {
-          throw new TransitionError(
-            "TRANSITION_WINDOW_INVALID",
-            `--register-window-to ${toRevision} is below the declaration revision ${fromRevision}`,
-            "$.registry.windows",
-          );
+        let toRevision = null;
+        if (boundedTo) {
+          toRevision = Number(flags["register-window-to"]);
+          if (!Number.isInteger(toRevision) || toRevision < 1) {
+            throw new TransitionError(
+              "TRANSITION_WINDOW_INVALID",
+              `--register-window-to must be a positive integer, got "${flags["register-window-to"]}"`,
+              "$.registry.windows",
+            );
+          }
+          if (toRevision < fromRevision) {
+            throw new TransitionError(
+              "TRANSITION_WINDOW_INVALID",
+              `--register-window-to ${toRevision} is below the declaration revision ${fromRevision}`,
+              "$.registry.windows",
+            );
+          }
         }
         const holder = nonEmpty(flags["register-window-holder"]) ? flags["register-window-holder"] : created.id;
         declaredWindow = { streamId: created.id, fromRevision, toRevision, holder, declaredAt: nowIso };
         ensureWindows(doc).push(declaredWindow);
       }
-      return { createdStreamId: created.id, boundLease, declaredWindow };
+      return { createdStreamId: created.id, boundLease, declaredWindow, lintedPacket, directivePin: directive.lfSha256 };
     },
   },
 
@@ -1182,6 +1503,7 @@ export const TRANSITIONS = {
       "window-declare",
       "window-from",
       "window-to",
+      "window-through-terminal",
       "window-holder",
       "release-window",
     ],
@@ -1244,13 +1566,32 @@ export const TRANSITIONS = {
             "$.registry.windows",
           );
         }
-        const toRevision = Number(flags["window-to"]);
-        if (!Number.isInteger(toRevision) || toRevision < 1) {
+        const boundedTo = flags["window-to"] !== undefined;
+        const throughTerminal = flags["window-through-terminal"] !== undefined;
+        if (boundedTo && throughTerminal) {
           throw new TransitionError(
-            "TRANSITION_WINDOW_INVALID",
-            `--window-to must be a positive integer, got "${flags["window-to"]}"`,
+            "TRANSITION_WINDOW_FLAG_CONFLICT",
+            "--window-to and --window-through-terminal are mutually exclusive",
             "$.registry.windows",
           );
+        }
+        if (!boundedTo && !throughTerminal) {
+          throw new TransitionError(
+            "TRANSITION_WINDOW_FLAG_REQUIRED",
+            "--window-declare requires --window-to <revision> or --window-through-terminal",
+            "$.registry.windows",
+          );
+        }
+        let toRevision = null;
+        if (boundedTo) {
+          toRevision = Number(flags["window-to"]);
+          if (!Number.isInteger(toRevision) || toRevision < 1) {
+            throw new TransitionError(
+              "TRANSITION_WINDOW_INVALID",
+              `--window-to must be a positive integer, got "${flags["window-to"]}"`,
+              "$.registry.windows",
+            );
+          }
         }
         const fromRevision = flags["window-from"] !== undefined ? Number(flags["window-from"]) : doc.registry.revision;
         if (!Number.isInteger(fromRevision) || fromRevision < 1) {
@@ -1260,7 +1601,7 @@ export const TRANSITIONS = {
             "$.registry.windows",
           );
         }
-        if (toRevision < fromRevision) {
+        if (boundedTo && toRevision < fromRevision) {
           throw new TransitionError(
             "TRANSITION_WINDOW_INVALID",
             `--window-to ${toRevision} is below --window-from ${fromRevision}`,
@@ -1621,6 +1962,8 @@ export function runTransition({ statePath, transitionName, flags = {}, now = nul
       summary.observation = createdStream.git.remoteObservation;
       summary.boundLeaseId = outcome.boundLease ? outcome.boundLease.id : null;
       if (outcome.declaredWindow) summary.window = { declared: outcome.declaredWindow };
+      if (outcome.lintedPacket) summary.lintedPacket = outcome.lintedPacket;
+      if (outcome.directivePin) summary.directivePin = outcome.directivePin;
       nextActions = [{ streamId: createdStream.id, nextAction: createdStream.nextAction }];
     } else {
       summary.coordination = candidate.coordination;

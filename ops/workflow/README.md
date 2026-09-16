@@ -16,13 +16,13 @@ as context only and is never the current-status authority.
 
 ```bash
 npm run workflow:test      # node --test ops/workflow/__tests__/*.test.mjs
-npm run workflow:verify    -- --state docs/plans/atlas-delivery-cycles.json
-npm run workflow:render    -- --state docs/plans/atlas-delivery-cycles.json --output docs/plans/atlas-active-delivery-streams.generated.md
+npm run workflow:verify    # self-contained: --state docs/plans/atlas-delivery-cycles.json is embedded
+npm run workflow:render    # self-contained: writes docs/plans/atlas-active-delivery-streams.generated.md
 npm run workflow:render:check   # --check: no write, exit 1 on any drift
 npm run workflow:transition -- --transition <name> --state <path> --expect-revision <n> [flags]
-npm run workflow:checkpoint -- --state <path> --stream <id> [flags]
+npm run workflow:checkpoint -- --stream <id> [flags]   # --state is embedded; --stream is a pass-through
 npm run workflow:status    [-- --json] [--common-dir <path>] [--now <iso>]
-npm run workflow:custody   -- --op <operation> [flags]
+npm run workflow:custody   # self-contained: --op status --state docs/plans/atlas-delivery-cycles.json
 ```
 
 Direct CLI contract:
@@ -33,12 +33,41 @@ Direct CLI contract:
 - `node ops/workflow/checkpoint.mjs --state <path> --stream <id> [flags]`
 - `node ops/workflow/status.mjs --state <path> [--json] [--common-dir <path>] [--now <iso>] [--active-window-ms <n>] [--profile <path>] [--notify-kind <kind>] [--notify-message <text>]`
 - `node ops/workflow/custody.mjs --op <acquire|renew|transfer-request|transfer-ack|release|recover|login|status> --state <path> [flags]`
+- `node ops/workflow/pins.mjs check --packet <repo-relative> | check --all` (section 3.5)
+- `node ops/workflow/deps.mjs identity <path> | compare <a> <b>` (section 3.6)
 
-Exit codes: `0` ok, `1` state/transition failure, `2` usage error. `--stream`
+Exit codes: `0` ok, `1` state/transition/lint failure, `2` usage error. `--stream`
 without `--receipt` is a usage error, not a silent no-op. A repeated flag on
 `transition.mjs` is a usage error (`USAGE_DUPLICATE_FLAG`), never a last-one-wins
 override, because a caller cannot tell which value was used. There is never a
-default state file: `--state` is always required.
+default state file: `--state` is always required by the CLI.
+
+### The documented `workflow:*` aliases must actually run
+
+The aliases are self-contained: an alias that needs a state document embeds the
+committed path in `package.json` and never defaults it inside a CLI. A CLI that
+silently defaulted `--state` would let a wrong-working-directory invocation
+operate on an unintended file, so the wrong-directory case still fails closed
+with `STATE_UNREADABLE` (exit `1`), and the alias is the only place the path
+appears.
+
+| Alias | Published invocation | Exit |
+| --- | --- | --- |
+| `workflow:test` | `npm run workflow:test` | suite exit |
+| `workflow:verify` | `npm run workflow:verify` | `0` on a clean register |
+| `workflow:render` | `npm run workflow:render` | `0`; rewrites the generated register |
+| `workflow:render:check` | `npm run workflow:render:check` | `0` byte-identical |
+| `workflow:status` | `npm run workflow:status` | `0`/`1` |
+| `workflow:custody` | `npm run workflow:custody` | `0`/`1` (`--op status`) |
+| `workflow:checkpoint` | `npm run workflow:checkpoint -- --stream <id>` | `0`/`1` |
+| `workflow:transition` | `npm run workflow:transition -- --transition <name> --expect-revision <n> ...` | `0`/`1`/`2` |
+
+`workflow:checkpoint` is intentionally parameterized: a checkpoint is always for
+one stream, so `--stream <id>` is a pass-through argument after `--`. The
+required `--state` is embedded. Omitting `--stream` fails closed with
+`USAGE_MISSING_STREAM` (exit `2`) rather than defaulting to some other stream.
+`workflow:transition` is likewise a pass-through: the transition name, revision,
+and stream are caller knowledge.
 
 Every CLI prints exactly one JSON document with the top-level keys `status`,
 `summary`, `nextActions`, `artifacts`, `errors`. Identical input produces
@@ -286,6 +315,136 @@ node ops/workflow/transition.mjs --transition create-stream \
   revision produce exactly one winner and one typed loser (`LOCK_CONTENTION` or
   `TRANSITION_STALE_REVISION`) with no partial files.
 
+### The HIGH gate writers (sections 3.1-3.3)
+
+Before WF-C10 no transition wrote `approval.*`, so `approval.granted` could never
+be set through the sanctioned path while the verifier already enforced
+`HIGH_EXECUTION_WITHOUT_APPROVAL`, `HIGH_BOUNDARY_EXCEEDED` and
+`HIGH_APPROVAL_INCOMPLETE`. Three transitions close that gap. Each is a
+single-step revision-CAS transition under the same lock, staging, render,
+verification, and atomic-replace pipeline as every other, so a refusal stages
+nothing and leaves state, render, and every receipt byte-identical.
+
+#### `record-approval`
+
+Required `--packet-path <repo-relative>`, `--packet-sha256 <64-hex>`,
+`--operator-identity`, `--boundary`, `--approved-actions <JSON array>`. The tool
+owns `approvedAt`.
+
+Effects: `approval.granted`, `operatorIdentity`, `approvedAt`, `boundary` and
+`approvedActions` are set. `state`, `blocker`, `running`, `awaited`, `nextAction`
+and `approval.execution` are **unchanged**.
+
+**`presentedReady` is deliberately not set.** Leaving it exactly as declared keeps
+the `HIGH_DEPENDENCY_MISSING` observation rules a separate concern: forcing it
+`true` would make a plain grant unsatisfiable unless every required observation
+were already `PASS` and unexpired.
+
+The packet path is resolved through the one shared repo-relative resolver
+(`lib/paths.mjs`): absolute, drive-qualified, UNC, `..`-bearing, symlink-escaping,
+absent, or non-file references are refused. `--packet-sha256` is the
+**LF-normalized** SHA-256 of the resolved bytes, and the packet is linted through
+the section 3.5 directive-pin rules before the digest is compared.
+
+Refusals, all zero-mutation, render byte-identical, no receipt:
+
+| Code | Condition |
+| --- | --- |
+| `TRANSITION_APPROVAL_PACKET_REQUIRED` | either packet flag is absent |
+| `TRANSITION_APPROVAL_NOT_REQUIRED` | the stream's `approval.required` is not `true` |
+| `TRANSITION_APPROVAL_ALREADY_GRANTED` | `approval.granted` is already `true` (replay is idempotent) |
+| `TRANSITION_APPROVAL_PACKET_SHA_INVALID` | the digest is not lowercase 64-hex |
+| `TRANSITION_APPROVAL_PACKET_UNRESOLVED` | the path escapes the repo root or names no file |
+| `TRANSITION_APPROVAL_PACKET_PIN_INVALID` | the packet fails the directive-pin lint |
+| `TRANSITION_APPROVAL_PACKET_HASH_MISMATCH` | the LF-normalized digest differs |
+| `TRANSITION_APPROVAL_ACTIONS_INVALID` | `--approved-actions` is not a non-empty array of non-empty strings |
+| `TRANSITION_APPROVAL_STATE_FORBIDDEN` | the stream is `COMPLETE`, `CLOSED`, or `SUPERSEDED` |
+| `TRANSITION_STALE_REVISION`, `TRANSITION_UNKNOWN_STREAM` | as usual |
+
+#### `record-execution`
+
+Required `--actions-performed <JSON array>` and `--outcome <non-empty string>`.
+The tool owns `executedAt`; `recordedBy` is `--by` or `null`.
+
+Effects: `approval.execution = { performed: true, actionsPerformed, evidence:
+null, outcome, executedAt, recordedBy }`. `state` and the granted fields are
+unchanged. `evidence` is required by `$defs/approvalExecution` and predates this
+transition, so the tool writes it `null` rather than inventing an evidence
+artifact; the new descriptive fields are `outcome`, `executedAt` and
+`recordedBy`.
+
+Refusals, all zero-mutation: `TRANSITION_EXECUTION_WITHOUT_APPROVAL` unless the
+grant is complete **by the verifier's own definition** (`required === true &&
+granted === true && non-empty operatorIdentity && approvedAt !== null &&
+non-empty boundary && non-empty approvedActions`);
+`TRANSITION_EXECUTION_OUTSIDE_APPROVAL` when any performed action is absent from
+`approval.approvedActions`; `TRANSITION_EXECUTION_ALREADY_RECORDED` when
+`approval.execution.performed` is already `true`; `TRANSITION_EXECUTION_ACTIONS_INVALID`
+for a malformed array; `TRANSITION_EXECUTION_OUTCOME_REQUIRED` for an empty
+outcome; `TRANSITION_EXECUTION_STATE_FORBIDDEN` from a settled stream.
+
+The sanctioned path never trips `HIGH_EXECUTION_WITHOUT_APPROVAL`,
+`HIGH_BOUNDARY_EXCEEDED` or `HIGH_APPROVAL_INCOMPLETE`, and all three stay
+reachable for a hand-crafted document.
+
+#### `withdraw-approval` — the documented exit from `HIGH_APPROVAL_REQUIRED`
+
+Before WF-C10 **no transition declared `HIGH_APPROVAL_REQUIRED` in a `from`
+list**, so the state was a dead end and `TERM-CACHE-CATCHUP-APPLY` was stuck in it
+in the live register. `withdraw-approval` is the missing exit.
+
+Stream-scoped from `HIGH_APPROVAL_REQUIRED` only
+(`TRANSITION_WITHDRAW_STATE_FORBIDDEN` otherwise). Required `--to-state` ∈
+{`INTEGRATION_READY`, `PLANNED`, `SUPERSEDED`, `CLOSED`}, `--reason`,
+`--next-action`; optional `--replacement`, **required when `--to-state` is
+`SUPERSEDED`**, mirroring the `resolve-decision` precedent and naming a different,
+existing, non-resolved-away stream.
+
+Effects: the state becomes `--to-state`, `approval.presentedReady` becomes
+`false`, and `approval.requiredObservationIds` is cleared — nothing else.
+`TRANSITION_APPROVAL_ALREADY_GRANTED` refuses a granted stream (a grant is
+executed, never withdrawn); `TRANSITION_WITHDRAW_TARGET_INVALID` refuses a target
+outside the allowed set.
+
+### Directive pinning and packet-pin lint (sections 3.4-3.5)
+
+`lib/directive.mjs` is the single directive-pin resolver: `directivePinAtTip`
+returns `{ blob, lfSha256 }` computed from raw `git cat-file blob` bytes, and
+`operatingCopyHash` returns the LF-SHA-256 of the operating `AGENTS.md`.
+
+**Registration is fail-closed on the directive copy.** `create-stream` compares
+the operating `AGENTS.md` at the repository root with the directive blob at the
+submitter's `--observed-origin-main` tip. A mismatch is `DIRECTIVE_COPY_STALE`
+and an unresolvable tip is `DIRECTIVE_REMOTE_UNRESOLVED`; both mutate nothing.
+An unresolvable tip is never a silent skip. **Consequence:** a register write must
+run from a checkout whose `AGENTS.md` matches the tip being observed, because the
+stale `D:/ATLAS/AGENTS.md` copy is two mandatory rules behind the tracked
+directive.
+
+`create-stream` also accepts an optional `--packet-path` and lints the
+registering stream's own packet through the same resolver
+(`TRANSITION_REGISTER_PACKET_UNRESOLVED` / `TRANSITION_REGISTER_PACKET_PIN_INVALID`).
+
+`pins.mjs check --packet <path>` and `pins.mjs check --all` (sweeping
+`docs/prompts/**`) apply three rules:
+
+1. **Directive-pin reproducibility.** On a line carrying a directive marker
+   (`origin/main:AGENTS.md` or the word `Directive`), every 40-hex token must
+   resolve as a Git object (`PIN_BLOB_UNRESOLVED`), and every **declared**
+   `… SHA-256 <64-hex>` field must equal the LF-normalized SHA-256 of the
+   directive blob at the current tip **or any historical tip**
+   (`PIN_DIRECTIVE_HASH_UNKNOWN`). A historical-but-reproducible pin therefore
+   **passes**: a later directive bump never invalidates an already-queued packet,
+   while a value that reproduces at no tip fails closed. The original C08
+   misprint (`ffd14520…`) is exactly what this catches.
+2. **Declared pin-pair recomputation.** The documented pair is recomputed from raw
+   blob bytes; a disagreement is `PIN_HASH_MISMATCH`.
+3. **Scope discipline.** Only values in a declared pin slot are pins. A token that
+   is not declared (`liveSemanticRevision`, a fixture fingerprint, or a superseded
+   value quoted in a correction note) is prose and never fires, and a marker-free
+   line never fires the blob-resolution rule. Both directions are proven by
+   fixtures.
+
 ### Machine-state evidence rule
 
 Any document that claims current registry state must cite the exact
@@ -464,6 +623,19 @@ because it would introduce a liveness defect; lease flags without
 `TRANSITION_LEASE_ID_REQUIRED`/`TRANSITION_LEASE_ROLE_REQUIRED`; lease flags
 on a non-`RUNNING` record fail with `TRANSITION_CREATE_LEASE_STATE_INVALID`.
 
+**Settling evidence that R2 did not weaken the rule.** `938e3063` (type the
+reconcile-stream `RUNNING` refusal) touched only `ops/workflow/README.md`,
+`ops/workflow/__tests__/terminal-reconcile.test.mjs` and
+`ops/workflow/lib/transition.mjs`; `lib/verify.mjs` was untouched, and the rule
+remains live at `lib/verify.mjs` lines 30, 39, 103-187 and 774-781, with coverage
+at `__tests__/coverage.test.mjs` lines 416-455 and
+`__tests__/terminal-reconcile.test.mjs`. Prose is never evidence: a `RUNNING`
+stream whose `running[]` is non-empty **and** whose
+`owners.executor.sessionId` names a plausible session, but with zero `ACTIVE`
+lease and no heartbeat in window, still fails closed with
+`RUNNING_WITHOUT_LIVE_EVIDENCE`. Only an `ACTIVE` lease bound to the stream or a
+heartbeat naming it inside the active window clears the rule.
+
 `resolution === null`, and an absent `resolution` key, are both "not resolved":
 no resolution rule fires, so every historical or not-yet-resolved record stays
 valid and the property remains optional.
@@ -563,7 +735,7 @@ document verified and rendered under two different `--now` values produces
 byte-identical output. When no Git repository is resolvable, or the store does not
 exist, the store is empty — the fail-closed direction for the rule.
 
-### Register revision windows (R2.10)
+### Register revision windows (R2.10, A1)
 
 `registry.windows[]` is an optional reservation that names who may write for a
 span of register revisions:
@@ -573,31 +745,74 @@ span of register revisions:
   "holder": "WF-C09", "declaredAt": "<iso>" }
 ```
 
-- **Declaration.** `create-stream` accepts `--register-window-to <revision>` and
-  `--register-window-holder <identity>` (required when `to` is present; default
-  holder = the created stream's id), and `lease-update` accepts the symmetric
-  already-created path `--window-declare <streamId> --window-to <revision>` with
-  optional `--window-from <revision>` (default: the current register revision)
-  and `--window-holder <identity>` (default: the named stream's id).
-  `fromRevision` is the register revision at declaration, so the span is anchored
-  to the record the caller actually observed.
+A **through-terminal** window has no upper bound:
+
+```json
+{ "streamId": "WF-C10", "fromRevision": 241, "toRevision": null,
+  "holder": "WF-C10", "declaredAt": "<iso>" }
+```
+
+`toRevision: null` means "from the declaration revision until the holder's
+terminal transition", and it is the **default reservation for a cycle**. The
+bounded form is the reason: the WF-C09 reservation was `218..227` while that
+cycle's own closure transitions ran at `228-233`, so protection lapsed
+mid-cycle and two foreign pushes landed in the gap. A through-terminal window
+cannot lapse.
+
+- **Declaration.** `create-stream` accepts `--register-window-through-terminal`
+  (the default form) or `--register-window-to <revision>`, plus
+  `--register-window-holder <identity>` (default holder = the created stream's
+  id; the holder flag requires one of the two bound forms). `lease-update`
+  accepts the symmetric already-created path `--window-declare <streamId>
+  --window-through-terminal` or `--window-to <revision>`, with optional
+  `--window-from <revision>` (default: the current register revision) and
+  `--window-holder <identity>` (default: the named stream's id). The two bound
+  forms are mutually exclusive (`TRANSITION_WINDOW_FLAG_CONFLICT`), and declaring
+  neither is `TRANSITION_WINDOW_FLAG_REQUIRED`. `fromRevision` is the register
+  revision at declaration, so the span is anchored to the record the caller
+  actually observed.
 - **Check, in every transition before any mutation.** If a window satisfies
-  `fromRevision <= registry.revision <= toRevision` and it is not the invoking
-  holder's, the transition fails closed with `TRANSITION_REVISION_WINDOW_HELD`,
-  zero mutation, no receipt, render byte-identical. A transition is the holder's
-  own when `--by` equals the window's `holder`, **or** the transition's target
-  stream id equals the window's `streamId`. `holder` is an attestation at the same
-  trust level as `--by`; a window grants no state authority of its own.
-  Document-scoped transitions are subject to the same check, so a holder passes
-  `--by <holder>` for its own pre-integration `coordination-update`.
+  `fromRevision <= registry.revision` and (`toRevision === null` or
+  `registry.revision <= toRevision`) and it is not the invoking holder's, the
+  transition fails closed with `TRANSITION_REVISION_WINDOW_HELD`, zero mutation,
+  no receipt, render byte-identical. A transition is the holder's own when `--by`
+  equals the window's `holder`, **or** the transition's target stream id equals
+  the window's `streamId`. `holder` is an attestation at the same trust level as
+  `--by`; a window grants no state authority of its own. Document-scoped
+  transitions are subject to the same check, so a holder passes `--by <holder>`
+  for its own pre-integration `coordination-update`.
 - **Release.** Automatic: the window is removed in the same candidate in which
   its holder stream reaches `INTEGRATED`, `COMPLETE`, `CLOSED` or `SUPERSEDED`.
   Explicit: `lease-update --release-window <streamId>`, which names the window's
   own stream and is therefore always available as the documented remedy for a
-  stuck holder. A window is never deleted by hand.
-- Verifier rules: `WINDOW_INVALID` (`toRevision < fromRevision`) and
-  `WINDOW_UNKNOWN_STREAM` (the window names no defined stream). A missing
-  `windows` key and `[]` both mean "no window is declared", and no rule fires.
+  stuck holder. A window is never deleted by hand. A second window for the same
+  stream is refused (`TRANSITION_WINDOW_DUPLICATE`); to re-declare, release
+  first.
+- Verifier rules: `WINDOW_INVALID` (a **bounded** `toRevision < fromRevision`),
+  `WINDOW_UNKNOWN_STREAM` (the window names no defined stream), and
+  `WINDOW_LAPSED` (a bounded `toRevision` below the current register revision
+  while its holder is still non-terminal — the reservation is no longer
+  protection). A through-terminal window can never be `WINDOW_INVALID` or
+  `WINDOW_LAPSED`. A missing `windows` key and `[]` both mean "no window is
+  declared", and no rule fires.
+
+#### Two concurrency limits of the reservation and of `coordination`
+
+Both are structural and documented rather than engineered around; this workflow
+adds **no** co-holder mechanism.
+
+1. **A reservation is only correct when its holder is the sole active register
+   writer.** The holder predicate refuses every transition whose target stream is
+   not the window's stream (`isWindowHolder`). During WF-C10's first registration
+   attempt, three commits landed on `origin/main` from two peer cycles while the
+   local registration ran; a `237..300` reservation would have refused those
+   peers' legitimate stream-scoped transitions. A reservation therefore must not
+   be declared in the presence of concurrent cycles; where cycles are genuinely
+   concurrent, each registers with `create-stream` alone and declares no window.
+2. **`coordination.activeCycleId` is single-valued.** It cannot represent two or
+   more concurrent `RUNNING` cycles. The first claimant keeps the pointer and
+   every additional concurrent cycle is represented by its own stream row, not by
+   stealing `coordination-update`.
 
 ### Optional, declared, lazily-materialized properties
 
@@ -823,12 +1038,38 @@ form** of the file. They are verified against the working-tree bytes, so a
 checkout that rewrites LF to CRLF would invalidate every pin.
 
 The repository root `.gitattributes` forces `eol=lf` for the pinned classes
-(`ops/workflow/**`, `docs/plans/**`, `docs/handoffs/**`). Any future pinned
-artifact must live under one of these paths, or the policy must be extended in
-the same change. `__tests__/artifact-portability.test.mjs` materializes every
-pinned artifact through a real `core.autocrlf=true` Git checkout, asserts Git's
-own `check-attr eol` resolution, and includes a mutant flow that reproduces the
-CRLF defect when the rules are absent.
+(`ops/workflow/**`, `docs/plans/**`, `docs/handoffs/**`, `docs/reviews/**`,
+`docs/prompts/**`) plus `.opencode/agents/**` and `.opencode/plugins/**`. Any
+future pinned artifact must live under one of these paths, or the policy must be
+extended in the same change. `__tests__/artifact-portability.test.mjs`
+materializes every pinned artifact through a real `core.autocrlf=true` Git
+checkout, asserts Git's own `check-attr eol` resolution, and includes a mutant
+flow that reproduces the CRLF defect when the rules are absent.
+
+`docs/prompts/**` is a pinned class because a HIGH packet is bound by
+`record-approval --packet-sha256`, which is an **LF-normalized** digest. The
+materialization regression pins a real `docs/prompts/**` file, re-materializes it
+through a real checkout with and without the attribute, and asserts that the
+LF-normalized hash and the Git blob hash are unchanged in both cases — the attribute
+is load-bearing for the raw workspace bytes, while the LF-normalized pin is
+checkout-stable by construction. The documented pin convention is
+`blob <git-sha1> + LF-SHA-256 <hash> + the exact reproducing command`.
+
+### Dependency-tree identity (section 3.6)
+
+Dependency-tree reuse (worktree junctions, shared `node_modules`) is decided by
+the **LF-normalized** `package-lock.json` SHA-256, never by raw checkout bytes: a
+`core.autocrlf=true` checkout rewrites LF to CRLF and a byte-for-byte compare then
+reports a false mismatch.
+
+```bash
+node ops/workflow/deps.mjs identity <path>      # exit 0 ok, 1 unreadable, 2 usage
+node ops/workflow/deps.mjs compare <a> <b>      # exit 0 equal, 1 different, 2 usage
+```
+
+This is the sanctioned command for the dependency-reuse rule in `AGENTS.md`:
+before reusing an existing dependency tree, `compare` the two lockfiles and treat
+exit `0` as identity. A real difference still exits `1`.
 
 When no Git repository is resolvable around the state file, artifact paths
 resolve against the state file's directory (documented fallback; the normal path

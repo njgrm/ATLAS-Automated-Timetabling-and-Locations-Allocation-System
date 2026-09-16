@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { REPO_ROOT } from "./harness.mjs";
+import { lfSha256 } from "../lib/util.mjs";
 
 const SEED = path.join(REPO_ROOT, "docs", "plans", "atlas-delivery-cycles.json");
 const ATTRIBUTES = path.join(REPO_ROOT, ".gitattributes");
@@ -137,4 +138,54 @@ test("mutant: without the .gitattributes rules the materialized bytes differ fro
     mismatched.length > 0,
     "the mutant control could not reproduce the CRLF defect; the portability test would not be load-bearing",
   );
+});
+
+// WF-C10 section 3.7 (row 32). The `.gitattributes` rule `docs/prompts/** text
+// eol=lf` already exists; this is the proof that it holds, in the WF-C01 R1
+// pattern. A HIGH packet is hash-pinned by `record-approval --packet-sha256`
+// (an LF-normalized digest) and named by a documented `blob <git-sha1>` pin, so
+// both identities must survive a CRLF-checkout host.
+const PROMPT_REL = "docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md";
+
+function commitPrompt(dir, rel, { withAttributes }) {
+  if (withAttributes) {
+    fs.writeFileSync(path.join(dir, ".gitattributes"), fs.readFileSync(ATTRIBUTES));
+  }
+  const dest = path.join(dir, ...rel.split("/"));
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, workspaceBytes(rel));
+  git(dir, ["add", "-A"]);
+  git(dir, [...GIT_IDENTITY, "commit", "-m", "materialize prompt"]);
+  return git(dir, ["rev-parse", `HEAD:${rel}`]);
+}
+
+test("row 32: a docs/prompts artifact keeps its LF-normalized pin and blob hash through a Git checkout", (t) => {
+  const promptAbs = path.join(REPO_ROOT, ...PROMPT_REL.split("/"));
+  assert.ok(fs.existsSync(promptAbs), `the pinned prompt must exist at ${PROMPT_REL}`);
+  const pin = lfSha256(workspaceBytes(PROMPT_REL));
+
+  for (const withAttributes of [true, false]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wfc10-prompt-portability-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    git(dir, ["init", "-b", "main"]);
+    git(dir, ["config", "core.autocrlf", "true"]);
+    const blobBefore = commitPrompt(dir, PROMPT_REL, { withAttributes });
+
+    fs.rmSync(path.join(dir, ...PROMPT_REL.split("/")), { force: true });
+    git(dir, ["checkout", "--", "."]);
+    const bytes = fs.readFileSync(path.join(dir, ...PROMPT_REL.split("/")));
+    const blobAfter = git(dir, ["rev-parse", `HEAD:${PROMPT_REL}`]);
+
+    assert.equal(blobAfter, blobBefore, `the git blob hash must be stable (withAttributes=${withAttributes})`);
+    assert.equal(lfSha256(bytes), pin, `the LF-normalized pin must be stable (withAttributes=${withAttributes})`);
+    // The attribute is load-bearing for the raw workspace bytes, which is what a
+    // raw-byte artifact pin checks: with the rule the checkout is LF, without it
+    // the same repository produces CRLF.
+    assert.equal(bytes.includes(13), !withAttributes, `CRLF materialization must depend on the attribute (withAttributes=${withAttributes})`);
+  }
+
+  // Git itself resolves eol=lf for the exact path in the real repository.
+  const res = spawnSync("git", ["-C", REPO_ROOT, "check-attr", "eol", "--", PROMPT_REL], { encoding: "utf8", windowsHide: true });
+  assert.equal(res.status, 0, `git check-attr failed: ${res.stderr}`);
+  assert.match(res.stdout.trim(), /:\s*eol:\s*lf$/, "docs/prompts/** must resolve eol=lf");
 });

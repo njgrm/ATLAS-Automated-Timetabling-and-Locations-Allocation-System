@@ -19,6 +19,7 @@ import {
   VERIFY_CLI,
   RENDER_CLI,
   REPO_ROOT,
+  SCHEMA_FILE,
   getSharedRepo,
   createTempRepo,
   cleanupRepo,
@@ -1192,4 +1193,217 @@ test("in-process: the repair-read is one engine-level rule for every transition 
   assert.deepEqual(codesOf(refused), ["TRANSITION_STATE_INVALID"]);
 
   fs.rmSync(stateDir, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// A1 (rows 22-24) - the reservation must span to the holder's terminal transition
+//
+// The WF-C09 reservation was 218..227 while that cycle's own closure transitions
+// ran at 228-233, so protection lapsed mid-cycle and two foreign pushes landed
+// in the gap. A through-terminal window has no upper bound: it is released only
+// in the same candidate in which its holder reaches a terminal state.
+
+test("row 22: a through-terminal window refuses a foreign write after any bounded span would have ended", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const statePath = writeStateDoc(repo, "through-window-state.json", decisionDoc(repo));
+  const renderPath = renderPathFor(repo);
+
+  const declared = run(statePath, "lease-update", [
+    "--window-declare", "ORD-1",
+    "--window-through-terminal",
+    "--window-holder", "ORD-1",
+    "--by", "ORD-1",
+    "--expect-revision", "1",
+  ]);
+  assert.equal(declared.status, 0, declared.stdout + declared.stderr);
+  const window = JSON.parse(fs.readFileSync(statePath, "utf8")).registry.windows[0];
+  assert.equal(window.toRevision, null, "the through-terminal form writes toRevision: null");
+  assert.equal(window.fromRevision, 1);
+  // The renderer surfaces the unbounded form deterministically.
+  const check = runCli(RENDER_CLI, ["--check", "--state", statePath, "--output", renderPath], { cwd: repo.dir });
+  assert.equal(check.status, 0, check.stdout + check.stderr);
+  assert.match(fs.readFileSync(renderPath, "utf8"), /\| ORD-1 \| 1 \| _through-terminal_ \| ORD-1 \|/);
+
+  const specPath = writeSpec(repo, runningSpec(repo), "through-window-spec.json");
+  const foreign = assertNoMutation(statePath, renderPath, () =>
+    run(statePath, "create-stream", [
+      "--stream-spec", specPath,
+      "--observed-origin-main", repo.candidateSha,
+      "--by", "SOME-OTHER-OWNER",
+      "--expect-revision", "2",
+      "--lease-id", "lease-new-1",
+      "--lease-role", "executor",
+    ]),
+  );
+  assert.deepEqual(codesOf(foreign), ["TRANSITION_REVISION_WINDOW_HELD"]);
+
+  // Push the register revision far past any plausible bounded span using only
+  // the holder's own steps, then repeat the foreign write at the new revision.
+  for (let i = 0; i < 5; i += 1) {
+    const step = run(statePath, "reconcile-stream", [
+      "--stream", "ORD-1",
+      "--expect-revision", String(2 + i),
+      "--next-action", "Still reserved by the holder.",
+    ]);
+    assert.equal(step.status, 0, step.stdout + step.stderr);
+  }
+  assert.equal(JSON.parse(fs.readFileSync(statePath, "utf8")).registry.revision, 7);
+  const stillForeign = assertNoMutation(statePath, renderPath, () =>
+    run(statePath, "coordination-update", ["--mode", "MANUAL", "--by", "SOME-OTHER-OWNER", "--expect-revision", "7"]),
+  );
+  assert.deepEqual(codesOf(stillForeign), ["TRANSITION_REVISION_WINDOW_HELD"]);
+
+  // The holder's terminal transition releases the window in the same candidate.
+  const resolved = run(statePath, "resolve-decision", [
+    "--stream", "ORD-1",
+    "--expect-revision", "7",
+    "--disposition", "CLOSED",
+    "--resolver", "planner-cycle-owner",
+    "--resolution", "Closed by the through-terminal holder.",
+    "--next-action", "Nothing further is owed.",
+  ]);
+  assert.equal(resolved.status, 0, resolved.stdout + resolved.stderr);
+  const finalRegistry = JSON.parse(fs.readFileSync(statePath, "utf8")).registry;
+  assert.deepEqual(finalRegistry.windows ?? [], [], "the holder is terminal, so the window is released");
+});
+
+test("row 23: a bounded window that lapsed while its holder is non-terminal fails closed", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const doc = reconcileDoc(repo);
+  doc.registry.revision = 5;
+  doc.registry.windows = [{ streamId: "ORD-1", fromRevision: 1, toRevision: 3, holder: "ORD-1", declaredAt: ISO }];
+
+  const lapsedPath = writeStateDoc(repo, "window-lapsed.json", doc);
+  const lapsed = runCli(VERIFY_CLI, ["--state", lapsedPath], { cwd: repo.dir });
+  assert.equal(lapsed.status, 1);
+  assert.deepEqual(codesOf(lapsed), ["WINDOW_LAPSED"]);
+
+  // The same span as a through-terminal window never lapses.
+  const openDoc = JSON.parse(JSON.stringify(doc));
+  openDoc.registry.windows[0].toRevision = null;
+  const openPath = writeStateDoc(repo, "window-open.json", openDoc);
+  const open = runCli(VERIFY_CLI, ["--state", openPath], { cwd: repo.dir });
+  assert.equal(open.status, 0, open.stdout + open.stderr);
+
+  // A bounded window that still covers the current revision protects it.
+  const exactDoc = JSON.parse(JSON.stringify(doc));
+  exactDoc.registry.windows[0].toRevision = 5;
+  const exactPath = writeStateDoc(repo, "window-exact.json", exactDoc);
+  assert.equal(runCli(VERIFY_CLI, ["--state", exactPath], { cwd: repo.dir }).status, 0);
+
+  // WINDOW_INVALID stays numeric-only: an inverted bounded span is invalid, and
+  // a null upper bound is not an inversion.
+  const invalidDoc = JSON.parse(JSON.stringify(doc));
+  invalidDoc.registry.revision = 1;
+  invalidDoc.registry.windows = [{ streamId: "ORD-1", fromRevision: 5, toRevision: 3, holder: "ORD-1", declaredAt: ISO }];
+  const invalidPath = writeStateDoc(repo, "window-invalid.json", invalidDoc);
+  const invalid = runCli(VERIFY_CLI, ["--state", invalidPath], { cwd: repo.dir });
+  assert.equal(invalid.status, 1);
+  assert.deepEqual(codesOf(invalid), ["WINDOW_INVALID"]);
+
+  const nullInvalidDoc = JSON.parse(JSON.stringify(invalidDoc));
+  nullInvalidDoc.registry.windows[0].toRevision = null;
+  const nullInvalidPath = writeStateDoc(repo, "window-null-invalid.json", nullInvalidDoc);
+  assert.equal(runCli(VERIFY_CLI, ["--state", nullInvalidPath], { cwd: repo.dir }).status, 0);
+});
+
+test("row 24: the landed R2.10 surface keeps its flags, its duplicate refusal, and the new conflict guard", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const statePath = writeStateDoc(repo, "window-flags-state.json", reconcileDoc(repo));
+  const renderPath = renderPathFor(repo);
+
+  // Neither bound nor through-terminal is a typed refusal.
+  const neither = assertNoMutation(statePath, renderPath, () =>
+    run(statePath, "lease-update", ["--window-declare", "ORD-1", "--by", "ORD-1", "--expect-revision", "1"]),
+  );
+  assert.deepEqual(codesOf(neither), ["TRANSITION_WINDOW_FLAG_REQUIRED"]);
+
+  // Both at once is a conflict.
+  const both = assertNoMutation(statePath, renderPath, () =>
+    run(statePath, "lease-update", ["--window-declare", "ORD-1", "--window-to", "10", "--window-through-terminal", "--by", "ORD-1", "--expect-revision", "1"]),
+  );
+  assert.deepEqual(codesOf(both), ["TRANSITION_WINDOW_FLAG_CONFLICT"]);
+
+  // Declare bounded, then refuse a second window for the same stream.
+  const declared = run(statePath, "lease-update", ["--window-declare", "ORD-1", "--window-to", "10", "--by", "ORD-1", "--expect-revision", "1"]);
+  assert.equal(declared.status, 0, declared.stdout + declared.stderr);
+  const duplicate = assertNoMutation(statePath, renderPath, () =>
+    run(statePath, "lease-update", ["--window-declare", "ORD-1", "--window-to", "12", "--by", "ORD-1", "--expect-revision", "2"]),
+  );
+  assert.deepEqual(codesOf(duplicate), ["TRANSITION_WINDOW_DUPLICATE"]);
+
+  // The create-stream registration path takes the through-terminal form too, and
+  // the two bound flags are mutually exclusive there as well.
+  const specPath = writeSpec(repo, runningSpec(repo), "through-register-spec.json");
+  const conflict = assertNoMutation(statePath, renderPath, () =>
+    run(statePath, "create-stream", [
+      "--stream-spec", specPath,
+      "--observed-origin-main", repo.candidateSha,
+      "--by", "ORD-1",
+      "--expect-revision", "2",
+      "--register-window-to", "20",
+      "--register-window-through-terminal",
+    ]),
+  );
+  assert.deepEqual(codesOf(conflict), ["TRANSITION_WINDOW_FLAG_CONFLICT"]);
+
+  const released = run(statePath, "lease-update", ["--release-window", "ORD-1", "--by", "ORD-1", "--expect-revision", "2"]);
+  assert.equal(released.status, 0, released.stdout + released.stderr);
+
+  const registered = run(statePath, "create-stream", [
+    "--stream-spec", specPath,
+    "--observed-origin-main", repo.candidateSha,
+    "--by", "ORD-1",
+    "--expect-revision", "3",
+    "--lease-id", "lease-new-1",
+    "--lease-role", "executor",
+    "--register-window-through-terminal",
+  ]);
+  assert.equal(registered.status, 0, registered.stdout + registered.stderr);
+  const declaredWindow = registered.json.summary.window.declared;
+  assert.equal(declaredWindow.toRevision, null);
+  assert.equal(declaredWindow.streamId, "NEW-1");
+});
+
+test("row 24b: the shipped schema declares the through-terminal widening", () => {
+  const schema = JSON.parse(fs.readFileSync(SCHEMA_FILE, "utf8"));
+  assert.deepEqual(schema.$defs.revisionWindow.properties.toRevision.type, ["integer", "null"]);
+  assert.equal(schema.$defs.revisionWindow.required.includes("toRevision"), true);
+});
+
+// ---------------------------------------------------------------------------
+// A2 (rows 25-26) - the RUNNING live-evidence rule
+
+test("row 25: RUNNING with prose and a declared session id but no machine evidence is refused", (t) => {
+  const repo = createTempRepo();
+  t.after(() => cleanupRepo(repo.dir));
+  const doc = runningDoc(repo, (d) => {
+    d.streams[0].running = ["the executor is mid-implementation", "and a second running line"];
+    d.streams[0].owners.executor = { sessionId: "ses_plausible_owner_session", status: "ACTIVE", writable: false };
+  });
+  const statePath = writeStateDoc(repo, "a2-running-prose.json", doc);
+  const result = runCli(VERIFY_CLI, ["--state", statePath], { cwd: repo.dir });
+  assert.equal(result.status, 1);
+  assert.deepEqual(codesOf(result), ["RUNNING_WITHOUT_LIVE_EVIDENCE"]);
+
+  // The same document with one ACTIVE lease clears the rule: the machine
+  // evidence, never the prose or the declared session id, is what it reads.
+  const leased = JSON.parse(JSON.stringify(doc));
+  leased.leases = [
+    { id: "lease-ord-1", streamId: "ORD-1", worktree: null, role: "executor", sessionId: "ses_plausible_owner_session", state: "ACTIVE", revision: 1, updatedAt: ISO, expiresAt: null },
+  ];
+  const leasedPath = writeStateDoc(repo, "a2-running-leased.json", leased);
+  const ok = runCli(VERIFY_CLI, ["--state", leasedPath], { cwd: repo.dir });
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+});
+
+test("row 26: the README records the settling evidence that R2 did not weaken the rule", () => {
+  const readme = fs.readFileSync(path.join(REPO_ROOT, "ops", "workflow", "README.md"), "utf8");
+  assert.match(readme, /938e3063/, "the settling commit must be named");
+  assert.match(readme, /RUNNING_WITHOUT_LIVE_EVIDENCE/, "the surviving rule must be named");
+  assert.match(readme, /lib\/verify\.mjs/, "the surviving verify.mjs sites must be named");
+  assert.doesNotMatch(readme, /R2 substituted the rule away/i, "the stale R2 premise must not survive in the README");
 });
