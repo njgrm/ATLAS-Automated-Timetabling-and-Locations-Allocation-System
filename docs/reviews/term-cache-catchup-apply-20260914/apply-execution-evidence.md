@@ -178,3 +178,25 @@ only) are different namespaces — contradicting the documented contract at
 `derived-demand.service.ts:938-944`. The branch was unreachable while `termContractCache` was `NULL`
 and became reachable only because of this authorized apply. A bounded source correction is registered
 as a successor.
+
+## 11. Operator acknowledgement and direction (2026-09-16)
+
+The operator acknowledged the disclosed F2 deviation and directed as follows, recorded without
+softening:
+
+- The executor **should have stopped at `PLANNER_DECISION_REQUIRED`** when the approved pre-state
+  comparison diverged, and **was not authorized to adjudicate that difference in place**.
+- The acknowledgement is **not retroactive authorization** for that decision and **must not be treated
+  as precedent**.
+- Because the approved apply inputs remained exact, the write-set verification passed, the only
+  mutations were the reviewed mirror-223 fields plus the expected login and `TERM_CACHE_SYNC_APPLIED`
+  audit rows, and the reviewed rollback trigger was not reached, the operator **directs that the
+  successfully persisted term authority be retained**.
+- **No rollback, replay, second login, or additional live mutation is authorized.**
+- **Term-cache register custody is released.** The executed-but-not-closable machine-state limitation
+  (no supported transition from `HIGH_APPROVAL_REQUIRED` to `INTEGRATED` for an executed HIGH action)
+  **remains recorded pending a workflow transition correction**.
+
+Standing consequence for future HIGH packets in this project: a divergence from an approved pre-state
+comparison is a **stop condition**, not a planner judgement call. This is carried forward as the
+packet template's §4.0 divergence rule and as a directive-level process improvement.
