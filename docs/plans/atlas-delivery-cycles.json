@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T20:49:27.921Z",
-    "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 240
+    "lastUpdatedAt": "2026-09-16T21:21:30.482Z",
+    "lastUpdatedBy": "primary-planner:wf-c10-registration",
+    "revision": 241
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5639,6 +5639,153 @@
           "reason": "One fresh Wave Completion Auditor after integration; publication-adjacent source change."
         }
       }
+    },
+    {
+      "id": "WF-C10-TRANSITION-GUARD-HARDENING",
+      "kind": "STREAM",
+      "objective": "Make the machine register able to record HIGH gates and stale directives truthfully, and close four register-integrity defect classes found at R0: add record-approval and record-execution, add withdraw-approval as the documented exit from the currently dead-end HIGH_APPROVAL_REQUIRED state, add a directive-copy fail-closed check, add a packet-artifact pin lint that validates directive-pin reproducibility (A4: a directive bump must not invalidate an already-queued reproducible pin), add LF-normalized dependency-tree identity, extend the register revision window so a reservation spans from declaration through the holder's terminal transition with a WINDOW_LAPSED guard on bounded windows (A1), pin the RUNNING-without-live-evidence negative fixture with a settled account of the R2 substitution (A2), make the mandatory plugin-load gate hermetic by tracking .opencode/package.json with type=module (A3), and verify plus use record-executor-return --base (A5). Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T21:21:30.482Z",
+      "nextAction": "Executor implements docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md (R1) in E:/ATLAS-worktrees/wf-c10-transition-guards on branch work/wf-c10-transition-guard-hardening, from the registration tip recorded in this stream's git.remoteObservation. Return REVIEW_REQUIRED with --base <that registration tip>; the planner then validates the immutable range and dispatches fresh independent QA.",
+      "awaited": [
+        "executor REVIEW_REQUIRED return for the WF-C10-TRANSITION-GUARD-HARDENING candidate",
+        "fresh independent QA over the frozen candidate",
+        "fresh Wave Completion Auditor over the integrated wave"
+      ],
+      "running": [
+        "one bounded executor implementation of packet docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md (R1) on branch work/wf-c10-transition-guard-hardening; the executor session is dispatched in the same planner turn as this registration and its session id is recorded at return"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/wf-c10-transition-guards",
+        "branch": "work/wf-c10-transition-guard-hardening",
+        "baseSha": "8a13ca8a4bbfb7b598a14c477a16f482f6730d64",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "27bfa11d72ee22bb15270bc4f49cee0917c8610e",
+          "observedAt": "2026-09-16T21:21:30.482Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": false
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 40,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is COMPLETE and its register revision window 218-227 is released. The live register declares NO windows at all, because two peer cycles (SLOT-BREAK-AUTHORITY-C11 and FACULTY-SYNC-PUBLICATION-CAS-C01) are RUNNING and write the register concurrently; an exclusive WF-C10 reservation would refuse their legitimate stream-scoped transitions, so this stream declares none. The first registration attempt at revision 237 was superseded by those peer registrations (origin/main 16e70be2 -> 8a13ca8a, register revision 240) and never landed; this record is registered on top of revision 240. No dependency or approval blocker remains; this stream is RUNNING and is backed by the ACTIVE lease created atomically at registration in the same transition, with the executor dispatched in the same planner turn. R1 folds in the required deltas A1-A5 and corrects two R0 false premises: the plugin-load failure is missing ESM module semantics (.opencode/package.json is untracked, so the plugin is parsed as CommonJS under the root type=commonjs), not a missing dependency; and docs/prompts/** text eol=lf is already present in origin/main:.gitattributes, so only the materialization proof is outstanding. R1a adds the four broken documented workflow:* gate aliases.",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "author and register the stream, packet R1/R1a and the corrected spec (done by the planner)",
+          "dispatch one fresh bounded executor into E:/ATLAS-worktrees/wf-c10-transition-guards",
+          "verify the WF-C09 R2 window-reservation contract and add the A1 through-terminal form",
+          "prove the A3 fresh-checkout hermeticity of the plugin-load gate",
+          "repair the four documented workflow:* gate aliases that exit 2 as published"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "new objective with its own cycle; no prior planner owns this stream."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the workflow-contract implementation runs in a fresh executor context in E:/ATLAS-worktrees/wf-c10-transition-guards."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "a fail-closed contract change requires fresh independent QA over the frozen candidate."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the stream changes the register/transition contract, so a fresh adversarial Wave Completion Auditor is required after integration."
+        }
+      }
     }
   ],
   "leases": [
@@ -5750,6 +5897,17 @@
       "state": "ACTIVE",
       "revision": 1,
       "updatedAt": "2026-09-16T20:49:27.921Z",
+      "expiresAt": null
+    },
+    {
+      "id": "lease-wf-c10-transition-guards",
+      "streamId": "WF-C10-TRANSITION-GUARD-HARDENING",
+      "worktree": "E:/ATLAS-worktrees/wf-c10-transition-guards",
+      "role": "executor",
+      "sessionId": null,
+      "state": "ACTIVE",
+      "revision": 1,
+      "updatedAt": "2026-09-16T21:21:30.482Z",
       "expiresAt": null
     }
   ],
