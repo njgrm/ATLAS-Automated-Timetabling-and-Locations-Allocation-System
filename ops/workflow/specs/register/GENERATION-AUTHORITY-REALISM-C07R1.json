@@ -16,7 +16,7 @@
     "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
     "branch": "work/generation-authority-realism-c07",
     "baseSha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
-    "candidateSha": "c12c28ed4afaef059c3a9564693339fdfe0d8f42",
+    "candidateSha": null,
     "integrationSha": null,
     "changedPaths": [],
     "remoteObservation": null
@@ -28,13 +28,13 @@
       "writable": true
     },
     "executor": {
-      "sessionId": "ses_f58c49727ffeTiZX5gjG41KQcs",
-      "status": "RETURNED",
+      "sessionId": null,
+      "status": "NONE",
       "writable": false
     },
     "qa": {
-      "sessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J",
-      "status": "RETURNED",
+      "sessionId": null,
+      "status": "NONE",
       "writable": false
     },
     "auditor": {

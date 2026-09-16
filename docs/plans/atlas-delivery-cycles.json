@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T05:26:07.754Z",
+    "lastUpdatedAt": "2026-09-16T05:36:57.173Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 163
+    "revision": 167
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3941,6 +3941,190 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "the deployment wave requires a fresh Wave Completion Auditor after execution"
+        }
+      }
+    },
+    {
+      "id": "GENERATION-AUTHORITY-REALISM-C07R1",
+      "kind": "CYCLE",
+      "objective": "Correction-cycle closure of GENERATION-AUTHORITY-REALISM-C07 (historical INTEGRATED round preserved): accept the frozen R3 candidate c12c28ed that binds persisted policy_special_events into the generation freshness policy domain with enabled-agnostic digest plus count/max-id/max-updated signals (B1), re-evidences C07-S04 on the reachable persisted-shape Flag/HGP containment rejection and re-captions the non-Monday predicate as forward compatibility (B2), removes the cross-namespace TERM_AUTHORITY_STALE comparison so both authority reads pass through one shared deterministic canonical term-authority revision helper with concurrent-change detection and zero-write fail-closed paths (B3), and shares the label-aware day predicate (optional N2). No live, schema, deployment, generation, publication, migration, or data action.",
+      "riskTier": "MEDIUM",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-16T05:36:57.173Z",
+      "nextAction": "Integrate the frozen R3 candidate c12c28ed from the clean integration boundary and commission exactly one fresh Wave Completion Auditor over the corrected integrated wave; every live/HIGH action stays locked.",
+      "awaited": [
+        "planner validates the immutable range and integration boundary"
+      ],
+      "running": [],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
+        "branch": "work/generation-authority-realism-c07",
+        "baseSha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
+        "candidateSha": "c12c28ed4afaef059c3a9564693339fdfe0d8f42",
+        "integrationSha": null,
+        "changedPaths": [
+          "atlas-client/src/components/subjects/SubjectFormModal.tsx",
+          "atlas-client/src/lib/__tests__/room-authority-copy.test.ts",
+          "atlas-client/src/lib/room-authority-copy.ts",
+          "atlas-client/src/pages/Subjects.tsx",
+          "atlas-server/src/__tests__/derived-demand-correction-c01r2.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-availability.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-term-authority.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-trigger.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07.test.ts",
+          "atlas-server/src/__tests__/publication-contract-postgres-concurrency.test.ts",
+          "atlas-server/src/__tests__/publication-contract-readiness.test.ts",
+          "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
+          "atlas-server/src/__tests__/timetable-shape-diagnostic-c02.test.ts",
+          "atlas-server/src/lib/policy-special-events.ts",
+          "atlas-server/src/services/constraint-validator.ts",
+          "atlas-server/src/services/derived-demand.service.ts",
+          "atlas-server/src/services/generation-input-snapshot.service.ts",
+          "atlas-server/src/services/generation-preflight.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-schedule.service.ts",
+          "atlas-server/src/services/schedule-constructor.ts",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "docs/prompts/generation-authority-realism-c07-2026-09-16.md",
+          "docs/prompts/generation-authority-realism-c07-r3-correction-2026-09-16.md",
+          "ops/workflow/specs/register/GENERATION-AUTHORITY-REALISM-C07.json"
+        ],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "45adf6517a0662b726e3e45ccf8dd287d457909a",
+          "observedAt": "2026-09-16T05:36:40.671Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": "ses_f58c49727ffeTiZX5gjG41KQcs",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "qa": {
+          "sessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J",
+          "status": "RETURNED",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 22,
+        "passed": 22,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 21,
+          "MANDATORY_LIVE": 1,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 21,
+            "passed": 21,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J",
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J"
+          }
+        ]
+      },
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "c12c28ed4afaef059c3a9564693339fdfe0d8f42",
+          "candidateSha": "c12c28ed4afaef059c3a9564693339fdfe0d8f42",
+          "reason": "R3 correction: B1 policy_special_events freshness binding (enabled-agnostic digest + count/max-id/max-updated signals); B2 reachable persisted-shape Flag/HGP containment evidence with the non-Monday predicate re-captioned as forward compatibility; B3 removal of the cross-namespace TERM_AUTHORITY_STALE comparison so both authority reads pass through one shared deterministic canonical revision helper with concurrent-change detection and zero-write fail-closed paths; optional N2 shared label-aware day predicate.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J",
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        }
+      ],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": true,
+        "safeWorkItems": [
+          "integrate the accepted correction",
+          "fresh wave audit"
+        ]
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns the C07 packet, verification, integration, and closure; the harness exposed no session id, so none is asserted."
+        },
+        "executor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the bounded C07 implementation runs in a fresh executor context on the cycle worktree."
+        },
+        "qa": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "each C07 candidate requires a fresh independent QA context."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the integrated C07 wave requires a fresh adversarial audit context."
         }
       }
     }
