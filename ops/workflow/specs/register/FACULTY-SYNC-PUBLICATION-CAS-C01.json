@@ -1,0 +1,134 @@
+{
+  "id": "FACULTY-SYNC-PUBLICATION-CAS-C01",
+  "kind": "CYCLE",
+  "objective": "Guarantee that a published GenerationRun can never be un-published or orphaned by routine faculty/subject/room/policy synchronization: add a version compare-and-swap to the published-run status transition in the routine-sync path, return a typed and singly-audited successor condition instead of erasing history, make the reported invalidation counters truthful, and fold in the F2 fail-closed interval hardening in the frozen-snapshot consistency gate. Source and tests only; publication and generation remain separately HIGH-gated.",
+  "riskTier": "MEDIUM",
+  "state": "RUNNING",
+  "stateUpdatedAt": "2026-09-17T00:10:00+08:00",
+  "nextAction": "Executor implements the bounded CAS correction in E:/ATLAS-worktrees/faculty-sync-cas-c01 per docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md and returns REVIEW_REQUIRED with the frozen candidate SHA; then the planner validates the immutable range and commissions one fresh independent QA.",
+  "awaited": [
+    "executor REVIEW_REQUIRED return from worktree E:/ATLAS-worktrees/faculty-sync-cas-c01 on branch fix/faculty-sync-publication-cas"
+  ],
+  "running": [
+    "executor (high) in E:/ATLAS-worktrees/faculty-sync-cas-c01 on fix/faculty-sync-publication-cas; packet docs/prompts/faculty-sync-publication-cas-c01-2026-09-17.md"
+  ],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/faculty-sync-cas-c01",
+    "branch": "fix/faculty-sync-publication-cas",
+    "baseSha": "544bbf81d087098f9b5f28b9f598311f19c5288d",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": true
+    },
+    "executor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "qa": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    },
+    "auditor": {
+      "sessionId": null,
+      "status": "NONE",
+      "writable": false
+    }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 14,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "MANDATORY_LIVE": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      },
+      "DEFERRED_EXTERNAL": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0
+      }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "NONE",
+    "detail": "",
+    "safeWorkRemaining": false,
+    "safeWorkItems": []
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "Operator routing for this cycle: new objective with no same-worktree planner lineage to resume; this session is the fresh planner."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "One fresh bounded executor for a new packet; no prior executor session carries this stream."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "One fresh independent QA verifier per frozen candidate range."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "One fresh Wave Completion Auditor after integration; publication-adjacent source change."
+    }
+  }
+}
