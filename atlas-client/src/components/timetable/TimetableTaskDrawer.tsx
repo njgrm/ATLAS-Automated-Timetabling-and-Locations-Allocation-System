@@ -1,4 +1,5 @@
 ﻿import { memo, useEffect, useMemo, useReducer, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
 	ArrowRightLeft,
 	CalendarClock,
@@ -49,7 +50,11 @@ type TimetableTaskDrawerProps = {
 	onTaskChange: (task: TimetableSimpleTask | null) => void;
 	leftRailContentContext: LeftRailContentContext;
 	hardCount: number;
+	/** Run-wide allowlist-filtered HARD count — the real publish gate (C07B/B6). */
+	blockingHardCount?: number;
 	softCount: number;
+	/** Term scope of the `violations` list (C07B/B2). */
+	violationScopeLabel?: string;
 	unassignedCount: number;
 	assignedCount: number;
 	runId: number | null;
@@ -114,7 +119,9 @@ function TimetableTaskDrawerImpl({
 	onTaskChange,
 	leftRailContentContext,
 	hardCount,
+	blockingHardCount,
 	softCount,
+	violationScopeLabel,
 	unassignedCount,
 	assignedCount,
 	runId,
@@ -127,6 +134,7 @@ function TimetableTaskDrawerImpl({
 	repairOrigin = null,
 	onBackToBlockerSummary,
 }: TimetableTaskDrawerProps) {
+	const navigate = useNavigate();
 	if (!task) return null;
 	const copy = copyByTask[task];
 	const Icon = copy.icon;
@@ -216,14 +224,22 @@ function TimetableTaskDrawerImpl({
 							assignedCount={assignedCount}
 							unassignedCount={unassignedCount}
 							hardCount={hardCount}
+							blockingHardCount={blockingHardCount}
 							softCount={softCount}
+							violationScopeLabel={violationScopeLabel}
 							violations={violations}
 							sectionLabel={sectionLabel}
 							subjectLabel={subjectLabel}
 							facultyLabel={facultyLabel}
 							onPublish={onPublish}
-							onReviewIssues={() => onTaskChange('review-issues')}
+							onReviewIssues={() => {
+								leftRailContentContext.setSeverityFilter('hard');
+								onTaskChange('review-issues');
+							}}
 							onPlaceUnresolved={() => onTaskChange('place-unresolved')}
+							onOpenTeachingLoad={(href) => navigate(href)}
+							onOpenRoomSetup={() => navigate('/map')}
+							onSelectViolation={(violation) => leftRailContentContext.handleViolationSelect(violation)}
 						/>
 					</ScrollArea>
 				</div>

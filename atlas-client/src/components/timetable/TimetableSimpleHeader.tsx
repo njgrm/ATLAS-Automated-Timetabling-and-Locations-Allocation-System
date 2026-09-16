@@ -42,6 +42,7 @@ import type { RepairOrigin } from '@/components/timetable/TimetableTaskDrawer';
 import { TimetableStatusLegend } from '@/components/timetable/TimetableStatusLegend';
 import { isRunPublishedStrict } from '@/components/timetable/timetableWorkspaceTruth';
 import { SimplePublishReadinessSheet } from '@/components/timetable/SimplePublishReadinessSheet';
+import { resolveBlockerDestination } from '@/components/timetable/simplePublishReadiness';
 import { UnassignedInsertionWorkflow } from '@/components/timetable/UnassignedInsertionWorkflow';
 import {
 	chooseRecommendedTask,
@@ -767,6 +768,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 				sectionLabel={context.sectionLabel}
 				subjectLabel={context.subjectLabel}
 				facultyLabel={context.facultyLabel}
+				runWide={{
+					blockingHardCount: context.blockingHardCount,
+					unassignedCount: context.summary?.unassignedCount ?? 0,
+					softCount: context.softCount,
+				}}
 				onNavigateToRepair={(href, reason, identity) => {
 					setReadinessSheetOpen(false);
 					const plainReason = reason === 'NO_AVAILABLE_SLOT' ? 'No available slot'
@@ -774,9 +780,11 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						: reason === 'NO_QUALIFIED_FACULTY' ? 'No qualified teacher'
 						: reason === 'NO_COMPATIBLE_ROOM' ? 'No compatible room'
 						: reason === 'ROOM_CAPACITY_EXCEEDED' ? 'Room capacity exceeded'
-						: 'Unknown issue';
+						: reason ? reason.replace(/_/g, ' ').toLowerCase() : 'Unknown issue';
 					onSetRepairOrigin?.({ reason: reason ?? 'UNKNOWN', plainReason, groupCount: 0 });
-					if (reason === 'FACULTY_OVERLOADED' || reason === 'NO_QUALIFIED_FACULTY') {
+					// B3 — one shared destination resolver; every blocker action is real.
+					const destination = resolveBlockerDestination(reason, href);
+					if (destination.kind === 'teaching-load') {
 						// R9/A-18: preserve teacher/section/subject identity on the
 						// Teaching Load repair deep link.
 						const params = new URLSearchParams();
@@ -785,15 +793,31 @@ const [insertionOpen, setInsertionOpen] = useState(false);
 						if (identity?.subjectId != null) params.set('subjectId', String(identity.subjectId));
 						params.set('task', 'missing-load');
 						navigate(`/teaching-load?${params.toString()}`);
-					} else if (reason === 'NO_AVAILABLE_SLOT') {
+						return;
+					}
+					if (destination.kind === 'rooms') {
+						// R8/A-03: room configuration lives at /map; the legacy room path is
+						// unmounted. The resolver maps every room blocker reason to /map.
+						navigate('/map');
+						return;
+					}
+					if (destination.kind === 'placement') {
 						context.setUnassignedReasonFilter('NO_AVAILABLE_SLOT');
 						setBlockerReasonFilter('NO_AVAILABLE_SLOT');
-						context.setLeftTab('unassigned');
-						context.setPresentationMode('workflow');
-						onTaskChange('place-unresolved');
-					} else if (reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED') {
-						// R8/A-03: room configuration lives at /map; the legacy room path is unmounted.
-						navigate('/map');
+						void startTask('place-unresolved');
+						return;
+					}
+					// review: select the exact violation in the review rail.
+					const match = destination.code
+						? context.violations.find((v) => v.code === destination.code && v.severity === 'HARD')
+							?? context.violations.find((v) => v.code === destination.code)
+						: undefined;
+					if (match) context.setSelectedViolation(match);
+					context.setSeverityFilter('hard');
+					if (capabilities.gates.issueReview.enabled) {
+						void startTask('review-issues');
+					} else if (destination.href) {
+						navigate(destination.href);
 					}
 				}}
 			/>

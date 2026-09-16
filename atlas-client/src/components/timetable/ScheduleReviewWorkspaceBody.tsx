@@ -42,7 +42,9 @@ function ScheduleReviewWorkspaceBodyImpl({
 		setLeftTab,
 		violations,
 		hardCount,
+		blockingHardCount,
 		softCount,
+		violationScopeLabel,
 		summary,
 		roomRequestSummary,
 		openPublishDialog,
@@ -64,7 +66,9 @@ function ScheduleReviewWorkspaceBodyImpl({
 					onTaskChange={onSimpleTaskChange ?? (() => undefined)}
 					leftRailContentContext={leftRailContentContext}
 					hardCount={hardCount}
+					blockingHardCount={blockingHardCount}
 					softCount={softCount}
+					violationScopeLabel={violationScopeLabel}
 					unassignedCount={summary?.unassignedCount ?? 0}
 					assignedCount={summary?.assignedCount ?? 0}
 					runId={context.activeGeneratedRunId ?? null}

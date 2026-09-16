@@ -59,6 +59,8 @@ export function GeneratedViolationsPanel({
 }: GeneratedViolationsPanelProps) {
 	const {
 		hardViolationCount,
+		runWideBlockingHardCount,
+		violationScopeLabel,
 		topBlockers,
 		violations,
 		handleViolationSelect,
@@ -160,6 +162,15 @@ export function GeneratedViolationsPanel({
 						<ShieldAlert className="size-3.5" />
 						Top blockers ({hardViolationCount} run-wide hard)
 					</div>
+					{/* B2 — the gate number is run-wide; the list below is the selected
+					    term only. Never present a merged total under one number. */}
+					<p
+						className="mb-1.5 text-[0.6875rem] leading-snug text-muted-foreground"
+						data-testid="generated-rail-scope-note"
+					>
+						Run-wide gate: <span className="font-semibold text-foreground">{runWideBlockingHardCount}</span> blocking hard.
+						Counts below are <span className="font-semibold text-foreground">{violationScopeLabel}</span> ({violations.length} shown), not run-wide.
+					</p>
 					<div className="space-y-0.5">
 						{topBlockers.map((violation, index) => {
 							const count = violations.filter((item) => item.code === violation.code && item.severity === 'HARD').length;
@@ -174,10 +185,11 @@ export function GeneratedViolationsPanel({
 										setSeverityFilter('hard');
 									}}
 									className="h-6 w-full justify-start gap-1.5 rounded px-1 py-0.5 text-left text-xs font-semibold text-red-800 hover:bg-red-100/60 hover:text-red-600"
+									aria-label={`${VIOLATION_LABELS[violation.code] ?? violation.code.replace(/_/g, ' ').toLowerCase()}, ${count} in ${violationScopeLabel}`}
 								>
 									<ChevronRight className="size-3 shrink-0" />
 									<span className="truncate flex-1">{VIOLATION_LABELS[violation.code] ?? violation.code.replace(/_/g, ' ').toLowerCase()}</span>
-									<span className="shrink-0 text-red-500 font-semibold">x{count}</span>
+									<span className="shrink-0 text-red-500 font-semibold">x{count} · {violationScopeLabel}</span>
 								</Button>
 							);
 						})}
@@ -214,7 +226,13 @@ export function GeneratedViolationsPanel({
 						</Button>
 					)}
 				</div>
-				<div className="mt-2 flex gap-1 rounded-lg bg-muted/40 p-0.5 border border-border/50">
+				<p
+					className="mt-2 text-[0.6875rem] leading-snug text-muted-foreground"
+					data-testid="generated-rail-filter-scope-note"
+				>
+					Filter counts are <span className="font-semibold text-foreground">{violationScopeLabel}</span> only. Run-wide blocking gate: <span className="font-semibold text-foreground">{runWideBlockingHardCount}</span>.
+				</p>
+				<div className="mt-1 flex gap-1 rounded-lg bg-muted/40 p-0.5 border border-border/50" role="group" aria-label={`Violation filters, ${violationScopeLabel} scope`}>
 					{(['all', 'hard', 'soft'] as const).map((filter) => {
 						const count = filter === 'all'
 							? violations.length
@@ -230,6 +248,7 @@ export function GeneratedViolationsPanel({
 								variant={isActive ? 'default' : 'ghost'}
 								size="sm"
 								onClick={() => setSeverityFilter(filter)}
+								aria-label={`${label}, ${count} in ${violationScopeLabel}`}
 								className={`h-6 flex-1 text-xs font-semibold rounded-md transition-all ${
 									isActive ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'
 								}`}

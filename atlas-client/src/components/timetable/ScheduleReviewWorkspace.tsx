@@ -494,7 +494,12 @@ export default function ScheduleReviewWorkspace() {
 						setLeftTab: state.setLeftTab,
 						violations: state.violations,
 						hardCount: state.headerContext.hardCount,
+						blockingHardCount: state.headerContext.blockingHardCount,
 						softCount: state.headerContext.softCount,
+						violationScopeLabel: typeof state.headerContext.termFilter === 'number'
+							? (state.headerContext.termOptions?.find((option) => String(option.value) === String(state.headerContext.termFilter))?.label
+								?? `Term ${state.headerContext.termFilter}`)
+							: 'All terms',
 						summary: state.summary,
 						roomRequestSummary: state.roomRequestSummary,
 					openPublishDialog: () => {
