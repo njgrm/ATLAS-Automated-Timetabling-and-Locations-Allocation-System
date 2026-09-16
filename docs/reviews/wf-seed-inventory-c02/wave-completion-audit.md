@@ -113,3 +113,20 @@ track a `package.json` under `.opencode/` versus making the test self-sufficient
 `record-audit` with the returned auditor session id (folding in the F3 correction), then `close-cycle` with the minted
 receipt, commit this capsule, push, record the terminal remote observation, retire both cycle worktrees non-forced,
 and notify `AUTHZ-CLASS-TEMPLATE-C07` that `workflow:test` is green on the exact final `main` SHA.
+
+## Worktree retirement (planner closure)
+
+Both cycle worktrees were retired non-forced (git worktree remove <exact path> then git worktree prune), after refreshing
+`origin/main` and recording each path, branch, HEAD, porcelain status, ancestry/tree-equivalence evidence, register
+references and process/session references. No branch was deleted and no `--force` was used.
+
+| Worktree | Branch (retained) | HEAD at retirement | Porcelain | Ancestry / equivalence |
+| --- | --- | --- | --- | --- |
+| `E:/ATLAS-worktrees/integration-wf-seed-inventory-c02` | `integration/wf-seed-inventory-c02` | `c8a014855926aec5dd9fd4d86ee4e951157091cb` | empty | equals `origin/main` (ancestor) |
+| `E:/ATLAS-worktrees/wf-seed-inventory-c02` | `work/wf-seed-inventory-c02` | `11c8bdbf79e5a3dcf40f269d4f9df269b84c6bc9` | empty | superseded candidate, deliberately not an ancestor of `main`; its two reviewed blobs are byte-identical to the integrated candidate `b8be79ef` (`seed.test.mjs` `ddc7de1a…`, handoff `188bb30a…`), so the content is integrated while the commit is retained on its branch (no branch deletion) |
+
+Disposition: `RETIRE_AFTER_INTEGRATION` for both (as registered at `create-stream`). The only ignored files each
+worktree carried were the four OpenCode-provisioned `.opencode/*` environment paths (`package.json`,
+`package-lock.json`, `node_modules`, `.gitignore`); they are ignored, were not part of any candidate range, and
+were removed with the worktree. Active-process/session references at retirement: none (the executor and QA sessions had
+returned; the planner shell was outside both paths).
