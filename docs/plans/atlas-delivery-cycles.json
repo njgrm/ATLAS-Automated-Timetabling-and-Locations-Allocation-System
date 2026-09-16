@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T21:36:33.366Z",
+    "lastUpdatedAt": "2026-09-16T21:41:43.325Z",
     "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 244
+    "revision": 245
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5509,11 +5509,11 @@
       "kind": "CYCLE",
       "objective": "Guarantee that a published GenerationRun can never be un-published or orphaned by routine faculty/subject/room/policy synchronization: add a version compare-and-swap to the published-run status transition in the routine-sync path, return a typed and singly-audited successor condition instead of erasing history, make the reported invalidation counters truthful, and fold in the F2 fail-closed interval hardening in the frozen-snapshot consistency gate. Source and tests only; publication and generation remain separately HIGH-gated.",
       "riskTier": "MEDIUM",
-      "state": "ACCEPT_READY",
-      "stateUpdatedAt": "2026-09-16T21:36:33.366Z",
-      "nextAction": "Fresh QA ACCEPT_READY 14/14/0/0/0 over 16e70be2...d0b02c4e (4 attributed paths); the planner integrates the accepted candidate on integration/faculty-sync-cas-c01-20260917 and then commissions one fresh Wave Completion Auditor before closure. QA non-blocking residuals F1-F6 are adjudicated with the closure.",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T21:41:43.325Z",
+      "nextAction": "Integrated at 476dd8de (clean automatic union over 6f110733); merged product tree byte-identical to the reviewed candidate d0b02c4e. One fresh Wave Completion Auditor is required before closure.",
       "awaited": [
-        "planner validates the immutable range and integration boundary"
+        "fresh Wave Completion Auditor"
       ],
       "running": [],
       "git": {
@@ -5521,7 +5521,7 @@
         "branch": "fix/faculty-sync-publication-cas",
         "baseSha": "16e70be2a01bf815447ee323f13e775bb825ad4f",
         "candidateSha": "d0b02c4ead9e4a011827d6db2dd915cbaee45dc8",
-        "integrationSha": null,
+        "integrationSha": "476dd8de93d705d4fd52cf6f7b926f17b1b518cf",
         "changedPaths": [
           "atlas-server/src/__tests__/faculty-sync-publication-cas-c01.test.ts",
           "atlas-server/src/services/generation.service.ts",
@@ -5530,16 +5530,16 @@
         ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "e9165036c989c891622c02bc768e73a8fb36e7de",
-          "observedAt": "2026-09-16T20:49:27.921Z",
+          "sha": "476dd8de93d705d4fd52cf6f7b926f17b1b518cf",
+          "observedAt": "2026-09-16T21:41:43.325Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
       "owners": {
         "planner": {
           "sessionId": null,
-          "status": "NONE",
-          "writable": true
+          "status": "IDLE",
+          "writable": false
         },
         "executor": {
           "sessionId": "ses_f54027992ffeQsovgbtqkOHgM5",
