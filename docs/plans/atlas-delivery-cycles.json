@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:48:19.559Z",
+    "lastUpdatedAt": "2026-09-16T04:42:31.060Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 139
+    "revision": 149
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "TERM-CACHE-CATCHUP-APPLY-2026-09-14: operator ACKNOWLEDGED the F2 deviation on 2026-09-16 and directed that the persisted term authority be RETAINED. The acknowledgement is NOT retroactive authorization and must NOT be treated as precedent: a divergence from an approved pre-state comparison is a STOP condition (PLANNER_DECISION_REQUIRED), not a planner judgement call. No rollback, replay, second login or additional live mutation is authorized. No rollback was performed and the reviewed rollback trigger was not reached. Term-cache register custody is RELEASED by the operator. The executed-but-not-closable machine-state limitation remains recorded: the transition set has no path from HIGH_APPROVAL_REQUIRED to ACCEPTED/INTEGRATED for an executed HIGH action, so the TERM-CACHE-CATCHUP-APPLY and TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 nodes remain un-advanced pending a workflow transition correction. RETAINED DATA STATE: mirror 223 school 1 year 9 carries term_contract_cache (semanticRevision a51b62a2..., TRIMESTER T1/T2/T3) and term_contract_cached_at 2026-09-16T03:59:21.236Z; audit 796 LOCAL_LOGIN_SUCCESS and 797 TERM_CACHE_SYNC_APPLIED. TT-TL runtime acceptance stays DEPLOYED_ACCEPTANCE_INCOMPLETE (row 5 PASS; row 4 still 273 blockers including one false TERM_AUTHORITY_STALE). NEXT ORDINARY WORK: the bounded TERM-AUTHORITY-STALE-C07 source correction at atlas-server/src/services/generation-preflight.service.ts:636-637 with a failing-first control, then fresh QA. STILL LOCKED: generation, publication, migrations 0002_companion_sso_code + 0003_teacher_program_presentation, deployment/restart/env change, Teaching Load apply, rollover sync/archive."
+    "globalNextAction": "TERM-CACHE-CATCHUP-APPLY-2026-09-14 IS EXECUTED (operator returned the exact approval sentence verbatim). Result: POST /api/v1/runtime/term-authority/apply HTTP 200, applied/written true, replayed false, mirrorId 223, auditId 797, cachedAt 2026-09-16T03:59:21.236Z, semanticRevision a51b62a2..., previousSemanticRevision null. Independent DB verification PASSED: mirror 223 changed exactly term_contract_cache, term_contract_cached_at and the engine-managed updated_at; audit delta exactly +2 (796 LOCAL_LOGIN_SUCCESS, 797 TERM_CACHE_SYNC_APPLIED, actor 46, school 1, year 9); high-water 795 -> 797; signatures unchanged; schema-wide 2026-09-16 timestamp census shows no other write anywhere. One login, one apply, no replay; cleanup verified (auth/me 401 NO_TOKEN, no token in sessionStorage/localStorage/cookies). TT-TL runtime-acceptance rows 4-5 re-run: row 5 PASS; row 4 still 273 blockers so TT-TL stays DEPLOYED_ACCEPTANCE_INCOMPLETE. Generation and publication REMAIN LOCKED. REGISTER LIMITATION: the machine transition set has no path from HIGH_APPROVAL_REQUIRED to ACCEPT_READY/INTEGRATION_READY for an executed HIGH action, so the TERM-CACHE-CATCHUP-APPLY and TERM-CACHE-CATCHUP-APPLY-REFRESH-C01 nodes cannot be advanced to INTEGRATED by the supported tooling; this coordination record is the authoritative executed-state entry until that gap is closed. POST-ACTION AUDIT ses_f579b207bffeIKWN5P1OoLac01 returned CORRECTION_REQUIRED 18/15/0/0 and RETAINED the write (section 9 rollback not triggered; section 8.1-8.3 passed). Findings: F1 the section 4.0 item 9 actor-baseline capture was omitted from the evidence record (substance PASS, captured post hoc); F2 the audit and actor pre-state diverged and were handled by in-place adjudication instead of PLANNER_DECISION_REQUIRED - NON_BLOCKING for the data state and the legitimacy of the write, BLOCKING for a clean closure claim, and DISCLOSED to the operator in the evidence record; F3 register continuity. NEW BLOCKING SUCCESSOR: TERM_AUTHORITY_STALE is a false blocker from an unsatisfiable cross-namespace revision comparison at atlas-server/src/services/generation-preflight.service.ts:636-637 (persisted semanticRevisionFor lowercase terms-inclusive vs canonical canonicalTermStructureRevision uppercase identity/order only), unreachable while the cache was NULL and now reachable because of this apply; a bounded source correction with a failing-first control is required. Locked: generation, publication, migrations 0002_companion_sso_code + 0003_teacher_program_presentation, any deployment/restart, Teaching Load apply, rollover sync/archive."
   },
   "streams": [
     {
@@ -3131,28 +3131,48 @@
       "kind": "CYCLE",
       "objective": "Planner-led bounded source cycle on work/generation-authority-realism-c07: (1) thread persisted PolicySpecialEvent authority into the shared shape-contract assembly and the real constructor input; (2) render the Monday Flag Ceremony/HGP as a day-scoped overlay on the configured underlying advisory-section period with no added ordinary demand, minutes, or period slots; (3) reject explicit non-Monday Flag/HGP authority with a typed blocker instead of silently reinterpreting it; (4) make room authority data-driven so the primary beneficiary's Science rotation resolves to CLASSROOM with zero laboratory occupancy and zero laboratory-derived warnings while a school-scoped explicit LABORATORY authority still reserves a laboratory; (5) emit ROOM_TYPE_MISMATCH only when the preferred room genuinely could not be used, with an auditable reason; (6) carry actual faculty availability slots into the real generation trigger instead of timeSlots: []; (7) add availability/preferences to the generation freshness snapshot, bump the snapshot contract, and fail older runs closed as stale. No live generation, deployment, publication, schema or shared-database mutation.",
       "riskTier": "MEDIUM",
-      "state": "RUNNING",
-      "stateUpdatedAt": "2026-09-15T22:37:38.000Z",
-      "nextAction": "dispatch the bounded C07 executor packet and await REVIEW_REQUIRED",
+      "state": "INTEGRATED",
+      "stateUpdatedAt": "2026-09-16T04:42:31.060Z",
+      "nextAction": "Dispatch the R3 bounded correction per docs/prompts/generation-authority-realism-c07-r3-correction-2026-09-16.md, then fresh QA, re-integration, and one fresh Wave Completion Auditor.",
       "awaited": [
-        "executor REVIEW_REQUIRED return for the C07 candidate",
-        "fresh independent QA over the frozen C07 candidate",
-        "fresh Wave Completion Auditor over the integrated wave"
+        "bounded correction commit"
       ],
-      "running": [
-        "executor implementation session on branch work/generation-authority-realism-c07 (packet docs/prompts/generation-authority-realism-c07-2026-09-16.md)"
-      ],
+      "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
         "branch": "work/generation-authority-realism-c07",
-        "baseSha": "4160028f95083d6842bcdc599925ca6aaa5ef441",
-        "candidateSha": null,
-        "integrationSha": null,
-        "changedPaths": [],
+        "baseSha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
+        "candidateSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
+        "integrationSha": "43399182b434338dcb2dc37a231a55144e054224",
+        "changedPaths": [
+          "atlas-client/src/components/subjects/SubjectFormModal.tsx",
+          "atlas-client/src/lib/__tests__/room-authority-copy.test.ts",
+          "atlas-client/src/lib/room-authority-copy.ts",
+          "atlas-client/src/pages/Subjects.tsx",
+          "atlas-server/src/__tests__/derived-demand-correction-c01r2.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-availability.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07-trigger.test.ts",
+          "atlas-server/src/__tests__/generation-authority-realism-c07.test.ts",
+          "atlas-server/src/__tests__/publication-contract-postgres-concurrency.test.ts",
+          "atlas-server/src/__tests__/publication-contract-readiness.test.ts",
+          "atlas-server/src/__tests__/timetable-output-export-c03.test.ts",
+          "atlas-server/src/__tests__/timetable-shape-diagnostic-c02.test.ts",
+          "atlas-server/src/lib/policy-special-events.ts",
+          "atlas-server/src/services/constraint-validator.ts",
+          "atlas-server/src/services/generation-input-snapshot.service.ts",
+          "atlas-server/src/services/generation-preflight.service.ts",
+          "atlas-server/src/services/published-schedule.service.ts",
+          "atlas-server/src/services/room-schedule.service.ts",
+          "atlas-server/src/services/schedule-constructor.ts",
+          "docs/plans/atlas-active-delivery-streams.generated.md",
+          "docs/plans/atlas-delivery-cycles.json",
+          "docs/prompts/generation-authority-realism-c07-2026-09-16.md",
+          "ops/workflow/specs/register/GENERATION-AUTHORITY-REALISM-C07.json"
+        ],
         "remoteObservation": {
           "ref": "refs/remotes/origin/main",
-          "sha": "750cafcbc8b5beeb3e1815a60147e2431dce0c45",
-          "observedAt": "2026-09-15T22:37:20.241Z",
+          "sha": "74595f9776dc156d0756f5fb96460812c3776861",
+          "observedAt": "2026-09-16T04:31:04.918Z",
           "kind": "REMOTE_TRACKING_REF"
         }
       },
@@ -3160,27 +3180,27 @@
         "planner": {
           "sessionId": null,
           "status": "IDLE",
-          "writable": true
+          "writable": false
         },
         "executor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f58c49727ffeTiZX5gjG41KQcs",
+          "status": "RETURNED",
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f5783f732ffeyGMZfEuQ9Qrf5Y",
+          "status": "RETURNED",
           "writable": false
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 15,
+        "passed": 15,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -3191,15 +3211,15 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 14,
+            "passed": 14,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
-            "total": 0,
-            "passed": 0,
+            "total": 1,
+            "passed": 1,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -3214,14 +3234,71 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
+        "auditorVerdict": "CORRECTION_REQUIRED",
+        "auditorSessionId": "ses_f5783f732ffeyGMZfEuQ9Qrf5Y",
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq"
+          }
+        ]
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "round": 1,
+          "baseSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
+          "candidateSha": "363840cc8b1f2eac4197048b920c1f793cb9dc8d",
+          "reason": "R2 F9 warning-classification correction: a missing subject or NO_QUALIFIED_FACULTY condition is no longer reported as SPECIALIZED_ROOM_UNAVAILABLE, with a failing-first real-trigger control.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 2,
+          "baseSha": "363840cc8b1f2eac4197048b920c1f793cb9dc8d",
+          "candidateSha": "af3edb4fd67c99821d2565a90b22ca6e2136f7c6",
+          "reason": "R2b harness hygiene: removed the unexercised unqualifiedSubjectId option; no assertion or expectation changed.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 3,
+          "baseSha": "af3edb4fd67c99821d2565a90b22ca6e2136f7c6",
+          "candidateSha": "74e7cf002e9734e36097f36c2581f8977042e325",
+          "reason": "R2d availability enforcement: persisted UNAVAILABLE is a hard exclusion and can no longer be re-admitted by the HOME_ROOM_FIRST/cohort preference relaxation; decisive trigger-level control added.",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 4,
+          "baseSha": "74e7cf002e9734e36097f36c2581f8977042e325",
+          "candidateSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
+          "reason": "Planner R2d decision record and independent verification evidence (packet section 15).",
+          "qaVerdict": null,
+          "qaSessionId": null,
+          "auditorVerdict": null,
+          "auditorSessionId": null
+        },
+        {
+          "round": 5,
+          "baseSha": "c9ec30aa4d2f498b6e8faf48e40aa12b6ffd1e93",
+          "candidateSha": "63275527292faeaf92ef1f800ecfdf848f69febb",
+          "reason": "Register/render record of the executor return and the correction rounds; final reviewed tip for fresh independent QA.",
+          "qaVerdict": "ACCEPT_READY",
+          "qaSessionId": "ses_f578ef442ffe8IEwQnYwr7sEUq",
+          "auditorVerdict": "CORRECTION_REQUIRED",
+          "auditorSessionId": "ses_f5783f732ffeyGMZfEuQ9Qrf5Y"
+        }
+      ],
       "successors": [],
       "requires": [],
       "blocker": {
@@ -3606,9 +3683,9 @@
       "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
       "role": "executor",
       "sessionId": null,
-      "state": "ACTIVE",
-      "revision": 1,
-      "updatedAt": "2026-09-15T22:37:38.000Z",
+      "state": "IDLE",
+      "revision": 3,
+      "updatedAt": "2026-09-16T04:42:31.060Z",
       "expiresAt": null
     }
   ],

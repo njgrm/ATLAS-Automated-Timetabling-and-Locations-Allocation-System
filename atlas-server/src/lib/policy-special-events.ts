@@ -33,6 +33,78 @@ export interface EffectiveSpecialEvent {
 	programType: string | null;
 }
 
+// ─── Flag Ceremony / HGP identity + day authority (R3, single authority) ───
+
+/**
+ * Canonical Flag Ceremony / HGP day scope. A row is Flag/HGP when its
+ * `eventType` is exactly `FLAG_OR_HGP` or its label carries the flag-ceremony
+ * identity. Room type, `rotationFamily`, weekly minutes, curriculum content,
+ * and the presence of laboratory rooms are never consulted.
+ */
+export function isFlagCeremonyEvent(
+	eventType: string | null | undefined,
+	label: string | null | undefined,
+): boolean {
+	const normalizedType = (eventType ?? '').trim().toUpperCase();
+	if (normalizedType === 'FLAG_OR_HGP') return true;
+	return /FLAG|HGP/i.test(label ?? '');
+}
+
+export interface FlagCeremonyDayAuthority {
+	/** Effective weekday, or `null` when the row is not Flag/HGP. */
+	day: string | null;
+	/**
+	 * True when the row is Flag/HGP AND persisted with an explicit non-Monday
+	 * day. That is rejected authority — never coerced, never reinterpreted.
+	 */
+	explicitNonMonday: boolean;
+}
+
+/**
+ * Resolve the weekday authority for a Flag/HGP row. An absent day means Monday
+ * (the historical schema-shaped contract); an explicit `MONDAY` means Monday;
+ * any other explicit day is rejected authority.
+ */
+export function resolveFlagCeremonyDayAuthority(
+	eventType: string | null | undefined,
+	dayOfWeek: string | null | undefined,
+	label: string | null | undefined,
+): FlagCeremonyDayAuthority {
+	if (!isFlagCeremonyEvent(eventType, label)) return { day: null, explicitNonMonday: false };
+	const explicitDay = (dayOfWeek ?? '').trim().toUpperCase();
+	if (!explicitDay) return { day: 'MONDAY', explicitNonMonday: false };
+	if (explicitDay === 'MONDAY') return { day: 'MONDAY', explicitNonMonday: false };
+	return { day: explicitDay, explicitNonMonday: true };
+}
+
+/**
+ * Resolve the weekday a persisted special event belongs to.
+ * Flag/HGP rows are Monday-only: an absent day defaults to Monday and an
+ * explicit non-Monday day is still returned verbatim by this low-level accessor
+ * so callers can reject it through `resolveFlagCeremonyDayAuthority`. Events
+ * without an explicit day and without the Flag/HGP identity (recess, lunch)
+ * apply to every weekday and return `null`.
+ */
+export function resolveSpecialEventDayOfWeek(
+	eventType: string | null | undefined,
+	dayOfWeek: string | null | undefined,
+	label: string | null | undefined,
+): string | null {
+	const flag = resolveFlagCeremonyDayAuthority(eventType, dayOfWeek, label);
+	if (flag.day) return flag.day;
+	const explicitDay = (dayOfWeek ?? '').trim().toUpperCase();
+	return explicitDay || null;
+}
+
+/** True when a Flag/HGP row carries rejected (explicit non-Monday) authority. */
+export function isRejectedFlagCeremonyRow(
+	eventType: string | null | undefined,
+	dayOfWeek: string | null | undefined,
+	label: string | null | undefined,
+): boolean {
+	return resolveFlagCeremonyDayAuthority(eventType, dayOfWeek, label).explicitNonMonday;
+}
+
 // ─── Helpers ───
 
 function timeToMinutes(value: string): number {

@@ -11,7 +11,7 @@ import {
 	validateTimetableShapePolicy,
 	type TimetableShapePolicyInput,
 } from '../services/timetable-shape-policy.service.js';
-import { buildSpecialEventSlots, buildTimetableShapeContract } from '../services/schedule-constructor.js';
+import { buildDayScopedEventWindows, buildSpecialEventSlots, buildTimetableShapeContract } from '../services/schedule-constructor.js';
 import { getExpectedCanonicalSlots } from '../services/class-program-slot.service.js';
 import { buildGenerationPreflight, buildSectionScopeMap, validateCanonicalEntryShapes } from '../services/generation-preflight.service.js';
 import { buildGenerationReadiness } from '../services/generation-readiness.service.js';
@@ -112,7 +112,18 @@ test('canonical schedule-constructor marks flag ceremony as a Monday-only displa
 			specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '07:00', endTime: '07:30', dayOfWeek: 'TUESDAY', gradeGroup: null, programType: null, enabled: true }],
 		},
 	});
-	assert.equal(custom.displaySlots.find((row) => row.eventName === 'Flag Ceremony')?.dayOfWeek, 'TUESDAY');
+	// C07-R3 (was: "preserves explicit scope"): an explicit non-Monday Flag/HGP is
+	// rejected authority. It is excluded from the shape contract entirely — no
+	// Tuesday overlay and no non-Monday day-scoped window.
+	assert.equal(custom.displaySlots.find((row) => row.eventName === 'Flag Ceremony'), undefined);
+	assert.equal(buildDayScopedEventWindows({
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 480,
+		earliestStartTime: '06:00',
+		latestEndTime: '18:30',
+		specialEvents: [{ eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony', startTime: '07:00', endTime: '07:30', dayOfWeek: 'TUESDAY' }],
+	}).length, 0);
 });
 
 test('failing-first mutant: HG and ARAL demand is rejected as ordinary timetable demand', () => {

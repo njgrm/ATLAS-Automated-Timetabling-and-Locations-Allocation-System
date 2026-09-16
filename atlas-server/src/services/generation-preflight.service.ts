@@ -34,7 +34,7 @@ import type {
 	SubjectInput,
 	TimetableShapeContract,
 } from './schedule-constructor.js';
-import { resolveTimetableShapeContract } from './schedule-constructor.js';
+import { resolveContainingClassRow, resolveTimetableShapeContract } from './schedule-constructor.js';
 import {
 	buildDerivedDemand,
 	toPerTermDemandLines,
@@ -54,6 +54,11 @@ import {
 	type CanonicalTemplateCoverage,
 } from './class-program-slot.service.js';
 import { buildRunTimetableShapeContracts, normalizeProgramType } from './generation-shape-assembly.service.js';
+import {
+	isFlagCeremonyEvent,
+	isRejectedFlagCeremonyRow,
+	resolveFlagCeremonyDayAuthority,
+} from '../lib/policy-special-events.js';
 import { consumeDraftPlacementsForRun, type DraftConsumeRejection } from './pre-generation-draft.service.js';
 import type { VerifiedTermContract } from './enrollpro-term-contract.service.js';
 import {
@@ -168,6 +173,40 @@ export interface GenerationPreflightDependencies {
 	enforceShiftWindows?: boolean;
 	/** Resolve retained drafts read-only (default true). */
 	includeRetainedDrafts?: boolean;
+}
+
+/** Persisted `PolicySpecialEvent` row mapped into the constructor policy shape (R1). */
+export interface ConstructorSpecialEventRow {
+	eventType: string;
+	label: string;
+	startTime: string;
+	endTime: string;
+	dayOfWeek: string | null;
+	enabled: boolean;
+	gradeGroup: string | null;
+	programType: string | null;
+}
+
+/**
+ * R1: map persisted `PolicySpecialEvent` rows into `ConstructorInput['policy'].specialEvents`.
+ * The shape assembly and the real constructor MUST receive the same rows so the
+ * per-grade/program `getEffectiveEvents` resolution is identical on both paths.
+ * No parallelism, no second resolution.
+ */
+export function toConstructorSpecialEvents(rows: unknown[] | undefined): ConstructorSpecialEventRow[] {
+	return (rows ?? []).map((raw) => {
+		const event = raw as Record<string, unknown>;
+		return {
+			eventType: String(event.eventType ?? ''),
+			label: String(event.label ?? ''),
+			startTime: String(event.startTime ?? ''),
+			endTime: String(event.endTime ?? ''),
+			dayOfWeek: (event.dayOfWeek as string | null | undefined) ?? null,
+			enabled: event.enabled !== false,
+			gradeGroup: (event.gradeGroup as string | null | undefined) ?? null,
+			programType: (event.programType as string | null | undefined) ?? null,
+		};
+	});
 }
 
 /**
@@ -695,7 +734,17 @@ async function buildGenerationPreflightWithContext(
 				programScopes: true, allowedSpecializations: true, requiredFeatures: true, modularGroupId: true, modularOrder: true,
 			},
 		}),
-		client.facultyPreference.findMany({ where: { schoolId, schoolYearId }, select: { facultyId: true, status: true } }),
+		client.facultyPreference.findMany({
+			where: { schoolId, schoolYearId },
+			select: {
+				facultyId: true,
+				status: true,
+				timeSlots: {
+					select: { day: true, startTime: true, endTime: true, preference: true },
+					orderBy: [{ day: 'asc' }, { startTime: 'asc' }, { endTime: 'asc' }],
+				},
+			},
+		}),
 		client.building.findMany({ where: { schoolId }, select: { id: true, name: true, x: true, y: true } }),
 		client.policySpecialEvent.findMany({ where: { schoolId, schoolYearId, enabled: true }, orderBy: [{ sortOrder: 'asc' }, { eventType: 'asc' }] }),
 		client.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
@@ -874,17 +923,20 @@ async function buildGenerationPreflightWithContext(
 	const templateProfiles = await getTemplatePeriodProfiles(schoolId);
 	const classTemplatePeriods: Record<string, number> = {};
 	for (const profile of templateProfiles) classTemplatePeriods[profile.programType] = profile.periodLengthMinutes;
+	const persistedSpecialEvents = toConstructorSpecialEvents(specialEvents as unknown[]);
+	const constructorPolicy: ConstructorInput['policy'] = {
+		...(policyRow as any),
+		periodLengthMinutes: policy.periodLengthMinutes,
+		periodsPerDay: policy.periodsPerDay,
+		specialEvents: persistedSpecialEvents,
+	} as ConstructorInput['policy'];
 	const timetableShapeContracts = derived
 		? buildRunTimetableShapeContracts({
 			sectionsByGrade,
 			gradeWindows: (enforceShiftWindows ? gradeWindows : []).map((gw: any) => ({ gradeLevel: gw.gradeLevel, programType: gw.programType ?? null, startTime: gw.startTime, endTime: gw.endTime })),
 			templateProfiles,
 			canonicalSlots: canonicalSlotsByGradeProgram,
-			policy: {
-				...(policyRow as any),
-				periodLengthMinutes: policy.periodLengthMinutes,
-				periodsPerDay: policy.periodsPerDay,
-			} as ConstructorInput['policy'],
+			policy: constructorPolicy,
 		})
 		: [];
 
@@ -906,10 +958,58 @@ async function buildGenerationPreflightWithContext(
 				nextAction: 'Resolve active subject scope and Teaching Load demand, then re-run readiness.',
 			});
 		}
-		const configuredFlagEvent = (specialEvents as any[]).find((event) => event.eventType === 'FLAG_OR_HGP' || /FLAG CEREMONY/i.test(String(event.label ?? '')));
+		// R3: validate EVERY persisted Flag/HGP row's day scope independently of
+		// `policyRow.enableFlagCeremony` (F4). An explicit non-Monday day is
+		// rejected authority — never coerced, never reinterpreted as Monday.
+		const persistedFlagEvents = (specialEvents as any[]).filter((event) => isFlagCeremonyEvent(event.eventType, event.label));
+		let flagScopeRejected = false;
+		for (const flagEvent of persistedFlagEvents) {
+			const authority = resolveFlagCeremonyDayAuthority(flagEvent.eventType, flagEvent.dayOfWeek ?? null, flagEvent.label);
+			if (!authority.explicitNonMonday) continue;
+			flagScopeRejected = true;
+			blockers.push({
+				code: 'FLAG_CEREMONY_SCOPE_INVALID',
+				category: 'POLICY_BLOCKER',
+				termIdentity: null,
+				sectionId: null,
+				subjectId: null,
+				subjectCode: null,
+				entity: `Special event · ${flagEvent.label ?? 'Flag Ceremony/HGP'}`,
+				reason: `Flag Ceremony/HGP is restricted to Monday; the persisted day "${authority.day}" cannot be represented as a five-day teaching block.`,
+				owningSurface: 'Scheduling policy / special events',
+				nextAction: 'Set the Flag Ceremony/HGP event day to Monday (or clear the day) and re-run generation.',
+			});
+		}
+		const configuredFlagEvent = persistedFlagEvents.find((event) => !isRejectedFlagCeremonyRow(event.eventType, event.dayOfWeek ?? null, event.label));
 		const configuredFlagDay = configuredFlagEvent
-			? configuredFlagEvent.dayOfWeek ?? (configuredFlagEvent.eventType === 'FLAG_OR_HGP' ? 'MONDAY' : null)
-			: 'MONDAY';
+			? resolveFlagCeremonyDayAuthority(configuredFlagEvent.eventType, configuredFlagEvent.dayOfWeek ?? null, configuredFlagEvent.label).day
+			: (policyRow?.enableFlagCeremony ? 'MONDAY' : null);
+		// D-C: the Monday overlay interval must equal the single canonical CLASS row
+		// containing the configured window. A window that no canonical CLASS row
+		// contains — or that more than one contains — fails closed with the typed
+		// `FLAG_CEREMONY_SCOPE_INVALID` blocker (never invent a multi-period overlay).
+		if (configuredFlagEvent && !flagScopeRejected) {
+			const flagWindow = { startTime: String(configuredFlagEvent.startTime ?? ''), endTime: String(configuredFlagEvent.endTime ?? '') };
+			if (flagWindow.startTime && flagWindow.endTime) {
+				for (const shape of timetableShapeContracts) {
+					const classRows = (shape.canonicalSlots ?? []).filter((slot) => slot.rowKind === 'CLASS');
+					if (classRows.length === 0) continue;
+					if (resolveContainingClassRow(classRows, flagWindow.startTime, flagWindow.endTime)) continue;
+					blockers.push({
+						code: 'FLAG_CEREMONY_SCOPE_INVALID',
+						category: 'POLICY_BLOCKER',
+						termIdentity: null,
+						sectionId: null,
+						subjectId: null,
+						subjectCode: null,
+						entity: `Flag Ceremony/HGP · Grade ${shape.gradeLevel} ${shape.programType}`,
+						reason: `The configured Flag Ceremony/HGP window ${flagWindow.startTime}-${flagWindow.endTime} is not contained by exactly one canonical CLASS row, so it cannot be rendered as an overlay on the underlying advisory-section period.`,
+						owningSurface: 'Scheduling policy / special events',
+						nextAction: `Align the Flag Ceremony/HGP window with a single canonical CLASS row for Grade ${shape.gradeLevel} ${shape.programType}, then re-run generation.`,
+					});
+				}
+			}
+		}
 		const shapePolicyBlockers = validateTimetableShapePolicy({
 			termAuthority: {
 				format: derived.termStructure.format,
@@ -923,7 +1023,11 @@ async function buildGenerationPreflightWithContext(
 			rooms,
 			subjects: subjects.map((subject: any) => ({ id: subject.id, code: subject.code, schedulingDisposition: subject.schedulingDisposition })),
 			demandLines: derived.timetableLines.map((line) => ({ sectionExternalId: line.sectionExternalId, subjectId: line.subjectId, subjectCode: line.subjectCode, termIdentity: line.termIdentity, termIndex: line.termIndex, rotationFamily: line.rotationFamily })),
-			flagCeremony: policyRow?.enableFlagCeremony ? { enabled: true, dayOfWeek: configuredFlagDay, startTime: configuredFlagEvent?.startTime ?? policyRow.flagCeremonyStartTime, endTime: configuredFlagEvent?.endTime ?? policyRow.flagCeremonyEndTime } : null,
+			flagCeremony: flagScopeRejected
+				? null
+				: (policyRow?.enableFlagCeremony
+					? { enabled: true, dayOfWeek: configuredFlagDay ?? 'MONDAY', startTime: configuredFlagEvent?.startTime ?? policyRow.flagCeremonyStartTime, endTime: configuredFlagEvent?.endTime ?? policyRow.flagCeremonyEndTime }
+					: null),
 		});
 		for (const shapeBlocker of shapePolicyBlockers) blockers.push(classifyShapePolicyBlocker(shapeBlocker));
 	}
@@ -1135,11 +1239,25 @@ export function buildPreflightConstructorInput(
 		})),
 		facultySubjects: assembly.facultySubjects,
 		rooms: assembly.roomsWithGradeScope,
-		preferences: assembly.preferences.map((p: any) => ({ facultyId: p.facultyId, status: p.status, timeSlots: [] })),
+		preferences: assembly.preferences.map((p: any) => ({
+			facultyId: p.facultyId,
+			status: p.status,
+			// R6: carry the ACTUAL persisted availability authority
+			// (`faculty_preferences` → `preference_time_slots`) verbatim. The former
+			// `timeSlots: []` made the real trigger and the readiness dry run schedule
+			// with no UNAVAILABLE exclusion at all.
+			timeSlots: (p.timeSlots ?? []).map((slot: any) => ({
+				day: String(slot.day),
+				startTime: String(slot.startTime),
+				endTime: String(slot.endTime),
+				preference: String(slot.preference),
+			})),
+		})),
 		policy: {
 			...(assembly.policyRow as any),
 			periodLengthMinutes: assembly.policy.periodLengthMinutes,
 			periodsPerDay: assembly.policy.periodsPerDay,
+			specialEvents: toConstructorSpecialEvents(assembly.specialEvents),
 		} as ConstructorInput['policy'],
 		lockedEntries: options.lockedEntries ?? assembly.retained.lockedEntries,
 		gradeWindows: (assembly.enforceShiftWindows ? assembly.gradeWindows : []).map((gw: any) => ({ gradeLevel: gw.gradeLevel, programType: gw.programType ?? null, startTime: gw.startTime, endTime: gw.endTime })),

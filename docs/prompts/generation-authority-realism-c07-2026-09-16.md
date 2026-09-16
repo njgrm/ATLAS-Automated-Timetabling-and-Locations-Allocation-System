@@ -45,10 +45,13 @@ laboratory rooms, or from required curriculum content.
 
 ## 2. Governance and authority to read (do not rewrite)
 
-- `AGENTS.md` (worktree root; `origin/main` version; git blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`;
-  LF-normalized SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`;
-  raw SHA-256 `d7154367368cc53875d1cf56024490e7f464a73a237b1fa3ad8c950e0333e9b3`). The harness has
-  injected it; read targeted headings only.
+- `AGENTS.md` (worktree root; `origin/main` version). **Directive identity (planner-corrected
+  2026-09-16): raw Git-blob SHA-256 = `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`**
+  (hash of the bytes returned by `git cat-file blob HEAD:AGENTS.md`; 171055 bytes; git blob
+  `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`). The earlier packet text mislabelled that value as
+  "LF-normalized" and quoted a second hash of the CRLF working copy, which is not an identity. The
+  checkout materializes CRLF on disk; always hash the Git blob, never the working copy. The harness
+  has injected this directive; read targeted headings only.
 - `docs/reference/atlas-beneficiary-output-contract.md` §1 items 6–9, §3.1 — HG is not standalone
   demand; **Flag Ceremony/HGP is a Monday-only overlay on the underlying advisory-period slot and
   must not occupy the Tuesday–Friday cells**; ARAL absent; AP ordinary.
@@ -277,7 +280,7 @@ control that the old behavior (base commit) fails.
 | C07-S08 | MANDATORY_SOURCE | R6 real availability | `buildGenerationPreflight` + `triggerGenerationRun` | persisted `UNAVAILABLE` slots are excluded from placement and the typed reason is surfaced; mutant M7 (`timeSlots: []`) fails |
 | C07-S09 | MANDATORY_SOURCE | R7 domain + version bump | `computeGenerationInputSnapshot` + `extractGenerationInputSnapshot` | snapshot emits a non-empty `availability` domain and the bumped version; a current-version snapshot missing the domain is rejected; mutant M8 (domain binding omitted) fails |
 | C07-S10 | MANDATORY_SOURCE | R7 post-run availability edit | `getRunDraft`/`getLatestRunDraft` (`inputState`) | after a completed run, a persisted availability edit reports `STALE` with `availability` in `changedDomains`; a pre-bump snapshot reports the version-mismatch stale reason, never `FRESH`; zero writes |
-| C07-S11 | MANDATORY_SOURCE | R7 write-time stale | `triggerGenerationRun` on a guarded disposable PostgreSQL | availability change between capture and commit → typed `SOURCE_AUTHORITY_STALE`, zero `COMPLETED` writes, unchanged run/audit/draft counts |
+| C07-S11 | MANDATORY_SOURCE | R7 write-time stale | `triggerGenerationRun` (write-instrumented, mock client) with the guarded disposable-PostgreSQL tier as supporting engine evidence | availability change between capture and commit → typed `SOURCE_AUTHORITY_STALE`, **zero `COMPLETED`/success writes** (no COMPLETED run status, no persisted draft entries for that run, no success audit, no completion notification); the pre-existing `FAILED` finalization of the aborted attempt is permitted but must be asserted explicitly so it is never mistaken for success |
 | C07-S12 | MANDATORY_SOURCE | R8 wording | subject form + coverage panel rendering | one shared copy authority; exact CLASSROOM/LABORATORY semantics; no unconditional "requires … facilities" label; client type-check/build green |
 | C07-S13 | MANDATORY_SOURCE | R9 accounting | committed test diff | every changed/removed assertion mapped with replacement coverage (F10 pair included); no unexplained removal; affected suites pass |
 | C07-S14 | MANDATORY_SOURCE | build + parity row | `tsc`/build (server + client) and the changed-producer/shape chain | both builds green; one `production-shape parity` row naming real producer, real consumer, conservation totals, negative control, result |
@@ -395,7 +398,7 @@ Client (`.../atlas-client`):
 ```
 npm run build
 npx tsx --test src/lib/__tests__/room-authority-copy.test.ts
-npx tsx --test src/lib/__tests__/ux-guardrails.test.ts
+npx tsx --test src/lib/__tests__/rollover-ui-guardrails.test.ts
 ```
 
 Disposable-PostgreSQL tier (C07-S11) uses the guarded pattern in
@@ -438,3 +441,153 @@ Do not self-accept, merge, push, or edit the register.
   (source+server tests, then client copy+test). No amend/rebase of handed-off history; corrections
   are additive commits on the same branch.
 - Include this packet file (already committed on the branch) in the reviewed range.
+
+## 13. R1 correction note (planner, 2026-09-16)
+
+The first candidate (`1b990716`, over base `750cafcb`) returned with two mandatory rows
+**BLOCKED** and one declared entry-point deviation. This section is the authority for the bounded
+R1 correction; it is additive and changes no other requirement.
+
+1. **C07-S05 / C07-S06 entry-point closure.** Those rows name the real `triggerGenerationRun`
+   (write-instrumented) as the production entry point; the first candidate exercised the real
+   producer + `constructBaseline`/`runHybridScheduler` + validator but not the trigger. R1 must
+   drive the real `triggerGenerationRun` with a mock client (same technique as
+   `generation-production-trigger-genc02r1.test.ts`) for fixture A and fixture B, and assert the
+   invariants on the **persisted** output (`draftEntries` / `violations` handed to the run update):
+   zero laboratory rooms and zero `ROOM_TYPE_MISMATCH` / `SPECIALIZED_ROOM_UNAVAILABLE` /
+   `ROOM_FEATURE_MISMATCH` in fixture A; laboratory occupancy in every applicable term in fixture B;
+   complete per-term T1/T2/T3 Science conservation in both.
+2. **C07-S10.** Exercise the declared surface: `getRunDraft` / `getLatestRunDraft` `inputState`.
+   With a persisted v3 run summary and a changed availability authority, `inputState.status` must be
+   `STALE` with `availability` in `changedDomains`; with a below-current summary it must be `STALE`
+   with `missingReason: 'SNAPSHOT_VERSION_MISMATCH'`, never `FRESH`. Instrument writes and prove the
+   read performs none.
+3. **C07-S11.** Drive the availability interleave through the real `triggerGenerationRun` (mock
+   client): the availability digest changes between the captured pre-scheduling snapshot and the
+   transaction-bound recomputation -> typed `SOURCE_AUTHORITY_STALE` with zero `COMPLETED`/success
+   writes as defined in §5. The disposable-PostgreSQL evidence already gathered (domain binding on a
+   real engine, zero residue) remains supporting engine evidence.
+4. **Identity negative control.** Add one assertion that a non-flag `CUSTOM` event row (for example
+   label `Reading Camp`) is never treated as a Monday-only Flag/HGP overlay, so the identity
+   predicate cannot misclassify an unrelated event.
+5. **Packet erratum applied.** The §10 client command list previously named a non-existent
+   `src/lib/__tests__/ux-guardrails.test.ts`; the existing analogue
+   `src/lib/__tests__/rollover-ui-guardrails.test.ts` replaces it. That was a packet defect, not a
+   candidate defect.
+
+Constraints unchanged: additive commits only on `work/generation-authority-realism-c07`, no
+rebase/amend, no push, no schema/live action, same owned/forbidden path lists.
+
+## 14. Planner reconciliation and R2 correction note (2026-09-16, cycle continuation)
+
+Resume point: candidate `48883ef0` over base `750cafcb`, `REVIEW_REQUIRED`, worktree clean, all
+existing commits preserved (no amend/rebase/reset/squash), dependencies intact (isolated
+`npm ci` installs in `atlas-server` and `atlas-client`; the root `node_modules` junction target still
+holds its packages; no install was performed through any junction).
+
+Planner-accepted dispositions for the R1 delta:
+
+1. `atlas-server/src/__tests__/generation-authority-realism-c07-trigger.test.ts` is **attributable**
+   and in scope: it is the minimum artifact that realizes packet §13 items 1–3 and drives the real
+   `triggerGenerationRun` / `getRunDraft` / `getLatestRunDraft` entry points. No product source
+   outside §8 was touched.
+2. Fail-closed rejection when the configured Flag/HGP window is not contained by exactly one
+   canonical CLASS row is **accepted** (D-C extension), including the zero-row case; it can never
+   synthesize an undefined overlay.
+3. The Flag/HGP identity negative control is **verified present and load-bearing**
+   (`C07-R3 identity negative control`, `CUSTOM` label `Reading Camp`): the predicate is false, the
+   day resolver returns `null`, and the rendered slot is not coerced to Monday.
+4. The snapshot v2→v3 fixture edits remain attributable only while declaration counts are unchanged
+   and the legacy fail-closed path stays covered (below-current version ⇒ `STALE` with
+   `SNAPSHOT_VERSION_MISMATCH`, never `FRESH`). QA must confirm both; the planner re-verifies the
+   counts and the legacy path in the pre-QA gates.
+5. `publication-contract-postgres-concurrency.test.ts` exit 1 is classified **pre-existing** only
+   after the identical `DATABASE_URL` guard reproduction on base `750cafcb` and on the candidate.
+
+### R2 bounded correction — F9 warning-classification defect (authority for the next commit)
+
+The audit finding F9 remains in the candidate. Two sites in
+`atlas-server/src/services/schedule-constructor.ts` misclassify a non-room failure as a specialized
+room result:
+
+- **Site A (unresolved subject, ~line 1979-1993).** The item is pushed with
+  `reason: 'NO_QUALIFIED_FACULTY'` but `roomAssignmentReason: 'SPECIALIZED_ROOM_UNAVAILABLE'`
+  whenever the demand item carries a specialized room-type preference. A missing subject is not a
+  room result.
+- **Site B (refusal path, ~line 2544-2556).** `isSpecializedDemand` is evaluated **before** the
+  observed failure cause, so `NO_QUALIFIED_FACULTY` (and `FACULTY_OVERLOADED`) with a specialized
+  authority is reported as `SPECIALIZED_ROOM_UNAVAILABLE`. Because
+  `generation.service.ts:751-758` maps that reason to the `SPECIALIZED_ROOM_UNAVAILABLE` violation
+  at **SOFT** severity, a genuine data/workload hard blocker is laundered into a soft room warning.
+
+Required R2 change (bounded to these two sites plus one control; **do not** absorb the broader
+warning-recalibration audit):
+
+1. Site A: report `roomAssignmentReason: 'NO_QUALIFIED_FACULTY'` — always consistent with the
+   pushed `reason`.
+2. Site B: order the room reason by observed cause, authority only as the room-path qualifier:
+   `NO_QUALIFIED_FACULTY` → `'NO_QUALIFIED_FACULTY'`; daily/consecutive hard limit →
+   `'POLICY_SLOT_BLOCKED'`; `FACULTY_OVERLOADED`/slot-unavailable → `'FACULTY_SLOT_UNAVAILABLE'`;
+   room path exhausted **and** specialized authority → `'SPECIALIZED_ROOM_UNAVAILABLE'`; room path
+   exhausted otherwise → `'ROOM_PATH_EXHAUSTED'`; else `'FALLBACK_UNRESOLVED'`.
+   The genuine specialized-room-exhaustion case (faculty available, no compatible specialized room)
+   must still report `SPECIALIZED_ROOM_UNAVAILABLE` so C07-S06 stays PASS.
+3. Failing-first production-path control (added to the real-trigger suite or a new bounded suite):
+   (a) a specialized-authority subject with **no qualified faculty** and (b) an unresolved
+   specialized demand item whose `subjectId` is absent from the subject map must both yield
+   `roomAssignmentReason: 'NO_QUALIFIED_FACULTY'` and, through the real `triggerGenerationRun`, a
+   persisted `UNASSIGNED_SECTION` `HARD` violation — never `SPECIALIZED_ROOM_UNAVAILABLE` `SOFT`.
+   Produce genuine failing-first evidence: run the control against the pre-fix source, capture the
+   failure, then apply the fix and re-run green. Both land in **one additive commit**.
+4. Unchanged and re-asserted by the control: the settled primary-beneficiary room contract — Science
+   configured `CLASSROOM` stays in normal/home classrooms with zero laboratory reservations and zero
+   laboratory warnings; an explicit future `LABORATORY` authority stays data-driven, honored, and
+   never inferred from a Science name, code, rotation family, or the existence of laboratory rooms.
+
+## 15. Planner R2d decision and independent verification record (2026-09-16)
+
+**R2d decision (availability is a hard exclusion).** The R2c attempt returned `BLOCKED` with a
+genuine, planner-confirmed defect: under `HOME_ROOM_FIRST`/cohort demand the relaxation in
+`schedule-constructor.ts` (formerly `1531-1537`) re-admitted candidates that the availability check
+had just excluded, so a persisted `UNAVAILABLE` window could be silently used and
+`timeSlots: []` versus real slots produced byte-identical placements. The cycle mandate explicitly
+requires unavailable-slot exclusion, so the planner directed the bounded R2d fix: one extracted
+`isUnavailableAtSlot(facId)` predicate (both authority forms) applied to the `available` filter and
+to the relaxation, relaxing *preference* only. No new reason or violation codes; the refusal surfaces
+through the existing `NO_AVAILABLE_SLOT` → `FACULTY_SLOT_UNAVAILABLE` → `UNASSIGNED_SECTION`/`HARD`
+chain, and the session stays unplaced instead of being silently scheduled.
+
+**Candidate chain (all additive, history preserved).**
+`87a05866` (planner register+packet) → `1b990716` (initial) → `459db3a4`, `c59794ee` (planner packet
+amendments) → `31901e0e`, `48883ef0` (R1) → `363840cc` (R2 F9) → `af3edb4f` (R2b hygiene) →
+`74e7cf00` (R2d availability enforcement). No amend, rebase, reset, squash, or discard.
+
+**Planner independent verification (performed on the frozen bytes; all mutants restored
+byte-exactly and the worktree re-verified clean).**
+
+| Check | Result |
+| --- | --- |
+| Worktree clean (`porcelain=v2` empty, `git diff --quiet`/`--cached --quiet` 0) | PASS |
+| Base `750cafcb` is an ancestor; 19 product/test paths + 4 planner docs paths, all attributable | PASS |
+| `generation-authority-realism-c07-trigger` | 13/13, exit 0 |
+| `generation-authority-realism-c07` | 19/19, exit 0 |
+| `generation-authority-realism-c07-availability` (guarded disposable PostgreSQL) | 1/1, exit 0 |
+| `npm run build` (server `tsc`) | exit 0 |
+| client `tsc --noEmit`, `vite build`, `room-authority-copy` | exit 0 / exit 0 / 4/4 (client bytes unchanged since) |
+| `git diff --check` | exit 0 |
+| Mutant A — `buildPreflightConstructorInput` reverted to `timeSlots: []` | trigger FAILS (13 tests, 1 fail: "the real trigger must never place the availability owner inside a persisted UNAVAILABLE window"); primary FAILS ("persisted availability must reach the constructor") |
+| Mutant B — `specialEvents` threading removed from both the shape policy and the constructor input | primary FAILS ("the real constructor input must receive the persisted rows", 0 !== 3) |
+| Mutant C — relaxation guard `&& !isUnavailableAtSlot(facId)` removed | trigger FAILS with the same availability assertion |
+| `publication-contract-postgres-concurrency` on base `750cafcb` vs candidate | identical: exit 1, `ERR_ASSERTION`, regex mismatch on an empty database name (`DATABASE_URL` unavailable in this environment); guard at line 179 executes before any snapshot use at 237+ ⇒ **pre-existing environment precondition, not candidate-caused** |
+| Snapshot fixture accounting (base vs candidate declaration counts) | `derived-demand-correction-c01r2` 7/7, `timetable-output-export-c03` 7/7, `timetable-shape-diagnostic-c02` 13/13, `publication-contract-readiness` 0/0, `publication-contract-postgres-concurrency` 0/0 ⇒ unchanged |
+| Legacy fail-closed coverage retained | asserted: below-current snapshot ⇒ `STALE` + `SNAPSHOT_VERSION_MISMATCH` (never `FRESH`) in `generation-authority-realism-c07` (C07-S09/S10 M8) and `derived-demand-correction-c01r2` control 9 |
+| Directive identity | raw Git-blob SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3` (git blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`) |
+| Dependency tree | isolated `npm ci` installs intact in `atlas-server`/`atlas-client`; root `node_modules` junction target intact; no install performed through any junction |
+
+Disclosed routing deviation: the executor sessions exposed no separately selectable `high` variant,
+so the nearest supported variant was used in every round.
+
+Residuals carried to QA: in-process mutants M1–M8 (predicate/input reproductions, not compiled-base
+runs); D-C zero-row strictness; D-E severity semantics; stale npm script
+`test:hybrid-scheduler` pointing at a non-existent test file; `preference-wellbeing` npm target
+absent at base.

@@ -201,14 +201,15 @@ test('control 8: no academic-term production path retains a hard-coded three-ter
 
 // ─── 9. Honest snapshot version ─────────────────────────────────────────────
 
-test('control 9: a schema-v1 snapshot is a version mismatch; a v2 snapshot is fresh only when all domains match', () => {
-	assert.equal(GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION, 2);
+test('control 9: a below-current snapshot is a version mismatch that fails closed as stale; a current snapshot is fresh only when all domains match', () => {
+	// C07-R7: the schema version advanced to 3 and `availability` is now required.
+	assert.equal(GENERATION_INPUT_SNAPSHOT_SCHEMA_VERSION, 3);
 	const domain = { fingerprint: 'd', signals: {} };
 	const v1 = { schemaVersion: 1, schoolId: 1, schoolYearId: 2, computedAt: 'x', fingerprint: 'old', domains: {
 		teachingLoad: domain, policy: domain, rooms: domain, sections: domain, subjects: domain,
 	} };
-	const v2 = (fingerprint: string, subjectFingerprint = 'd'): GenerationInputSnapshot => ({
-		schemaVersion: 2,
+	const current = (fingerprint: string, subjectFingerprint = 'd'): GenerationInputSnapshot => ({
+		schemaVersion: 3,
 		schoolId: 1,
 		schoolYearId: 2,
 		computedAt: 'x',
@@ -220,17 +221,19 @@ test('control 9: a schema-v1 snapshot is a version mismatch; a v2 snapshot is fr
 			sections: domain,
 			subjects: { fingerprint: subjectFingerprint, signals: {} },
 			derivedDemand: domain,
+			availability: domain,
 		},
 	});
 	const extractedV1 = extractGenerationInputSnapshot({ inputSnapshot: v1 });
 	assert.ok(extractedV1, 'an old schema snapshot is still extractable so it can be compared');
-	const comparison = compareGenerationInputSnapshots(extractedV1, v2('new'));
-	assert.equal(comparison.status, 'UNKNOWN');
+	const comparison = compareGenerationInputSnapshots(extractedV1, current('new'));
+	// C07-R7: an older run must fail CLOSED as stale, never `FRESH`/`UNKNOWN`.
+	assert.equal(comparison.status, 'STALE');
 	assert.equal(comparison.missingReason, 'SNAPSHOT_VERSION_MISMATCH');
 
-	const same = compareGenerationInputSnapshots(v2('same'), v2('same'));
+	const same = compareGenerationInputSnapshots(current('same'), current('same'));
 	assert.equal(same.status, 'FRESH');
-	const changed = compareGenerationInputSnapshots(v2('same'), v2('same', 'changed'));
+	const changed = compareGenerationInputSnapshots(current('same'), current('same', 'changed'));
 	assert.equal(changed.status, 'STALE');
 	assert.ok(changed.changedDomains.includes('subjects'));
 });
@@ -313,12 +316,12 @@ test('controls 4/5/6: publication, revision, and public reads expose Q4 on a dis
 	const inputSnapshot = (schoolId: number, yearId: number): GenerationInputSnapshot => {
 		const domain = { fingerprint: 'fixture', signals: {} };
 		return {
-			schemaVersion: 2,
+			schemaVersion: 3,
 			schoolId,
 			schoolYearId: yearId,
 			computedAt: now.toISOString(),
 			fingerprint: `fixture-${schoolId}-${yearId}`,
-			domains: { teachingLoad: domain, policy: domain, rooms: domain, sections: domain, subjects: domain, derivedDemand: domain },
+			domains: { teachingLoad: domain, policy: domain, rooms: domain, sections: domain, subjects: domain, derivedDemand: domain, availability: domain },
 		};
 	};
 
