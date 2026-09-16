@@ -90,6 +90,17 @@ interface TriggerOptions {
 	zeroCapacityFacultyId?: number;
 	/** Add an ARAL subject that would create Site-A demand if the preflight allowed it. */
 	addNonSchedulableDemand?: boolean;
+	/**
+	 * R2d: mark the availability owner (faculty 72) UNAVAILABLE for EVERY canonical
+	 * Grade 7 REGULAR class period on every weekday, so the entire admissible grid
+	 * is a persisted UNAVAILABLE authority for the session it owns.
+	 */
+	ownerUnavailableInEveryClassSlot?: boolean;
+	/**
+	 * R2d production-input mutant: drop the persisted availability authority from
+	 * `facultyPreference.findMany`, so the constructor receives `timeSlots: []`.
+	 */
+	omitPersistedAvailability?: boolean;
 }
 
 const ROBOTICS_SUBJECT_ID = 31;
@@ -198,7 +209,30 @@ function buildTriggerClient(options: TriggerOptions = {}) {
 		subjectFamily: slot.subjectFamily ?? null, subjectLabel: slot.subjectLabel ?? null, dayOfWeek: null,
 	}));
 
-	const preferenceRows = [{ facultyId: 71, status: 'SUBMITTED', timeSlots: [{ day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', preference: 'UNAVAILABLE' }] }];
+	const WEEKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+	// R2d: the canonical Grade 7 REGULAR class periods — the only admissible slots.
+	const CANONICAL_CLASS_ROWS = getExpectedCanonicalSlots(7, 'REGULAR')
+		.filter((slot) => slot.rowKind === 'CLASS')
+		.map((slot) => ({ startTime: slot.startTime, endTime: slot.endTime }));
+	const preferenceRows = options.ownerUnavailableInEveryClassSlot
+		? [{
+			facultyId: 72,
+			status: 'SUBMITTED',
+			// `omitPersistedAvailability` removes the authority from the production
+			// input entirely (no `timeSlots` property, exactly like no persisted row).
+			...(options.omitPersistedAvailability ? {} : {
+				timeSlots: WEEKDAYS.flatMap((day) => CANONICAL_CLASS_ROWS.map((slot) => ({
+					day, startTime: slot.startTime, endTime: slot.endTime, preference: 'UNAVAILABLE',
+				}))),
+			}),
+		}]
+		: [{
+			facultyId: 71,
+			status: 'SUBMITTED',
+			...(options.omitPersistedAvailability ? {} : {
+				timeSlots: [{ day: 'WEDNESDAY', startTime: '06:00', endTime: '06:45', preference: 'UNAVAILABLE' }],
+			}),
+		}];
 
 	const capturedAvailability = options.capturedAvailability ?? 'availability-A';
 	const transactionAvailability = options.transactionAvailability ?? capturedAvailability;
@@ -519,6 +553,63 @@ test('C07-S10. getRunDraft / getLatestRunDraft report a changed availability aut
 	const freshHarness = buildTriggerClient({ capturedAvailability: 'availability-A', runFindFirstResult: persistedRun });
 	const freshDraft = await withDataContext(freshHarness.client, () => getRunDraft(91, SCHOOL_ID, SCHOOL_YEAR_ID));
 	assert.equal(freshDraft.inputState?.status, 'FRESH');
+});
+
+// ─── R2d: persisted UNAVAILABLE is a hard exclusion at the trigger boundary ───
+
+test('C07-R2d. the real trigger keeps a persisted-UNAVAILABLE session unplaced with a typed reason, and the availability-omission mutant schedules it inside the window', async () => {
+	const canonicalClassRows = getExpectedCanonicalSlots(7, 'REGULAR')
+		.filter((slot) => slot.rowKind === 'CLASS')
+		.map((slot) => ({ startTime: slot.startTime, endTime: slot.endTime }));
+	const isInCanonicalClassSlot = (entry: any) => entry.facultyId === 72
+		&& canonicalClassRows.some((slot) => slot.startTime === entry.startTime && slot.endTime === entry.endTime);
+
+	// ── Real production input: the persisted availability authority is honoured ──
+	// Faculty 72 is the owner of the ROBOTICS session and is persisted UNAVAILABLE
+	// for every canonical Grade 7 REGULAR class period, so no slot can serve it.
+	const realHarness = buildTriggerClient({ scenario: 'dedicatedSpecialized', ownerUnavailableInEveryClassSlot: true });
+	await trigger(realHarness.client);
+	const realPayload = realHarness.completedPayload();
+	assert.ok(realPayload, 'the trigger must complete with a truthful result');
+	const realEntries = realPayload.draftEntries as any[];
+	assert.equal(
+		realEntries.some(isInCanonicalClassSlot), false,
+		'the real trigger must never place the availability owner inside a persisted UNAVAILABLE window',
+	);
+	const roboticsUnassigned = (realPayload.unassignedItems as any[]).filter((item) => item.subjectId === ROBOTICS_SUBJECT_ID);
+	assert.ok(roboticsUnassigned.length > 0, 'the session must remain unplaced rather than silently scheduled');
+	assert.ok(
+		roboticsUnassigned.every((item) => item.reason === 'NO_AVAILABLE_SLOT'),
+		`expected NO_AVAILABLE_SLOT, saw ${[...new Set(roboticsUnassigned.map((item) => item.reason))].join(', ')}`,
+	);
+	assert.ok(
+		roboticsUnassigned.every((item) => item.roomAssignmentReason === 'FACULTY_SLOT_UNAVAILABLE'),
+		`the persisted refusal must surface as FACULTY_SLOT_UNAVAILABLE, saw ${[...new Set(roboticsUnassigned.map((item) => item.roomAssignmentReason))].join(', ')}`,
+	);
+	const roboticsViolations = (realPayload.violations as any[]).filter((violation) => violation.entities?.subjectId === ROBOTICS_SUBJECT_ID);
+	assert.ok(roboticsViolations.length > 0);
+	assert.ok(
+		roboticsViolations.every((violation) => violation.code === 'UNASSIGNED_SECTION' && violation.severity === 'HARD'),
+		`an availability refusal must stay HARD; saw ${[...new Set(roboticsViolations.map((violation) => `${violation.code}/${violation.severity}`))].join(', ')}`,
+	);
+
+	// ── Production-input mutant: the persisted availability authority is omitted ──
+	// Without the authority the constructor receives `timeSlots: []`, so the same
+	// session IS scheduled inside a previously unavailable window. This is what
+	// makes the assertions above load-bearing at the trigger boundary.
+	const mutantHarness = buildTriggerClient({ scenario: 'dedicatedSpecialized', ownerUnavailableInEveryClassSlot: true, omitPersistedAvailability: true });
+	await trigger(mutantHarness.client);
+	const mutantPayload = mutantHarness.completedPayload();
+	assert.ok(mutantPayload, 'the mutant run must complete');
+	const mutantEntries = mutantPayload.draftEntries as any[];
+	assert.equal(
+		mutantEntries.some(isInCanonicalClassSlot), true,
+		'dropping the availability authority must schedule the session inside the previously unavailable window',
+	);
+	assert.equal(
+		(mutantPayload.unassignedItems as any[]).filter((item) => item.subjectId === ROBOTICS_SUBJECT_ID).length, 0,
+		'the session must be placed once the availability authority is dropped',
+	);
 });
 
 // ─── R2 / F9: non-room failures must never be reported as room results ─────

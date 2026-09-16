@@ -1498,39 +1498,51 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			return true;
 		};
 
-		// Filter candidates based on load and availability at this specific slot
-		const available = candidates.filter((facId) => {
-			if (!isWithinLoadAndOccupancy(facId)) return false;
-
+		/**
+		 * A persisted `UNAVAILABLE` window is a HARD exclusion — it is never
+		 * relaxed. Only *preference* ranking may be relaxed (R2d). Covers both
+		 * authority forms:
+		 *  - period-index form (`pi >= 0`) via the `day:periodIndex` preference map;
+		 *  - canonical/range form (`pi < 0`) via day-scoped time-range overlap.
+		 */
+		const isUnavailableAtSlot = (facId: number): boolean => {
 			const facPrefs = prefLookup.get(facId);
-			if (facPrefs) {
-				// Check by period index if available
-				if (pi >= 0 && facPrefs.get(`${day}:${pi}`) === 'UNAVAILABLE') return false;
-				// When pi is not available (canonical slots), check time-range overlap
-				if (pi < 0) {
-					const timeRanges = unavailableTimeRanges?.get(facId);
-					if (timeRanges) {
-						const slotStart = timeToMinutes(slot.startTime);
-						const slotEnd = timeToMinutes(slot.endTime);
-						for (const range of timeRanges) {
-							if (range.day !== day) continue;
-							const rangeStart = timeToMinutes(range.startTime);
-							const rangeEnd = timeToMinutes(range.endTime);
-							// Check overlap: slot overlaps range if slot starts before range ends AND slot ends after range starts
-							if (slotStart < rangeEnd && slotEnd > rangeStart) {
-								return false;
-							}
-						}
+			if (!facPrefs) return false;
+			// Check by period index if available
+			if (pi >= 0 && facPrefs.get(`${day}:${pi}`) === 'UNAVAILABLE') return true;
+			// When pi is not available (canonical slots), check time-range overlap
+			if (pi < 0) {
+				const timeRanges = unavailableTimeRanges?.get(facId);
+				if (timeRanges) {
+					const slotStart = timeToMinutes(slot.startTime);
+					const slotEnd = timeToMinutes(slot.endTime);
+					for (const range of timeRanges) {
+						if (range.day !== day) continue;
+						const rangeStart = timeToMinutes(range.startTime);
+						const rangeEnd = timeToMinutes(range.endTime);
+						// Slot overlaps the range when it starts before the range ends
+						// and ends after the range starts.
+						if (slotStart < rangeEnd && slotEnd > rangeStart) return true;
 					}
 				}
 			}
+			return false;
+		};
 
+		// Filter candidates based on load and availability at this specific slot
+		const available = candidates.filter((facId) => {
+			if (!isWithinLoadAndOccupancy(facId)) return false;
+			if (isUnavailableAtSlot(facId)) return false;
 			return true;
 		});
 
 		if (available.length === 0) {
 			if (canRelaxPreferenceForEntry) {
-				const relaxed = candidates.filter((facId) => isWithinLoadAndOccupancy(facId));
+				// Relax preference/ranking only. A persisted UNAVAILABLE window is a
+				// hard exclusion and must never be re-admitted here, otherwise the
+				// authority is silently overridden and the session is scheduled into
+				// an unavailable slot.
+				const relaxed = candidates.filter((facId) => isWithinLoadAndOccupancy(facId) && !isUnavailableAtSlot(facId));
 				if (relaxed.length > 0) {
 					return { ids: relaxed.sort((a, b) => a - b) };
 				}
