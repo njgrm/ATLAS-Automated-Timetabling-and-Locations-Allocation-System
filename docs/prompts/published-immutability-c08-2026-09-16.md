@@ -4,9 +4,16 @@
 - Kind: `CYCLE` (source-only)
 - Risk tier: `MEDIUM` source; generation/publication remain separately gated `HIGH`
 - Base/authority pin: `origin/main` = `c950e6944f148343b8c864bea5aa080bd6a19426`
-- Directive pin: `origin/main:AGENTS.md` LF-normalized SHA-256
-  `ffd1452004753aa0f2b7ef21d990cb1df6e540c2850155b30dece990b8b82bd5`
-  (read the raw `origin/main:AGENTS.md`, not a stale worktree copy)
+- Directive pin: `origin/main:AGENTS.md`, blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`,
+  LF-normalized SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`
+  (read the raw `origin/main:AGENTS.md`, not a stale worktree copy).
+  **Pin correction 2026-09-17 (WF-C10, planner):** this line previously read
+  `ffd1452004753aa0f2b7ef21d990cb1df6e540c2850155b30dece990b8b82bd5`, which the
+  planner mechanically proved is the LF-SHA-256 of none of the twelve distinct
+  `AGENTS.md` blobs in reachable history. The directive at this packet's own base
+  `c950e694` was already `051ad26a…` = `76631646…`, so the corrected value is the
+  historically truthful pin, not a rewrite. Reproduce with the raw-byte command
+  recorded in `docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md` §0.
 - Writable worktree: `E:/ATLAS-worktrees/published-immutability-c08`
 - Branch: `work/published-immutability-c08`
 - Disposition: `RETIRE_AFTER_INTEGRATION`

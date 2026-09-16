@@ -6,7 +6,7 @@
 - Writable worktree: `E:/ATLAS-worktrees/published-immutability-c08` (already contains the C08 tree; fast-forwarded to the base)
 - Branch: `work/published-immutability-c08`
 - **Additive commits only** — do not amend, rebase, or force-push the reviewed candidate.
-- Directive pin: `origin/main:AGENTS.md` LF-SHA-256 `ffd1452004753aa0f2b7ef21d990cb1df6e540c2850155b30dece990b8b82bd5`
+- Directive pin: `origin/main:AGENTS.md`, blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`, LF-SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3`. **Pin correction 2026-09-17 (WF-C10, planner):** the previous value `ffd1452004753aa0f2b7ef21d990cb1df6e540c2850155b30dece990b8b82bd5` reproduces at no `AGENTS.md` blob in reachable history; the directive at this packet's own base `f84e43c3` was already `051ad26a…` = `76631646…`, so this is the historically truthful pin.
 - Recommended executor reasoning: `high` (not `max`)
 
 ## Origin of this correction

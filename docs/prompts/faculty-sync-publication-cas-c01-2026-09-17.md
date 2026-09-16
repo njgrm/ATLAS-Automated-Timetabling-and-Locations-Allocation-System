@@ -308,3 +308,241 @@ handoff) as part of the candidate, then return `REVIEW_REQUIRED` with:
 8. a claim-discipline table classifying each material claim as REQUIREMENT / CURRENT_STATE / SUCCESSOR / HISTORICAL.
 
 Do not self-accept, merge, or push. Return `REVIEW_REQUIRED` only.
+
+## 8. PLANNER AMENDMENT A1 (2026-09-17, primary planner)
+
+This section is part of the packet. Read it before §0. Where A1 and §0-§7
+disagree, **A1 controls**. Everything in §0-§7 not amended below still stands.
+
+### A1.1 Base re-pin: `16e70be2a01bf815447ee323f13e775bb825ad4f` (supersedes §0)
+
+`origin/main` moved again after this packet landed (`544bbf81` ->
+`16e70be2`, the `WF-TRANSITION-TERMINAL-RECONCILE-C09` closure). Per §0's own
+instruction the base is not self-advanced by the executor; the **planner** has
+re-pinned it. Evidence, independently reproduced by the planner at `16e70be2`:
+
+- `544bbf81` is an ancestor of `16e70be2`.
+- `git diff --name-only 544bbf81 16e70be2 -- atlas-server/src atlas-client/src
+  prisma` is **empty**: every product source path is byte-identical, so §2's
+  defect analysis and every §2/§3 line anchor hold unchanged.
+- The only `atlas-server` path that differs is `atlas-server/.env.example`
+  (2 lines removed: the stale `ATLAS_DEFAULT_SCHOOL_ID=1` example). It is
+  outside this packet's boundary and irrelevant to it.
+- Anchor blob identity at **both** bases: `generation.service.ts`
+  `e5d4f2c24653fd3b673cb089ef7165391411c84f`,
+  `published-identity-snapshot.service.ts`
+  `bacb74fb582557dc37fe346945ce890777db2678`, `publication-contract.service.ts`
+  `76603edab27c08eead86f2ad4c9ca6986b84689f`,
+  `published-immutability-c08.test.ts`
+  `7714aed0b919c1ce12778f8e19f680d63def09c1`, `prisma/schema.prisma`
+  `8af558844d5a09bd9a1c70aa81d5fb619d870fa8`.
+- The cycle worktree `E:/ATLAS-worktrees/faculty-sync-cas-c01` was
+  fast-forwarded by the planner from `544bbf81` to `16e70be2` and is clean
+  (`git status --porcelain=v2` empty; branch `fix/faculty-sync-publication-cas`).
+
+**Base for this candidate is `16e70be2`.** Re-verify before editing:
+`git merge-base --is-ancestor 16e70be2 HEAD` must succeed. If `origin/main` has
+moved again, stop and report — do not self-advance.
+
+The §0 directive pin is re-confirmed and unchanged: `origin/main:AGENTS.md`
+blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`, raw and LF-normalized SHA-256
+`7663164608A330AF5440A6E0EA1FFADE20987B49A7BB0D939F3B50F1AA2DF0A3`
+(planner re-derived from Git bytes: 171055 bytes, 0 CR). Read `AGENTS.md` from
+this worktree or from `origin/main`; never trust `D:/ATLAS/AGENTS.md`.
+
+### A1.2 Inventory row confirmed: the repair set is bounded
+
+`reconcileInvalidPublishedRunStates` (`generation.service.ts:125-190`) has
+**zero callers** — planner-verified by
+`git grep -n reconcileInvalidPublishedRunStates` (only its own definition plus
+prose mentions in two documents). It is an **inventory row with
+`reachable=false`, NOT part of this fix**. Its inner write at `:161` must be
+left exactly as it is.
+
+The repair is exactly:
+
+1. the unguarded drift-branch write at `generation.service.ts:1703-1706`;
+2. the unguarded destructive-branch write at `generation.service.ts:1734-1737`
+   (no version predicate and no pinned `status`);
+3. the `invalidatedCount` over-report at `:1741`;
+4. **planner-added R2.3b** (A1.6 below): `unpublishedRunIds` truthfulness.
+
+### A1.3 Corrected writer inventory (replaces §3's prose enumeration)
+
+- `publishSchedule` (`publication-contract.service.ts:342-354` retire CAS and
+  `:415-419` run CAS) is the **sole version-advancer inside the publication
+  transition**; both use `version: { increment: 1 }`.
+- `timetable-sync-setup.service.ts:849-856` and
+  `timetable-teaching-load-repair.service.ts:1204-1211` also advance
+  `GenerationRun.version` and are **already CAS-guarded**.
+- Routine sync (`invalidateStaleCompletedRuns`) is the **only** writer that
+  advances nothing and asserts nothing — which is why it can clobber a
+  publication. That is the whole defect.
+
+Record this corrected inventory in the handoff; it is the authoritative form.
+
+### A1.4 Lease registration: the separate `lease-update` step is DROPPED
+
+`create-stream` accepts `--lease-id/--lease-role/--lease-session/--lease-worktree`
+and appends exactly one `ACTIVE` lease in the **same atomic transition**.
+Registering the stream and then also running `lease-update` would double-create
+a lease, so the planner runs `create-stream` with the lease flags and performs
+**no** separate lease transition. Nothing is required from the executor here;
+this is recorded so the register lineage is not misread later.
+
+### A1.5 Gate-10 / gate-11 satisfiability correction (planner-verified)
+
+Two mandatory rows named suites that **do not exist** at `16e70be2`:
+
+- `atlas-server/src/__tests__/faculty-sync-reconciliation.test.ts` — absent;
+- `atlas-server/src/__tests__/run-resolver-contract.test.ts` — absent.
+
+`atlas-server/package.json` still declares `test:faculty-sync-reconciliation`
+and `test:run-resolver-contract` pointing at those non-existent files; 34 of the
+legacy `src/__tests__/*.test.ts` script targets are dangling in total. Those
+rows were unsatisfiable as written. They are **re-pointed, not reduced** — the
+gate plan stays exactly **14 `MANDATORY_SOURCE` / 0 `MANDATORY_LIVE` /
+0 `DEFERRED_EXTERNAL`**:
+
+- **Gate 10** becomes **control C-E**: drive the **real routine-sync caller
+  path** `syncFacultyFromExternal` (`faculty.service.ts:494`, which reaches the
+  guarded write at `:768`) hermetically. Set `FACULTY_ADAPTER=stub` and
+  `SECTION_SOURCE_MODE=stub` **before** the module import (both factories have
+  committed stub implementations and are read at import time). Assert:
+  (i) the returned `invalidatedRuns` counters are truthful against the database
+  (`invalidatedCount` == runs actually set `FAILED`);
+  (ii) no published run is un-published or set `FAILED`;
+  (iii) the real published read still resolves exactly one candidate (no
+  `409 PUBLISHED_RUN_AMBIGUOUS`);
+  (iv) `unpublishedRunIds` / `driftedPublishedRunIds` match the database.
+  No network and no live database. Seed the disposable fixture so the stub
+  reconciliation genuinely reaches the invalidation gate (a fixture faculty
+  absent from `STUB_FACULTY` yields `deactivatedCount > 0`, which is what makes
+  `shouldInvalidateRuns` true).
+- **Gate 11** becomes `publication-contract-readiness.test.ts` **plus**
+  `publication-contract-postgres-concurrency.test.ts` on a real disposable
+  PostgreSQL database. Coverage does not drop: `resolvePublishedRun` and the
+  published-revision effective-date/CAS/chain behaviour are asserted by the
+  readiness suite. Binding facts for the concurrency suite:
+  it hard-requires `process.env.DATABASE_URL`'s database name to equal
+  `process.env.PUBC01R_DISPOSABLE_DATABASE`, with both matching
+  `/^atlas_restore_drill_[0-9]{8}_[a-z0-9]+$/`. `provisionDisposableDatabase`
+  satisfies that pattern **only when the suffix is alphanumeric** (hyphens fail
+  the guard). Set both variables from the harness's `name`/`targetUrl` for that
+  suite only, and drop the database in `finally` with zero-residue proof.
+
+**`atlas-server/package.json` must NOT be edited.** The dangling legacy scripts
+are pre-existing residue, they are not this packet's repair, and repairing them
+is out of scope.
+
+### A1.6 Planner-added requirement R2.3b — `unpublishedRunIds` truthfulness
+
+In the destructive branch, push `run.id` to `unpublishedRunIds` **only when the
+CAS `count === 1`**. Justification, so this is auditable rather than assumed:
+
+- It is the **same return statement** §3 R2.3 already requires the executor to
+  rewrite for `invalidatedCount`, in the same function and the same write loop.
+- §3 R2.3's headline requirement is "make the counters truthful". Today
+  `unpublishedRunIds` is initialised at `:1672` and **never pushed to**, so it
+  always returns `[]` even when the destructive path does write. That is the
+  same defect class the row names.
+- It is **provably non-breaking**: `git grep -n unpublishedRunIds` finds only
+  the two C08 assertions at `published-immutability-c08.test.ts:696` and `:720`,
+  and both assert only `!unpublishedRunIds.includes(<published|superseded run>)`
+  — assertions that stay true because those runs take the drift branch, never
+  the destructive one.
+- It is one line inside a statement the executor must change anyway, so the
+  marginal cost is ~zero and it forecloses a future correction round.
+
+Assert the truthful value inside control C-C. Do not retitle or re-scope any
+other §3 requirement.
+
+### A1.7 Boundary clarifications (the operator's boundary is controlling)
+
+Owned and permitted paths — **nothing else**:
+
+- `atlas-server/src/services/generation.service.ts`
+- `atlas-server/src/services/published-identity-snapshot.service.ts`
+- **one new** test file `atlas-server/src/__tests__/faculty-sync-publication-cas-c01.test.ts`
+- the mandated ledger/handoff
+  `docs/handoffs/faculty-sync-publication-cas-c01-executor.md`
+
+- **Do not edit `atlas-server/src/services/faculty.service.ts`.** §3 R2.4's
+  "if you widen the `invalidatedRuns` field, widen its declared type" is
+  satisfied **without** an edit: `faculty.service.ts:58` declares the structural
+  subset `{ invalidatedCount: number; staleRunIds: number[] }`, and a wider
+  return object is assignable to it because the value is a variable, not an
+  object literal — TypeScript applies no excess-property check. If `tsc`
+  nonetheless fails for that reason, mark the row **BLOCKED** with the exact
+  compiler error and return; do **not** edit outside the owned set and never
+  use `any` / `as never`.
+- Do **not** modify `publication-contract.service.ts`; prove its unchanged-ness
+  in the handoff as §3 requires.
+- **Mutually exclusive C11 lane (forbidden here):**
+  `warning-window-authority.service.ts`, `constraint-validator.ts`,
+  `manual-edit.service.ts`, `generation-preflight.service.ts`,
+  `pre-generation-draft.service.ts`, `generation-input-snapshot.service.ts`.
+  The `SLOT-BREAK-AUTHORITY-C11` packet forbids `generation.service.ts` and
+  `published-identity-snapshot.service.ts`, so the two lanes share no file.
+- **Forbidden:** `docs/plans/**`, `ops/workflow/**`, `atlas-server/package.json`.
+  No runtime, port, task, or env change; no database apply; no generation; no
+  publication; no login; no companion repository edit.
+
+### A1.8 Environment facts (planner-verified — do not re-derive)
+
+- The cycle worktree has **no `node_modules`** and **no `.env`**. Install is
+  isolated: `npm ci` in `atlas-server` **only**. **No client install is needed**
+  — no gate row builds, type-checks, or tests the client, and no client file is
+  in scope. Never run an install through a junction; no junction reuse is
+  authorized.
+- `DATABASE_URL` resolution order in
+  `atlas-server/src/__tests__/helpers/tt-source-freshness-db.ts`:
+  `process.env.DATABASE_URL` -> `<worktree>/atlas-server/.env` ->
+  `D:/ATLAS-runtime-config/atlas-server.env` (read-only). Do **not** create a
+  `.env`, do **not** print the URL, and never target the configured database.
+  The helper probes the configured database read-only and never writes it.
+- `PSQL` must resolve to `D:/PostgreSQL/18/bin/psql.exe`. If the harness returns
+  `null`, the suite must **SKIP** — a skip is not a PASS, and gate rows 1-11
+  require real execution.
+- Disposable databases live on the D: PostgreSQL instance and each must be
+  dropped with `assertDropped()` plus a zero-residue proof. A first drop can
+  race; a bounded retry is acceptable.
+- Disk recorded by the planner at dispatch: **E: 72.83 GiB free** (warn 25,
+  fail 15), **D: 31.27 GiB free**. Do not create worktrees, junctions, or large
+  fixtures.
+- `D:/ATLAS/.git/index.lock` (0 bytes, 2026-09-16) is stale residue that blocks
+  index write-refresh **only** in the `D:/ATLAS` main worktree. It does not
+  affect linked worktrees. **Do not delete it**; it is outside this packet.
+
+### A1.9 Corrected control/gate map (the 14 rows)
+
+| # | Amended gate |
+|---|---|
+| 1 | New suite green on disposable PostgreSQL through the **real** `publishSchedule`, the **real** `invalidateStaleCompletedRuns`, and the real routine-sync caller path |
+| 2 | C-A un-publish/resurrection interleave: `R` stays `isPublished:false` with `publicationSuperseded*` intact; exactly one `isPublished===true`; no `409 PUBLISHED_RUN_AMBIGUOUS`; zero non-CAS writes for `R`; typed outcome contains `R`; exactly one new skip-audit row for `R` |
+| 3 | C-B orphan interleave: `publishSchedule(R)` between classification and write; `R` never `FAILED`; its revision still resolves through the real published read; zero destructive writes for `R`; typed outcome contains `R`; skip-audit delta exactly 1 |
+| 4 | C-C genuine invalidation preserved: unpublished stale `COMPLETED` no-interleave run becomes `FAILED` with `error: 'INVALIDATED_BY_MIRROR_RESET'`; `invalidatedCount` == runs actually set `FAILED`; **`unpublishedRunIds` truthful (R2.3b)** |
+| 5 | R1 mutant: CAS predicate removed -> C-A **and** C-B FAIL; source restored byte-exactly with blob-hash proof and empty `git diff` |
+| 6 | R2 replay/idempotency: second sync no-ops, no duplicate audit row, no second destructive write |
+| 7 | C-D: frozen snapshot with a non-numeric/partial interval is rejected via the typed contradiction, asserted against the producer's `NaN` semantics (`schedule-constructor.ts:1360-1363`) — never silently read as `420` |
+| 8 | R3 mutant: the `: 0` coercion at `published-identity-snapshot.service.ts:197` restored -> C-D FAILS; restored byte-exactly with blob-hash proof |
+| 9 | `published-immutability-c08.test.ts` green with **no assertion removed**; report `check(`/`checkEqual(` call-site counts at base and tip |
+| 10 | **C-E** real `syncFacultyFromExternal` routine-sync caller control (A1.5) |
+| 11 | `publication-contract-readiness.test.ts` + `publication-contract-postgres-concurrency.test.ts` on disposable PostgreSQL with the `PUBC01R_DISPOSABLE_DATABASE` binding (A1.5), zero residue |
+| 12 | `npm --prefix atlas-server run build` (tsc) exit 0 |
+| 13 | Built-server startup on an isolated port: `/api/v1/health` 200, clean termination, explicit `.js` runtime-import proof on the emitted `dist` for every changed server module |
+| 14 | `git diff --check` clean; `node ops/workflow/verify-cycle.mjs --state docs/plans/atlas-delivery-cycles.json` exit 0; disposable-DB zero-residue proof; honest `git status --short` |
+
+`prisma/schema.prisma:792` already has `version Int @default(1)`; all CAS
+predicate fields (`id`, `schoolId`, `schoolYearId`, `status`, `version`) exist
+at `:777-803`. **No migration is needed or permitted.**
+
+### A1.10 Unchanged
+
+§4's deterministic interleave seam stands: one optional injected dependency on
+`invalidateStaleCompletedRuns`, defaulting to production behaviour, invoked
+after the classification read and before the write transaction, mirroring the
+`PublicationDependencies` pattern at `publication-contract.service.ts`. Default
+`undefined` must be behaviourally identical to today; only the committed test
+supplies the hook. §5's risk tier, §6's boundaries, and §7's return contract
+(with the A1 additions folded in) stand unchanged.
