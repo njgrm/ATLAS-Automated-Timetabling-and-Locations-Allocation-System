@@ -543,3 +543,51 @@ warning-recalibration audit):
    configured `CLASSROOM` stays in normal/home classrooms with zero laboratory reservations and zero
    laboratory warnings; an explicit future `LABORATORY` authority stays data-driven, honored, and
    never inferred from a Science name, code, rotation family, or the existence of laboratory rooms.
+
+## 15. Planner R2d decision and independent verification record (2026-09-16)
+
+**R2d decision (availability is a hard exclusion).** The R2c attempt returned `BLOCKED` with a
+genuine, planner-confirmed defect: under `HOME_ROOM_FIRST`/cohort demand the relaxation in
+`schedule-constructor.ts` (formerly `1531-1537`) re-admitted candidates that the availability check
+had just excluded, so a persisted `UNAVAILABLE` window could be silently used and
+`timeSlots: []` versus real slots produced byte-identical placements. The cycle mandate explicitly
+requires unavailable-slot exclusion, so the planner directed the bounded R2d fix: one extracted
+`isUnavailableAtSlot(facId)` predicate (both authority forms) applied to the `available` filter and
+to the relaxation, relaxing *preference* only. No new reason or violation codes; the refusal surfaces
+through the existing `NO_AVAILABLE_SLOT` → `FACULTY_SLOT_UNAVAILABLE` → `UNASSIGNED_SECTION`/`HARD`
+chain, and the session stays unplaced instead of being silently scheduled.
+
+**Candidate chain (all additive, history preserved).**
+`87a05866` (planner register+packet) → `1b990716` (initial) → `459db3a4`, `c59794ee` (planner packet
+amendments) → `31901e0e`, `48883ef0` (R1) → `363840cc` (R2 F9) → `af3edb4f` (R2b hygiene) →
+`74e7cf00` (R2d availability enforcement). No amend, rebase, reset, squash, or discard.
+
+**Planner independent verification (performed on the frozen bytes; all mutants restored
+byte-exactly and the worktree re-verified clean).**
+
+| Check | Result |
+| --- | --- |
+| Worktree clean (`porcelain=v2` empty, `git diff --quiet`/`--cached --quiet` 0) | PASS |
+| Base `750cafcb` is an ancestor; 19 product/test paths + 4 planner docs paths, all attributable | PASS |
+| `generation-authority-realism-c07-trigger` | 13/13, exit 0 |
+| `generation-authority-realism-c07` | 19/19, exit 0 |
+| `generation-authority-realism-c07-availability` (guarded disposable PostgreSQL) | 1/1, exit 0 |
+| `npm run build` (server `tsc`) | exit 0 |
+| client `tsc --noEmit`, `vite build`, `room-authority-copy` | exit 0 / exit 0 / 4/4 (client bytes unchanged since) |
+| `git diff --check` | exit 0 |
+| Mutant A — `buildPreflightConstructorInput` reverted to `timeSlots: []` | trigger FAILS (13 tests, 1 fail: "the real trigger must never place the availability owner inside a persisted UNAVAILABLE window"); primary FAILS ("persisted availability must reach the constructor") |
+| Mutant B — `specialEvents` threading removed from both the shape policy and the constructor input | primary FAILS ("the real constructor input must receive the persisted rows", 0 !== 3) |
+| Mutant C — relaxation guard `&& !isUnavailableAtSlot(facId)` removed | trigger FAILS with the same availability assertion |
+| `publication-contract-postgres-concurrency` on base `750cafcb` vs candidate | identical: exit 1, `ERR_ASSERTION`, regex mismatch on an empty database name (`DATABASE_URL` unavailable in this environment); guard at line 179 executes before any snapshot use at 237+ ⇒ **pre-existing environment precondition, not candidate-caused** |
+| Snapshot fixture accounting (base vs candidate declaration counts) | `derived-demand-correction-c01r2` 7/7, `timetable-output-export-c03` 7/7, `timetable-shape-diagnostic-c02` 13/13, `publication-contract-readiness` 0/0, `publication-contract-postgres-concurrency` 0/0 ⇒ unchanged |
+| Legacy fail-closed coverage retained | asserted: below-current snapshot ⇒ `STALE` + `SNAPSHOT_VERSION_MISMATCH` (never `FRESH`) in `generation-authority-realism-c07` (C07-S09/S10 M8) and `derived-demand-correction-c01r2` control 9 |
+| Directive identity | raw Git-blob SHA-256 `7663164608a330af5440a6e0ea1ffade20987b49a7bb0d939f3b50f1aa2df0a3` (git blob `051ad26a07509e3af4f1c1762e1ccfff8bb6cc88`) |
+| Dependency tree | isolated `npm ci` installs intact in `atlas-server`/`atlas-client`; root `node_modules` junction target intact; no install performed through any junction |
+
+Disclosed routing deviation: the executor sessions exposed no separately selectable `high` variant,
+so the nearest supported variant was used in every round.
+
+Residuals carried to QA: in-process mutants M1–M8 (predicate/input reproductions, not compiled-base
+runs); D-C zero-row strictness; D-E severity semantics; stale npm script
+`test:hybrid-scheduler` pointing at a non-existent test file; `preference-wellbeing` npm target
+absent at base.
