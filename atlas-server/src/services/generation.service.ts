@@ -11,6 +11,7 @@ const db = () => getDataContext();
 import { getDataContext } from '../lib/data-context.js';
 import { Prisma, type GenerationRunStatus } from '@prisma/client';
 import {
+	applyConstraintOverrides,
 	validateHardConstraints,
 	type ValidatorContext,
 	type ScheduledEntry,
@@ -394,16 +395,50 @@ export function buildHomeRoomFallbackDiagnostics(
 	return diagnostics;
 }
 
+/**
+ * C07A — truthful violation code for an unassigned session.
+ *
+ * The observed failure cause decides the code. A faculty/data refusal (missing
+ * subject, missing qualified faculty, workload refusal, availability refusal) is
+ * NEVER laundered into the SOFT specialized-room warning; `SPECIALIZED_ROOM_UNAVAILABLE`
+ * requires both a room-path failure (`NO_COMPATIBLE_ROOM`) and the
+ * specialized-room authority recorded by the constructor.
+ */
+export function resolveUnassignedViolationCode(item: Pick<UnassignedItem, 'reason' | 'roomAssignmentReason'>): {
+	code: 'LACKING_FACULTY' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'UNASSIGNED_SECTION';
+	severity: 'HARD' | 'SOFT';
+} {
+	if (item.reason === 'NO_QUALIFIED_FACULTY' || item.roomAssignmentReason === 'NO_QUALIFIED_FACULTY') {
+		// Missing subject / missing qualified teacher: a structural faculty-authority
+		// blocker, never a room result.
+		return { code: 'LACKING_FACULTY', severity: 'HARD' };
+	}
+	if (
+		item.reason === 'FACULTY_OVERLOADED'
+		|| item.roomAssignmentReason === 'FACULTY_SLOT_UNAVAILABLE'
+		|| item.roomAssignmentReason === 'POLICY_SLOT_BLOCKED'
+	) {
+		return { code: 'UNASSIGNED_SECTION', severity: 'HARD' };
+	}
+	if (item.reason === 'NO_COMPATIBLE_ROOM' && item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE') {
+		return { code: 'SPECIALIZED_ROOM_UNAVAILABLE', severity: 'SOFT' };
+	}
+	return { code: 'UNASSIGNED_SECTION', severity: 'HARD' };
+}
+
 function buildZoneDistributionByTerm(
 	entries: ScheduledEntry[],
 	roomZoneByRoomId: Map<number, string>,
-): Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number }> }> {
-	const termAgg = new Map<1 | 2 | 3 | 4, Map<string, number>>();
+): Array<{ termIndex: 1 | 2 | 3 | 4; total: number; byZone: Record<string, { count: number; percent: number; entryIds: string[] }> }> {
+	const termAgg = new Map<1 | 2 | 3 | 4, Map<string, { count: number; entryIds: string[] }>>();
 	for (const entry of entries) {
 		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
 		const zone = roomZoneByRoomId.get(entry.roomId) ?? 'UNSPECIFIED';
-		const zoneMap = termAgg.get(termIndex) ?? new Map<string, number>();
-		zoneMap.set(zone, (zoneMap.get(zone) ?? 0) + 1);
+		const zoneMap = termAgg.get(termIndex) ?? new Map<string, { count: number; entryIds: string[] }>();
+		const bucket = zoneMap.get(zone) ?? { count: 0, entryIds: [] };
+		bucket.count += 1;
+		bucket.entryIds.push(entry.entryId);
+		zoneMap.set(zone, bucket);
 		termAgg.set(termIndex, zoneMap);
 	}
 
@@ -413,13 +448,14 @@ function buildZoneDistributionByTerm(
 	const terms: Array<1 | 2 | 3 | 4> = [];
 	for (let term = 1; term <= highestTerm; term += 1) terms.push(term as 1 | 2 | 3 | 4);
 	return terms.map((termIndex) => {
-		const zoneMap = termAgg.get(termIndex) ?? new Map<string, number>();
-		const total = [...zoneMap.values()].reduce((sum, count) => sum + count, 0);
-		const byZone: Record<string, { count: number; percent: number }> = {};
-		for (const [zone, count] of zoneMap.entries()) {
+		const zoneMap = termAgg.get(termIndex) ?? new Map<string, { count: number; entryIds: string[] }>();
+		const total = [...zoneMap.values()].reduce((sum, bucket) => sum + bucket.count, 0);
+		const byZone: Record<string, { count: number; percent: number; entryIds: string[] }> = {};
+		for (const [zone, bucket] of zoneMap.entries()) {
 			byZone[zone] = {
-				count,
-				percent: total > 0 ? Math.round((count / total) * 10000) / 100 : 0,
+				count: bucket.count,
+				percent: total > 0 ? Math.round((bucket.count / total) * 10000) / 100 : 0,
+				entryIds: [...bucket.entryIds].sort(),
 			};
 		}
 		return { termIndex, total, byZone };
@@ -749,13 +785,22 @@ export async function triggerGenerationRun(
 			meta: warning.meta,
 		}));
 		const unassignedViolations: Violation[] = resolvedUnassignedItems.map((item) => {
-			const isSpecializedUnavailable = item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE';
+			// C07A: the violation code is derived from the OBSERVED failure cause, not
+			// from the room label alone. A missing subject / missing qualified
+			// faculty / workload refusal is never laundered into a SOFT specialized
+			// room warning; the room code requires both a room-path failure and the
+			// specialized-room authority recorded by the constructor.
+			const verdict = resolveUnassignedViolationCode(item);
+			const isSpecializedUnavailable = verdict.code === 'SPECIALIZED_ROOM_UNAVAILABLE';
+			const isLackingFaculty = verdict.code === 'LACKING_FACULTY';
 			return {
-				code: isSpecializedUnavailable ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION',
-				severity: isSpecializedUnavailable ? 'SOFT' : 'HARD',
+				code: verdict.code,
+				severity: verdict.severity,
 				message: isSpecializedUnavailable
 					? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in term ${item.termIndex} session ${item.session}.`
-					: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in term ${item.termIndex} session ${item.session}.`,
+					: isLackingFaculty
+						? `Section ${item.sectionId} subject ${item.subjectId} has no qualified faculty available in term ${item.termIndex} session ${item.session}.`
+						: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in term ${item.termIndex} session ${item.session}.`,
 				schoolId,
 				schoolYearId,
 				runId: run.id,
@@ -783,35 +828,46 @@ export async function triggerGenerationRun(
 			if (zoneRows.length === 0 || termZone.total === 0) return [];
 			const [zone, data] = zoneRows.reduce((max, current) => (current[1].percent > max[1].percent ? current : max));
 			if (data.percent <= 50) return [];
+			// C07A: the warning carries resolvable entities so the review surface can
+			// act on it. Previously it emitted `entities: {}` with no way to locate
+			// the affected sessions.
+			const zoneEntryIds = data.entryIds;
 			return [{
 				code: 'ZONE_IMBALANCE_WARNING',
 				severity: 'SOFT',
-				message: `Term ${termZone.termIndex} zone ${zone} has ${data.percent}% of scheduled entries, exceeding the 50% balancing threshold.`,
+				message: `Term ${termZone.termIndex} zone ${zone} has ${data.percent}% of scheduled entries (${zoneEntryIds.length} of ${termZone.total}), exceeding the 50% balancing threshold.`,
 				schoolId,
 				schoolYearId,
 				runId: run.id,
-				entities: {},
+				entities: { entryIds: [...zoneEntryIds] },
 				meta: {
 					termIndex: termZone.termIndex,
 					zone,
 					percent: data.percent,
 					total: termZone.total,
+					zoneEntryCount: data.count,
+					balancingThresholdPercent: 50,
+					nextAction: 'Rebalance the named sessions across campus zones for this ordered term, or accept the concentration explicitly.',
 				},
 			}];
 		});
+		// C07A: every injected violation obeys the same configured authority as the
+		// validator's own violations (disable-drop, allowlisted promotion, weight).
+		const injectedViolations = applyConstraintOverrides(
+			[...modularWarningViolations, ...unassignedViolations, ...zoneWarningViolations],
+			validatorCtx.constraintConfig,
+		);
 		const mergedViolationCounts = { ...validationResult.counts.byCode } as Record<string, number>;
-		for (const warning of [...modularWarningViolations, ...unassignedViolations, ...zoneWarningViolations]) {
+		for (const warning of injectedViolations) {
 			mergedViolationCounts[warning.code] = (mergedViolationCounts[warning.code] ?? 0) + 1;
 		}
 		const mergedValidationResult: ValidationResult = {
 			violations: [
 				...validationResult.violations,
-				...modularWarningViolations,
-				...unassignedViolations,
-				...zoneWarningViolations,
+				...injectedViolations,
 			],
 			counts: {
-				total: validationResult.counts.total + modularWarningViolations.length + unassignedViolations.length + zoneWarningViolations.length,
+				total: validationResult.counts.total + injectedViolations.length,
 				byCode: mergedViolationCounts as ValidationResult['counts']['byCode'],
 			},
 		};

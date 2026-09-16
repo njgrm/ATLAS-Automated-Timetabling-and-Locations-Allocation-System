@@ -47,6 +47,7 @@ import { normalizePersistedTermStructure } from './derived-demand.service.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { DEFAULT_CONSTRAINT_CONFIG, POLICY_DEFAULTS, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
+import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
 import {
 	readCanonicalClassProgramSlotsCoverage,
@@ -1285,6 +1286,26 @@ export function buildPreflightValidatorContext(
 ): ValidatorContext {
 	const policyRow = (assembly.policyRow ?? {}) as any;
 	const families = resolveWarningFamilyPolicy(policyRow);
+	// C07A: the same break-window + shift-window authority the validator reasons
+	// about, derived from the bound assembly (policy row, persisted special
+	// events, persisted grade shift windows, section roster). No new store.
+	const windowAuthority = buildWarningWindowAuthority({
+		sections: assembly.sectionsByGrade.flatMap((grade) =>
+			grade.sections.map((section) => ({
+				id: section.id,
+				gradeLevel: normalizeInternalGradeId(grade.gradeLevelId),
+				programType: (section as { programType?: string | null }).programType ?? null,
+			})),
+		),
+		policyRow,
+		specialEvents: (assembly.specialEvents ?? []) as any,
+		shiftWindows: ((assembly.gradeWindows ?? []) as any[]).map((window) => ({
+			gradeLevel: window.gradeLevel,
+			programType: window.programType ?? null,
+			startTime: window.startTime,
+			endTime: window.endTime,
+		})),
+	});
 	return {
 		schoolId: assembly.scope.schoolId,
 		schoolYearId: assembly.scope.schoolYearId,
@@ -1329,6 +1350,9 @@ export function buildPreflightValidatorContext(
 		},
 		buildings: assembly.buildings,
 		roomBuildings: assembly.rooms.map((r: any) => ({ roomId: r.id, buildingId: r.buildingId })),
+		breakWindows: windowAuthority.breakWindows,
+		shiftWindows: windowAuthority.shiftWindows,
+		sectionScope: windowAuthority.sectionScope,
 		constraintConfig: {
 			...DEFAULT_CONSTRAINT_CONFIG,
 			...(policyRow.constraintConfig as Record<string, { enabled: boolean; weight: number; treatAsHard: boolean }> ?? {}),
