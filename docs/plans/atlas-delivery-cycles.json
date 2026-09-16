@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T04:49:18.116Z",
+    "lastUpdatedAt": "2026-09-16T04:50:16.194Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 150
+    "revision": 151
   },
   "coordination": {
     "mode": "MANUAL",
@@ -3650,6 +3650,145 @@
           "decision": "FRESH_REQUIRED",
           "sessionId": null,
           "reason": "the activated cycle requires a fresh Wave Completion Auditor over the corrected final tree"
+        }
+      }
+    },
+    {
+      "id": "WF-SEED-INVENTORY-C02",
+      "kind": "CYCLE",
+      "objective": "Retire the exact evolving stream-inventory equality pin in ops/workflow/__tests__/seed.test.mjs and replace it with a generic, mutation-verified contract: an immutable five-stream core baseline, no literal enumeration of the live inventory, production-verifier mutation coverage of uniqueness/schema/state/Git-identity/audit/receipt/lease/remote-observation invariants for every registered stream, a failing-first regression that adds a well-formed stream through the real create-stream operation on a cloned registry, and negative mutants for malformed/duplicate/field-incomplete newly created streams. No product, client, server, prisma or runtime file changes; no deployment, database, generation or publication action.",
+      "riskTier": "MEDIUM",
+      "state": "RUNNING",
+      "stateUpdatedAt": "2026-09-16T04:50:16.194Z",
+      "nextAction": "Replay the WF-SEED-INVENTORY-C02 lifecycle on the released register: record the executor return (candidate byte-identical replay of 11c8bdbf), then QA ACCEPT_READY 18/18/0/0, integrate, run the fresh Wave Completion Auditor, and close with the receipt.",
+      "awaited": [
+        "planner records the executor return and the fresh QA acceptance for the replayed candidate"
+      ],
+      "running": [
+        "planner: replaying the accepted WF-SEED-INVENTORY-C02 lifecycle on the refreshed integration boundary"
+      ],
+      "git": {
+        "worktree": "E:/ATLAS-worktrees/wf-seed-inventory-c02",
+        "branch": "work/wf-seed-inventory-c02",
+        "baseSha": "2530f45b92d3fe1e5ae42df04170c1616d064f34",
+        "candidateSha": null,
+        "integrationSha": null,
+        "changedPaths": [],
+        "remoteObservation": {
+          "ref": "refs/remotes/origin/main",
+          "sha": "53d228a3bbdbc0433e777084da5c491b122bc439",
+          "observedAt": "2026-09-16T04:50:16.194Z",
+          "kind": "REMOTE_TRACKING_REF"
+        }
+      },
+      "owners": {
+        "planner": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "executor": {
+          "sessionId": null,
+          "status": "IDLE",
+          "writable": true
+        },
+        "qa": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        },
+        "auditor": {
+          "sessionId": null,
+          "status": "NONE",
+          "writable": false
+        }
+      },
+      "gates": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "unperformed": 0,
+        "plan": {
+          "MANDATORY_SOURCE": 18,
+          "MANDATORY_LIVE": 0,
+          "DEFERRED_EXTERNAL": 0
+        },
+        "classes": {
+          "MANDATORY_SOURCE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "MANDATORY_LIVE": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          },
+          "DEFERRED_EXTERNAL": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "blocked": 0,
+            "unperformed": 0
+          }
+        }
+      },
+      "review": {
+        "qaVerdict": null,
+        "qaSessionId": null,
+        "auditorVerdict": null,
+        "auditorSessionId": null,
+        "auditRequired": true,
+        "qaRounds": []
+      },
+      "corrections": [],
+      "successors": [],
+      "requires": [],
+      "blocker": {
+        "kind": "NONE",
+        "detail": "",
+        "safeWorkRemaining": false,
+        "safeWorkItems": []
+      },
+      "approval": {
+        "required": false,
+        "presentedReady": false,
+        "granted": false,
+        "operatorIdentity": null,
+        "approvedAt": null,
+        "boundary": null,
+        "approvedActions": [],
+        "requiredObservationIds": [],
+        "execution": null
+      },
+      "observations": [],
+      "artifacts": [],
+      "closure": null,
+      "sessionRouting": {
+        "planner": {
+          "decision": "EXISTING",
+          "sessionId": null,
+          "reason": "the primary planner owns the packet, verification, integration and closure; the harness exposed no session id, so none is asserted."
+        },
+        "executor": {
+          "decision": "EXISTING",
+          "sessionId": "ses_f57a58405ffedk69Vejj4fqUY0",
+          "reason": "the bounded seed-contract rewrite ran in one fresh executor context on the cycle worktree and returned REVIEW_REQUIRED; the accepted content was replayed byte-identically onto the refreshed boundary."
+        },
+        "qa": {
+          "decision": "EXISTING",
+          "sessionId": "ses_f579612f2ffevkg7Cu5WFM7IC6",
+          "reason": "one fresh independent QA reviewed the accepted candidate content and return ACCEPT_READY 18/18/0/0; the replayed blobs are byte-identical."
+        },
+        "auditor": {
+          "decision": "FRESH_REQUIRED",
+          "sessionId": null,
+          "reason": "the integrated wave requires a fresh adversarial audit context."
         }
       }
     }
