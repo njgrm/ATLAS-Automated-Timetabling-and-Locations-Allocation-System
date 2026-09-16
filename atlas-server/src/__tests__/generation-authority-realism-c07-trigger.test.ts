@@ -570,6 +570,43 @@ test('B1 F1b. a persisted special-event change between the captured snapshot and
 	assert.equal(harness.updateOf('FAILED')?.args?.data?.status, 'FAILED', 'the pre-existing FAILED finalization is asserted explicitly');
 });
 
+// ─── B2: persisted-shape Flag/HGP containment at the trigger boundary ───────
+
+test('B2 F2. a persisted Flag/HGP window not contained by exactly one canonical CLASS row blocks the real trigger with FLAG_CEREMONY_SCOPE_INVALID and zero writes', async () => {
+	const persistedFlag = (startTime: string, endTime: string) => ({
+		id: 1, schoolId: SCHOOL_ID, schoolYearId: SCHOOL_YEAR_ID, eventType: 'FLAG_OR_HGP', label: 'Flag Ceremony / HGP',
+		gradeGroup: null, programType: null, startTime, endTime, enabled: true, sortOrder: 1,
+	});
+
+	for (const window of [
+		{ startTime: '07:00', endTime: '08:00', case: 'spans two canonical CLASS rows' },
+		{ startTime: '05:00', endTime: '05:45', case: 'contained by no canonical CLASS row (zero-row case)' },
+	]) {
+		const harness = buildTriggerClient({ specialEventRows: [persistedFlag(window.startTime, window.endTime)] });
+		await assert.rejects(trigger(harness.client), (error: any) => {
+			assert.equal(error.code, 'GENERATION_PREFLIGHT_BLOCKED', `${window.case}: expected the preflight gate to block`);
+			const codes = (error.details?.blockers ?? []).map((blocker: { code: string }) => blocker.code);
+			assert.ok(codes.includes('FLAG_CEREMONY_SCOPE_INVALID'), `${window.case}: saw ${codes.join(', ')}`);
+			const blocker = (error.details?.blockers ?? []).find((entry: { code: string }) => entry.code === 'FLAG_CEREMONY_SCOPE_INVALID');
+			assert.equal(blocker.owningSurface, 'Scheduling policy / special events');
+			assert.ok(String(blocker.nextAction ?? '').length > 0);
+			return true;
+		});
+		assert.deepEqual(harness.sequence(), [], `${window.case}: a blocked preflight performs zero writes`);
+	}
+
+	// Positive control: the same persisted-shape row at the contained window
+	// (07:00-07:30 is contained by the canonical CLASS row 06:45-07:30) completes.
+	const contained = buildTriggerClient({ specialEventRows: [persistedFlag('07:00', '07:30')] });
+	await trigger(contained.client);
+	const payload = contained.completedPayload();
+	assert.ok(payload, 'a contained persisted Flag/HGP window must stay ready');
+	assert.equal(
+		contained.auditActions().includes('GENERATION_RUN_COMPLETED'), true,
+		'the contained window completes through the real trigger',
+	);
+});
+
 // ─── C07-S10: the declared getRunDraft / getLatestRunDraft inputState surface ───
 
 test('C07-S10. getRunDraft / getLatestRunDraft report a changed availability authority as STALE and a below-current snapshot as version-mismatch stale, with zero writes', async () => {
