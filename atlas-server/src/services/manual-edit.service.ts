@@ -16,7 +16,8 @@ import {
 } from './constraint-validator.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { resolveSchedulingPolicyForRead, DEFAULT_CONSTRAINT_CONFIG, computeEffectiveWeeklyTeachingMinutes, resolveWarningFamilyPolicy } from './scheduling-policy.service.js';
-import { buildWarningWindowAuthority } from './warning-window-authority.service.js';
+import { buildWarningWindowAuthority, type CanonicalSlotWindowSource, type GradeShiftWindowSource, type WarningWindowAuthority, type WarningWindowPolicyRow } from './warning-window-authority.service.js';
+import type { SpecialEventRowLike } from '../lib/policy-special-events.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
 import type { SectionsByGrade } from './section-adapter.js';
@@ -209,7 +210,7 @@ export async function loadRunContext(
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
 	const unassignedItems = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
 
-	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot, policySpecialEvents, gradeShiftWindows] = await Promise.all([
+	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot, policySpecialEvents, gradeShiftWindows, classProgramSlots] = await Promise.all([
 		client.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true },
@@ -269,6 +270,14 @@ export async function loadRunContext(
 			where: { schoolId, schoolYearId },
 			select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
 		}),
+		// SLOT-BREAK-AUTHORITY-C11: the canonical class-program grid is the
+		// break-window and shift-bound authority for every scope that has rows.
+		// Read-only; the same source the generation preflight consumes.
+		client.classProgramSlot.findMany({
+			where: { schoolId, schoolYearId, isActive: true },
+			select: { gradeLevel: true, programType: true, startTime: true, endTime: true, rowKind: true, subjectLabel: true, dayOfWeek: true },
+			orderBy: [{ gradeLevel: 'asc' }, { startTime: 'asc' }],
+		}),
 	]);
 
 	// Build name lookup maps
@@ -308,6 +317,10 @@ export async function loadRunContext(
 		policyRow: policyRecord,
 		specialEvents: policySpecialEvents,
 		shiftWindows: gradeShiftWindows,
+		// SLOT-BREAK-AUTHORITY-C11: canonical rows own the breaks and shift
+		// bounds for their scope; the policy/special-event path remains the
+		// fallback for scopes with no canonical rows.
+		classProgramSlots,
 	});
 
 	return {
@@ -327,6 +340,10 @@ export async function loadRunContext(
 		sectionEnrollment,
 		sectionGradeLevel,
 		windowAuthority,
+		// SLOT-BREAK-AUTHORITY-C11: the canonical grid backing `windowAuthority`
+		// is returned so a caller that rebuilds the authority can do so from the
+		// same source snapshot instead of assuming no breaks exist.
+		classProgramSlots,
 	};
 }
 
@@ -444,6 +461,49 @@ export function assertRunIsEditable(summary: unknown): void {
 	throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Published repairs require the Prompt 6 revision workflow before changes can take effect.');
 }
 
+/**
+ * SLOT-BREAK-AUTHORITY-C11 — resolve the manual-edit break/shift window
+ * authority.
+ *
+ * `loadRunContext` always derives the authority from the persisted policy row,
+ * special-event rows, shift windows, and canonical class-program grid, so the
+ * fallback below is normally unreachable in production. It used to fall back to
+ * a literal `{ breakWindows: [], shiftWindows: [], sectionScope: new Map() }`,
+ * which silently meant "no breaks exist" and let every configured break count
+ * as teachable time.
+ *
+ * This resolver fails CLOSED: it re-derives the authority from the persisted
+ * sources it can see, and throws a typed `WINDOW_AUTHORITY_UNAVAILABLE` when no
+ * authority can be resolved at all — never a silent empty window set.
+ */
+export function resolveManualWindowAuthority(
+	refData: Awaited<ReturnType<typeof loadRunContext>>,
+): WarningWindowAuthority {
+	if (refData.windowAuthority) return refData.windowAuthority;
+
+	const persisted = refData as unknown as {
+		policyRecord?: WarningWindowPolicyRow | null;
+		sectionGradeLevel?: ReadonlyMap<number, number> | null;
+		classProgramSlots?: readonly CanonicalSlotWindowSource[] | null;
+		specialEvents?: SpecialEventRowLike[] | null;
+		gradeWindows?: GradeShiftWindowSource[] | null;
+	};
+	if (!persisted.policyRecord) {
+		throw err(
+			500,
+			'WINDOW_AUTHORITY_UNAVAILABLE',
+			'Manual-edit validation cannot resolve the break/shift window authority: no authority was supplied and no persisted scheduling policy row exists to derive it from.',
+		);
+	}
+	return buildWarningWindowAuthority({
+		sections: [...(persisted.sectionGradeLevel?.entries() ?? [])].map(([id, gradeLevel]) => ({ id, gradeLevel, programType: null })),
+		policyRow: persisted.policyRecord,
+		specialEvents: persisted.specialEvents ?? null,
+		shiftWindows: persisted.gradeWindows ?? null,
+		classProgramSlots: persisted.classProgramSlots ?? [],
+	});
+}
+
 export function buildValidatorCtx(
 	schoolId: number,
 	schoolYearId: number,
@@ -453,7 +513,7 @@ export function buildValidatorCtx(
 ): ValidatorContext {
 	const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings, sectionEnrollment } = refData;
 	const families = resolveWarningFamilyPolicy(policyRecord);
-	const windowAuthority = refData.windowAuthority ?? { breakWindows: [], shiftWindows: [], sectionScope: new Map() };
+	const windowAuthority = resolveManualWindowAuthority(refData);
 	return {
 		schoolId,
 		schoolYearId,
