@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T05:39:17.566Z",
+    "lastUpdatedAt": "2026-09-16T05:54:02.254Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 168
+    "revision": 171
   },
   "coordination": {
     "mode": "MANUAL",
     "activeCycleId": null,
-    "globalNextAction": "AUTHZ-CLASS-TEMPLATE-C07 / C07R1 CLOSED: the class-template authority correction is COMPLETE. Round-1 candidate 19f21729 was integrated at f5731fc7 and its Wave Completion Auditor returned CORRECTION_REQUIRED (preserved as historical); the corrected round C07R1 (candidate dd8faf6b over base 19f21729, integration d15be919, still an ancestor of the observed tip) passed fresh QA ACCEPT_READY 12/12/0/0/0 and a fresh Wave Completion Auditor AUDIT_CLEAR 12/12/0/0/0, is closed COMPLETE with receipt docs/plans/receipts/authz-class-template-c07r1.receipt.json, and is pushed. workflow:test was green 287/287 on the first clean run from the cycle integration worktree. Capsules: docs/reviews/authz-class-template-c07/wave-completion-audit.md (labelled reconstruction, historical) and docs/reviews/authz-class-template-c07r1/wave-completion-audit.md. REGISTER CUSTODY RELEASED to GENERATION-AUTHORITY-REALISM-C07: this planner holds no lock, no ACTIVE lease and no open stream, and both class cycle worktrees are retired non-forced with branches preserved. STILL LOCKED: AUTHZ-CLASS-TEMPLATE-LIVE (HIGH deployment of the corrected authority, because the live release 54dce67b still serves the pre-fix unauthenticated cross-tenant write-on-read route, deployed router blob 2b77bbee) has no packet, no approval and no grant. TERM-CACHE-CATCHUP-APPLY-2026-09-14: operator ACKNOWLEDGED the F2 deviation (2026-09-16) and directed that the persisted term authority be RETAINED. Not retroactive authorization and NOT precedent: a divergence from an approved pre-state comparison is a STOP condition (PLANNER_DECISION_REQUIRED), not a planner judgement call. No rollback, replay, second login or further live mutation is authorized. No rollback was performed; the reviewed rollback trigger was not reached. Term-cache register custody RELEASED by the operator; the executed-but-not-closable machine-state limitation (no supported transition from HIGH_APPROVAL_REQUIRED to ACCEPTED/INTEGRATED for an executed HIGH action) remains recorded pending a workflow transition correction. RETAINED DATA: mirror 223 school 1 / year 9 carries term_contract_cache (semanticRevision a51b62a2..., TRIMESTER T1/T2/T3) and term_contract_cached_at 2026-09-16T03:59:21.236Z; audit 796 LOCAL_LOGIN_SUCCESS, 797 TERM_CACHE_SYNC_APPLIED. Authoritative stream record: docs/reviews/term-cache-catchup-apply-20260914/apply-execution-evidence.md sections 10-11. NEXT ORDINARY WORK: bounded TERM-AUTHORITY-STALE-C07 source correction at atlas-server/src/services/generation-preflight.service.ts:636-637 with a failing-first control, then fresh QA. STILL LOCKED: generation, publication, migrations 0002_companion_sso_code + 0003_teacher_program_presentation, deployment/restart/env change, Teaching Load apply, rollover sync/archive."
+    "globalNextAction": "NEXT ORDINARY WORK: none required by GENERATION-AUTHORITY-REALISM-C07R1 (closed COMPLETE; the bounded TERM-AUTHORITY-STALE correction is delivered by its B3 finding). TERM-CACHE-CATCHUP-APPLY executed successfully at main ancestor 818439c2 and its valid write is retained; mirror 223 holds the reviewed ordered T1/T2/T3 authority; no second apply, replay, rollback, or login is authorized. Live generation, publication, deployment, migration, term-cache, and Teaching Load actions remain LOCKED behind separate HIGH approvals."
   },
   "streams": [
     {
@@ -3949,12 +3949,10 @@
       "kind": "CYCLE",
       "objective": "Correction-cycle closure of GENERATION-AUTHORITY-REALISM-C07 (historical INTEGRATED round preserved): accept the frozen R3 candidate c12c28ed that binds persisted policy_special_events into the generation freshness policy domain with enabled-agnostic digest plus count/max-id/max-updated signals (B1), re-evidences C07-S04 on the reachable persisted-shape Flag/HGP containment rejection and re-captions the non-Monday predicate as forward compatibility (B2), removes the cross-namespace TERM_AUTHORITY_STALE comparison so both authority reads pass through one shared deterministic canonical term-authority revision helper with concurrent-change detection and zero-write fail-closed paths (B3), and shares the label-aware day predicate (optional N2). No live, schema, deployment, generation, publication, migration, or data action.",
       "riskTier": "MEDIUM",
-      "state": "INTEGRATED",
-      "stateUpdatedAt": "2026-09-16T05:39:17.566Z",
+      "state": "COMPLETE",
+      "stateUpdatedAt": "2026-09-16T05:54:02.254Z",
       "nextAction": "Commission exactly one fresh Wave Completion Auditor over the corrected integrated wave (candidate c12c28ed, integration merge be2d99a9, main 03dc9880); re-verify the B1 policy_special_events freshness invalidation, B2 reachable Flag/HGP containment, B3 unchanged mirror-223 cache with no TERM_AUTHORITY_STALE, changed-between-reads stale, JSON-key-order invariance, and zero-write blocker paths. Close only on AUDIT_CLEAR; every live/HIGH action stays locked, and live generation or publication must not be treated as unlocked merely because source R3 is accepted.",
-      "awaited": [
-        "fresh Wave Completion Auditor"
-      ],
+      "awaited": [],
       "running": [],
       "git": {
         "worktree": "E:/ATLAS-worktrees/generation-authority-realism-c07",
@@ -4014,8 +4012,8 @@
           "writable": false
         },
         "auditor": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f57457fe4ffeZ4UhGZkOQG6yVR",
+          "status": "RETURNED",
           "writable": false
         }
       },
@@ -4057,8 +4055,8 @@
       "review": {
         "qaVerdict": "ACCEPT_READY",
         "qaSessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J",
-        "auditorVerdict": null,
-        "auditorSessionId": null,
+        "auditorVerdict": "AUDIT_CLEAR",
+        "auditorSessionId": "ses_f57457fe4ffeZ4UhGZkOQG6yVR",
         "auditRequired": true,
         "qaRounds": [
           {
@@ -4076,8 +4074,8 @@
           "reason": "R3 correction: B1 policy_special_events freshness binding (enabled-agnostic digest + count/max-id/max-updated signals); B2 reachable persisted-shape Flag/HGP containment evidence with the non-Monday predicate re-captioned as forward compatibility; B3 removal of the cross-namespace TERM_AUTHORITY_STALE comparison so both authority reads pass through one shared deterministic canonical revision helper with concurrent-change detection and zero-write fail-closed paths; optional N2 shared label-aware day predicate.",
           "qaVerdict": "ACCEPT_READY",
           "qaSessionId": "ses_f57593b13ffeEM8Q8iUAkv0z0J",
-          "auditorVerdict": null,
-          "auditorSessionId": null
+          "auditorVerdict": "AUDIT_CLEAR",
+          "auditorSessionId": "ses_f57457fe4ffeZ4UhGZkOQG6yVR"
         }
       ],
       "successors": [],
@@ -4104,7 +4102,12 @@
       },
       "observations": [],
       "artifacts": [],
-      "closure": null,
+      "closure": {
+        "receipt": {
+          "path": "docs/plans/receipts/generation-authority-realism-c07r1.receipt.json",
+          "sha256": "f44b71e7fa5aab11be67ad435002fc9ffd244bf7fdcad5d322e7f0cded947b66"
+        }
+      },
       "sessionRouting": {
         "planner": {
           "decision": "EXISTING",
