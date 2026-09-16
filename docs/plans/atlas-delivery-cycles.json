@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T21:36:33.366Z",
-    "lastUpdatedBy": "primary-planner:faculty-sync-cas-c01",
-    "revision": 244
+    "lastUpdatedAt": "2026-09-16T21:39:27.633Z",
+    "lastUpdatedBy": "primary-planner:slot-break-c11-qa-accept",
+    "revision": 245
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -5361,11 +5361,11 @@
       "kind": "STREAM",
       "objective": "Make the canonical classProgramSlot grid the effective break-window and shift-bound authority for every (gradeLevel, programType) scope that has canonical rows, replacing the retired persisted policy lunch window (11:55-12:55) with the canonical per-grade breaks (Grades 7-8 Health 09:00-09:15 and Lunch 12:15-13:00; Grades 9-10 Lunch 12:15-13:00 and Health 15:15-15:30); close the manual-edit absent-authority fail-open; extend the policy-row-only Flag/HGP path with the single-canonical-CLASS-row snap validation; and cover classProgramSlot in the generation consumed-input fingerprint. Source and tests only.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T21:28:42.302Z",
-      "nextAction": "Commission one fresh independent QA over the frozen candidate range 16e70be2..34c550df (6 paths), then integrate on integration/slot-break-authority-c11-20260917 and run one fresh Wave Completion Auditor.",
+      "state": "ACCEPT_READY",
+      "stateUpdatedAt": "2026-09-16T21:39:27.633Z",
+      "nextAction": "Integrate the accepted candidate 34c550df onto origin/main, run combined gates, then commission one fresh Wave Completion Auditor.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "planner validates the immutable range and integration boundary"
       ],
       "running": [],
       "git": {
@@ -5401,8 +5401,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f53df6659ffeVDu1Pd7H207aMy",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -5412,8 +5412,8 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 12,
+        "passed": 12,
         "failed": 0,
         "blocked": 0,
         "unperformed": 0,
@@ -5424,8 +5424,8 @@
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 12,
+            "passed": 12,
             "failed": 0,
             "blocked": 0,
             "unperformed": 0
@@ -5447,12 +5447,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "ACCEPT_READY",
+        "qaSessionId": "ses_f53df6659ffeVDu1Pd7H207aMy",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": true,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "ACCEPT_READY",
+            "sessionId": "ses_f53df6659ffeVDu1Pd7H207aMy"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
