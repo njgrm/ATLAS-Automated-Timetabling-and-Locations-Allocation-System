@@ -1,9 +1,9 @@
 {
   "contractVersion": "1.2.0",
   "registry": {
-    "lastUpdatedAt": "2026-09-16T07:42:06.115Z",
+    "lastUpdatedAt": "2026-09-16T10:35:08.017Z",
     "lastUpdatedBy": "head-planner",
-    "revision": 183
+    "revision": 184
   },
   "coordination": {
     "mode": "CYCLE_ACTIVE",
@@ -4284,11 +4284,11 @@
       "kind": "STREAM",
       "objective": "Lane A of TT-WARNING-REALISM-C07R1 (parent cycle). Server warning authority and count realism: emit FACULTY_CONSECUTIVE_LIMIT_EXCEEDED once per violating contiguous teaching block (not once per member) with a period/slot-aligned configurable default that allows the canonical three consecutive 45-minute periods (135 min) before warning; make FACULTY_EXCESSIVE_IDLE_GAP exclude configured Health Break and Lunch windows and count only genuine unscheduled gaps inside the teacher's applicable shift (never cross-shift or outside-shift time); reconcile FACULTY_BREAK_REQUIREMENT_VIOLATED with the consecutive rule so a canonical break equality resets the block; retire unreachable vacant/overcompressed/early-late preference families unless a real operator control and production consumer exist; remove every producer/config/display residue of FACULTY_EXCESSIVE_TRAVEL_DISTANCE; keep truthful cross-building, insufficient-transition-buffer and cross-floor adjacency rules based on building identity, floors, chronological adjacency and available transition time; stop missing subject/qualified faculty from being reported as SPECIALIZED_ROOM_UNAVAILABLE; keep ROOM_CAPACITY_EXCEEDED SOFT and never a hard blocker; give LACKING_FACULTY and INCOMPLETE_MODULAR_GROUP truthful severity and actionable authority; make ZONE_IMBALANCE_WARNING carry resolvable entities/actions or retire it; and keep identical code/severity/entity results across generation, manual edit, Quick Place, pre-generation placement, sync/setup and publication-readiness recomputation. No live, schema, generation, publication, deployment or HIGH action.",
       "riskTier": "MEDIUM",
-      "state": "REVIEW_REQUIRED",
-      "stateUpdatedAt": "2026-09-16T07:41:42.768Z",
-      "nextAction": "Lane A candidate frozen; planner validates and dispatches fresh independent QA.",
+      "state": "DECISION_REQUIRED",
+      "stateUpdatedAt": "2026-09-16T10:35:08.017Z",
+      "nextAction": "Planner resolved the split-threshold decision: the persisted 120 is the retired legacy constant, so one canonical period-aligned resolver must govern validator, schedule constructor, and policy read/display. Correction R1 packet authored at docs/prompts/tt-warning-count-c07a-correction-r1-2026-09-16.md; dispatch blocked by subagent transport failure.",
       "awaited": [
-        "fresh independent QA over the frozen candidate"
+        "operator/planner decision"
       ],
       "running": [],
       "git": {
@@ -4327,8 +4327,8 @@
           "writable": false
         },
         "qa": {
-          "sessionId": null,
-          "status": "NONE",
+          "sessionId": "ses_f56a6c269ffe8qnRwvdH6kXiZ9",
+          "status": "RETURNED",
           "writable": false
         },
         "auditor": {
@@ -4338,22 +4338,22 @@
         }
       },
       "gates": {
-        "total": 0,
-        "passed": 0,
+        "total": 16,
+        "passed": 15,
         "failed": 0,
-        "blocked": 0,
+        "blocked": 1,
         "unperformed": 0,
         "plan": {
-          "MANDATORY_SOURCE": 10,
+          "MANDATORY_SOURCE": 16,
           "MANDATORY_LIVE": 0,
           "DEFERRED_EXTERNAL": 0
         },
         "classes": {
           "MANDATORY_SOURCE": {
-            "total": 0,
-            "passed": 0,
+            "total": 16,
+            "passed": 15,
             "failed": 0,
-            "blocked": 0,
+            "blocked": 1,
             "unperformed": 0
           },
           "MANDATORY_LIVE": {
@@ -4373,12 +4373,18 @@
         }
       },
       "review": {
-        "qaVerdict": null,
-        "qaSessionId": null,
+        "qaVerdict": "PLANNER_DECISION_REQUIRED",
+        "qaSessionId": "ses_f56a6c269ffe8qnRwvdH6kXiZ9",
         "auditorVerdict": null,
         "auditorSessionId": null,
         "auditRequired": false,
-        "qaRounds": []
+        "qaRounds": [
+          {
+            "round": 1,
+            "verdict": "PLANNER_DECISION_REQUIRED",
+            "sessionId": "ses_f56a6c269ffe8qnRwvdH6kXiZ9"
+          }
+        ]
       },
       "corrections": [],
       "successors": [],
