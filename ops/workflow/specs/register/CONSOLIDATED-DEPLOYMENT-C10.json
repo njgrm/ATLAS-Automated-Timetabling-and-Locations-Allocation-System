@@ -58,8 +58,8 @@
   "successors": [],
   "requires": [],
   "blocker": {
-    "kind": "DEPENDENCY",
-    "detail": "Dependency-blocked until MIG-APPLY-0002-0003 applies and SLOT-BREAK-AUTHORITY-C11 and WF-C10-TRANSITION-GUARD-HARDENING integrate. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only.",
+    "kind": "APPROVAL",
+    "detail": "Approval-gated HIGH action. The binding gate is the operator's exact approval sentence, which is returned only after one fresh independent pre-action review passes. It also depends on MIG-APPLY-0002-0003 applying and on SLOT-BREAK-AUTHORITY-C11 and WF-C10-TRANSITION-GUARD-HARDENING integrating. FACULTY-SYNC-PUBLICATION-CAS-C01 is NOT a prerequisite for this action (zero published revisions exist); it is required before publication only. Kind is APPROVAL rather than DEPENDENCY because the contract forbids DEPENDENCY blockers that carry safe work, and this stream legitimately has safe work remaining.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
       "author the deployment packet and stream spec (done)",

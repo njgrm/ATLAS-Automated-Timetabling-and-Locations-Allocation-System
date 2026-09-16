@@ -3,13 +3,16 @@
   "kind": "STREAM",
   "objective": "Make the machine register able to record HIGH gates and stale directives truthfully: add record-approval and record-execution with the HIGH_APPROVAL_REQUIRED exit, a directive-copy fail-closed check, a packet-artifact pin lint, and LF-normalized dependency-tree identity. Verify (do not re-implement) the WF-C09 R2 register revision-window reservation. No product source, runtime, database, or companion change.",
   "riskTier": "MEDIUM",
-  "state": "PLANNED",
+  "state": "RUNNING",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
-  "nextAction": "After WF-TRANSITION-TERMINAL-RECONCILE-C09 releases its register revision window, register this stream atomically, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/wf-c10-transition-guards against docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md.",
+  "nextAction": "Register this stream atomically at the then-current CAS revision with create-stream --lease-id lease-wf-c10-transition-guards --lease-role executor (the WF-TRANSITION-TERMINAL-RECONCILE-C09 window 218-227 is released and that dependency is satisfied), then dispatch one fresh source executor in E:/ATLAS-worktrees/wf-c10-transition-guards against docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md.",
   "awaited": [
-    "WF-TRANSITION-TERMINAL-RECONCILE-C09 reaching a terminal state (or releasing its register revision window 218-227), which is the registration prerequisite"
+    "executor REVIEW_REQUIRED return for the WF-C10-TRANSITION-GUARD-HARDENING candidate",
+    "fresh independent QA over the frozen candidate"
   ],
-  "running": [],
+  "running": [
+    "executor implementation session on branch work/wf-c10-transition-guard-hardening (packet docs/prompts/wf-c10-transition-guard-hardening-2026-09-17.md)"
+  ],
   "git": {
     "worktree": "E:/ATLAS-worktrees/wf-c10-transition-guards",
     "branch": "work/wf-c10-transition-guard-hardening",
@@ -54,8 +57,8 @@
   "successors": [],
   "requires": [],
   "blocker": {
-    "kind": "DEPENDENCY",
-    "detail": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is RUNNING and holds register revisions 218-227 by literal --expect-revision attestation. This stream must not register inside that window.",
+    "kind": "NONE",
+    "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is INTEGRATED at origin/main f037e114 and its register revision window 218-227 is released. No dependency or approval blocker remains; this stream is RUNNING and is backed by the ACTIVE lease created atomically at registration.",
     "safeWorkRemaining": true,
     "safeWorkItems": [
       "author the packet and stream spec (done)",

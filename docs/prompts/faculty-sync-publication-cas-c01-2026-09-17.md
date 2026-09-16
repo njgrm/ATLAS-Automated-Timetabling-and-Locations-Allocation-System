@@ -284,11 +284,11 @@ with zero residue. Do not edit the living register,
 `docs/plans/atlas-delivery-cycles.json`, `phasePlan.md`, or `CHANGELOG.md`. **In
 particular, do not write to `docs/plans/atlas-delivery-cycles.json` or
 `docs/plans/atlas-active-delivery-streams.generated.md` for any reason:** the
-concurrent `WF-TRANSITION-TERMINAL-RECONCILE-C09` cycle is executing a
-revision-exact seven-step register repair on the same document authority and
-must be able to attest that the register changed only through its transitions at
-revisions 218–225. Every register write for this cycle is owned by the primary
-planner and is CAS-serialized behind that window. Do not
+`WF-TRANSITION-TERMINAL-RECONCILE-C09` cycle executed a revision-exact nine-step
+register repair on the same document authority (base revision 218, declared
+revision window 218–227, planner lifecycle through 233) and has closed its window
+by reaching `INTEGRATED`. Every register write for this cycle is owned by the
+primary planner and is CAS-serialized. Do not
 modify `publication-contract.service.ts`. Do not add validators, frameworks, or
 documentation beyond the one progress ledger.
 

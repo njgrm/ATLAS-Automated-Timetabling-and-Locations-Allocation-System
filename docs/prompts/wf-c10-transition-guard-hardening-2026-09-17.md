@@ -156,9 +156,25 @@ successors. Corrections are additive commits; never amend, rebase, or force-push
 ## 8. Registration annex
 
 Register only after `WF-TRANSITION-TERMINAL-RECONCILE-C09` is terminal or its
-window is released. Sequence: `create-stream` (spec
-`ops/workflow/specs/register/WF-C10-TRANSITION-GUARD-HARDENING.json`) →
-`lease-update --stream WF-C10-TRANSITION-GUARD-HARDENING --lease-id
-lease-wf-c10-transition-guards --lease-state ACTIVE --lease-role executor` →
-`coordination-update`. Re-read `registry.revision` immediately before every
-transition; on any `--expect-revision` disagreement stop and report, never guess.
+window is released. Sequence: `create-stream` with the ACTIVE lease created in the
+**same atomic transition** — a `PLANNED` record may not hold an `ACTIVE` lease
+(`PLANNED_WITH_LIVE_LEASE`), `lease-update` never changes a stream's state, and
+`create-stream` refuses lease flags unless the spec's state is `RUNNING`:
+
+```
+node ops/workflow/transition.mjs --transition create-stream \
+  --state docs/plans/atlas-delivery-cycles.json --expect-revision <R> \
+  --stream-spec ops/workflow/specs/register/WF-C10-TRANSITION-GUARD-HARDENING.json \
+  --observed-origin-main <origin/main tip> \
+  --lease-id lease-wf-c10-transition-guards --lease-role executor \
+  --by primary-planner:wf-c10-registration
+```
+
+then `coordination-update --mode CYCLE_ACTIVE --active-cycle-id
+WF-C10-TRANSITION-GUARD-HARDENING --by primary-planner:wf-c10-registration`
+(the window/holder rule requires the holder identity for document-scoped
+transitions while a reservation is held). Re-read `registry.revision` immediately
+before every transition; on any `--expect-revision` disagreement stop and report,
+never guess. The spec in this repository is already `RUNNING` with a populated
+`running[]` and `blocker.kind: "NONE"`; a `DEPENDENCY` blocker may not carry safe
+work, which is why the satisfied dependency is recorded in `detail` instead.

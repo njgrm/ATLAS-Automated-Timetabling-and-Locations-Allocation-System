@@ -136,10 +136,25 @@ Additive commits only; never amend, rebase, or force-push. `REVIEW_REQUIRED` onl
 
 ## 8. Registration annex
 
-Register only after `WF-TRANSITION-TERMINAL-RECONCILE-C09` releases its register
-window. Sequence: `create-stream` (spec
-`ops/workflow/specs/register/SLOT-BREAK-AUTHORITY-C11.json`) → `lease-update
---stream SLOT-BREAK-AUTHORITY-C11 --lease-id lease-slot-break-authority-c11
---lease-state ACTIVE --lease-role executor` → `coordination-update`. Re-read
-`registry.revision` immediately before every transition; on any
+Register at dispatch time, not in advance. `WF-TRANSITION-TERMINAL-RECONCILE-C09`
+is terminal and its register window is released, so the only remaining constraint
+is the lifecycle contract: a `PLANNED` record may not hold an `ACTIVE` lease
+(`PLANNED_WITH_LIVE_LEASE`), `lease-update` never changes a stream's state, and
+`create-stream` refuses lease flags unless the spec's state is `RUNNING`. When
+this stream's dispatch is authorized, set the spec's `state` to `RUNNING` with a
+populated `running[]`, set `blocker.kind` to `NONE` (a `DEPENDENCY` blocker may
+not carry safe work), and register atomically:
+
+```
+node ops/workflow/transition.mjs --transition create-stream \
+  --state docs/plans/atlas-delivery-cycles.json --expect-revision <R> \
+  --stream-spec ops/workflow/specs/register/SLOT-BREAK-AUTHORITY-C11.json \
+  --observed-origin-main <origin/main tip> \
+  --lease-id lease-slot-break-authority-c11 --lease-role executor \
+  --by primary-planner:slot-break-c11-registration
+```
+
+then `coordination-update --mode CYCLE_ACTIVE --active-cycle-id
+SLOT-BREAK-AUTHORITY-C11 --by primary-planner:slot-break-c11-registration`.
+Re-read `registry.revision` immediately before every transition; on any
 `--expect-revision` disagreement stop and report, never guess.

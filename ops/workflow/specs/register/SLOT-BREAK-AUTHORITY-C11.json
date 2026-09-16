@@ -6,9 +6,7 @@
   "state": "PLANNED",
   "stateUpdatedAt": "2026-09-17T00:00:00Z",
   "nextAction": "After WF-TRANSITION-TERMINAL-RECONCILE-C09 releases its register revision window, register this stream atomically, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/slot-break-authority-c11 against docs/prompts/slot-break-authority-c11-2026-09-17.md.",
-  "awaited": [
-    "WF-TRANSITION-TERMINAL-RECONCILE-C09 reaching a terminal state (or releasing its register revision window 218-227), which is the registration prerequisite"
-  ],
+  "awaited": [],
   "running": [],
   "git": {
     "worktree": "E:/ATLAS-worktrees/slot-break-authority-c11",
@@ -54,8 +52,8 @@
   "successors": [],
   "requires": [],
   "blocker": {
-    "kind": "DEPENDENCY",
-    "detail": "WF-TRANSITION-TERMINAL-RECONCILE-C09 is RUNNING and holds register revisions 218-227 by literal --expect-revision attestation. This stream must not register inside that window.",
+    "kind": "NONE",
+    "detail": "The registration prerequisite is satisfied: WF-TRANSITION-TERMINAL-RECONCILE-C09 is INTEGRATED at origin/main f037e114 and its register revision window 218-227 is released. This stream is PLANNED and has no live work claim. NOTE for its dispatch cycle: a PLANNED record may not hold an ACTIVE lease and no transition moves PLANNED to RUNNING, so registration-at-dispatch must use create-stream with a RUNNING spec and --lease-id/--lease-role in the same atomic transition (see WF-C10's annex).",
     "safeWorkRemaining": true,
     "safeWorkItems": [
       "author the packet and stream spec (done)",
