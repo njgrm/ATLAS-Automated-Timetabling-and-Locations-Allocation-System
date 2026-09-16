@@ -178,6 +178,31 @@ test("row 20 sweep: check --all reports only the genuine defects in a mixed tree
   assert.deepEqual(codesOf(sweep), ["PIN_DIRECTIVE_HASH_UNKNOWN"]);
 });
 
+test("row 20 correction note (R1b direction ii): a quoted superseded value on a directive line never fires", (t) => {
+  const repo = makeDirectiveRepo();
+  t.after(() => cleanupRepo(repo.dir));
+
+  // The exact published-immutability-c08r1 shape: one directive-marked line
+  // carrying the corrected declaration AND, in prose, the full superseded value.
+  const note = `- Directive pin: \`origin/main:AGENTS.md\`, blob \`${repo.blobA}\`, LF-SHA-256 \`${repo.hashA}\`. **Pin correction:** the previous value \`${MISSPRINT}\` reproduces at no \`AGENTS.md\` blob in reachable history.\n`;
+  const packet = writePrompt(repo, "correction-note.md", note);
+  const result = pins(repo, ["check", "--packet", packet]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+
+  // The production instance of that shape sweeps clean too.
+  const real = pins({ dir: REPO_ROOT }, ["check", "--packet", "docs/prompts/published-immutability-c08r1-2026-09-16.md"]);
+  assert.equal(real.status, 0, real.stdout + real.stderr);
+
+  // Direction (i): the same value in the DECLARED slot still fails closed.
+  const declared = writePrompt(repo, "wrong-declared.md", `- Directive: \`origin/main:AGENTS.md\`, blob \`${repo.blobA}\`, LF-SHA-256 \`${MISSPRINT}\`.\n`);
+  const fired = pins(repo, ["check", "--packet", declared]);
+  assert.equal(fired.status, 1);
+  assert.deepEqual(codesOf(fired).sort(), ["PIN_DIRECTIVE_HASH_UNKNOWN", "PIN_HASH_MISMATCH"].sort());
+
+  // Direction (iii) is covered by row 17 above: a declared historical but
+  // reproducible pin passes after the directive is bumped.
+});
+
 test("pins usage: a missing or conflicting selection is a usage error", () => {
   const none = runCli(PINS_CLI, ["check"], { cwd: REPO_ROOT });
   assert.equal(none.status, 2);
