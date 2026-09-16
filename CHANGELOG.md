@@ -1,5 +1,51 @@
 # Changelog
 
+## [2026-09-16] — TT-WARNING-REALISM-C07R1 Warning Authority and Publish-Readiness Truth
+
+### Added
+- Canonical slot-aligned consecutive-teaching resolver
+  (`resolveMaxConsecutiveTeachingMinutesBeforeBreak`): effective threshold =
+  3 × `periodLengthMinutes` (135 for 45-minute periods); a persisted legacy
+  `120` is normalized to the period-aligned default; an explicitly configured
+  slot-expressible value (e.g. 135, 180) is honored verbatim. Persisted bytes
+  are never rewritten.
+- Shared break/shift window authority (`warning-window-authority.service.ts`)
+  derived from the persisted policy row, `PolicySpecialEvent` rows,
+  `GradeShiftWindow` rows and the section roster — no new store.
+
+### Changed
+- `FACULTY_CONSECUTIVE_LIMIT_EXCEEDED` is emitted once per violating contiguous
+  teaching block (with every member entry id) instead of once per member period.
+- `FACULTY_EXCESSIVE_IDLE_GAP` excludes configured Recess/Lunch/Health-Break
+  windows and time outside the teacher's applicable shift; a gap fully covered
+  by a configured break resets the block without a violation.
+- The operator Scheduling Policy GET and PUT responses display the enforced
+  consecutive threshold while the stored row keeps its raw value.
+- Unassigned-session classification follows the observed failure cause: a
+  missing subject or missing qualified faculty is `LACKING_FACULTY` (HARD), not
+  a SOFT `SPECIALIZED_ROOM_UNAVAILABLE`, which now requires both a room-path
+  failure and the specialized-room authority.
+- `ZONE_IMBALANCE_WARNING` carries the resolvable affected entry ids.
+- Violations injected by generation (unassigned/modular/zone) pass through the
+  same constraint-override authority (disable, allowlisted promotion, weight)
+  as the validator's own violations.
+
+### Fixed
+- Simple publish readiness decides from the run-wide gate
+  (`counts.runWide.blockingHard` / `summary.blockingHardViolationCount`); a
+  clean selected term can no longer read "Ready to publish" while another term
+  blocks. Selected-term rails are visibly labeled and never merged with
+  run-wide totals.
+- The blocked sentence separates the hard-violation authority from the
+  unresolved-queue authority, so a hard-only block no longer claims "0 sessions
+  still need fixing" and unresolved sessions are never counted twice.
+- `Treat as Hard` / `Blocks publish` is offered only for the server-owned
+  promotable allowlist; the publish task dispatches to the real
+  publish-readiness surface; every rendered blocker action routes to a real
+  destination.
+- Retired travel-distance UI residue and the stale duplicate
+  `atlas-client/src/types.d.ts` authority are removed.
+
 ## [2026-09-16] — PUBLISHED-IMMUTABILITY-C08/C08R1 Published Revision Immutability
 
 ### Added
