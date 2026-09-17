@@ -133,3 +133,65 @@ per-control results including the mutant and its byte-exact restore; the notific
 list of updated tests with justifications; whether any assertion was removed and why; QA/audit tallies;
 push state; disposition; single next action.
 `REVIEW_REQUIRED` only; never self-approve, merge, or push.
+
+---
+
+## R1 — SCOPE NARROWED after reconnaissance (supersedes §2.1's predicate and §3's control set)
+
+**Finding: most of this is already built and already live** in the deployed release `54dce67b`.
+Reconnaissance (2026-09-17) established that the following exist today and **must not be rebuilt**:
+
+- `GET /runtime/rollover-status` already returns `drift.status` (`aligned` / `atlas-stale` /
+  `mapping-conflict` / `enrollpro-unreachable`), `drift.recommendedAction` (`NONE` /
+  `RUN_ROLLOVER_SYNC` / `RUN_ARCHIVE_AND_SYNC`), `drift.message`, `conflicts`, and reconfigured sections.
+- The UI already surfaces drift in four places — `RolloverGuidanceCard` (Year Setup) with badges,
+  plain-language labels, **dismiss persistence that re-shows on a drift-status change**, and a
+  **conflict-gated apply**; `Dashboard` (`rolloverBlocking`); `TimetableSimpleHeader` and
+  `ScheduleReviewWorkspaceHeader` (`driftBlocked` / `driftMessage`); plus the recovery paths
+  (`/rollover-recovery/{classify,preview,apply}`, `mark-test-data`, `scaffold`), `RolloverResetPanel`, and
+  `termRepairOnly` term-authority repair.
+- The existing gate is already the safety predicate:
+  `canApply = drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0`.
+
+**R1.1 — Reuse the existing gate; do NOT invent a new predicate.** Replace §2.1's bespoke predicate
+(zero conflicts / zero reconfigured sections / empty target-year Teaching Load) with the codebase's own
+verdict:
+
+```
+AUTO-APPLY only when drift.recommendedAction === 'RUN_ROLLOVER_SYNC' && conflicts.length === 0
+```
+
+Any other status — `mapping-conflict`, `atlas-stale` requiring archive, `enrollpro-unreachable`, or any
+non-empty conflicts — **notifies and does not apply**. This keeps the automation and the operator UI on one
+safety contract, and removes the need for new no-op analysis.
+
+**R1.2 — The new work is exactly two things.**
+(a) **Unattended detection with a transition-triggered notification.** Poll as today, compute status
+through the existing service, and notify **only on a status transition** (pattern precedent: the
+`RolloverGuidanceCard` dismiss key is per drift status), never on every tick. The notification carries the
+existing `drift.status`, `drift.recommendedAction`, `drift.message`, and the conflict count.
+(b) **Auto-apply under R1.1's gate, with no auto-archive** (unchanged from §2.2).
+
+**R1.3 — Explicitly out of scope for this lane.** Do not modify, duplicate, or refactor: the
+`RolloverGuidanceCard` / `RolloverResetPanel` / `SimpleDriftBanner` surfaces, the preview/confirm flow, the
+conflict gating, the reconfigured-section acknowledgement, the recovery classify/preview/apply paths, the
+dummy-year reset, `mark-test-data`, or the term-repair surfacing. The client may be touched only if a
+notification must deep-link into the existing Year Setup surface.
+
+**R1.4 — Revised control set (replaces §3 rows 1-5; rows 6-10 stand).**
+
+| # | Control | Expected |
+|---|---|---|
+| 1 | Drift with `recommendedAction === 'RUN_ROLLOVER_SYNC'` and `conflicts.length === 0` | auto-applies once; one completion notification |
+| 2 | Drift with any conflict | does not apply; notification carries `drift.status` and the conflict count; zero target-year writes |
+| 3 | Drift with `recommendedAction === 'RUN_ARCHIVE_AND_SYNC'` (or `mapping-conflict`, or `enrollpro-unreachable`) | does not apply; notification only |
+| 4 | Status unchanged across consecutive ticks | **no** repeat notification (transition-triggered only) |
+| 5 | Any auto-applied case | `archiveSchoolYear` / `archiveSupersededYearsForRecovery` is **never** called |
+| 6-10 | unchanged | single-flight; unreachable backoff; idempotent second tick; `=false` kill-switch; MUTANT restoring unconditional auto-apply must fail controls 2-5 |
+
+**R1.5 — Value statement (so the lane is not oversold).** Two thirds of the originally proposed packet
+was redundant with live behaviour. After R1 the lane adds exactly: unattended detection, the
+transition-triggered notification, auto-apply under the pre-existing gate, and the invariant unpin. If the
+operator judges even that insufficient to justify a cycle, the honest alternative is to leave the
+supervisor pin in place and rely on the existing Year Setup surface — say so rather than building it for
+its own sake.
