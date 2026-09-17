@@ -1,0 +1,103 @@
+{
+  "id": "ROLLOVER-GRADED-AUTONOMY-C01",
+  "kind": "STREAM",
+  "objective": "Implement the operator's rollover decision as graded autonomy in the automated rollover tick: keep unattended drift detection, auto-apply applyRolloverSync ONLY when the preview is provably trivial (zero conflicts, zero reconfigured sections, and an empty target-year Teaching Load so the cleanup deleteMany calls are no-ops), otherwise emit a typed notification carrying the preview summary and apply nothing; never auto-archive superseded years; unpin the supervisor invariant ROLLOVER_AUTO_SYNC_ENABLED at ops/runtime/lib/contract.mjs:59-60 and update the three tests that assert the pin, keeping a working false kill-switch; and preserve single-flight, bounded backoff, recovery markers and idempotency. Source only: no database write, no register write by the lane, no runtime/task/env change in this lane, no companion edit.",
+  "riskTier": "MEDIUM",
+  "state": "PLANNED",
+  "stateUpdatedAt": "2026-09-17T00:00:00Z",
+  "nextAction": "Register by CAS when the register is free, acquire the executor lease, then dispatch one fresh source executor in E:/ATLAS-worktrees/rollover-graded-autonomy-c01 against docs/prompts/rollover-graded-autonomy-c01-2026-09-17.md.",
+  "awaited": [
+    "the register to be free of any held revision window so this stream can register by CAS"
+  ],
+  "running": [],
+  "git": {
+    "worktree": "E:/ATLAS-worktrees/rollover-graded-autonomy-c01",
+    "branch": "fix/rollover-graded-autonomy",
+    "baseSha": "6058d3ab",
+    "candidateSha": null,
+    "integrationSha": null,
+    "changedPaths": [],
+    "remoteObservation": null
+  },
+  "owners": {
+    "planner": { "sessionId": null, "status": "IDLE", "writable": false },
+    "executor": { "sessionId": null, "status": "NONE", "writable": false },
+    "qa": { "sessionId": null, "status": "NONE", "writable": false },
+    "auditor": { "sessionId": null, "status": "NONE", "writable": false }
+  },
+  "gates": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "unperformed": 0,
+    "plan": {
+      "MANDATORY_SOURCE": 10,
+      "MANDATORY_LIVE": 0,
+      "DEFERRED_EXTERNAL": 0
+    },
+    "classes": {
+      "MANDATORY_SOURCE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "MANDATORY_LIVE": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 },
+      "DEFERRED_EXTERNAL": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "unperformed": 0 }
+    }
+  },
+  "review": {
+    "qaVerdict": null,
+    "qaSessionId": null,
+    "auditorVerdict": null,
+    "auditorSessionId": null,
+    "auditRequired": true,
+    "qaRounds": []
+  },
+  "corrections": [],
+  "successors": [],
+  "requires": [],
+  "blocker": {
+    "kind": "DEPENDENCY",
+    "detail": "Registration must not interleave with another stream's held register revision window. No approval gate: ordinary MEDIUM source work. The unpinned invariant and the new tick behaviour only take effect in a deployment, so this lane should integrate before the next deployment and the operator decides whether that deployment carries it.",
+    "safeWorkRemaining": true,
+    "safeWorkItems": [
+      "author the packet and stream spec (done)",
+      "dispatch the fresh source executor after registration",
+      "run the always-run test inventory",
+      "build the disposable-DB synthetic-drift controls"
+    ]
+  },
+  "approval": {
+    "required": false,
+    "presentedReady": false,
+    "granted": false,
+    "operatorIdentity": null,
+    "approvedAt": null,
+    "boundary": null,
+    "approvedActions": [],
+    "requiredObservationIds": [],
+    "execution": null
+  },
+  "observations": [],
+  "artifacts": [],
+  "closure": null,
+  "sessionRouting": {
+    "planner": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "new objective with its own cycle."
+    },
+    "executor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the source correction runs in a fresh executor context in E:/ATLAS-worktrees/rollover-graded-autonomy-c01."
+    },
+    "qa": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "fresh independent QA over the frozen candidate, including the graded predicate, the no-archive control and the mutant."
+    },
+    "auditor": {
+      "decision": "FRESH_REQUIRED",
+      "sessionId": null,
+      "reason": "the stream changes when a live data mutation may occur unattended, so a fresh adversarial Wave Completion Auditor is required after integration."
+    }
+  }
+}
